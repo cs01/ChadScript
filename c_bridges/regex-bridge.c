@@ -37,33 +37,37 @@ void cs_regex_free(void *preg) {
 }
 
 char *cs_regex_exec_dyn(void *preg, const char *str, int max_groups) {
-    regmatch_t *pmatch = (regmatch_t *)calloc((size_t)max_groups, sizeof(regmatch_t));
+    regex_t *regex = (regex_t *)preg;
+    int total = (int)regex->re_nsub + 1;
+    if (total > max_groups) total = max_groups;
+
+    regmatch_t *pmatch = (regmatch_t *)calloc((size_t)total, sizeof(regmatch_t));
     if (!pmatch) return NULL;
 
-    if (regexec((regex_t *)preg, str, (size_t)max_groups, pmatch, 0) != 0) {
+    if (regexec(regex, str, (size_t)total, pmatch, 0) != 0) {
         free(pmatch);
         return NULL;
     }
 
-    int count = 0;
-    for (int i = 0; i < max_groups; i++) {
-        if (pmatch[i].rm_so < 0) break;
-        count++;
-    }
-
-    char **strings = (char **)GC_malloc((size_t)count * sizeof(char *));
-    for (int i = 0; i < count; i++) {
-        int slen = pmatch[i].rm_eo - pmatch[i].rm_so;
-        char *s = (char *)GC_malloc_atomic((size_t)(slen + 1));
-        if (slen > 0) strncpy(s, str + pmatch[i].rm_so, (size_t)slen);
-        s[slen] = '\0';
-        strings[i] = s;
+    char **strings = (char **)GC_malloc((size_t)total * sizeof(char *));
+    for (int i = 0; i < total; i++) {
+        if (pmatch[i].rm_so >= 0) {
+            int slen = pmatch[i].rm_eo - pmatch[i].rm_so;
+            char *s = (char *)GC_malloc_atomic((size_t)(slen + 1));
+            if (slen > 0) strncpy(s, str + pmatch[i].rm_so, (size_t)slen);
+            s[slen] = '\0';
+            strings[i] = s;
+        } else {
+            char *s = (char *)GC_malloc_atomic(1);
+            s[0] = '\0';
+            strings[i] = s;
+        }
     }
     free(pmatch);
 
     char *arr = (char *)GC_malloc(16);
     *((char ***)arr) = strings;
-    *((int *)(arr + 8)) = count;
-    *((int *)(arr + 12)) = count;
+    *((int *)(arr + 8)) = total;
+    *((int *)(arr + 12)) = total;
     return arr;
 }

@@ -2299,7 +2299,11 @@ export class VariableAllocator {
     const objectType = this.resolveMemberAccessObjectType(ma.object);
     if (!objectType) return null;
 
-    const fieldType = this.getInterfaceFieldTypeByName(objectType, ma.property);
+    const classFieldInfo = this.ctx.classGenGetFieldInfo(objectType, ma.property);
+    const classFieldTsType = classFieldInfo
+      ? (classFieldInfo as { index: number; type: string; tsType: string }).tsType
+      : null;
+    const fieldType = this.getInterfaceFieldTypeByName(objectType, ma.property) || classFieldTsType;
     if (!fieldType) return null;
 
     const arrayParsed = parseArrayTypeString(fieldType);

@@ -50,6 +50,20 @@ export class CallExpressionGenerator {
       return this.generateSuperCall(expr, params);
     }
 
+    if (expr.name === "callHandler") {
+      const fnPtr = this.ctx.generateExpression(expr.args[0], params);
+      const typedFn = this.ctx.nextTemp();
+      this.ctx.emit(`${typedFn} = bitcast i8* ${fnPtr} to double (i8*)*`);
+      const callArgsList: string[] = [];
+      for (let ai = 1; ai < expr.args.length; ai++) {
+        const argVal = this.ctx.generateExpression(expr.args[ai], params);
+        callArgsList.push(`i8* ${argVal}`);
+      }
+      const callResult = this.ctx.nextTemp();
+      this.ctx.emit(`${callResult} = call double ${typedFn}(${callArgsList.join(", ")})`);
+      return fnPtr;
+    }
+
     if (expr.name === "__gc_disable") {
       this.ctx.emitCallVoid("@GC_disable", "");
       return "0.0";

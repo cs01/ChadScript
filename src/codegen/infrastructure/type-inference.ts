@@ -687,10 +687,10 @@ export class TypeInference {
     if (objBase.type === "this") {
       const className = this.ctx.getCurrentClassName();
       if (className) {
-        const fieldType = this.ctx.classGenGetFieldType(className, prop);
-        if (fieldType) return this.ctx.typeContext.resolve(fieldType);
         const tsType = this.ctx.classGenGetFieldTsType(className, prop);
         if (tsType) return this.ctx.typeContext.resolve(stripNullable(tsType));
+        const fieldType = this.ctx.classGenGetFieldType(className, prop);
+        if (fieldType) return this.ctx.typeContext.resolve(fieldType);
       }
     }
 
