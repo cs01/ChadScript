@@ -1,6 +1,112 @@
-# httpServe
+# HTTP Server
 
 Built-in HTTP server with websocket support compiled to native code via libuv TCP + picohttpparser.
+
+## Router (recommended)
+
+For most servers, use the `Router` class from `src/router.ts`. It provides an Express/Hono-style API with URL parameter extraction, method matching, and chainable response helpers.
+
+```typescript
+import { Router, Context } from "./src/router";
+
+const app = new Router();
+
+app.get("/", (c: Context) => c.json('{"status":"ok"}'));
+
+app.get("/api/users/:id", (c: Context) => {
+  const id = c.req.param("id");
+  return c.json('{"id":"' + id + '"}');
+});
+
+app.post("/api/users", (c: Context) => {
+  c.status(201);
+  return c.text("Created");
+});
+
+app.notFound((c: Context) => c.status(404).text("Not Found"));
+
+httpServe(3000, (req) => app.handle(req));
+```
+
+### Router methods
+
+| Method | Description |
+|--------|-------------|
+| `app.get(pattern, handler)` | Register GET route |
+| `app.post(pattern, handler)` | Register POST route |
+| `app.put(pattern, handler)` | Register PUT route |
+| `app.delete(pattern, handler)` | Register DELETE route |
+| `app.all(pattern, handler)` | Match any HTTP method |
+| `app.notFound(handler)` | Custom 404 handler |
+| `app.handle(req)` | Dispatch an `HttpRequest` → `HttpResponse` |
+| `app.compile()` | Pre-compile the combined regex (called automatically on first `handle`) |
+
+Route patterns support `:param` segments and `*` wildcards:
+
+```typescript
+app.get("/users/:id", ...);              // /users/42 → param("id") == "42"
+app.get("/users/:name/posts/:pid", ...); // multiple params
+app.all("/static/*", ...);              // wildcard
+```
+
+### Context API
+
+The handler receives a `Context` (aliased as `c` by convention):
+
+```typescript
+app.get("/example", (c: Context) => {
+  // Read request
+  const id    = c.req.param("id");           // URL param
+  const auth  = c.req.header("Authorization"); // request header
+  const body  = c.req.body;                   // raw body
+  const method = c.req.method;               // "GET", "POST", …
+
+  // Build response (chainable)
+  c.status(201);
+  c.header("X-Custom", "value");
+  return c.json('{"ok":true}');
+});
+```
+
+**Response methods** — call one to return the `HttpResponse`:
+
+| Method | Content-Type | Notes |
+|--------|--------------|-------|
+| `c.text(body)` | `text/plain` | |
+| `c.json(body)` | `application/json` | pass a JSON string |
+| `c.html(body)` | `text/html` | |
+| `c.redirect(url)` | — | 302, sets `Location` header |
+
+**Chainable setters** (return `Context`, call before a response method):
+
+| Method | Effect |
+|--------|--------|
+| `c.status(code)` | Set HTTP status code |
+| `c.header(name, value)` | Add a response header |
+
+### HTTP utility functions
+
+`src/http-utils.ts` provides helpers for parsing common request data:
+
+```typescript
+import { getHeader, parseQueryString, parseCookies } from "./src/http-utils";
+
+// Parse a single request header by name (case-insensitive)
+const auth = getHeader(req.headers, "Authorization"); // "Bearer abc"
+
+// Parse a query string into a Map
+const qs = parseQueryString("page=2&limit=10");
+qs.get("page");    // "2"
+qs.get("limit");   // "10"
+
+// Parse the Cookie header into a Map
+const cookies = parseCookies(getHeader(req.headers, "Cookie"));
+cookies.get("session"); // "abc123"
+```
+
+---
+
+## `httpServe(port, handler)`
 
 ## `httpServe(port, handler)`
 

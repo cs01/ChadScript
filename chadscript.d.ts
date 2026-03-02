@@ -225,14 +225,31 @@ interface HttpRequest {
   path: string;
   body: string;
   contentType: string;
+  headers: string;
+  bodyLen: number;
 }
 
 interface HttpResponse {
   status: number;
   body: string;
+  headers: string;
+}
+
+interface WsEvent {
+  data: string;
+  event: string;
+  connId: string;
 }
 
 declare function httpServe(port: number, handler: (req: HttpRequest) => HttpResponse): void;
+declare function httpServe(
+  port: number,
+  handler: (req: HttpRequest) => HttpResponse,
+  wsHandler: (event: WsEvent) => string,
+): void;
+
+declare function wsBroadcast(message: string): void;
+declare function wsSend(connId: string, message: string): void;
 
 // ============================================================================
 // Async / Timers
@@ -291,4 +308,13 @@ declare namespace ChadScript {
   function embedFile(path: string): string;
   function embedDir(path: string): void;
   function getEmbeddedFile(key: string): string;
+  function parseMultipart(req: HttpRequest): MultipartPart[];
+}
+
+interface MultipartPart {
+  name: string;
+  filename: string;
+  contentType: string;
+  data: string;
+  dataLen: number;
 }

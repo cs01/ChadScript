@@ -44,7 +44,7 @@ const result = "hello world".match(/(\w+)/);
 // ["hello", "hello"]
 ```
 
-Returns `null` if no match.
+Returns `null` if no match. `exec` works for both literal patterns (`/foo/`) and runtime-constructed patterns (`new RegExp(str)`) — the group count is read from the compiled regex at runtime.
 
 ## Example
 

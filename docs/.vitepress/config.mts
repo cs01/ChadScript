@@ -23,26 +23,42 @@ export default defineConfig({
     },
 
     nav: [
+      { text: 'Why ChadScript?', link: '/why-chadscript' },
       { text: 'Get Started', link: '/getting-started/installation' },
-      { text: 'API', link: '/stdlib/' },
+      { text: 'API Reference', link: '/stdlib/' },
       { text: 'Benchmarks', link: '/benchmarks' },
       { text: 'GitHub', link: 'https://github.com/cs01/ChadScript' }
     ],
 
     sidebar: [
       {
-        text: 'Getting Started',
+        text: 'Why ChadScript?',
         items: [
-          { text: 'About ChadScript', link: '/language/architecture' },
-          { text: 'Installation', link: '/getting-started/installation' },
-          { text: 'Examples', link: '/getting-started/quickstart' },
-          { text: 'CLI Reference', link: '/getting-started/cli' },
-          { text: 'Supported Features', link: '/language/features' },
-          { text: 'Debugging', link: '/getting-started/debugging' }
+          { text: 'Why ChadScript?', link: '/why-chadscript' },
+          { text: 'Benchmarks', link: '/benchmarks' },
+          { text: 'FAQ', link: '/faq' },
         ]
       },
       {
-        text: 'Standard Library',
+        text: 'Get Started',
+        items: [
+          { text: 'Installation', link: '/getting-started/installation' },
+          { text: 'Quickstart', link: '/getting-started/quickstart' },
+          { text: 'CLI Reference', link: '/getting-started/cli' },
+          { text: 'Debugging', link: '/getting-started/debugging' },
+        ]
+      },
+      {
+        text: 'Language',
+        items: [
+          { text: 'Supported Features', link: '/language/features' },
+          { text: 'Classes & Interfaces', link: '/language/classes' },
+          { text: 'Type Mappings', link: '/language/type-mappings' },
+          { text: 'How It Works', link: '/language/architecture' },
+        ]
+      },
+      {
+        text: 'API Reference',
         items: [
           { text: 'Overview', link: '/stdlib/' },
           { text: 'Array Methods', link: '/stdlib/array' },
@@ -54,7 +70,7 @@ export default defineConfig({
           { text: 'Date', link: '/stdlib/date' },
           { text: 'fetch', link: '/stdlib/fetch' },
           { text: 'fs', link: '/stdlib/fs' },
-          { text: 'httpServe', link: '/stdlib/http-server' },
+          { text: 'HTTP Server / Router', link: '/stdlib/http-server' },
           { text: 'JSON', link: '/stdlib/json' },
           { text: 'Map', link: '/stdlib/map' },
           { text: 'Math', link: '/stdlib/math' },
@@ -69,12 +85,6 @@ export default defineConfig({
           { text: 'String Methods', link: '/stdlib/string' },
           { text: 'Syscalls', link: '/stdlib/syscalls' },
           { text: 'tty', link: '/stdlib/tty' }
-        ]
-      },
-      {
-        text: 'Performance',
-        items: [
-          { text: 'Benchmarks', link: '/benchmarks' }
         ]
       },
     ],
