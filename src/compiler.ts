@@ -1,5 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
+import { fileURLToPath } from "url";
+const _libDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "../lib");
 import { execSync } from "child_process";
 import { parseWithTSAPI } from "./parser-ts/index.js";
 import { LLVMGenerator, LLVMGeneratorOptions, SemaSymbolData } from "./codegen/llvm-generator.js";
@@ -617,6 +619,44 @@ function compileMultiFile(
         isBuiltinModule = true;
       }
       if (isBuiltinModule) {
+        i = i + 1;
+        continue;
+      }
+
+      if (imp.source.startsWith("chadscript/")) {
+        const stdlibName = imp.source.substring("chadscript/".length);
+        const libPath = path.join(_libDir, stdlibName + ".ts");
+        const importedAST = compileMultiFile(
+          libPath,
+          compiledFiles,
+          fileContentKeys,
+          fileContentValues,
+        );
+        mergedAST.imports = mergedAST.imports.concat(importedAST.imports);
+        mergedAST.functions = mergedAST.functions.concat(importedAST.functions);
+        mergedAST.classes = mergedAST.classes.concat(importedAST.classes);
+        mergedAST.interfaces = mergedAST.interfaces.concat(importedAST.interfaces);
+        mergedAST.typeAliases = mergedAST.typeAliases.concat(importedAST.typeAliases || []);
+        mergedAST.enums = mergedAST.enums.concat(importedAST.enums || []);
+        mergedAST.topLevelStatements = importedAST.topLevelStatements.concat(
+          mergedAST.topLevelStatements,
+        );
+        if (importedAST.topLevelItems) {
+          mergedAST.topLevelItems = importedAST.topLevelItems.concat(mergedAST.topLevelItems || []);
+        }
+        if (importedAST.topLevelItemTypes) {
+          mergedAST.topLevelItemTypes = importedAST.topLevelItemTypes.concat(
+            mergedAST.topLevelItemTypes || [],
+          );
+        }
+        if (importedAST.importAliasNames && importedAST.importAliasNames.length > 0) {
+          mergedAST.importAliasNames = mergedAST.importAliasNames!.concat(
+            importedAST.importAliasNames,
+          );
+          mergedAST.importAliasOriginals = mergedAST.importAliasOriginals!.concat(
+            importedAST.importAliasOriginals!,
+          );
+        }
         i = i + 1;
         continue;
       }

@@ -1,5 +1,5 @@
 // Hacker News Clone - full-stack app with SQLite, embedded files, and a JSON API
-import { ArgumentParser } from "../../src/argparse.js";
+import { ArgumentParser } from "chadscript/argparse";
 
 const parser = new ArgumentParser(
   "hackernews",

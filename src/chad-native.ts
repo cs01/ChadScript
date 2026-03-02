@@ -11,10 +11,14 @@ import {
   addLinkLib,
   addLinkPath,
   setDiagnosticColor,
+  registerStdlib,
 } from "./native-compiler-lib.js";
 // d.ts content is embedded at compile time via ChadScript.embedFile
 const dtsContent = ChadScript.embedFile("../chadscript.d.ts");
-import { ArgumentParser } from "./argparse.js";
+registerStdlib("router.ts", ChadScript.embedFile("../lib/router.ts"));
+registerStdlib("argparse.ts", ChadScript.embedFile("../lib/argparse.ts"));
+registerStdlib("http-utils.ts", ChadScript.embedFile("../lib/http-utils.ts"));
+import { ArgumentParser } from "chadscript/argparse";
 
 declare const fs: {
   existsSync(filename: string): boolean;

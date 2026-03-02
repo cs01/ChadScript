@@ -1,6 +1,6 @@
 // @test-description: Router param extraction and basic routing
 
-import { Router, Context } from "../../../src/router";
+import { Router, Context } from "chadscript/router";
 
 function testRouter(): void {
   const app = new Router();

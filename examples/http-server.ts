@@ -1,6 +1,6 @@
-import { ArgumentParser } from "../src/argparse.js";
-import { Router, Context } from "../src/router.js";
-import { getHeader, parseQueryString } from "../src/http-utils.js";
+import { ArgumentParser } from "chadscript/argparse";
+import { Router, Context } from "chadscript/router";
+import { getHeader, parseQueryString } from "chadscript/http-utils";
 
 const parser = new ArgumentParser("http-server", "HTTP server with Router API");
 parser.addOption("port", "p", "Port to listen on", "3000");
