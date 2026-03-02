@@ -72,6 +72,20 @@ function getExprType(expr: Expression | null | undefined): string {
   return (expr as ExprBase).type;
 }
 
+let currentFile = "<input>";
+
+export function setCurrentFile(file: string): void {
+  currentFile = file;
+}
+
+function getLineFromIndex(source: string, index: number): number {
+  let line = 1;
+  for (let i = 0; i < index && i < source.length; i++) {
+    if (source[i] === "\n") line = line + 1;
+  }
+  return line;
+}
+
 export function transformTree(tree: TreeSitterTree): AST {
   return transformProgram(tree.rootNode);
 }
@@ -2684,14 +2698,31 @@ function transformClassMethod(node: TreeSitterNode): ClassMethod | null {
   const bodyNode = getChildByFieldName(node, "body");
   const returnTypeNode = getChildByFieldName(node, "return_type");
 
-  // Detect static keyword (unnamed child)
   let isStatic = false;
+  let accessorKind = "";
   for (let i = 0; i < node.childCount; i++) {
     const child = getChild(node, i);
-    if (child && !(child as NodeBase).isNamed && (child as NodeBase).type === "static") {
-      isStatic = true;
-      break;
+    if (child && !(child as NodeBase).isNamed) {
+      const childType = (child as NodeBase).type;
+      if (childType === "static") isStatic = true;
+      else if (childType === "get" || childType === "set") accessorKind = childType;
     }
+  }
+
+  if (accessorKind !== "") {
+    const nameText = nameNode ? (nameNode as NodeBase).text : "?";
+    const line = getLineFromIndex((node as NodeBase).source, (node as NodeBase).startIndex);
+    console.error(
+      currentFile +
+        ":" +
+        line +
+        ": error: '" +
+        accessorKind +
+        " " +
+        nameText +
+        "()' is not supported; use a regular public method instead",
+    );
+    process.exit(1);
   }
 
   const name = nameNode ? (nameNode as NodeBase).text : "";
