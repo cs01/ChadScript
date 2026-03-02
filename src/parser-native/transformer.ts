@@ -327,7 +327,7 @@ function handleExpressionStatement(node: TreeSitterNode, ast: AST): void {
   const e = expr as ExprBase;
 
   if (e.type === "member_access_assignment" || e.type === "index_access_assignment") {
-    const memberExprTyped = expr as { type: string; property: string };
+    const memberExprTyped = expr as { type: string; object: Expression; property: string };
     const assignment: AssignmentStatement = {
       type: "assignment",
       name:
