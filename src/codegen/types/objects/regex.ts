@@ -161,6 +161,17 @@ export class RegexGenerator {
     return result;
   }
 
+  generateRegexExecDyn(regexPtr: string, testStr: string): string {
+    this.ctx.setUsesRegex(true);
+    const result = this.ctx.emitCall(
+      "i8*",
+      "@cs_regex_exec_dyn",
+      `i8* ${regexPtr}, i8* ${testStr}, i32 64`,
+    );
+    this.ctx.setVariableType(result, "i8*");
+    return result;
+  }
+
   // Clean up regex resources
   generateRegexFree(regexPtr: string): void {
     this.ctx.emitCallVoid("@cs_regex_free", `i8* ${regexPtr}`);

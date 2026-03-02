@@ -76,6 +76,7 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += "declare i64 @cs_pmatch_start(i8*, i32)\n";
   ir += "declare i64 @cs_pmatch_end(i8*, i32)\n";
   ir += "declare void @cs_regex_free(i8*)\n";
+  ir += "declare i8* @cs_regex_exec_dyn(i8*, i8*, i32)\n";
   ir += "\n";
 
   // child_process bridge — %SpawnSyncResult = { stdout: i8*, stderr: i8*, status: double }

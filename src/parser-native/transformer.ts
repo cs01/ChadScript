@@ -2522,7 +2522,26 @@ function extractTypeString(typeNode: TreeSitterNode): string {
   }
 
   if (tn.type === "function_type") {
-    return "Function";
+    const paramsNode = getChildByFieldName(typeNode, "parameters");
+    const returnTypeNode = getChildByFieldName(typeNode, "return_type");
+    const parts: string[] = [];
+    if (paramsNode) {
+      const pn = paramsNode as NodeBase;
+      for (let i = 0; i < pn.namedChildCount; i++) {
+        const param = getNamedChild(paramsNode, i);
+        if (!param) continue;
+        const p = param as NodeBase;
+        if (p.type === "required_parameter" || p.type === "optional_parameter") {
+          const patternNode = getChildByFieldName(param, "pattern");
+          const typeAnnotationNode = getChildByFieldName(param, "type");
+          const paramName = patternNode ? (patternNode as NodeBase).text : "";
+          const paramType = typeAnnotationNode ? extractTypeString(typeAnnotationNode) : "any";
+          parts.push(paramName + ": " + paramType);
+        }
+      }
+    }
+    const returnType = returnTypeNode ? extractTypeString(returnTypeNode) : "void";
+    return "(" + parts.join(", ") + ") => " + returnType;
   }
 
   return tn.text;

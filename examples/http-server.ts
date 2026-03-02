@@ -1,106 +1,86 @@
-// ChadScript HTTP Server - Express-like routing with HttpRequest/HttpResponse
 import { ArgumentParser } from "../src/argparse.js";
+import { Router, Context } from "../src/router.js";
+import { getHeader, parseQueryString } from "../src/http-utils.js";
 
-const parser = new ArgumentParser("http-server", "HTTP server with Express-like routing");
+const parser = new ArgumentParser("http-server", "HTTP server with Router API");
 parser.addOption("port", "p", "Port to listen on", "3000");
 parser.parse(process.argv);
 
 const port = parseInt(parser.getOption("port"));
 
-interface HttpRequest {
-  method: string;
-  path: string;
-  body: string;
-  contentType: string;
-}
+const app = new Router();
 
-interface HttpResponse {
-  status: number;
-  body: string;
-}
+app.get("/", (c: Context) => {
+  return c.json('{"name":"ChadScript HTTP Server","status":"running"}');
+});
 
-// --- Route Handlers ---
+app.get("/json", (c: Context) => {
+  return c.json('{"message":"hello","count":42}');
+});
 
-function homeHandler(req: HttpRequest): HttpResponse {
-  return { status: 200, body: '{"name":"ChadScript HTTP Server","status":"running"}' };
-}
+app.get("/api/users/:id", (c: Context) => {
+  const id = c.req.param("id");
+  return c.json('{"id":"' + id + '"}');
+});
 
-function jsonHandler(req: HttpRequest): HttpResponse {
-  return { status: 200, body: '{"message":"hello","count":42}' };
-}
+app.get("/api/users/:name/posts/:pid", (c: Context) => {
+  const name = c.req.param("name");
+  const pid = c.req.param("pid");
+  return c.json('{"user":"' + name + '","post":"' + pid + '"}');
+});
 
-function echoHandler(req: HttpRequest): HttpResponse {
-  return { status: 200, body: req.body };
-}
+app.get("/status/:code", (c: Context) => {
+  const code = parseInt(c.req.param("code"));
+  c.status(code);
+  return c.text("Status " + c.req.param("code"));
+});
 
-function echoQueryHandler(req: HttpRequest): HttpResponse {
-  return { status: 200, body: req.path.substring(10, req.path.length) };
-}
+app.get("/headers", (c: Context) => {
+  const auth = getHeader(c.req.headers, "Authorization");
+  return c.text("Authorization: " + auth);
+});
 
-function statusHandler(req: HttpRequest): HttpResponse {
-  const code = req.path.substring(8, req.path.length);
-  return { status: 200, body: "Status " + code };
-}
+app.get("/redirect", (c: Context) => {
+  return c.redirect("/");
+});
 
-function contentTypeHandler(req: HttpRequest): HttpResponse {
-  return { status: 200, body: "Content-Type: " + req.contentType };
-}
+app.post("/echo", (c: Context) => {
+  return c.text(c.req.body);
+});
 
-function errorHandler(req: HttpRequest): HttpResponse {
-  return { status: 500, body: "Internal Server Error" };
-}
+app.post("/api/users", (c: Context) => {
+  c.status(201);
+  return c.json('{"created":true}');
+});
 
-function createdHandler(req: HttpRequest): HttpResponse {
-  return { status: 201, body: "Resource Created" };
-}
+app.notFound((c: Context) => {
+  c.status(404);
+  return c.json('{"error":"not found","path":"' + c.req.path + '"}');
+});
 
-function notFoundHandler(req: HttpRequest): HttpResponse {
-  return { status: 404, body: "Not Found" };
-}
-
-// --- Router ---
-
-function handleRequest(req: HttpRequest): HttpResponse {
-  console.log(req.method + " " + req.path);
-
-  // GET routes
-  if (req.method == "GET") {
-    if (req.path == "/") return homeHandler(req);
-    if (req.path == "/json") return jsonHandler(req);
-    if (req.path.startsWith("/echo?msg=")) return echoQueryHandler(req);
-    if (req.path.startsWith("/status/")) return statusHandler(req);
-    if (req.path == "/content-type") return contentTypeHandler(req);
-    if (req.path == "/error") return errorHandler(req);
-    if (req.path == "/created") return createdHandler(req);
-  }
-
-  // POST routes
-  if (req.method == "POST") {
-    if (req.path == "/echo") return echoHandler(req);
-  }
-
-  return notFoundHandler(req);
-}
-
-// --- Start Server ---
-
-console.log("ChadScript HTTP Server");
+console.log("ChadScript HTTP Server (Router API)");
 console.log("  listening on http://localhost:" + port);
 console.log("");
-console.log("Available routes:");
-console.log("  GET  /              - Server info (JSON)");
-console.log("  GET  /json          - JSON response");
-console.log("  GET  /echo?msg=...  - Echo query parameter");
-console.log("  GET  /status/:code  - Status code demo");
-console.log("  GET  /content-type  - Show request content type");
-console.log("  GET  /error         - 500 error response");
-console.log("  GET  /created       - 201 created response");
-console.log("  POST /echo          - Echo request body");
+console.log("Routes:");
+console.log("  GET  /                        - server info");
+console.log("  GET  /json                    - JSON response");
+console.log("  GET  /api/users/:id           - user by ID");
+console.log("  GET  /api/users/:name/posts/:pid - multi-param");
+console.log("  GET  /status/:code            - custom status code");
+console.log("  GET  /headers                 - echo Authorization header");
+console.log("  GET  /redirect                - 302 → /");
+console.log("  POST /echo                    - echo body");
+console.log("  POST /api/users               - 201 created");
 console.log("");
-console.log("Try it out:");
-console.log("  curl http://localhost:" + port + "/");
-console.log("  curl http://localhost:" + port + "/json");
-console.log("  curl http://localhost:" + port + "/echo?msg=hello");
-console.log("  curl -X POST -d 'hello world' http://localhost:" + port + "/echo");
+console.log("Try it:");
+console.log("  curl http://localhost:" + port + "/api/users/42");
+console.log("  curl http://localhost:" + port + "/api/users/alice/posts/7");
+console.log("  curl -X POST -d 'hello' http://localhost:" + port + "/echo");
+console.log("  curl -H 'Authorization: Bearer token' http://localhost:" + port + "/headers");
 console.log("");
+
+function handleRequest(req: HttpRequest): HttpResponse {
+  return app.handle(req);
+}
+
 httpServe(port, handleRequest);

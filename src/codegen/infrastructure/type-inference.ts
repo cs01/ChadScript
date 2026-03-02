@@ -359,7 +359,7 @@ export class TypeInference {
       return this.ctx.typeContext.booleanType;
     }
 
-    if (method === "match" || method === "exec") {
+    if (method === "match" || method === "exec" || method === "execDyn") {
       return this.ctx.typeContext.getArrayType("string");
     }
 
@@ -687,10 +687,10 @@ export class TypeInference {
     if (objBase.type === "this") {
       const className = this.ctx.getCurrentClassName();
       if (className) {
-        const fieldType = this.ctx.classGenGetFieldType(className, prop);
-        if (fieldType) return this.ctx.typeContext.resolve(fieldType);
         const tsType = this.ctx.classGenGetFieldTsType(className, prop);
         if (tsType) return this.ctx.typeContext.resolve(stripNullable(tsType));
+        const fieldType = this.ctx.classGenGetFieldType(className, prop);
+        if (fieldType) return this.ctx.typeContext.resolve(fieldType);
       }
     }
 
@@ -2142,7 +2142,10 @@ export class TypeInference {
           return true;
         }
       }
-      if (methodExpr.method === "exec" && this.isRegexExpression(methodExpr.object)) {
+      if (
+        (methodExpr.method === "exec" || methodExpr.method === "execDyn") &&
+        this.isRegexExpression(methodExpr.object)
+      ) {
         return true;
       }
       if (

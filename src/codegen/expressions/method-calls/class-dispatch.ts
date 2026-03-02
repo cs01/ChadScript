@@ -672,6 +672,41 @@ export function handleClassMethods(
         className = resolvedType;
       }
     }
+  } else if (exprObjBase.type === "index_access") {
+    const indexAccess = expr.object as { type: string; object: Expression; index: Expression };
+    const baseExpr = indexAccess.object;
+    const baseExprBase = baseExpr as ExprBase;
+    if (baseExprBase.type === "member_access") {
+      const memberAccess = baseExpr as MemberAccessNode;
+      const memberObjBase = memberAccess.object as ExprBase;
+      if (memberObjBase.type === "this") {
+        const curClassName = ctx.getCurrentClassName();
+        if (curClassName) {
+          const fieldInfoResult = ctx.classGenGetFieldInfo(curClassName, memberAccess.property);
+          const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+          if (fieldInfoResult && fieldInfo.tsType) {
+            let tsType = fieldInfo.tsType;
+            if (tsType.indexOf(" | ") !== -1) {
+              tsType = tsType
+                .replace(/ \| undefined/g, "")
+                .replace(/ \| null/g, "")
+                .trim();
+            }
+            if (tsType.endsWith("[]")) {
+              tsType = tsType.substring(0, tsType.length - 2);
+            }
+            const classesLenIA = ctx.getAstClassesLength();
+            for (let ci = 0; ci < classesLenIA; ci++) {
+              if (ctx.getAstClassNameAt(ci) === tsType) {
+                instancePtr = ctx.generateExpression(expr.object, params);
+                className = tsType;
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
   } else if (exprObjBase.type === "super") {
     const thisPtr = ctx.getThisPointer();
     if (!thisPtr) {

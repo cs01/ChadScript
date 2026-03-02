@@ -70,7 +70,7 @@ export default defineConfig({
           { text: 'Date', link: '/stdlib/date' },
           { text: 'fetch', link: '/stdlib/fetch' },
           { text: 'fs', link: '/stdlib/fs' },
-          { text: 'httpServe', link: '/stdlib/http-server' },
+          { text: 'HTTP Server / Router', link: '/stdlib/http-server' },
           { text: 'JSON', link: '/stdlib/json' },
           { text: 'Map', link: '/stdlib/map' },
           { text: 'Math', link: '/stdlib/math' },

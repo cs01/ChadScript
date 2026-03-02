@@ -16,5 +16,12 @@
     "moduleResolution": "node"
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "tests", "src/chad-native.ts"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "tests",
+    "src/chad-native.ts",
+    "src/router.ts",
+    "src/http-utils.ts"
+  ]
 }

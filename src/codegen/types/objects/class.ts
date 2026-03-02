@@ -1089,7 +1089,30 @@ export class ClassGenerator {
       if (ai < args.length) {
         const arg = args[ai];
         const argTyped = arg as { type: string };
+        if (argTyped.type === "arrow_function" && ai < paramTypes.length) {
+          const paramTypeStr = paramTypes[ai];
+          if (paramTypeStr.startsWith("(")) {
+            const colonIdx = paramTypeStr.indexOf(": ");
+            if (colonIdx !== -1) {
+              const afterColon = paramTypeStr.substring(colonIdx + 2);
+              const commaIdx = afterColon.indexOf(",");
+              const parenIdx = afterColon.indexOf(")");
+              const endIdx =
+                commaIdx === -1
+                  ? parenIdx
+                  : parenIdx === -1
+                    ? commaIdx
+                    : commaIdx < parenIdx
+                      ? commaIdx
+                      : parenIdx;
+              const firstParamType =
+                endIdx !== -1 ? afterColon.substring(0, endIdx).trim() : afterColon.trim();
+              this.ctx.setExpectedCallbackParamType(firstParamType);
+            }
+          }
+        }
         const val = this.ctx.generateExpression(arg, params);
+        this.ctx.setExpectedCallbackParamType(null);
 
         let argType = "double";
         if (ai < paramLLVMTypes.length) {
@@ -1110,7 +1133,9 @@ export class ClassGenerator {
         if (argType === "double") {
           argParts.push(argType + " " + this.ctx.ensureDouble(val));
         } else {
-          argParts.push(argType + " " + val);
+          const valRef =
+            val.startsWith("%") || val.startsWith("@") || val === "null" ? val : "@" + val;
+          argParts.push(argType + " " + valRef);
         }
       } else {
         let argType = "double";
