@@ -79,4 +79,8 @@ console.log("  curl -X POST -d 'hello' http://localhost:" + port + "/echo");
 console.log("  curl -H 'Authorization: Bearer token' http://localhost:" + port + "/headers");
 console.log("");
 
-httpServe(port, (req) => app.handle(req));
+function handleRequest(req: HttpRequest): HttpResponse {
+  return app.handle(req);
+}
+
+httpServe(port, handleRequest);

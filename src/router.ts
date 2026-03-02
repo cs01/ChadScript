@@ -16,28 +16,20 @@ interface HttpResponse {
 }
 
 class RouterRequest {
-  private _req: HttpRequest;
+  method: string;
+  path: string;
+  body: string;
+  contentType: string;
+  headers: string;
   private _params: Map<string, string>;
 
   constructor(req: HttpRequest, params: Map<string, string>) {
-    this._req = req;
+    this.method = req.method;
+    this.path = req.path;
+    this.body = req.body;
+    this.contentType = req.contentType;
+    this.headers = req.headers;
     this._params = params;
-  }
-
-  get method(): string {
-    return this._req.method;
-  }
-
-  get path(): string {
-    return this._req.path;
-  }
-
-  get body(): string {
-    return this._req.body;
-  }
-
-  get contentType(): string {
-    return this._req.contentType;
   }
 
   param(name: string): string {
@@ -47,7 +39,7 @@ class RouterRequest {
   }
 
   header(name: string): string {
-    return getHeader(this._req.headers, name);
+    return getHeader(this.headers, name);
   }
 }
 
