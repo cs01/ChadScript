@@ -266,6 +266,8 @@ export class RuntimeGenerator {
     ir += "declare i8* @csyyjson_create_arr()\n";
     ir += "declare i8* @csyyjson_mut_arr_add_obj(i8*, i8*)\n";
     ir += "declare i8* @csyyjson_obj_add_obj(i8*, i8*, i8*)\n";
+    ir += "declare void @csyyjson_arr_add_str(i8*, i8*, i8*)\n";
+    ir += "declare void @csyyjson_arr_add_num(i8*, i8*, double)\n";
     ir += "\n";
 
     ir += "define i32 @csyyjson_get_num_as_int(i8* %item) {\n";

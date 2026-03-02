@@ -118,6 +118,16 @@ void *csyyjson_mut_arr_add_obj(void *doc, void *arr) {
     return (void *)yyjson_mut_arr_add_obj((yyjson_mut_doc *)doc, (yyjson_mut_val *)arr);
 }
 
+void csyyjson_arr_add_str(void *doc, void *arr, const char *val) {
+    if (!doc || !arr) return;
+    yyjson_mut_arr_add_str((yyjson_mut_doc *)doc, (yyjson_mut_val *)arr, val ? val : "");
+}
+
+void csyyjson_arr_add_num(void *doc, void *arr, double val) {
+    if (!doc || !arr) return;
+    yyjson_mut_arr_add_real((yyjson_mut_doc *)doc, (yyjson_mut_val *)arr, val);
+}
+
 void *csyyjson_mut_get_root(void *doc) {
     if (!doc) return NULL;
     return (void *)yyjson_mut_doc_get_root((yyjson_mut_doc *)doc);
