@@ -1810,7 +1810,7 @@ export class TypeInference {
     let e = expr as ExprBase;
     let indexExpr: Expression = expr;
     if (e.type === "type_assertion") {
-      const assertion = expr as { expression: Expression; assertedType: string };
+      const assertion = expr as { type: string; expression: Expression; assertedType: string };
       if (assertion.expression) {
         indexExpr = assertion.expression;
         e = assertion.expression as ExprBase;

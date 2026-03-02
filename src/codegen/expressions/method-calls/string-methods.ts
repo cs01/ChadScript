@@ -546,7 +546,7 @@ export function handleReplace(
   const replaceArg = expr.args[1];
 
   if (searchArg.type === "regex") {
-    const regexNode = searchArg as { pattern: string; flags: string };
+    const regexNode = searchArg as { type: string; pattern: string; flags: string };
     const isGlobal = regexNode.flags.indexOf("g") !== -1;
     const searchStr = ctx.stringGen.doGenerateGlobalString(regexNode.pattern);
     const replaceStr = ctx.generateExpression(replaceArg, params);

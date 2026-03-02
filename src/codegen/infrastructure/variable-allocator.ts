@@ -1667,7 +1667,12 @@ export class VariableAllocator {
     if (!setTypeInfoResult && stmt.value) {
       const valueBase = stmt.value as { type: string };
       if (valueBase.type === "new") {
-        const newExpr = stmt.value as { className: string; typeArgs?: string[] };
+        const newExpr = stmt.value as {
+          type: string;
+          className: string;
+          args: Expression[];
+          typeArgs?: string[];
+        };
         if (newExpr.className === "Set" && newExpr.typeArgs && newExpr.typeArgs.length > 0) {
           setTypeInfoResult = { valueType: newExpr.typeArgs[0] };
         }
