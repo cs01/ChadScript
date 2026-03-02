@@ -293,7 +293,7 @@ export class Router {
 
     const path = rawReq.path;
     const method = rawReq.method;
-    const match = this.compiledRegex.execDyn(path);
+    const match = this.compiledRegex.exec(path);
 
     if (match !== null) {
       for (let i = 0; i < this.routes.length; i++) {

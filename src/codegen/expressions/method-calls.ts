@@ -864,13 +864,6 @@ export class MethodCallGenerator {
       }
     }
 
-    if (method === "execDyn") {
-      const isRegex = this.ctx.isRegexExpression(expr.object);
-      if (isRegex) {
-        return this.handleRegexExecDyn(expr, params);
-      }
-    }
-
     if (method === "isFile" || method === "isDirectory") {
       let statI8Ptr: string | null = null;
 
@@ -1404,32 +1397,6 @@ export class MethodCallGenerator {
   private handleRegexExec(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length !== 1) {
       return this.ctx.emitError(`exec() expects 1 argument, got ${expr.args.length}`, expr.loc);
-    }
-
-    const strPtr = this.ctx.generateExpression(expr.args[0], params);
-
-    const regexObj = expr.object;
-    const regexBase = regexObj as { type: string; pattern?: string; flags?: string };
-
-    let numGroups = 0;
-    if (regexBase.type === "regex" && regexBase.pattern) {
-      const pattern = regexBase.pattern;
-      for (let gi = 0; gi < pattern.length; gi++) {
-        if (pattern[gi] === "(") {
-          numGroups = numGroups + 1;
-        }
-      }
-    } else {
-      numGroups = 9;
-    }
-
-    const regexPtr = this.ctx.generateExpression(regexObj, params);
-    return this.ctx.regexGen.generateRegexMatch(regexPtr, strPtr, numGroups);
-  }
-
-  private handleRegexExecDyn(expr: MethodCallNode, params: string[]): string {
-    if (expr.args.length !== 1) {
-      return this.ctx.emitError(`execDyn() expects 1 argument, got ${expr.args.length}`, expr.loc);
     }
     const regexPtr = this.ctx.generateExpression(expr.object, params);
     const strPtr = this.ctx.generateExpression(expr.args[0], params);

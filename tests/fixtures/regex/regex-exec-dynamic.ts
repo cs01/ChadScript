@@ -1,8 +1,8 @@
-// @test-description: dynamic regex exec returns string array
+// @test-description: regex exec on runtime-constructed pattern returns correct groups
 
-function testExecDyn(): void {
+function testExecDynamic(): void {
   const re = new RegExp("([a-z]+)/([0-9]+)");
-  const m1 = re.execDyn("rooms/42");
+  const m1 = re.exec("rooms/42");
   if (m1 === null) {
     console.log("FAIL: expected match");
     process.exit(1);
@@ -20,7 +20,7 @@ function testExecDyn(): void {
     process.exit(1);
   }
 
-  const m2 = re.execDyn("nope");
+  const m2 = re.exec("nope");
   if (m2 !== null) {
     console.log("FAIL: expected no match");
     process.exit(1);
@@ -28,4 +28,4 @@ function testExecDyn(): void {
 
   console.log("TEST_PASSED");
 }
-testExecDyn();
+testExecDynamic();
