@@ -1,5 +1,6 @@
 import {
   compileNative,
+  parseFileToAST,
   setSkipSemanticAnalysis,
   setEmitLLVMOnly,
   setTargetCpu,
@@ -65,6 +66,7 @@ parser.addSubcommandInGroup("init", "Generate starter project", "Project");
 parser.addSubcommandInGroup("clean", "Remove the .build directory", "Project");
 parser.addSubcommandInGroup("ir", "Emit LLVM IR only", "Advanced");
 parser.addSubcommandInGroup("target", "Manage cross-compilation target SDKs", "Advanced");
+parser.addSubcommandInGroup("ast-dump", "Dump parsed AST as JSON", "Advanced");
 
 parser.addFlag("version", "", "Show version");
 parser.addScopedOption("output", "o", "Specify output file", "", "build,run,ir");
@@ -242,6 +244,22 @@ if (command === "watch") {
   // Resolve the chad binary path for recompilation
   const chadBin = process.argv0;
   cs_watch_loop(chadBin, watchInput, watchOutput);
+  process.exit(0);
+}
+
+if (command === "ast-dump") {
+  const inputFile = parser.getPositional(0);
+  if (inputFile.length === 0) {
+    console.log("chad: error: no input files");
+    process.exit(1);
+    throw new Error("unreachable");
+  }
+  if (!fs.existsSync(inputFile)) {
+    console.log("chad: error: file not found: " + inputFile);
+    process.exit(1);
+    throw new Error("unreachable");
+  }
+  console.log(parseFileToAST(inputFile));
   process.exit(0);
 }
 

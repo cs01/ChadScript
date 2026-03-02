@@ -5,7 +5,7 @@ import { parseSource } from "./parser-native/index.js";
 import { transformTree } from "./parser-native/transformer.js";
 import { LLVMGenerator, LLVMGeneratorOptions, SemaSymbolData } from "./codegen/llvm-generator.js";
 import { SemanticAnalyzer } from "./analysis/semantic-analyzer.js";
-import { AST, ImportDeclaration } from "./ast/types.js";
+import { AST, ImportDeclaration, FunctionNode, ClassNode, ClassMethod } from "./ast/types.js";
 import { TargetInfo } from "./target-types.js";
 
 declare const child_process: {
@@ -170,6 +170,69 @@ function tripleToTargetName(triple: string): string {
   const archName = isAarch64 ? "arm64" : "x64";
   if (!isLinux && !isDarwin) return "";
   return osName + "-" + archName;
+}
+
+export function parseFileToAST(inputFile: string): string {
+  __gc_disable();
+  const absPath = path.resolve(inputFile);
+  const code = fs.readFileSync(absPath);
+  const tree = parseSource(code);
+  const ast = transformTree(tree);
+
+  // JSON.stringify(ast) doesn't work for interface-typed objects in native ChadScript —
+  // it falls to the number path and treats pointers as doubles. Access fields explicitly.
+  // JSON.stringify(string[]) is also unimplemented; iterate manually instead.
+  let out = '{"imports":[';
+  let ii = 0;
+  while (ii < ast.imports.length) {
+    if (ii > 0) out = out + ",";
+    const imp = ast.imports[ii] as ImportDeclaration;
+    let specJson = "[";
+    let si = 0;
+    while (si < imp.specifiers.length) {
+      if (si > 0) specJson = specJson + ",";
+      specJson = specJson + JSON.stringify(imp.specifiers[si]);
+      si = si + 1;
+    }
+    specJson = specJson + "]";
+    out = out + '{"source":' + JSON.stringify(imp.source) + ',"specifiers":' + specJson + "}";
+    ii = ii + 1;
+  }
+  out = out + '],"functions":[';
+  let fi = 0;
+  while (fi < ast.functions.length) {
+    if (fi > 0) out = out + ",";
+    const fn = ast.functions[fi] as FunctionNode;
+    let paramsJson = "[";
+    let pi = 0;
+    while (pi < fn.params.length) {
+      if (pi > 0) paramsJson = paramsJson + ",";
+      paramsJson = paramsJson + JSON.stringify(fn.params[pi]);
+      pi = pi + 1;
+    }
+    paramsJson = paramsJson + "]";
+    out = out + '{"name":' + JSON.stringify(fn.name) + ',"params":' + paramsJson + "}";
+    fi = fi + 1;
+  }
+  out = out + '],"classes":[';
+  let ci = 0;
+  while (ci < ast.classes.length) {
+    if (ci > 0) out = out + ",";
+    const cls = ast.classes[ci] as ClassNode;
+    let methodsJson = "[";
+    let mi = 0;
+    while (mi < cls.methods.length) {
+      if (mi > 0) methodsJson = methodsJson + ",";
+      const m = cls.methods[mi] as ClassMethod;
+      methodsJson = methodsJson + JSON.stringify(m.name);
+      mi = mi + 1;
+    }
+    methodsJson = methodsJson + "]";
+    out = out + '{"name":' + JSON.stringify(cls.name) + ',"methods":' + methodsJson + "}";
+    ci = ci + 1;
+  }
+  out = out + "]}";
+  return out;
 }
 
 export function compileNative(inputFile: string, outputFile: string): void {

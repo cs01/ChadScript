@@ -19,6 +19,7 @@
     "examples": "node scripts/run-examples.js",
     "typecheck": "tsc --noEmit",
     "check": "tsc --noEmit && npm run test:fast",
+    "test:parity": "npm run build && node --import tsx --test tests/ast-parity.test.ts",
     "verify": "bash scripts/verify.sh",
     "verify:quick": "bash scripts/verify.sh --quick",
     "format": "prettier --write .",
