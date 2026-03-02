@@ -2,7 +2,7 @@
 // This file is compiled by ChadScript itself, so it uses the native runtime
 // declarations rather than Node.js imports.
 import { parseSource } from "./parser-native/index.js";
-import { transformTree } from "./parser-native/transformer.js";
+import { transformTree, setCurrentFile } from "./parser-native/transformer.js";
 import { LLVMGenerator, LLVMGeneratorOptions, SemaSymbolData } from "./codegen/llvm-generator.js";
 import { SemanticAnalyzer } from "./analysis/semantic-analyzer.js";
 import { AST, ImportDeclaration, FunctionNode, ClassNode, ClassMethod } from "./ast/types.js";
@@ -176,6 +176,7 @@ export function parseFileToAST(inputFile: string): string {
   __gc_disable();
   const absPath = path.resolve(inputFile);
   const code = fs.readFileSync(absPath);
+  setCurrentFile(absPath);
   const tree = parseSource(code);
   const ast = transformTree(tree);
 
@@ -618,6 +619,7 @@ export function compileMultiFile(entryFile: string, compiledFiles: string[]): AS
     console.log("Parsing: " + absPath);
   }
   const code = fs.readFileSync(absPath);
+  setCurrentFile(absPath);
   const tree = parseSource(code);
   const ast = transformTree(tree);
 

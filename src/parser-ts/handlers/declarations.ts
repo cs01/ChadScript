@@ -129,16 +129,14 @@ export function transformClassDeclaration(
         methods.push(result.method);
         fields.push(...result.parameterProperties);
       }
-    } else if (ts.isGetAccessorDeclaration(member)) {
-      const method = transformAccessorDeclaration(member, checker, "get");
-      if (method) {
-        methods.push(method);
-      }
-    } else if (ts.isSetAccessorDeclaration(member)) {
-      const method = transformAccessorDeclaration(member, checker, "set");
-      if (method) {
-        methods.push(method);
-      }
+    } else if (ts.isGetAccessorDeclaration(member) || ts.isSetAccessorDeclaration(member)) {
+      const kind = ts.isGetAccessorDeclaration(member) ? "get" : "set";
+      const memberName = ts.isIdentifier(member.name) ? member.name.text : "?";
+      const loc = getLoc(member);
+      console.error(
+        `${loc.file}:${loc.line}:${loc.column}: error: '${kind} ${memberName}()' is not supported; use a regular public method instead`,
+      );
+      process.exit(1);
     }
   }
 
