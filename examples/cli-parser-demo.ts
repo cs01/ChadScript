@@ -1,5 +1,5 @@
 // CLI Parser Demo - shows how to use ArgumentParser for professional CLI tools
-import { ArgumentParser } from "../src/argparse.js";
+import { ArgumentParser } from "chadscript/argparse";
 
 const parser = new ArgumentParser("cli-parser-demo", "Example CLI tool with argument parsing");
 parser.addFlag("verbose", "v", "Enable verbose output");

@@ -4,10 +4,10 @@ Built-in HTTP server with websocket support compiled to native code via libuv TC
 
 ## Router (recommended)
 
-For most servers, use the `Router` class from `src/router.ts`. It provides an Express/Hono-style API with URL parameter extraction, method matching, and chainable response helpers.
+For most servers, use the `Router` class from `chadscript/router`. It provides an Express/Hono-style API with URL parameter extraction, method matching, and chainable response helpers.
 
 ```typescript
-import { Router, Context } from "./src/router";
+import { Router, Context } from "chadscript/router";
 
 const app = new Router();
 
@@ -86,10 +86,10 @@ app.get("/example", (c: Context) => {
 
 ### HTTP utility functions
 
-`src/http-utils.ts` provides helpers for parsing common request data:
+`chadscript/http-utils` provides helpers for parsing common request data:
 
 ```typescript
-import { getHeader, parseQueryString, parseCookies } from "./src/http-utils";
+import { getHeader, parseQueryString, parseCookies } from "chadscript/http-utils";
 
 // Parse a single request header by name (case-insensitive)
 const auth = getHeader(req.headers, "Authorization"); // "Bearer abc"

@@ -1,5 +1,5 @@
 // Word Count - count lines, words, and characters in files (like wc)
-import { ArgumentParser } from "../src/argparse.js";
+import { ArgumentParser } from "chadscript/argparse";
 
 const parser = new ArgumentParser("word-count", "Count lines, words, and characters in a file");
 parser.addFlag("lines", "l", "Only show line count");

@@ -8,6 +8,14 @@ import { SemanticAnalyzer } from "./analysis/semantic-analyzer.js";
 import { AST, ImportDeclaration, FunctionNode, ClassNode, ClassMethod } from "./ast/types.js";
 import { TargetInfo } from "./target-types.js";
 
+const stdlibKeys: string[] = [];
+const stdlibValues: string[] = [];
+
+export function registerStdlib(key: string, content: string): void {
+  stdlibKeys.push(key);
+  stdlibValues.push(content);
+}
+
 declare const child_process: {
   execSync(command: string): number;
 };
@@ -618,7 +626,25 @@ export function compileMultiFile(entryFile: string, compiledFiles: string[]): AS
   if (verbose) {
     console.log("Parsing: " + absPath);
   }
-  const code = fs.readFileSync(absPath);
+  const STDLIB_PREFIX = "/CHADSCRIPT_STDLIB/";
+  let code = "";
+  if (absPath.substr(0, STDLIB_PREFIX.length) === STDLIB_PREFIX) {
+    const key = absPath.substr(STDLIB_PREFIX.length);
+    let found = false;
+    for (let si = 0; si < stdlibKeys.length; si++) {
+      if (stdlibKeys[si] === key) {
+        code = stdlibValues[si];
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      console.log("stdlib module not found: " + key);
+      process.exit(1);
+    }
+  } else {
+    code = fs.readFileSync(absPath);
+  }
   setCurrentFile(absPath);
   const tree = parseSource(code);
   const ast = transformTree(tree);
@@ -657,6 +683,29 @@ export function compileMultiFile(entryFile: string, compiledFiles: string[]): AS
         }
       }
       if (isBuiltin) {
+        i = i + 1;
+        continue;
+      }
+      if (src.substr(0, 11) === "chadscript/") {
+        const stdlibName = src.substr(11);
+        const virtualPath = "/CHADSCRIPT_STDLIB/" + stdlibName + ".ts";
+        const importedAST = compileMultiFile(virtualPath, compiledFiles);
+        mergedAST.functions = mergedAST.functions.concat(importedAST.functions);
+        mergedAST.classes = mergedAST.classes.concat(importedAST.classes);
+        mergedAST.interfaces = mergedAST.interfaces.concat(importedAST.interfaces);
+        mergedAST.typeAliases = mergedAST.typeAliases.concat(importedAST.typeAliases);
+        mergedAST.enums = mergedAST.enums.concat(importedAST.enums);
+        mergedAST.topLevelStatements = importedAST.topLevelStatements.concat(
+          mergedAST.topLevelStatements,
+        );
+        if (importedAST.topLevelItems) {
+          mergedAST.topLevelItems = importedAST.topLevelItems.concat(mergedAST.topLevelItems || []);
+        }
+        if (importedAST.topLevelItemTypes) {
+          mergedAST.topLevelItemTypes = importedAST.topLevelItemTypes.concat(
+            mergedAST.topLevelItemTypes || [],
+          );
+        }
         i = i + 1;
         continue;
       }

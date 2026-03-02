@@ -1,5 +1,5 @@
 // String Search - grep-like file search tool with colorized output
-import { ArgumentParser } from "../src/argparse.js";
+import { ArgumentParser } from "chadscript/argparse";
 
 const parser = new ArgumentParser("string-search", "Search for a string pattern in files");
 parser.addFlag("ignore-case", "i", "Case-insensitive search");
