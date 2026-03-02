@@ -19,6 +19,7 @@ import {
 import { LogLevel, logger } from "./utils/logger.js";
 import { runInit } from "./codegen/stdlib/init-templates.js";
 import { ArgumentParser } from "./argparse.js";
+import { parseWithTSAPI } from "./parser-ts/index.js";
 import * as path from "path";
 import * as fs from "fs";
 import { execSync, spawn as spawnProc, ChildProcess } from "child_process";
@@ -37,6 +38,7 @@ parser.addSubcommandInGroup(
 parser.addSubcommandInGroup("clean", "Remove the .build directory", "Project");
 parser.addSubcommandInGroup("ir", "Emit LLVM IR only", "Advanced");
 parser.addSubcommandInGroup("target", "Manage cross-compilation target SDKs", "Advanced");
+parser.addSubcommandInGroup("ast-dump", "Dump parsed AST as JSON", "Advanced");
 
 parser.addFlag("version", "", "Show version");
 parser.addScopedOption("output", "o", "Specify output file", "", "build,run,ir");
@@ -238,6 +240,22 @@ if (command === "watch") {
   });
 }
 
+if (command === "ast-dump") {
+  const inputFile = parser.getPositional(0);
+  if (!inputFile) {
+    console.error("chad: error: no input files");
+    process.exit(1);
+  }
+  if (!fs.existsSync(inputFile)) {
+    console.error(`chad: error: file not found: ${inputFile}`);
+    process.exit(1);
+  }
+  const code = fs.readFileSync(inputFile, "utf8");
+  const ast = parseWithTSAPI(code, { filename: inputFile });
+  process.stdout.write(JSON.stringify(ast) + "\n");
+  process.exit(0);
+}
+
 if (command.length === 0) {
   parser.printHelp();
   process.exit(0);
@@ -249,7 +267,8 @@ if (
   command !== "ir" &&
   command !== "init" &&
   command !== "watch" &&
-  command !== "target"
+  command !== "target" &&
+  command !== "ast-dump"
 ) {
   if (command.endsWith(".ts") || command.endsWith(".js")) {
     console.error(`chad: error: missing command. did you mean 'chad build ${command}'?`);
