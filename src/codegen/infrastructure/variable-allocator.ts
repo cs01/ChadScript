@@ -264,6 +264,45 @@ export class VariableAllocator {
     return this.interfaceAlloc.getInterface(name);
   }
 
+  private getGenericMethodReturnError(expr: Expression, varName: string): string | null {
+    const e = expr as { type: string };
+    if (e.type !== "method_call") return null;
+    const methodExpr = expr as MethodCallNode;
+    const objBase = methodExpr.object as { type: string };
+    if (objBase.type !== "variable") return null;
+    const objName = (methodExpr.object as VariableNode).name;
+    const className = this.ctx.symbolTable.getConcreteClass(objName);
+    if (!className) return null;
+    const ast = this.ctx.getAst();
+    if (!ast || !ast.classes) return null;
+    for (let i = 0; i < ast.classes.length; i++) {
+      const cls = ast.classes[i] as {
+        name: string;
+        typeParameters?: string[];
+        methods: { name: string; isConstructor: boolean; returnType?: string }[];
+      };
+      if (cls.name !== className) continue;
+      if (!cls.typeParameters || cls.typeParameters.length === 0) return null;
+      for (let j = 0; j < cls.methods.length; j++) {
+        const m = cls.methods[j];
+        if (m.isConstructor || m.name !== methodExpr.method) continue;
+        if (!m.returnType) return null;
+        for (let k = 0; k < cls.typeParameters.length; k++) {
+          if (
+            m.returnType === cls.typeParameters[k] ||
+            m.returnType.includes(cls.typeParameters[k] as string)
+          ) {
+            return (
+              `'${varName}' is assigned from '${objName}.${methodExpr.method}()' which returns generic type '${m.returnType}' — ` +
+              `add a type annotation: 'const ${varName}: YourType = ${objName}.${methodExpr.method}()'`
+            );
+          }
+        }
+      }
+    }
+    return null;
+  }
+
   private resolveGenericCallReturnType(expr: Expression): string | null {
     const e = expr as { type: string };
     if (e.type !== "call") return null;
@@ -908,6 +947,10 @@ export class VariableAllocator {
         // VarKind.Numeric is correct for number/boolean literals and arithmetic,
         // but suspicious for calls/method calls that might return non-numeric types.
         if (nodeType === "call" || nodeType === "method_call") {
+          const genericErr = this.getGenericMethodReturnError(stmtValue, stmt.name);
+          if (genericErr) {
+            return this.ctx.emitError(genericErr);
+          }
           this.ctx.emitWarning(
             `variable '${stmt.name}' classified as numeric from expression type '${nodeType}' — ` +
               `if this is wrong, add a type annotation`,

@@ -2286,6 +2286,13 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           // Phase 3: Final catch-all based on expression node type
           if (llvmType === "") {
             const exprNodeType = stmt.value ? (stmt.value as { type: string }).type : "";
+            if (exprNodeType === "method_call") {
+              const genericErr = this.getGenericMethodReturnError(
+                stmt.value as MethodCallNode,
+                name,
+              );
+              if (genericErr) return this.emitError(genericErr);
+            }
             // Expression types that can plausibly return a number at module scope.
             // String/array/map/etc. returning expressions should have been caught
             // by the specific detectors above — anything that falls through is likely numeric.
@@ -3430,6 +3437,34 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   public isResponseExpression(expr: Expression): boolean {
     return this.typeInference.isResponseExpression(expr);
+  }
+
+  private getGenericMethodReturnError(expr: MethodCallNode, varName: string): string | null {
+    const objBase = expr.object as { type: string };
+    if (objBase.type !== "variable") return null;
+    const objName = (expr.object as { type: string; name: string }).name;
+    const className = this.symbolTable.getConcreteClass(objName);
+    if (!className || !this.ast || !this.ast.classes) return null;
+    for (let i = 0; i < this.ast.classes.length; i++) {
+      const cls = this.ast.classes[i] as ClassNode;
+      if (cls.name !== className) continue;
+      if (!cls.typeParameters || cls.typeParameters.length === 0) return null;
+      for (let j = 0; j < cls.methods.length; j++) {
+        const m = cls.methods[j];
+        if (m.isConstructor || m.name !== expr.method) continue;
+        if (!m.returnType) return null;
+        for (let k = 0; k < cls.typeParameters.length; k++) {
+          const tp = cls.typeParameters[k] as string;
+          if (m.returnType === tp || m.returnType.includes(tp)) {
+            return (
+              `'${varName}' is assigned from '${objName}.${expr.method}()' which returns generic type '${m.returnType}' — ` +
+              `add a type annotation: 'const ${varName}: YourType = ${objName}.${expr.method}()'`
+            );
+          }
+        }
+      }
+    }
+    return null;
   }
 
   private isKnownClass(name: string): boolean {
