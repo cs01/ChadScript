@@ -15,6 +15,13 @@ try {
   process.exit(1);
 }
 
+console.log("Checking C bridge artifacts...");
+try {
+  execSync("bash scripts/build-vendor.sh", { cwd: projectRoot, stdio: "inherit" });
+} catch (error) {
+  console.warn("Warning: build-vendor.sh failed (bridges may be stale)");
+}
+
 const chad = path.join(projectRoot, ".build", "chad");
 if (!fs.existsSync(chad)) {
   console.log("Building native compiler (.build/chad)...");
