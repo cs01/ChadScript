@@ -85,15 +85,16 @@ export class Context {
     return { status: this._status, body: body, headers: hdrs };
   }
 
-  json(data: string): HttpResponse {
+  json(data: any): HttpResponse {
     let hdrs = "Content-Type: application/json";
     if (this._extraHeaders.length > 0) {
       hdrs = hdrs + "\n" + this._extraHeaders;
     }
-    this._resultBody = data;
+    const body = typeof data === "string" ? data : JSON.stringify(data);
+    this._resultBody = body;
     this._resultHeaders = hdrs;
     this._resultStatus = this._status;
-    return { status: this._status, body: data, headers: hdrs };
+    return { status: this._status, body: body, headers: hdrs };
   }
 
   html(body: string): HttpResponse {
