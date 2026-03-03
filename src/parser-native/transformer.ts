@@ -973,7 +973,18 @@ function transformCallExpression(node: TreeSitterNode): Expression {
       pos: 0,
     };
   } else if (fn.type === "identifier") {
-    return { type: "call", name: fn.text, args };
+    let callTypeArgs: string[] | undefined;
+    if (typeArgsNode) {
+      const ncc = typeArgsNode.namedChildCount;
+      if (ncc > 0) {
+        callTypeArgs = [];
+        for (let i = 0; i < ncc; i++) {
+          const ta = getNamedChild(typeArgsNode, i);
+          if (ta) callTypeArgs.push((ta as NodeBase).text);
+        }
+      }
+    }
+    return { type: "call", name: fn.text, args, typeArgs: callTypeArgs };
   } else if (fn.type === "super") {
     return { type: "call", name: "super", args };
   } else {

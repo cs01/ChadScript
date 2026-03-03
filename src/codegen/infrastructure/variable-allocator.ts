@@ -19,6 +19,7 @@ import {
   TypeAliasDeclaration,
   MethodCallNode,
   CallNode,
+  FunctionNode,
   CommonField,
   BinaryNode,
   MapNode,
@@ -261,6 +262,42 @@ export class VariableAllocator {
 
   private getInterface(name: string): InterfaceDeclaration | null {
     return this.interfaceAlloc.getInterface(name);
+  }
+
+  private resolveGenericCallReturnType(expr: Expression): string | null {
+    const e = expr as { type: string };
+    if (e.type !== "call") return null;
+    const callNode = expr as CallNode;
+    if (!callNode.typeArgs || callNode.typeArgs.length === 0) return null;
+    const ast = this.ctx.getAst();
+    if (!ast || !ast.functions) return null;
+    let func: FunctionNode | null = null;
+    for (let i = 0; i < ast.functions.length; i++) {
+      const f = ast.functions[i] as FunctionNode;
+      if (f.name === callNode.name) {
+        func = f;
+        break;
+      }
+    }
+    if (!func || !func.typeParameters || func.typeParameters.length === 0) return null;
+    if (!func.returnType) return null;
+    let ret = func.returnType;
+    if (callNode.typeArgs && callNode.typeArgs.length > 0) {
+      for (let i = 0; i < func.typeParameters.length; i++) {
+        const param = func.typeParameters[i] || "";
+        const arg = callNode.typeArgs[i] || "any";
+        ret = ret.split(param).join(arg);
+      }
+    } else {
+      for (let i = 0; i < func.typeParameters.length; i++) {
+        const param = func.typeParameters[i] || "";
+        if (ret === param) {
+          ret = "string";
+          break;
+        }
+      }
+    }
+    return ret;
   }
 
   private getAllInterfaceFields(iface: InterfaceDeclaration): InterfaceField[] {
@@ -750,6 +787,13 @@ export class VariableAllocator {
     const arrayMethodReturnType = this.getArrayMethodReturnType(stmt.value);
     const isPointer = this.isPointerOrExpression(stmt.value);
     const isNull = this.isNullLiteral(stmt.value);
+
+    if (!isString && !isStringArray && !isObjectArray && !isArray && !isClassInstance) {
+      const genericReturn = this.resolveGenericCallReturnType(stmtValue);
+      if (genericReturn === "string") isString = true;
+      else if (genericReturn === "string[]") isStringArray = true;
+      else if (genericReturn && genericReturn.endsWith("[]")) isObjectArray = true;
+    }
 
     const classification = this.classifyVariable(
       isString,

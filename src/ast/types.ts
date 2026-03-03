@@ -124,6 +124,7 @@ export interface CallNode {
   name: string;
   args: Expression[];
   loc?: SourceLocation;
+  typeArgs?: string[];
 }
 
 export interface MethodCallNode {

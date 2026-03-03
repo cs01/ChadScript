@@ -1800,14 +1800,31 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         const name = stmt.name;
 
         if ((stmt.value as { type: string }).type === "call") {
-          const callNode = stmt.value as { type: string; name: string };
+          const callNode = stmt.value as CallNode;
           if (callNode.name) {
             let handled = false;
             for (let fi = 0; fi < this.ast.functions.length; fi++) {
               const fn = this.ast.functions[fi];
               if (!fn) continue;
               if (fn.name === callNode.name && fn.returnType) {
-                const rt = fn.returnType;
+                let rt = fn.returnType;
+                if (fn.typeParameters && fn.typeParameters.length > 0) {
+                  if (callNode.typeArgs && callNode.typeArgs.length > 0) {
+                    for (let ti = 0; ti < fn.typeParameters.length; ti++) {
+                      const tp = fn.typeParameters[ti] || "";
+                      const ta = callNode.typeArgs[ti] || "any";
+                      rt = rt.split(tp).join(ta);
+                    }
+                  } else {
+                    for (let ti = 0; ti < fn.typeParameters.length; ti++) {
+                      const tp = fn.typeParameters[ti] || "";
+                      if (rt === tp) {
+                        rt = "string";
+                        break;
+                      }
+                    }
+                  }
+                }
                 if (rt === "string" || rt === "i8_ptr" || rt === "ptr") {
                   ir += `@${name} = global i8* null` + "\n";
                   this.globalVariables.set(name, {
