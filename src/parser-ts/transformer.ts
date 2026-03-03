@@ -137,9 +137,20 @@ function transformTopLevelStatement(
     }
 
     case ts.SyntaxKind.TypeAliasDeclaration: {
-      const typeAlias = transformTypeAliasDeclaration(node as ts.TypeAliasDeclaration);
-      if (typeAlias) {
-        ast.typeAliases.push(typeAlias);
+      const taNode = node as ts.TypeAliasDeclaration;
+      if (ts.isTypeLiteralNode(taNode.type)) {
+        const fields: { name: string; type: string }[] = [];
+        for (const m of taNode.type.members) {
+          if (ts.isPropertySignature(m) && ts.isIdentifier(m.name)) {
+            fields.push({ name: m.name.text, type: m.type ? m.type.getText() : "any" });
+          }
+        }
+        ast.interfaces.push({ name: taNode.name.text, extends: [], fields, methods: [] });
+      } else {
+        const typeAlias = transformTypeAliasDeclaration(taNode);
+        if (typeAlias) {
+          ast.typeAliases.push(typeAlias);
+        }
       }
       break;
     }

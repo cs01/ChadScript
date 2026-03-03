@@ -153,12 +153,16 @@ function transformTopLevelNode(node: TreeSitterNode, ast: AST): void {
       }
       break;
 
-    case "type_alias_declaration":
-      const typeAlias = transformTypeAliasDeclaration(node);
-      if (typeAlias) {
-        ast.typeAliases.push(typeAlias);
+    case "type_alias_declaration": {
+      const objIface = transformObjectTypeAlias(node);
+      if (objIface) {
+        ast.interfaces.push(objIface);
+      } else {
+        const typeAlias = transformTypeAliasDeclaration(node);
+        if (typeAlias) ast.typeAliases.push(typeAlias);
       }
       break;
+    }
 
     case "enum_declaration":
       const enumDecl = transformEnumDeclaration(node);
@@ -398,9 +402,12 @@ function handleExportStatement(node: TreeSitterNode, ast: AST): void {
         ast.interfaces.push(iface);
       }
     } else if (c.type === "type_alias_declaration") {
-      const typeAlias = transformTypeAliasDeclaration(child);
-      if (typeAlias) {
-        ast.typeAliases.push(typeAlias);
+      const objIface = transformObjectTypeAlias(child);
+      if (objIface) {
+        ast.interfaces.push(objIface);
+      } else {
+        const typeAlias = transformTypeAliasDeclaration(child);
+        if (typeAlias) ast.typeAliases.push(typeAlias);
       }
     } else if (c.type === "enum_declaration") {
       const enumDecl = transformEnumDeclaration(child);
@@ -2960,6 +2967,27 @@ function transformInterfaceDeclaration(node: TreeSitterNode): InterfaceDeclarati
     fields,
     methods,
   };
+}
+
+function transformObjectTypeAlias(node: TreeSitterNode): InterfaceDeclaration | null {
+  const nameNode = getChildByFieldName(node, "name");
+  const valueNode = getChildByFieldName(node, "value");
+  if (!nameNode || !valueNode) return null;
+  if ((valueNode as NodeBase).type !== "object_type") return null;
+  const name = (nameNode as NodeBase).text;
+  const fields: { name: string; type: string }[] = [];
+  const vn = valueNode as NodeBase;
+  for (let i = 0; i < vn.namedChildCount; i++) {
+    const member = getNamedChild(valueNode, i);
+    if (!member) continue;
+    if ((member as NodeBase).type !== "property_signature") continue;
+    const propNameNode = getChildByFieldName(member, "name");
+    const propTypeNode = getChildByFieldName(member, "type");
+    const fieldName = propNameNode ? (propNameNode as NodeBase).text : "";
+    const fieldType = propTypeNode ? extractTypeString(propTypeNode) : "any";
+    fields.push({ name: fieldName, type: fieldType });
+  }
+  return { name, extends: [], fields, methods: [] };
 }
 
 function transformTypeAliasDeclaration(node: TreeSitterNode): TypeAliasDeclaration | null {
