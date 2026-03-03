@@ -19,6 +19,7 @@ import {
   TypeAliasDeclaration,
   MethodCallNode,
   CallNode,
+  ClassNode,
   FunctionNode,
   CommonField,
   BinaryNode,
@@ -276,11 +277,7 @@ export class VariableAllocator {
     const ast = this.ctx.getAst();
     if (!ast || !ast.classes) return null;
     for (let i = 0; i < ast.classes.length; i++) {
-      const cls = ast.classes[i] as {
-        name: string;
-        typeParameters?: string[];
-        methods: { name: string; isConstructor: boolean; returnType?: string }[];
-      };
+      const cls = ast.classes[i] as ClassNode;
       if (cls.name !== className) continue;
       if (!cls.typeParameters || cls.typeParameters.length === 0) return null;
       for (let j = 0; j < cls.methods.length; j++) {
@@ -804,6 +801,9 @@ export class VariableAllocator {
     if (!isUint8Array && strippedDeclType === "Uint8Array") {
       isUint8Array = true;
     }
+    if (!isClassInstance && strippedDeclType && this.isKnownClass(strippedDeclType)) {
+      isClassInstance = true;
+    }
     // Detect Uint8Array from expression analysis (e.g. getEmbeddedFileAsUint8Array)
     if (!isUint8Array && this.ctx.isUint8ArrayExpression(stmtValue)) {
       isUint8Array = true;
@@ -947,9 +947,11 @@ export class VariableAllocator {
         // VarKind.Numeric is correct for number/boolean literals and arithmetic,
         // but suspicious for calls/method calls that might return non-numeric types.
         if (nodeType === "call" || nodeType === "method_call") {
-          const genericErr = this.getGenericMethodReturnError(stmtValue, stmt.name);
-          if (genericErr) {
-            return this.ctx.emitError(genericErr);
+          if (!stmt.declaredType) {
+            const genericErr = this.getGenericMethodReturnError(stmtValue, stmt.name);
+            if (genericErr) {
+              return this.ctx.emitError(genericErr);
+            }
           }
           this.ctx.emitWarning(
             `variable '${stmt.name}' classified as numeric from expression type '${nodeType}' — ` +

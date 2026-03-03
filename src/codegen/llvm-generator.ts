@@ -2213,6 +2213,25 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
                 );
                 continue;
               }
+              if (this.isKnownClass(strippedDeclaredType)) {
+                const fields = this.classGen
+                  ? this.classGen.getClassFields(strippedDeclaredType) || []
+                  : [];
+                llvmType = fields.length > 0 ? `%${strippedDeclaredType}_struct*` : "i8*";
+                kind = SymbolKind.Class;
+                defaultValue = "null";
+                ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
+                this.globalVariables.set(name, { llvmType, kind, initialized: false });
+                this.defineVariableWithMetadata(
+                  name,
+                  `@${name}`,
+                  llvmType,
+                  kind,
+                  "global",
+                  createClassMetadata({ className: strippedDeclaredType }),
+                );
+                continue;
+              }
               // Unrecognized declared type — fall through to expression-based detection
             }
           }
@@ -2286,7 +2305,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           // Phase 3: Final catch-all based on expression node type
           if (llvmType === "") {
             const exprNodeType = stmt.value ? (stmt.value as { type: string }).type : "";
-            if (exprNodeType === "method_call") {
+            if (exprNodeType === "method_call" && !stmt.declaredType) {
               const genericErr = this.getGenericMethodReturnError(
                 stmt.value as MethodCallNode,
                 name,
