@@ -140,6 +140,11 @@ export function transformClassDeclaration(
     }
   }
 
+  let typeParameters: string[] | undefined;
+  if (node.typeParameters && node.typeParameters.length > 0) {
+    typeParameters = node.typeParameters.map((tp) => tp.name.text);
+  }
+
   return {
     name,
     extends: extendsClause,
@@ -147,6 +152,7 @@ export function transformClassDeclaration(
     fields,
     methods,
     loc: getLoc(node),
+    typeParameters,
   };
 }
 

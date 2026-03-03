@@ -2666,7 +2666,35 @@ function transformClassDeclaration(node: TreeSitterNode): ClassNode | null {
     }
   }
 
-  return { name, extends: extendsClause, implements: implementsClause, fields, methods };
+  let typeParameters: string[] | undefined;
+  const typeParamsNode = getChildByFieldName(node, "type_parameters");
+  if (typeParamsNode) {
+    const tpn = typeParamsNode as NodeBase;
+    const tps: string[] = [];
+    for (let i = 0; i < tpn.namedChildCount; i++) {
+      const tp = getNamedChild(typeParamsNode, i);
+      if (!tp) continue;
+      const tpBase = tp as NodeBase;
+      if (tpBase.type === "type_parameter") {
+        const tpName = getChildByFieldName(tp, "name");
+        if (tpName) {
+          tps.push((tpName as NodeBase).text);
+        }
+      }
+    }
+    if (tps.length > 0) {
+      typeParameters = tps;
+    }
+  }
+
+  return {
+    name,
+    extends: extendsClause,
+    implements: implementsClause,
+    fields,
+    methods,
+    typeParameters,
+  };
 }
 
 function transformClassField(node: TreeSitterNode): ClassField | null {

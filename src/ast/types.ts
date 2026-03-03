@@ -441,6 +441,7 @@ export interface ClassNode {
   fields: ClassField[]; // Explicit field declarations
   methods: ClassMethod[];
   loc?: SourceLocation;
+  typeParameters?: string[];
 }
 
 export interface ImportSpecifier {
