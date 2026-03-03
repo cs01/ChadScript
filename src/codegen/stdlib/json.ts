@@ -495,24 +495,35 @@ export class JsonGenerator {
     return this.ctx.emitCall("i8*", "@csyyjson_stringify", `i8* ${jsonDoc}`);
   }
 
+  generateStringifyExpr(arg: Expression, params: string[]): string {
+    return this.generateStringifyArgWithSpaces(arg, params, 0);
+  }
+
   generateStringify(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length < 1) {
       return this.ctx.emitError("JSON.stringify() requires 1 argument", expr.loc);
     }
 
+    const spaces = this.getSpaces(expr);
     if (expr.args[0].type === "type_assertion") {
-      return this.generateStringifyArg(
+      return this.generateStringifyArgWithSpaces(
         (expr.args[0] as unknown as TypeAssertionNode).expression,
-        expr,
         params,
+        spaces,
       );
     }
-    return this.generateStringifyArg(expr.args[0], expr, params);
+    return this.generateStringifyArgWithSpaces(expr.args[0], params, spaces);
   }
 
   private generateStringifyArg(arg: Expression, expr: MethodCallNode, params: string[]): string {
-    const spaces = this.getSpaces(expr);
+    return this.generateStringifyArgWithSpaces(arg, params, this.getSpaces(expr));
+  }
 
+  private generateStringifyArgWithSpaces(
+    arg: Expression,
+    params: string[],
+    spaces: number,
+  ): string {
     if (this.ctx.isStringExpression(arg)) {
       return this.stringifyString(arg, params);
     }

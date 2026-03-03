@@ -85,16 +85,15 @@ export class Context {
     return { status: this._status, body: body, headers: hdrs };
   }
 
-  json(data: any): HttpResponse {
+  json(data: string): HttpResponse {
     let hdrs = "Content-Type: application/json";
     if (this._extraHeaders.length > 0) {
       hdrs = hdrs + "\n" + this._extraHeaders;
     }
-    const body = typeof data === "string" ? data : JSON.stringify(data);
-    this._resultBody = body;
+    this._resultBody = data;
     this._resultHeaders = hdrs;
     this._resultStatus = this._status;
-    return { status: this._status, body: body, headers: hdrs };
+    return { status: this._status, body: data, headers: hdrs };
   }
 
   html(body: string): HttpResponse {
@@ -292,7 +291,7 @@ export class Router {
       for (let i = 0; i < this.routes.length; i++) {
         const route = this.routes[i];
         const outerGroup = match[route.groupOffset];
-        if (outerGroup !== "") {
+        if (outerGroup !== undefined && outerGroup !== null && outerGroup !== "") {
           if (route.method === "*" || route.method === method) {
             const params = new Map<string, string>();
             if (route.paramNames !== "") {
