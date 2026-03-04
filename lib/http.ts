@@ -163,13 +163,19 @@ export class Context {
 
 class RouteHandler {
   private _fn: (c: Context) => HttpResponse;
+  private _env: string;
 
-  constructor(fn: (c: Context) => HttpResponse) {
+  constructor(fn: (c: Context) => HttpResponse, env: string) {
     this._fn = fn;
+    this._env = env;
   }
 
   dispatch(c: Context): HttpResponse {
-    callHandler(this._fn, c);
+    if (this._env !== null) {
+      callHandler(this._fn, this._env, c);
+    } else {
+      callHandler(this._fn, c);
+    }
     return c.getResult();
   }
 }
@@ -198,7 +204,12 @@ export class Router {
     this.compiledRegex = new RegExp(".");
   }
 
-  private addRoute(method: string, pattern: string, handler: (c: Context) => HttpResponse): void {
+  private addRoute(
+    method: string,
+    pattern: string,
+    handler: (c: Context) => HttpResponse,
+    env: string,
+  ): void {
     this.compiled = false;
     const paramNames = this.extractParamNames(pattern);
     const entry: RouteEntry = {
@@ -210,31 +221,31 @@ export class Router {
       handlerIndex: this.handlers.length,
     };
     this.routes.push(entry);
-    this.handlers.push(new RouteHandler(handler));
+    this.handlers.push(new RouteHandler(handler, env));
   }
 
-  get(pattern: string, handler: (c: Context) => HttpResponse): void {
-    this.addRoute("GET", pattern, handler);
+  get(pattern: string, handler: (c: Context) => HttpResponse, env: string): void {
+    this.addRoute("GET", pattern, handler, env);
   }
 
-  post(pattern: string, handler: (c: Context) => HttpResponse): void {
-    this.addRoute("POST", pattern, handler);
+  post(pattern: string, handler: (c: Context) => HttpResponse, env: string): void {
+    this.addRoute("POST", pattern, handler, env);
   }
 
-  put(pattern: string, handler: (c: Context) => HttpResponse): void {
-    this.addRoute("PUT", pattern, handler);
+  put(pattern: string, handler: (c: Context) => HttpResponse, env: string): void {
+    this.addRoute("PUT", pattern, handler, env);
   }
 
-  delete(pattern: string, handler: (c: Context) => HttpResponse): void {
-    this.addRoute("DELETE", pattern, handler);
+  delete(pattern: string, handler: (c: Context) => HttpResponse, env: string): void {
+    this.addRoute("DELETE", pattern, handler, env);
   }
 
-  all(pattern: string, handler: (c: Context) => HttpResponse): void {
-    this.addRoute("*", pattern, handler);
+  all(pattern: string, handler: (c: Context) => HttpResponse, env: string): void {
+    this.addRoute("*", pattern, handler, env);
   }
 
-  notFound(handler: (c: Context) => HttpResponse): void {
-    this.notFoundHandler = new RouteHandler(handler);
+  notFound(handler: (c: Context) => HttpResponse, env: string): void {
+    this.notFoundHandler = new RouteHandler(handler, env);
   }
 
   private extractParamNames(pattern: string): string {

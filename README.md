@@ -34,7 +34,7 @@ Requires LLVM (`brew install llvm` / `apt install llvm clang`).
 ## Example: HTTP server in a single binary
 
 ```typescript
-import { httpServe } from "chadscript/http";
+import { httpServe, Router, Context } from "chadscript/http";
 
 interface Post {
   id: number;
@@ -46,13 +46,18 @@ const posts: Post[] = [
   { id: 2, title: "Native speed, TypeScript syntax" },
 ];
 
-httpServe({ port: 3000 }, (req, res) => {
-  if (req.path === "/posts") {
-    res.json(posts);
-  } else {
-    res.text("Not found", 404);
-  }
+const app: Router = new Router();
+
+app.get("/api/posts", (c: Context) => {
+  return c.json(JSON.stringify(posts));
 });
+
+app.get("/api/posts/:id", (c: Context) => {
+  const id = c.req.param("id");
+  return c.json('{"id":' + id + "}");
+});
+
+httpServe(3000, (req: HttpRequest) => app.handle(req));
 ```
 
 ```bash
@@ -86,16 +91,16 @@ TypeScript is my favorite language to write and the type system is terse and int
 
 No `npm install`. Everything ships with the compiler:
 
-| Module          | What it does               |
-| --------------- | -------------------------- |
-| `fetch`         | HTTP client                |
-| `httpServe`     | HTTP server with routing   |
-| `fs`            | File system                |
-| `sqlite`        | Embedded SQLite database   |
-| `crypto`        | Hashing, encryption        |
-| `JSON`          | Typed JSON parse/stringify |
-| `child_process` | Spawn subprocesses         |
-| `WebSocket`     | WebSocket client + server  |
+| Module                | What it does               |
+| --------------------- | -------------------------- |
+| `fetch`               | HTTP client                |
+| `Router`, `httpServe` | HTTP server with routing   |
+| `fs`                  | File system                |
+| `sqlite`              | Embedded SQLite database   |
+| `crypto`              | Hashing, encryption        |
+| `JSON`                | Typed JSON parse/stringify |
+| `child_process`       | Spawn subprocesses         |
+| `WebSocket`           | WebSocket client + server  |
 
 ---
 

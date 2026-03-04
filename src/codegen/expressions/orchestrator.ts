@@ -220,7 +220,11 @@ export class ExpressionGenerator {
     // Arrow functions
     if (exprTyped.type === "arrow_function") {
       const scopeVarsResult = this.ctx.symbolTable.getScopeVarsArraysForClosure();
-      const scopeVarsTyped = scopeVarsResult as { names: string[]; types: string[] };
+      const scopeVarsTyped = scopeVarsResult as {
+        names: string[];
+        types: string[];
+        interfaceTypes: string[];
+      };
       let typeHints: { paramTypes?: string[]; returnType?: string } | undefined = undefined;
       const cbParamType = this.ctx.getExpectedCallbackParamType();
       const cbReturnType = this.ctx.getExpectedCallbackReturnType();
@@ -234,6 +238,7 @@ export class ExpressionGenerator {
         typeHints,
         scopeVarsTyped.names,
         scopeVarsTyped.types,
+        scopeVarsTyped.interfaceTypes,
       );
 
       // For inline lambdas with captures (e.g., arr.map(x => x + captured)),

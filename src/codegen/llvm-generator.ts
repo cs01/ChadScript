@@ -1021,6 +1021,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return this.targetInfo ? this.targetInfo.os : process.platform;
   }
 
+  public setRawInterfaceType(name: string, type: string): void {
+    this.symbolTable.setRawInterfaceType(name, type);
+  }
+
   public getTargetArch(): string {
     return this.targetInfo ? this.targetInfo.archString : process.arch;
   }
@@ -2717,6 +2721,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     }
 
     if (this.usesHttpServer) {
+      if (!this.usesCurl) {
+        finalParts.push("%__FetchResponse = type { i8*, i32, i8*, i8*, i8*, i32 }\n\n");
+      }
       const httpServerDecls = this.httpServerGen.generateDeclarations();
       if (httpServerDecls) {
         finalParts.push(this.filterDuplicateDeclarations(httpServerDecls));

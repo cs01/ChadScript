@@ -38,23 +38,19 @@ mysterious test failures that pass fine with the node compiler.
 
 ## Worktree Setup
 
-When working in a git worktree, `vendor/` and `c_bridges/*.o` must exist. Symlinks to the main repo work:
+`vendor/` must be symlinked from the main repo (it's not in git):
 
 ```bash
 ln -s /path/to/main/repo/vendor vendor
-ln -s /path/to/main/repo/c_bridges/regex-bridge.o c_bridges/regex-bridge.o
-# (repeat for each .o file, or run build-vendor.sh to build them fresh)
 ```
 
-The `c_bridges/*.c` source files are tracked in git, but the `.o` files are built by `scripts/build-vendor.sh`.
-**Always rebuild from source** rather than symlinking to avoid stale artifacts — the symlinked `.o`
-may have been compiled from an older version of the `.c` source:
+Then build the C bridges from source (don't symlink `.o` files — they may be stale):
 
 ```bash
 bash scripts/build-vendor.sh
 ```
 
-`npm test` automatically runs `build-vendor.sh` to detect and rebuild stale bridges before each test run.
+`npm test` runs `build-vendor.sh` automatically.
 
 # ChadScript Architecture Guide
 
@@ -86,10 +82,9 @@ TypeScript-to-native compiler using LLVM IR. Compiles .ts/.js files to native bi
 
 1. **IR Generation**: Add function in `src/codegen/types/collections/string/manipulation.ts` (or search.ts, etc.)
 2. **Facade**: Add `doGenerateX()` in `src/codegen/types/collections/string.ts` (StringGenerator class)
-3. **Dispatch**: Add `if (method === 'x')` block in `src/codegen/expressions/method-calls.ts` (~line 812 area)
+3. **Dispatch**: Add `if (method === 'x')` block in `src/codegen/expressions/method-calls.ts`
 4. **Handler**: Add `private handleX()` method in method-calls.ts
-5. **Context**: If consumers access via a sub-generator context interface, ensure `readonly stringGen: IStringGenerator` is declared
-6. **Test**: Add fixture in `tests/fixtures/strings/` (auto-discovered, no registry needed)
+5. **Test**: Add fixture in `tests/fixtures/strings/` (auto-discovered, no registry needed)
 
 **NOTE**: Prefer direct field access (`ctx.stringGen.doMethod()`) over adding wrapper methods to `IGeneratorContext`. Concrete type propagation in `loadFieldValue` (member.ts) ensures chained access through interface fields works in the native compiler.
 
@@ -226,6 +221,15 @@ interface's OWN fields, missing inherited fields from `extends`. This causes wro
 any interface with inheritance. `allocateDeclaredInterface` does this correctly; several other methods
 (`allocateMemberAccessInterface`, `allocateFunctionInterfaceReturn`, etc.) currently do not.
 
+## Loop Style
+
+Prefer `for...of` over index-based `for` loops when iterating arrays — it's fully supported and more idiomatic:
+
+```typescript
+for (const item of items) { ... }         // good
+for (let i = 0; i < items.length; i++) {} // only when index is needed
+```
+
 ## Code Style
 
 - Prettier auto-formats code; run `npm run format` to fix, `npm run format:check` to verify
@@ -239,13 +243,10 @@ any interface with inheritance. `allocateDeclaredInterface` does this correctly;
 2. **Type assertions must match real struct field order AND count** — `as { type, left, right }` on a struct that's `{ type, op, left, right }` causes GEP to read wrong fields. Fields must be a PREFIX of the real struct in EXACT order. **Watch out for `extends`**: if `Child extends Parent`, the struct has ALL of Parent's fields first, then Child's. A type assertion on a Child must include Parent's fields too — even optional ones the object literal doesn't set (the compiler allocates slots for them anyway, filled with null/0).
 3. **Never insert new optional fields in the MIDDLE of an interface** — The native compiler determines struct layouts from object literal creation sites. If an interface has multiple creation sites (e.g., `MethodCallNode` is created in parser-ts, parser-native, and codegen), inserting a new field before existing ones shifts GEP indices and breaks creation sites that don't include the new field. **Always add new optional fields at the END of interfaces.** Root cause: the native compiler doesn't unify struct layouts from interface definitions — it uses object literal field order, and different creation sites may have different subsets of fields.
 4. **`alloca` for collection structs stored in class fields** — `%Set`, `%StringSet`, `%Map`, and similar structs must be heap-allocated via `GC_malloc`, not `alloca`. Stack-allocated structs become dangling pointers when stored in a class field after the constructor returns. Use `emitCall("i8*", "@GC_malloc", "i64 N") + emitBitcast(...)` instead of `emit("... = alloca %Foo")`.
-5. **`||` fallback makes member access opaque** — `const x = foo.bar || { field: [] }` stores the result as `i8*` (opaque pointer) because the `||` merges two different types. Subsequent `.field` access on `x` does NOT generate a GEP — it just returns `x` itself. Fix: use a ternary that preserves the typed path: `const y = foo.bar ? foo.bar.field : []`. This applies to any `||` or `??` where the fallback is an inline object literal.
+5. **Never invent a subset/partial type for a type assertion** — always use the real AST type from `src/ast/types.ts`. An invented `type FunctionMeta = { name, returnType, parameters }` silently generates wrong GEP indices when its field order doesn't match the actual struct. The `object-method.js` SIGSEGV was caused by exactly this: `FunctionMeta.parameters` sat at index 2, but `FunctionNode.parameters` is at index 6, so every access read the wrong field. The real type always works — TypeScript's structural typing lets you access any subset of fields safely without redefining a partial interface.
+6. **`||` fallback makes member access opaque** — `const x = foo.bar || { field: [] }` stores the result as `i8*` (opaque pointer) because the `||` merges two different types. Subsequent `.field` access on `x` does NOT generate a GEP — it just returns `x` itself. Fix: use a ternary that preserves the typed path: `const y = foo.bar ? foo.bar.field : []`. This applies to any `||` or `??` where the fallback is an inline object literal.
 
 ## Stage 0 Compatibility
-
-Array-of-objects field access (`props[i].name`) works correctly — `argparse.ts` uses it extensively
-(`this.args[i].name`, `this.parsedFlags[i].value`). Previous crashes attributed to this pattern
-were actually caused by type assertions with wrong field counts (see Patterns That Crash Native Code #2).
 
 Self-hosting limitations:
 
@@ -254,10 +255,7 @@ Self-hosting limitations:
 
 ## Module System
 
-ChadScript merges all imported files into one flat AST. Imports trigger file resolution and AST merging.
-
-- **`export default`**: Parser stores the exported name in `ast.defaultExportName`. At import resolution time (`compiler.ts` `compileMultiFile`), the default import's local name is mapped to the exported name via `importAliases`. Codegen resolves aliases through `resolveImportAlias()`.
-- **Re-exports** (`export { foo } from './bar'`): The parser synthesizes `ImportDeclaration` entries for each re-exported name. Since ChadScript merges all files, re-exports are semantically equivalent to imports — they just trigger file resolution and AST merging.
+ChadScript merges all imported files into one flat AST. `export default` maps the local import name to the exported name via `importAliases` (resolved in `resolveImportAlias()`). Re-exports synthesize `ImportDeclaration` entries — semantically equivalent to imports.
 
 ## String Enums
 
@@ -289,9 +287,7 @@ and call it from `generateParts()` in `llvm-generator.ts`.
 
 ## LLVMGenerator.reset()
 
-`LLVMGenerator.reset()` calls `super.reset()` to reset all `BaseGenerator` fields, then clears its own
-additional fields. If you add new per-function state to either class, add the reset in the right place:
-base fields in `BaseGenerator.reset()`, LLVMGenerator-only fields in the override after `super.reset()`.
+New per-function state goes in `BaseGenerator.reset()` if it's a base field, or after `super.reset()` in the override for LLVMGenerator-only fields.
 
 ## Expression Orchestrator — No Silent Nulls
 

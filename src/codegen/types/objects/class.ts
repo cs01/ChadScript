@@ -1150,8 +1150,14 @@ export class ClassGenerator {
         if (ai < paramLLVMTypes.length) {
           argType = paramLLVMTypes[ai];
         }
-        const defaultVal = argType === "double" ? "0.0" : "null";
-        argParts.push(argType + " " + defaultVal);
+        const pendingEnv = this.ctx.getLastInlineLambdaEnvPtr();
+        if (pendingEnv && argType === "i8*") {
+          argParts.push(`i8* ${pendingEnv}`);
+          this.ctx.setLastInlineLambdaEnvPtr(null);
+        } else {
+          const defaultVal = argType === "double" ? "0.0" : "null";
+          argParts.push(argType + " " + defaultVal);
+        }
       }
     }
     const argValues = argParts.join(", ");

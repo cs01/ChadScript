@@ -65,7 +65,7 @@ The tables below describe the full feature set and support status.
 | Type aliases | Supported |
 | Union types (`string \| null`) | Supported (nullable unions only) |
 | `any`, `unknown`, `never` | Not supported |
-| User-defined generics (`<T>`) | Not supported |
+| User-defined generics (`<T>`) | Partial — generic classes and functions supported; numeric type params not supported |
 | Intersection types (`A & B`) | Not supported |
 | Mapped / conditional / template literal types | Not supported |
 | `satisfies`, `instanceof`, `Symbol` | Not supported |
@@ -110,6 +110,33 @@ interface Person {
 
 const p: Person = { age: 30, city: "NYC", name: "Alice" }; // works fine
 ```
+
+## Generics
+
+Generic classes and functions are supported with reference type parameters (strings, interfaces, classes). Numeric type params (`number`) are not supported.
+
+```typescript
+class Stack<T> {
+  items: T[];
+  constructor() { this.items = []; }
+  push(x: T): void { this.items.push(x); }
+  pop(): T { return this.items.pop(); }
+  size(): number { return this.items.length; }
+}
+
+const s = new Stack<string>();
+s.push("hello");
+console.log(s.pop()); // "hello"
+```
+
+```typescript
+function identity<T>(x: T): T { return x; }
+function first<T>(arr: T[]): T { return arr[0]; }
+
+const val = identity<string>("hi");
+```
+
+Multi-parameter generics (`Pair<A, B>`) and generic classes with interface type params also work.
 
 ## Modules
 
