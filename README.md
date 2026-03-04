@@ -36,22 +36,25 @@ Requires LLVM (`brew install llvm` / `apt install llvm clang`).
 ```typescript
 import { httpServe, Router, Context } from "chadscript/http";
 
+interface Post {
+  id: number;
+  title: string;
+}
+
+const posts: Post[] = [
+  { id: 1, title: "ChadScript ships v1" },
+  { id: 2, title: "Native speed, TypeScript syntax" },
+];
+
 const app: Router = new Router();
 
 app.get("/api/posts", (c: Context) => {
-  return c.json(
-    '[{"id":1,"title":"ChadScript ships v1"},{"id":2,"title":"Native speed, TypeScript syntax"}]',
-  );
+  return c.json(JSON.stringify(posts));
 });
 
 app.get("/api/posts/:id", (c: Context) => {
   const id = c.req.param("id");
   return c.json('{"id":' + id + "}");
-});
-
-app.notFound((c: Context) => {
-  c.status(404);
-  return c.text("Not found");
 });
 
 httpServe(3000, (req: HttpRequest) => app.handle(req));
