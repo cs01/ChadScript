@@ -11,11 +11,10 @@ import { httpServe, wsBroadcast, wsSend, parseMultipart,
 
 ## Router (recommended)
 
-For most servers, use the `Router` class from `chadscript/router`. It provides an Express/Hono-style API with URL parameter extraction, method matching, and chainable response helpers.
+For most servers, use the `Router` class. It provides an Express/Hono-style API with URL parameter extraction, method matching, and chainable response helpers.
 
 ```typescript
-import { httpServe } from "chadscript/http";
-import { Router, Context } from "chadscript/router";
+import { httpServe, Router, Context } from "chadscript/http";
 
 const app = new Router();
 

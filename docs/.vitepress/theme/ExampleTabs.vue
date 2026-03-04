@@ -19,8 +19,7 @@ const examples = [
   {
     label: 'HTTP Server',
     file: 'server.ts',
-    code: `import { httpServe } from "chadscript/http";
-import { Router, Context } from "chadscript/router";
+    code: `import { httpServe, Router, Context } from "chadscript/http";
 
 const app = new Router();
 

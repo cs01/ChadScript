@@ -19,15 +19,13 @@ const hash = crypto.createHash("sha256");
 A few APIs live in named modules and need an import:
 
 ```typescript
-import { httpServe } from "chadscript/http";
-import { Router } from "chadscript/router";
+import { httpServe, Router, Context } from "chadscript/http";
 import { ArgumentParser } from "chadscript/argparse";
 ```
 
 | Module | Contents |
 |--------|----------|
-| `chadscript/http` | `httpServe`, `wsBroadcast`, `wsSend`, `parseMultipart`, `getHeader`, `parseQueryString`, `parseCookies` |
-| `chadscript/router` | `Router`, `Context`, `RouterRequest` |
+| `chadscript/http` | `httpServe`, `wsBroadcast`, `wsSend`, `parseMultipart`, `getHeader`, `parseQueryString`, `parseCookies`, `Router`, `Context`, `RouterRequest` |
 | `chadscript/argparse` | `ArgumentParser` |
 
 The `chadscript/` prefix works like Node's `node:` prefix — unambiguous and collision-free.
