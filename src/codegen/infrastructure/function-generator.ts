@@ -103,6 +103,7 @@ export interface FunctionGeneratorContext {
   emitError(message: string, loc?: SourceLocation, suggestion?: string): never;
   setI64EligibleVars(vars: string[]): void;
   getTargetOS(): string;
+  setRawInterfaceType(name: string, type: string): void;
 }
 
 export class FunctionGenerator {
@@ -585,6 +586,10 @@ export class FunctionGenerator {
 
         const kind = this.llvmTypeToSymbolKind(capture.llvmType);
         this.ctx.defineVariable(capture.name, allocaReg, capture.llvmType, kind, "local");
+        const captureTyped = capture as { name: string; llvmType: string; interfaceType?: string };
+        if (captureTyped.interfaceType && capture.llvmType === "%ObjectArray*") {
+          this.ctx.setRawInterfaceType(capture.name, captureTyped.interfaceType);
+        }
       }
     }
 
@@ -791,6 +796,7 @@ export class FunctionGenerator {
     if (llvmType === "double") return SymbolKind.Number;
     if (llvmType === "i8*") return SymbolKind.String;
     if (llvmType === "%Array*") return SymbolKind.Array;
+    if (llvmType === "%ObjectArray*") return SymbolKind.ObjectArray;
     if (llvmType === "%StringArray*") return SymbolKind.StringArray;
     if (llvmType === "%Map*") return SymbolKind.Map;
     if (llvmType === "%StringMap*") return SymbolKind.Map;

@@ -1423,9 +1423,10 @@ export class SymbolTable {
     return scopeVars;
   }
 
-  getScopeVarsArraysForClosure(): { names: string[]; types: string[] } {
+  getScopeVarsArraysForClosure(): { names: string[]; types: string[]; interfaceTypes: string[] } {
     const names: string[] = [];
     const types: string[] = [];
+    const interfaceTypes: string[] = [];
     for (let i = 0; i < this.symbolKeys.length; i++) {
       const name = this.symbolKeys[i];
       if (!name) {
@@ -1435,9 +1436,10 @@ export class SymbolTable {
       if (symbol) {
         names.push(name);
         types.push(symbol.llvmType);
+        interfaceTypes.push(this.interfaceTypes.get(name) || "");
       }
     }
-    return { names: names, types: types };
+    return { names: names, types: types, interfaceTypes: interfaceTypes };
   }
 
   /**

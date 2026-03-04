@@ -53,7 +53,12 @@ export class CallExpressionGenerator {
     if (expr.name === "callHandler") {
       const fnPtr = this.ctx.generateExpression(expr.args[0], params);
       const typedFn = this.ctx.nextTemp();
-      this.ctx.emit(`${typedFn} = bitcast i8* ${fnPtr} to double (i8*)*`);
+      const numCallArgs = expr.args.length - 1;
+      const argTypeList: string[] = [];
+      for (let ti = 0; ti < numCallArgs; ti++) {
+        argTypeList.push("i8*");
+      }
+      this.ctx.emit(`${typedFn} = bitcast i8* ${fnPtr} to double (${argTypeList.join(", ")})*`);
       const callArgsList: string[] = [];
       for (let ai = 1; ai < expr.args.length; ai++) {
         const argVal = this.ctx.generateExpression(expr.args[ai], params);
