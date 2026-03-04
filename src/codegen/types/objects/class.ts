@@ -1111,7 +1111,14 @@ export class ClassGenerator {
             }
           }
         }
-        const val = this.ctx.generateExpression(arg, params);
+        const autoSerialize =
+          ai === 0 &&
+          methodName === "json" &&
+          className === "Context" &&
+          !this.ctx.isStringExpression(arg);
+        const val = autoSerialize
+          ? this.ctx.jsonGen.generateStringifyExpr(arg, params)
+          : this.ctx.generateExpression(arg, params);
         this.ctx.setExpectedCallbackParamType(null);
 
         let argType = "double";

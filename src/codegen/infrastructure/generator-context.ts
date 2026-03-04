@@ -179,6 +179,7 @@ export interface IJsonGenerator {
   canHandle(expr: MethodCallNode): boolean;
   generateParse(expr: MethodCallNode, params: string[], typeParam?: string): string;
   generateStringify(expr: MethodCallNode, params: string[]): string;
+  generateStringifyExpr(arg: Expression, params: string[]): string;
 }
 
 export interface IDateGenerator {
@@ -1895,6 +1896,8 @@ export class MockGeneratorContext implements IGeneratorContext {
     generateParse: (_expr: MethodCallNode, _params: string[], _typeParam?: string): string =>
       "%mock_json_parse",
     generateStringify: (_expr: MethodCallNode, _params: string[]): string => "%mock_json_stringify",
+    generateStringifyExpr: (_arg: Expression, _params: string[]): string =>
+      "%mock_json_stringify_expr",
   };
   dateGen: IDateGenerator = {
     canHandle: (_expr: MethodCallNode): boolean => false,

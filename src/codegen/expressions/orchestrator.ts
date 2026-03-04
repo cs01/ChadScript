@@ -256,7 +256,9 @@ export class ExpressionGenerator {
           const cap = captures[i] as { name: string; llvmType: string };
           const allocaReg = this.ctx.symbolTable.getAlloca(cap.name);
           if (!allocaReg) {
-            throw new Error(`Closure capture error: variable '${cap.name}' not found`);
+            this.ctx.emitError(
+              `cannot capture '${cap.name}' in closure — module-level variables are not in scope. move the variable into a function or class.`,
+            );
           }
 
           const valueReg = this.ctx.nextTemp();

@@ -42,10 +42,19 @@ When working in a git worktree, `vendor/` and `c_bridges/*.o` must exist. Symlin
 
 ```bash
 ln -s /path/to/main/repo/vendor vendor
+ln -s /path/to/main/repo/c_bridges/regex-bridge.o c_bridges/regex-bridge.o
+# (repeat for each .o file, or run build-vendor.sh to build them fresh)
 ```
 
 The `c_bridges/*.c` source files are tracked in git, but the `.o` files are built by `scripts/build-vendor.sh`.
-If `.o` files are missing, either run the build script or symlink from a repo that has them built.
+**Always rebuild from source** rather than symlinking to avoid stale artifacts — the symlinked `.o`
+may have been compiled from an older version of the `.c` source:
+
+```bash
+bash scripts/build-vendor.sh
+```
+
+`npm test` automatically runs `build-vendor.sh` to detect and rebuild stale bridges before each test run.
 
 # ChadScript Architecture Guide
 

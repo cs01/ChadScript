@@ -1313,6 +1313,12 @@ export class MethodCallGenerator {
     }
 
     const exprObjBase = expr.object as ExprBase;
+    if (exprObjBase.type === "method_call") {
+      this.ctx.emitError(
+        `Method chaining on class instances is not supported. Assign the result to a variable first.`,
+        expr.loc,
+      );
+    }
     if (exprObjBase.type === "variable") {
       const varName = (expr.object as VariableNode).name;
       const ast = this.ctx.getAst();

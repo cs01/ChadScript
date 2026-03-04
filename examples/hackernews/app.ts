@@ -1,6 +1,7 @@
 // Hacker News Clone - full-stack app with SQLite, embedded files, and a JSON API
 import { ArgumentParser } from "chadscript/argparse";
 import { httpServe } from "chadscript/http";
+import { Router, Context } from "chadscript/router";
 
 const parser = new ArgumentParser(
   "hackernews",
@@ -10,18 +11,6 @@ parser.addOption("port", "p", "Port to listen on", "3000");
 parser.parse(process.argv);
 
 const port = parseInt(parser.getOption("port"));
-
-interface HttpRequest {
-  method: string;
-  path: string;
-  body: string;
-  contentType: string;
-}
-
-interface HttpResponse {
-  status: number;
-  body: string;
-}
 
 interface Post {
   id: string;
@@ -134,27 +123,32 @@ for (let i = 0; i < seedPosts.length; i++) {
   ]);
 }
 
+function getPosts(c: Context): HttpResponse {
+  const posts: Post[] = sqlite.query(
+    db,
+    "SELECT id, title, url, points FROM posts ORDER BY points DESC",
+  );
+  return c.json(posts);
+}
+
+function upvotePost(c: Context): HttpResponse {
+  const idStr = c.req.param("id");
+  sqlite.exec(db, "UPDATE posts SET points = points + 1 WHERE id = ?", [idStr]);
+  return c.json('{"ok":true}');
+}
+
+const app = new Router();
+app.get("/api/posts", getPosts);
+app.post("/upvote/:id", upvotePost);
+
 function handleRequest(req: HttpRequest): HttpResponse {
-  console.log(req.method + " " + req.path);
-
-  if (req.path === "/api/posts") {
-    const posts: Post[] = sqlite.query(
-      db,
-      "SELECT id, title, url, points FROM posts ORDER BY points DESC",
-    );
-    return { status: 200, body: JSON.stringify(posts) };
-  }
-
-  if (req.method === "POST" && req.path.startsWith("/upvote/")) {
-    const idStr = req.path.substring(8, req.path.length);
-    sqlite.exec(db, "UPDATE posts SET points = points + 1 WHERE id = ?", [idStr]);
-    return { status: 200, body: '{"ok":true}' };
-  }
-
   if (req.path === "/") {
     return ChadScript.serveEmbedded("index.html");
   }
-
+  const res = app.handle(req);
+  if (res.status !== 404) {
+    return res;
+  }
   return ChadScript.serveEmbedded(req.path);
 }
 
@@ -165,4 +159,5 @@ console.log(`  SQLite database running in-memory with ${seedPosts.length} posts`
 console.log("");
 console.log(`Open http://localhost:${port} in your browser`);
 console.log("");
+
 httpServe(port, handleRequest);

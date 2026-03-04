@@ -291,7 +291,7 @@ export class Router {
       for (let i = 0; i < this.routes.length; i++) {
         const route = this.routes[i];
         const outerGroup = match[route.groupOffset];
-        if (outerGroup !== "") {
+        if (outerGroup !== undefined && outerGroup !== null && outerGroup !== "") {
           if (route.method === "*" || route.method === method) {
             const params = new Map<string, string>();
             if (route.paramNames !== "") {
