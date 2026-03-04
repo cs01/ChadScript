@@ -38,23 +38,7 @@ mysterious test failures that pass fine with the node compiler.
 
 ## Worktree Setup
 
-When working in a git worktree, `vendor/` and `c_bridges/*.o` must exist. Symlinks to the main repo work:
-
-```bash
-ln -s /path/to/main/repo/vendor vendor
-ln -s /path/to/main/repo/c_bridges/regex-bridge.o c_bridges/regex-bridge.o
-# (repeat for each .o file, or run build-vendor.sh to build them fresh)
-```
-
-The `c_bridges/*.c` source files are tracked in git, but the `.o` files are built by `scripts/build-vendor.sh`.
-**Always rebuild from source** rather than symlinking to avoid stale artifacts — the symlinked `.o`
-may have been compiled from an older version of the `.c` source:
-
-```bash
-bash scripts/build-vendor.sh
-```
-
-`npm test` automatically runs `build-vendor.sh` to detect and rebuild stale bridges before each test run.
+Always run `bash scripts/build-vendor.sh` in new worktrees to build `c_bridges/*.o`. `npm test` does this automatically.
 
 # ChadScript Architecture Guide
 
@@ -86,10 +70,9 @@ TypeScript-to-native compiler using LLVM IR. Compiles .ts/.js files to native bi
 
 1. **IR Generation**: Add function in `src/codegen/types/collections/string/manipulation.ts` (or search.ts, etc.)
 2. **Facade**: Add `doGenerateX()` in `src/codegen/types/collections/string.ts` (StringGenerator class)
-3. **Dispatch**: Add `if (method === 'x')` block in `src/codegen/expressions/method-calls.ts` (~line 812 area)
+3. **Dispatch**: Add `if (method === 'x')` block in `src/codegen/expressions/method-calls.ts`
 4. **Handler**: Add `private handleX()` method in method-calls.ts
-5. **Context**: If consumers access via a sub-generator context interface, ensure `readonly stringGen: IStringGenerator` is declared
-6. **Test**: Add fixture in `tests/fixtures/strings/` (auto-discovered, no registry needed)
+5. **Test**: Add fixture in `tests/fixtures/strings/` (auto-discovered, no registry needed)
 
 **NOTE**: Prefer direct field access (`ctx.stringGen.doMethod()`) over adding wrapper methods to `IGeneratorContext`. Concrete type propagation in `loadFieldValue` (member.ts) ensures chained access through interface fields works in the native compiler.
 
@@ -244,10 +227,6 @@ any interface with inheritance. `allocateDeclaredInterface` does this correctly;
 
 ## Stage 0 Compatibility
 
-Array-of-objects field access (`props[i].name`) works correctly — `argparse.ts` uses it extensively
-(`this.args[i].name`, `this.parsedFlags[i].value`). Previous crashes attributed to this pattern
-were actually caused by type assertions with wrong field counts (see Patterns That Crash Native Code #2).
-
 Self-hosting limitations:
 
 - **No import aliases** — `import { foo as bar }` compiles `bar(...)` as `@_cs_bar` which doesn't match the original `@_cs_foo`. Use the original name.
@@ -255,10 +234,7 @@ Self-hosting limitations:
 
 ## Module System
 
-ChadScript merges all imported files into one flat AST. Imports trigger file resolution and AST merging.
-
-- **`export default`**: Parser stores the exported name in `ast.defaultExportName`. At import resolution time (`compiler.ts` `compileMultiFile`), the default import's local name is mapped to the exported name via `importAliases`. Codegen resolves aliases through `resolveImportAlias()`.
-- **Re-exports** (`export { foo } from './bar'`): The parser synthesizes `ImportDeclaration` entries for each re-exported name. Since ChadScript merges all files, re-exports are semantically equivalent to imports — they just trigger file resolution and AST merging.
+ChadScript merges all imported files into one flat AST. `export default` maps the local import name to the exported name via `importAliases` (resolved in `resolveImportAlias()`). Re-exports synthesize `ImportDeclaration` entries — semantically equivalent to imports.
 
 ## String Enums
 
@@ -290,9 +266,7 @@ and call it from `generateParts()` in `llvm-generator.ts`.
 
 ## LLVMGenerator.reset()
 
-`LLVMGenerator.reset()` calls `super.reset()` to reset all `BaseGenerator` fields, then clears its own
-additional fields. If you add new per-function state to either class, add the reset in the right place:
-base fields in `BaseGenerator.reset()`, LLVMGenerator-only fields in the override after `super.reset()`.
+New per-function state goes in `BaseGenerator.reset()` if it's a base field, or after `super.reset()` in the override for LLVMGenerator-only fields.
 
 ## Expression Orchestrator — No Silent Nulls
 
