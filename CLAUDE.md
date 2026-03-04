@@ -38,7 +38,19 @@ mysterious test failures that pass fine with the node compiler.
 
 ## Worktree Setup
 
-Always run `bash scripts/build-vendor.sh` in new worktrees to build `c_bridges/*.o`. `npm test` does this automatically.
+`vendor/` must be symlinked from the main repo (it's not in git):
+
+```bash
+ln -s /path/to/main/repo/vendor vendor
+```
+
+Then build the C bridges from source (don't symlink `.o` files — they may be stale):
+
+```bash
+bash scripts/build-vendor.sh
+```
+
+`npm test` runs `build-vendor.sh` automatically.
 
 # ChadScript Architecture Guide
 
