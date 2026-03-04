@@ -682,6 +682,8 @@ function compileMultiFile(
                   implements: cls.implements,
                   fields: cls.fields,
                   methods: cls.methods,
+                  loc: cls.loc,
+                  typeParameters: cls.typeParameters,
                 };
                 importedAST.classes.push(aliasClass);
                 break;
@@ -777,6 +779,8 @@ function compileMultiFile(
               implements: cls.implements,
               fields: cls.fields,
               methods: cls.methods,
+              loc: cls.loc,
+              typeParameters: cls.typeParameters,
             };
             importedAST.classes.push(aliasClass);
             break;

@@ -153,7 +153,7 @@ function transformTopLevelNode(node: TreeSitterNode, ast: AST): void {
       }
       break;
 
-    case "type_alias_declaration": {
+    case "type_alias_declaration":
       const objIface = transformObjectTypeAlias(node);
       if (objIface) {
         ast.interfaces.push(objIface);
@@ -162,7 +162,6 @@ function transformTopLevelNode(node: TreeSitterNode, ast: AST): void {
         if (typeAlias) ast.typeAliases.push(typeAlias);
       }
       break;
-    }
 
     case "enum_declaration":
       const enumDecl = transformEnumDeclaration(node);
@@ -2711,6 +2710,7 @@ function transformClassDeclaration(node: TreeSitterNode): ClassNode | null {
     implements: implementsClause,
     fields,
     methods,
+    loc: undefined,
     typeParameters,
   };
 }

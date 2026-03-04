@@ -16,13 +16,16 @@ interface InterfaceDefInfo {
   properties: { name: string; type: string }[];
 }
 
-type NewNode = { type: "new"; className: string };
+type NewMeta = { type: "new"; className: string };
 type ObjectNode = { type: "object"; properties: { key: string }[] };
 type ClassNode = {
   name: string;
   extends?: string;
   implements?: string[];
+  fields: { name: string; type: string }[];
   methods: { name: string; isConstructor?: boolean; isStatic?: boolean }[];
+  loc?: { line: number; column: number };
+  typeParameters?: string[];
 };
 type FunctionMeta = {
   name: string;
@@ -477,7 +480,7 @@ export function handleClassMethods(
       }
     }
   } else if (exprObjBase.type === "new") {
-    const newExpr = expr.object as NewNode;
+    const newExpr = expr.object as NewMeta;
     className = newExpr.className;
     instancePtr = ctx.generateExpression(expr.object, params);
   } else if (exprObjBase.type === "this") {
