@@ -310,11 +310,11 @@ function handleAmbientDeclaration(node: TreeSitterNode, ast: AST): void {
     body: createEmptyBlock(),
     returnType: returnType,
     paramTypes: paramTypesList,
-    typeParameters: undefined,
     async: undefined,
     parameters: undefined,
     loc: undefined,
     declare: true,
+    typeParameters: undefined,
   };
   ast.functions.push(func);
 }
@@ -2339,11 +2339,11 @@ function transformFunctionDeclaration(node: TreeSitterNode): FunctionNode | null
     body,
     returnType,
     paramTypes,
-    typeParameters,
     async: isAsync || undefined,
     parameters,
     loc: undefined,
     declare: false,
+    typeParameters,
   };
 }
 

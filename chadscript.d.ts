@@ -340,7 +340,7 @@ declare module "chadscript/router" {
     status(code: number): Context;
     header(name: string, value: string): Context;
     text(body: string): HttpResponse;
-    json(data: string): HttpResponse;
+    json(data: any): HttpResponse;
     html(body: string): HttpResponse;
     redirect(url: string): HttpResponse;
   }

@@ -405,13 +405,13 @@ export interface FunctionNode {
   body: BlockStatement;
   returnType?: string;
   paramTypes?: string[];
-  typeParameters?: string[];
   async?: boolean;
   parameters?: FunctionParameter[];
   loc?: SourceLocation;
   // External C function declaration (declare function foo(): void)
   // When true, codegen emits LLVM `declare` instead of `define`, no _cs_ prefix
   declare?: boolean;
+  typeParameters?: string[];
 }
 
 export interface ClassMethod {

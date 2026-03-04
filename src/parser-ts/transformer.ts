@@ -102,11 +102,11 @@ function transformTopLevelStatement(
             body: func.body,
             returnType: func.returnType,
             paramTypes: func.paramTypes,
-            typeParameters: func.typeParameters,
             async: func.async,
             parameters: func.parameters,
             loc: func.loc,
             declare: true,
+            typeParameters: func.typeParameters,
           };
           ast.functions.push(declFunc);
         }

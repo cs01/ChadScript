@@ -2196,6 +2196,28 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
                 );
                 continue;
               }
+              // Check typeAliases — object-shaped aliases (Point, Config, etc.) resolve to i8*
+              if (this.ast.typeAliases) {
+                let foundAlias = false;
+                for (let i = 0; i < this.ast.typeAliases.length; i++) {
+                  const alias = this.ast.typeAliases[i];
+                  if (!alias || alias.name !== strippedDeclaredType) continue;
+                  const members = alias.unionMembers;
+                  let aliasLlvm = "i8*";
+                  if (members && members.length > 0) {
+                    aliasLlvm = tsTypeToLlvm(members[0].trim());
+                  }
+                  llvmType = aliasLlvm;
+                  kind = llvmType === "double" ? SymbolKind.Number : SymbolKind.Object;
+                  defaultValue = llvmType === "double" ? "0.0" : "null";
+                  ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
+                  this.globalVariables.set(name, { llvmType, kind, initialized: false });
+                  this.defineVariable(name, `@${name}`, llvmType, kind, "global");
+                  foundAlias = true;
+                  break;
+                }
+                if (foundAlias) continue;
+              }
               // Unrecognized declared type — fall through to expression-based detection
             }
           }
