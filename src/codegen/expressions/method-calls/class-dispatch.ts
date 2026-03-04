@@ -6,6 +6,8 @@ import {
   TypeAssertionNode,
   InterfaceDeclaration,
   InterfaceField,
+  FunctionNode,
+  FunctionParameter,
 } from "../../../ast/types.js";
 import type { MethodCallGeneratorContext } from "../method-calls.js";
 
@@ -26,12 +28,6 @@ type ClassNode = {
   methods: { name: string; isConstructor?: boolean; isStatic?: boolean }[];
   loc?: { line: number; column: number };
   typeParameters?: string[];
-};
-type FunctionMeta = {
-  name: string;
-  returnType?: string;
-  parameters?: { type: string }[];
-  paramTypes?: string[];
 };
 
 export function getInterfaceFromAST(
@@ -69,12 +65,12 @@ export function getInterfaceDecl(
   return null;
 }
 
-function getFunctionFromAST(ctx: MethodCallGeneratorContext, name: string): FunctionMeta | null {
+function getFunctionFromAST(ctx: MethodCallGeneratorContext, name: string): FunctionNode | null {
   const len = ctx.getAstFunctionsLength();
   for (let i = 0; i < len; i++) {
     const funcName = ctx.getAstFunctionNameAt(i);
     if (funcName === name) {
-      return ctx.getAstFunctionAt(i) as FunctionMeta | null;
+      return ctx.getAstFunctionAt(i) as FunctionNode | null;
     }
   }
   return null;
