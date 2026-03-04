@@ -318,6 +318,7 @@ function handleAmbientDeclaration(node: TreeSitterNode, ast: AST): void {
     parameters: undefined,
     loc: undefined,
     declare: true,
+    typeParameters: undefined,
   };
   ast.functions.push(func);
 }

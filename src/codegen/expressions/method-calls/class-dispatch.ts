@@ -24,7 +24,7 @@ type ClassNode = {
   implements?: string[];
   methods: { name: string; isConstructor?: boolean; isStatic?: boolean }[];
 };
-type FunctionNode = {
+type FunctionMeta = {
   name: string;
   returnType?: string;
   parameters?: { type: string }[];
@@ -66,12 +66,12 @@ export function getInterfaceDecl(
   return null;
 }
 
-function getFunctionFromAST(ctx: MethodCallGeneratorContext, name: string): FunctionNode | null {
+function getFunctionFromAST(ctx: MethodCallGeneratorContext, name: string): FunctionMeta | null {
   const len = ctx.getAstFunctionsLength();
   for (let i = 0; i < len; i++) {
     const funcName = ctx.getAstFunctionNameAt(i);
     if (funcName === name) {
-      return ctx.getAstFunctionAt(i) as FunctionNode | null;
+      return ctx.getAstFunctionAt(i) as FunctionMeta | null;
     }
   }
   return null;

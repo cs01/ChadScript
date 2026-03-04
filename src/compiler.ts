@@ -696,6 +696,11 @@ function compileMultiFile(
                   body: fn.body,
                   returnType: fn.returnType,
                   paramTypes: fn.paramTypes,
+                  async: fn.async,
+                  parameters: fn.parameters,
+                  loc: fn.loc,
+                  declare: false,
+                  typeParameters: fn.typeParameters,
                 };
                 importedAST.functions.push(aliasFn);
                 break;
@@ -780,13 +785,17 @@ function compileMultiFile(
         for (let fi = 0; fi < importedAST.functions.length; fi++) {
           const fn = importedAST.functions[fi];
           if (fn.name === defExported) {
-            // Match native parser FunctionNode field order exactly
             const aliasFn: FunctionNode = {
               name: defLocal,
               params: fn.params,
               body: fn.body,
               returnType: fn.returnType,
               paramTypes: fn.paramTypes,
+              async: fn.async,
+              parameters: fn.parameters,
+              loc: fn.loc,
+              declare: false,
+              typeParameters: fn.typeParameters,
             };
             importedAST.functions.push(aliasFn);
             break;
