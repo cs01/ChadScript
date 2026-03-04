@@ -344,6 +344,42 @@ export class FunctionGenerator {
             }
           }
 
+          if (interfaceDefName === "") {
+            let biKeys: string[] = [];
+            let biTypes: string[] = [];
+            const ptype = paramTypes[i];
+            if (ptype === "HttpRequest") {
+              biKeys = ["method", "path", "body", "contentType", "headers", "bodyLen"];
+              biTypes = ["i8*", "i8*", "i8*", "i8*", "i8*", "double"];
+            } else if (ptype === "HttpResponse") {
+              biKeys = ["status", "body", "headers"];
+              biTypes = ["double", "i8*", "i8*"];
+            } else if (ptype === "WsEvent") {
+              biKeys = ["data", "event", "connId"];
+              biTypes = ["i8*", "i8*", "i8*"];
+            } else if (ptype === "MultipartPart") {
+              biKeys = ["name", "filename", "contentType", "data", "dataLen"];
+              biTypes = ["i8*", "i8*", "i8*", "i8*", "double"];
+            }
+            if (biKeys.length > 0) {
+              this.ctx.defineVariableWithMetadata(
+                paramName,
+                allocaReg,
+                "i8*",
+                SymbolKind.Object,
+                "local",
+                createObjectMetadataWithInterface({ keys: biKeys, types: biTypes }, ptype),
+              );
+              this.ctx.emit(`${allocaReg} = alloca i8*`);
+              if (isOptional && hasOptionalParams) {
+                this.generateOptionalParamInit(i, allocaReg, llvmType, paramInfo!, funcParams);
+              } else {
+                this.ctx.emit(`store i8* %arg${i}, i8** ${allocaReg}`);
+              }
+              continue;
+            }
+          }
+
           const typeAliasCommonProps = this.ctx.getTypeAliasCommonProperties(paramTypes[i]);
 
           if (classDefName !== "") {

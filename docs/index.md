@@ -2,23 +2,23 @@
 layout: home
 hero:
   name: ChadScript
-  text: As fast as C. As safe as Rust. As ergonomic as TypeScript.
-  tagline: "A natively-compiled systems language with TypeScript syntax. Write in a familiar style, ship a standalone binary with no runtime."
+  text: TypeScript syntax. Native binary. No runtime.
+  tagline: "Write TypeScript-style code and compile to a standalone native binary — no Node.js, no runtime overhead."
   actions:
     - theme: brand
       text: Get Started
       link: /getting-started/installation
     - theme: alt
-      text: Why ChadScript?
+      text: What is ChadScript?
       link: /why-chadscript
 
 features:
   - title: No Runtime
-    details: Compiles to standalone ELF binaries that start in under 2ms.
+    details: Compiles to a standalone native binary. No JIT warmup, no cold start.
   - title: TypeScript Syntax
-    details: Uses TypeScript's syntax — classes, interfaces, async/await, closures. Not a full TS compiler; a natively-compiled dialect.
+    details: Classes, interfaces, async/await, closures. Familiar syntax, statically-typed, compiles to native code.
   - title: Batteries Included
-    details: Everything you'd npm install — HTTP, SQLite, fetch, crypto, JSON — is built in. No dependencies.
+    details: HTTP, SQLite, fetch, crypto, JSON — all built in, backed by proven C libraries. No packages to install.
   - title: Single-Binary Deploy
     details: Embed HTML, CSS, and assets at compile time. Ship one file.
 ---
@@ -31,7 +31,7 @@ features:
 
 <ExampleTabs />
 
-<div class="examples-link">See more <a href="/ChadScript/getting-started/quickstart">examples →</a></div>
+<div class="examples-link">See more <a href="/ChadScript/getting-started/quickstart">examples</a></div>
 
 <div class="cta-section">
 
@@ -43,7 +43,7 @@ curl -fsSL https://raw.githubusercontent.com/cs01/ChadScript/main/install.sh | s
 
 <div class="cta-buttons">
   <a href="/ChadScript/getting-started/installation" class="cta-button primary">Get Started</a>
-  <a href="/ChadScript/why-chadscript" class="cta-button secondary">Why ChadScript?</a>
+  <a href="/ChadScript/why-chadscript" class="cta-button secondary">What is ChadScript?</a>
 </div>
 
 </div>

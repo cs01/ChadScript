@@ -944,6 +944,58 @@ export class VariableAllocator {
           tsTypes.push(field.type);
         }
       }
+    } else if (interfaceName === "HttpResponse") {
+      keys.push("status");
+      keys.push("body");
+      keys.push("headers");
+      types.push("double");
+      types.push("i8*");
+      types.push("i8*");
+      tsTypes.push("number");
+      tsTypes.push("string");
+      tsTypes.push("string");
+    } else if (interfaceName === "HttpRequest") {
+      keys.push("method");
+      keys.push("path");
+      keys.push("body");
+      keys.push("contentType");
+      keys.push("headers");
+      types.push("i8*");
+      types.push("i8*");
+      types.push("i8*");
+      types.push("i8*");
+      types.push("i8*");
+      tsTypes.push("string");
+      tsTypes.push("string");
+      tsTypes.push("string");
+      tsTypes.push("string");
+      tsTypes.push("string");
+    } else if (interfaceName === "WsEvent") {
+      keys.push("data");
+      keys.push("event");
+      keys.push("connId");
+      types.push("i8*");
+      types.push("i8*");
+      types.push("i8*");
+      tsTypes.push("string");
+      tsTypes.push("string");
+      tsTypes.push("string");
+    } else if (interfaceName === "MultipartPart") {
+      keys.push("name");
+      keys.push("filename");
+      keys.push("contentType");
+      keys.push("data");
+      keys.push("dataLen");
+      types.push("i8*");
+      types.push("i8*");
+      types.push("i8*");
+      types.push("i8*");
+      types.push("double");
+      tsTypes.push("string");
+      tsTypes.push("string");
+      tsTypes.push("string");
+      tsTypes.push("string");
+      tsTypes.push("number");
     } else {
       const interfaceDefResult = this.getInterface(interfaceName);
       const interfaceDef = interfaceDefResult as InterfaceDeclaration;

@@ -19,22 +19,24 @@ const examples = [
   {
     label: 'HTTP Server',
     file: 'server.ts',
-    code: `// Static files baked into the binary at compile time
-ChadScript.embedDir("./public");
+    code: `import { httpServe, Router, Context } from "chadscript/http";
 
-const posts = [{ id: 1, title: "Hello World", likes: 42 }];
+const app: Router = new Router();
 
-function handleRequest(req: HttpRequest): HttpResponse {
-  // JSON REST API
-  if (req.path === "/api/posts") {
-    return { status: 200, body: JSON.stringify(posts), headers: "" };
-  }
-  // Fallback: serve embedded static files (.html, .css, etc.)
-  // Content-Type is inferred from the file extension
-  return ChadScript.serveEmbedded(req.path);
-}
+app.get("/", (c: Context) => {
+  return c.text("Hello World");
+});
 
-httpServe(3000, handleRequest);`,
+app.get("/json", (c: Context) => {
+  return c.json({ name: "Alice", age: 30 });
+});
+
+app.notFound((c: Context) => {
+  c.status(404);
+  return c.text("Not Found");
+});
+
+httpServe(3000, (req) => app.handle(req));`,
     run: '$ chad build server.ts -o server && ./server',
     output: `listening on port 3000`,
   },
@@ -192,11 +194,13 @@ onUnmounted(() => {
       <div class="panel-header">
         <span class="window-dots"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></span>
         <span class="panel-filename">{{ examples[activeTab].file }}</span>
+      </div>
+      <div class="panel-code-wrap">
+        <pre class="panel-code"><code v-html="highlightedCode"></code></pre>
         <button class="copy-btn" :class="{ copied }" @click="copyCode">
           {{ copied ? 'Copied' : 'Copy' }}
         </button>
       </div>
-      <pre class="panel-code"><code v-html="highlightedCode"></code></pre>
       <div class="panel-terminal">
         <div class="terminal-header"><span class="window-dots"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></span><span class="terminal-title">Terminal</span></div>
         <div class="terminal-line terminal-cmd"><span class="terminal-prompt">$</span> {{ cmdText }}<span v-if="!showOutput" class="cursor">|</span></div>
@@ -292,8 +296,11 @@ onUnmounted(() => {
 }
 
 .copy-btn {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(30, 30, 30, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 5px;
   padding: 3px 10px;
   font-size: 0.72rem;
@@ -302,6 +309,7 @@ onUnmounted(() => {
   cursor: pointer;
   transition: all 0.15s;
   font-family: inherit;
+  opacity: 0;
 }
 
 .copy-btn:hover {
@@ -310,8 +318,17 @@ onUnmounted(() => {
 }
 
 .copy-btn.copied {
+  opacity: 1;
   color: #22c55e;
   border-color: rgba(34, 197, 94, 0.3);
+}
+
+.panel-code-wrap {
+  position: relative;
+}
+
+.panel-code-wrap:hover .copy-btn {
+  opacity: 1;
 }
 
 .panel-code {

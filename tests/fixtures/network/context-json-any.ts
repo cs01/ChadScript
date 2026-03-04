@@ -1,6 +1,6 @@
 // @test-description: c.json() accepts objects and auto-serializes them
 
-import { Router, Context } from "chadscript/router";
+import { Router, Context } from "chadscript/http";
 
 function test(): void {
   const app = new Router();

@@ -1891,6 +1891,14 @@ export class TypeInference {
 
         const iface = this.getInterface(returnType);
         if (iface) return returnType;
+        if (
+          returnType === "HttpResponse" ||
+          returnType === "HttpRequest" ||
+          returnType === "WsEvent" ||
+          returnType === "MultipartPart"
+        ) {
+          return returnType;
+        }
       }
     }
 

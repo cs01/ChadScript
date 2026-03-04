@@ -1,6 +1,6 @@
 // @test-description: Router accepts named top-level functions as route handlers
 
-import { Router, Context } from "chadscript/router";
+import { Router, Context } from "chadscript/http";
 
 function getHello(c: Context): HttpResponse {
   return c.text("hello");

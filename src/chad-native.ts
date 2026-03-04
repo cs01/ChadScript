@@ -15,7 +15,6 @@ import {
 } from "./native-compiler-lib.js";
 // d.ts content is embedded at compile time via ChadScript.embedFile
 const dtsContent = ChadScript.embedFile("../chadscript.d.ts");
-registerStdlib("router.ts", ChadScript.embedFile("../lib/router.ts"));
 registerStdlib("argparse.ts", ChadScript.embedFile("../lib/argparse.ts"));
 registerStdlib("http.ts", ChadScript.embedFile("../lib/http.ts"));
 import { ArgumentParser } from "chadscript/argparse";

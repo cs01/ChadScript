@@ -171,7 +171,20 @@ describe("Network Tests", () => {
       stdio: "ignore",
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    async function waitForServer9997(maxMs = 5000): Promise<void> {
+      const start = Date.now();
+      while (Date.now() - start < maxMs) {
+        try {
+          await fetch("http://127.0.0.1:9997/");
+          return;
+        } catch {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+      }
+      throw new Error("Server not ready after " + maxMs + "ms");
+    }
+
+    await waitForServer9997();
 
     try {
       const responses = await Promise.all([

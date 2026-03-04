@@ -324,7 +324,20 @@ declare module "chadscript/argparse" {
   }
 }
 
-declare module "chadscript/router" {
+declare module "chadscript/http" {
+  export function getHeader(headersRaw: string, name: string): string;
+  export function parseQueryString(qs: string): Map<string, string>;
+  export function parseCookies(cookieHeader: string): Map<string, string>;
+  export function httpServe(port: number, handler: (req: HttpRequest) => HttpResponse): void;
+  export function httpServe(
+    port: number,
+    handler: (req: HttpRequest) => HttpResponse,
+    wsHandler: (event: WsEvent) => string,
+  ): void;
+  export function wsBroadcast(message: string): void;
+  export function wsSend(connId: string, message: string): void;
+  export function parseMultipart(req: HttpRequest): MultipartPart[];
+
   export class RouterRequest {
     method: string;
     path: string;
@@ -354,19 +367,4 @@ declare module "chadscript/router" {
     notFound(handler: (c: Context) => HttpResponse): void;
     handle(req: HttpRequest): HttpResponse;
   }
-}
-
-declare module "chadscript/http" {
-  export function getHeader(headersRaw: string, name: string): string;
-  export function parseQueryString(qs: string): Map<string, string>;
-  export function parseCookies(cookieHeader: string): Map<string, string>;
-  export function httpServe(port: number, handler: (req: HttpRequest) => HttpResponse): void;
-  export function httpServe(
-    port: number,
-    handler: (req: HttpRequest) => HttpResponse,
-    wsHandler: (event: WsEvent) => string,
-  ): void;
-  export function wsBroadcast(message: string): void;
-  export function wsSend(connId: string, message: string): void;
-  export function parseMultipart(req: HttpRequest): MultipartPart[];
 }

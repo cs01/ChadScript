@@ -1,4 +1,16 @@
-# Supported Features
+# Language
+
+ChadScript is a statically-typed subset of TypeScript. You can write standard TypeScript constructs — variables, functions, classes, interfaces, async/await, modules — as long as all types can be resolved at compile time.
+
+What this means in practice:
+- No `any`, `unknown`, or mixed union types like `string | number`
+- No runtime type inspection (`instanceof`, runtime `typeof`)
+- No dynamic code execution (`eval`, dynamic `import()`)
+- Closures capture by value — mutating a variable after capturing it is a compile error
+
+The [Standard Library](/stdlib/) covers common needs — HTTP, SQLite, fetch, crypto, JSON, filesystem — without external packages.
+
+The tables below describe the full feature set and support status.
 
 ## Core Language
 
@@ -37,7 +49,7 @@
 | Default parameters | Supported |
 | Rest parameters (`...args`) | Supported |
 | Closures | Supported (capture by value; post-capture mutation is a compile error) |
-| `declare function` (FFI) | Supported (see [FFI](#foreign-function-interface-ffi)) |
+| `declare function` (FFI) | Supported (see [FFI](/language/ffi)) |
 | Async generators / `for await...of` | Not supported |
 
 ## Types and Data Structures
@@ -63,6 +75,15 @@
 
 ## Classes & Interfaces
 
+Classes and interfaces work like standard TypeScript with a few differences.
+
+**Key differences from TypeScript:**
+
+- **No `instanceof`** — there are no runtime type tags
+- **Static dispatch** — method calls are resolved at compile time, not dynamically
+- **Interfaces are data-only** — interfaces define fields, not methods. To attach methods to a type, use a class.
+- **Access modifiers not enforced at runtime** — `private`/`protected` are parsed but all fields are accessible in the compiled output. Run `chad init` to get TypeScript type-checking in your editor, which will flag access violations before you compile.
+
 | Feature | Status |
 |---------|--------|
 | Properties (typed fields) | Supported |
@@ -74,15 +95,21 @@
 | `implements` | Supported |
 | Interface inheritance (`extends`) | Supported |
 | Static methods and fields | Supported |
-| Abstract classes | Not supported |
+| Abstract classes | Not yet supported |
 | Private class fields (`#field`) | Not supported |
 | Decorators | Not supported |
 
-**Notes:**
-- **Static dispatch** — method calls are resolved at compile time based on the declared type, not the runtime type
-- **Interfaces are data-only** — interfaces define fields, not methods. To attach methods to a type, use a class
-- **Access modifiers** — `private`/`protected`/`readonly` are parsed but not enforced at runtime. Run `chad init` for editor-level type checking
-- **Interface field ordering** — object literals are automatically reordered to match the interface's declared field order
+**Interface field ordering** — object literals are automatically reordered to match the interface's declared field order. You can write fields in any order:
+
+```typescript
+interface Person {
+  name: string;
+  age: number;
+  city: string;
+}
+
+const p: Person = { age: 30, city: "NYC", name: "Alice" }; // works fine
+```
 
 ## Modules
 
@@ -120,48 +147,6 @@
 
 JSX is desugared at parse time into `createElement(tag, props, children)` calls. You provide the `createElement` function — ChadScript doesn't ship a framework. Files must use `.tsx` extension.
 
-```tsx
-interface Props {
-  text: string;
-  color: number;
-}
-
-function createElement(tag: string, props: Props, children: string[]): string {
-  // your rendering logic here
-  return tag;
-}
-
-const ui = <Label text="hello" color={0xff0000} />;
-// desugars to: createElement("Label", { text: "hello", color: 0xff0000 }, [])
-```
-
-## Foreign Function Interface (FFI)
-
-`declare function` lets you call external C functions with zero-cost type mappings:
-
-```ts
-declare function zr_init(): i8_ptr;
-declare function zr_draw_text(engine: i8_ptr, x: i32, y: i32, text: i8_ptr, fg: u32, bg: u32): void;
-```
-
-FFI type aliases map directly to LLVM types with no double conversion:
-
-| Type Alias | LLVM Type | Description |
-|-----------|-----------|-------------|
-| `i8`, `i16`, `i32`, `i64` | `i8`, `i16`, `i32`, `i64` | Signed integers |
-| `u8`, `u16`, `u32`, `u64` | `i8`, `i16`, `i32`, `i64` | Unsigned integers (same LLVM type) |
-| `f32` | `float` | 32-bit float |
-| `f64` | `double` | 64-bit float |
-| `i8_ptr`, `ptr` | `i8*` | Opaque pointer |
-
-Link external object files with `--link-obj`:
-
-```bash
-chad build app.ts -o app --link-obj bridge.o --link-obj /path/to/libfoo.a
-```
-
-Linker flags (`-lm`, `-lpthread`, etc.) are auto-detected from linked libraries.
-
 ## Dynamic Features
 
 These require runtime code evaluation and are not possible in a native compiler:
@@ -191,19 +176,9 @@ const f = () => console.log(x);
 x = 2; // error: variable 'x' is reassigned after being captured by a closure
 ```
 
-This is enforced at compile time because the closure would silently see the old value — a common source of bugs in native code where there's no runtime to help.
-
 Inline lambdas with captures work in array methods:
 
 ```typescript
 const offset = 10;
 const result = [1, 2, 3].map(x => x + offset); // [11, 12, 13]
 ```
-
-## npm Compatibility
-
-npm packages work if they only use supported TypeScript features. In practice most packages use generics, dynamic types, or runtime features that ChadScript doesn't support, so compatibility is limited.
-
-## Standard Library
-
-Everything is built in — no `npm install` needed. See the [Standard Library](/stdlib/) for the full API reference.
