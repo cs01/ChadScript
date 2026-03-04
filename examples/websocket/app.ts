@@ -1,5 +1,6 @@
 // WebSocket Chat - real-time chat with embedded HTML/CSS served statically
 import { ArgumentParser } from "chadscript/argparse";
+import { httpServe, wsBroadcast } from "chadscript/http";
 
 const parser = new ArgumentParser("websocket-chat", "Real-time WebSocket chat server");
 parser.addOption("port", "p", "Port to listen on (0 = auto)", "0");

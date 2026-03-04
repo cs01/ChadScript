@@ -241,16 +241,6 @@ interface WsEvent {
   connId: string;
 }
 
-declare function httpServe(port: number, handler: (req: HttpRequest) => HttpResponse): void;
-declare function httpServe(
-  port: number,
-  handler: (req: HttpRequest) => HttpResponse,
-  wsHandler: (event: WsEvent) => string,
-): void;
-
-declare function wsBroadcast(message: string): void;
-declare function wsSend(connId: string, message: string): void;
-
 // ============================================================================
 // Async / Timers
 // ============================================================================
@@ -308,7 +298,7 @@ declare namespace ChadScript {
   function embedFile(path: string): string;
   function embedDir(path: string): void;
   function getEmbeddedFile(key: string): string;
-  function parseMultipart(req: HttpRequest): MultipartPart[];
+  function serveEmbedded(req: HttpRequest): HttpResponse;
 }
 
 interface MultipartPart {
@@ -366,8 +356,17 @@ declare module "chadscript/router" {
   }
 }
 
-declare module "chadscript/http-utils" {
+declare module "chadscript/http" {
   export function getHeader(headersRaw: string, name: string): string;
   export function parseQueryString(qs: string): Map<string, string>;
   export function parseCookies(cookieHeader: string): Map<string, string>;
+  export function httpServe(port: number, handler: (req: HttpRequest) => HttpResponse): void;
+  export function httpServe(
+    port: number,
+    handler: (req: HttpRequest) => HttpResponse,
+    wsHandler: (event: WsEvent) => string,
+  ): void;
+  export function wsBroadcast(message: string): void;
+  export function wsSend(connId: string, message: string): void;
+  export function parseMultipart(req: HttpRequest): MultipartPart[];
 }

@@ -17,7 +17,7 @@ import {
 const dtsContent = ChadScript.embedFile("../chadscript.d.ts");
 registerStdlib("router.ts", ChadScript.embedFile("../lib/router.ts"));
 registerStdlib("argparse.ts", ChadScript.embedFile("../lib/argparse.ts"));
-registerStdlib("http-utils.ts", ChadScript.embedFile("../lib/http-utils.ts"));
+registerStdlib("http.ts", ChadScript.embedFile("../lib/http.ts"));
 import { ArgumentParser } from "chadscript/argparse";
 
 declare const fs: {
