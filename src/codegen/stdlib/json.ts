@@ -515,10 +515,6 @@ export class JsonGenerator {
     return this.generateStringifyArgWithSpaces(expr.args[0], params, spaces);
   }
 
-  generateStringifyExpr(arg: Expression, params: string[]): string {
-    return this.generateStringifyArg(arg, { args: [] } as unknown as MethodCallNode, params);
-  }
-
   private generateStringifyArg(arg: Expression, expr: MethodCallNode, params: string[]): string {
     return this.generateStringifyArgWithSpaces(arg, params, this.getSpaces(expr));
   }
