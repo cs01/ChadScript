@@ -180,10 +180,7 @@ export class VariableExpressionGenerator {
     for (let fi = 0; fi < funcCount; fi++) {
       const funcName = this.ctx.getAstFunctionNameAt(fi);
       if (funcName === name) {
-        const temp = this.ctx.nextTemp();
-        this.ctx.emit(`${temp} = inttoptr i64 1 to i8*`);
-        this.ctx.setVariableType(temp, "i8*");
-        return temp;
+        return "_cs_" + name;
       }
     }
 
