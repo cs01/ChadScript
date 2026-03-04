@@ -21,7 +21,7 @@ const examples = [
     file: 'server.ts',
     code: `import { httpServe, Router, Context } from "chadscript/http";
 
-const app = new Router();
+const app: Router = new Router();
 
 app.get("/", (c: Context) => {
   return c.text("Hello World");

@@ -16,7 +16,7 @@ For most servers, use the `Router` class. It provides an Express/Hono-style API 
 ```typescript
 import { httpServe, Router, Context } from "chadscript/http";
 
-const app = new Router();
+const app: Router = new Router();
 
 app.get("/", (c: Context) => c.json('{"status":"ok"}'));
 
