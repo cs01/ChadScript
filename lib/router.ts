@@ -276,7 +276,7 @@ export class Router {
       combined = combined + wrapped;
       offset = offset + 1 + innerGroups;
     }
-    this.compiledRegex = new RegExp(combined);
+    this.compiledRegex = new RegExp("^(?:" + combined + ")$");
     this.compiled = true;
   }
 

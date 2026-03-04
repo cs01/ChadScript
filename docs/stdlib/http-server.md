@@ -31,7 +31,10 @@ app.post("/api/users", (c: Context) => {
   return c.text("Created");
 });
 
-app.notFound((c: Context) => c.status(404).text("Not Found"));
+app.notFound((c: Context) => {
+  c.status(404);
+  return c.text("Not Found");
+});
 
 httpServe(3000, (req) => app.handle(req));
 ```

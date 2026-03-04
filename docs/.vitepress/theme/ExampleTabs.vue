@@ -33,7 +33,8 @@ app.get("/json", (c: Context) => {
 });
 
 app.notFound((c: Context) => {
-  return c.status(404).text("Not Found");
+  c.status(404);
+  return c.text("Not Found");
 });
 
 httpServe(3000, (req) => app.handle(req));`,
