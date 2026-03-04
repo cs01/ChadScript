@@ -397,11 +397,16 @@ function transformCallExpression(
       optional: isOptional || undefined,
     } as MethodCallNode;
   } else if (ts.isIdentifier(node.expression)) {
+    const callTypeArgs =
+      node.typeArguments && node.typeArguments.length > 0
+        ? node.typeArguments.map((ta) => ta.getText())
+        : undefined;
     return {
       type: "call",
       name: node.expression.text,
       args,
       loc: getLoc(node),
+      typeArgs: callTypeArgs,
     };
   } else if (
     ts.isCallExpression(node.expression) ||

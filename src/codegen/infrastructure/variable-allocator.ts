@@ -19,6 +19,8 @@ import {
   TypeAliasDeclaration,
   MethodCallNode,
   CallNode,
+  ClassNode,
+  FunctionNode,
   CommonField,
   BinaryNode,
   MapNode,
@@ -261,6 +263,77 @@ export class VariableAllocator {
 
   private getInterface(name: string): InterfaceDeclaration | null {
     return this.interfaceAlloc.getInterface(name);
+  }
+
+  private getGenericMethodReturnError(expr: Expression, varName: string): string | null {
+    const e = expr as { type: string };
+    if (e.type !== "method_call") return null;
+    const methodExpr = expr as MethodCallNode;
+    const objBase = methodExpr.object as { type: string };
+    if (objBase.type !== "variable") return null;
+    const objName = (methodExpr.object as VariableNode).name;
+    const className = this.ctx.symbolTable.getConcreteClass(objName);
+    if (!className) return null;
+    const ast = this.ctx.getAst();
+    if (!ast || !ast.classes) return null;
+    for (let i = 0; i < ast.classes.length; i++) {
+      const cls = ast.classes[i] as ClassNode;
+      if (cls.name !== className) continue;
+      if (!cls.typeParameters || cls.typeParameters.length === 0) return null;
+      for (let j = 0; j < cls.methods.length; j++) {
+        const m = cls.methods[j];
+        if (m.isConstructor || m.name !== methodExpr.method) continue;
+        if (!m.returnType) return null;
+        for (let k = 0; k < cls.typeParameters.length; k++) {
+          if (
+            m.returnType === cls.typeParameters[k] ||
+            m.returnType.includes(cls.typeParameters[k] as string)
+          ) {
+            return (
+              `'${varName}' is assigned from '${objName}.${methodExpr.method}()' which returns generic type '${m.returnType}' — ` +
+              `add a type annotation: 'const ${varName}: YourType = ${objName}.${methodExpr.method}()'`
+            );
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  private resolveGenericCallReturnType(expr: Expression): string | null {
+    const e = expr as { type: string };
+    if (e.type !== "call") return null;
+    const callNode = expr as CallNode;
+    if (!callNode.typeArgs || callNode.typeArgs.length === 0) return null;
+    const ast = this.ctx.getAst();
+    if (!ast || !ast.functions) return null;
+    let func: FunctionNode | null = null;
+    for (let i = 0; i < ast.functions.length; i++) {
+      const f = ast.functions[i] as FunctionNode;
+      if (f.name === callNode.name) {
+        func = f;
+        break;
+      }
+    }
+    if (!func || !func.typeParameters || func.typeParameters.length === 0) return null;
+    if (!func.returnType) return null;
+    let ret = func.returnType;
+    if (callNode.typeArgs && callNode.typeArgs.length > 0) {
+      for (let i = 0; i < func.typeParameters.length; i++) {
+        const param = func.typeParameters[i] || "";
+        const arg = callNode.typeArgs[i] || "any";
+        ret = ret.split(param).join(arg);
+      }
+    } else {
+      for (let i = 0; i < func.typeParameters.length; i++) {
+        const param = func.typeParameters[i] || "";
+        if (ret === param) {
+          ret = "string";
+          break;
+        }
+      }
+    }
+    return ret;
   }
 
   private getAllInterfaceFields(iface: InterfaceDeclaration): InterfaceField[] {
@@ -728,6 +801,9 @@ export class VariableAllocator {
     if (!isUint8Array && strippedDeclType === "Uint8Array") {
       isUint8Array = true;
     }
+    if (!isClassInstance && strippedDeclType && this.isKnownClass(strippedDeclType)) {
+      isClassInstance = true;
+    }
     // Detect Uint8Array from expression analysis (e.g. getEmbeddedFileAsUint8Array)
     if (!isUint8Array && this.ctx.isUint8ArrayExpression(stmtValue)) {
       isUint8Array = true;
@@ -750,6 +826,13 @@ export class VariableAllocator {
     const arrayMethodReturnType = this.getArrayMethodReturnType(stmt.value);
     const isPointer = this.isPointerOrExpression(stmt.value);
     const isNull = this.isNullLiteral(stmt.value);
+
+    if (!isString && !isStringArray && !isObjectArray && !isArray && !isClassInstance) {
+      const genericReturn = this.resolveGenericCallReturnType(stmtValue);
+      if (genericReturn === "string") isString = true;
+      else if (genericReturn === "string[]") isStringArray = true;
+      else if (genericReturn && genericReturn.endsWith("[]")) isObjectArray = true;
+    }
 
     const classification = this.classifyVariable(
       isString,
@@ -864,6 +947,12 @@ export class VariableAllocator {
         // VarKind.Numeric is correct for number/boolean literals and arithmetic,
         // but suspicious for calls/method calls that might return non-numeric types.
         if (nodeType === "call" || nodeType === "method_call") {
+          if (!stmt.declaredType) {
+            const genericErr = this.getGenericMethodReturnError(stmtValue, stmt.name);
+            if (genericErr) {
+              return this.ctx.emitError(genericErr);
+            }
+          }
           this.ctx.emitWarning(
             `variable '${stmt.name}' classified as numeric from expression type '${nodeType}' — ` +
               `if this is wrong, add a type annotation`,

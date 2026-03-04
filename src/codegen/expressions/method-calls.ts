@@ -313,6 +313,13 @@ export class MethodCallGenerator {
     return result;
   }
 
+  private isClassInstanceExpression(expr: Expression): boolean {
+    const e = expr as ExprBase;
+    if (e.type !== "variable") return false;
+    const varName = (expr as VariableNode).name;
+    return this.ctx.symbolTable.isClass(varName);
+  }
+
   private isVariableWithName(expr: Expression, name: string): boolean {
     if (!expr) {
       return false;
@@ -1242,9 +1249,10 @@ export class MethodCallGenerator {
     }
 
     // Handle array methods (arrayGen uses context pattern - no sync needed! 🎯)
-    if (method === "push") {
+    // Skip to class dispatch if object is a class instance (e.g. Stack.push / Stack.pop)
+    if (method === "push" && !this.isClassInstanceExpression(expr.object)) {
       return this.ctx.arrayGen.generateArrayPush(expr, params);
-    } else if (method === "pop") {
+    } else if (method === "pop" && !this.isClassInstanceExpression(expr.object)) {
       return this.ctx.arrayGen.generateArrayPop(expr, params);
     } else if (method === "includes" && this.ctx.isArrayExpression(expr.object)) {
       return this.ctx.arrayGen.generateArrayIncludes(expr, params);

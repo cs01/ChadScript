@@ -154,9 +154,12 @@ function transformTopLevelNode(node: TreeSitterNode, ast: AST): void {
       break;
 
     case "type_alias_declaration":
-      const typeAlias = transformTypeAliasDeclaration(node);
-      if (typeAlias) {
-        ast.typeAliases.push(typeAlias);
+      const objIface = transformObjectTypeAlias(node);
+      if (objIface) {
+        ast.interfaces.push(objIface);
+      } else {
+        const typeAlias = transformTypeAliasDeclaration(node);
+        if (typeAlias) ast.typeAliases.push(typeAlias);
       }
       break;
 
@@ -310,11 +313,11 @@ function handleAmbientDeclaration(node: TreeSitterNode, ast: AST): void {
     body: createEmptyBlock(),
     returnType: returnType,
     paramTypes: paramTypesList,
-    typeParameters: undefined,
     async: undefined,
     parameters: undefined,
     loc: undefined,
     declare: true,
+    typeParameters: undefined,
   };
   ast.functions.push(func);
 }
@@ -398,9 +401,12 @@ function handleExportStatement(node: TreeSitterNode, ast: AST): void {
         ast.interfaces.push(iface);
       }
     } else if (c.type === "type_alias_declaration") {
-      const typeAlias = transformTypeAliasDeclaration(child);
-      if (typeAlias) {
-        ast.typeAliases.push(typeAlias);
+      const objIface = transformObjectTypeAlias(child);
+      if (objIface) {
+        ast.interfaces.push(objIface);
+      } else {
+        const typeAlias = transformTypeAliasDeclaration(child);
+        if (typeAlias) ast.typeAliases.push(typeAlias);
       }
     } else if (c.type === "enum_declaration") {
       const enumDecl = transformEnumDeclaration(child);
@@ -973,7 +979,18 @@ function transformCallExpression(node: TreeSitterNode): Expression {
       pos: 0,
     };
   } else if (fn.type === "identifier") {
-    return { type: "call", name: fn.text, args };
+    let callTypeArgs: string[] | undefined;
+    if (typeArgsNode) {
+      const ncc = typeArgsNode.namedChildCount;
+      if (ncc > 0) {
+        callTypeArgs = [];
+        for (let i = 0; i < ncc; i++) {
+          const ta = getNamedChild(typeArgsNode, i);
+          if (ta) callTypeArgs.push((ta as NodeBase).text);
+        }
+      }
+    }
+    return { type: "call", name: fn.text, args, typeArgs: callTypeArgs };
   } else if (fn.type === "super") {
     return { type: "call", name: "super", args };
   } else {
@@ -2339,11 +2356,11 @@ function transformFunctionDeclaration(node: TreeSitterNode): FunctionNode | null
     body,
     returnType,
     paramTypes,
-    typeParameters,
     async: isAsync || undefined,
     parameters,
     loc: undefined,
     declare: false,
+    typeParameters,
   };
 }
 
@@ -2666,7 +2683,36 @@ function transformClassDeclaration(node: TreeSitterNode): ClassNode | null {
     }
   }
 
-  return { name, extends: extendsClause, implements: implementsClause, fields, methods };
+  let typeParameters: string[] | undefined;
+  const typeParamsNode = getChildByFieldName(node, "type_parameters");
+  if (typeParamsNode) {
+    const tpn = typeParamsNode as NodeBase;
+    const tps: string[] = [];
+    for (let i = 0; i < tpn.namedChildCount; i++) {
+      const tp = getNamedChild(typeParamsNode, i);
+      if (!tp) continue;
+      const tpBase = tp as NodeBase;
+      if (tpBase.type === "type_parameter") {
+        const tpName = getChildByFieldName(tp, "name");
+        if (tpName) {
+          tps.push((tpName as NodeBase).text);
+        }
+      }
+    }
+    if (tps.length > 0) {
+      typeParameters = tps;
+    }
+  }
+
+  return {
+    name,
+    extends: extendsClause,
+    implements: implementsClause,
+    fields,
+    methods,
+    loc: undefined,
+    typeParameters,
+  };
 }
 
 function transformClassField(node: TreeSitterNode): ClassField | null {
@@ -2921,6 +2967,27 @@ function transformInterfaceDeclaration(node: TreeSitterNode): InterfaceDeclarati
     fields,
     methods,
   };
+}
+
+function transformObjectTypeAlias(node: TreeSitterNode): InterfaceDeclaration | null {
+  const nameNode = getChildByFieldName(node, "name");
+  const valueNode = getChildByFieldName(node, "value");
+  if (!nameNode || !valueNode) return null;
+  if ((valueNode as NodeBase).type !== "object_type") return null;
+  const name = (nameNode as NodeBase).text;
+  const fields: { name: string; type: string }[] = [];
+  const vn = valueNode as NodeBase;
+  for (let i = 0; i < vn.namedChildCount; i++) {
+    const member = getNamedChild(valueNode, i);
+    if (!member) continue;
+    if ((member as NodeBase).type !== "property_signature") continue;
+    const propNameNode = getChildByFieldName(member, "name");
+    const propTypeNode = getChildByFieldName(member, "type");
+    const fieldName = propNameNode ? (propNameNode as NodeBase).text : "";
+    const fieldType = propTypeNode ? extractTypeString(propTypeNode) : "any";
+    fields.push({ name: fieldName, type: fieldType });
+  }
+  return { name, extends: [], fields, methods: [] };
 }
 
 function transformTypeAliasDeclaration(node: TreeSitterNode): TypeAliasDeclaration | null {

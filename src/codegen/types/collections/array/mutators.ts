@@ -76,6 +76,7 @@ export function generateArrayPop(
 
   // Determine array type
   let isStringArray = false;
+  let isObjectArray = false;
   let isPointerArray = false;
   const exprObjBase2 = expr.object as ExprBase;
   if (exprObjBase2.type === "variable") {
@@ -83,16 +84,20 @@ export function generateArrayPop(
     const varName = varNode.name;
     const varType = gen.getVariableType(varName);
     isStringArray = varType === "%StringArray*" || varType === "%StringArray";
+    isObjectArray = varType === "%ObjectArray*" || varType === "%ObjectArray";
     isPointerArray = varType === "i8*";
   }
-  if (!isStringArray && !isPointerArray) {
+  if (!isStringArray && !isObjectArray && !isPointerArray) {
     const ptrType = gen.getVariableType(arrayPtr);
     if (ptrType === "%StringArray*" || ptrType === "%StringArray") isStringArray = true;
+    else if (ptrType === "%ObjectArray*" || ptrType === "%ObjectArray") isObjectArray = true;
     else if (ptrType === "i8*") isPointerArray = true;
   }
 
   if (isStringArray) {
     return generateStringArrayPop(gen, arrayPtr);
+  } else if (isObjectArray) {
+    return generateObjectArrayPop(gen, arrayPtr);
   } else if (isPointerArray) {
     return generatePointerArrayPop(gen, arrayPtr);
   } else {
@@ -211,6 +216,58 @@ function generateStringArrayPop(gen: IGeneratorContext, arrayPtr: string): strin
   const result = gen.nextTemp();
   gen.emit(
     `${result} = phi i8* [ ${emptyStr}, %${emptyLabel} ], [ ${lastElem}, %${notEmptyLabel} ]`,
+  );
+  gen.setVariableType(result, "i8*");
+
+  return result;
+}
+
+function generateObjectArrayPop(gen: IGeneratorContext, arrayPtr: string): string {
+  const lenPtr = gen.nextTemp();
+  gen.emit(
+    `${lenPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 1`,
+  );
+  const currentLen = gen.nextTemp();
+  gen.emit(`${currentLen} = load i32, i32* ${lenPtr}`);
+
+  const isEmpty = gen.emitIcmp("eq", "i32", currentLen, "0");
+
+  const emptyLabel = gen.nextLabel("pop_empty");
+  const notEmptyLabel = gen.nextLabel("pop_notempty");
+  const endLabel = gen.nextLabel("pop_end");
+
+  gen.emitBrCond(isEmpty, emptyLabel, notEmptyLabel);
+
+  gen.emitLabel(emptyLabel);
+  const nullPtr = gen.nextTemp();
+  gen.emit(`${nullPtr} = inttoptr i64 0 to i8*`);
+  gen.emitBr(endLabel);
+
+  gen.emitLabel(notEmptyLabel);
+
+  const lastIndex = gen.nextTemp();
+  gen.emit(`${lastIndex} = sub i32 ${currentLen}, 1`);
+
+  const dataPtrField = gen.nextTemp();
+  gen.emit(
+    `${dataPtrField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`,
+  );
+  const dataPtrRaw = gen.emitLoad("i8*", dataPtrField);
+  const dataPtr = gen.emitBitcast(dataPtrRaw, "i8*", "i8**");
+
+  const elemPtr = gen.nextTemp();
+  gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${lastIndex}`);
+  const lastElem = gen.nextTemp();
+  gen.emit(`${lastElem} = load i8*, i8** ${elemPtr}`);
+
+  gen.emitStore("i32", lastIndex, lenPtr);
+
+  gen.emitBr(endLabel);
+
+  gen.emitLabel(endLabel);
+  const result = gen.nextTemp();
+  gen.emit(
+    `${result} = phi i8* [ ${nullPtr}, %${emptyLabel} ], [ ${lastElem}, %${notEmptyLabel} ]`,
   );
   gen.setVariableType(result, "i8*");
 

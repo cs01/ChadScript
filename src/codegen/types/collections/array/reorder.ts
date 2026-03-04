@@ -167,19 +167,25 @@ export function generateArrayShift(
   const arrayPtr = gen.generateExpression(expr.object, params);
 
   let isStringArray = false;
+  let isObjectArray = false;
   const exprObjBase = expr.object as ExprBase;
   if (exprObjBase.type === "variable") {
     const varName = (expr.object as VariableNode).name;
     const varType = gen.getVariableType(varName);
     isStringArray = varType === "%StringArray*" || varType === "%StringArray";
+    isObjectArray = varType === "%ObjectArray*" || varType === "%ObjectArray";
   }
-  if (!isStringArray) {
+  if (!isStringArray && !isObjectArray) {
     const ptrType = gen.getVariableType(arrayPtr);
     if (ptrType === "%StringArray*" || ptrType === "%StringArray") isStringArray = true;
+    else if (ptrType === "%ObjectArray*" || ptrType === "%ObjectArray") isObjectArray = true;
   }
 
   if (isStringArray) {
     return generateStringArrayShift(gen, arrayPtr);
+  }
+  if (isObjectArray) {
+    return generateObjectArrayShift(gen, arrayPtr);
   }
   return generateNumericArrayShift(gen, arrayPtr);
 }
@@ -287,6 +293,64 @@ function generateStringArrayShift(gen: IGeneratorContext, arrayPtr: string): str
   const result = gen.nextTemp();
   gen.emit(
     `${result} = phi i8* [ ${emptyStr}, %${emptyLabel} ], [ ${firstElem}, %${notEmptyLabel} ]`,
+  );
+  gen.setVariableType(result, "i8*");
+  return result;
+}
+
+function generateObjectArrayShift(gen: IGeneratorContext, arrayPtr: string): string {
+  const lenPtr = gen.nextTemp();
+  gen.emit(
+    `${lenPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 1`,
+  );
+  const currentLen = gen.nextTemp();
+  gen.emit(`${currentLen} = load i32, i32* ${lenPtr}`);
+
+  const isEmpty = gen.emitIcmp("eq", "i32", currentLen, "0");
+
+  const emptyLabel = gen.nextLabel("shift_empty");
+  const notEmptyLabel = gen.nextLabel("shift_notempty");
+  const endLabel = gen.nextLabel("shift_end");
+
+  gen.emitBrCond(isEmpty, emptyLabel, notEmptyLabel);
+
+  gen.emitLabel(emptyLabel);
+  const nullPtr = gen.nextTemp();
+  gen.emit(`${nullPtr} = inttoptr i64 0 to i8*`);
+  gen.emitBr(endLabel);
+
+  gen.emitLabel(notEmptyLabel);
+  const dataPtrField = gen.nextTemp();
+  gen.emit(
+    `${dataPtrField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`,
+  );
+  const dataPtrRaw = gen.emitLoad("i8*", dataPtrField);
+  const dataPtr = gen.emitBitcast(dataPtrRaw, "i8*", "i8**");
+
+  const firstElem = gen.emitLoad("i8*", dataPtr);
+
+  const newLen = gen.nextTemp();
+  gen.emit(`${newLen} = sub i32 ${currentLen}, 1`);
+
+  const destI8 = gen.emitBitcast(dataPtr, "i8**", "i8*");
+  const srcPtr = gen.nextTemp();
+  gen.emit(`${srcPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 1`);
+  const srcI8 = gen.emitBitcast(srcPtr, "i8*", "i8*");
+  const moveLen = gen.nextTemp();
+  gen.emit(`${moveLen} = zext i32 ${newLen} to i64`);
+  const moveBytes = gen.nextTemp();
+  gen.emit(`${moveBytes} = mul i64 ${moveLen}, 8`);
+  gen.emit(
+    `call void @llvm.memmove.p0i8.p0i8.i64(i8* ${destI8}, i8* ${srcI8}, i64 ${moveBytes}, i1 false)`,
+  );
+
+  gen.emitStore("i32", newLen, lenPtr);
+  gen.emitBr(endLabel);
+
+  gen.emitLabel(endLabel);
+  const result = gen.nextTemp();
+  gen.emit(
+    `${result} = phi i8* [ ${nullPtr}, %${emptyLabel} ], [ ${firstElem}, %${notEmptyLabel} ]`,
   );
   gen.setVariableType(result, "i8*");
   return result;

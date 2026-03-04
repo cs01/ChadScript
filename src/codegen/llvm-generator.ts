@@ -1800,14 +1800,31 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         const name = stmt.name;
 
         if ((stmt.value as { type: string }).type === "call") {
-          const callNode = stmt.value as { type: string; name: string };
+          const callNode = stmt.value as CallNode;
           if (callNode.name) {
             let handled = false;
             for (let fi = 0; fi < this.ast.functions.length; fi++) {
               const fn = this.ast.functions[fi];
               if (!fn) continue;
               if (fn.name === callNode.name && fn.returnType) {
-                const rt = fn.returnType;
+                let rt = fn.returnType;
+                if (fn.typeParameters && fn.typeParameters.length > 0) {
+                  if (callNode.typeArgs && callNode.typeArgs.length > 0) {
+                    for (let ti = 0; ti < fn.typeParameters.length; ti++) {
+                      const tp = fn.typeParameters[ti] || "";
+                      const ta = callNode.typeArgs[ti] || "any";
+                      rt = rt.split(tp).join(ta);
+                    }
+                  } else {
+                    for (let ti = 0; ti < fn.typeParameters.length; ti++) {
+                      const tp = fn.typeParameters[ti] || "";
+                      if (rt === tp) {
+                        rt = "string";
+                        break;
+                      }
+                    }
+                  }
+                }
                 if (rt === "string" || rt === "i8_ptr" || rt === "ptr") {
                   ir += `@${name} = global i8* null` + "\n";
                   this.globalVariables.set(name, {
@@ -2196,6 +2213,47 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
                 );
                 continue;
               }
+              if (this.isKnownClass(strippedDeclaredType)) {
+                const fields = this.classGen
+                  ? this.classGen.getClassFields(strippedDeclaredType) || []
+                  : [];
+                llvmType = fields.length > 0 ? `%${strippedDeclaredType}_struct*` : "i8*";
+                kind = SymbolKind.Class;
+                defaultValue = "null";
+                ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
+                this.globalVariables.set(name, { llvmType, kind, initialized: false });
+                this.defineVariableWithMetadata(
+                  name,
+                  `@${name}`,
+                  llvmType,
+                  kind,
+                  "global",
+                  createClassMetadata({ className: strippedDeclaredType }),
+                );
+                continue;
+              }
+              // Check typeAliases — object-shaped aliases (Point, Config, etc.) resolve to i8*
+              if (this.ast.typeAliases) {
+                let foundAlias = false;
+                for (let i = 0; i < this.ast.typeAliases.length; i++) {
+                  const alias = this.ast.typeAliases[i];
+                  if (!alias || alias.name !== strippedDeclaredType) continue;
+                  const members = alias.unionMembers;
+                  let aliasLlvm = "i8*";
+                  if (members && members.length > 0) {
+                    aliasLlvm = tsTypeToLlvm(members[0].trim());
+                  }
+                  llvmType = aliasLlvm;
+                  kind = llvmType === "double" ? SymbolKind.Number : SymbolKind.Object;
+                  defaultValue = llvmType === "double" ? "0.0" : "null";
+                  ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
+                  this.globalVariables.set(name, { llvmType, kind, initialized: false });
+                  this.defineVariable(name, `@${name}`, llvmType, kind, "global");
+                  foundAlias = true;
+                  break;
+                }
+                if (foundAlias) continue;
+              }
               // Unrecognized declared type — fall through to expression-based detection
             }
           }
@@ -2269,6 +2327,13 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           // Phase 3: Final catch-all based on expression node type
           if (llvmType === "") {
             const exprNodeType = stmt.value ? (stmt.value as { type: string }).type : "";
+            if (exprNodeType === "method_call" && !stmt.declaredType) {
+              const genericErr = this.getGenericMethodReturnError(
+                stmt.value as MethodCallNode,
+                name,
+              );
+              if (genericErr) return this.emitError(genericErr);
+            }
             // Expression types that can plausibly return a number at module scope.
             // String/array/map/etc. returning expressions should have been caught
             // by the specific detectors above — anything that falls through is likely numeric.
@@ -3413,6 +3478,34 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   public isResponseExpression(expr: Expression): boolean {
     return this.typeInference.isResponseExpression(expr);
+  }
+
+  private getGenericMethodReturnError(expr: MethodCallNode, varName: string): string | null {
+    const objBase = expr.object as { type: string };
+    if (objBase.type !== "variable") return null;
+    const objName = (expr.object as { type: string; name: string }).name;
+    const className = this.symbolTable.getConcreteClass(objName);
+    if (!className || !this.ast || !this.ast.classes) return null;
+    for (let i = 0; i < this.ast.classes.length; i++) {
+      const cls = this.ast.classes[i] as ClassNode;
+      if (cls.name !== className) continue;
+      if (!cls.typeParameters || cls.typeParameters.length === 0) return null;
+      for (let j = 0; j < cls.methods.length; j++) {
+        const m = cls.methods[j];
+        if (m.isConstructor || m.name !== expr.method) continue;
+        if (!m.returnType) return null;
+        for (let k = 0; k < cls.typeParameters.length; k++) {
+          const tp = cls.typeParameters[k] as string;
+          if (m.returnType === tp || m.returnType.includes(tp)) {
+            return (
+              `'${varName}' is assigned from '${objName}.${expr.method}()' which returns generic type '${m.returnType}' — ` +
+              `add a type annotation: 'const ${varName}: YourType = ${objName}.${expr.method}()'`
+            );
+          }
+        }
+      }
+    }
+    return null;
   }
 
   private isKnownClass(name: string): boolean {

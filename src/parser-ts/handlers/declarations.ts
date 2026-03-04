@@ -74,11 +74,11 @@ export function transformFunctionDeclaration(
     body,
     returnType,
     paramTypes: paramTypes.length > 0 ? paramTypes : undefined,
-    typeParameters,
     async: isAsync || undefined,
     parameters: parameters.length > 0 ? parameters : undefined,
     loc: getLoc(node),
     declare: false,
+    typeParameters,
   };
 }
 
@@ -140,6 +140,11 @@ export function transformClassDeclaration(
     }
   }
 
+  let typeParameters: string[] | undefined;
+  if (node.typeParameters && node.typeParameters.length > 0) {
+    typeParameters = node.typeParameters.map((tp) => tp.name.text);
+  }
+
   return {
     name,
     extends: extendsClause,
@@ -147,6 +152,7 @@ export function transformClassDeclaration(
     fields,
     methods,
     loc: getLoc(node),
+    typeParameters,
   };
 }
 
