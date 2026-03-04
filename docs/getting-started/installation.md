@@ -1,6 +1,4 @@
-# Get Started
-
-## Install
+# Installation
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/cs01/ChadScript/main/install.sh | sh

@@ -242,7 +242,7 @@ onUnmounted(() => {
         <p class="cta-tagline">Congratulations, you wrote your first ChadScript app!</p>
         <div class="cta-buttons">
           <a href="/ChadScript/getting-started/installation" class="cta-link">Get Started</a>
-          <a href="/ChadScript/why-chadscript" class="cta-link secondary">Why ChadScript?</a>
+          <a href="/ChadScript/why-chadscript" class="cta-link secondary">What is ChadScript?</a>
         </div>
       </div>
 

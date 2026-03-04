@@ -1,14 +1,12 @@
 # Standard Library
 
-Everything is built in. No `npm install`, no `node_modules`, no bundler. All APIs compile to native code — no runtime overhead.
+ChadScript ships with a standard library that covers the most common needs — file I/O, networking, databases, crypto, JSON, and more. Everything is built in and compiles directly to native code. There are no packages to install and no bundler required.
 
-API names match Node.js where applicable (`fs.readFileSync`, `process.argv`, `path.join`, `console.log`, etc.), so the code you write looks like standard TypeScript.
+API names follow Node.js conventions where it makes sense (`fs.readFileSync`, `process.argv`, `path.join`, `console.log`), so the code reads like familiar TypeScript.
 
-Browse the sidebar for the full API reference.
+## Globals
 
-## Globals vs. Modules
-
-Most APIs are available as globals with no import required:
+Most APIs are available everywhere with no import:
 
 ```typescript
 console.log("hello");
@@ -16,7 +14,15 @@ const data = fs.readFileSync("file.txt");
 const hash = crypto.createHash("sha256");
 ```
 
-Some APIs live in named stdlib modules and must be imported:
+## Modules
+
+A few APIs live in named modules and need an import:
+
+```typescript
+import { httpServe } from "chadscript/http";
+import { Router } from "chadscript/router";
+import { ArgumentParser } from "chadscript/argparse";
+```
 
 | Module | Contents |
 |--------|----------|
@@ -24,25 +30,4 @@ Some APIs live in named stdlib modules and must be imported:
 | `chadscript/router` | `Router`, `Context`, `RouterRequest` |
 | `chadscript/argparse` | `ArgumentParser` |
 
-```typescript
-import { httpServe, getHeader } from "chadscript/http";
-import { Router, Context } from "chadscript/router";
-import { ArgumentParser } from "chadscript/argparse";
-```
-
 The `chadscript/` prefix works like Node's `node:` prefix — unambiguous and collision-free.
-
-## Editor Support
-
-Run `chad init` in your project directory to generate type definitions for your editor:
-
-```bash
-chad init
-```
-
-This creates:
-- **`chadscript.d.ts`** — type declarations for all built-in APIs so your editor provides autocomplete and type checking
-- **`tsconfig.json`** — configured for ChadScript's supported TypeScript subset
-- **`hello.ts`** — a starter file
-
-Your editor (VS Code, etc.) will immediately recognize all ChadScript globals without any red squiggles.
