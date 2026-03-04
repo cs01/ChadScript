@@ -163,11 +163,11 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
       body: liftedBody,
       returnType: liftedReturnType,
       paramTypes: liftedParamTypes,
-      typeParameters: undefined,
       async: undefined,
       parameters: undefined,
       loc: undefined,
       declare: false,
+      typeParameters: undefined,
       closureInfo,
     };
 
@@ -226,11 +226,11 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
         body: BlockStatement;
         returnType: string;
         paramTypes: string[];
-        typeParameters: string[];
         async: boolean;
         parameters: FunctionParameter[];
         loc: SourceLocation;
         declare: boolean;
+        typeParameters: string[];
         closureInfo: ClosureInfo;
       };
       return func.closureInfo;

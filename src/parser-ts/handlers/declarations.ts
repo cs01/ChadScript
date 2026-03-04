@@ -74,11 +74,11 @@ export function transformFunctionDeclaration(
     body,
     returnType,
     paramTypes: paramTypes.length > 0 ? paramTypes : undefined,
-    typeParameters,
     async: isAsync || undefined,
     parameters: parameters.length > 0 ? parameters : undefined,
     loc: getLoc(node),
     declare: false,
+    typeParameters,
   };
 }
 
