@@ -11,6 +11,7 @@ import { IGeneratorContext } from "../../infrastructure/generator-context.js";
 import {
   SymbolKind,
   createObjectMetadata,
+  createObjectMetadataWithInterface,
   createObjectMetadataWithInterfaceAndPointerAlloca,
   createClassMetadata,
 } from "../../infrastructure/symbol-table.js";
@@ -1529,6 +1530,41 @@ export class ClassGenerator {
         );
         return;
       }
+    }
+
+    let builtinIfaceKeys: string[] = [];
+    let builtinIfaceTypes: string[] = [];
+    let builtinIfaceTsTypes: string[] = [];
+    if (tsType === "HttpRequest") {
+      builtinIfaceKeys = ["method", "path", "body", "contentType", "headers", "bodyLen"];
+      builtinIfaceTypes = ["i8*", "i8*", "i8*", "i8*", "i8*", "double"];
+      builtinIfaceTsTypes = ["string", "string", "string", "string", "string", "number"];
+    } else if (tsType === "HttpResponse") {
+      builtinIfaceKeys = ["status", "body", "headers"];
+      builtinIfaceTypes = ["double", "i8*", "i8*"];
+      builtinIfaceTsTypes = ["number", "string", "string"];
+    } else if (tsType === "WsEvent") {
+      builtinIfaceKeys = ["data", "event", "connId"];
+      builtinIfaceTypes = ["i8*", "i8*", "i8*"];
+      builtinIfaceTsTypes = ["string", "string", "string"];
+    } else if (tsType === "MultipartPart") {
+      builtinIfaceKeys = ["name", "filename", "contentType", "data", "dataLen"];
+      builtinIfaceTypes = ["i8*", "i8*", "i8*", "i8*", "double"];
+      builtinIfaceTsTypes = ["string", "string", "string", "string", "number"];
+    }
+    if (tsType && builtinIfaceKeys.length > 0) {
+      this.ctx.defineVariableWithMetadata(
+        paramName,
+        allocaReg,
+        "i8*",
+        SymbolKind.Object,
+        "local",
+        createObjectMetadataWithInterface(
+          { keys: builtinIfaceKeys, types: builtinIfaceTypes, tsTypes: builtinIfaceTsTypes },
+          tsType,
+        ),
+      );
+      return;
     }
 
     this.ctx.defineVariable(paramName, allocaReg, llvmType, SymbolKind.Object, "local");

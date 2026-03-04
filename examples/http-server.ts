@@ -1,5 +1,5 @@
 import { ArgumentParser } from "chadscript/argparse";
-import { Router, Context } from "chadscript/router";
+import { Router, Context } from "chadscript/http";
 import { httpServe, getHeader, parseQueryString } from "chadscript/http";
 
 const parser = new ArgumentParser("http-server", "HTTP server with Router API");
@@ -8,7 +8,7 @@ parser.parse(process.argv);
 
 const port = parseInt(parser.getOption("port"));
 
-const app = new Router();
+const app: Router = new Router();
 
 app.get("/", (c: Context) => {
   return c.json('{"name":"ChadScript HTTP Server","status":"running"}');

@@ -298,7 +298,7 @@ export class Router {
   compile(): void {
     if (this.compiled) return;
     let combined = "";
-    let offset = 1;
+    let offset = 2;
     for (let i = 0; i < this.routes.length; i++) {
       const route = this.routes[i];
       const regexPart = this.patternToRegex(route.pattern);
@@ -314,7 +314,7 @@ export class Router {
       combined = combined + wrapped;
       offset = offset + 1 + innerGroups;
     }
-    this.compiledRegex = new RegExp("^(?:" + combined + ")$");
+    this.compiledRegex = new RegExp("^(" + combined + ")$");
     this.compiled = true;
   }
 
