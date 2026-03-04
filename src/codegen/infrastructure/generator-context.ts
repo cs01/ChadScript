@@ -808,6 +808,8 @@ export interface IGeneratorContext {
    */
   generateWsSend(expr: CallNode, params: string[]): string;
 
+  generateParseMultipart(expr: CallNode, params: string[]): string;
+
   /**
    * Look up an interface definition by name from the AST
    */
@@ -1703,6 +1705,10 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   generateWsSend(_expr: CallNode, _params: string[]): string {
     return "0.0";
+  }
+
+  generateParseMultipart(_expr: CallNode, _params: string[]): string {
+    return this.nextTemp();
   }
 
   getInterfaceFromAST(

@@ -2,11 +2,19 @@
 
 Built-in HTTP server with websocket support compiled to native code via libuv TCP + picohttpparser.
 
+All HTTP server APIs are imported from `chadscript/http`:
+
+```typescript
+import { httpServe, wsBroadcast, wsSend, parseMultipart,
+         getHeader, parseQueryString, parseCookies } from "chadscript/http";
+```
+
 ## Router (recommended)
 
 For most servers, use the `Router` class from `chadscript/router`. It provides an Express/Hono-style API with URL parameter extraction, method matching, and chainable response helpers.
 
 ```typescript
+import { httpServe } from "chadscript/http";
 import { Router, Context } from "chadscript/router";
 
 const app = new Router();
@@ -86,10 +94,10 @@ app.get("/example", (c: Context) => {
 
 ### HTTP utility functions
 
-`chadscript/http-utils` provides helpers for parsing common request data:
+`chadscript/http` includes helpers for parsing common request data:
 
 ```typescript
-import { getHeader, parseQueryString, parseCookies } from "chadscript/http-utils";
+import { getHeader, parseQueryString, parseCookies } from "chadscript/http";
 
 // Parse a single request header by name (case-insensitive)
 const auth = getHeader(req.headers, "Authorization"); // "Bearer abc"
@@ -108,11 +116,11 @@ cookies.get("session"); // "abc123"
 
 ## `httpServe(port, handler)`
 
-## `httpServe(port, handler)`
-
 Start an HTTP server on the given port. The handler function receives an `HttpRequest` and returns an `HttpResponse`.
 
 ```typescript
+import { httpServe } from "chadscript/http";
+
 function handleRequest(req: HttpRequest): HttpResponse {
   if (req.path == "/") {
     return { status: 200, body: "Hello!", headers: "" };
@@ -130,11 +138,7 @@ Start an HTTP server with WebSocket support. The third argument is a WebSocket h
 Any HTTP request with an `Upgrade: websocket` header is automatically upgraded when a wsHandler is registered.
 
 ```typescript
-interface WsEvent {
-  data: string;
-  event: string;  // "open", "message", "close"
-  connId: string; // hex pointer identifying this connection
-}
+import { httpServe, wsBroadcast } from "chadscript/http";
 
 function wsHandler(event: WsEvent): string {
   if (event.event == "message") {
@@ -152,6 +156,8 @@ httpServe(3000, handleRequest, wsHandler);
 Send a message to all connected WebSocket clients. Only available when a wsHandler is registered.
 
 ```typescript
+import { wsBroadcast } from "chadscript/http";
+
 wsBroadcast("hello everyone");
 ```
 
@@ -160,6 +166,8 @@ wsBroadcast("hello everyone");
 Send a message to a specific WebSocket connection identified by its `connId`. The `connId` is available on every `WsEvent`.
 
 ```typescript
+import { wsSend } from "chadscript/http";
+
 function wsHandler(event: WsEvent): string {
   if (event.event == "message") {
     wsSend(event.connId, "echo: " + event.data);  // reply to sender only
@@ -202,6 +210,8 @@ If `headers` contains a `Content-Type:` line, it overrides the auto-detected con
 A full HTTP server with routing:
 
 ```typescript
+import { httpServe } from "chadscript/http";
+
 function homeHandler(req: HttpRequest): HttpResponse {
   return { status: 200, body: "<h1>Hello from ChadScript</h1>", headers: "" };
 }
@@ -233,25 +243,7 @@ $ curl http://localhost:3000/json
 A chat server with HTTP homepage and WebSocket messaging:
 
 ```typescript
-interface WsEvent {
-  data: string;
-  event: string;
-  connId: string;
-}
-
-interface HttpRequest {
-  method: string;
-  path: string;
-  body: string;
-  contentType: string;
-  headers: string;
-}
-
-interface HttpResponse {
-  status: number;
-  body: string;
-  headers: string;
-}
+import { httpServe, wsBroadcast } from "chadscript/http";
 
 function wsHandler(event: WsEvent): string {
   if (event.event == "message") {
@@ -297,9 +289,11 @@ Multiple headers are separated by `\n`. The server normalizes them to `\r\n` in 
 
 ## Multipart Form Data
 
-Parse `multipart/form-data` request bodies (file uploads, form submissions) using `ChadScript.parseMultipart()`:
+Parse `multipart/form-data` request bodies (file uploads, form submissions) using `parseMultipart()`:
 
 ```typescript
+import { httpServe, parseMultipart } from "chadscript/http";
+
 interface MultipartPart {
   name: string;        // field name
   filename: string;    // original filename (empty string if not a file upload)
@@ -310,7 +304,7 @@ interface MultipartPart {
 
 function handleRequest(req: HttpRequest): HttpResponse {
   if (req.method == "POST" && req.path == "/upload") {
-    const parts: MultipartPart[] = ChadScript.parseMultipart(req);
+    const parts: MultipartPart[] = parseMultipart(req);
 
     for (let i = 0; i < parts.length; i++) {
       console.log("field: " + parts[i].name);

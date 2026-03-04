@@ -45,3 +45,10 @@ export function parseCookies(cookieHeader: string): Map<string, string> {
   }
   return result;
 }
+
+export function httpServe(port: number, handler: (req: HttpRequest) => HttpResponse): void {}
+export function wsBroadcast(message: string): void {}
+export function wsSend(connId: string, message: string): void {}
+export function parseMultipart(req: HttpRequest): MultipartPart[] {
+  return [];
+}

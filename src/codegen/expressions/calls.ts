@@ -111,6 +111,10 @@ export class CallExpressionGenerator {
       return this.ctx.generateWsSend(expr, params);
     }
 
+    if (expr.name === "parseMultipart") {
+      return this.ctx.generateParseMultipart(expr, params);
+    }
+
     // Handle setTimeout() - libuv timer (one-shot)
     if (expr.name === "setTimeout") {
       return this.generateSetTimeout(expr, params);

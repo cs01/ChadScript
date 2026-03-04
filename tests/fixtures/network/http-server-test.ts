@@ -1,5 +1,6 @@
 // @test-skip
 // HTTP server fixture used by network.test.ts (needs external test orchestration)
+import { httpServe } from "chadscript/http";
 
 interface Request {
   method: string;

@@ -1,4 +1,4 @@
-import { getHeader } from "chadscript/http-utils";
+import { getHeader } from "chadscript/http";
 
 interface HttpRequest {
   method: string;

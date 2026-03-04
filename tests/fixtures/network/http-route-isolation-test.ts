@@ -1,5 +1,6 @@
 // @test-skip
 // HTTP route isolation fixture used by http-routes.test.ts (needs external test orchestration)
+import { httpServe } from "chadscript/http";
 
 interface Request {
   method: string;

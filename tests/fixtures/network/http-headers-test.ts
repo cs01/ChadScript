@@ -1,6 +1,7 @@
 // @test-skip
 // HTTP headers fixture used by http-headers.test.ts (needs external test orchestration)
 // Tests: custom response headers, Content-Type override, request header access
+import { httpServe } from "chadscript/http";
 
 interface Request {
   method: string;

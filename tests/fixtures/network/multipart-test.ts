@@ -1,6 +1,7 @@
 // @test-skip
 // Multipart form-data parser test server — used by multipart.test.ts
-// Tests ChadScript.parseMultipart(req) for field/file extraction
+// Tests parseMultipart(req) for field/file extraction
+import { httpServe, parseMultipart } from "chadscript/http";
 
 interface Request {
   method: string;
@@ -26,7 +27,7 @@ interface MultipartPart {
 
 function handleRequest(req: Request): Response {
   if (req.path == "/upload" && req.method == "POST") {
-    const parts: MultipartPart[] = ChadScript.parseMultipart(req);
+    const parts: MultipartPart[] = parseMultipart(req);
     let result = "count=" + parts.length.toString();
 
     for (let i = 0; i < parts.length; i++) {
