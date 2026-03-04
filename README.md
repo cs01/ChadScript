@@ -88,16 +88,16 @@ TypeScript is my favorite language to write and the type system is terse and int
 
 No `npm install`. Everything ships with the compiler:
 
-| Module          | What it does               |
-| --------------- | -------------------------- |
-| `fetch`         | HTTP client                |
-| `httpServe`     | HTTP server with routing   |
-| `fs`            | File system                |
-| `sqlite`        | Embedded SQLite database   |
-| `crypto`        | Hashing, encryption        |
-| `JSON`          | Typed JSON parse/stringify |
-| `child_process` | Spawn subprocesses         |
-| `WebSocket`     | WebSocket client + server  |
+| Module                | What it does               |
+| --------------------- | -------------------------- |
+| `fetch`               | HTTP client                |
+| `Router`, `httpServe` | HTTP server with routing   |
+| `fs`                  | File system                |
+| `sqlite`              | Embedded SQLite database   |
+| `crypto`              | Hashing, encryption        |
+| `JSON`                | Typed JSON parse/stringify |
+| `child_process`       | Spawn subprocesses         |
+| `WebSocket`           | WebSocket client + server  |
 
 ---
 

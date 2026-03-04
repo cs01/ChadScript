@@ -209,6 +209,15 @@ interface's OWN fields, missing inherited fields from `extends`. This causes wro
 any interface with inheritance. `allocateDeclaredInterface` does this correctly; several other methods
 (`allocateMemberAccessInterface`, `allocateFunctionInterfaceReturn`, etc.) currently do not.
 
+## Loop Style
+
+Prefer `for...of` over index-based `for` loops when iterating arrays — it's fully supported and more idiomatic:
+
+```typescript
+for (const item of items) { ... }         // good
+for (let i = 0; i < items.length; i++) {} // only when index is needed
+```
+
 ## Code Style
 
 - Prettier auto-formats code; run `npm run format` to fix, `npm run format:check` to verify
