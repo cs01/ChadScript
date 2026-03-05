@@ -17,7 +17,6 @@ function wsHandler(event: WsEvent): string {
   if (event.event === "open") {
     userCount = userCount + 1;
     console.log("  [ws] client connected (" + userCount + " online)");
-    wsBroadcast("sys|a new user joined the chat (" + userCount + " online)");
     return "";
   }
   if (event.event === "close") {

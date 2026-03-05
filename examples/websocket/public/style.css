@@ -15,8 +15,6 @@ body {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  max-width: 480px;
-  margin: 0 auto;
   background: #fff;
 }
 
@@ -59,10 +57,14 @@ body {
 .messages {
   flex: 1;
   overflow-y: auto;
-  padding: 12px 16px;
+  padding: 12px 24px;
   display: flex;
   flex-direction: column;
   gap: 2px;
+  max-width: 900px;
+  width: 100%;
+  align-self: center;
+  box-sizing: border-box;
 }
 
 .sender-name {
@@ -109,10 +111,14 @@ body {
 .input-bar {
   display: flex;
   align-items: center;
-  padding: 8px 12px;
+  padding: 8px 24px;
   background: #f5f5f7;
   border-top: 1px solid #d1d1d6;
   gap: 8px;
+  max-width: 900px;
+  width: 100%;
+  align-self: center;
+  box-sizing: border-box;
 }
 
 .input-bar input {
