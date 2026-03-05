@@ -3805,8 +3805,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.emit(`${bodyVal} = load i8*, i8** ${bodyGep}`);
     const lenGep = this.nextTemp();
     this.emit(`${lenGep} = getelementptr ${reqType}, ${reqType}* ${reqPtr}, i32 0, i32 5`);
+    const lenDbl = this.nextTemp();
+    this.emit(`${lenDbl} = load double, double* ${lenGep}`);
     const lenVal = this.nextTemp();
-    this.emit(`${lenVal} = load i64, i64* ${lenGep}`);
+    this.emit(`${lenVal} = fptosi double ${lenDbl} to i64`);
     const rawResult = this.nextTemp();
     this.emit(
       `${rawResult} = call i8* @cs_parse_multipart_to_array(i8* ${ctVal}, i8* ${bodyVal}, i64 ${lenVal})`,

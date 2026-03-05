@@ -9,7 +9,7 @@ typedef struct {
     const char *body;
     const char *content_type;
     const char *headers_raw;  // all headers as "Key: Value\n..." string
-    int64_t body_len;         // actual byte count (for binary bodies with embedded nulls)
+    double body_len;          // actual byte count as double (ChadScript reads number fields as double)
 } lws_bridge_request;
 
 typedef struct {

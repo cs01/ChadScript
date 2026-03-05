@@ -384,7 +384,7 @@ static void dispatch_http_request(http_conn_t *conn) {
     req.body = conn->body ? conn->body : "";
     req.content_type = conn->content_type_str;
     req.headers_raw = conn->headers_raw;
-    req.body_len = (int64_t)conn->body_len;
+    req.body_len = (double)conn->body_len;
 
     lws_bridge_response resp;
     resp.status = 200;
