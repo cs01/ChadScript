@@ -59,6 +59,7 @@ export class RouterRequest {
   body: string;
   contentType: string;
   headers: string;
+  bodyLen: number;
   private _params: Map<string, string>;
 
   constructor(req: HttpRequest, params: Map<string, string>) {
@@ -67,6 +68,7 @@ export class RouterRequest {
     this.body = req.body;
     this.contentType = req.contentType;
     this.headers = req.headers;
+    this.bodyLen = req.bodyLen;
     this._params = params;
   }
 
@@ -78,6 +80,10 @@ export class RouterRequest {
 
   header(name: string): string {
     return getHeader(this.headers, name);
+  }
+
+  bodyBytes(): Uint8Array {
+    return Uint8Array.fromRawBytes(this.body, this.bodyLen);
   }
 }
 

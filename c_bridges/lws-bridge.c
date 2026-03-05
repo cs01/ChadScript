@@ -10,7 +10,6 @@
 
 #define MAX_WS_CONNS 1024
 #define MAX_RESPONSE_SIZE (1024 * 1024)
-#define MAX_BODY_SIZE (1024 * 1024)
 #define READ_BUF_SIZE 8192
 #define WS_GUID "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
@@ -668,13 +667,11 @@ static void try_parse_request(http_conn_t *conn) {
 
         size_t body_available = conn->data_len - conn->header_end;
         size_t to_copy = body_available < conn->content_length ? body_available : conn->content_length;
-        if (to_copy > MAX_BODY_SIZE - 1) to_copy = MAX_BODY_SIZE - 1;
         if (to_copy > 0) {
             if (!conn->body || conn->body_cap < conn->content_length) {
                 free(conn->body);
-                size_t cap = conn->content_length < MAX_BODY_SIZE ? conn->content_length : MAX_BODY_SIZE;
-                conn->body = (char *)malloc(cap + 1);
-                conn->body_cap = cap;
+                conn->body = (char *)malloc(conn->content_length + 1);
+                conn->body_cap = conn->content_length;
             }
             memcpy(conn->body, conn->buf + conn->header_end, to_copy);
         }
@@ -684,8 +681,6 @@ static void try_parse_request(http_conn_t *conn) {
         size_t body_available = conn->data_len - conn->header_end;
         size_t needed = conn->content_length - conn->body_len;
         size_t to_copy = body_available > needed ? needed : body_available;
-        if (conn->body_len + to_copy > MAX_BODY_SIZE - 1)
-            to_copy = MAX_BODY_SIZE - 1 - conn->body_len;
         if (to_copy > 0 && conn->body) {
             memcpy(conn->body + conn->body_len, conn->buf + conn->header_end, to_copy);
             conn->body_len += to_copy;

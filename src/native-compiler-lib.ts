@@ -505,6 +505,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const cpBridgeObj = effectiveBridgePath + "/child-process-bridge.o";
   const osBridgeObj = effectiveBridgePath + "/os-bridge.o";
   const timeBridgeObj = effectiveBridgePath + "/time-bridge.o";
+  const base64BridgeObj = effectiveBridgePath + "/base64-bridge.o";
   const dotenvBridgePath = effectiveBridgePath + "/dotenv-bridge.o";
   const dotenvBridgeObj = fs.existsSync(dotenvBridgePath) ? dotenvBridgePath : "";
   const watchBridgeObj = effectiveBridgePath + "/watch-bridge.o";
@@ -580,6 +581,8 @@ export function compileNative(inputFile: string, outputFile: string): void {
     osBridgeObj +
     " " +
     timeBridgeObj +
+    " " +
+    base64BridgeObj +
     " " +
     dotenvBridgeObj +
     " " +
