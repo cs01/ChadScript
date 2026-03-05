@@ -504,6 +504,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const regexBridgeObj = generator.getUsesRegex() ? effectiveBridgePath + "/regex-bridge.o" : "";
   const cpBridgeObj = effectiveBridgePath + "/child-process-bridge.o";
   const osBridgeObj = effectiveBridgePath + "/os-bridge.o";
+  const timeBridgeObj = effectiveBridgePath + "/time-bridge.o";
   const dotenvBridgePath = effectiveBridgePath + "/dotenv-bridge.o";
   const dotenvBridgeObj = fs.existsSync(dotenvBridgePath) ? dotenvBridgePath : "";
   const watchBridgeObj = effectiveBridgePath + "/watch-bridge.o";
@@ -577,6 +578,8 @@ export function compileNative(inputFile: string, outputFile: string): void {
     cpBridgeObj +
     " " +
     osBridgeObj +
+    " " +
+    timeBridgeObj +
     " " +
     dotenvBridgeObj +
     " " +

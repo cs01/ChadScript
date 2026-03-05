@@ -19,39 +19,7 @@ export class DateGenerator {
   }
 
   generateNow(): string {
-    const tvAlloca = this.ctx.nextTemp();
-    this.ctx.emit(`${tvAlloca} = alloca %struct.timeval`);
-
-    this.ctx.emitCall("i32", "@gettimeofday", `%struct.timeval* ${tvAlloca}, i8* null`);
-
-    const secPtr = this.ctx.emitGep("%struct.timeval", tvAlloca, "i32 0, i32 0");
-    const secVal = this.ctx.emitLoad("i64", secPtr);
-
-    const usecPtr = this.ctx.emitGep("%struct.timeval", tvAlloca, "i32 0, i32 1");
-    let usecVal: string;
-    if (this.ctx.getTargetOS?.() === "darwin") {
-      const usecRaw = this.ctx.nextTemp();
-      this.ctx.emit(`${usecRaw} = load i32, i32* ${usecPtr}`);
-      usecVal = this.ctx.nextTemp();
-      this.ctx.emit(`${usecVal} = zext i32 ${usecRaw} to i64`);
-    } else {
-      usecVal = this.ctx.emitLoad("i64", usecPtr);
-    }
-
-    const secDouble = this.ctx.nextTemp();
-    this.ctx.emit(`${secDouble} = sitofp i64 ${secVal} to double`);
-    const usecDouble = this.ctx.nextTemp();
-    this.ctx.emit(`${usecDouble} = sitofp i64 ${usecVal} to double`);
-
-    const secMs = this.ctx.nextTemp();
-    this.ctx.emit(`${secMs} = fmul fast double ${secDouble}, 1.000000e+03`);
-    const usecMs = this.ctx.nextTemp();
-    this.ctx.emit(`${usecMs} = fdiv fast double ${usecDouble}, 1.000000e+03`);
-
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = fadd fast double ${secMs}, ${usecMs}`);
-
-    return result;
+    return this.ctx.emitCall("double", "@cs_time_ms", "");
   }
 
   generateDateMethod(datePtr: string, method: string): string {
