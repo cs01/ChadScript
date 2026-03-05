@@ -1,5 +1,15 @@
 # ChadScript Rules
 
+## Worktree Rule
+
+**ALWAYS work on a git worktree and branch. NEVER modify files directly on `main`.** `main` must always remain clean. Every piece of work — features, bug fixes, docs, even CLAUDE.md edits — must happen on a dedicated branch in a worktree:
+
+```bash
+git worktree add .worktrees/<name> -b <branch-name>
+cd .worktrees/<name>
+# do work, commit, then open a PR
+```
+
 ## Testing & Commit Workflow
 
 After completing each todo:
