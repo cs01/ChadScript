@@ -360,22 +360,17 @@ class TypeAssertionChecker {
 
     const tFields = this.getAllFields(tiface);
     const reqNames: string[] = [];
-    const reqIdx: number[] = [];
     for (let i = 0; i < tFields.length; i++) {
       const f = tFields[i] as InterfaceField;
-      if (!f.name.endsWith("?")) {
-        reqNames.push(f.name);
-        reqIdx.push(i);
-      }
+      if (!f.name.endsWith("?")) reqNames.push(this.stripOpt(f.name));
     }
     if (reqNames.length < 2) return;
     if (reqNames[0] === "type") return;
-
     if (!this.ast.interfaces) return;
 
-    let anyMismatch = false;
     let anyValid = false;
-    let mismatchIface: InterfaceDeclaration | null = null;
+    let anyMismatch = false;
+    let mismatchIfaceName = "";
     let mismatchReason = "";
 
     for (let i = 0; i < this.ast.interfaces.length; i++) {
@@ -384,47 +379,49 @@ class TypeAssertionChecker {
 
       const uFields = this.getAllFields(uIface);
 
+      // Build parallel index arrays: tIndices[j] = T-GEP-index, uIndices[j] = U-GEP-index
+      // for the j-th required (non-optional) T-field. Both are pushed as doubles (number[]).
+      const tIndices: number[] = [];
+      const uIndices: number[] = [];
       let allFound = true;
-      for (let j = 0; j < reqNames.length; j++) {
-        let found = false;
-        for (let k = 0; k < uFields.length; k++) {
-          if (this.stripOpt((uFields[k] as InterfaceField).name) === reqNames[j]) {
-            found = true;
-            break;
-          }
-        }
-        if (!found) {
-          allFound = false;
-          break;
-        }
-      }
-      if (!allFound) continue;
-
-      let orderOk = true;
-      let nonLastMismatch = false;
-      let reason = "";
-      for (let j = 0; j < reqNames.length; j++) {
+      for (let ti = 0; ti < tFields.length; ti++) {
+        const tf = tFields[ti] as InterfaceField;
+        if (tf.name.endsWith("?")) continue;
+        const reqName = this.stripOpt(tf.name);
         let uIdx = -1;
         for (let k = 0; k < uFields.length; k++) {
-          if (this.stripOpt((uFields[k] as InterfaceField).name) === reqNames[j]) {
+          if (this.stripOpt((uFields[k] as InterfaceField).name) === reqName) {
             uIdx = k;
             break;
           }
         }
-        if (uIdx !== reqIdx[j]) {
-          orderOk = false;
-          const offset = uIdx >= 0 ? uIdx - reqIdx[j] : -2;
-          if (j < reqNames.length - 1 && (offset > 1 || offset < -1)) {
-            nonLastMismatch = true;
-            reason =
+        if (uIdx === -1) {
+          allFound = false;
+          break;
+        }
+        tIndices.push(ti);
+        uIndices.push(uIdx);
+      }
+      if (!allFound) continue;
+      if (tIndices.length < 2) continue;
+
+      // Check T-GEP-index === U-GEP-index for each required field (both arrays are double[]).
+      let orderOk = true;
+      let badReason = "";
+      for (let j = 0; j < tIndices.length; j++) {
+        if (tIndices[j] !== uIndices[j]) {
+          const diff = uIndices[j] - tIndices[j];
+          if (diff > 1 || diff < -1) {
+            orderOk = false;
+            badReason =
               "field '" +
               reqNames[j] +
               "' is at index " +
-              reqIdx[j] +
+              tIndices[j] +
               " in '" +
               assertedType +
               "' but index " +
-              uIdx +
+              uIndices[j] +
               " in '" +
               uIface.name +
               "'";
@@ -436,14 +433,14 @@ class TypeAssertionChecker {
       if (orderOk) {
         anyValid = true;
         break;
-      } else if (nonLastMismatch && mismatchIface === null) {
+      } else if (!anyMismatch && badReason !== "") {
         anyMismatch = true;
-        mismatchIface = uIface;
-        mismatchReason = reason;
+        mismatchIfaceName = uIface.name;
+        mismatchReason = badReason;
       }
     }
 
-    if (anyMismatch && !anyValid && mismatchIface !== null) {
+    if (anyMismatch && !anyValid) {
       let msg = "";
       if (ta.loc) {
         const file = ta.loc.file || "<input>";
@@ -455,7 +452,7 @@ class TypeAssertionChecker {
         "named type assertion '" +
         assertedType +
         "' has wrong field indices relative to '" +
-        mismatchIface.name +
+        mismatchIfaceName +
         "': " +
         mismatchReason +
         "\n";
@@ -464,19 +461,22 @@ class TypeAssertionChecker {
         tNames.push(this.stripOpt((tFields[i] as InterfaceField).name));
       }
       msg += "  asserted type '" + assertedType + "': { " + tNames.join("; ") + " }\n";
-      const uF = this.getAllFields(mismatchIface);
-      const uNames: string[] = [];
-      for (let i = 0; i < uF.length; i++) {
-        uNames.push((uF[i] as InterfaceField).name);
+      const mismatchIface = this.getInterface(mismatchIfaceName);
+      if (mismatchIface !== null) {
+        const uF = this.getAllFields(mismatchIface);
+        const uNames: string[] = [];
+        for (let i = 0; i < uF.length; i++) {
+          uNames.push((uF[i] as InterfaceField).name);
+        }
+        msg += "  interface '" + mismatchIfaceName + "': { " + uNames.join("; ") + " }\n";
       }
-      msg += "  interface '" + mismatchIface.name + "': { " + uNames.join("; ") + " }\n";
       msg +=
         "  note: GEP indices in native code are determined by field position in the asserted type\n";
       msg +=
         "  hint: '" +
         assertedType +
         "' fields must appear at the same positions as in '" +
-        mismatchIface.name +
+        mismatchIfaceName +
         "'\n";
       console.error(msg);
       process.exit(1);
