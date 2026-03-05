@@ -1,8 +1,11 @@
-import { Expression, MethodCallNode, ObjectNode, ArrayNode, TypeAssertionNode } from "../../ast/types.js";
 import {
-  stringifyObjectArrayLiteral,
-  stringifyObjectArrayWithMeta,
-} from "./json-array.js";
+  Expression,
+  MethodCallNode,
+  ObjectNode,
+  ArrayNode,
+  TypeAssertionNode,
+} from "../../ast/types.js";
+import { stringifyObjectArrayLiteral, stringifyObjectArrayWithMeta } from "./json-array.js";
 
 interface ExprBase {
   type: string;

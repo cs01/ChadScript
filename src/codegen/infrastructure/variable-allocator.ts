@@ -1989,7 +1989,13 @@ export class VariableAllocator {
 
     const inlineMeta = this.extractInlineObjectArrayMeta(stmt.value!);
     if (inlineMeta) {
-      this.ctx.defineVariable(stmt.name, allocaReg, "%ObjectArray*", SymbolKind.ObjectArray, "local");
+      this.ctx.defineVariable(
+        stmt.name,
+        allocaReg,
+        "%ObjectArray*",
+        SymbolKind.ObjectArray,
+        "local",
+      );
       this.ctx.symbolTable.setRawInterfaceType(stmt.name, "object");
       this.ctx.symbolTable.setObjectArrayMetadata(stmt.name, {
         elementInterfaceName: "object",

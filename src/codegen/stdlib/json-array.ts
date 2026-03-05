@@ -145,11 +145,7 @@ export function stringifyObjectArrayWithMeta(
   const elemRaw = ctx.emitLoad("i8*", elemSlot);
   const elemTyped = ctx.emitBitcast(elemRaw, "i8*", `${structType}*`);
 
-  const subObj = ctx.emitCall(
-    "i8*",
-    "@csyyjson_mut_arr_add_obj",
-    `i8* ${jsonDoc}, i8* ${jsonArr}`,
-  );
+  const subObj = ctx.emitCall("i8*", "@csyyjson_mut_arr_add_obj", `i8* ${jsonDoc}, i8* ${jsonArr}`);
 
   for (let fi = 0; fi < fieldCount; fi++) {
     const fieldPtr = ctx.nextTemp();
