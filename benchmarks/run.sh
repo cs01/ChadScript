@@ -53,15 +53,23 @@ bench_compute() {
     fi
 }
 
+now_ns() {
+    if command -v gdate &>/dev/null; then
+        gdate +%s%N
+    else
+        python3 -c 'import time; print(int(time.time_ns()))'
+    fi
+}
+
 bench_startup() {
     local name="$1"
     local lang="$2"
     shift 2
-    local start_ns=$(date +%s%N)
+    local start_ns=$(now_ns)
     for i in $(seq 1 $STARTUP_RUNS); do
         "$@" > /dev/null 2>&1
     done
-    local end_ns=$(date +%s%N)
+    local end_ns=$(now_ns)
     local avg_us=$(( (end_ns - start_ns) / STARTUP_RUNS / 1000 ))
     local avg_ms_int=$(( avg_us / 1000 ))
     local avg_ms_frac=$(( (avg_us % 1000) / 100 ))
@@ -74,7 +82,7 @@ bench_startup() {
 wait_port_free() {
     local port=$1
     for i in $(seq 1 30); do
-        if ! ss -tln 2>/dev/null | grep -q ":${port} "; then
+        if ! (ss -tln 2>/dev/null || lsof -i ":${port}" 2>/dev/null) | grep -q ":${port}"; then
             return 0
         fi
         sleep 0.2
@@ -339,7 +347,7 @@ echo "  ChadScript Binary Trees built"
 $CHAD build "$DIR/json/chadscript.ts" -o /tmp/bench-json-chad
 echo "  ChadScript JSON built"
 
-$CHAD "$DIR/stringsearch/chadscript.ts" -o /tmp/bench-stringsearch-chad
+$CHAD build "$DIR/stringsearch/chadscript.ts" -o /tmp/bench-stringsearch-chad
 echo "  ChadScript String Search built"
 
 clang -O2 -march=native -o /tmp/bench-startup-c "$DIR/startup/hello.c"
