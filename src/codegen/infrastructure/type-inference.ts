@@ -1710,6 +1710,7 @@ export class TypeInference {
       const mc = expr as MethodCallNode;
       if (mc.method === "getEmbeddedFileAsUint8Array") return true;
       if (mc.method === "bodyBytes") return true;
+      if (mc.method === "fromRawBytes") return true;
     }
     return false;
   }
