@@ -182,6 +182,35 @@ await fs.copyFile("original.txt", "backup.txt");
 |-----|---------|
 | `fs.readFileSync()` | `fopen()` + `fread()` |
 | `fs.writeFileSync()` | `fopen()` + `fwrite()` |
+## Binary utilities
+
+### `Uint8Array.fromRawBytes(data, len)`
+
+Wraps a raw pointer and byte length into a `Uint8Array` without copying. Useful when you already have a byte buffer and its length:
+
+```typescript
+const bytes = Uint8Array.fromRawBytes(c.req.body, c.req.bodyLen);
+fs.writeFileSync("upload.bin", bytes);
+```
+
+### `Buffer.from(str, 'base64')`
+
+Decodes a base64 string into a `Uint8Array`:
+
+```typescript
+const bytes: Uint8Array = Buffer.from("SGVsbG8gV29ybGQ=", "base64");
+fs.writeFileSync("decoded.bin", bytes);
+```
+
+Also strips `data:...;base64,` prefixes automatically, so data URLs work directly:
+
+```typescript
+const bytes: Uint8Array = Buffer.from("data:image/jpeg;base64,/9j/4AAQ...", "base64");
+fs.writeFileSync("image.jpg", bytes);
+```
+
+## POSIX mapping
+
 | `fs.existsSync()` | `access()` |
 | `fs.unlinkSync()` | `unlink()` |
 | `fs.readdirSync()` | `opendir()` + `readdir()` |
