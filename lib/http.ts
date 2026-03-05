@@ -336,34 +336,27 @@ export class Router {
   }
 
   handle(rawReq: HttpRequest): HttpResponse {
-    this.compile();
-
     const path = rawReq.path;
     const method = rawReq.method;
-    const match = this.compiledRegex.exec(path);
 
-    if (match !== null) {
-      for (let i = 0; i < this.routes.length; i++) {
-        const route = this.routes[i];
-        const outerGroup = match[route.groupOffset];
-        if (outerGroup !== undefined && outerGroup !== null && outerGroup !== "") {
-          if (route.method === "*" || route.method === method) {
-            const params = new Map<string, string>();
-            if (route.paramNames !== "") {
-              const names = route.paramNames.split(",");
-              for (let j = 0; j < names.length; j++) {
-                const groupIdx = route.groupOffset + 1 + j;
-                if (groupIdx < match.length) {
-                  params.set(names[j], match[groupIdx]);
-                }
-              }
-            }
-            const rreq = new RouterRequest(rawReq, params);
-            const ctx = new Context(rreq);
-            return this.handlers[route.handlerIndex].dispatch(ctx);
+    for (let i = 0; i < this.routes.length; i++) {
+      const route = this.routes[i];
+      if (route.method !== "*" && route.method !== method) continue;
+      const routeRegex = new RegExp("^" + this.patternToRegex(route.pattern) + "$");
+      const routeMatch = routeRegex.exec(path);
+      if (routeMatch === null) continue;
+      const params = new Map<string, string>();
+      if (route.paramNames !== "") {
+        const names = route.paramNames.split(",");
+        for (let j = 0; j < names.length; j++) {
+          if (j + 1 < routeMatch.length) {
+            params.set(names[j], routeMatch[j + 1]);
           }
         }
       }
+      const rreq = new RouterRequest(rawReq, params);
+      const ctx = new Context(rreq);
+      return this.handlers[route.handlerIndex].dispatch(ctx);
     }
 
     const emptyParams = new Map<string, string>();
