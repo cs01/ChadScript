@@ -2,7 +2,7 @@
 
 ChadScript's goal:
 
-> As fast as C, as safe as Rust, as ergonomic as TypeScript.
+> As fast as C, as ergonomic as TypeScript.
 
 ChadScript is a natively-compiled systems language with TypeScript syntax. Write familiar TypeScript, run `chad build`, get a standalone ELF or Mach-O binary via LLVM — no Node.js, no JVM, no runtime.
 
