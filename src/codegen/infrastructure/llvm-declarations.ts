@@ -17,7 +17,8 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += "%StringMap = type { i8**, i8**, i32, i32 }\n";
   ir += "%Set = type { double*, i32, i32 }\n";
   ir += "%StringSet = type { i8**, i32, i32 }\n";
-  ir += "%struct.timeval = type { i64, i32 }\n";
+  const usevalUsecType = config?.targetOS === "darwin" ? "i32" : "i64";
+  ir += `%struct.timeval = type { i64, ${usevalUsecType} }\n`;
   ir += "%Date = type { double }\n";
   ir += "%struct.tm = type { i32, i32, i32, i32, i32, i32, i32, i32, i32, i64, i8* }\n";
   ir += "%ExceptionFrame = type { [200 x i8], i8*, i8* }\n\n";

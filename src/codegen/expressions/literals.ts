@@ -29,6 +29,7 @@ export interface LiteralGeneratorContext {
   getCurrentDeclaredSetType(): string | undefined;
   classGenGenerateNewExpression(className: string, args: Expression[], params: string[]): string;
   ensureDouble(value: string): string;
+  getTargetOS?(): string;
   readonly stringGen: IStringGenerator;
   readonly stringMapGen: IStringMapGenerator;
   readonly arrayGen: IArrayGenerator;
@@ -317,10 +318,16 @@ export class LiteralExpressionGenerator {
       this.ctx.emit(
         `${usecPtr} = getelementptr inbounds %struct.timeval, %struct.timeval* ${tvAlloca}, i32 0, i32 1`,
       );
-      const usecRaw = this.ctx.nextTemp();
-      this.ctx.emit(`${usecRaw} = load i32, i32* ${usecPtr}`);
-      const usecVal = this.ctx.nextTemp();
-      this.ctx.emit(`${usecVal} = zext i32 ${usecRaw} to i64`);
+      let usecVal: string;
+      if (this.ctx.getTargetOS?.() === "darwin") {
+        const usecRaw = this.ctx.nextTemp();
+        this.ctx.emit(`${usecRaw} = load i32, i32* ${usecPtr}`);
+        usecVal = this.ctx.nextTemp();
+        this.ctx.emit(`${usecVal} = zext i32 ${usecRaw} to i64`);
+      } else {
+        usecVal = this.ctx.nextTemp();
+        this.ctx.emit(`${usecVal} = load i64, i64* ${usecPtr}`);
+      }
       const secDbl = this.ctx.nextTemp();
       this.ctx.emit(`${secDbl} = sitofp i64 ${secVal} to double`);
       const usecDbl = this.ctx.nextTemp();

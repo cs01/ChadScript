@@ -28,10 +28,15 @@ export class DateGenerator {
     const secVal = this.ctx.emitLoad("i64", secPtr);
 
     const usecPtr = this.ctx.emitGep("%struct.timeval", tvAlloca, "i32 0, i32 1");
-    const usecRaw = this.ctx.nextTemp();
-    this.ctx.emit(`${usecRaw} = load i32, i32* ${usecPtr}`);
-    const usecVal = this.ctx.nextTemp();
-    this.ctx.emit(`${usecVal} = zext i32 ${usecRaw} to i64`);
+    let usecVal: string;
+    if (this.ctx.getTargetOS?.() === "darwin") {
+      const usecRaw = this.ctx.nextTemp();
+      this.ctx.emit(`${usecRaw} = load i32, i32* ${usecPtr}`);
+      usecVal = this.ctx.nextTemp();
+      this.ctx.emit(`${usecVal} = zext i32 ${usecRaw} to i64`);
+    } else {
+      usecVal = this.ctx.emitLoad("i64", usecPtr);
+    }
 
     const secDouble = this.ctx.nextTemp();
     this.ctx.emit(`${secDouble} = sitofp i64 ${secVal} to double`);
