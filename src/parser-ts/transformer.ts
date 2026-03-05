@@ -229,6 +229,19 @@ function transformTopLevelStatement(
 
     case ts.SyntaxKind.VariableStatement: {
       const varStmt = node as ts.VariableStatement;
+      const varFlags = varStmt.declarationList.flags;
+      if (!(varFlags & ts.NodeFlags.Const) && !(varFlags & ts.NodeFlags.Let)) {
+        const loc = getLoc(varStmt);
+        console.error(
+          loc.file +
+            ":" +
+            loc.line +
+            ":" +
+            (loc.column + 1) +
+            ": error: 'var' is not allowed; use 'let' or 'const'",
+        );
+        process.exit(1);
+      }
 
       for (const decl of varStmt.declarationList.declarations) {
         const result = transformVariableDeclaration(decl, varStmt.declarationList.flags, checker);

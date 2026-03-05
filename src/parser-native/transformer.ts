@@ -1673,6 +1673,10 @@ function transformExpressionStatementNode(node: TreeSitterNode): Statement | nul
 }
 
 function transformLexicalDeclaration(node: TreeSitterNode): VariableDeclaration[] {
+  if ((node as NodeBase).type === "variable_declaration") {
+    console.error("error: 'var' is not allowed; use 'let' or 'const'");
+    process.exit(1);
+  }
   const declarations: VariableDeclaration[] = [];
 
   let kind: "let" | "const" = "let";
@@ -2061,7 +2065,8 @@ function transformForInStatement(node: TreeSitterNode): ForOfStatement {
     } else if (c.type === "let") {
       variableKind = "let";
     } else if (c.type === "var") {
-      variableKind = "var";
+      console.error("error: 'var' is not allowed; use 'let' or 'const'");
+      process.exit(1);
     }
   }
 

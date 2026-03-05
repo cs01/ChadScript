@@ -19,6 +19,19 @@ import {
 import { transformExpression } from "./expressions.js";
 import { getLoc } from "../transformer.js";
 
+function reportVarError(node: ts.Node): never {
+  const loc = getLoc(node);
+  console.error(
+    loc.file +
+      ":" +
+      loc.line +
+      ":" +
+      (loc.column + 1) +
+      ": error: 'var' is not allowed; use 'let' or 'const'",
+  );
+  process.exit(1);
+}
+
 export function transformStatement(
   node: ts.Statement,
   checker: ts.TypeChecker | undefined,
@@ -81,6 +94,10 @@ function transformVariableStatement(
   node: ts.VariableStatement,
   checker: ts.TypeChecker | undefined,
 ): Statement {
+  const flags = node.declarationList.flags;
+  if (!(flags & ts.NodeFlags.Const) && !(flags & ts.NodeFlags.Let)) {
+    reportVarError(node);
+  }
   const declarations = node.declarationList.declarations;
   if (declarations.length === 1) {
     return transformVariableDecl(declarations[0], node.declarationList.flags, checker);
@@ -374,6 +391,10 @@ function transformForStatement(
 
   if (node.initializer) {
     if (ts.isVariableDeclarationList(node.initializer)) {
+      const initFlags = node.initializer.flags;
+      if (!(initFlags & ts.NodeFlags.Const) && !(initFlags & ts.NodeFlags.Let)) {
+        reportVarError(node);
+      }
       const decl = node.initializer.declarations[0];
       init = transformVariableDecl(decl, node.initializer.flags, checker) as VariableDeclaration;
     } else {
@@ -421,6 +442,10 @@ function transformForOfStatement(
   let destructuredNames: string[] | undefined;
 
   if (ts.isVariableDeclarationList(node.initializer)) {
+    const ofFlags = node.initializer.flags;
+    if (!(ofFlags & ts.NodeFlags.Const) && !(ofFlags & ts.NodeFlags.Let)) {
+      reportVarError(node);
+    }
     const decl = node.initializer.declarations[0];
     if (ts.isIdentifier(decl.name)) {
       variableName = decl.name.text;
@@ -458,6 +483,10 @@ function transformForInStatement(
   let variableKind: "let" | "const" | "var" = "const";
 
   if (ts.isVariableDeclarationList(node.initializer)) {
+    const inFlags = node.initializer.flags;
+    if (!(inFlags & ts.NodeFlags.Const) && !(inFlags & ts.NodeFlags.Let)) {
+      reportVarError(node);
+    }
     const decl = node.initializer.declarations[0];
     if (ts.isIdentifier(decl.name)) {
       variableName = decl.name.text;
