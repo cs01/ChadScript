@@ -19,14 +19,16 @@ sqlite.exec(db, "INSERT INTO users (name, role) VALUES (?, ?)", ["Charlie", "des
 console.log("Inserted 3 users. Querying...");
 console.log("");
 
-const rows = sqlite.query<User>(db, "SELECT id, name, role FROM users ORDER BY name");
+const rows: User[] = sqlite.query<User>(db, "SELECT id, name, role FROM users ORDER BY name");
 console.log("Found " + rows.length + " rows:");
-for (const row of rows) {
-  console.log("  " + row.id + " | " + row.name + " | " + row.role);
+for (let i = 0; i < rows.length; i++) {
+  console.log("  " + rows[i].id + " | " + rows[i].name + " | " + rows[i].role);
 }
 
 console.log("");
-const alice = sqlite.getRow<User>(db, "SELECT id, name, role FROM users WHERE name = ?", ["Alice"]);
+const alice: User = sqlite.getRow<User>(db, "SELECT id, name, role FROM users WHERE name = ?", [
+  "Alice",
+]);
 if (alice !== null) {
   console.log("Alice's role: " + alice.role);
 }
