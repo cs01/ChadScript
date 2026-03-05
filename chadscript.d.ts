@@ -143,9 +143,11 @@ declare namespace crypto {
 
 declare namespace sqlite {
   function open(path: string): any;
-  function exec(db: any, sql: string): void;
-  function get(db: any, sql: string): string;
-  function all(db: any, sql: string): string[];
+  function exec(db: any, sql: string, params?: any[]): void;
+  function get(db: any, sql: string, params?: any[]): string;
+  function getRow<T = any>(db: any, sql: string, params?: any[]): T;
+  function all(db: any, sql: string, params?: any[]): string[];
+  function query<T = any>(db: any, sql: string, params?: any[]): T[];
   function close(db: any): void;
 }
 

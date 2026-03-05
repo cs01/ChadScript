@@ -14,7 +14,7 @@ export class SqliteGenerator {
     if (exprObjBase.type !== "variable") return false;
     const varNode = expr.object as { type: string; name: string };
     if (varNode.name !== "sqlite") return false;
-    const supported = ["open", "exec", "get", "all", "query", "close"];
+    const supported = ["open", "exec", "get", "getRow", "all", "query", "close"];
     return supported.indexOf(expr.method) !== -1;
   }
 
@@ -85,6 +85,32 @@ export class SqliteGenerator {
 
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call i8* @__sqlite_get(i8* ${dbPtr}, i8* ${sqlPtr})`);
+    this.ctx.setVariableType(result, "i8*");
+
+    return result;
+  }
+
+  // sqlite.getRow() — returns a single typed struct (i8*) instead of a pipe-delimited string
+  generateGetRow(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length < 2) {
+      return this.ctx.emitError("sqlite.getRow() requires 2 arguments (db, sql)", expr.loc);
+    }
+
+    const dbPtr = this.ctx.generateExpression(expr.args[0], params);
+    const sqlPtr = this.ctx.generateExpression(expr.args[1], params);
+
+    if (expr.args.length >= 3) {
+      const paramsArr = this.buildParamsArray(expr.args[2], params);
+      const result = this.ctx.nextTemp();
+      this.ctx.emit(
+        `${result} = call i8* @__sqlite_get_row_params(i8* ${dbPtr}, i8* ${sqlPtr}, %StringArray* ${paramsArr})`,
+      );
+      this.ctx.setVariableType(result, "i8*");
+      return result;
+    }
+
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call i8* @__sqlite_get_row(i8* ${dbPtr}, i8* ${sqlPtr})`);
     this.ctx.setVariableType(result, "i8*");
 
     return result;
@@ -637,6 +663,64 @@ export class SqliteGenerator {
     ir += "  %f2 = getelementptr inbounds %ObjectArray, %ObjectArray* %arr, i32 0, i32 2\n";
     ir += "  store i32 %cap, i32* %f2\n";
     ir += "  ret %ObjectArray* %arr\n";
+    ir += "}\n\n";
+    return ir;
+  }
+
+  // Returns null for no row, otherwise a struct of i8* fields (same layout as __sqlite_row_to_struct).
+  generateSqliteGetRowHelper(): string {
+    let ir = "";
+    ir += "define i8* @__sqlite_get_row(i8* %db, i8* %sql) {\n";
+    ir += "entry:\n";
+    ir += "  %sql_len = call i64 @strlen(i8* %sql)\n";
+    ir += "  %sql_len_i32 = trunc i64 %sql_len to i32\n";
+    ir += "  %stmt_ptr_raw = call i8* @GC_malloc(i64 8)\n";
+    ir += "  %stmt_ptr = bitcast i8* %stmt_ptr_raw to i8**\n";
+    ir +=
+      "  %rc = call i32 @sqlite3_prepare_v2(i8* %db, i8* %sql, i32 %sql_len_i32, i8** %stmt_ptr, i8** null)\n";
+    ir += "  %stmt = load i8*, i8** %stmt_ptr\n";
+    ir += "  %step_rc = call i32 @sqlite3_step(i8* %stmt)\n";
+    ir += "  %is_row = icmp eq i32 %step_rc, 100\n";
+    ir += "  br i1 %is_row, label %has_row, label %no_row\n";
+    ir += "\n";
+    ir += "has_row:\n";
+    ir += "  %col_count = call i32 @sqlite3_column_count(i8* %stmt)\n";
+    ir += "  %result = call i8* @__sqlite_row_to_struct(i8* %stmt, i32 %col_count)\n";
+    ir += "  call i32 @sqlite3_finalize(i8* %stmt)\n";
+    ir += "  ret i8* %result\n";
+    ir += "\n";
+    ir += "no_row:\n";
+    ir += "  call i32 @sqlite3_finalize(i8* %stmt)\n";
+    ir += "  ret i8* null\n";
+    ir += "}\n\n";
+    return ir;
+  }
+
+  generateSqliteGetRowWithParamsHelper(): string {
+    let ir = "";
+    ir += "define i8* @__sqlite_get_row_params(i8* %db, i8* %sql, %StringArray* %params) {\n";
+    ir += "entry:\n";
+    ir += "  %sql_len = call i64 @strlen(i8* %sql)\n";
+    ir += "  %sql_len_i32 = trunc i64 %sql_len to i32\n";
+    ir += "  %stmt_ptr_raw = call i8* @GC_malloc(i64 8)\n";
+    ir += "  %stmt_ptr = bitcast i8* %stmt_ptr_raw to i8**\n";
+    ir +=
+      "  %rc = call i32 @sqlite3_prepare_v2(i8* %db, i8* %sql, i32 %sql_len_i32, i8** %stmt_ptr, i8** null)\n";
+    ir += "  %stmt = load i8*, i8** %stmt_ptr\n";
+    ir += "  call void @__sqlite_bind_params(i8* %stmt, %StringArray* %params)\n";
+    ir += "  %step_rc = call i32 @sqlite3_step(i8* %stmt)\n";
+    ir += "  %is_row = icmp eq i32 %step_rc, 100\n";
+    ir += "  br i1 %is_row, label %has_row, label %no_row\n";
+    ir += "\n";
+    ir += "has_row:\n";
+    ir += "  %col_count_grp = call i32 @sqlite3_column_count(i8* %stmt)\n";
+    ir += "  %result = call i8* @__sqlite_row_to_struct(i8* %stmt, i32 %col_count_grp)\n";
+    ir += "  call i32 @sqlite3_finalize(i8* %stmt)\n";
+    ir += "  ret i8* %result\n";
+    ir += "\n";
+    ir += "no_row:\n";
+    ir += "  call i32 @sqlite3_finalize(i8* %stmt)\n";
+    ir += "  ret i8* null\n";
     ir += "}\n\n";
     return ir;
   }
