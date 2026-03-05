@@ -135,6 +135,7 @@ export class TypeInference {
         if (varType === "i8*") return this.ctx.typeContext.getArrayType("string");
       }
       if (this.isStringExpression(elements[0])) return this.ctx.typeContext.getArrayType("string");
+      if (firstElem.type === "object") return this.ctx.typeContext.getArrayType("object");
       return this.ctx.typeContext.getArrayType("number");
     }
     if (e.type === "unary") {

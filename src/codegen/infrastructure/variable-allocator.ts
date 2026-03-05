@@ -13,6 +13,7 @@ import {
   InterfaceDeclaration,
   InterfaceField,
   ObjectNode,
+  ArrayNode,
   IndexAccessNode,
   MemberAccessNode,
   VariableNode,
@@ -1986,10 +1987,56 @@ export class VariableAllocator {
       }
     }
 
+    const inlineMeta = this.extractInlineObjectArrayMeta(stmt.value!);
+    if (inlineMeta) {
+      this.ctx.defineVariable(stmt.name, allocaReg, "%ObjectArray*", SymbolKind.ObjectArray, "local");
+      this.ctx.symbolTable.setRawInterfaceType(stmt.name, "object");
+      this.ctx.symbolTable.setObjectArrayMetadata(stmt.name, {
+        elementInterfaceName: "object",
+        elementKeys: inlineMeta.keys,
+        elementTypes: inlineMeta.types,
+        elementTsTypes: inlineMeta.tsTypes,
+      });
+      this.ctx.emit(`${allocaReg} = alloca %ObjectArray*`);
+      const value = this.ctx.generateExpression(stmt.value!, params);
+      this.ctx.emit(`store %ObjectArray* ${value}, %ObjectArray** ${allocaReg}`);
+      return;
+    }
+
     this.ctx.defineVariable(stmt.name, allocaReg, "%ObjectArray*", SymbolKind.ObjectArray, "local");
     this.ctx.emit(`${allocaReg} = alloca %ObjectArray*`);
     const value = this.ctx.generateExpression(stmt.value!, params);
     this.ctx.emit(`store %ObjectArray* ${value}, %ObjectArray** ${allocaReg}`);
+  }
+
+  private extractInlineObjectArrayMeta(
+    expr: Expression,
+  ): { keys: string[]; types: string[]; tsTypes: string[] } | null {
+    const e = expr as ExprBase;
+    if (e.type !== "array") return null;
+    const arrayExpr = expr as unknown as ArrayNode;
+    const elements = arrayExpr.elements || [];
+    if (elements.length === 0) return null;
+    const firstElem = elements[0] as ExprBase;
+    if (firstElem.type !== "object") return null;
+
+    const objNode = elements[0] as unknown as ObjectNode;
+    const keys: string[] = [];
+    const types: string[] = [];
+    const tsTypes: string[] = [];
+
+    for (let i = 0; i < objNode.properties.length; i++) {
+      const prop = objNode.properties[i];
+      keys.push(prop.key);
+      const valType = (prop.value as ExprBase).type;
+      let tsType = "string";
+      if (valType === "number") tsType = "number";
+      else if (valType === "boolean") tsType = "boolean";
+      types.push(this.convertTsType(tsType));
+      tsTypes.push(tsType);
+    }
+
+    return { keys, types, tsTypes };
   }
 
   private allocateRegex(stmt: VariableDeclaration, params: string[]): void {
