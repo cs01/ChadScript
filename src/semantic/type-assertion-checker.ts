@@ -410,9 +410,9 @@ class TypeAssertionChecker {
       let badReason = "";
       for (let j = 0; j < tIndices.length; j++) {
         if (tIndices[j] !== uIndices[j]) {
+          orderOk = false;
           const diff = uIndices[j] - tIndices[j];
           if (diff > 1 || diff < -1) {
-            orderOk = false;
             badReason =
               "field '" +
               reqNames[j] +
