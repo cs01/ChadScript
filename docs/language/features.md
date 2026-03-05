@@ -59,7 +59,7 @@ The tables below describe the full feature set and support status.
 | `number`, `string`, `boolean`, `null`, `undefined` | Supported |
 | `number[]`, `string[]` (typed arrays) | Supported |
 | `Uint8Array` | Supported |
-| Object literals / interfaces (fixed-layout structs) | Supported |
+| Object literals / interfaces / type aliases (fixed-layout structs) | Supported |
 | `Map<K, V>`, `Set<T>` | Supported |
 | Enums (numeric and string) | Supported |
 | Type aliases | Supported |
@@ -75,13 +75,13 @@ The tables below describe the full feature set and support status.
 
 ## Classes & Interfaces
 
-Classes and interfaces work like standard TypeScript with a few differences.
+Classes, interfaces, and type aliases work like standard TypeScript with a few differences. `type Foo = { ... }` and `interface Foo { ... }` are interchangeable for defining object shapes.
 
 **Key differences from TypeScript:**
 
 - **No `instanceof`** — there are no runtime type tags
 - **Static dispatch** — method calls are resolved at compile time, not dynamically
-- **Interfaces are data-only** — interfaces define fields, not methods. To attach methods to a type, use a class.
+- **Interfaces/types are data-only** — they define fields, not methods. To attach methods to a type, use a class.
 - **Access modifiers not enforced at runtime** — `private`/`protected` are parsed but all fields are accessible in the compiled output. Run `chad init` to get TypeScript type-checking in your editor, which will flag access violations before you compile.
 
 | Feature | Status |
@@ -99,14 +99,14 @@ Classes and interfaces work like standard TypeScript with a few differences.
 | Private class fields (`#field`) | Not supported |
 | Decorators | Not supported |
 
-**Interface field ordering** — object literals are automatically reordered to match the interface's declared field order. You can write fields in any order:
+**Field ordering** — object literals are automatically reordered to match the declared field order. You can write fields in any order:
 
 ```typescript
-interface Person {
+type Person = {
   name: string;
   age: number;
   city: string;
-}
+};
 
 const p: Person = { age: 30, city: "NYC", name: "Alice" }; // works fine
 ```

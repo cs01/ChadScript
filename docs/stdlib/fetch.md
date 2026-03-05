@@ -29,10 +29,10 @@ async function main(): any {
 ## Examples
 
 ```typescript
-interface Repo {
+type Repo = {
   name: string;
   description: string;
-}
+};
 
 async function main(): any {
   const response = await fetch("https://api.github.com/repos/cs01/ChadScript");
@@ -45,9 +45,9 @@ async function main(): any {
 ### Parallel fetches with `Promise.all`
 
 ```typescript
-interface Repo {
+type Repo = {
   stargazers_count: number;
-}
+};
 
 async function main(): Promise<void> {
   const results = await Promise.all([

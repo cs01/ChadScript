@@ -36,10 +36,10 @@ Requires LLVM (`brew install llvm` / `apt install llvm clang`).
 ```typescript
 import { httpServe, Router, Context } from "chadscript/http";
 
-interface Post {
+type Post = {
   id: number;
   title: string;
-}
+};
 
 const posts: Post[] = [
   { id: 1, title: "ChadScript ships v1" },

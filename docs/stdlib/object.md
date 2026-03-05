@@ -7,10 +7,10 @@ Static methods for working with objects and interfaces.
 Returns an array of the object's own property names.
 
 ```typescript
-interface User {
+type User = {
   name: string;
   age: number;
-}
+};
 
 const user: User = { name: "Alice", age: 30 };
 const keys = Object.keys(user);

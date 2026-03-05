@@ -25,16 +25,16 @@ Classes and interfaces work like standard TypeScript with a few differences.
 | Abstract classes | Not yet supported |
 | Decorators | Not supported |
 
-## Interface Field Ordering
+## Field Ordering
 
-One ChadScript-specific detail: object literals are automatically reordered to match the interface's declared field order. You can write fields in any order:
+One ChadScript-specific detail: object literals are automatically reordered to match the declared field order. You can write fields in any order:
 
 ```typescript
-interface Person {
+type Person = {
   name: string;
   age: number;
   city: string;
-}
+};
 
 const p: Person = { age: 30, city: "NYC", name: "Alice" }; // works fine
 ```
