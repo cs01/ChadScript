@@ -2976,18 +2976,35 @@ function transformObjectTypeAlias(node: TreeSitterNode): InterfaceDeclaration | 
   if ((valueNode as NodeBase).type !== "object_type") return null;
   const name = (nameNode as NodeBase).text;
   const fields: { name: string; type: string }[] = [];
+  const methods: { name: string; params: string[]; paramTypes: string[]; returnType: string }[] =
+    [];
   const vn = valueNode as NodeBase;
   for (let i = 0; i < vn.namedChildCount; i++) {
     const member = getNamedChild(valueNode, i);
     if (!member) continue;
-    if ((member as NodeBase).type !== "property_signature") continue;
-    const propNameNode = getChildByFieldName(member, "name");
-    const propTypeNode = getChildByFieldName(member, "type");
-    const fieldName = propNameNode ? (propNameNode as NodeBase).text : "";
-    const fieldType = propTypeNode ? extractTypeString(propTypeNode) : "any";
-    fields.push({ name: fieldName, type: fieldType });
+    const m = member as NodeBase;
+    if (m.type === "property_signature") {
+      const propNameNode = getChildByFieldName(member, "name");
+      const propTypeNode = getChildByFieldName(member, "type");
+      const fieldName = propNameNode ? (propNameNode as NodeBase).text : "";
+      const fieldType = propTypeNode ? extractTypeString(propTypeNode) : "any";
+      fields.push({ name: fieldName, type: fieldType });
+    } else if (m.type === "method_signature") {
+      const methodNameNode = getChildByFieldName(member, "name");
+      if (!methodNameNode) continue;
+      const methodName = (methodNameNode as NodeBase).text;
+      const paramsNode = getChildByFieldName(member, "parameters");
+      const params = paramsNode ? extractFunctionParams(paramsNode) : [];
+      const paramTypes = paramsNode ? extractParamTypes(paramsNode) || [] : [];
+      const returnTypeNode = getChildByFieldName(member, "return_type");
+      let returnType = "void";
+      if (returnTypeNode) {
+        returnType = extractTypeString(returnTypeNode);
+      }
+      methods.push({ name: methodName, params, paramTypes, returnType });
+    }
   }
-  return { name, extends: [], fields, methods: [] };
+  return { name, extends: [], fields, methods };
 }
 
 function transformTypeAliasDeclaration(node: TreeSitterNode): TypeAliasDeclaration | null {
