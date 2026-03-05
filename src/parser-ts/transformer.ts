@@ -140,12 +140,23 @@ function transformTopLevelStatement(
       const taNode = node as ts.TypeAliasDeclaration;
       if (ts.isTypeLiteralNode(taNode.type)) {
         const fields: { name: string; type: string }[] = [];
+        const methods: {
+          name: string;
+          params: string[];
+          paramTypes: string[];
+          returnType: string;
+        }[] = [];
         for (const m of taNode.type.members) {
           if (ts.isPropertySignature(m) && ts.isIdentifier(m.name)) {
             fields.push({ name: m.name.text, type: m.type ? m.type.getText() : "any" });
+          } else if (ts.isMethodSignature(m) && ts.isIdentifier(m.name)) {
+            const params = m.parameters.map((p) => (ts.isIdentifier(p.name) ? p.name.text : ""));
+            const paramTypes = m.parameters.map((p) => (p.type ? p.type.getText() : "any"));
+            const returnType = m.type ? m.type.getText() : "void";
+            methods.push({ name: m.name.text, params, paramTypes, returnType });
           }
         }
-        ast.interfaces.push({ name: taNode.name.text, extends: [], fields, methods: [] });
+        ast.interfaces.push({ name: taNode.name.text, extends: [], fields, methods });
       } else {
         const typeAlias = transformTypeAliasDeclaration(taNode);
         if (typeAlias) {

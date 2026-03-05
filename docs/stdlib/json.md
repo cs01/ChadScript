@@ -4,13 +4,13 @@ JSON parsing and serialization via the yyjson library.
 
 ## `JSON.parse<T>(str)`
 
-Parse a JSON string into a typed struct. The type parameter `T` is **required** — ChadScript generates a specialized parser at compile time based on the interface's field names and types. Calling `JSON.parse()` without a type parameter is a compile error.
+Parse a JSON string into a typed struct. The type parameter `T` is **required** — ChadScript generates a specialized parser at compile time based on the type's field names and types. Calling `JSON.parse()` without a type parameter is a compile error.
 
 ```typescript
-interface Config {
+type Config = {
   host: string;
   port: number;
-}
+};
 
 const config = JSON.parse<Config>('{"host":"localhost","port":8080}');
 console.log(config.host);
@@ -28,10 +28,10 @@ Missing or wrong-typed fields get safe zero values instead of crashing:
 | Invalid JSON string | Returns struct with all defaults |
 
 ```typescript
-interface User {
+type User = {
   name: string;
   age: number;
-}
+};
 
 const partial = JSON.parse<User>('{"name":"Alice"}');
 // partial.age === 0 (safe default, no crash)
