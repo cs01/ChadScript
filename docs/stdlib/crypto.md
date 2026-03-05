@@ -46,6 +46,24 @@ const id = crypto.randomUUID();
 // "550e8400-e29b-41d4-a716-446655440000"
 ```
 
+## `crypto.hmacSha256(key, message)`
+
+Compute HMAC-SHA256 of `message` using `key`. Returns a 64-character hex string.
+
+```typescript
+const sig = crypto.hmacSha256("secret", "hello");
+// e.g. "88aab3ede8d3adf94d26ab90d3bafd4a2083070c3bcce9c014ee04a443847c0b"
+```
+
+## `crypto.pbkdf2(password, salt, iterations, keyLen)`
+
+Derive a key from `password` and `salt` using PBKDF2-HMAC-SHA256. Returns a hex string of length `keyLen * 2`.
+
+```typescript
+const key = crypto.pbkdf2("password", "salt", 100000, 32);
+// 64-character hex string
+```
+
 ## Example
 
 ```typescript
@@ -69,3 +87,5 @@ console.log(uuid);
 | `crypto.md5()` | OpenSSL EVP API (`EVP_md5`) |
 | `crypto.randomBytes()` | `RAND_bytes()` |
 | `crypto.randomUUID()` | `RAND_bytes(16)` + version/variant bits + `snprintf` |
+| `crypto.hmacSha256()` | OpenSSL `HMAC()` with `EVP_sha256` |
+| `crypto.pbkdf2()` | OpenSSL `PKCS5_PBKDF2_HMAC()` with `EVP_sha256` |

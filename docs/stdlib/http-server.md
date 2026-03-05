@@ -184,10 +184,11 @@ function wsHandler(event: WsEvent): string {
 | Property | Type | Description |
 |----------|------|-------------|
 | `method` | `string` | HTTP method (`"GET"`, `"POST"`, etc.) |
-| `path` | `string` | Request path (`"/"`, `"/api/users"`, etc.) |
+| `path` | `string` | Request path (`"/"`, `"/api/users"`, etc.), without query string |
 | `body` | `string` | Request body |
 | `contentType` | `string` | Content-Type header value |
 | `headers` | `string` | All request headers as `"Key: Value\n..."` string |
+| `queryString` | `string` | Raw query string (e.g. `"page=2&limit=10"`), or `""` if none |
 
 ## HttpResponse Object
 

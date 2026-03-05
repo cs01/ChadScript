@@ -12,6 +12,8 @@ Most APIs are available everywhere with no import:
 console.log("hello");
 const data = fs.readFileSync("file.txt");
 const hash = crypto.createHash("sha256");
+const encoded = btoa("hello world");
+const uri = encodeURIComponent("hello world & foo=bar");
 ```
 
 ## Modules
