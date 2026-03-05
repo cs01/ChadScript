@@ -195,6 +195,8 @@ export interface ICryptoGenerator {
   generateSha512(expr: MethodCallNode, params: string[]): string;
   generateRandomBytes(expr: MethodCallNode, params: string[]): string;
   generateRandomUUID(expr: MethodCallNode, params: string[]): string;
+  generateHmacSha256(expr: MethodCallNode, params: string[]): string;
+  generatePbkdf2(expr: MethodCallNode, params: string[]): string;
 }
 
 export interface ISqliteGenerator {
@@ -940,6 +942,9 @@ export interface IGeneratorContext {
   lastTypeAssertionSourceVar: string | null;
   getLastTypeAssertionSourceVar(): string | null;
   setLastTypeAssertionSourceVar(name: string | null): void;
+
+  setUsesBase64(value: boolean): void;
+  setUsesUri(value: boolean): void;
 }
 
 /**
@@ -991,6 +996,8 @@ export class MockGeneratorContext implements IGeneratorContext {
   public usesJson: number = 0;
   public usesHttpServer: number = 0;
   public usesRegex: number = 0;
+  public usesBase64: number = 0;
+  public usesUri: number = 0;
   public usesTestRunner: number = 0;
   public usesAsyncFs: number = 0;
   public currentFunction: string | null = null;
@@ -1208,6 +1215,12 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
   setUsesRegex(value: boolean): void {
     this.usesRegex = value ? 1 : 0;
+  }
+  setUsesBase64(value: boolean): void {
+    this.usesBase64 = value ? 1 : 0;
+  }
+  setUsesUri(value: boolean): void {
+    this.usesUri = value ? 1 : 0;
   }
   setUsesTestRunner(value: boolean): void {
     this.usesTestRunner = value ? 1 : 0;
@@ -1913,6 +1926,9 @@ export class MockGeneratorContext implements IGeneratorContext {
       "%mock_crypto_random_bytes",
     generateRandomUUID: (_expr: MethodCallNode, _params: string[]): string =>
       "%mock_crypto_random_uuid",
+    generateHmacSha256: (_expr: MethodCallNode, _params: string[]): string =>
+      "%mock_crypto_hmac_sha256",
+    generatePbkdf2: (_expr: MethodCallNode, _params: string[]): string => "%mock_crypto_pbkdf2",
   };
   sqliteGen: ISqliteGenerator = {
     canHandle: (_expr: MethodCallNode): boolean => false,

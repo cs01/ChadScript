@@ -381,6 +381,13 @@ static const char *sniff_content_type(const char *path, const char *body) {
 static void dispatch_http_request(http_conn_t *conn) {
     lws_bridge_request req;
     req.method = conn->method_str;
+    char *qmark = strchr(conn->path_str, '?');
+    if (qmark) {
+        *qmark = '\0';
+        req.query_string = qmark + 1;
+    } else {
+        req.query_string = "";
+    }
     req.path = conn->path_str;
     req.body = conn->body ? conn->body : "";
     req.content_type = conn->content_type_str;

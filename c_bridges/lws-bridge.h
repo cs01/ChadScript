@@ -10,6 +10,7 @@ typedef struct {
     const char *content_type;
     const char *headers_raw;  // all headers as "Key: Value\n..." string
     int64_t body_len;         // actual byte count (for binary bodies with embedded nulls)
+    const char *query_string; // query string portion of URL (after ?), or ""
 } lws_bridge_request;
 
 typedef struct {

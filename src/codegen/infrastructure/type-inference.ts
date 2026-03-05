@@ -159,6 +159,13 @@ export class TypeInference {
       if (callExpr.name === "fetch") return this.ctx.typeContext.resolve("Promise");
       if (callExpr.name === "__ts_node_type" || callExpr.name === "__ts_node_text")
         return this.ctx.typeContext.stringType;
+      if (
+        callExpr.name === "btoa" ||
+        callExpr.name === "atob" ||
+        callExpr.name === "encodeURIComponent" ||
+        callExpr.name === "decodeURIComponent"
+      )
+        return this.ctx.typeContext.stringType;
       if (callExpr.name) {
         const func = this.getFunction(callExpr.name);
         if (func) {
@@ -397,7 +404,9 @@ export class TypeInference {
           method === "sha256" ||
           method === "md5" ||
           method === "sha512" ||
-          method === "randomBytes"
+          method === "randomBytes" ||
+          method === "hmacSha256" ||
+          method === "pbkdf2"
         ) {
           return this.ctx.typeContext.stringType;
         }

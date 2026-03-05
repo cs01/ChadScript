@@ -401,6 +401,8 @@ export function compile(
     ? `${bridgePath}/lws-bridge.o ${picoPath}/picohttpparser.o ${bridgePath}/multipart-bridge.o`
     : "";
   const regexBridgeObj = generator.usesRegex ? `${bridgePath}/regex-bridge.o` : "";
+  const base64BridgeObj = generator.usesBase64 ? `${bridgePath}/base64-bridge.o` : "";
+  const uriBridgeObj = generator.usesUri ? `${bridgePath}/uri-bridge.o` : "";
   const cpBridgeObj = `${bridgePath}/child-process-bridge.o`;
   const osBridgeObj = `${bridgePath}/os-bridge.o`;
   const dotenvBridgeObj = fs.existsSync(`${bridgePath}/dotenv-bridge.o`)
@@ -486,7 +488,7 @@ export function compile(
   const userObjs = extraLinkObjs.length > 0 ? " " + extraLinkObjs.join(" ") : "";
   const userPaths = extraLinkPaths.map((p) => ` -L${p}`).join("");
   const userLibs = extraLinkLibs.map((l) => ` -l${l}`).join("");
-  const linkCmd = `${linker} ${objFile} ${lwsBridgeObj} ${regexBridgeObj} ${cpBridgeObj} ${osBridgeObj} ${dotenvBridgeObj} ${watchBridgeObj} ${cpSpawnObj}${extraObjs}${userObjs} -o ${outputFile}${noPie}${debugFlag}${stripFlag}${staticFlag}${crossTarget}${crossLinker}${sanitizeFlags} ${linkLibs}${userPaths}${userLibs}`;
+  const linkCmd = `${linker} ${objFile} ${lwsBridgeObj} ${regexBridgeObj} ${base64BridgeObj} ${uriBridgeObj} ${cpBridgeObj} ${osBridgeObj} ${dotenvBridgeObj} ${watchBridgeObj} ${cpSpawnObj}${extraObjs}${userObjs} -o ${outputFile}${noPie}${debugFlag}${stripFlag}${staticFlag}${crossTarget}${crossLinker}${sanitizeFlags} ${linkLibs}${userPaths}${userLibs}`;
   logger.info(` ${linkCmd}`);
   const linkStdio = logger.getLevel() >= LogLevel.Verbose ? "inherit" : "pipe";
   execSync(linkCmd, { stdio: linkStdio });

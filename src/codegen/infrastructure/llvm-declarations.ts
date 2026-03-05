@@ -3,6 +3,8 @@ export interface DeclConfig {
   crypto?: boolean;
   sqlite?: boolean;
   testRunner?: boolean;
+  base64?: boolean;
+  uri?: boolean;
   targetOS?: string;
 }
 
@@ -224,6 +226,8 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
     ir += "declare i8* @EVP_md5()\n";
     ir += "declare i8* @EVP_sha512()\n";
     ir += "declare i32 @RAND_bytes(i8*, i32)\n";
+    ir += "declare i8* @HMAC(i8*, i8*, i32, i8*, i64, i8*, i32*)\n";
+    ir += "declare i32 @PKCS5_PBKDF2_HMAC(i8*, i32, i8*, i32, i32, i8*, i32, i8*)\n";
     ir += "\n";
   }
 
@@ -263,6 +267,20 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
       '@.str.assert_deep_idx = private unnamed_addr constant [31 x i8] c"    arrays differ at index %d\\0A\\00", align 1\n';
     ir += '@.str.describe_header = private unnamed_addr constant [4 x i8] c"%s\\0A\\00", align 1\n';
     ir += '@.str.indent_unit = private unnamed_addr constant [3 x i8] c"  \\00", align 1\n';
+    ir += "\n";
+  }
+
+  if (config && config.base64) {
+    ir += "; base64 encode/decode (base64-bridge)\n";
+    ir += "declare i8* @cs_btoa(i8*, i32)\n";
+    ir += "declare i8* @cs_atob(i8*, i8*)\n";
+    ir += "\n";
+  }
+
+  if (config && config.uri) {
+    ir += "; URI encode/decode (uri-bridge)\n";
+    ir += "declare i8* @cs_encode_uri_component(i8*)\n";
+    ir += "declare i8* @cs_decode_uri_component(i8*)\n";
     ir += "\n";
   }
 

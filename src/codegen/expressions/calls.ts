@@ -194,6 +194,19 @@ export class CallExpressionGenerator {
       return this.generateIsNaN(expr, params);
     }
 
+    if (expr.name === "btoa") {
+      return this.generateBtoa(expr, params);
+    }
+    if (expr.name === "atob") {
+      return this.generateAtob(expr, params);
+    }
+    if (expr.name === "encodeURIComponent") {
+      return this.generateEncodeURIComponent(expr, params);
+    }
+    if (expr.name === "decodeURIComponent") {
+      return this.generateDecodeURIComponent(expr, params);
+    }
+
     // Handle C built-in functions with proper signatures
     if (expr.name === "malloc") {
       return this.generateMalloc(expr, params);
@@ -1212,5 +1225,57 @@ export class CallExpressionGenerator {
       }
     }
     return "i8*";
+  }
+
+  private generateBtoa(expr: CallNode, params: string[]): string {
+    if (expr.args.length < 1) {
+      return this.ctx.emitError("btoa() requires 1 argument", expr.loc);
+    }
+    this.ctx.setUsesBase64(true);
+    const strPtr = this.ctx.generateExpression(expr.args[0], params);
+    const lenTemp = this.ctx.nextTemp();
+    this.ctx.emit(`${lenTemp} = call i64 @strlen(i8* ${strPtr})`);
+    const lenI32 = this.ctx.nextTemp();
+    this.ctx.emit(`${lenI32} = trunc i64 ${lenTemp} to i32`);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call i8* @cs_btoa(i8* ${strPtr}, i32 ${lenI32})`);
+    this.ctx.setVariableType(result, "i8*");
+    return result;
+  }
+
+  private generateAtob(expr: CallNode, params: string[]): string {
+    if (expr.args.length < 1) {
+      return this.ctx.emitError("atob() requires 1 argument", expr.loc);
+    }
+    this.ctx.setUsesBase64(true);
+    const strPtr = this.ctx.generateExpression(expr.args[0], params);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call i8* @cs_atob(i8* ${strPtr}, i8* null)`);
+    this.ctx.setVariableType(result, "i8*");
+    return result;
+  }
+
+  private generateEncodeURIComponent(expr: CallNode, params: string[]): string {
+    if (expr.args.length < 1) {
+      return this.ctx.emitError("encodeURIComponent() requires 1 argument", expr.loc);
+    }
+    this.ctx.setUsesUri(true);
+    const strPtr = this.ctx.generateExpression(expr.args[0], params);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call i8* @cs_encode_uri_component(i8* ${strPtr})`);
+    this.ctx.setVariableType(result, "i8*");
+    return result;
+  }
+
+  private generateDecodeURIComponent(expr: CallNode, params: string[]): string {
+    if (expr.args.length < 1) {
+      return this.ctx.emitError("decodeURIComponent() requires 1 argument", expr.loc);
+    }
+    this.ctx.setUsesUri(true);
+    const strPtr = this.ctx.generateExpression(expr.args[0], params);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call i8* @cs_decode_uri_component(i8* ${strPtr})`);
+    this.ctx.setVariableType(result, "i8*");
+    return result;
   }
 }

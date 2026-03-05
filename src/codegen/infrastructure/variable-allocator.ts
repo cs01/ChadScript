@@ -1050,15 +1050,21 @@ export class VariableAllocator {
       keys.push("body");
       keys.push("contentType");
       keys.push("headers");
+      keys.push("bodyLen");
+      keys.push("queryString");
       types.push("i8*");
       types.push("i8*");
       types.push("i8*");
       types.push("i8*");
+      types.push("i8*");
+      types.push("double");
       types.push("i8*");
       tsTypes.push("string");
       tsTypes.push("string");
       tsTypes.push("string");
       tsTypes.push("string");
+      tsTypes.push("string");
+      tsTypes.push("number");
       tsTypes.push("string");
     } else if (interfaceName === "WsEvent") {
       keys.push("data");

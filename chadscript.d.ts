@@ -135,6 +135,8 @@ declare namespace crypto {
   function sha512(input: string): string;
   function md5(input: string): string;
   function randomBytes(n: number): string;
+  function hmacSha256(key: string, data: string): string;
+  function pbkdf2(password: string, salt: string, iterations: number, keyLen: number): string;
 }
 
 // ============================================================================
@@ -227,6 +229,7 @@ interface HttpRequest {
   contentType: string;
   headers: string;
   bodyLen: number;
+  queryString: string;
 }
 
 interface HttpResponse {
@@ -259,6 +262,10 @@ declare function parseInt(str: string, radix?: number): number;
 declare function parseFloat(str: string): number;
 declare function isNaN(value: any): boolean;
 declare function execSync(command: string): string;
+declare function btoa(data: string): string;
+declare function atob(data: string): string;
+declare function encodeURIComponent(str: string): string;
+declare function decodeURIComponent(str: string): string;
 
 // ============================================================================
 // Low-Level System Calls

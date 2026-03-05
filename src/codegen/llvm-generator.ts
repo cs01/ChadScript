@@ -219,6 +219,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public usesChildProcess: number = 0;
   public usesSpawn: number = 0;
   public usesStringBuilder: number = 0;
+  public usesBase64: number = 0;
+  public usesUri: number = 0;
   private stringBuilderSlen: Map<string, string> = new Map();
   private stringBuilderScap: Map<string, string> = new Map();
 
@@ -1057,6 +1059,18 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
   public getUsesRegex(): boolean {
     return this.usesRegex !== 0;
+  }
+  public setUsesBase64(value: boolean): void {
+    this.usesBase64 = value ? 1 : 0;
+  }
+  public getUsesBase64(): boolean {
+    return this.usesBase64 !== 0;
+  }
+  public setUsesUri(value: boolean): void {
+    this.usesUri = value ? 1 : 0;
+  }
+  public getUsesUri(): boolean {
+    return this.usesUri !== 0;
   }
   public setUsesTestRunner(value: boolean): void {
     this.usesTestRunner = value ? 1 : 0;
@@ -2698,6 +2712,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           crypto: this.usesCrypto !== 0,
           sqlite: this.usesSqlite !== 0,
           testRunner: this.usesTestRunner !== 0,
+          base64: this.usesBase64 !== 0,
+          uri: this.usesUri !== 0,
           targetOS: this.getTargetOS(),
         }),
       ),

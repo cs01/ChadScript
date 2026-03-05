@@ -168,6 +168,28 @@ else
   echo "==> watch-bridge already built, skipping"
 fi
 
+# --- base64-bridge ---
+BASE64_BRIDGE_SRC="$C_BRIDGES_DIR/base64-bridge.c"
+BASE64_BRIDGE_OBJ="$C_BRIDGES_DIR/base64-bridge.o"
+if [ ! -f "$BASE64_BRIDGE_OBJ" ] || [ "$BASE64_BRIDGE_SRC" -nt "$BASE64_BRIDGE_OBJ" ]; then
+  echo "==> Building base64-bridge..."
+  cc -c -O2 -fPIC "$BASE64_BRIDGE_SRC" -o "$BASE64_BRIDGE_OBJ"
+  echo "  -> $BASE64_BRIDGE_OBJ"
+else
+  echo "==> base64-bridge already built, skipping"
+fi
+
+# --- uri-bridge ---
+URI_BRIDGE_SRC="$C_BRIDGES_DIR/uri-bridge.c"
+URI_BRIDGE_OBJ="$C_BRIDGES_DIR/uri-bridge.o"
+if [ ! -f "$URI_BRIDGE_OBJ" ] || [ "$URI_BRIDGE_SRC" -nt "$URI_BRIDGE_OBJ" ]; then
+  echo "==> Building uri-bridge..."
+  cc -c -O2 -fPIC "$URI_BRIDGE_SRC" -o "$URI_BRIDGE_OBJ"
+  echo "  -> $URI_BRIDGE_OBJ"
+else
+  echo "==> uri-bridge already built, skipping"
+fi
+
 # --- child-process-bridge (sync only, no libuv dependency) ---
 CP_BRIDGE_SRC="$C_BRIDGES_DIR/child-process-bridge.c"
 CP_BRIDGE_OBJ="$C_BRIDGES_DIR/child-process-bridge.o"
