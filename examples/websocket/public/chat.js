@@ -6,6 +6,7 @@ var form = document.getElementById("form");
 var input = document.getElementById("input");
 var status = document.getElementById("status");
 var ws;
+var myConnId = null;
 
 function addMessage(text, type) {
   var div = document.createElement("div");
@@ -27,7 +28,24 @@ function connect() {
   };
 
   ws.onmessage = function (e) {
-    addMessage(e.data, "received");
+    var data = e.data;
+    if (data.startsWith("init|")) {
+      myConnId = data.slice(5);
+      return;
+    }
+    if (data.startsWith("sys|")) {
+      addMessage(data.slice(4), "system");
+      return;
+    }
+    if (data.startsWith("msg|")) {
+      var rest = data.slice(4);
+      var sep = rest.indexOf("|");
+      var sender = rest.slice(0, sep);
+      var msg = rest.slice(sep + 1);
+      addMessage(msg, sender === myConnId ? "sent" : "received");
+      return;
+    }
+    addMessage(data, "received");
   };
 
   ws.onerror = function () {
@@ -47,7 +65,6 @@ form.onsubmit = function (e) {
   var msg = input.value.trim();
   if (msg.length > 0 && ws && ws.readyState === 1) {
     ws.send(msg);
-    addMessage(msg, "sent");
     input.value = "";
   }
 };

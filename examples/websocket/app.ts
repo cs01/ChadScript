@@ -8,24 +8,6 @@ parser.parse(process.argv);
 
 const port = parseInt(parser.getOption("port"));
 
-interface WsEvent {
-  data: string;
-  event: string;
-  connId: string;
-}
-
-interface HttpRequest {
-  method: string;
-  path: string;
-  body: string;
-  contentType: string;
-}
-
-interface HttpResponse {
-  status: number;
-  body: string;
-}
-
 // Embed the public/ directory into the binary at compile time
 ChadScript.embedDir("./public");
 
@@ -35,18 +17,18 @@ function wsHandler(event: WsEvent): string {
   if (event.event === "open") {
     userCount = userCount + 1;
     console.log("  [ws] client connected (" + userCount + " online)");
-    wsBroadcast("a new user joined the chat (" + userCount + " online)");
-    return "";
+    wsBroadcast("sys|a new user joined the chat (" + userCount + " online)");
+    return "init|" + event.connId;
   }
   if (event.event === "close") {
     userCount = userCount - 1;
     console.log("  [ws] client disconnected (" + userCount + " online)");
-    wsBroadcast("a user left the chat (" + userCount + " online)");
+    wsBroadcast("sys|a user left the chat (" + userCount + " online)");
     return "";
   }
   if (event.event === "message") {
     console.log("  [ws] message: " + event.data);
-    wsBroadcast(event.data);
+    wsBroadcast("msg|" + event.connId + "|" + event.data);
     return "";
   }
   return "";
