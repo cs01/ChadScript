@@ -52,6 +52,13 @@ export function wsSend(connId: string, message: string): void {}
 export function parseMultipart(req: HttpRequest): MultipartPart[] {
   return [];
 }
+export function bytesResponse(data: Uint8Array, status: number, headers: string): HttpResponse {
+  return { status: 0, body: "", headers: "", bodyLen: 0 };
+}
+export function serveFile(path: string, contentType: string): HttpResponse {
+  const data: Uint8Array = fs.readFileSync(path);
+  return bytesResponse(data, 200.0, "Content-Type: " + contentType);
+}
 
 export class RouterRequest {
   method: string;
@@ -59,6 +66,7 @@ export class RouterRequest {
   body: string;
   contentType: string;
   headers: string;
+  bodyLen: number;
   private _params: Map<string, string>;
 
   constructor(req: HttpRequest, params: Map<string, string>) {
@@ -67,6 +75,7 @@ export class RouterRequest {
     this.body = req.body;
     this.contentType = req.contentType;
     this.headers = req.headers;
+    this.bodyLen = req.bodyLen;
     this._params = params;
   }
 
@@ -78,6 +87,10 @@ export class RouterRequest {
 
   header(name: string): string {
     return getHeader(this.headers, name);
+  }
+
+  bodyBytes(): Uint8Array {
+    return Uint8Array.fromRawBytes(this.body, this.bodyLen);
   }
 }
 
@@ -120,7 +133,7 @@ export class Context {
     this._resultBody = body;
     this._resultHeaders = hdrs;
     this._resultStatus = this._status;
-    return { status: this._status, body: body, headers: hdrs };
+    return { status: this._status, body: body, headers: hdrs, bodyLen: 0 };
   }
 
   json(data: string): HttpResponse {
@@ -131,7 +144,7 @@ export class Context {
     this._resultBody = data;
     this._resultHeaders = hdrs;
     this._resultStatus = this._status;
-    return { status: this._status, body: data, headers: hdrs };
+    return { status: this._status, body: data, headers: hdrs, bodyLen: 0 };
   }
 
   html(body: string): HttpResponse {
@@ -142,7 +155,7 @@ export class Context {
     this._resultBody = body;
     this._resultHeaders = hdrs;
     this._resultStatus = this._status;
-    return { status: this._status, body: body, headers: hdrs };
+    return { status: this._status, body: body, headers: hdrs, bodyLen: 0 };
   }
 
   redirect(url: string): HttpResponse {
@@ -153,11 +166,24 @@ export class Context {
     this._resultBody = "";
     this._resultHeaders = hdrs;
     this._resultStatus = 302;
-    return { status: 302, body: "", headers: hdrs };
+    return { status: 302, body: "", headers: hdrs, bodyLen: 0 };
+  }
+
+  bytes(data: Uint8Array, contentType: string): HttpResponse {
+    let hdrs = "Content-Type: " + contentType;
+    if (this._extraHeaders.length > 0) {
+      hdrs = hdrs + "\n" + this._extraHeaders;
+    }
+    return bytesResponse(data, this._status, hdrs);
   }
 
   getResult(): HttpResponse {
-    return { status: this._resultStatus, body: this._resultBody, headers: this._resultHeaders };
+    return {
+      status: this._resultStatus,
+      body: this._resultBody,
+      headers: this._resultHeaders,
+      bodyLen: 0,
+    };
   }
 }
 
@@ -330,34 +356,27 @@ export class Router {
   }
 
   handle(rawReq: HttpRequest): HttpResponse {
-    this.compile();
-
     const path = rawReq.path;
     const method = rawReq.method;
-    const match = this.compiledRegex.exec(path);
 
-    if (match !== null) {
-      for (let i = 0; i < this.routes.length; i++) {
-        const route = this.routes[i];
-        const outerGroup = match[route.groupOffset];
-        if (outerGroup !== undefined && outerGroup !== null && outerGroup !== "") {
-          if (route.method === "*" || route.method === method) {
-            const params = new Map<string, string>();
-            if (route.paramNames !== "") {
-              const names = route.paramNames.split(",");
-              for (let j = 0; j < names.length; j++) {
-                const groupIdx = route.groupOffset + 1 + j;
-                if (groupIdx < match.length) {
-                  params.set(names[j], match[groupIdx]);
-                }
-              }
-            }
-            const rreq = new RouterRequest(rawReq, params);
-            const ctx = new Context(rreq);
-            return this.handlers[route.handlerIndex].dispatch(ctx);
+    for (let i = 0; i < this.routes.length; i++) {
+      const route = this.routes[i];
+      if (route.method !== "*" && route.method !== method) continue;
+      const routeRegex = new RegExp("^" + this.patternToRegex(route.pattern) + "$");
+      const routeMatch = routeRegex.exec(path);
+      if (routeMatch === null) continue;
+      const params = new Map<string, string>();
+      if (route.paramNames !== "") {
+        const names = route.paramNames.split(",");
+        for (let j = 0; j < names.length; j++) {
+          if (j + 1 < routeMatch.length) {
+            params.set(names[j], routeMatch[j + 1]);
           }
         }
       }
+      const rreq = new RouterRequest(rawReq, params);
+      const ctx = new Context(rreq);
+      return this.handlers[route.handlerIndex].dispatch(ctx);
     }
 
     const emptyParams = new Map<string, string>();

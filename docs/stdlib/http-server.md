@@ -68,7 +68,8 @@ app.get("/example", (c: Context) => {
   // Read request
   const id    = c.req.param("id");           // URL param
   const auth  = c.req.header("Authorization"); // request header
-  const body  = c.req.body;                   // raw body
+  const body  = c.req.body;                   // raw body (string)
+  const bytes = c.req.bodyBytes();            // raw body as Uint8Array (binary-safe)
   const method = c.req.method;               // "GET", "POST", …
 
   // Build response (chainable)

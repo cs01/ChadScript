@@ -87,6 +87,10 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += "declare void @cs_spawn(i8*, i8**, i32, void (i8*)*, void (i8*)*, void (double)*)\n";
   ir += "\n";
 
+  // base64 bridge — Buffer.from(str, 'base64') → %Uint8Array*
+  ir += "declare i8* @cs_base64_decode(i8*)\n";
+  ir += "\n";
+
   ir += "declare i32 @printf(i8*, ...)\n";
   ir += "declare i32 @fprintf(i8*, i8*, ...)\n";
   const isMac =

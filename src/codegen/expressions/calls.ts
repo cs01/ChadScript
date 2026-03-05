@@ -120,6 +120,10 @@ export class CallExpressionGenerator {
       return this.ctx.generateParseMultipart(expr, params);
     }
 
+    if (expr.name === "bytesResponse") {
+      return this.generateBytesResponse(expr, params);
+    }
+
     // Handle setTimeout() - libuv timer (one-shot)
     if (expr.name === "setTimeout") {
       return this.generateSetTimeout(expr, params);
@@ -1212,5 +1216,70 @@ export class CallExpressionGenerator {
       }
     }
     return "i8*";
+  }
+
+  // bytesResponse(data: Uint8Array, status: number, headers: string): HttpResponse
+  // Extracts raw pointer + length from Uint8Array and constructs an HttpResponse struct.
+  private generateBytesResponse(expr: CallNode, params: string[]): string {
+    if (expr.args.length < 3) {
+      return this.ctx.emitError(
+        "bytesResponse() requires 3 arguments (data, status, headers)",
+        expr.loc,
+      );
+    }
+
+    const arrayPtr = this.ctx.generateExpression(expr.args[0], params);
+    const statusRaw = this.ctx.generateExpression(expr.args[1], params);
+    const headers = this.ctx.generateExpression(expr.args[2], params);
+
+    // Normalize status to double (may arrive as i64 from integer literals)
+    const statusType = this.ctx.getVariableType(statusRaw);
+    let status = statusRaw;
+    if (statusType === "i64" || statusType === "i32") {
+      status = this.ctx.nextTemp();
+      this.ctx.emit(`${status} = sitofp ${statusType} ${statusRaw} to double`);
+    }
+
+    // Load raw data pointer from Uint8Array field 0
+    const dataField = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${dataField} = getelementptr inbounds %Uint8Array, %Uint8Array* ${arrayPtr}, i32 0, i32 0`,
+    );
+    const dataPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${dataPtr} = load i8*, i8** ${dataField}`);
+
+    // Load length (i32) from Uint8Array field 1, convert to double
+    const lenField = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${lenField} = getelementptr inbounds %Uint8Array, %Uint8Array* ${arrayPtr}, i32 0, i32 1`,
+    );
+    const lenI32 = this.ctx.nextTemp();
+    this.ctx.emit(`${lenI32} = load i32, i32* ${lenField}`);
+    const lenDbl = this.ctx.nextTemp();
+    this.ctx.emit(`${lenDbl} = sitofp i32 ${lenI32} to double`);
+
+    // Allocate HttpResponse struct: { double, i8*, i8*, double } = 32 bytes
+    const respType = "{ double, i8*, i8*, double }";
+    const structRaw = this.ctx.emitCall("i8*", "@GC_malloc", "i64 32");
+    const structPtr = this.ctx.emitBitcast(structRaw, "i8*", `${respType}*`);
+
+    const f0 = this.ctx.nextTemp();
+    this.ctx.emit(`${f0} = getelementptr ${respType}, ${respType}* ${structPtr}, i32 0, i32 0`);
+    this.ctx.emitStore("double", status, f0);
+
+    const f1 = this.ctx.nextTemp();
+    this.ctx.emit(`${f1} = getelementptr ${respType}, ${respType}* ${structPtr}, i32 0, i32 1`);
+    this.ctx.emitStore("i8*", dataPtr, f1);
+
+    const f2 = this.ctx.nextTemp();
+    this.ctx.emit(`${f2} = getelementptr ${respType}, ${respType}* ${structPtr}, i32 0, i32 2`);
+    this.ctx.emitStore("i8*", headers, f2);
+
+    const f3 = this.ctx.nextTemp();
+    this.ctx.emit(`${f3} = getelementptr ${respType}, ${respType}* ${structPtr}, i32 0, i32 3`);
+    this.ctx.emitStore("double", lenDbl, f3);
+
+    this.ctx.setVariableType(structRaw, "i8*");
+    return structRaw;
   }
 }

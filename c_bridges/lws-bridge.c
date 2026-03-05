@@ -10,7 +10,6 @@
 
 #define MAX_WS_CONNS 1024
 #define MAX_RESPONSE_SIZE (1024 * 1024)
-#define MAX_BODY_SIZE (1024 * 1024)
 #define READ_BUF_SIZE 8192
 #define WS_GUID "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
@@ -385,7 +384,7 @@ static void dispatch_http_request(http_conn_t *conn) {
     req.body = conn->body ? conn->body : "";
     req.content_type = conn->content_type_str;
     req.headers_raw = conn->headers_raw;
-    req.body_len = (int64_t)conn->body_len;
+    req.body_len = (double)conn->body_len;
 
     lws_bridge_response resp;
     resp.status = 200;
@@ -668,29 +667,30 @@ static void try_parse_request(http_conn_t *conn) {
 
         size_t body_available = conn->data_len - conn->header_end;
         size_t to_copy = body_available < conn->content_length ? body_available : conn->content_length;
-        if (to_copy > MAX_BODY_SIZE - 1) to_copy = MAX_BODY_SIZE - 1;
-        if (to_copy > 0) {
+        if (conn->content_length > 0) {
             if (!conn->body || conn->body_cap < conn->content_length) {
                 free(conn->body);
-                size_t cap = conn->content_length < MAX_BODY_SIZE ? conn->content_length : MAX_BODY_SIZE;
-                conn->body = (char *)malloc(cap + 1);
-                conn->body_cap = cap;
+                conn->body = (char *)malloc(conn->content_length + 1);
+                conn->body_cap = conn->content_length;
             }
+        }
+        if (to_copy > 0 && conn->body) {
             memcpy(conn->body, conn->buf + conn->header_end, to_copy);
         }
         conn->body_len = to_copy;
         if (conn->body) conn->body[conn->body_len] = '\0';
+        // Reset buffer — header+initial body consumed; subsequent chunks arrive fresh
+        conn->data_len = 0;
     } else {
-        size_t body_available = conn->data_len - conn->header_end;
+        // All data in buf is new body bytes (data_len reset after each chunk)
         size_t needed = conn->content_length - conn->body_len;
-        size_t to_copy = body_available > needed ? needed : body_available;
-        if (conn->body_len + to_copy > MAX_BODY_SIZE - 1)
-            to_copy = MAX_BODY_SIZE - 1 - conn->body_len;
+        size_t to_copy = conn->data_len < needed ? conn->data_len : needed;
         if (to_copy > 0 && conn->body) {
-            memcpy(conn->body + conn->body_len, conn->buf + conn->header_end, to_copy);
+            memcpy(conn->body + conn->body_len, conn->buf, to_copy);
             conn->body_len += to_copy;
             conn->body[conn->body_len] = '\0';
         }
+        conn->data_len = 0;
     }
 
     if (conn->body_len >= conn->content_length) {
@@ -698,12 +698,7 @@ static void try_parse_request(http_conn_t *conn) {
             dispatch_http_request(conn);
         }
 
-        size_t consumed = conn->header_end + conn->content_length;
-        size_t remaining = conn->data_len > consumed ? conn->data_len - consumed : 0;
-        if (remaining > 0)
-            memmove(conn->buf, conn->buf + consumed, remaining);
-        conn->data_len = remaining;
-
+        // data_len was reset to 0 after each chunk; nothing left in buf to compact
         conn->headers_complete = 0;
         conn->header_end = 0;
         conn->body_len = 0;
@@ -714,10 +709,6 @@ static void try_parse_request(http_conn_t *conn) {
         conn->ws_key[0] = '\0';
         conn->method_str[0] = '\0';
         conn->path_str[0] = '\0';
-
-        if (remaining > 0) {
-            try_parse_request(conn);
-        }
     }
 }
 

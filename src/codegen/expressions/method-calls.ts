@@ -491,6 +491,13 @@ export class MethodCallGenerator {
       return this.ctx.emitError(`ChadScript.${method}() is not a supported method`, expr.loc);
     }
 
+    // Uint8Array.fromRawBytes(dataPtr: string, len: number) → %Uint8Array*
+    // Wraps a raw i8* + byte length into a Uint8Array without copying.
+    // Used by RouterRequest.bodyBytes() to expose binary HTTP bodies.
+    if (this.isVariableWithName(expr.object, "Uint8Array") && method === "fromRawBytes") {
+      return this.handleUint8ArrayFromRawBytes(expr, params);
+    }
+
     // Handle Array.from() - returns the argument as-is since our iterators already produce arrays
     if (this.isVariableWithName(expr.object, "Array") && method === "from") {
       if (expr.args.length === 0) {
@@ -509,6 +516,11 @@ export class MethodCallGenerator {
         this.ctx.isStringArrayExpression(arg) ||
         this.ctx.isObjectArrayExpression(arg);
       return isArray ? "1.0" : "0.0";
+    }
+
+    // Buffer.from(str, 'base64') → %Uint8Array* via cs_base64_decode C bridge
+    if (this.isVariableWithName(expr.object, "Buffer") && method === "from") {
+      return this.handleBufferFrom(expr, params);
     }
 
     // String.fromCharCode(n) — convert a number to a 1-char string
@@ -1474,5 +1486,51 @@ export class MethodCallGenerator {
       return true;
     }
     return false;
+  }
+
+  private handleUint8ArrayFromRawBytes(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length < 2) {
+      return this.ctx.emitError(
+        "Uint8Array.fromRawBytes() requires 2 arguments (data: string, len: number)",
+        expr.loc,
+      );
+    }
+    const dataPtr = this.ctx.generateExpression(expr.args[0], params);
+    const lenDbl = this.ctx.generateExpression(expr.args[1], params);
+    const lenI64 = this.ctx.nextTemp();
+    this.ctx.emit(`${lenI64} = fptosi double ${lenDbl} to i64`);
+    const lenI32 = this.ctx.nextTemp();
+    this.ctx.emit(`${lenI32} = trunc i64 ${lenI64} to i32`);
+    const rawPtr = this.ctx.emitCall("i8*", "@GC_malloc", "i64 16");
+    const arrPtr = this.ctx.emitBitcast(rawPtr, "i8*", "%Uint8Array*");
+    const f0 = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${f0} = getelementptr inbounds %Uint8Array, %Uint8Array* ${arrPtr}, i32 0, i32 0`,
+    );
+    this.ctx.emit(`store i8* ${dataPtr}, i8** ${f0}`);
+    const f1 = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${f1} = getelementptr inbounds %Uint8Array, %Uint8Array* ${arrPtr}, i32 0, i32 1`,
+    );
+    this.ctx.emit(`store i32 ${lenI32}, i32* ${f1}`);
+    const f2 = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${f2} = getelementptr inbounds %Uint8Array, %Uint8Array* ${arrPtr}, i32 0, i32 2`,
+    );
+    this.ctx.emit(`store i32 ${lenI32}, i32* ${f2}`);
+    this.ctx.setVariableType(arrPtr, "%Uint8Array*");
+    return arrPtr;
+  }
+
+  private handleBufferFrom(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length === 0) {
+      return this.ctx.emitError("Buffer.from() requires at least 1 argument", expr.loc);
+    }
+    const strPtr = this.ctx.generateExpression(expr.args[0], params);
+    // cs_base64_decode returns a GC-managed %Uint8Array struct (data, len, cap)
+    const rawPtr = this.ctx.emitCall("i8*", "@cs_base64_decode", `i8* ${strPtr}`);
+    const arrPtr = this.ctx.emitBitcast(rawPtr, "i8*", "%Uint8Array*");
+    this.ctx.setVariableType(arrPtr, "%Uint8Array*");
+    return arrPtr;
   }
 }

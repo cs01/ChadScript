@@ -233,6 +233,7 @@ interface HttpResponse {
   status: number;
   body: string;
   headers: string;
+  bodyLen: number;
 }
 
 interface WsEvent {
@@ -337,6 +338,8 @@ declare module "chadscript/http" {
   export function wsBroadcast(message: string): void;
   export function wsSend(connId: string, message: string): void;
   export function parseMultipart(req: HttpRequest): MultipartPart[];
+  export function bytesResponse(data: Uint8Array, status: number, headers: string): HttpResponse;
+  export function serveFile(path: string, contentType: string): HttpResponse;
 
   export class RouterRequest {
     method: string;
@@ -344,8 +347,10 @@ declare module "chadscript/http" {
     body: string;
     contentType: string;
     headers: string;
+    bodyLen: number;
     param(name: string): string;
     header(name: string): string;
+    bodyBytes(): Uint8Array;
   }
 
   export class Context {
@@ -356,6 +361,7 @@ declare module "chadscript/http" {
     json(data: string): HttpResponse;
     html(body: string): HttpResponse;
     redirect(url: string): HttpResponse;
+    bytes(data: Uint8Array, contentType: string): HttpResponse;
   }
 
   export class Router {

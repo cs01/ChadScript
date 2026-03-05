@@ -201,6 +201,17 @@ else
   echo "==> os-bridge already built, skipping"
 fi
 
+# --- base64-bridge ---
+BASE64_BRIDGE_SRC="$C_BRIDGES_DIR/base64-bridge.c"
+BASE64_BRIDGE_OBJ="$C_BRIDGES_DIR/base64-bridge.o"
+if [ ! -f "$BASE64_BRIDGE_OBJ" ] || [ "$BASE64_BRIDGE_SRC" -nt "$BASE64_BRIDGE_OBJ" ]; then
+  echo "==> Building base64-bridge..."
+  cc -c -O2 -fPIC "$BASE64_BRIDGE_SRC" -o "$BASE64_BRIDGE_OBJ"
+  echo "  -> $BASE64_BRIDGE_OBJ"
+else
+  echo "==> base64-bridge already built, skipping"
+fi
+
 # --- child-process-spawn (async, requires libuv) ---
 CP_SPAWN_SRC="$C_BRIDGES_DIR/child-process-spawn.c"
 CP_SPAWN_OBJ="$C_BRIDGES_DIR/child-process-spawn.o"
