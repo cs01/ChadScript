@@ -1,4 +1,12 @@
-import { Expression, MethodCallNode, ObjectNode, TypeAssertionNode } from "../../ast/types.js";
+import {
+  Expression,
+  MethodCallNode,
+  ObjectNode,
+  ArrayNode,
+  TypeAssertionNode,
+  VariableNode,
+} from "../../ast/types.js";
+import { stringifyObjectArrayLiteral, stringifyObjectArrayWithMeta } from "./json-array.js";
 
 interface ExprBase {
   type: string;
@@ -532,6 +540,14 @@ export class JsonGenerator {
       return this.stringifyObjectLiteral(arg as unknown as ObjectNode, params, spaces);
     }
 
+    if (arg.type === "array") {
+      const arrayExpr = arg as unknown as ArrayNode;
+      const elements = arrayExpr.elements || [];
+      if (elements.length > 0 && (elements[0] as ExprBase).type === "object") {
+        return stringifyObjectArrayLiteral(this.ctx, arrayExpr, params, spaces);
+      }
+    }
+
     // Check for ObjectArray (e.g. Post[]) before resolveInterfaceType —
     // getRawInterfaceType returns the element type for arrays, which would
     // cause stringifyInterface to treat the array pointer as a single object.
@@ -699,6 +715,21 @@ export class JsonGenerator {
     spaces: number = 0,
   ): string {
     if (!this.ctx.interfaceStructGenHasInterface(elementType)) {
+      if (arg.type === "variable") {
+        const varName = (arg as unknown as VariableNode).name;
+        const meta = this.ctx.symbolTable.getObjectArrayMetadata(varName);
+        if (meta && meta.elementKeys.length > 0) {
+          return stringifyObjectArrayWithMeta(
+            this.ctx,
+            arg,
+            params,
+            meta.elementKeys,
+            meta.elementTypes,
+            meta.elementTsTypes || [],
+            spaces,
+          );
+        }
+      }
       return this.stringifyNumber(arg, params);
     }
     const fieldCount = this.ctx.interfaceStructGenGetFieldCount(elementType);
