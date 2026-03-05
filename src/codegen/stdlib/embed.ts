@@ -474,6 +474,132 @@ export class EmbedGenerator {
     return result;
   }
 
+  /**
+   * ChadScript.serveFile(path) — read a file from disk and return an HttpResponse.
+   * Uses fopen/fseek/fread to read binary-safe content, returns { 200, data, "", len }
+   * or { 404, "Not Found", "", 0 } if the file doesn't exist.
+   */
+  generateServeFile(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length < 1) {
+      return this.ctx.emitError("ChadScript.serveFile() requires 1 argument (path)", expr.loc);
+    }
+
+    const respType = "{ double, i8*, i8*, double }";
+    const structSize = "32";
+
+    // Pre-create global strings before branching
+    this.createGlobalStringDirect("");
+    const emptyStrId = this._lastStrId;
+    const emptyStrLen = this._lastLen;
+    this.createGlobalStringDirect("Not Found");
+    const nfBodyStrId = this._lastStrId;
+    const nfBodyLen = this._lastLen;
+
+    const pathPtr = this.ctx.generateExpression(expr.args[0], params);
+    const modeStr = this.ctx.createStringConstant("rb");
+    const filePtr = this.ctx.nextTemp();
+    this.ctx.emit(`${filePtr} = call i8* @fopen(i8* ${pathPtr}, i8* ${modeStr})`);
+    const isNull = this.ctx.nextTemp();
+    this.ctx.emit(`${isNull} = icmp eq i8* ${filePtr}, null`);
+
+    const foundLabel = this.ctx.nextLabel("servefile_found");
+    const notFoundLabel = this.ctx.nextLabel("servefile_notfound");
+    const joinLabel = this.ctx.nextLabel("servefile_join");
+    this.ctx.emit(`br i1 ${isNull}, label %${notFoundLabel}, label %${foundLabel}`);
+
+    // Found: read file, return { 200, data, "", size }
+    this.ctx.emit(`${foundLabel}:`);
+    const seekEnd = this.ctx.nextTemp();
+    this.ctx.emit(`${seekEnd} = call i32 @fseek(i8* ${filePtr}, i64 0, i32 2)`);
+    const fileSize = this.ctx.nextTemp();
+    this.ctx.emit(`${fileSize} = call i64 @ftell(i8* ${filePtr})`);
+    const seekStart = this.ctx.nextTemp();
+    this.ctx.emit(`${seekStart} = call i32 @fseek(i8* ${filePtr}, i64 0, i32 0)`);
+    const dataBuf = this.ctx.nextTemp();
+    this.ctx.emit(`${dataBuf} = call i8* @GC_malloc_atomic(i64 ${fileSize})`);
+    const bytesRead = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${bytesRead} = call i64 @fread(i8* ${dataBuf}, i64 1, i64 ${fileSize}, i8* ${filePtr})`,
+    );
+    const closeRes = this.ctx.nextTemp();
+    this.ctx.emit(`${closeRes} = call i32 @fclose(i8* ${filePtr})`);
+
+    const foundStruct = this.ctx.nextTemp();
+    this.ctx.emit(`${foundStruct} = call i8* @GC_malloc(i64 ${structSize})`);
+    const foundTyped = this.ctx.nextTemp();
+    this.ctx.emit(`${foundTyped} = bitcast i8* ${foundStruct} to ${respType}*`);
+    const fStatusPtr = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${fStatusPtr} = getelementptr ${respType}, ${respType}* ${foundTyped}, i32 0, i32 0`,
+    );
+    this.ctx.emit(`store double 200.0, double* ${fStatusPtr}`);
+    const fBodyPtr = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${fBodyPtr} = getelementptr ${respType}, ${respType}* ${foundTyped}, i32 0, i32 1`,
+    );
+    this.ctx.emit(`store i8* ${dataBuf}, i8** ${fBodyPtr}`);
+    const emptyStr = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${emptyStr} = getelementptr inbounds [${emptyStrLen} x i8], [${emptyStrLen} x i8]* ${emptyStrId}, i64 0, i64 0`,
+    );
+    const fHdrsPtr = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${fHdrsPtr} = getelementptr ${respType}, ${respType}* ${foundTyped}, i32 0, i32 2`,
+    );
+    this.ctx.emit(`store i8* ${emptyStr}, i8** ${fHdrsPtr}`);
+    const fileSizeDbl = this.ctx.nextTemp();
+    this.ctx.emit(`${fileSizeDbl} = sitofp i64 ${fileSize} to double`);
+    const fLenPtr = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${fLenPtr} = getelementptr ${respType}, ${respType}* ${foundTyped}, i32 0, i32 3`,
+    );
+    this.ctx.emit(`store double ${fileSizeDbl}, double* ${fLenPtr}`);
+    this.ctx.emit(`br label %${joinLabel}`);
+
+    // Not found: return { 404, "Not Found", "", 0 }
+    this.ctx.emit(`${notFoundLabel}:`);
+    const nfStruct = this.ctx.nextTemp();
+    this.ctx.emit(`${nfStruct} = call i8* @GC_malloc(i64 ${structSize})`);
+    const nfTyped = this.ctx.nextTemp();
+    this.ctx.emit(`${nfTyped} = bitcast i8* ${nfStruct} to ${respType}*`);
+    const nfStatusPtr = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${nfStatusPtr} = getelementptr ${respType}, ${respType}* ${nfTyped}, i32 0, i32 0`,
+    );
+    this.ctx.emit(`store double 404.0, double* ${nfStatusPtr}`);
+    const nfBodyStr = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${nfBodyStr} = getelementptr inbounds [${nfBodyLen} x i8], [${nfBodyLen} x i8]* ${nfBodyStrId}, i64 0, i64 0`,
+    );
+    const nfBodyPtr = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${nfBodyPtr} = getelementptr ${respType}, ${respType}* ${nfTyped}, i32 0, i32 1`,
+    );
+    this.ctx.emit(`store i8* ${nfBodyStr}, i8** ${nfBodyPtr}`);
+    const emptyStr2 = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${emptyStr2} = getelementptr inbounds [${emptyStrLen} x i8], [${emptyStrLen} x i8]* ${emptyStrId}, i64 0, i64 0`,
+    );
+    const nfHdrsPtr = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${nfHdrsPtr} = getelementptr ${respType}, ${respType}* ${nfTyped}, i32 0, i32 2`,
+    );
+    this.ctx.emit(`store i8* ${emptyStr2}, i8** ${nfHdrsPtr}`);
+    const nfLenPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${nfLenPtr} = getelementptr ${respType}, ${respType}* ${nfTyped}, i32 0, i32 3`);
+    this.ctx.emit(`store double 0.0, double* ${nfLenPtr}`);
+    this.ctx.emit(`br label %${joinLabel}`);
+
+    // Join
+    this.ctx.emit(`${joinLabel}:`);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${result} = phi i8* [ ${foundStruct}, %${foundLabel} ], [ ${nfStruct}, %${notFoundLabel} ]`,
+    );
+    this.ctx.setVariableType(result, "i8*");
+    return result;
+  }
+
   generateGetEmbeddedFile(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length < 1) {
       return this.ctx.emitError(

@@ -126,7 +126,7 @@ export class Context {
     this._resultBody = body;
     this._resultHeaders = hdrs;
     this._resultStatus = this._status;
-    return { status: this._status, body: body, headers: hdrs };
+    return { status: this._status, body: body, headers: hdrs, bodyLen: 0 };
   }
 
   json(data: string): HttpResponse {
@@ -137,7 +137,7 @@ export class Context {
     this._resultBody = data;
     this._resultHeaders = hdrs;
     this._resultStatus = this._status;
-    return { status: this._status, body: data, headers: hdrs };
+    return { status: this._status, body: data, headers: hdrs, bodyLen: 0 };
   }
 
   html(body: string): HttpResponse {
@@ -148,7 +148,7 @@ export class Context {
     this._resultBody = body;
     this._resultHeaders = hdrs;
     this._resultStatus = this._status;
-    return { status: this._status, body: body, headers: hdrs };
+    return { status: this._status, body: body, headers: hdrs, bodyLen: 0 };
   }
 
   redirect(url: string): HttpResponse {
@@ -159,11 +159,16 @@ export class Context {
     this._resultBody = "";
     this._resultHeaders = hdrs;
     this._resultStatus = 302;
-    return { status: 302, body: "", headers: hdrs };
+    return { status: 302, body: "", headers: hdrs, bodyLen: 0 };
   }
 
   getResult(): HttpResponse {
-    return { status: this._resultStatus, body: this._resultBody, headers: this._resultHeaders };
+    return {
+      status: this._resultStatus,
+      body: this._resultBody,
+      headers: this._resultHeaders,
+      bodyLen: 0,
+    };
   }
 }
 

@@ -233,6 +233,7 @@ interface HttpResponse {
   status: number;
   body: string;
   headers: string;
+  bodyLen: number;
 }
 
 interface WsEvent {
@@ -299,6 +300,7 @@ declare namespace ChadScript {
   function embedDir(path: string): void;
   function getEmbeddedFile(key: string): string;
   function serveEmbedded(req: HttpRequest): HttpResponse;
+  function serveFile(path: string): HttpResponse;
 }
 
 interface MultipartPart {

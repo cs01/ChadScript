@@ -2554,8 +2554,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             }
           }
         } else if (handlerReturnType === "HttpResponse") {
-          // HttpResponse is defined in chadscript.d.ts (not in AST), always has headers
+          // HttpResponse is defined in chadscript.d.ts (not in AST), always has headers + bodyLen
           hasHeaders = true;
+          hasBodyLen = true;
         }
       }
 
