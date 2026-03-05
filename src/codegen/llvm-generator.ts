@@ -1789,8 +1789,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       return ir;
     }
     const items = this.ast.topLevelStatements;
-    // Find which numeric globals can stay as native i64 instead of double
-    const i64Eligible = findI64EligibleVariables(items);
+    const i64Eligible = findI64EligibleVariables(this.ast.topLevelStatements as object[]);
     for (let stmtIdx = 0; stmtIdx < totalCount; stmtIdx++) {
       const stmt = items[stmtIdx] as {
         type: string;

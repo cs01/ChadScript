@@ -317,8 +317,10 @@ export class LiteralExpressionGenerator {
       this.ctx.emit(
         `${usecPtr} = getelementptr inbounds %struct.timeval, %struct.timeval* ${tvAlloca}, i32 0, i32 1`,
       );
+      const usecRaw = this.ctx.nextTemp();
+      this.ctx.emit(`${usecRaw} = load i32, i32* ${usecPtr}`);
       const usecVal = this.ctx.nextTemp();
-      this.ctx.emit(`${usecVal} = load i64, i64* ${usecPtr}`);
+      this.ctx.emit(`${usecVal} = zext i32 ${usecRaw} to i64`);
       const secDbl = this.ctx.nextTemp();
       this.ctx.emit(`${secDbl} = sitofp i64 ${secVal} to double`);
       const usecDbl = this.ctx.nextTemp();

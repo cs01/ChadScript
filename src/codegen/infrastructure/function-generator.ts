@@ -1051,13 +1051,15 @@ export class FunctionGenerator {
       ir += "  %__start_sec = load i64, i64* %__start_sec_ptr\n";
       ir +=
         "  %__start_usec_ptr = getelementptr %struct.timeval, %struct.timeval* %__start_tv, i32 0, i32 1\n";
-      ir += "  %__start_usec = load i64, i64* %__start_usec_ptr\n";
+      ir += "  %__start_usec_raw = load i32, i32* %__start_usec_ptr\n";
+      ir += "  %__start_usec = zext i32 %__start_usec_raw to i64\n";
       ir +=
         "  %__end_sec_ptr = getelementptr %struct.timeval, %struct.timeval* %__end_tv, i32 0, i32 0\n";
       ir += "  %__end_sec = load i64, i64* %__end_sec_ptr\n";
       ir +=
         "  %__end_usec_ptr = getelementptr %struct.timeval, %struct.timeval* %__end_tv, i32 0, i32 1\n";
-      ir += "  %__end_usec = load i64, i64* %__end_usec_ptr\n";
+      ir += "  %__end_usec_raw = load i32, i32* %__end_usec_ptr\n";
+      ir += "  %__end_usec = zext i32 %__end_usec_raw to i64\n";
       ir += "  %__diff_sec = sub i64 %__end_sec, %__start_sec\n";
       ir += "  %__diff_usec = sub i64 %__end_usec, %__start_usec\n";
       ir += "  %__sec_ms = mul i64 %__diff_sec, 1000\n";
