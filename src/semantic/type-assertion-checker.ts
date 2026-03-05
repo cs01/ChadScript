@@ -133,6 +133,7 @@ class TypeAssertionChecker {
     if (etype === "type_assertion") {
       const ta = expr as TypeAssertionNode;
       this.validateInlineAssertion(ta);
+      this.validateNamedAssertion(ta);
       this.checkExpr(ta.expression);
     } else if (etype === "binary") {
       // BinaryNode: { type, op, left, right }
@@ -341,6 +342,144 @@ class TypeAssertionChecker {
 
     if (anyMatchingInterface && !anyValidPrefix && bestMatchIface !== null) {
       this.reportError(ta, bestMatchIface, bestMatchFields!, assertedNames, bestMatchReason!);
+    }
+  }
+
+  private validateNamedAssertion(ta: TypeAssertionNode): void {
+    const assertedType = ta.assertedType;
+    if (assertedType.startsWith("{")) return;
+
+    const innerBase = ta.expression as { type: string };
+    if (innerBase.type === "type_assertion") {
+      const inner = ta.expression as TypeAssertionNode;
+      if (inner.assertedType === "unknown" || inner.assertedType === "any") return;
+    }
+
+    const tiface = this.getInterface(assertedType);
+    if (!tiface) return;
+
+    const tFields = this.getAllFields(tiface);
+    const reqNames: string[] = [];
+    for (let i = 0; i < tFields.length; i++) {
+      const f = tFields[i] as InterfaceField;
+      if (!f.name.endsWith("?")) reqNames.push(this.stripOpt(f.name));
+    }
+    if (reqNames.length < 2) return;
+    if (reqNames[0] === "type") return;
+    if (!this.ast.interfaces) return;
+
+    let anyValid = false;
+    let anyMismatch = false;
+    let mismatchIfaceName = "";
+    let mismatchReason = "";
+
+    for (let i = 0; i < this.ast.interfaces.length; i++) {
+      const uIface = this.ast.interfaces[i] as InterfaceDeclaration;
+      if (uIface.name === assertedType) continue;
+
+      const uFields = this.getAllFields(uIface);
+
+      // Build parallel index arrays: tIndices[j] = T-GEP-index, uIndices[j] = U-GEP-index
+      // for the j-th required (non-optional) T-field. Both are pushed as doubles (number[]).
+      const tIndices: number[] = [];
+      const uIndices: number[] = [];
+      let allFound = true;
+      for (let ti = 0; ti < tFields.length; ti++) {
+        const tf = tFields[ti] as InterfaceField;
+        if (tf.name.endsWith("?")) continue;
+        const reqName = this.stripOpt(tf.name);
+        let uIdx = -1;
+        for (let k = 0; k < uFields.length; k++) {
+          if (this.stripOpt((uFields[k] as InterfaceField).name) === reqName) {
+            uIdx = k;
+            break;
+          }
+        }
+        if (uIdx === -1) {
+          allFound = false;
+          break;
+        }
+        tIndices.push(ti);
+        uIndices.push(uIdx);
+      }
+      if (!allFound) continue;
+      if (tIndices.length < 2) continue;
+
+      // Check T-GEP-index === U-GEP-index for each required field (both arrays are double[]).
+      let orderOk = true;
+      let badReason = "";
+      for (let j = 0; j < tIndices.length; j++) {
+        if (tIndices[j] !== uIndices[j]) {
+          orderOk = false;
+          const diff = uIndices[j] - tIndices[j];
+          if (diff > 1 || diff < -1) {
+            badReason =
+              "field '" +
+              reqNames[j] +
+              "' is at index " +
+              tIndices[j] +
+              " in '" +
+              assertedType +
+              "' but index " +
+              uIndices[j] +
+              " in '" +
+              uIface.name +
+              "'";
+          }
+          break;
+        }
+      }
+
+      if (orderOk) {
+        anyValid = true;
+        break;
+      } else if (!anyMismatch && badReason !== "") {
+        anyMismatch = true;
+        mismatchIfaceName = uIface.name;
+        mismatchReason = badReason;
+      }
+    }
+
+    if (anyMismatch && !anyValid) {
+      let msg = "";
+      if (ta.loc) {
+        const file = ta.loc.file || "<input>";
+        msg += file + ":" + ta.loc.line + ":" + (ta.loc.column + 1) + ": error: ";
+      } else {
+        msg += "error: ";
+      }
+      msg +=
+        "named type assertion '" +
+        assertedType +
+        "' has wrong field indices relative to '" +
+        mismatchIfaceName +
+        "': " +
+        mismatchReason +
+        "\n";
+      const tNames: string[] = [];
+      for (let i = 0; i < tFields.length; i++) {
+        tNames.push(this.stripOpt((tFields[i] as InterfaceField).name));
+      }
+      msg += "  asserted type '" + assertedType + "': { " + tNames.join("; ") + " }\n";
+      const mismatchIface = this.getInterface(mismatchIfaceName);
+      if (mismatchIface !== null) {
+        const uF = this.getAllFields(mismatchIface);
+        const uNames: string[] = [];
+        for (let i = 0; i < uF.length; i++) {
+          uNames.push((uF[i] as InterfaceField).name);
+        }
+        msg += "  interface '" + mismatchIfaceName + "': { " + uNames.join("; ") + " }\n";
+      }
+      msg +=
+        "  note: GEP indices in native code are determined by field position in the asserted type\n";
+      msg +=
+        "  hint: '" +
+        assertedType +
+        "' fields must appear at the same positions as in '" +
+        mismatchIfaceName +
+        "'\n";
+      console.error(msg);
+      process.exit(1);
     }
   }
 
