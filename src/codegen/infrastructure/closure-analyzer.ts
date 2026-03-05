@@ -371,6 +371,21 @@ export class ClosureAnalyzer {
       if (tryStmt.finallyBlock !== null) {
         this.walkBlock(tryStmt.finallyBlock);
       }
+    } else if (stmtType === "method_call") {
+      const s = stmt as { type: string; object: Expression; method: string; args: Expression[] };
+      this.walkExpression(s.object);
+      for (let _ai = 0; _ai < s.args.length; _ai++) {
+        this.walkExpression(s.args[_ai]);
+      }
+    } else if (stmtType === "call") {
+      const s = stmt as { type: string; name: string; args: Expression[] };
+      this.addReferencedVar(s.name);
+      for (let _ai = 0; _ai < s.args.length; _ai++) {
+        this.walkExpression(s.args[_ai]);
+      }
+    } else if (stmtType === "await") {
+      const s = stmt as { type: string; argument: Expression };
+      this.walkExpression(s.argument);
     }
   }
 
