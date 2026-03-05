@@ -7,11 +7,11 @@ var input = document.getElementById("input");
 var status = document.getElementById("status");
 var sendBtn = document.getElementById("send-btn");
 var ws;
-var myConnId = null;
+var myId = Math.random().toString(36).slice(2, 8);
 var lastSender = null;
 
-function shortName(connId) {
-  return "User " + connId.slice(-4);
+function shortName(id) {
+  return "User " + id.slice(-4);
 }
 
 function addMessage(text, type, senderId) {
@@ -39,15 +39,11 @@ function connect() {
   ws.onopen = function () {
     status.textContent = "connected";
     status.className = "status connected";
+    sendBtn.disabled = input.value.trim().length === 0;
   };
 
   ws.onmessage = function (e) {
     var data = e.data;
-    if (data.startsWith("init|")) {
-      myConnId = data.slice(5);
-      sendBtn.disabled = false;
-      return;
-    }
     if (data.startsWith("sys|")) {
       addMessage(data.slice(4), "system", null);
       return;
@@ -57,7 +53,7 @@ function connect() {
       var sep = rest.indexOf("|");
       var sender = rest.slice(0, sep);
       var msg = rest.slice(sep + 1);
-      addMessage(msg, sender === myConnId ? "sent" : "received", sender);
+      addMessage(msg, sender === myId ? "sent" : "received", sender);
       return;
     }
     addMessage(data, "received", null);
@@ -71,7 +67,6 @@ function connect() {
     status.textContent = "disconnected";
     status.className = "status disconnected";
     sendBtn.disabled = true;
-    myConnId = null;
     lastSender = null;
     addMessage("Disconnected — reconnecting...", "system", null);
     setTimeout(connect, 2000);
@@ -79,14 +74,14 @@ function connect() {
 }
 
 input.addEventListener("input", function () {
-  sendBtn.disabled = !input.value.trim() || !ws || ws.readyState !== 1 || !myConnId;
+  sendBtn.disabled = !input.value.trim() || !ws || ws.readyState !== 1;
 });
 
 form.onsubmit = function (e) {
   e.preventDefault();
   var msg = input.value.trim();
   if (msg.length > 0 && ws && ws.readyState === 1) {
-    ws.send(msg);
+    ws.send(myId + "|" + msg);
     input.value = "";
     sendBtn.disabled = true;
   }
