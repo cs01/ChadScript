@@ -4,6 +4,7 @@ import {
   ObjectNode,
   ArrayNode,
   TypeAssertionNode,
+  VariableNode,
 } from "../../ast/types.js";
 import { stringifyObjectArrayLiteral, stringifyObjectArrayWithMeta } from "./json-array.js";
 
@@ -715,7 +716,7 @@ export class JsonGenerator {
   ): string {
     if (!this.ctx.interfaceStructGenHasInterface(elementType)) {
       if (arg.type === "variable") {
-        const varName = (arg as unknown as { name: string }).name;
+        const varName = (arg as unknown as VariableNode).name;
         const meta = this.ctx.symbolTable.getObjectArrayMetadata(varName);
         if (meta && meta.elementKeys.length > 0) {
           return stringifyObjectArrayWithMeta(
