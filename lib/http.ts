@@ -52,8 +52,12 @@ export function wsSend(connId: string, message: string): void {}
 export function parseMultipart(req: HttpRequest): MultipartPart[] {
   return [];
 }
-export function serveFile(path: string): HttpResponse {
+export function bytesResponse(data: Uint8Array, status: number, headers: string): HttpResponse {
   return { status: 0, body: "", headers: "", bodyLen: 0 };
+}
+export function serveFile(path: string, contentType: string): HttpResponse {
+  const data: Uint8Array = fs.readFileSync(path);
+  return bytesResponse(data, 200.0, "Content-Type: " + contentType);
 }
 
 export class RouterRequest {
@@ -163,6 +167,14 @@ export class Context {
     this._resultHeaders = hdrs;
     this._resultStatus = 302;
     return { status: 302, body: "", headers: hdrs, bodyLen: 0 };
+  }
+
+  bytes(data: Uint8Array, contentType: string): HttpResponse {
+    let hdrs = "Content-Type: " + contentType;
+    if (this._extraHeaders.length > 0) {
+      hdrs = hdrs + "\n" + this._extraHeaders;
+    }
+    return bytesResponse(data, this._status, hdrs);
   }
 
   getResult(): HttpResponse {
