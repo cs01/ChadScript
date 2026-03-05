@@ -17,7 +17,6 @@ The compiler is self-hosting: tens of thousands of lines of TypeScript that comp
 > | Self-hosting                        | ✅          |
 > | Performance improvements            | ✅          |
 > | Testing & hardening                 | In progress |
-> | GC → Reference Counting             | Planned     |
 
 ---
 
