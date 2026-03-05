@@ -10,23 +10,25 @@ const port = parseInt(parser.getOption("port"));
 
 const app: Router = new Router();
 
+ChadScript.embedDir("./http-server-public");
+
 app.get("/", (c: Context) => {
-  return c.json('{"name":"ChadScript HTTP Server","status":"running"}');
+  return c.html(ChadScript.getEmbeddedFile("index.html"));
 });
 
 app.get("/json", (c: Context) => {
-  return c.json('{"message":"hello","count":42}');
+  return c.json({ message: "hello", count: 42 });
 });
 
 app.get("/api/users/:id", (c: Context) => {
   const id = c.req.param("id");
-  return c.json('{"id":"' + id + '"}');
+  return c.json({ id });
 });
 
 app.get("/api/users/:name/posts/:pid", (c: Context) => {
   const name = c.req.param("name");
   const pid = c.req.param("pid");
-  return c.json('{"user":"' + name + '","post":"' + pid + '"}');
+  return c.json({ user: name, post: pid });
 });
 
 app.get("/status/:code", (c: Context) => {
@@ -50,12 +52,12 @@ app.post("/echo", (c: Context) => {
 
 app.post("/api/users", (c: Context) => {
   c.status(201);
-  return c.json('{"created":true}');
+  return c.json({ created: true });
 });
 
 app.notFound((c: Context) => {
   c.status(404);
-  return c.json('{"error":"not found","path":"' + c.req.path + '"}');
+  return c.json({ error: "not found", path: c.req.path });
 });
 
 console.log("ChadScript HTTP Server (Router API)");
