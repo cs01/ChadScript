@@ -16,6 +16,50 @@ function isIntegerLiteral(val: object): boolean {
   return v % 1 === 0;
 }
 
+function getBlockStatements(block: object): object[] {
+  const b = block as { type: string; statements: object[] };
+  return b.statements;
+}
+
+function collectNestedAssignments(stmts: object[], out: object[]): void {
+  for (let i = 0; i < stmts.length; i++) {
+    const stmt = stmts[i];
+    if (!stmt) continue;
+    const stmtBase = stmt as { type: string };
+    if (!stmtBase.type) continue;
+
+    if (stmtBase.type === "assignment") {
+      out.push(stmt);
+    } else if (stmtBase.type === "while" || stmtBase.type === "do_while") {
+      // WhileStatement: { type, condition, body, loc } — body at field index 2
+      const asWhile = stmt as { type: string; condition: object; body: object };
+      collectNestedAssignments(getBlockStatements(asWhile.body), out);
+    } else if (stmtBase.type === "if") {
+      // IfStatement: { type, condition, thenBlock, elseBlock, loc } — thenBlock=2, elseBlock=3
+      const asIf = stmt as {
+        type: string;
+        condition: object;
+        thenBlock: object;
+        elseBlock: object;
+      };
+      collectNestedAssignments(getBlockStatements(asIf.thenBlock), out);
+      if (asIf.elseBlock) {
+        collectNestedAssignments(getBlockStatements(asIf.elseBlock), out);
+      }
+    } else if (stmtBase.type === "for") {
+      // ForStatement: { type, init, condition, update, body, loc } — body at field index 4
+      const asFor = stmt as {
+        type: string;
+        init: object;
+        condition: object;
+        update: object;
+        body: object;
+      };
+      collectNestedAssignments(getBlockStatements(asFor.body), out);
+    }
+  }
+}
+
 export function findI64EligibleVariables(statements: object[]): string[] {
   if (!statements || !statements.length) return [];
   const len = statements.length;
@@ -39,18 +83,19 @@ export function findI64EligibleVariables(statements: object[]): string[] {
 
   if (candidates.length === 0) return [];
 
-  // Pass 2: Scan assignments to demote let variables with non-integer RHS
+  // Pass 2: Scan all assignments (including inside loops/branches) to demote
+  // variables that are ever assigned a non-integer value.
   const isDemoted: boolean[] = [];
   for (let k = 0; k < candidates.length; k++) {
     isDemoted.push(false);
   }
 
-  for (let i = 0; i < len; i++) {
-    const stmt = statements[i];
-    if (!stmt) continue;
+  const allAssignments: object[] = [];
+  collectNestedAssignments(statements, allAssignments);
+
+  for (let i = 0; i < allAssignments.length; i++) {
+    const stmt = allAssignments[i];
     const stmtTyped = stmt as { type: string; name?: string; value?: unknown };
-    if (!stmtTyped.type) continue;
-    if (stmtTyped.type !== "assignment") continue;
     if (!stmtTyped.name || !stmtTyped.value) continue;
     for (let j = 0; j < candidates.length; j++) {
       if (candidates[j] === stmtTyped.name) {

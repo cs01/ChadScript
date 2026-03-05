@@ -2263,7 +2263,7 @@ export class VariableAllocator {
       this.ctx.emit(`store ${valueType} ${value}, ${valueType}* ${allocaReg}`);
     } else {
       const allocaReg = this.ctx.nextAllocaReg(stmt.name);
-      if (valueType === "i64") {
+      if (valueType === "i64" && this.isI64Eligible(stmt.name)) {
         this.ctx.defineVariable(stmt.name, allocaReg, "i64", SymbolKind.Number, "local");
         this.ctx.emit(`${allocaReg} = alloca i64`);
         this.ctx.emit(`store i64 ${value}, i64* ${allocaReg}`);

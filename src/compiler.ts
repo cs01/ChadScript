@@ -403,6 +403,7 @@ export function compile(
   const regexBridgeObj = generator.usesRegex ? `${bridgePath}/regex-bridge.o` : "";
   const cpBridgeObj = `${bridgePath}/child-process-bridge.o`;
   const osBridgeObj = `${bridgePath}/os-bridge.o`;
+  const timeBridgeObj = `${bridgePath}/time-bridge.o`;
   const dotenvBridgeObj = fs.existsSync(`${bridgePath}/dotenv-bridge.o`)
     ? `${bridgePath}/dotenv-bridge.o`
     : "";
@@ -486,7 +487,7 @@ export function compile(
   const userObjs = extraLinkObjs.length > 0 ? " " + extraLinkObjs.join(" ") : "";
   const userPaths = extraLinkPaths.map((p) => ` -L${p}`).join("");
   const userLibs = extraLinkLibs.map((l) => ` -l${l}`).join("");
-  const linkCmd = `${linker} ${objFile} ${lwsBridgeObj} ${regexBridgeObj} ${cpBridgeObj} ${osBridgeObj} ${dotenvBridgeObj} ${watchBridgeObj} ${cpSpawnObj}${extraObjs}${userObjs} -o ${outputFile}${noPie}${debugFlag}${stripFlag}${staticFlag}${crossTarget}${crossLinker}${sanitizeFlags} ${linkLibs}${userPaths}${userLibs}`;
+  const linkCmd = `${linker} ${objFile} ${lwsBridgeObj} ${regexBridgeObj} ${cpBridgeObj} ${osBridgeObj} ${timeBridgeObj} ${dotenvBridgeObj} ${watchBridgeObj} ${cpSpawnObj}${extraObjs}${userObjs} -o ${outputFile}${noPie}${debugFlag}${stripFlag}${staticFlag}${crossTarget}${crossLinker}${sanitizeFlags} ${linkLibs}${userPaths}${userLibs}`;
   logger.info(` ${linkCmd}`);
   const linkStdio = logger.getLevel() >= LogLevel.Verbose ? "inherit" : "pipe";
   execSync(linkCmd, { stdio: linkStdio });

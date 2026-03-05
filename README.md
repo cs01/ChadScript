@@ -2,7 +2,7 @@
 
 ChadScript's goal:
 
-> As fast as C, as safe as Rust, as ergonomic as TypeScript.
+> As fast as C, as ergonomic as TypeScript.
 
 ChadScript is a natively-compiled systems language with TypeScript syntax. Write familiar TypeScript, run `chad build`, get a standalone ELF or Mach-O binary via LLVM — no Node.js, no JVM, no runtime.
 
@@ -17,7 +17,6 @@ The compiler is self-hosting: tens of thousands of lines of TypeScript that comp
 > | Self-hosting                        | ✅          |
 > | Performance improvements            | ✅          |
 > | Testing & hardening                 | In progress |
-> | GC → Reference Counting             | Planned     |
 
 ---
 
@@ -81,8 +80,8 @@ The same LLVM backend used by Clang, Rust, and Swift. Direct calls into C librar
 
 TypeScript is my favorite language to write and the type system is terse and intuitive. It's familiar to tens of millions of developers and LLMs are well trained on it. ChadScript uses a statically-safe subset where every type is known at compile time, enabling:
 
-- **Null safety** — `string` is never null. `string | null` must be checked before use. The type system enforces it.
-- **No undefined behavior** — no dangling pointers, no uninitialized reads.
+- **Null safety** — `string` is never null. Use `string | null` to express optional values and `?.` for safe access.
+- **GC-managed memory** — Boehm GC handles allocation; no use-after-free or double-frees.
 - **IDE support** — run `chad init` to get `tsconfig.json` pointing at ChadScript types and standard library. Language services in VS Code work.
 
 ---
@@ -97,10 +96,10 @@ No `npm install`. Everything ships with the compiler:
 | `Router`, `httpServe` | HTTP server with routing   |
 | `fs`                  | File system                |
 | `sqlite`              | Embedded SQLite database   |
-| `crypto`              | Hashing, encryption        |
+| `crypto`              | Hashing, random bytes      |
 | `JSON`                | Typed JSON parse/stringify |
 | `child_process`       | Spawn subprocesses         |
-| `WebSocket`           | WebSocket client + server  |
+| `WebSocket`           | WebSocket server           |
 
 ---
 

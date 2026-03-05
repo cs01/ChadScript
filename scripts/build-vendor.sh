@@ -179,6 +179,17 @@ else
   echo "==> child-process-bridge already built, skipping"
 fi
 
+# --- time-bridge (platform-abstracted high-resolution time) ---
+TIME_BRIDGE_SRC="$C_BRIDGES_DIR/time-bridge.c"
+TIME_BRIDGE_OBJ="$C_BRIDGES_DIR/time-bridge.o"
+if [ ! -f "$TIME_BRIDGE_OBJ" ] || [ "$TIME_BRIDGE_SRC" -nt "$TIME_BRIDGE_OBJ" ]; then
+  echo "==> Building time-bridge..."
+  cc -c -O2 -fPIC "$TIME_BRIDGE_SRC" -o "$TIME_BRIDGE_OBJ"
+  echo "  -> $TIME_BRIDGE_OBJ"
+else
+  echo "==> time-bridge already built, skipping"
+fi
+
 # --- os-bridge (platform-abstracted os.freemem/os.uptime) ---
 OS_BRIDGE_SRC="$C_BRIDGES_DIR/os-bridge.c"
 OS_BRIDGE_OBJ="$C_BRIDGES_DIR/os-bridge.o"

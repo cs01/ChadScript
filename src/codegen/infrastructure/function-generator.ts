@@ -965,8 +965,7 @@ export class FunctionGenerator {
     ir += "  call void @GC_init()\n";
     ir += "  %__seed_time = call i64 @time(i8* null)\n";
     ir += "  call void @srand48(i64 %__seed_time)\n";
-    ir += "  %__start_tv = alloca %struct.timeval\n";
-    ir += "  %__gtod_start = call i32 @gettimeofday(%struct.timeval* %__start_tv, i8* null)\n";
+    ir += "  %__start_ms = call double @cs_time_ms()\n";
     ir += "\n";
 
     const effectiveOS = this.ctx.getTargetOS();
@@ -1044,26 +1043,9 @@ export class FunctionGenerator {
 
     if (this.ctx.getUsesTestRunner()) {
       ir += "  ; Test runner summary\n";
-      ir += "  %__end_tv = alloca %struct.timeval\n";
-      ir += "  %__gtod_end = call i32 @gettimeofday(%struct.timeval* %__end_tv, i8* null)\n";
-      ir +=
-        "  %__start_sec_ptr = getelementptr %struct.timeval, %struct.timeval* %__start_tv, i32 0, i32 0\n";
-      ir += "  %__start_sec = load i64, i64* %__start_sec_ptr\n";
-      ir +=
-        "  %__start_usec_ptr = getelementptr %struct.timeval, %struct.timeval* %__start_tv, i32 0, i32 1\n";
-      ir += "  %__start_usec = load i64, i64* %__start_usec_ptr\n";
-      ir +=
-        "  %__end_sec_ptr = getelementptr %struct.timeval, %struct.timeval* %__end_tv, i32 0, i32 0\n";
-      ir += "  %__end_sec = load i64, i64* %__end_sec_ptr\n";
-      ir +=
-        "  %__end_usec_ptr = getelementptr %struct.timeval, %struct.timeval* %__end_tv, i32 0, i32 1\n";
-      ir += "  %__end_usec = load i64, i64* %__end_usec_ptr\n";
-      ir += "  %__diff_sec = sub i64 %__end_sec, %__start_sec\n";
-      ir += "  %__diff_usec = sub i64 %__end_usec, %__start_usec\n";
-      ir += "  %__sec_ms = mul i64 %__diff_sec, 1000\n";
-      ir += "  %__usec_ms = sdiv i64 %__diff_usec, 1000\n";
-      ir += "  %__elapsed_i64 = add i64 %__sec_ms, %__usec_ms\n";
-      ir += "  %__elapsed_ms = trunc i64 %__elapsed_i64 to i32\n";
+      ir += "  %__end_ms = call double @cs_time_ms()\n";
+      ir += "  %__diff_ms = fsub double %__end_ms, %__start_ms\n";
+      ir += "  %__elapsed_ms = fptosi double %__diff_ms to i32\n";
       ir += "  %__tr_passed = load i32, i32* @__test_passed\n";
       ir += "  %__tr_failed = load i32, i32* @__test_failed\n";
       ir += "  %__tr_total = load i32, i32* @__test_total\n";
