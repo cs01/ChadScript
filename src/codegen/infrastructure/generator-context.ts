@@ -222,7 +222,7 @@ export interface IEmbedGenerator {
   generateGetEmbeddedFile(expr: MethodCallNode, params: string[]): string;
   generateGetEmbeddedFileAsUint8Array(expr: MethodCallNode, params: string[]): string;
   generateServeEmbedded(expr: MethodCallNode, params: string[]): string;
-  generateServeFile(expr: MethodCallNode, params: string[]): string;
+  generateServeFile(expr: CallNode, params: string[]): string;
   generateLookupFunction(): string;
   generateLengthLookupFunction(): string;
   hasEmbeddedFiles(): boolean;
@@ -1978,7 +1978,7 @@ export class MockGeneratorContext implements IGeneratorContext {
       "%mock_get_embedded_uint8array",
     generateServeEmbedded: (_expr: MethodCallNode, _params: string[]): string =>
       "%mock_serve_embedded",
-    generateServeFile: (_expr: MethodCallNode, _params: string[]): string => "%mock_serve_file",
+    generateServeFile: (_expr: CallNode, _params: string[]): string => "%mock_serve_file",
     generateLookupFunction: (): string => "",
     generateLengthLookupFunction: (): string => "",
     hasEmbeddedFiles: (): boolean => false,

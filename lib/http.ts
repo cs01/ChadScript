@@ -52,6 +52,9 @@ export function wsSend(connId: string, message: string): void {}
 export function parseMultipart(req: HttpRequest): MultipartPart[] {
   return [];
 }
+export function serveFile(path: string): HttpResponse {
+  return { status: 0, body: "", headers: "", bodyLen: 0 };
+}
 
 export class RouterRequest {
   method: string;

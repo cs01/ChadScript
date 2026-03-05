@@ -120,6 +120,10 @@ export class CallExpressionGenerator {
       return this.ctx.generateParseMultipart(expr, params);
     }
 
+    if (expr.name === "serveFile") {
+      return this.ctx.embedGen.generateServeFile(expr, params);
+    }
+
     // Handle setTimeout() - libuv timer (one-shot)
     if (expr.name === "setTimeout") {
       return this.generateSetTimeout(expr, params);

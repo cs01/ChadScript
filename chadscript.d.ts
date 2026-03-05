@@ -300,7 +300,6 @@ declare namespace ChadScript {
   function embedDir(path: string): void;
   function getEmbeddedFile(key: string): string;
   function serveEmbedded(req: HttpRequest): HttpResponse;
-  function serveFile(path: string): HttpResponse;
 }
 
 interface MultipartPart {
@@ -339,6 +338,7 @@ declare module "chadscript/http" {
   export function wsBroadcast(message: string): void;
   export function wsSend(connId: string, message: string): void;
   export function parseMultipart(req: HttpRequest): MultipartPart[];
+  export function serveFile(path: string): HttpResponse;
 
   export class RouterRequest {
     method: string;

@@ -2,7 +2,7 @@
  * Reads files as raw Buffers (not UTF-8) to preserve binary content like images. */
 import * as fs from "fs";
 import * as path from "path";
-import { MethodCallNode } from "../../ast/types.js";
+import { CallNode, MethodCallNode } from "../../ast/types.js";
 import { IGeneratorContext } from "../infrastructure/generator-context.js";
 
 interface ExprBase {
@@ -479,9 +479,9 @@ export class EmbedGenerator {
    * Uses fopen/fseek/fread to read binary-safe content, returns { 200, data, "", len }
    * or { 404, "Not Found", "", 0 } if the file doesn't exist.
    */
-  generateServeFile(expr: MethodCallNode, params: string[]): string {
+  generateServeFile(expr: CallNode, params: string[]): string {
     if (expr.args.length < 1) {
-      return this.ctx.emitError("ChadScript.serveFile() requires 1 argument (path)", expr.loc);
+      return this.ctx.emitError("serveFile() requires 1 argument (path)", expr.loc);
     }
 
     const respType = "{ double, i8*, i8*, double }";
