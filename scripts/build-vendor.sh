@@ -232,6 +232,16 @@ else
   echo "==> url-bridge already built, skipping"
 fi
 
+# --- uri-bridge ---
+URI_BRIDGE_SRC="$C_BRIDGES_DIR/uri-bridge.c"
+URI_BRIDGE_OBJ="$C_BRIDGES_DIR/uri-bridge.o"
+if [ ! -f "$URI_BRIDGE_OBJ" ] || [ "$URI_BRIDGE_SRC" -nt "$URI_BRIDGE_OBJ" ]; then
+  echo "==> Building uri-bridge..."
+  cc -c -O2 -fPIC "$URI_BRIDGE_SRC" -o "$URI_BRIDGE_OBJ"
+  echo "  -> $URI_BRIDGE_OBJ"
+else
+  echo "==> uri-bridge already built, skipping"
+fi
 # --- child-process-spawn (async, requires libuv) ---
 CP_SPAWN_SRC="$C_BRIDGES_DIR/child-process-spawn.c"
 CP_SPAWN_OBJ="$C_BRIDGES_DIR/child-process-spawn.o"
