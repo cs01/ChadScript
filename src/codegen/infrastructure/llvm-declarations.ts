@@ -87,8 +87,15 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += "declare void @cs_spawn(i8*, i8**, i32, void (i8*)*, void (i8*)*, void (double)*)\n";
   ir += "\n";
 
-  // base64 bridge — Buffer.from(str, 'base64') → %Uint8Array*
+  // base64 bridge — Buffer.from(str, 'base64') → %Uint8Array*; btoa/atob → i8*
   ir += "declare i8* @cs_base64_decode(i8*)\n";
+  ir += "declare i8* @cs_btoa(i8*)\n";
+  ir += "declare i8* @cs_atob(i8*)\n";
+  ir += "\n";
+
+  // uri bridge — encodeURIComponent / decodeURIComponent
+  ir += "declare i8* @cs_encode_uri_component(i8*)\n";
+  ir += "declare i8* @cs_decode_uri_component(i8*)\n";
   ir += "\n";
 
   // url bridge — URL parsing and URLSearchParams manipulation
@@ -242,11 +249,13 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
     ir += "declare i32 @EVP_DigestInit_ex(i8*, i8*, i8*)\n";
     ir += "declare i32 @EVP_DigestUpdate(i8*, i8*, i64)\n";
     ir += "declare i32 @EVP_DigestFinal_ex(i8*, i8*, i32*)\n";
+    ir += "declare i8* @EVP_sha1()\n";
     ir += "declare i8* @EVP_sha256()\n";
     ir += "declare i8* @EVP_md5()\n";
     ir += "declare i8* @EVP_sha512()\n";
     ir += "declare i32 @RAND_bytes(i8*, i32)\n";
     ir += "declare i8* @HMAC(i8*, i8*, i32, i8*, i64, i8*, i32*)\n";
+    ir += "declare i32 @PKCS5_PBKDF2_HMAC(i8*, i32, i8*, i32, i32, i8*, i32, i8*)\n";
     ir += "\n";
   }
 

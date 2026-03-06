@@ -198,6 +198,46 @@ export class CallExpressionGenerator {
       return this.generateIsNaN(expr, params);
     }
 
+    if (expr.name === "btoa") {
+      if (expr.args.length !== 1) {
+        return this.ctx.emitError("btoa() requires exactly 1 argument", expr.loc);
+      }
+      const arg = this.ctx.generateExpression(expr.args[0], params);
+      const result = this.ctx.emitCall("i8*", "@cs_btoa", `i8* ${arg}`);
+      this.ctx.setVariableType(result, "i8*");
+      return result;
+    }
+
+    if (expr.name === "atob") {
+      if (expr.args.length !== 1) {
+        return this.ctx.emitError("atob() requires exactly 1 argument", expr.loc);
+      }
+      const arg = this.ctx.generateExpression(expr.args[0], params);
+      const result = this.ctx.emitCall("i8*", "@cs_atob", `i8* ${arg}`);
+      this.ctx.setVariableType(result, "i8*");
+      return result;
+    }
+
+    if (expr.name === "encodeURIComponent") {
+      if (expr.args.length !== 1) {
+        return this.ctx.emitError("encodeURIComponent() requires exactly 1 argument", expr.loc);
+      }
+      const arg = this.ctx.generateExpression(expr.args[0], params);
+      const result = this.ctx.emitCall("i8*", "@cs_encode_uri_component", `i8* ${arg}`);
+      this.ctx.setVariableType(result, "i8*");
+      return result;
+    }
+
+    if (expr.name === "decodeURIComponent") {
+      if (expr.args.length !== 1) {
+        return this.ctx.emitError("decodeURIComponent() requires exactly 1 argument", expr.loc);
+      }
+      const arg = this.ctx.generateExpression(expr.args[0], params);
+      const result = this.ctx.emitCall("i8*", "@cs_decode_uri_component", `i8* ${arg}`);
+      this.ctx.setVariableType(result, "i8*");
+      return result;
+    }
+
     // Handle C built-in functions with proper signatures
     if (expr.name === "malloc") {
       return this.generateMalloc(expr, params);
