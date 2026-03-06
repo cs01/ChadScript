@@ -84,6 +84,7 @@ export default defineConfig({
               { text: 'Syscalls', link: '/stdlib/syscalls' },
               { text: 'Test Runner', link: '/stdlib/test-runner' },
               { text: 'tty', link: '/stdlib/tty' },
+              { text: 'Uint8Array', link: '/stdlib/uint8array' },
             ]
           },
         ]

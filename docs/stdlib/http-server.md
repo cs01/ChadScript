@@ -49,7 +49,6 @@ httpServe(3000, (req) => app.handle(req));
 | `app.all(pattern, handler)` | Match any HTTP method |
 | `app.notFound(handler)` | Custom 404 handler |
 | `app.handle(req)` | Dispatch an `HttpRequest` → `HttpResponse` |
-| `app.compile()` | Pre-compile the combined regex (called automatically on first `handle`) |
 
 Route patterns support `:param` segments and `*` wildcards:
 
@@ -87,6 +86,7 @@ app.get("/example", (c: Context) => {
 | `c.json(body)` | `application/json` | pass a JSON string |
 | `c.html(body)` | `text/html` | |
 | `c.redirect(url)` | — | 302, sets `Location` header |
+| `c.bytes(data, contentType)` | `contentType` | binary-safe; use for images, files, etc. |
 
 **Chainable setters** (return `Context`, call before a response method):
 
@@ -186,7 +186,8 @@ function wsHandler(event: WsEvent): string {
 |----------|------|-------------|
 | `method` | `string` | HTTP method (`"GET"`, `"POST"`, etc.) |
 | `path` | `string` | Request path (`"/"`, `"/api/users"`, etc.) |
-| `body` | `string` | Request body |
+| `body` | `string` | Request body (use `bodyLen` for binary-safe length) |
+| `bodyLen` | `number` | Exact byte length of `body` — use this instead of `body.length` for binary data |
 | `contentType` | `string` | Content-Type header value |
 | `headers` | `string` | All request headers as `"Key: Value\n..."` string |
 
@@ -196,9 +197,12 @@ function wsHandler(event: WsEvent): string {
 |----------|------|-------------|
 | `status` | `number` | HTTP status code |
 | `body` | `string` | Response body |
+| `bodyLen` | `number` | Byte length of body for binary responses — set to `0` for text responses (server uses `strlen`), set to the actual byte count for binary data |
 | `headers` | `string` | Extra response headers as `"\n"`-separated lines (e.g. `"Set-Cookie: session=abc\nX-Custom: value"`) |
 
 If `headers` contains a `Content-Type:` line, it overrides the auto-detected content type. Set `headers` to `""` when no extra headers are needed.
+
+For binary responses built by hand, set `bodyLen` to the actual byte count. Text responses can leave it as `0`.
 
 ## WsEvent Object
 
@@ -338,6 +342,43 @@ function handleRequest(req: HttpRequest): HttpResponse {
   return { status: 401, body: "Unauthorized", headers: "" };
 }
 ```
+
+## `serveFile(path, contentType)`
+
+Serve a file from disk as a binary-safe `HttpResponse`. Reads the file with `fs.readFileSync` and returns a 200 response with the correct `Content-Type` and `bodyLen` set.
+
+```typescript
+import { httpServe, serveFile } from "chadscript/http";
+
+function handleRequest(req: HttpRequest): HttpResponse {
+  if (req.path == "/logo.png") {
+    return serveFile("./assets/logo.png", "image/png");
+  }
+  return { status: 404, body: "Not Found", headers: "", bodyLen: 0 };
+}
+
+httpServe(3000, handleRequest);
+```
+
+For serving compile-time embedded files, see [`ChadScript.serveEmbedded`](/stdlib/embed#chadscriptserveembeddedpath).
+
+## `bytesResponse(data, status, headers)`
+
+Build an `HttpResponse` from a `Uint8Array`. Use this when you have binary data in memory and need to return it as an HTTP response.
+
+```typescript
+import { httpServe, bytesResponse } from "chadscript/http";
+
+function handleRequest(req: HttpRequest): HttpResponse {
+  if (req.path == "/data") {
+    const data: Uint8Array = buildBinaryPayload();
+    return bytesResponse(data, 200, "Content-Type: application/octet-stream");
+  }
+  return { status: 404, body: "Not Found", headers: "", bodyLen: 0 };
+}
+```
+
+`headers` follows the same `"\n"`-separated format as `HttpResponse.headers`. Pass `""` when no extra headers are needed.
 
 ## Native Implementation
 

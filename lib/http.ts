@@ -212,8 +212,6 @@ interface RouteEntry {
   method: string;
   pattern: string;
   paramNames: string;
-  groupOffset: number;
-  groupCount: number;
   handlerIndex: number;
 }
 
@@ -221,15 +219,11 @@ export class Router {
   private routes: RouteEntry[];
   private handlers: RouteHandler[];
   private notFoundHandler: RouteHandler | null;
-  private compiled: boolean;
-  private compiledRegex: RegExp;
 
   constructor() {
     this.routes = [];
     this.handlers = [];
     this.notFoundHandler = null;
-    this.compiled = false;
-    this.compiledRegex = new RegExp(".");
   }
 
   private addRoute(
@@ -238,14 +232,11 @@ export class Router {
     handler: (c: Context) => HttpResponse,
     env: string,
   ): void {
-    this.compiled = false;
     const paramNames = this.extractParamNames(pattern);
     const entry: RouteEntry = {
       method: method,
       pattern: pattern,
       paramNames: paramNames,
-      groupOffset: 0,
-      groupCount: 0,
       handlerIndex: this.handlers.length,
     };
     this.routes.push(entry);
@@ -322,39 +313,6 @@ export class Router {
       }
     }
     return result;
-  }
-
-  private countGroups(regexPart: string): number {
-    let count = 0;
-    for (let i = 0; i < regexPart.length; i++) {
-      if (regexPart[i] === "(") {
-        count = count + 1;
-      }
-    }
-    return count;
-  }
-
-  compile(): void {
-    if (this.compiled) return;
-    let combined = "";
-    let offset = 2;
-    for (let i = 0; i < this.routes.length; i++) {
-      const route = this.routes[i];
-      const regexPart = this.patternToRegex(route.pattern);
-      const wrapped = "(" + regexPart + ")";
-      const innerGroups = this.countGroups(regexPart);
-
-      route.groupOffset = offset;
-      route.groupCount = innerGroups;
-
-      if (combined.length > 0) {
-        combined = combined + "|";
-      }
-      combined = combined + wrapped;
-      offset = offset + 1 + innerGroups;
-    }
-    this.compiledRegex = new RegExp("^(" + combined + ")$");
-    this.compiled = true;
   }
 
   handle(rawReq: HttpRequest): HttpResponse {

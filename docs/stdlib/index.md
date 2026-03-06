@@ -25,7 +25,7 @@ import { ArgumentParser } from "chadscript/argparse";
 
 | Module | Contents |
 |--------|----------|
-| `chadscript/http` | `httpServe`, `wsBroadcast`, `wsSend`, `parseMultipart`, `getHeader`, `parseQueryString`, `parseCookies`, `Router`, `Context`, `RouterRequest` |
+| `chadscript/http` | `httpServe`, `wsBroadcast`, `wsSend`, `parseMultipart`, `bytesResponse`, `serveFile`, `getHeader`, `parseQueryString`, `parseCookies`, `Router`, `Context`, `RouterRequest` |
 | `chadscript/argparse` | `ArgumentParser` |
 
 The `chadscript/` prefix works like Node's `node:` prefix — unambiguous and collision-free.

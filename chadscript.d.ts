@@ -302,7 +302,8 @@ declare namespace ChadScript {
   function embedFile(path: string): string;
   function embedDir(path: string): void;
   function getEmbeddedFile(key: string): string;
-  function serveEmbedded(req: HttpRequest): HttpResponse;
+  function getEmbeddedFileAsUint8Array(key: string): Uint8Array;
+  function serveEmbedded(path: string): HttpResponse;
 }
 
 interface MultipartPart {
