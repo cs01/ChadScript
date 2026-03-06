@@ -103,11 +103,11 @@ export function generateLastIndexOf(
   strPtr: string,
   substring: string,
 ): string {
-  const lastPosPtr = ctx.nextTemp();
+  const lastPosPtr = ctx.nextAllocaReg("lastpos");
   ctx.emit(`${lastPosPtr} = alloca i32`);
   ctx.emitStore("i32", "-1", lastPosPtr);
 
-  const curPtrStorage = ctx.nextTemp();
+  const curPtrStorage = ctx.nextAllocaReg("curptr");
   ctx.emit(`${curPtrStorage} = alloca i8*`);
   ctx.emitStore("i8*", strPtr, curPtrStorage);
 

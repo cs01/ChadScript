@@ -167,9 +167,10 @@ describe("Self-Hosting", { timeout: 600000 }, () => {
     it("Node.js → Stage 0: compile chad-native.ts", async () => {
       if (fsSync.existsSync(STAGE0)) fsSync.unlinkSync(STAGE0);
 
-      await execAsync(`node dist/chad-node.js build src/chad-native.ts -o ${STAGE0}`, {
-        timeout: 180000,
-      });
+      await execAsync(
+        `node dist/chad-node.js build src/chad-native.ts -o ${STAGE0} --target-cpu=x86-64`,
+        { timeout: 180000 },
+      );
 
       assert.ok(fsSync.existsSync(STAGE0), `Stage 0 binary should exist at ${STAGE0}`);
       const stats = fsSync.statSync(STAGE0);

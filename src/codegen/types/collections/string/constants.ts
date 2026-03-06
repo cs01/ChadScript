@@ -89,7 +89,7 @@ export function createStringConstant(ctx: IGeneratorContext, value: string): str
 }
 
 export function convertNumberToString(ctx: IGeneratorContext, numValue: string): string {
-  const bufferSize = ctx.nextTemp();
+  const bufferSize = ctx.nextAllocaReg("numstr_buf");
   ctx.emit(`${bufferSize} = alloca [48 x i8], align 1`);
 
   const bufferPtr = ctx.nextTemp();
