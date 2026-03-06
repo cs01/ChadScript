@@ -14,7 +14,15 @@ export class CryptoGenerator {
     if (exprObjBase.type !== "variable") return false;
     const varNode = expr.object as { type: string; name: string };
     if (varNode.name !== "crypto") return false;
-    const supported = ["sha256", "md5", "sha512", "randomBytes", "randomUUID", "hmacSha256"];
+    const supported = [
+      "sha256",
+      "md5",
+      "sha512",
+      "randomBytes",
+      "randomUUID",
+      "hmacSha256",
+      "pbkdf2",
+    ];
     return supported.indexOf(expr.method) !== -1;
   }
 
@@ -207,6 +215,57 @@ export class CryptoGenerator {
 
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call i8* @__bytes_to_hex(i8* ${outBuf}, i32 ${outLen})`);
+    this.ctx.setVariableType(result, "i8*");
+
+    return result;
+  }
+
+  generatePbkdf2(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length < 4) {
+      return this.ctx.emitError(
+        "crypto.pbkdf2() requires 4 arguments (password, salt, iterations, keylen)",
+        expr.loc,
+      );
+    }
+
+    const passwordPtr = this.ctx.generateExpression(expr.args[0], params);
+    const saltPtr = this.ctx.generateExpression(expr.args[1], params);
+    const iterDouble = this.ctx.generateExpression(expr.args[2], params);
+    const keylenDouble = this.ctx.generateExpression(expr.args[3], params);
+
+    const passLen = this.ctx.nextTemp();
+    this.ctx.emit(`${passLen} = call i64 @strlen(i8* ${passwordPtr})`);
+    const passLen32 = this.ctx.nextTemp();
+    this.ctx.emit(`${passLen32} = trunc i64 ${passLen} to i32`);
+
+    const saltLen = this.ctx.nextTemp();
+    this.ctx.emit(`${saltLen} = call i64 @strlen(i8* ${saltPtr})`);
+    const saltLen32 = this.ctx.nextTemp();
+    this.ctx.emit(`${saltLen32} = trunc i64 ${saltLen} to i32`);
+
+    const iterD = this.ctx.ensureDouble(iterDouble);
+    const iterI32 = this.ctx.nextTemp();
+    this.ctx.emit(`${iterI32} = fptosi double ${iterD} to i32`);
+
+    const keylenD = this.ctx.ensureDouble(keylenDouble);
+    const keylenI32 = this.ctx.nextTemp();
+    this.ctx.emit(`${keylenI32} = fptosi double ${keylenD} to i32`);
+    const keylenI64 = this.ctx.nextTemp();
+    this.ctx.emit(`${keylenI64} = sext i32 ${keylenI32} to i64`);
+
+    const outBuf = this.ctx.nextTemp();
+    this.ctx.emit(`${outBuf} = call i8* @GC_malloc_atomic(i64 ${keylenI64})`);
+
+    const evpMd = this.ctx.nextTemp();
+    this.ctx.emit(`${evpMd} = call i8* @EVP_sha1()`);
+
+    const pbkdfResult = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${pbkdfResult} = call i32 @PKCS5_PBKDF2_HMAC(i8* ${passwordPtr}, i32 ${passLen32}, i8* ${saltPtr}, i32 ${saltLen32}, i32 ${iterI32}, i8* ${evpMd}, i32 ${keylenI32}, i8* ${outBuf})`,
+    );
+
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call i8* @__bytes_to_hex(i8* ${outBuf}, i32 ${keylenI32})`);
     this.ctx.setVariableType(result, "i8*");
 
     return result;
