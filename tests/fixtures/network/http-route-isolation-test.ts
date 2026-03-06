@@ -5,6 +5,7 @@ import { httpServe } from "chadscript/http";
 interface Request {
   method: string;
   path: string;
+  queryString: string;
   body: string;
   contentType: string;
   headers: string;
@@ -29,7 +30,7 @@ function echoHandler(req: Request): Response {
 }
 
 function echoQueryHandler(req: Request): Response {
-  return { status: 200, body: req.path.substring(10, req.path.length), headers: "" };
+  return { status: 200, body: req.queryString, headers: "" };
 }
 
 function statusHandler(req: Request): Response {
@@ -71,7 +72,7 @@ function handleRequest(req: Request): Response {
   if (req.method == "GET") {
     if (req.path == "/") return homeHandler(req);
     if (req.path == "/json") return jsonHandler(req);
-    if (req.path.startsWith("/echo?msg=")) return echoQueryHandler(req);
+    if (req.path == "/echo") return echoQueryHandler(req);
     if (req.path.startsWith("/status/")) return statusHandler(req);
     if (req.path == "/content-type") return contentTypeHandler(req);
     if (req.path == "/large") return largeHandler(req);

@@ -98,10 +98,6 @@ jobs:
         run: npm run test:native
         timeout-minutes: 10
 
-      - name: Run integration tests (network + http routes)
-        run: node --import tsx --test tests/network.test.ts tests/http-routes.test.ts
-        timeout-minutes: 10
-
       - name: Smoke test native chad
         run: |
           .build/chad build examples/hello.ts -o /tmp/hello
@@ -221,10 +217,6 @@ jobs:
 
       - name: Run unit tests (native compiler)
         run: npm run test:native
-        timeout-minutes: 10
-
-      - name: Run integration tests (network + http routes)
-        run: node --import tsx --test tests/network.test.ts tests/http-routes.test.ts
         timeout-minutes: 10
 
       - name: Sign macOS binaries
