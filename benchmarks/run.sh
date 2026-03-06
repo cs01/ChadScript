@@ -2,6 +2,14 @@
 set -e
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
+
+now_ns() {
+  if command -v gdate &>/dev/null; then
+    gdate +%s%N
+  else
+    python3 -c 'import time; print(int(time.time_ns()))'
+  fi
+}
 REPO="$(dirname "$DIR")"
 CHAD="$REPO/.build/chad"
 STARTUP_RUNS=50
@@ -50,14 +58,6 @@ bench_compute() {
     value=$(echo "$raw" | sed 's/[^0-9.]//g')
     if [ -n "$value" ]; then
         json_add_result "$bench" "$lang" "$value" "$raw"
-    fi
-}
-
-now_ns() {
-    if command -v gdate &>/dev/null; then
-        gdate +%s%N
-    else
-        python3 -c 'import time; print(int(time.time_ns()))'
     fi
 }
 
