@@ -33,15 +33,15 @@ jobs:
       - name: Install system dependencies
         run: |
           wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-          echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-18 main" | sudo tee /etc/apt/sources.list.d/llvm-18.list
+          echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-21 main" | sudo tee /etc/apt/sources.list.d/llvm-21.list
           sudo apt-get update
-          sudo apt-get install -y llvm-18 llvm-18-dev clang-18 lld-18 \
+          sudo apt-get install -y llvm-21 llvm-21-dev clang-21 lld-21 \
             cmake make gcc g++ \
             autoconf automake libtool \
             libzstd-dev zlib1g-dev libsqlite3-dev libcurl4-openssl-dev
-          sudo ln -sf /usr/bin/llc-18 /usr/bin/llc
-          sudo ln -sf /usr/bin/opt-18 /usr/bin/opt
-          sudo ln -sf /usr/bin/clang-18 /usr/bin/clang
+          sudo ln -sf /usr/bin/llc-21 /usr/bin/llc
+          sudo ln -sf /usr/bin/opt-21 /usr/bin/opt
+          sudo ln -sf /usr/bin/clang-21 /usr/bin/clang
           clang --version 2>&1 | head -2
           llc --version 2>&1 | head -4
 
@@ -292,12 +292,12 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-          echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-18 main" | sudo tee /etc/apt/sources.list.d/llvm-18.list
+          echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-21 main" | sudo tee /etc/apt/sources.list.d/llvm-21.list
           sudo apt-get update
-          sudo apt-get install -y llvm-18 clang-18 libsqlite3-dev libzstd-dev zlib1g-dev
-          sudo ln -sf /usr/bin/llc-18 /usr/bin/llc
-          sudo ln -sf /usr/bin/opt-18 /usr/bin/opt
-          sudo ln -sf /usr/bin/clang-18 /usr/bin/clang
+          sudo apt-get install -y llvm-21 clang-21 libsqlite3-dev libzstd-dev zlib1g-dev
+          sudo ln -sf /usr/bin/llc-21 /usr/bin/llc
+          sudo ln -sf /usr/bin/opt-21 /usr/bin/opt
+          sudo ln -sf /usr/bin/clang-21 /usr/bin/clang
 
       - name: Install system dependencies (macOS)
         if: runner.os == 'macOS'
