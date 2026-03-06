@@ -203,10 +203,13 @@ describe("Self-Hosting", { timeout: 600000 }, () => {
       assert.ok(fsSync.existsSync(STAGE0), "Stage 0 binary must exist");
       if (fsSync.existsSync(STAGE1)) fsSync.unlinkSync(STAGE1);
 
-      await execWithRetry(`${STAGE0} build -v src/chad-native.ts -o ${STAGE1}`, {
-        timeout: 180000,
-        env: NATIVE_ENV,
-      });
+      await execWithRetry(
+        `${STAGE0} build -v src/chad-native.ts -o ${STAGE1} --target-cpu=x86-64`,
+        {
+          timeout: 180000,
+          env: NATIVE_ENV,
+        },
+      );
 
       assert.ok(fsSync.existsSync(STAGE1), `Stage 1 binary should exist at ${STAGE1}`);
       const stats = fsSync.statSync(STAGE1);
