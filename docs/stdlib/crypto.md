@@ -1,6 +1,6 @@
 # crypto
 
-Cryptographic hash functions and random bytes via OpenSSL (`libcrypto`). All hash functions return hex-encoded strings.
+Cryptographic hash functions, HMAC, and random bytes via OpenSSL (`libcrypto`). All hash/HMAC functions return hex-encoded strings.
 
 ## `crypto.sha256(input)`
 
@@ -26,6 +26,15 @@ Compute MD5 hash of a string.
 ```typescript
 const hash = crypto.md5("hello");
 // "5d41402abc4b2a76b9719d911017c592"
+```
+
+## `crypto.hmacSha256(key, data)`
+
+Compute HMAC-SHA256 of `data` using `key`. Returns a 64-character lowercase hex string. Use this for webhook signature verification and JWT signing.
+
+```typescript
+const sig = crypto.hmacSha256("secret", "payload");
+// "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8"
 ```
 
 ## `crypto.randomBytes(n)`
@@ -67,5 +76,6 @@ console.log(uuid);
 | `crypto.sha256()` | OpenSSL EVP API (`EVP_sha256`) |
 | `crypto.sha512()` | OpenSSL EVP API (`EVP_sha512`) |
 | `crypto.md5()` | OpenSSL EVP API (`EVP_md5`) |
+| `crypto.hmacSha256()` | OpenSSL `HMAC()` with `EVP_sha256` |
 | `crypto.randomBytes()` | `RAND_bytes()` |
 | `crypto.randomUUID()` | `RAND_bytes(16)` + version/variant bits + `snprintf` |
