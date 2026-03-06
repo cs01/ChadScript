@@ -81,6 +81,17 @@ export class BaseGenerator {
     this.currentDebugLocId = -1;
   }
 
+  // Reset counters and type maps for a new function — does not touch symbol table locals
+  resetCounters(): void {
+    this.tempCounter = 0;
+    this.allocaCounter = 0;
+    this.labelCounter = 0;
+    this.currentLabel = "entry";
+    this.variableTypes.clear();
+    this.expressionTypes.clear();
+    this.actualClassTypes.clear();
+  }
+
   // Helper to get next temp register (can be overridden)
   nextTemp(): string {
     return `%${this.tempCounter++}`;

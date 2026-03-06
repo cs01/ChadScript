@@ -462,7 +462,7 @@ export class ClassGenerator {
     constructor: ClassMethod,
     _fieldsIgnored: ClassField[],
   ): string {
-    this.ctx.reset();
+    this.ctx.resetCounters();
     const fieldsFromMap = this.classFields.get(className);
     const fields = fieldsFromMap || [];
     const structType = `%${className}_struct*`;
@@ -666,7 +666,7 @@ export class ClassGenerator {
     fieldLlvmTypes: string[],
     classFields?: ClassField[],
   ): string {
-    this.ctx.reset();
+    this.ctx.resetCounters();
     const structType = `%${className}_struct*`;
     let ir = `define ${structType} @${this.ctx.mangleUserName(className)}_constructor() {` + "\n";
     ir += "entry:\n";
@@ -757,7 +757,7 @@ export class ClassGenerator {
     method: ClassMethod,
     _fieldsIgnored: ClassField[],
   ): string {
-    this.ctx.reset();
+    this.ctx.resetCounters();
     const fields = this.classFields.get(className) || [];
     let returnLLVMType = "double";
     if (method.returnType && method.returnType.length > 0) {
@@ -901,7 +901,7 @@ export class ClassGenerator {
 
   // Static methods are namespaced standalone functions — no %this parameter
   private generateStaticMethod(className: string, method: ClassMethod): string {
-    this.ctx.reset();
+    this.ctx.resetCounters();
     let returnLLVMType = "double";
     if (method.returnType && method.returnType.length > 0) {
       returnLLVMType = this.tsTypeToLlvm(method.returnType);

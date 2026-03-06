@@ -666,6 +666,7 @@ export interface IGeneratorContext {
   emitBitcast(value: string, fromType: string, toType: string): string;
 
   reset(): void;
+  resetCounters(): void;
   getOutput(): string[];
   clearOutput(): void;
   pushOutput(line: string): void;
@@ -2113,6 +2114,15 @@ export class MockGeneratorContext implements IGeneratorContext {
     this.expressionTypes.clear();
     this.actualClassTypes.clear();
     this.currentLabel = "entry";
+  }
+
+  resetCounters(): void {
+    this.tempCount = 0;
+    this.labelCount = 0;
+    this.currentLabel = "entry";
+    this.variableTypes.clear();
+    this.expressionTypes.clear();
+    this.actualClassTypes.clear();
   }
 
   getAstInterfacesLength(): number {
