@@ -18,11 +18,11 @@ import { httpServe, Router, Context } from "chadscript/http";
 
 const app: Router = new Router();
 
-app.get("/", (c: Context) => c.json('{"status":"ok"}'));
+app.get("/", (c: Context) => c.json({ status: "ok" }));
 
 app.get("/api/users/:id", (c: Context) => {
   const id = c.req.param("id");
-  return c.json('{"id":"' + id + '"}');
+  return c.json({ id });
 });
 
 app.post("/api/users", (c: Context) => {
@@ -74,7 +74,7 @@ app.get("/example", (c: Context) => {
   // Build response (chainable)
   c.status(201);
   c.header("X-Custom", "value");
-  return c.json('{"ok":true}');
+  return c.json({ ok: true });
 });
 ```
 
@@ -83,7 +83,7 @@ app.get("/example", (c: Context) => {
 | Method | Content-Type | Notes |
 |--------|--------------|-------|
 | `c.text(body)` | `text/plain` | |
-| `c.json(body)` | `application/json` | pass a JSON string |
+| `c.json(body)` | `application/json` | objects/arrays are auto-serialized; strings pass through as-is |
 | `c.html(body)` | `text/html` | |
 | `c.redirect(url)` | — | 302, sets `Location` header |
 | `c.bytes(data, contentType)` | `contentType` | binary-safe; use for images, files, etc. |

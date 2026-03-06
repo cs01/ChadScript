@@ -48,12 +48,12 @@ const posts: Post[] = [
 const app: Router = new Router();
 
 app.get("/api/posts", (c: Context) => {
-  return c.json(JSON.stringify(posts));
+  return c.json(posts);
 });
 
 app.get("/api/posts/:id", (c: Context) => {
   const id = c.req.param("id");
-  return c.json('{"id":' + id + "}");
+  return c.json({ id });
 });
 
 httpServe(3000, (req: HttpRequest) => app.handle(req));

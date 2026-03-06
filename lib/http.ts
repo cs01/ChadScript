@@ -138,7 +138,7 @@ export class Context {
     return { status: this._status, body: body, headers: hdrs, bodyLen: 0 };
   }
 
-  json(data: string): HttpResponse {
+  json(data: any): HttpResponse {
     let hdrs = "Content-Type: application/json";
     if (this._extraHeaders.length > 0) {
       hdrs = hdrs + "\n" + this._extraHeaders;
