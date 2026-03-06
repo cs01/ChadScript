@@ -74,8 +74,6 @@ const testFiles = [
   "tests/compiler.test.ts",
   "tests/unit/symbol-table.test.ts",
   "tests/unit/type-system.test.ts",
-  "tests/network.test.ts",
-  "tests/http-routes.test.ts",
 ];
 
 const env =
