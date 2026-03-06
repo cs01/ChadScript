@@ -42,9 +42,11 @@ const vendorLibs = [
   "vendor/libuv/build/libuv.a",
   "c_bridges/regex-bridge.o",
 ];
-const missingVendor = vendorLibs.some((p) => !fs.existsSync(path.join(projectRoot, p)));
-if (missingVendor) {
-  console.warn("Warning: some vendor/bridge artifacts missing — run: bash scripts/build-vendor.sh");
+const missingVendor = vendorLibs.filter((p) => !fs.existsSync(path.join(projectRoot, p)));
+if (missingVendor.length > 0) {
+  console.error(`Missing vendor artifacts:\n  ${missingVendor.join("\n  ")}`);
+  console.error("Run: bash scripts/build-vendor.sh");
+  process.exit(1);
 }
 
 const chad = path.join(projectRoot, ".build", "chad");
