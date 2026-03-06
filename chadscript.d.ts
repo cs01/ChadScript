@@ -362,7 +362,7 @@ declare module "chadscript/http" {
     status(code: number): Context;
     header(name: string, value: string): Context;
     text(body: string): HttpResponse;
-    json(data: string): HttpResponse;
+    json(data: any): HttpResponse;
     html(body: string): HttpResponse;
     redirect(url: string): HttpResponse;
     bytes(data: Uint8Array, contentType: string): HttpResponse;
