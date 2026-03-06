@@ -506,6 +506,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const osBridgeObj = effectiveBridgePath + "/os-bridge.o";
   const timeBridgeObj = effectiveBridgePath + "/time-bridge.o";
   const base64BridgeObj = effectiveBridgePath + "/base64-bridge.o";
+  const urlBridgeObj = effectiveBridgePath + "/url-bridge.o";
   const dotenvBridgePath = effectiveBridgePath + "/dotenv-bridge.o";
   const dotenvBridgeObj = fs.existsSync(dotenvBridgePath) ? dotenvBridgePath : "";
   const watchBridgeObj = effectiveBridgePath + "/watch-bridge.o";
@@ -583,6 +584,8 @@ export function compileNative(inputFile: string, outputFile: string): void {
     timeBridgeObj +
     " " +
     base64BridgeObj +
+    " " +
+    urlBridgeObj +
     " " +
     dotenvBridgeObj +
     " " +

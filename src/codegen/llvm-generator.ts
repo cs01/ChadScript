@@ -1958,6 +1958,31 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         let kind: number = SymbolKind.Number;
         let defaultValue: string = "0.0";
 
+        const stmtValueBase = stmt.value as { type: string };
+        if (stmtValueBase.type === "new") {
+          const newNode = stmt.value as NewNode;
+          if (newNode.className === "URL") {
+            ir += `@${name} = global i8* null` + "\n";
+            this.globalVariables.set(name, {
+              llvmType: "i8*",
+              kind: SymbolKind.Url,
+              initialized: false,
+            });
+            this.symbolTable.defineUrl(name, `@${name}`, "global");
+            continue;
+          }
+          if (newNode.className === "URLSearchParams") {
+            ir += `@${name} = global i8* null` + "\n";
+            this.globalVariables.set(name, {
+              llvmType: "i8*",
+              kind: SymbolKind.UrlSearchParams,
+              initialized: false,
+            });
+            this.symbolTable.defineUrlSearchParams(name, `@${name}`, "global");
+            continue;
+          }
+        }
+
         if (isString) {
           llvmType = "i8*";
           kind = SymbolKind.String;

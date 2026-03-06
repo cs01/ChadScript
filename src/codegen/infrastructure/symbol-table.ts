@@ -35,6 +35,8 @@ export enum SymbolKind {
   Closure,
   Pointer,
   Uint8Array,
+  Url,
+  UrlSearchParams,
 }
 
 /**
@@ -1145,6 +1147,76 @@ export class SymbolTable {
       return true;
     }
     return false;
+  }
+
+  isUrl(name: string): boolean {
+    const symbol = this.symbols.get(name);
+    return !!(symbol && symbol.kind === SymbolKind.Url);
+  }
+
+  isUrlSearchParams(name: string): boolean {
+    const symbol = this.symbols.get(name);
+    return !!(symbol && symbol.kind === SymbolKind.UrlSearchParams);
+  }
+
+  defineUrl(name: string, allocaRegister: string, scope: string): void {
+    const symbol: Symbol = {
+      name,
+      kind: SymbolKind.Url,
+      llvmType: "i8*",
+      allocaRegister,
+      scope,
+      isPointerAlloca: false,
+      resolvedType: undefined,
+      objectMetadata: undefined,
+      classMetadata: undefined,
+      arrayMetadata: undefined,
+      objectArrayMetadata: undefined,
+      closureMetadata: undefined,
+      mapMetadata: undefined,
+      setMetadata: undefined,
+      interfaceType: undefined,
+      concreteClass: undefined,
+    };
+    if (!this.symbols.has(name)) {
+      this.symbolKeys.push(name);
+      this.symbolKeysCount++;
+    }
+    this.symbols.set(name, symbol);
+    if (scope === "local" && this.scopeBoundariesCount > 0) {
+      this.scopeNames.push(name);
+      this.scopeNamesCount++;
+    }
+  }
+
+  defineUrlSearchParams(name: string, allocaRegister: string, scope: string): void {
+    const symbol: Symbol = {
+      name,
+      kind: SymbolKind.UrlSearchParams,
+      llvmType: "i8*",
+      allocaRegister,
+      scope,
+      isPointerAlloca: false,
+      resolvedType: undefined,
+      objectMetadata: undefined,
+      classMetadata: undefined,
+      arrayMetadata: undefined,
+      objectArrayMetadata: undefined,
+      closureMetadata: undefined,
+      mapMetadata: undefined,
+      setMetadata: undefined,
+      interfaceType: undefined,
+      concreteClass: undefined,
+    };
+    if (!this.symbols.has(name)) {
+      this.symbolKeys.push(name);
+      this.symbolKeysCount++;
+    }
+    this.symbols.set(name, symbol);
+    if (scope === "local" && this.scopeBoundariesCount > 0) {
+      this.scopeNames.push(name);
+      this.scopeNamesCount++;
+    }
   }
 
   // ============================================

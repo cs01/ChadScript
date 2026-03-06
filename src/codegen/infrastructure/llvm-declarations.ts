@@ -91,6 +91,23 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += "declare i8* @cs_base64_decode(i8*)\n";
   ir += "\n";
 
+  // url bridge — URL parsing and URLSearchParams manipulation
+  ir += "declare i8* @cs_url_parse_protocol(i8*)\n";
+  ir += "declare i8* @cs_url_parse_hostname(i8*)\n";
+  ir += "declare i8* @cs_url_parse_port(i8*)\n";
+  ir += "declare i8* @cs_url_parse_host(i8*)\n";
+  ir += "declare i8* @cs_url_parse_pathname(i8*)\n";
+  ir += "declare i8* @cs_url_parse_search(i8*)\n";
+  ir += "declare i8* @cs_url_parse_hash(i8*)\n";
+  ir += "declare i8* @cs_url_parse_origin(i8*)\n";
+  ir += "declare i8* @cs_urlsearch_get(i8*, i8*)\n";
+  ir += "declare i32 @cs_urlsearch_has(i8*, i8*)\n";
+  ir += "declare i8* @cs_urlsearch_set(i8*, i8*, i8*)\n";
+  ir += "declare i8* @cs_urlsearch_append(i8*, i8*, i8*)\n";
+  ir += "declare i8* @cs_urlsearch_delete(i8*, i8*)\n";
+  ir += "declare i8* @cs_urlsearch_tostring(i8*)\n";
+  ir += "\n";
+
   ir += "declare i32 @printf(i8*, ...)\n";
   ir += "declare i32 @fprintf(i8*, i8*, ...)\n";
   const isMac =
