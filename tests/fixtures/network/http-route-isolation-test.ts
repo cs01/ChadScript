@@ -5,10 +5,11 @@ import { httpServe } from "chadscript/http";
 interface Request {
   method: string;
   path: string;
-  queryString: string;
   body: string;
   contentType: string;
   headers: string;
+  bodyLen: number;
+  queryString: string;
 }
 
 interface Response {
