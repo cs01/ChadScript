@@ -9,7 +9,7 @@ on:
 jobs:
   # Build target SDK on Ubuntu, then cross-compile from macOS using it
   build-linux-sdk:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
       - uses: actions/checkout@v4
@@ -17,6 +17,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
 
       - name: Install system dependencies
         run: |
@@ -63,6 +64,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
 
       - name: Install system dependencies
         run: |
@@ -125,7 +127,7 @@ jobs:
   # Verify the cross-compiled binary actually runs on Linux
   verify-cross-compiled-binary:
     needs: cross-compile-macos-to-linux
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Download cross-compiled binary
