@@ -48,13 +48,7 @@ mysterious test failures that pass fine with the node compiler.
 
 ## Worktree Setup
 
-`vendor/` must be symlinked from the main repo (it's not in git):
-
-```bash
-ln -s /path/to/main/repo/vendor vendor
-```
-
-Then build the C bridges from source (don't symlink `.o` files — they may be stale):
+Each worktree builds its own `vendor/` — do not symlink it from another worktree or the main repo. Different branches may have different `c_bridges/` sources, and a shared vendor dir causes races and silent corruption when multiple agents build concurrently.
 
 ```bash
 bash scripts/build-vendor.sh
