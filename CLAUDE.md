@@ -60,7 +60,7 @@ Then build the C bridges from source (don't symlink `.o` files — they may be s
 bash scripts/build-vendor.sh
 ```
 
-`npm test` runs `build-vendor.sh` automatically.
+`npm test` rebuilds `dist/` only if `src/` is newer, and builds `.build/chad` only if missing.
 
 # ChadScript Architecture Guide
 

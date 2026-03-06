@@ -7,30 +7,55 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, "..");
 
-console.log("Building compiler...");
-try {
-  execSync("npm run build", { cwd: projectRoot, stdio: "inherit" });
-} catch (error) {
-  console.error("Build failed");
-  process.exit(1);
+function newestMtime(dir, ext) {
+  let newest = 0;
+  function walk(d) {
+    for (const entry of fs.readdirSync(d, { withFileTypes: true })) {
+      const full = path.join(d, entry.name);
+      if (entry.isDirectory() && entry.name !== "node_modules") walk(full);
+      else if (entry.isFile() && full.endsWith(ext)) {
+        const mt = fs.statSync(full).mtimeMs;
+        if (mt > newest) newest = mt;
+      }
+    }
+  }
+  walk(dir);
+  return newest;
 }
 
-console.log("Checking C bridge artifacts...");
-try {
-  execSync("bash scripts/build-vendor.sh", { cwd: projectRoot, stdio: "inherit" });
-} catch (error) {
-  console.warn("Warning: build-vendor.sh failed (bridges may be stale)");
+const distEntry = path.join(projectRoot, "dist", "chad-node.js");
+const srcMtime = newestMtime(path.join(projectRoot, "src"), ".ts");
+const distMtime = fs.existsSync(distEntry) ? fs.statSync(distEntry).mtimeMs : 0;
+
+if (srcMtime > distMtime) {
+  console.log("dist/ is stale, rebuilding...");
+  try {
+    execSync("npm run build", { cwd: projectRoot, stdio: "inherit" });
+  } catch {
+    console.error("Build failed");
+    process.exit(1);
+  }
+}
+
+const vendorLibs = [
+  "vendor/bdwgc/libgc.a",
+  "vendor/libuv/build/libuv.a",
+  "c_bridges/regex-bridge.o",
+];
+const missingVendor = vendorLibs.some((p) => !fs.existsSync(path.join(projectRoot, p)));
+if (missingVendor) {
+  console.warn("Warning: some vendor/bridge artifacts missing — run: bash scripts/build-vendor.sh");
 }
 
 const chad = path.join(projectRoot, ".build", "chad");
 if (!fs.existsSync(chad)) {
-  console.log("Building native compiler (.build/chad)...");
+  console.log("Native compiler missing, building .build/chad...");
   try {
     execSync("node dist/chad-node.js build src/chad-native.ts -o .build/chad", {
       cwd: projectRoot,
       stdio: "inherit",
     });
-  } catch (error) {
+  } catch {
     console.error("Native compiler build failed");
     process.exit(1);
   }
