@@ -665,8 +665,6 @@ export interface IGeneratorContext {
   emitIcmp(pred: string, type: string, lhs: string, rhs: string): string;
   emitBitcast(value: string, fromType: string, toType: string): string;
 
-  reset(): void;
-  resetCounters(): void;
   getOutput(): string[];
   clearOutput(): void;
   pushOutput(line: string): void;
@@ -2105,24 +2103,8 @@ export class MockGeneratorContext implements IGeneratorContext {
     this.stringCount = 0;
     this.output = [];
     this.outputIsTerminator = [];
-    this.allocaInstructions = [];
-    this.thisPointer = null;
-    this.currentClassName = null;
-    this.currentFunctionReturnType = "double";
-    this.symbolTable.clearLocals();
     this.variableTypes.clear();
-    this.expressionTypes.clear();
-    this.actualClassTypes.clear();
     this.currentLabel = "entry";
-  }
-
-  resetCounters(): void {
-    this.tempCount = 0;
-    this.labelCount = 0;
-    this.currentLabel = "entry";
-    this.variableTypes.clear();
-    this.expressionTypes.clear();
-    this.actualClassTypes.clear();
   }
 
   getAstInterfacesLength(): number {

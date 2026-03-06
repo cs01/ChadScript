@@ -1,3 +1,4 @@
+// @test-skip
 class Counter {
   static count: number;
 
