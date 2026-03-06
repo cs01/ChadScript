@@ -2779,6 +2779,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       finalParts.push(this.sqliteGen.generateSqliteRowToStructHelper());
       finalParts.push(this.sqliteGen.generateSqliteQueryHelper());
       finalParts.push(this.sqliteGen.generateSqliteQueryWithParamsHelper());
+      finalParts.push(this.sqliteGen.generateSqliteGetRowHelper());
+      finalParts.push(this.sqliteGen.generateSqliteGetRowWithParamsHelper());
     }
 
     if (this.usesStringBuilder) {

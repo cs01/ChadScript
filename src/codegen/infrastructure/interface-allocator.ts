@@ -145,7 +145,12 @@ export class InterfaceAllocator {
       if (innerType.startsWith("[")) return null;
       return strippedDeclaredType;
     }
-    if (!stmt.value || (stmt.value.type !== "variable" && stmt.value.type !== "object"))
+    if (
+      !stmt.value ||
+      (stmt.value.type !== "variable" &&
+        stmt.value.type !== "object" &&
+        stmt.value.type !== "method_call")
+    )
       return null;
     const interfaceDefResult2 = this.getInterface(stmt.declaredType);
     if (!interfaceDefResult2) return null;
