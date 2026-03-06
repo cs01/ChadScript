@@ -80,8 +80,12 @@ jobs:
       - name: Build native chad
         run: node dist/chad-node.js build src/chad-native.ts -o .build/chad --target-cpu=x86-64
 
-      - name: Run unit tests
-        run: npm test
+      - name: Run unit tests (node compiler)
+        run: npm run test:node
+        timeout-minutes: 10
+
+      - name: Run unit tests (native compiler)
+        run: npm run test:native
         timeout-minutes: 10
 
       - name: Smoke test native chad
@@ -188,8 +192,12 @@ jobs:
       - name: Build native chad
         run: node dist/chad-node.js build src/chad-native.ts -o .build/chad
 
-      - name: Run unit tests
-        run: npm test
+      - name: Run unit tests (node compiler)
+        run: npm run test:node
+        timeout-minutes: 10
+
+      - name: Run unit tests (native compiler)
+        run: npm run test:native
         timeout-minutes: 10
 
       - name: Sign macOS binaries

@@ -63,39 +63,32 @@ if (!fs.existsSync(chad)) {
   }
 }
 
-const args = process.argv.slice(2);
+const flag = process.argv[2];
+if (flag !== "--node" && flag !== "--native") {
+  console.error("Usage: node scripts/test.js --node | --native");
+  console.error("  or via npm: npm run test:node | npm run test:native");
+  process.exit(1);
+}
 
-const testPattern =
-  args.length === 0
-    ? [
-        "tests/compiler.test.ts",
-        "tests/unit/symbol-table.test.ts",
-        "tests/unit/type-system.test.ts",
-        "tests/network.test.ts",
-        "tests/http-routes.test.ts",
-      ]
-    : args;
+const testFiles = [
+  "tests/compiler.test.ts",
+  "tests/unit/symbol-table.test.ts",
+  "tests/unit/type-system.test.ts",
+  "tests/network.test.ts",
+  "tests/http-routes.test.ts",
+];
 
-const nodeArgs = ["--import", "tsx", "--test", ...testPattern];
+const env =
+  flag === "--node"
+    ? { ...process.env, CHADC_COMPILER: "node dist/chad-node.js" }
+    : { ...process.env };
 
-const child = spawn("node", nodeArgs, {
+console.log(`\nRunning tests with ${flag === "--node" ? "node compiler" : "native compiler"}...`);
+
+const child = spawn("node", ["--import", "tsx", "--test", ...testFiles], {
   stdio: "inherit",
   shell: false,
+  env,
 });
 
-child.on("exit", (code) => {
-  if (code !== 0 || args.length > 0) {
-    process.exit(code);
-    return;
-  }
-
-  console.log("\nRe-running compiler tests with Node.js compiler...");
-  const child2 = spawn("node", ["--import", "tsx", "--test", "tests/compiler.test.ts"], {
-    stdio: "inherit",
-    shell: false,
-    env: { ...process.env, CHADC_COMPILER: "node dist/chad-node.js" },
-  });
-  child2.on("exit", (code2) => {
-    process.exit(code2);
-  });
-});
+child.on("exit", (code) => process.exit(code));
