@@ -14,7 +14,7 @@ export class CryptoGenerator {
     if (exprObjBase.type !== "variable") return false;
     const varNode = expr.object as { type: string; name: string };
     if (varNode.name !== "crypto") return false;
-    const supported = ["sha256", "md5", "sha512", "randomBytes", "randomUUID"];
+    const supported = ["sha256", "md5", "sha512", "randomBytes", "randomUUID", "hmacSha256"];
     return supported.indexOf(expr.method) !== -1;
   }
 
@@ -168,6 +168,48 @@ export class CryptoGenerator {
     ir += "  ret i8* %out\n";
     ir += "}\n\n";
     return ir;
+  }
+
+  generateHmacSha256(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length < 2) {
+      return this.ctx.emitError("crypto.hmacSha256() requires 2 arguments (key, data)", expr.loc);
+    }
+
+    const keyPtr = this.ctx.generateExpression(expr.args[0], params);
+    const dataPtr = this.ctx.generateExpression(expr.args[1], params);
+
+    const keyLen64 = this.ctx.nextTemp();
+    this.ctx.emit(`${keyLen64} = call i64 @strlen(i8* ${keyPtr})`);
+    const keyLen32 = this.ctx.nextTemp();
+    this.ctx.emit(`${keyLen32} = trunc i64 ${keyLen64} to i32`);
+
+    const dataLen = this.ctx.nextTemp();
+    this.ctx.emit(`${dataLen} = call i64 @strlen(i8* ${dataPtr})`);
+
+    const evpMd = this.ctx.nextTemp();
+    this.ctx.emit(`${evpMd} = call i8* @EVP_sha256()`);
+
+    const outBuf = this.ctx.nextTemp();
+    this.ctx.emit(`${outBuf} = call i8* @GC_malloc_atomic(i64 32)`);
+
+    const outLenMem = this.ctx.nextTemp();
+    this.ctx.emit(`${outLenMem} = call i8* @GC_malloc_atomic(i64 4)`);
+    const outLenPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${outLenPtr} = bitcast i8* ${outLenMem} to i32*`);
+
+    const hmacResult = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${hmacResult} = call i8* @HMAC(i8* ${evpMd}, i8* ${keyPtr}, i32 ${keyLen32}, i8* ${dataPtr}, i64 ${dataLen}, i8* ${outBuf}, i32* ${outLenPtr})`,
+    );
+
+    const outLen = this.ctx.nextTemp();
+    this.ctx.emit(`${outLen} = load i32, i32* ${outLenPtr}`);
+
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call i8* @__bytes_to_hex(i8* ${outBuf}, i32 ${outLen})`);
+    this.ctx.setVariableType(result, "i8*");
+
+    return result;
   }
 
   generateBytesToHexHelper(): string {

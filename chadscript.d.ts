@@ -135,6 +135,7 @@ declare namespace crypto {
   function sha512(input: string): string;
   function md5(input: string): string;
   function randomBytes(n: number): string;
+  function hmacSha256(key: string, data: string): string;
 }
 
 // ============================================================================
