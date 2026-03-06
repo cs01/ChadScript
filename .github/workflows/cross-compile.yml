@@ -29,6 +29,14 @@ jobs:
       - name: Install npm dependencies
         run: npm install
 
+      - name: Cache vendor libraries
+        uses: actions/cache@v4
+        with:
+          path: |
+            vendor/
+            c_bridges/*.o
+          key: vendor-${{ runner.os }}-${{ hashFiles('scripts/build-vendor.sh', 'c_bridges/*.c') }}
+
       - name: Build vendor libraries
         run: bash scripts/build-vendor.sh
 
@@ -76,6 +84,14 @@ jobs:
 
       - name: Install npm dependencies
         run: npm install
+
+      - name: Cache vendor libraries
+        uses: actions/cache@v4
+        with:
+          path: |
+            vendor/
+            c_bridges/*.o
+          key: vendor-${{ runner.os }}-${{ hashFiles('scripts/build-vendor.sh', 'c_bridges/*.c') }}
 
       - name: Build vendor libraries
         run: bash scripts/build-vendor.sh
