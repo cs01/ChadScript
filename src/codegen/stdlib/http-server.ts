@@ -17,7 +17,7 @@ export class HttpServerGenerator {
     let ir = "; libwebsockets HTTP server declarations (via lws-bridge)\n\n";
 
     ir += "; lws bridge types (match lws-bridge.h structs)\n";
-    ir += "%struct.lws_bridge_request = type { i8*, i8*, i8*, i8*, i8*, double }\n";
+    ir += "%struct.lws_bridge_request = type { i8*, i8*, i8*, i8*, i8*, double, i8* }\n";
     ir += "%struct.lws_bridge_response = type { i32, i8*, i64, i8* }\n\n";
 
     ir += "; lws bridge functions\n";
