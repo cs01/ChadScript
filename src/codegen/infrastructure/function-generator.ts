@@ -350,8 +350,16 @@ export class FunctionGenerator {
             let biTypes: string[] = [];
             const ptype = paramTypes[i];
             if (ptype === "HttpRequest") {
-              biKeys = ["method", "path", "body", "contentType", "headers", "bodyLen"];
-              biTypes = ["i8*", "i8*", "i8*", "i8*", "i8*", "double"];
+              biKeys = [
+                "method",
+                "path",
+                "body",
+                "contentType",
+                "headers",
+                "bodyLen",
+                "queryString",
+              ];
+              biTypes = ["i8*", "i8*", "i8*", "i8*", "i8*", "double", "i8*"];
             } else if (ptype === "HttpResponse") {
               biKeys = ["status", "body", "headers"];
               biTypes = ["double", "i8*", "i8*"];

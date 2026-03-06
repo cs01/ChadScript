@@ -1542,9 +1542,17 @@ export class ClassGenerator {
     let builtinIfaceTypes: string[] = [];
     let builtinIfaceTsTypes: string[] = [];
     if (tsType === "HttpRequest") {
-      builtinIfaceKeys = ["method", "path", "body", "contentType", "headers", "bodyLen"];
-      builtinIfaceTypes = ["i8*", "i8*", "i8*", "i8*", "i8*", "double"];
-      builtinIfaceTsTypes = ["string", "string", "string", "string", "string", "number"];
+      builtinIfaceKeys = [
+        "method",
+        "path",
+        "body",
+        "contentType",
+        "headers",
+        "bodyLen",
+        "queryString",
+      ];
+      builtinIfaceTypes = ["i8*", "i8*", "i8*", "i8*", "i8*", "double", "i8*"];
+      builtinIfaceTsTypes = ["string", "string", "string", "string", "string", "number", "string"];
     } else if (tsType === "HttpResponse") {
       builtinIfaceKeys = ["status", "body", "headers"];
       builtinIfaceTypes = ["double", "i8*", "i8*"];

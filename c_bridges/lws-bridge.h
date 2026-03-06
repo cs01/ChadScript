@@ -10,6 +10,7 @@ typedef struct {
     const char *content_type;
     const char *headers_raw;  // all headers as "Key: Value\n..." string
     double body_len;          // actual byte count as double (ChadScript reads number fields as double)
+    const char *query_string; // query string after '?' (empty string if none)
 } lws_bridge_request;
 
 typedef struct {

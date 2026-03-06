@@ -229,6 +229,7 @@ interface HttpRequest {
   contentType: string;
   headers: string;
   bodyLen: number;
+  queryString: string;
 }
 
 interface HttpResponse {

@@ -67,6 +67,7 @@ export class RouterRequest {
   contentType: string;
   headers: string;
   bodyLen: number;
+  queryString: string;
   private _params: Map<string, string>;
 
   constructor(req: HttpRequest, params: Map<string, string>) {
@@ -76,6 +77,7 @@ export class RouterRequest {
     this.contentType = req.contentType;
     this.headers = req.headers;
     this.bodyLen = req.bodyLen;
+    this.queryString = req.queryString;
     this._params = params;
   }
 

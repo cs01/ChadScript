@@ -25,6 +25,7 @@ typedef struct http_conn_s {
     size_t data_len;
     char method_str[16];
     char path_str[2048];
+    char query_string_str[2048];
     char *body;
     size_t body_len;
     size_t body_cap;
@@ -385,6 +386,7 @@ static void dispatch_http_request(http_conn_t *conn) {
     req.content_type = conn->content_type_str;
     req.headers_raw = conn->headers_raw;
     req.body_len = (double)conn->body_len;
+    req.query_string = conn->query_string_str;
 
     lws_bridge_response resp;
     resp.status = 200;
@@ -598,9 +600,20 @@ static void try_parse_request(http_conn_t *conn) {
         memcpy(conn->method_str, method, ml);
         conn->method_str[ml] = '\0';
 
-        size_t pl = path_len < sizeof(conn->path_str) - 1 ? path_len : sizeof(conn->path_str) - 1;
+        // Split path at '?' — store path and query string separately
+        const char *q = (const char *)memchr(path, '?', path_len);
+        size_t raw_path_len = q ? (size_t)(q - path) : path_len;
+        size_t pl = raw_path_len < sizeof(conn->path_str) - 1 ? raw_path_len : sizeof(conn->path_str) - 1;
         memcpy(conn->path_str, path, pl);
         conn->path_str[pl] = '\0';
+        if (q) {
+            size_t ql = (path_len - raw_path_len - 1);
+            if (ql >= sizeof(conn->query_string_str)) ql = sizeof(conn->query_string_str) - 1;
+            memcpy(conn->query_string_str, q + 1, ql);
+            conn->query_string_str[ql] = '\0';
+        } else {
+            conn->query_string_str[0] = '\0';
+        }
 
         conn->content_length = 0;
         conn->content_type_str[0] = '\0';
@@ -709,6 +722,7 @@ static void try_parse_request(http_conn_t *conn) {
         conn->ws_key[0] = '\0';
         conn->method_str[0] = '\0';
         conn->path_str[0] = '\0';
+        conn->query_string_str[0] = '\0';
     }
 }
 
