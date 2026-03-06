@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VENDOR_DIR="$(cd "$(dirname "$0")/.." && pwd)/vendor"
-C_BRIDGES_DIR="$(cd "$(dirname "$0")/.." && pwd)/c_bridges"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+VENDOR_DIR="$PROJECT_ROOT/vendor"
+C_BRIDGES_DIR="$PROJECT_ROOT/c_bridges"
 NPROC=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+
+# Load pinned versions
+source "$SCRIPT_DIR/vendor-pins.sh"
 
 mkdir -p "$VENDOR_DIR"
 
@@ -12,7 +17,7 @@ if [ ! -f "$VENDOR_DIR/bdwgc/libgc.a" ]; then
   echo "==> Building bdwgc..."
   cd "$VENDOR_DIR"
   if [ ! -d bdwgc ]; then
-    git clone --depth 1 https://github.com/ivmai/bdwgc.git
+    git clone --depth 1 --branch "$BDWGC_TAG" https://github.com/ivmai/bdwgc.git
   fi
   cd bdwgc
 
@@ -46,6 +51,10 @@ if [ ! -f "$VENDOR_DIR/picohttpparser/picohttpparser.o" ]; then
   cd "$VENDOR_DIR"
   if [ ! -f picohttpparser/picohttpparser.c ]; then
     git clone --depth 1 https://github.com/h2o/picohttpparser.git picohttpparser-src
+    if [ -n "$PICOHTTPPARSER_COMMIT" ]; then
+      git -C picohttpparser-src fetch --depth 1 origin "$PICOHTTPPARSER_COMMIT"
+      git -C picohttpparser-src checkout "$PICOHTTPPARSER_COMMIT"
+    fi
     mkdir -p picohttpparser
     cp picohttpparser-src/picohttpparser.h picohttpparser-src/picohttpparser.c picohttpparser/
     rm -rf picohttpparser-src
@@ -69,7 +78,7 @@ if [ ! -f "$VENDOR_DIR/yyjson/libyyjson.a" ] || [ "$C_BRIDGES_DIR/yyjson-bridge.
     mkdir -p yyjson
   fi
   if [ ! -f yyjson/yyjson.c ]; then
-    git clone --depth 1 https://github.com/ibireme/yyjson.git yyjson-src
+    git clone --depth 1 --branch "$YYJSON_TAG" https://github.com/ibireme/yyjson.git yyjson-src
     cp yyjson-src/src/yyjson.h yyjson-src/src/yyjson.c yyjson/
     rm -rf yyjson-src
   fi
@@ -87,7 +96,7 @@ if [ ! -f "$VENDOR_DIR/libuv/build/libuv.a" ]; then
   echo "==> Building libuv..."
   cd "$VENDOR_DIR"
   if [ ! -d libuv ]; then
-    git clone --depth 1 https://github.com/libuv/libuv.git
+    git clone --depth 1 --branch "$LIBUV_TAG" https://github.com/libuv/libuv.git
   fi
   mkdir -p libuv/build
   cd libuv/build
@@ -228,7 +237,7 @@ if [ ! -f "$VENDOR_DIR/tree-sitter/libtree-sitter.a" ]; then
   echo "==> Building tree-sitter..."
   cd "$VENDOR_DIR"
   if [ ! -d tree-sitter ]; then
-    git clone --depth 1 https://github.com/tree-sitter/tree-sitter.git
+    git clone --depth 1 --branch "$TREE_SITTER_TAG" https://github.com/tree-sitter/tree-sitter.git
   fi
   cd tree-sitter
   make -j"$NPROC"

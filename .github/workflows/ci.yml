@@ -15,6 +15,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
       - run: npm install --ignore-scripts
       - run: npx prettier --check .
 
@@ -27,24 +28,33 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
 
       - name: Install system dependencies
         run: |
           wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-          echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-18 main" | sudo tee /etc/apt/sources.list.d/llvm-18.list
+          echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-21 main" | sudo tee /etc/apt/sources.list.d/llvm-21.list
           sudo apt-get update
-          sudo apt-get install -y llvm-18 llvm-18-dev clang-18 lld-18 \
+          sudo apt-get install -y llvm-21 llvm-21-dev clang-21 lld-21 \
             cmake make gcc g++ \
             autoconf automake libtool \
             libzstd-dev zlib1g-dev libsqlite3-dev libcurl4-openssl-dev
-          sudo ln -sf /usr/bin/llc-18 /usr/bin/llc
-          sudo ln -sf /usr/bin/opt-18 /usr/bin/opt
-          sudo ln -sf /usr/bin/clang-18 /usr/bin/clang
+          sudo ln -sf /usr/bin/llc-21 /usr/bin/llc
+          sudo ln -sf /usr/bin/opt-21 /usr/bin/opt
+          sudo ln -sf /usr/bin/clang-21 /usr/bin/clang
           clang --version 2>&1 | head -2
           llc --version 2>&1 | head -4
 
       - name: Install npm dependencies
         run: npm install
+
+      - name: Cache vendor libraries
+        uses: actions/cache@v4
+        with:
+          path: |
+            vendor/
+            c_bridges/*.o
+          key: vendor-${{ runner.os }}-${{ hashFiles('scripts/build-vendor.sh', 'scripts/vendor-pins.sh', 'c_bridges/*.c') }}
 
       - name: Build vendor libraries
         run: bash scripts/build-vendor.sh
@@ -79,6 +89,14 @@ jobs:
 
       - name: Build native chad
         run: node dist/chad-node.js build src/chad-native.ts -o .build/chad --target-cpu=x86-64
+
+      - name: Run unit tests (node compiler)
+        run: npm run test:node
+        timeout-minutes: 10
+
+      - name: Run unit tests (native compiler)
+        run: npm run test:native
+        timeout-minutes: 10
 
       - name: Smoke test native chad
         run: |
@@ -140,6 +158,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
 
       - name: Install system dependencies
         run: |
@@ -149,6 +168,14 @@ jobs:
 
       - name: Install npm dependencies
         run: npm install
+
+      - name: Cache vendor libraries
+        uses: actions/cache@v4
+        with:
+          path: |
+            vendor/
+            c_bridges/*.o
+          key: vendor-${{ runner.os }}-${{ hashFiles('scripts/build-vendor.sh', 'scripts/vendor-pins.sh', 'c_bridges/*.c') }}
 
       - name: Build vendor libraries
         run: bash scripts/build-vendor.sh
@@ -183,6 +210,14 @@ jobs:
 
       - name: Build native chad
         run: node dist/chad-node.js build src/chad-native.ts -o .build/chad
+
+      - name: Run unit tests (node compiler)
+        run: npm run test:node
+        timeout-minutes: 10
+
+      - name: Run unit tests (native compiler)
+        run: npm run test:native
+        timeout-minutes: 10
 
       - name: Sign macOS binaries
         run: |
@@ -244,7 +279,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-22.04
             artifact: chadscript-linux-x64
           - os: macos-latest
             artifact: chadscript-macos-arm64
@@ -255,7 +290,14 @@ jobs:
 
       - name: Install system dependencies (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y llvm clang libsqlite3-dev libzstd-dev zlib1g-dev
+        run: |
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+          echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-21 main" | sudo tee /etc/apt/sources.list.d/llvm-21.list
+          sudo apt-get update
+          sudo apt-get install -y llvm-21 clang-21 libsqlite3-dev libzstd-dev zlib1g-dev
+          sudo ln -sf /usr/bin/llc-21 /usr/bin/llc
+          sudo ln -sf /usr/bin/opt-21 /usr/bin/opt
+          sudo ln -sf /usr/bin/clang-21 /usr/bin/clang
 
       - name: Install system dependencies (macOS)
         if: runner.os == 'macOS'

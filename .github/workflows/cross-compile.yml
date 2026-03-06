@@ -9,7 +9,7 @@ on:
 jobs:
   # Build target SDK on Ubuntu, then cross-compile from macOS using it
   build-linux-sdk:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
       - uses: actions/checkout@v4
@@ -17,6 +17,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
 
       - name: Install system dependencies
         run: |
@@ -27,6 +28,14 @@ jobs:
 
       - name: Install npm dependencies
         run: npm install
+
+      - name: Cache vendor libraries
+        uses: actions/cache@v4
+        with:
+          path: |
+            vendor/
+            c_bridges/*.o
+          key: vendor-${{ runner.os }}-${{ hashFiles('scripts/build-vendor.sh', 'scripts/vendor-pins.sh', 'c_bridges/*.c') }}
 
       - name: Build vendor libraries
         run: bash scripts/build-vendor.sh
@@ -63,6 +72,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
 
       - name: Install system dependencies
         run: |
@@ -74,6 +84,14 @@ jobs:
 
       - name: Install npm dependencies
         run: npm install
+
+      - name: Cache vendor libraries
+        uses: actions/cache@v4
+        with:
+          path: |
+            vendor/
+            c_bridges/*.o
+          key: vendor-${{ runner.os }}-${{ hashFiles('scripts/build-vendor.sh', 'scripts/vendor-pins.sh', 'c_bridges/*.c') }}
 
       - name: Build vendor libraries
         run: bash scripts/build-vendor.sh
@@ -125,7 +143,7 @@ jobs:
   # Verify the cross-compiled binary actually runs on Linux
   verify-cross-compiled-binary:
     needs: cross-compile-macos-to-linux
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Download cross-compiled binary
