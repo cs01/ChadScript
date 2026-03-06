@@ -1,6 +1,24 @@
 #!/bin/bash
 set -e
 
+TIMEOUT_CMD="timeout"
+if ! command -v timeout &>/dev/null; then
+  if command -v gtimeout &>/dev/null; then
+    TIMEOUT_CMD="gtimeout"
+  else
+    TIMEOUT_CMD=""
+  fi
+fi
+
+run_with_timeout() {
+  local secs="$1"; shift
+  if [ -n "$TIMEOUT_CMD" ]; then
+    "$TIMEOUT_CMD" "$secs" "$@"
+  else
+    "$@"
+  fi
+}
+
 NATIVE_COMPILER=".build/src/chad-native"
 BENCH_DIR="/tmp/chadscript-benchmarks"
 RESULTS_FILE="$BENCH_DIR/results.txt"
@@ -25,7 +43,7 @@ benchmark_file() {
   for i in $(seq 1 $ITERATIONS); do
     rm -f "$output" "$output.ll" "$output.o"
     start=$(date +%s%N)
-    if timeout 300 "$compiler" "$input" -o "$output" > /dev/null 2>&1; then
+    if run_with_timeout 300 "$compiler" build "$input" -o "$output" > /dev/null 2>&1; then
       end=$(date +%s%N)
       elapsed_ms=$(( (end - start) / 1000000 ))
       times+=("$elapsed_ms")
@@ -92,7 +110,7 @@ with open('src/native-compiler-no-gc-disable.ts', 'w') as f:
 PYEOF
 
 rm -f "$BENCH_DIR/native-compiler-no-gc-disable" "$BENCH_DIR/native-compiler-no-gc-disable.ll" "$BENCH_DIR/native-compiler-no-gc-disable.o"
-if timeout 300 "$NATIVE_COMPILER" src/native-compiler-no-gc-disable.ts -o "$BENCH_DIR/native-compiler-no-gc-disable" > /dev/null 2>&1; then
+if run_with_timeout 300 "$NATIVE_COMPILER" build src/native-compiler-no-gc-disable.ts -o "$BENCH_DIR/native-compiler-no-gc-disable" > /dev/null 2>&1; then
   echo "Built successfully" | tee -a "$RESULTS_FILE"
   echo "" | tee -a "$RESULTS_FILE"
 
@@ -143,7 +161,7 @@ with open('src/native-compiler-generate.ts', 'w') as f:
 PYEOF
 
 rm -f "$BENCH_DIR/native-compiler-generate" "$BENCH_DIR/native-compiler-generate.ll" "$BENCH_DIR/native-compiler-generate.o"
-if timeout 300 "$NATIVE_COMPILER" src/native-compiler-generate.ts -o "$BENCH_DIR/native-compiler-generate" > /dev/null 2>&1; then
+if run_with_timeout 300 "$NATIVE_COMPILER" build src/native-compiler-generate.ts -o "$BENCH_DIR/native-compiler-generate" > /dev/null 2>&1; then
   echo "Built successfully" | tee -a "$RESULTS_FILE"
   echo "" | tee -a "$RESULTS_FILE"
 
@@ -167,7 +185,7 @@ for fixture in "${FIXTURES[@]}"; do
     name=$(basename "$fixture" | sed 's/\.[^.]*$//')
     rm -f "$BENCH_DIR/tsx-$name" "$BENCH_DIR/tsx-$name.ll" "$BENCH_DIR/tsx-$name.o"
     start=$(date +%s%N)
-    if timeout 60 npx tsx src/chad-node.ts build "$fixture" -o "$BENCH_DIR/tsx-$name" --skip-semantic-analysis > /dev/null 2>&1; then
+    if run_with_timeout 60 npx tsx src/chad-node.ts build "$fixture" -o "$BENCH_DIR/tsx-$name" --skip-semantic-analysis > /dev/null 2>&1; then
       end=$(date +%s%N)
       elapsed_ms=$(( (end - start) / 1000000 ))
       echo "tsx/$name: ${elapsed_ms}ms" | tee -a "$RESULTS_FILE"

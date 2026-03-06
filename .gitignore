@@ -85,3 +85,4 @@ examples/he
 docs/.vitepress/dist/
 docs/.vitepress/cache/
 benchmarks/tools/httpbench
+.worktrees/
