@@ -17,23 +17,23 @@ The path must be a **string literal** (not a variable). It is resolved relative 
 
 ## `ChadScript.embedDir(path)`
 
-Recursively embed all files in a directory at compile time. Each file is stored as a string constant keyed by its relative path within the directory.
+Recursively embed all files in a directory at compile time. Use `ChadScript.getEmbeddedFile()` to retrieve them at runtime.
 
 ```typescript
 ChadScript.embedDir("./public");
 ```
 
-This walks the directory tree and embeds every file it finds. Use `getEmbeddedFile()` to retrieve them at runtime.
+This walks the directory tree and embeds every file it finds. Keys are relative paths within the embedded directory (e.g. `"images/logo.png"`).
 
 ## `ChadScript.getEmbeddedFile(key)`
 
-Retrieve a previously embedded file by its key. For `embedFile()`, the key is the filename. For `embedDir()`, the key is the relative path within the embedded directory.
+Retrieve a previously embedded file by its key. For `embedFile()`, the key is the filename (basename). For `embedDir()`, the key is the relative path within the embedded directory.
 
 ```typescript
 ChadScript.embedDir("./public");
 
-const html = ChadScript.getEmbeddedFile("index.html");
-const css = ChadScript.getEmbeddedFile("style.css");
+const html   = ChadScript.getEmbeddedFile("index.html");
+const css    = ChadScript.getEmbeddedFile("style.css");
 const nested = ChadScript.getEmbeddedFile("images/logo.txt");
 ```
 
@@ -41,107 +41,46 @@ Returns an empty string if the key is not found.
 
 ## `ChadScript.getEmbeddedFileAsUint8Array(key)`
 
-Retrieve a previously embedded file as a `Uint8Array`. Useful for working with binary data programmatically (e.g., hashing, transforming, or writing to disk).
+Retrieve a previously embedded file as a `Uint8Array`. Useful for binary data (hashing, writing to disk, building HTTP responses).
 
 ```typescript
 ChadScript.embedDir("./assets");
 
 const imageData: Uint8Array = ChadScript.getEmbeddedFileAsUint8Array("logo.png");
-console.log(imageData.length); // exact byte count
-fs.writeFileSync("/tmp/logo.png", imageData); // binary-safe write
+console.log(imageData.length);
+fs.writeFileSync("/tmp/logo.png", imageData);
 ```
 
 Returns a zero-length `Uint8Array` if the key is not found.
 
 ## `ChadScript.serveEmbedded(path)`
 
-Return an `HttpResponse` for an embedded file. Strips the leading `/` from the path, looks up the file in the embedded table, and returns `{ status: 200, body: content, headers: "" }` if found or `{ status: 404, body: "Not Found", headers: "" }` if not.
+Return an `HttpResponse` for an embedded file. Strips the leading `/` from the path, looks up the file in the embedded table, and returns 200 + content if found or 404 if not. Content-Type is inferred automatically from the file extension (`.css`, `.js`, `.png`, `.wasm`, etc.).
 
-The HTTP server automatically sets `Content-Type` based on the file extension, so `.css`, `.js`, `.png`, `.wasm`, etc. all get the correct header with no extra work.
+This is a convenience wrapper for serving static assets from a web server — no per-file route boilerplate needed.
 
-This eliminates per-file route boilerplate for serving static assets:
+For full usage examples, see [HTTP Server — Serving files](./http-server.md#serving-files).
 
-```typescript
-ChadScript.embedDir("./public");
-
-function handleRequest(req: HttpRequest): HttpResponse {
-  if (req.path.startsWith("/api/")) return handleApi(req);
-  return ChadScript.serveEmbedded(req.path);
-}
-
-httpServe(3000, handleRequest);
-```
-
-## Example: HTTP Server with Embedded Files
-
-A common pattern is embedding HTML/CSS for a web server so the entire app is a single binary with no external file dependencies:
-
-```
-my-server/
-  app.ts
-  public/
-    index.html
-    style.css
-```
-
-```typescript
-// Compile time: walks ./public/ and bakes every file into the binary as a string constant.
-// The directory itself is not needed at runtime — files live in memory.
-ChadScript.embedDir("./public");
-
-function handleRequest(req: HttpRequest): HttpResponse {
-  // serveEmbedded strips the leading '/', looks up the file in the embedded
-  // table, and returns 200 + body if found, or 404 if not.
-  // Content-Type is inferred from the file extension (.css, .png, .js, etc.)
-  return ChadScript.serveEmbedded(req.path);
-}
-
-// Starts listening on port 3000; blocks forever
-httpServe(3000, handleRequest);
-```
-
-Or with manual routing for more control:
-
-```typescript
-ChadScript.embedDir("./public");
-
-function handleRequest(req: HttpRequest): HttpResponse {
-  if (req.path == "/") {
-    return { status: 200, body: ChadScript.getEmbeddedFile("index.html"), headers: "" };
-  }
-  if (req.path == "/style.css") {
-    return { status: 200, body: ChadScript.getEmbeddedFile("style.css"), headers: "Content-Type: text/css" };
-  }
-  return { status: 404, body: "Not Found", headers: "" };
-}
-
-httpServe(3000, handleRequest);
-```
-
-```bash
-$ chad build my-server/app.ts -o server
-$ ./server
-# HTML and CSS are served from memory — no files needed at runtime
-```
-
-See [`examples/hackernews/`](https://github.com/cs01/ChadScript/tree/main/examples/hackernews) for a full working example with `embedDir()`.
-
-## How It Works
-
-At compile time, the compiler reads the file(s) from disk and emits them as LLVM IR global string constants. At runtime, `getEmbeddedFile()` does a simple string comparison lookup across all embedded keys — no file system access occurs.
+## API summary
 
 | API | When | What |
 |-----|------|------|
-| `embedFile(path)` | Compile time | Reads file, returns contents as string |
+| `embedFile(path)` | Compile time | Reads one file, returns contents as string |
 | `embedDir(path)` | Compile time | Recursively reads all files in directory |
 | `getEmbeddedFile(key)` | Runtime | Looks up embedded content by filename/path |
-| `getEmbeddedFileAsUint8Array(key)` | Runtime | Same as above, returns `Uint8Array` (binary-safe) |
-| `serveEmbedded(path)` | Runtime | Returns HttpResponse for embedded file (200 or 404, binary-safe via `bodyLen`) |
+| `getEmbeddedFileAsUint8Array(key)` | Runtime | Same, returns `Uint8Array` (binary-safe) |
+| `serveEmbedded(path)` | Runtime | Returns `HttpResponse` for embedded file (200 or 404) |
 
 ## Notes
 
 - All paths are resolved relative to the **entry file** (the `.ts` file passed to `chad build`)
 - `embedFile()` and `embedDir()` arguments must be string literals — they are evaluated at compile time
-- `embedDir()` embeds all files recursively; keys are **relative paths** from the embedded directory (e.g. `subdir/page.html`), so files with the same name in different subdirectories won't collide
-- `embedFile()` keys by **filename only** (basename), so avoid embedding two files with the same name via separate `embedFile()` calls — use `embedDir()` instead when you have nested structures
-- Binary files (images, fonts, wasm, etc.) are fully supported — they are embedded using Latin-1 encoding which preserves all byte values 0x00–0xFF
+- `embedDir()` keys are **relative paths** from the embedded directory (e.g. `subdir/page.html`), so files in different subdirectories with the same name won't collide
+- `embedFile()` keys by **filename only** (basename) — avoid embedding two files with the same name via separate `embedFile()` calls; use `embedDir()` instead
+- Binary files (images, fonts, wasm, etc.) are fully supported — embedded using Latin-1 encoding which preserves all byte values 0x00–0xFF
+
+## How it works
+
+At compile time, the compiler reads the file(s) from disk and emits them as LLVM IR global string constants. At runtime, `getEmbeddedFile()` does a linear strcmp lookup across all embedded keys — no filesystem access occurs.
+
+See [`examples/hackernews/`](https://github.com/cs01/ChadScript/tree/main/examples/hackernews) for a working example with `embedDir()`.
