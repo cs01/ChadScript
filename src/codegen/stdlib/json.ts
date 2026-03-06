@@ -595,14 +595,27 @@ export class JsonGenerator {
     );
   }
 
+  private extractInterfaceFromLlvmType(llvmType: string): string | null {
+    if (llvmType.startsWith("%") && llvmType.endsWith("*")) {
+      return llvmType.slice(1, -1);
+    }
+    return null;
+  }
+
   private resolveInterfaceType(arg: Expression): string | null {
     if (arg.type === "variable") {
       const varNode = arg as { type: string; name: string };
-      return (
+      const fromSymbol =
         this.ctx.symbolTable.getInterfaceType(varNode.name) ||
         this.ctx.symbolTable.getRawInterfaceType(varNode.name) ||
-        null
-      );
+        null;
+      if (fromSymbol) return fromSymbol;
+      const llvmType = this.ctx.getVariableType(varNode.name);
+      if (llvmType) {
+        const extracted = this.extractInterfaceFromLlvmType(llvmType);
+        if (extracted && this.ctx.interfaceStructGenHasInterface(extracted)) return extracted;
+      }
+      return null;
     }
     if (arg.type === "index_access") {
       const indexAccess = arg as { type: string; object: Expression; index: Expression };
@@ -617,6 +630,24 @@ export class JsonGenerator {
           }
         }
         return null;
+      }
+    }
+    if (arg.type === "member_access") {
+      const memberAccess = arg as { type: string; object: Expression; property: string };
+      const objType = this.resolveInterfaceType(memberAccess.object);
+      if (objType && this.ctx.interfaceStructGenHasInterface(objType)) {
+        const fieldCount = this.ctx.interfaceStructGenGetFieldCount(objType);
+        for (let i = 0; i < fieldCount; i++) {
+          const rawName = this.ctx.interfaceStructGenGetFieldName(objType, i);
+          const fName =
+            rawName.charAt(rawName.length - 1) === "?"
+              ? rawName.substring(0, rawName.length - 1)
+              : rawName;
+          if (fName === memberAccess.property) {
+            const fTsType = this.ctx.interfaceStructGenGetFieldTsType(objType, i);
+            if (this.ctx.interfaceStructGenHasInterface(fTsType)) return fTsType;
+          }
+        }
       }
     }
     return null;
@@ -697,6 +728,17 @@ export class JsonGenerator {
           "@csyyjson_obj_add_bool",
           `i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${nameConst}, i32 ${boolInt}`,
         );
+      } else if (this.ctx.interfaceStructGenHasInterface(fieldTsType)) {
+        const nestedPtr = this.ctx.emitLoad("i8*", fieldPtr);
+        const nestedFieldCount = this.ctx.interfaceStructGenGetFieldCount(fieldTsType);
+        const nestedStructType = this.buildStructType(fieldTsType, nestedFieldCount);
+        const nestedTyped = this.ctx.emitBitcast(nestedPtr, "i8*", `${nestedStructType}*`);
+        const subObj = this.ctx.emitCall(
+          "i8*",
+          "@csyyjson_obj_add_obj",
+          `i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${nameConst}`,
+        );
+        this.emitAddFieldsToJsonObj(nestedTyped, nestedStructType, fieldTsType, jsonDoc, subObj);
       } else {
         const val = this.ctx.emitLoad("double", fieldPtr);
         this.ctx.emitCallVoid(
