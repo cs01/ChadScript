@@ -229,6 +229,7 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
     ir += "declare i8* @EVP_md5()\n";
     ir += "declare i8* @EVP_sha512()\n";
     ir += "declare i32 @RAND_bytes(i8*, i32)\n";
+    ir += "declare i8* @HMAC(i8*, i8*, i32, i8*, i64, i8*, i32*)\n";
     ir += "\n";
   }
 
