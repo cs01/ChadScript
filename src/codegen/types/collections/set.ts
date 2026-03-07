@@ -1,4 +1,4 @@
-import { Expression, MethodCallNode } from "../../../ast/types.js";
+import { Expression, MethodCallNode, SetNode, NumberNode } from "../../../ast/types.js";
 import { IGeneratorContext } from "../../infrastructure/generator-context.js";
 
 // ============================================
@@ -29,7 +29,7 @@ export class SetGenerator {
   } // sizeof(double) = 8 bytes
 
   generateSetLiteral(expr: Expression, params: string[]): string {
-    const setExpr = expr as { type: string; values: Expression[] };
+    const setExpr = expr as SetNode;
     if (setExpr.type !== "set") {
       throw new Error("Expected set literal");
     }
@@ -69,7 +69,7 @@ export class SetGenerator {
     const seen: Set<number> = new Set();
     let actualIndex = 0;
     for (let i = 0; i < setExpr.values.length; i++) {
-      const valueExprTyped = setExpr.values[i] as { type: string; value: number };
+      const valueExprTyped = setExpr.values[i] as NumberNode;
 
       // For literal numbers, we can dedupe at compile time
       if (valueExprTyped.type === "number") {

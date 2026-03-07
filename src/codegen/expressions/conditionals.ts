@@ -9,7 +9,7 @@
  * - Phi node to merge results
  */
 
-import { ConditionalExpressionNode, Expression } from "../../ast/types.js";
+import { ConditionalExpressionNode, Expression, ArrayNode } from "../../ast/types.js";
 import { IGeneratorContext } from "../infrastructure/generator-context.js";
 
 export class ConditionalExpressionGenerator {
@@ -69,7 +69,7 @@ export class ConditionalExpressionGenerator {
 
     this.emit(`${falseLabel}:`);
     const savedExpectedType = this.ctx.getExpectedArrayElementType();
-    const falseExprTyped = expr.alternate as { type: string; elements?: Expression[] };
+    const falseExprTyped = expr.alternate as ArrayNode;
     if (
       falseExprTyped.type === "array" &&
       (!falseExprTyped.elements || falseExprTyped.elements.length === 0)

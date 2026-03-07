@@ -295,20 +295,15 @@ export class ClosureAnalyzer {
       this.addReferencedVar(s.name);
       this.walkExpression(s.value);
     } else if (stmtType === "expression_statement") {
-      const s = stmt as { type: string; expression: Expression };
+      const s = stmt as ExprStmtNode;
       this.walkExpression(s.expression);
     } else if (stmtType === "return") {
-      const s = stmt as { type: string; value: Expression | null };
+      const s = stmt as ReturnNode;
       if (s.value) {
         this.walkExpression(s.value);
       }
     } else if (stmtType === "if") {
-      const s = stmt as {
-        type: string;
-        condition: Expression;
-        consequent: BlockStatement;
-        alternate: Statement | BlockStatement | null;
-      };
+      const s = stmt as IfNode;
       this.walkExpression(s.condition);
       if (s.consequent) {
         this.walkBlock(s.consequent);
@@ -322,17 +317,11 @@ export class ClosureAnalyzer {
         }
       }
     } else if (stmtType === "while") {
-      const s = stmt as { type: string; condition: Expression; body: BlockStatement };
+      const s = stmt as WhileNode;
       this.walkExpression(s.condition);
       this.walkBlock(s.body);
     } else if (stmtType === "for") {
-      const s = stmt as {
-        type: string;
-        init: Statement | null;
-        condition: Expression | null;
-        update: Statement | Expression | null;
-        body: BlockStatement;
-      };
+      const s = stmt as ForNode;
       if (s.init) this.walkStatement(s.init);
       if (s.condition) this.walkExpression(s.condition);
       if (s.update) {
@@ -345,25 +334,12 @@ export class ClosureAnalyzer {
       }
       this.walkBlock(s.body);
     } else if (stmtType === "for_of") {
-      const s = stmt as {
-        type: string;
-        variableKind: string;
-        variableName: string;
-        destructuredNames: string[] | null;
-        iterable: Expression;
-        body: BlockStatement;
-      };
+      const s = stmt as ForOfNode;
       this.declaredVars.add(s.variableName);
       this.walkExpression(s.iterable);
       this.walkBlock(s.body);
     } else if (stmtType === "try") {
-      const tryStmt = stmt as {
-        type: string;
-        tryBlock: BlockStatement;
-        catchParam: string | null;
-        catchBody: BlockStatement | null;
-        finallyBlock: BlockStatement | null;
-      };
+      const tryStmt = stmt as TryNode;
       this.walkBlock(tryStmt.tryBlock);
       if (tryStmt.catchBody !== null) {
         this.walkBlock(tryStmt.catchBody);
@@ -372,19 +348,19 @@ export class ClosureAnalyzer {
         this.walkBlock(tryStmt.finallyBlock);
       }
     } else if (stmtType === "method_call") {
-      const s = stmt as { type: string; object: Expression; method: string; args: Expression[] };
+      const s = stmt as MethodCallExpr;
       this.walkExpression(s.object);
       for (let _ai = 0; _ai < s.args.length; _ai++) {
         this.walkExpression(s.args[_ai]);
       }
     } else if (stmtType === "call") {
-      const s = stmt as { type: string; name: string; args: Expression[] };
+      const s = stmt as CallExpr;
       this.addReferencedVar(s.name);
       for (let _ai = 0; _ai < s.args.length; _ai++) {
         this.walkExpression(s.args[_ai]);
       }
     } else if (stmtType === "await") {
-      const s = stmt as { type: string; argument: Expression };
+      const s = stmt as AwaitExpr;
       this.walkExpression(s.argument);
     }
   }
@@ -394,47 +370,47 @@ export class ClosureAnalyzer {
     const exprType = exprTyped.type;
 
     if (exprType === "variable") {
-      const e = expr as { type: string; name: string };
+      const e = expr as VariableExpr;
       this.addReferencedVar(e.name);
     } else if (exprType === "binary") {
-      const e = expr as { type: string; op: string; left: Expression; right: Expression };
+      const e = expr as BinaryExpr;
       this.walkExpression(e.left);
       this.walkExpression(e.right);
     } else if (exprType === "unary") {
-      const e = expr as { type: string; op: string; operand: Expression };
+      const e = expr as UnaryExpr;
       this.walkExpression(e.operand);
     } else if (exprType === "call") {
-      const e = expr as { type: string; name: string; args: Expression[] };
+      const e = expr as CallExpr;
       this.addReferencedVar(e.name);
       for (let _ai = 0; _ai < e.args.length; _ai++) {
         this.walkExpression(e.args[_ai]);
       }
     } else if (exprType === "method_call") {
-      const e = expr as { type: string; object: Expression; method: string; args: Expression[] };
+      const e = expr as MethodCallExpr;
       this.walkExpression(e.object);
       for (let _ai2 = 0; _ai2 < e.args.length; _ai2++) {
         this.walkExpression(e.args[_ai2]);
       }
     } else if (exprType === "member_access") {
-      const e = expr as { type: string; object: Expression; property: string };
+      const e = expr as MemberAccessExpr;
       this.walkExpression(e.object);
     } else if (exprType === "index_access") {
-      const e = expr as { type: string; object: Expression; index: Expression };
+      const e = expr as IndexAccessExpr;
       this.walkExpression(e.object);
       this.walkExpression(e.index);
     } else if (exprType === "array") {
-      const e = expr as { type: string; elements: Expression[] };
+      const e = expr as ArrayExpr;
       for (let _eli = 0; _eli < e.elements.length; _eli++) {
         this.walkExpression(e.elements[_eli]);
       }
     } else if (exprType === "object") {
-      const e = expr as { type: string; properties: ObjectProperty[] };
+      const e = expr as ObjectExpr;
       for (let i = 0; i < e.properties.length; i++) {
         const prop = e.properties[i] as ObjectProperty;
         this.walkExpression(prop.value);
       }
     } else if (exprType === "template_literal") {
-      const e = expr as { type: string; parts: (string | Expression)[] };
+      const e = expr as TemplateLiteralExpr;
       for (let _pti = 0; _pti < e.parts.length; _pti++) {
         const part = e.parts[_pti];
         const partAsObj = part as { type: string };
@@ -443,7 +419,7 @@ export class ClosureAnalyzer {
         }
       }
     } else if (exprType === "arrow_function") {
-      const e = expr as { type: string; params: string[]; body: Expression | BlockStatement };
+      const e = expr as ArrowFunctionExpr;
       const savedDeclaredVars = this.declaredVars;
       this.declaredVars = new Set();
       for (let _ppi = 0; _ppi < e.params.length; _ppi++) {
@@ -457,20 +433,15 @@ export class ClosureAnalyzer {
       }
       this.declaredVars = savedDeclaredVars;
     } else if (exprType === "conditional") {
-      const e = expr as {
-        type: string;
-        condition: Expression;
-        consequent: Expression;
-        alternate: Expression;
-      };
+      const e = expr as ConditionalExpr;
       this.walkExpression(e.condition);
       this.walkExpression(e.consequent);
       this.walkExpression(e.alternate);
     } else if (exprType === "await") {
-      const e = expr as { type: string; argument: Expression };
+      const e = expr as AwaitExpr;
       this.walkExpression(e.argument);
     } else if (exprType === "new") {
-      const e = expr as { type: string; className: string; args: Expression[] };
+      const e = expr as NewExpr;
       for (let _nai = 0; _nai < e.args.length; _nai++) {
         this.walkExpression(e.args[_nai]);
       }

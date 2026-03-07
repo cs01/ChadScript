@@ -227,8 +227,8 @@ export class LiteralExpressionGenerator {
       throw new Error("new RegExp() requires at least 1 argument");
     }
 
-    const patternArg = args[0] as { type: string; value?: string };
-    const flagsArg = args.length > 1 ? (args[1] as { type: string; value?: string }) : null;
+    const patternArg = args[0] as StringNode;
+    const flagsArg = args.length > 1 ? (args[1] as StringNode) : null;
 
     let flags = "";
     if (flagsArg && flagsArg.type === "string" && flagsArg.value !== undefined) {

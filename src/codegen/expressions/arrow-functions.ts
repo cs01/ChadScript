@@ -18,6 +18,10 @@ import {
   BlockStatement,
   FunctionParameter,
   SourceLocation,
+  BinaryNode,
+  ReturnStatement,
+  IfStatement,
+  Expression,
 } from "../../ast/types.js";
 import {
   ClosureAnalyzer,
@@ -272,7 +276,7 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
       return "string";
     }
     if (bodyTyped.type === "binary") {
-      const binExpr = body as { type: string; op: string; left: unknown; right: unknown };
+      const binExpr = body as BinaryNode;
       if (binExpr.op === "+") {
         const leftType = this.inferReturnTypeFromBody(binExpr.left as ArrowFunctionNode["body"]);
         const rightType = this.inferReturnTypeFromBody(binExpr.right as ArrowFunctionNode["body"]);
@@ -310,42 +314,38 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
       }
     }
     if (bodyTyped.type === "block") {
-      const blockTyped = body as { type: string; statements: unknown[] };
+      const blockTyped = body as BlockStatement;
       const blockStatements = blockTyped.statements;
       if (blockStatements) {
         for (let i = 0; i < blockStatements.length; i++) {
           const stmt = blockStatements[i];
-          const stmtTyped = stmt as { type: string; value: unknown };
-          if (stmtTyped.type === "return" && stmtTyped.value) {
-            const returnValue = stmtTyped.value;
-            const returnValueTyped = returnValue as { type: string };
-            if (returnValueTyped.type === "object") {
-              return "object";
-            }
-            if (
-              returnValueTyped.type === "string" ||
-              returnValueTyped.type === "string_literal" ||
-              returnValueTyped.type === "template_literal"
-            ) {
-              return "string";
+          const stmtBase = stmt as { type: string };
+          if (stmtBase.type === "return") {
+            const stmtTyped = stmt as ReturnStatement;
+            if (stmtTyped.value) {
+              const returnValueTyped = stmtTyped.value as { type: string };
+              if (returnValueTyped.type === "object") {
+                return "object";
+              }
+              if (
+                returnValueTyped.type === "string" ||
+                returnValueTyped.type === "string_literal" ||
+                returnValueTyped.type === "template_literal"
+              ) {
+                return "string";
+              }
             }
           }
-          if (stmtTyped.type === "if") {
-            const ifStmt = stmt as {
-              type: string;
-              condition: unknown;
-              thenBlock: unknown;
-              elseBlock: unknown;
-            };
-            const thenBlock = ifStmt.thenBlock as { type: string; statements: unknown[] };
+          if (stmtBase.type === "if") {
+            const ifStmt = stmt as IfStatement;
+            const thenBlock = ifStmt.thenBlock;
             const thenBlockStatements = thenBlock ? thenBlock.statements : null;
             if (thenBlockStatements) {
               for (let j = 0; j < thenBlockStatements.length; j++) {
                 const innerStmt = thenBlockStatements[j];
-                const innerStmtTyped = innerStmt as { type: string; value: unknown };
+                const innerStmtTyped = innerStmt as ReturnStatement;
                 if (innerStmtTyped.type === "return" && innerStmtTyped.value) {
-                  const innerReturnValue = innerStmtTyped.value;
-                  const innerReturnValueTyped = innerReturnValue as { type: string };
+                  const innerReturnValueTyped = innerStmtTyped.value as { type: string };
                   if (innerReturnValueTyped.type === "object") {
                     return "object";
                   }

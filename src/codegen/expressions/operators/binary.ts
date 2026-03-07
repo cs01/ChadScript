@@ -1,4 +1,4 @@
-import { Expression, SourceLocation } from "../../../ast/types.js";
+import { Expression, SourceLocation, NumberNode } from "../../../ast/types.js";
 import type { IStringGenerator } from "../../infrastructure/generator-context.js";
 
 interface ControlFlowGeneratorLike {
@@ -142,7 +142,7 @@ export class BinaryExpressionGenerator {
   }
 
   private isKnownInteger(expr: Expression): boolean {
-    const exprTyped = expr as { type: string; value?: number };
+    const exprTyped = expr as NumberNode;
     if (exprTyped.type === "number" && typeof exprTyped.value === "number") {
       return Number.isInteger(exprTyped.value);
     }

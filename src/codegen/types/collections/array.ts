@@ -3,7 +3,7 @@
  * New array methods should go in the appropriate submodule, NOT this file.
  */
 
-import { Expression, MethodCallNode } from "../../../ast/types.js";
+import { Expression, MethodCallNode, ArrayNode } from "../../../ast/types.js";
 import { IGeneratorContext } from "../../infrastructure/generator-context.js";
 
 // Array sub-modules
@@ -39,7 +39,7 @@ export class ArrayGenerator {
 
   generateArrayLiteral(expr: Expression, params: string[]): string {
     // Check for spread elements — spread goes to combine.ts, regular to literal.ts
-    const arrExpr = expr as { type: string; elements: Expression[] };
+    const arrExpr = expr as ArrayNode;
     if (arrExpr.elements) {
       for (let i = 0; i < arrExpr.elements.length; i++) {
         const el = arrExpr.elements[i] as { type: string };
