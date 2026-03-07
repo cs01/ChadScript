@@ -345,7 +345,9 @@ export function compile(
   const treeSitterPath = sdk ? sdk.vendorPath : TREESITTER_LIB_PATH;
 
   const platformLibs = targetIsMac ? "" : " -lm -ldl -lrt -lpthread";
-  let linkLibs = generator.usesGC ? `-L${gcPath} -lgc` + platformLibs : platformLibs.trimStart();
+  const needsGcLib =
+    generator.usesGC || generator.usesBase64Bridge || generator.usesUrlBridge || generator.usesUriBridge;
+  let linkLibs = needsGcLib ? `-L${gcPath} -lgc` + platformLibs : platformLibs.trimStart();
   if (generator.usesJson) {
     linkLibs += ` -L${yyjsonPath} -lyyjson`;
   }
@@ -404,9 +406,9 @@ export function compile(
   const cpBridgeObj = generator.usesChildProcess ? `${bridgePath}/child-process-bridge.o` : "";
   const osBridgeObj = `${bridgePath}/os-bridge.o`;
   const timeBridgeObj = `${bridgePath}/time-bridge.o`;
-  const base64BridgeObj = `${bridgePath}/base64-bridge.o`;
-  const urlBridgeObj = `${bridgePath}/url-bridge.o`;
-  const uriBridgeObj = `${bridgePath}/uri-bridge.o`;
+  const base64BridgeObj = generator.usesBase64Bridge ? `${bridgePath}/base64-bridge.o` : "";
+  const urlBridgeObj = generator.usesUrlBridge ? `${bridgePath}/url-bridge.o` : "";
+  const uriBridgeObj = generator.usesUriBridge ? `${bridgePath}/uri-bridge.o` : "";
   const dotenvBridgeObj = fs.existsSync(`${bridgePath}/dotenv-bridge.o`)
     ? `${bridgePath}/dotenv-bridge.o`
     : "";

@@ -463,9 +463,12 @@ export function compileNative(inputFile: string, outputFile: string): void {
         : "./vendor/tree-sitter/libtree-sitter.a";
     }
   }
-  let linkLibs = generator.getUsesGC()
-    ? "-L" + effectiveGcPath + " -lgc" + platformLibs
-    : platformLibs.trimStart();
+  const needsGcLib =
+    generator.getUsesGC() ||
+    generator.getUsesBase64Bridge() ||
+    generator.getUsesUrlBridge() ||
+    generator.getUsesUriBridge();
+  let linkLibs = needsGcLib ? "-L" + effectiveGcPath + " -lgc" + platformLibs : platformLibs.trimStart();
   if (tsLibPath) {
     linkLibs = linkLibs + " " + tsLibPath;
   }
@@ -509,9 +512,11 @@ export function compileNative(inputFile: string, outputFile: string): void {
     : "";
   const osBridgeObj = effectiveBridgePath + "/os-bridge.o";
   const timeBridgeObj = effectiveBridgePath + "/time-bridge.o";
-  const base64BridgeObj = effectiveBridgePath + "/base64-bridge.o";
-  const urlBridgeObj = effectiveBridgePath + "/url-bridge.o";
-  const uriBridgeObj = effectiveBridgePath + "/uri-bridge.o";
+  const base64BridgeObj = generator.getUsesBase64Bridge()
+    ? effectiveBridgePath + "/base64-bridge.o"
+    : "";
+  const urlBridgeObj = generator.getUsesUrlBridge() ? effectiveBridgePath + "/url-bridge.o" : "";
+  const uriBridgeObj = generator.getUsesUriBridge() ? effectiveBridgePath + "/uri-bridge.o" : "";
   const dotenvBridgePath = effectiveBridgePath + "/dotenv-bridge.o";
   const dotenvBridgeObj = fs.existsSync(dotenvBridgePath) ? dotenvBridgePath : "";
   const watchBridgeObj = effectiveBridgePath + "/watch-bridge.o";

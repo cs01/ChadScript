@@ -297,6 +297,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public usesGC: number = 0;
   public usesMathRandom: number = 0;
   public usesOs: number = 0;
+  public usesDoubleToString: number = 0;
+  public usesPath: number = 0;
+  public usesFs: number = 0;
+  public usesBase64Bridge: number = 0;
+  public usesUrlBridge: number = 0;
+  public usesUriBridge: number = 0;
 
   private dbgAlloc(): number {
     const id = this.dbgNextId;
@@ -1108,6 +1114,15 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public getUsesOs(): boolean {
     return this.usesOs !== 0;
   }
+  public getUsesBase64Bridge(): boolean {
+    return this.usesBase64Bridge !== 0;
+  }
+  public getUsesUrlBridge(): boolean {
+    return this.usesUrlBridge !== 0;
+  }
+  public getUsesUriBridge(): boolean {
+    return this.usesUriBridge !== 0;
+  }
   public setCurrentDeclaredInterfaceType(type: string | undefined): void {
     this.currentDeclaredInterfaceType = type;
   }
@@ -1506,6 +1521,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.usesGC = 0;
     this.usesMathRandom = 0;
     this.usesOs = 0;
+    this.usesDoubleToString = 0;
+    this.usesPath = 0;
+    this.usesFs = 0;
+    this.usesBase64Bridge = 0;
+    this.usesUrlBridge = 0;
+    this.usesUriBridge = 0;
 
     this.ast = ast;
 
@@ -1780,6 +1801,24 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   emit(instruction: string): void {
     if (!this.usesGC && instruction.includes("@GC_")) {
       this.usesGC = 1;
+    }
+    if (!this.usesDoubleToString && instruction.includes("@__double_to_string(")) {
+      this.usesDoubleToString = 1;
+    }
+    if (!this.usesPath && instruction.includes("@__path_")) {
+      this.usesPath = 1;
+    }
+    if (!this.usesFs && instruction.includes("@__fs_")) {
+      this.usesFs = 1;
+    }
+    if (!this.usesBase64Bridge && (instruction.includes("@cs_btoa(") || instruction.includes("@cs_atob(") || instruction.includes("@cs_base64_decode("))) {
+      this.usesBase64Bridge = 1;
+    }
+    if (!this.usesUrlBridge && instruction.includes("@cs_url_")) {
+      this.usesUrlBridge = 1;
+    }
+    if (!this.usesUriBridge && (instruction.includes("@cs_encode_uri_component(") || instruction.includes("@cs_decode_uri_component("))) {
+      this.usesUriBridge = 1;
     }
     super.emit(instruction);
   }
@@ -2520,20 +2559,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (safeStr) {
       irParts.push(safeStr);
     }
-    const dblToStr = getDoubleToStringHelper();
-    if (dblToStr) {
-      irParts.push(dblToStr);
-    }
     const strHash = getStringHashHelper();
     if (strHash) {
       irParts.push(strHash);
     }
-
-    irParts.push(this.fsGen.generateReaddirSyncHelper());
-    irParts.push(this.fsGen.generateStatSyncHelper());
-    irParts.push(this.pathGen.generateNormalizeHelper());
-    irParts.push(this.pathGen.generateRelativeHelper());
-    irParts.push(this.pathGen.generateParseHelper());
 
     const globalVars = getGlobalVariables();
     if (globalVars) {
@@ -2744,6 +2773,19 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (this.embedGen.hasEmbeddedFiles()) {
       irParts.push(this.embedGen.generateLookupFunction());
       irParts.push(this.embedGen.generateLengthLookupFunction());
+    }
+
+    if (this.usesDoubleToString) {
+      irParts.push(getDoubleToStringHelper());
+    }
+    if (this.usesFs) {
+      irParts.push(this.fsGen.generateReaddirSyncHelper());
+      irParts.push(this.fsGen.generateStatSyncHelper());
+    }
+    if (this.usesPath) {
+      irParts.push(this.pathGen.generateNormalizeHelper());
+      irParts.push(this.pathGen.generateRelativeHelper());
+      irParts.push(this.pathGen.generateParseHelper());
     }
 
     const needsLibuv =
