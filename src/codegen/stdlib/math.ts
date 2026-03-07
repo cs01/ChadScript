@@ -211,6 +211,7 @@ export class MathGenerator {
   }
 
   private generateRandom(expr: MethodCallNode): string {
+    this.ctx.setUsesMathRandom(true);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call double @drand48()`);
     return result;
