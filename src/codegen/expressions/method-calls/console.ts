@@ -1,4 +1,4 @@
-import { Expression, MethodCallNode } from "../../../ast/types.js";
+import { Expression, MethodCallNode, StringNode } from "../../../ast/types.js";
 import type { MethodCallGeneratorContext } from "../method-calls.js";
 
 function emitPrint(
@@ -163,16 +163,15 @@ function emitSingleArg(
   arg: Expression,
   params: string[],
 ): void {
-  const argTyped = arg as { type: string; value: string | number };
-
-  if (argTyped.type === "string") {
-    const strValue = argTyped.value as string;
+  if (arg.type === "string") {
+    const strNode = arg as StringNode;
+    const strValue = strNode.value;
     const strConstPtr = ctx.stringGen.doCreateStringConstant(strValue);
     emitPrintStrNoNl(ctx, useStderr, strConstPtr);
     return;
   }
 
-  if (argTyped.type === "number") {
+  if (arg.type === "number") {
     const argValue = ctx.generateExpression(arg, params);
     emitPrintNumNoNl(ctx, useStderr, argValue);
     return;

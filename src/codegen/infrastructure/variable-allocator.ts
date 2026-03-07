@@ -2474,7 +2474,7 @@ export class VariableAllocator {
 
     if (idxObjBase.type !== "member_access") return null;
 
-    const memberAccess = indexExpr.object as { type: string; object: Expression; property: string };
+    const memberAccess = indexExpr.object as MemberAccessNode;
     if (!memberAccess || !memberAccess.object || !memberAccess.property) return null;
     const propertyName = memberAccess.property;
 
@@ -2531,15 +2531,15 @@ export class VariableAllocator {
   }
 
   private resolveNestedMemberArrayType(memberAccess: MemberAccessNode): string | null {
-    const ma = memberAccess as { type: string; object: Expression; property: string };
-    const objectType = this.resolveMemberAccessObjectType(ma.object);
+    const objectType = this.resolveMemberAccessObjectType(memberAccess.object);
     if (!objectType) return null;
 
-    const classFieldInfo = this.ctx.classGenGetFieldInfo(objectType, ma.property);
+    const classFieldInfo = this.ctx.classGenGetFieldInfo(objectType, memberAccess.property);
     const classFieldTsType = classFieldInfo
       ? (classFieldInfo as { index: number; type: string; tsType: string }).tsType
       : null;
-    const fieldType = this.getInterfaceFieldTypeByName(objectType, ma.property) || classFieldTsType;
+    const fieldType =
+      this.getInterfaceFieldTypeByName(objectType, memberAccess.property) || classFieldTsType;
     if (!fieldType) return null;
 
     const arrayParsed = parseArrayTypeString(fieldType);

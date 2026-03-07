@@ -1759,7 +1759,7 @@ export class TypeInference {
     if (e.type === "method_call" && expr.method === "parse" && expr.typeParameter) {
       const objBase = expr.object as ExprBase;
       if (objBase && objBase.type === "variable") {
-        const varNode = expr.object as { type: string; name: string };
+        const varNode = expr.object as VariableNode;
         if (varNode.name === "JSON") {
           const tp = expr.typeParameter;
           if (tp !== "number[]" && tp !== "string" && tp !== "number" && tp !== "boolean") {
@@ -1817,7 +1817,7 @@ export class TypeInference {
     let e = expr as ExprBase;
     let indexExpr: Expression = expr;
     if (e.type === "type_assertion") {
-      const assertion = expr as { type: string; expression: Expression; assertedType: string };
+      const assertion = expr as TypeAssertionNode;
       if (assertion.expression) {
         indexExpr = assertion.expression;
         e = assertion.expression as ExprBase;

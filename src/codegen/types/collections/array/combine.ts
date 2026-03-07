@@ -1,7 +1,12 @@
 // Array combine operations: join, slice, concat, spread literals
 // Extracted from array.ts to reduce file size. Uses IGeneratorContext for IR emission.
 
-import { Expression, MethodCallNode, VariableNode } from "../../../../ast/types.js";
+import {
+  Expression,
+  MethodCallNode,
+  VariableNode,
+  SpreadElementNode,
+} from "../../../../ast/types.js";
 import { IGeneratorContext, loadArrayMeta } from "./context.js";
 
 interface ExprBase {
@@ -63,7 +68,7 @@ export function generateArrayLiteralWithSpread(
       gen.emit(`${newTotal} = add i32 ${totalLen}, ${meta.length}`);
       totalLen = newTotal;
     } else if (el.type === "spread_element") {
-      const spreadArg = (arrExpr.elements[i] as { type: string; argument: Expression }).argument;
+      const spreadArg = (arrExpr.elements[i] as SpreadElementNode).argument;
       const arrPtr = gen.generateExpression(spreadArg, params);
       const meta = loadArrayMeta(gen, arrPtr);
       const newTotal = gen.nextTemp();
@@ -136,7 +141,7 @@ export function generateArrayLiteralWithSpread(
 
       gen.emitLabel(endLabel);
     } else if (el.type === "spread_element") {
-      const spreadArg = (arrExpr.elements[i] as { type: string; argument: Expression }).argument;
+      const spreadArg = (arrExpr.elements[i] as SpreadElementNode).argument;
       const srcArrPtr = gen.generateExpression(spreadArg, params);
       const srcMeta = loadArrayMeta(gen, srcArrPtr);
 
@@ -223,7 +228,7 @@ function generateStringArrayLiteralWithSpread(
       gen.setVariableType(ptr, "%Array*");
       spreadSources.push({ index: i, ptr: ptr });
     } else if (el.type === "spread_element") {
-      const spreadArg = (arrExpr.elements[i] as { type: string; argument: Expression }).argument;
+      const spreadArg = (arrExpr.elements[i] as SpreadElementNode).argument;
       const ptr = gen.generateExpression(spreadArg, params);
       spreadSources.push({ index: i, ptr });
     } else {

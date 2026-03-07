@@ -71,7 +71,7 @@ export class UnaryExpressionGenerator {
     if (operand.type !== "variable") {
       return this.ctx.emitError("Post-increment/decrement requires a variable operand");
     }
-    const operandVar = operand as { type: string; name: string };
+    const operandVar = operand as VariableNode;
     const varName = operandVar.name;
     const allocaReg = this.ctx.getVariableAlloca(varName);
     if (!allocaReg) {
@@ -115,7 +115,7 @@ export class UnaryExpressionGenerator {
     if (operand.type !== "variable") {
       return this.ctx.emitError("Pre-increment/decrement requires a variable operand");
     }
-    const operandVarPre = operand as { type: string; name: string };
+    const operandVarPre = operand as VariableNode;
     const varName = operandVarPre.name;
     const allocaReg = this.ctx.getVariableAlloca(varName);
     if (!allocaReg) {

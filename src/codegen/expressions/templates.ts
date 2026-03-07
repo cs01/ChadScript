@@ -14,7 +14,7 @@
  * - With interpolation: `Hello ${name}` -> concatenate "Hello " with name value
  */
 
-import { Expression, TemplateLiteralNode } from "../../ast/types.js";
+import { Expression, TemplateLiteralNode, StringNode } from "../../ast/types.js";
 import { IGeneratorContext } from "../infrastructure/generator-context.js";
 import {
   createStringConstant,
@@ -59,7 +59,7 @@ export class TemplateLiteralGenerator {
     }
 
     if (expr.parts.length === 1) {
-      const firstPart = expr.parts[0] as { type: string; value?: string };
+      const firstPart = expr.parts[0] as StringNode;
       if (firstPart.type === "string") {
         return this.ctx.stringGen.doCreateStringConstant(firstPart.value || "");
       }
@@ -72,7 +72,7 @@ export class TemplateLiteralGenerator {
       const part = expr.parts[_tpi];
       let partValue: string;
 
-      const partAsObj = part as { type: string; value?: string };
+      const partAsObj = part as StringNode;
       if (partAsObj.type === "string") {
         partValue = this.ctx.stringGen.doCreateStringConstant(partAsObj.value || "");
       } else {

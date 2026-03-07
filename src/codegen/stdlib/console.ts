@@ -62,7 +62,7 @@ export class ConsoleGenerator {
     // Handle console.log(value) - print first argument
     // For simplicity, we only handle one argument at a time
     const arg = args[0];
-    const argTyped = arg as { type: string; name: string };
+    const argTyped = arg as VariableNode;
     const argValue = this.ctx.generateExpression(arg, params);
     const isString = this.ctx.isStringExpression(arg);
 

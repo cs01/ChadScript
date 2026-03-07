@@ -1,4 +1,4 @@
-import { MethodCallNode } from "../../ast/types.js";
+import { MethodCallNode, VariableNode } from "../../ast/types.js";
 
 interface ExprBase {
   type: string;
@@ -25,7 +25,7 @@ export class ProcessGenerator {
   canHandle(expr: MethodCallNode): boolean {
     const exprObjBase = expr.object as ExprBase;
     if (exprObjBase.type !== "variable") return false;
-    const varNode = expr.object as { type: string; name: string };
+    const varNode = expr.object as VariableNode;
     if (varNode.name !== "process") return false;
     return expr.method === "exit";
   }

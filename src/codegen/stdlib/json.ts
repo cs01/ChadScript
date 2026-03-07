@@ -5,6 +5,9 @@ import {
   ArrayNode,
   TypeAssertionNode,
   VariableNode,
+  NumberNode,
+  IndexAccessNode,
+  MemberAccessNode,
 } from "../../ast/types.js";
 import { stringifyObjectArrayLiteral, stringifyObjectArrayWithMeta } from "./json-array.js";
 
@@ -43,7 +46,7 @@ export class JsonGenerator {
   canHandle(expr: MethodCallNode): boolean {
     const exprObjBase = expr.object as ExprBase;
     if (exprObjBase.type !== "variable") return false;
-    const varNode = expr.object as { type: string; name: string };
+    const varNode = expr.object as VariableNode;
     if (varNode.name !== "JSON") return false;
     return expr.method === "parse" || expr.method === "stringify";
   }
@@ -484,7 +487,7 @@ export class JsonGenerator {
 
   private getSpaces(expr: MethodCallNode): number {
     if (expr.args.length < 3) return 0;
-    const spaceArg = expr.args[2] as { type: string; value?: number };
+    const spaceArg = expr.args[2] as NumberNode;
     if (spaceArg.type === "number" && typeof spaceArg.value === "number") {
       return spaceArg.value;
     }
@@ -552,7 +555,7 @@ export class JsonGenerator {
     // getRawInterfaceType returns the element type for arrays, which would
     // cause stringifyInterface to treat the array pointer as a single object.
     if (arg.type === "variable") {
-      const varNode = arg as { type: string; name: string };
+      const varNode = arg as VariableNode;
       const elementType = this.ctx.symbolTable.getObjectArrayElementType(varNode.name);
       if (elementType) {
         return this.stringifyObjectArray(arg, params, elementType, spaces);
@@ -578,7 +581,7 @@ export class JsonGenerator {
       return this.stringifyNumber(arg, params);
     }
     if (arg.type === "variable") {
-      const varNode = arg as { type: string; name: string };
+      const varNode = arg as VariableNode;
       if (
         this.ctx.symbolTable.isNumber(varNode.name) ||
         this.ctx.symbolTable.isBoolean(varNode.name)
@@ -604,7 +607,7 @@ export class JsonGenerator {
 
   private resolveInterfaceType(arg: Expression): string | null {
     if (arg.type === "variable") {
-      const varNode = arg as { type: string; name: string };
+      const varNode = arg as VariableNode;
       const fromSymbol =
         this.ctx.symbolTable.getInterfaceType(varNode.name) ||
         this.ctx.symbolTable.getRawInterfaceType(varNode.name) ||
@@ -618,10 +621,10 @@ export class JsonGenerator {
       return null;
     }
     if (arg.type === "index_access") {
-      const indexAccess = arg as { type: string; object: Expression; index: Expression };
+      const indexAccess = arg as IndexAccessNode;
       const objExpr = indexAccess.object;
       if (objExpr && objExpr.type === "variable") {
-        const varObj = objExpr as { type: string; name: string };
+        const varObj = objExpr as VariableNode;
         const arrayName = varObj.name;
         if (arrayName) {
           const elemType = this.ctx.symbolTable.getRawInterfaceType(arrayName);
@@ -633,7 +636,7 @@ export class JsonGenerator {
       }
     }
     if (arg.type === "member_access") {
-      const memberAccess = arg as { type: string; object: Expression; property: string };
+      const memberAccess = arg as MemberAccessNode;
       const objType = this.resolveInterfaceType(memberAccess.object);
       if (objType && this.ctx.interfaceStructGenHasInterface(objType)) {
         const fieldCount = this.ctx.interfaceStructGenGetFieldCount(objType);

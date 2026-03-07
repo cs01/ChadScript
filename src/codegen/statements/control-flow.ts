@@ -18,6 +18,12 @@ import {
   SwitchCase,
   StringNode,
   TryStatement,
+  WhileStatement,
+  DoWhileStatement,
+  AssignmentStatement,
+  ThrowStatement,
+  ArrayNode,
+  ForStatement,
 } from "../../ast/types.js";
 import { IGeneratorContext } from "../infrastructure/generator-context.js";
 import {
@@ -203,7 +209,7 @@ export class ControlFlowGenerator {
       throw new Error("Expected while statement");
     }
 
-    const whileStmt = stmt as { type: string; condition: Expression; body: BlockStatement };
+    const whileStmt = stmt as WhileStatement;
 
     // Generate unique labels
     const condLabel = this.nextLabel("while_cond");
@@ -245,7 +251,7 @@ export class ControlFlowGenerator {
       throw new Error("Expected do_while statement");
     }
 
-    const doWhileStmt = stmt as { type: string; condition: Expression; body: BlockStatement };
+    const doWhileStmt = stmt as DoWhileStatement;
 
     const bodyLabel = this.nextLabel("dowhile_body");
     const condLabel = this.nextLabel("dowhile_cond");
@@ -314,7 +320,7 @@ export class ControlFlowGenerator {
         this.emit(`${allocaReg} = alloca double`);
         this.ctx.emitStore("double", dblValue, allocaReg);
       } else if (initBase.type === "assignment") {
-        const initAssign = forStmt.init as { type: string; name: string; value: Expression };
+        const initAssign = forStmt.init as AssignmentStatement;
         let value = this.ctx.generateExpression(initAssign.value, params);
         const allocaReg = this.ctx.getVariableAlloca(initAssign.name);
         if (!allocaReg) {
@@ -368,7 +374,7 @@ export class ControlFlowGenerator {
     // Update block
     this.ctx.emitLabel(updateLabel);
     if (forStmt.update) {
-      const updateTyped = forStmt.update as { type: string; name: string; value: Expression };
+      const updateTyped = forStmt.update as AssignmentStatement;
       const updateType = updateTyped.type;
       if (updateType === "assignment") {
         const updateName = updateTyped.name;
@@ -713,7 +719,7 @@ export class ControlFlowGenerator {
     }
 
     if (iterable.type === "member_access") {
-      const memberAccess = iterable as { type: string; object: Expression; property: string };
+      const memberAccess = iterable as MemberAccessNode;
       const memberAccessObjBase = memberAccess.object as ExprBase;
       if (memberAccessObjBase.type === "variable") {
         const varName = (memberAccess.object as VariableNode).name;
@@ -907,10 +913,9 @@ export class ControlFlowGenerator {
   private getChainedMemberAccessArrayInfo(
     memberAccess: MemberAccessNode,
   ): ObjectArrayMetadata | null {
-    const ma = memberAccess as { type: string; object: Expression; property: string };
-    const propName = ma.property;
+    const propName = memberAccess.property;
 
-    const baseTypeName = this.resolveMemberAccessChainType(ma.object);
+    const baseTypeName = this.resolveMemberAccessChainType(memberAccess.object);
     if (!baseTypeName) {
       return null;
     }
@@ -1404,7 +1409,7 @@ export class ControlFlowGenerator {
       throw new Error("Expected throw statement");
     }
 
-    const throwStmt = stmt as { type: string; argument: Expression };
+    const throwStmt = stmt as ThrowStatement;
     let msgVal: string = "null";
 
     if (throwStmt.argument) {
@@ -1549,7 +1554,7 @@ export class ControlFlowGenerator {
 
     this.ctx.emitLabel(evalRightLabel);
     const savedExpectedType = this.ctx.getExpectedArrayElementType();
-    const rightTyped = right as { type: string; elements?: Expression[] };
+    const rightTyped = right as ArrayNode;
     if (rightTyped.type === "array" && (!rightTyped.elements || rightTyped.elements.length === 0)) {
       if (savedExpectedType === null) {
         if (leftType === "%StringArray*") {
@@ -1779,12 +1784,11 @@ export class ControlFlowGenerator {
     }
 
     if (!memberAccess || !literalValue) return null;
-    const ma = memberAccess as { type: string; object: Expression; property: string };
-    if (ma.property !== "type") return null;
-    const maObjBase = ma.object as ExprBase;
+    if (memberAccess.property !== "type") return null;
+    const maObjBase = memberAccess.object as ExprBase;
     if (maObjBase.type !== "variable") return null;
 
-    const varName = (ma.object as VariableNode).name;
+    const varName = (memberAccess.object as VariableNode).name;
     const objMeta = this.ctx.symbolTable.getObjectMetadata(varName);
     if (!objMeta) return null;
 

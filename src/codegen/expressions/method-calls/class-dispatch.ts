@@ -8,6 +8,7 @@ import {
   InterfaceField,
   FunctionNode,
   FunctionParameter,
+  IndexAccessNode,
 } from "../../../ast/types.js";
 import type { MethodCallGeneratorContext } from "../method-calls.js";
 
@@ -672,7 +673,7 @@ export function handleClassMethods(
       }
     }
   } else if (exprObjBase.type === "index_access") {
-    const indexAccess = expr.object as { type: string; object: Expression; index: Expression };
+    const indexAccess = expr.object as IndexAccessNode;
     const baseExpr = indexAccess.object;
     const baseExprBase = baseExpr as ExprBase;
     if (baseExprBase.type === "member_access") {

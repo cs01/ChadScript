@@ -34,6 +34,9 @@ import {
   BinaryNode,
   SourceLocation,
   FunctionParameter,
+  ReturnStatement,
+  StringNode,
+  MemberAccessNode,
 } from "../ast/types.js";
 import { BaseGenerator, SymbolKind, SymbolTable } from "./infrastructure/base-generator.js";
 import {
@@ -3290,7 +3293,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           this.handleSimpleAssignmentWithFields(stmtName, stmtValue as Expression, params);
         }
       } else if (stmtType === "return") {
-        const stmt = stmtRaw as { type: string; value: Expression | null };
+        const stmt = stmtRaw as ReturnStatement;
         if (!stmt.value) {
           // Return without value - use default based on return type
           if (this.currentFunctionReturnType === "void") {
@@ -3324,7 +3327,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               if (objLit.properties && objLit.properties.length > 0) {
                 const firstProp = objLit.properties[0];
                 if (firstProp.key === "type" && firstProp.value) {
-                  const propValue = firstProp.value as { type: string; value?: string };
+                  const propValue = firstProp.value as StringNode;
                   if (propValue.type === "string" && propValue.value) {
                     discriminantValue = propValue.value;
                   }
@@ -3751,7 +3754,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       expr = body;
     }
     if (!expr || expr.type !== "method_call") return null;
-    const mc = expr as { type: string; object: Expression; method: string };
+    const mc = expr as MethodCallNode;
     if ((mc.object as { type: string }).type !== "variable") return null;
     const varName = (mc.object as VariableNode).name;
     const className = this.symbolTable.getConcreteClass(varName);

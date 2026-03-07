@@ -2,7 +2,7 @@
 // Uses structured IR builders where possible; raw emit() for inbounds GEP,
 // alloca, arithmetic, fcmp, ptrtoint, sext, zext, shl, and, memcpy.
 
-import { Expression, MethodCallNode, MapEntry } from "../../../ast/types.js";
+import { Expression, MethodCallNode, MapEntry, MapNode } from "../../../ast/types.js";
 import { IGeneratorContext } from "../../infrastructure/generator-context.js";
 
 // ============================================
@@ -34,7 +34,7 @@ export class MapGenerator {
   } // sizeof(double) = 8 bytes
 
   generateMapLiteral(expr: Expression, params: string[]): string {
-    const mapExpr = expr as { type: string; entries: MapEntry[] };
+    const mapExpr = expr as MapNode;
     if (mapExpr.type !== "map") {
       throw new Error("Expected map literal");
     }
