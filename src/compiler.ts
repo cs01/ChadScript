@@ -346,7 +346,10 @@ export function compile(
 
   const platformLibs = targetIsMac ? "" : " -lm -ldl -lrt -lpthread";
   const needsGcLib =
-    generator.usesGC || generator.usesBase64Bridge || generator.usesUrlBridge || generator.usesUriBridge;
+    generator.usesGC ||
+    generator.usesBase64Bridge ||
+    generator.usesUrlBridge ||
+    generator.usesUriBridge;
   let linkLibs = needsGcLib ? `-L${gcPath} -lgc` + platformLibs : platformLibs.trimStart();
   if (generator.usesJson) {
     linkLibs += ` -L${yyjsonPath} -lyyjson`;

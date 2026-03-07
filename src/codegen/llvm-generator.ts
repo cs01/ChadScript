@@ -1811,13 +1811,22 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (!this.usesFs && instruction.includes("@__fs_")) {
       this.usesFs = 1;
     }
-    if (!this.usesBase64Bridge && (instruction.includes("@cs_btoa(") || instruction.includes("@cs_atob(") || instruction.includes("@cs_base64_decode("))) {
+    if (
+      !this.usesBase64Bridge &&
+      (instruction.includes("@cs_btoa(") ||
+        instruction.includes("@cs_atob(") ||
+        instruction.includes("@cs_base64_decode("))
+    ) {
       this.usesBase64Bridge = 1;
     }
     if (!this.usesUrlBridge && instruction.includes("@cs_url_")) {
       this.usesUrlBridge = 1;
     }
-    if (!this.usesUriBridge && (instruction.includes("@cs_encode_uri_component(") || instruction.includes("@cs_decode_uri_component("))) {
+    if (
+      !this.usesUriBridge &&
+      (instruction.includes("@cs_encode_uri_component(") ||
+        instruction.includes("@cs_decode_uri_component("))
+    ) {
       this.usesUriBridge = 1;
     }
     super.emit(instruction);
@@ -2789,13 +2798,21 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       if (!this.usesFs && part.includes("@__fs_")) {
         this.usesFs = 1;
       }
-      if (!this.usesBase64Bridge && (part.includes("@cs_btoa(") || part.includes("@cs_atob(") || part.includes("@cs_base64_decode("))) {
+      if (
+        !this.usesBase64Bridge &&
+        (part.includes("@cs_btoa(") ||
+          part.includes("@cs_atob(") ||
+          part.includes("@cs_base64_decode("))
+      ) {
         this.usesBase64Bridge = 1;
       }
       if (!this.usesUrlBridge && part.includes("@cs_url_")) {
         this.usesUrlBridge = 1;
       }
-      if (!this.usesUriBridge && (part.includes("@cs_encode_uri_component(") || part.includes("@cs_decode_uri_component("))) {
+      if (
+        !this.usesUriBridge &&
+        (part.includes("@cs_encode_uri_component(") || part.includes("@cs_decode_uri_component("))
+      ) {
         this.usesUriBridge = 1;
       }
     }
