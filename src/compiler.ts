@@ -402,15 +402,15 @@ export function compile(
     : "";
   const regexBridgeObj = generator.usesRegex ? `${bridgePath}/regex-bridge.o` : "";
   const cpBridgeObj = generator.usesChildProcess ? `${bridgePath}/child-process-bridge.o` : "";
-  const osBridgeObj = generator.usesOs ? `${bridgePath}/os-bridge.o` : "";
-  const timeBridgeObj = generator.usesTime ? `${bridgePath}/time-bridge.o` : "";
-  const base64BridgeObj = generator.usesBase64 ? `${bridgePath}/base64-bridge.o` : "";
-  const urlBridgeObj = generator.usesUrl ? `${bridgePath}/url-bridge.o` : "";
-  const uriBridgeObj = generator.usesUrl ? `${bridgePath}/uri-bridge.o` : "";
+  const osBridgeObj = `${bridgePath}/os-bridge.o`;
+  const timeBridgeObj = `${bridgePath}/time-bridge.o`;
+  const base64BridgeObj = `${bridgePath}/base64-bridge.o`;
+  const urlBridgeObj = `${bridgePath}/url-bridge.o`;
+  const uriBridgeObj = `${bridgePath}/uri-bridge.o`;
   const dotenvBridgeObj = fs.existsSync(`${bridgePath}/dotenv-bridge.o`)
     ? `${bridgePath}/dotenv-bridge.o`
     : "";
-  const watchBridgeObj = generator.usesFsWatch ? `${bridgePath}/watch-bridge.o` : "";
+  const watchBridgeObj = `${bridgePath}/watch-bridge.o`;
   const cpSpawnObj = generator.getUsesSpawn() ? `${bridgePath}/child-process-spawn.o` : "";
   let extraObjs = "";
 

@@ -295,11 +295,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   private dbgDebugInfoVerId: number = -1;
 
   public usesGC: number = 0;
-  public usesOs: number = 0;
-  public usesTime: number = 0;
-  public usesBase64: number = 0;
-  public usesUrl: number = 0;
-  public usesFsWatch: number = 0;
   public usesMathRandom: number = 0;
 
   private dbgAlloc(): number {
@@ -1101,36 +1096,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public setUsesGC(value: boolean): void {
     this.usesGC = value ? 1 : 0;
   }
-  public getUsesOs(): boolean {
-    return this.usesOs !== 0;
-  }
-  public setUsesOs(value: boolean): void {
-    this.usesOs = value ? 1 : 0;
-  }
-  public getUsesTime(): boolean {
-    return this.usesTime !== 0;
-  }
-  public setUsesTime(value: boolean): void {
-    this.usesTime = value ? 1 : 0;
-  }
-  public getUsesBase64(): boolean {
-    return this.usesBase64 !== 0;
-  }
-  public setUsesBase64(value: boolean): void {
-    this.usesBase64 = value ? 1 : 0;
-  }
-  public getUsesUrl(): boolean {
-    return this.usesUrl !== 0;
-  }
-  public setUsesUrl(value: boolean): void {
-    this.usesUrl = value ? 1 : 0;
-  }
-  public getUsesFsWatch(): boolean {
-    return this.usesFsWatch !== 0;
-  }
-  public setUsesFsWatch(value: boolean): void {
-    this.usesFsWatch = value ? 1 : 0;
-  }
   public getUsesMathRandom(): boolean {
     return this.usesMathRandom !== 0;
   }
@@ -1533,11 +1498,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.usesTestRunner = 0;
     this.usesAsyncFs = 0;
     this.usesGC = 0;
-    this.usesOs = 0;
-    this.usesTime = 0;
-    this.usesBase64 = 0;
-    this.usesUrl = 0;
-    this.usesFsWatch = 0;
     this.usesMathRandom = 0;
 
     this.ast = ast;
@@ -2902,22 +2862,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     for (let scanIdx = 0; scanIdx < irParts.length; scanIdx++) {
       const part = irParts[scanIdx];
       if (!part) continue;
-      if (
-        part.includes("@cs_url_parse_") ||
-        part.includes("@cs_urlsearch_") ||
-        part.includes("@cs_encode_uri_component") ||
-        part.includes("@cs_decode_uri_component")
-      )
-        this.usesUrl = 1;
-      if (
-        part.includes("@cs_base64_decode") ||
-        part.includes("@cs_btoa") ||
-        part.includes("@cs_atob")
-      )
-        this.usesBase64 = 1;
-      if (part.includes("@cs_watch_loop")) this.usesFsWatch = 1;
-      if (part.includes("@cs_time_ms")) this.usesTime = 1;
-      if (part.includes("@chad_os_freemem") || part.includes("@chad_os_uptime")) this.usesOs = 1;
       if (part.includes("@drand48")) this.usesMathRandom = 1;
     }
 
@@ -3812,7 +3756,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       }
     }
     const ir = this.funcGen.generateMain(this.topLevelObjectVariables, hasTry);
-    if (this.usesTestRunner) this.usesTime = 1;
     this.currentSubprogramId = -1;
     this.currentDebugLocId = -1;
     return ir;

@@ -505,14 +505,14 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const cpBridgeObj = generator.getUsesChildProcess()
     ? effectiveBridgePath + "/child-process-bridge.o"
     : "";
-  const osBridgeObj = generator.getUsesOs() ? effectiveBridgePath + "/os-bridge.o" : "";
-  const timeBridgeObj = generator.getUsesTime() ? effectiveBridgePath + "/time-bridge.o" : "";
-  const base64BridgeObj = generator.getUsesBase64() ? effectiveBridgePath + "/base64-bridge.o" : "";
-  const urlBridgeObj = generator.getUsesUrl() ? effectiveBridgePath + "/url-bridge.o" : "";
-  const uriBridgeObj = generator.getUsesUrl() ? effectiveBridgePath + "/uri-bridge.o" : "";
+  const osBridgeObj = effectiveBridgePath + "/os-bridge.o";
+  const timeBridgeObj = effectiveBridgePath + "/time-bridge.o";
+  const base64BridgeObj = effectiveBridgePath + "/base64-bridge.o";
+  const urlBridgeObj = effectiveBridgePath + "/url-bridge.o";
+  const uriBridgeObj = effectiveBridgePath + "/uri-bridge.o";
   const dotenvBridgePath = effectiveBridgePath + "/dotenv-bridge.o";
   const dotenvBridgeObj = fs.existsSync(dotenvBridgePath) ? dotenvBridgePath : "";
-  const watchBridgeObj = generator.getUsesFsWatch() ? effectiveBridgePath + "/watch-bridge.o" : "";
+  const watchBridgeObj = effectiveBridgePath + "/watch-bridge.o";
   const cpSpawnObj = generator.getUsesSpawn() ? effectiveBridgePath + "/child-process-spawn.o" : "";
 
   // Sysroot and target flags for cross-compilation
