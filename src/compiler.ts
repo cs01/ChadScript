@@ -401,12 +401,12 @@ export function compile(
     ? `${bridgePath}/lws-bridge.o ${picoPath}/picohttpparser.o ${bridgePath}/multipart-bridge.o`
     : "";
   const regexBridgeObj = generator.usesRegex ? `${bridgePath}/regex-bridge.o` : "";
-  const cpBridgeObj = `${bridgePath}/child-process-bridge.o`;
-  const osBridgeObj = `${bridgePath}/os-bridge.o`;
-  const timeBridgeObj = `${bridgePath}/time-bridge.o`;
-  const base64BridgeObj = `${bridgePath}/base64-bridge.o`;
-  const urlBridgeObj = `${bridgePath}/url-bridge.o`;
-  const uriBridgeObj = `${bridgePath}/uri-bridge.o`;
+  const cpBridgeObj = generator.usesChildProcess ? `${bridgePath}/child-process-bridge.o` : "";
+  const osBridgeObj = generator.usesOs ? `${bridgePath}/os-bridge.o` : "";
+  const timeBridgeObj = generator.usesTime ? `${bridgePath}/time-bridge.o` : "";
+  const base64BridgeObj = generator.usesBase64 ? `${bridgePath}/base64-bridge.o` : "";
+  const urlBridgeObj = generator.usesUrl ? `${bridgePath}/url-bridge.o` : "";
+  const uriBridgeObj = generator.usesUrl ? `${bridgePath}/uri-bridge.o` : "";
   const dotenvBridgeObj = fs.existsSync(`${bridgePath}/dotenv-bridge.o`)
     ? `${bridgePath}/dotenv-bridge.o`
     : "";
