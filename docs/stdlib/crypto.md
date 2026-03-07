@@ -37,6 +37,17 @@ const sig = crypto.hmacSha256("secret", "payload");
 // "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8"
 ```
 
+## `crypto.pbkdf2(password, salt, iterations, keylen)`
+
+Derive a key using PBKDF2-HMAC-SHA256. Returns a hex string of `keylen` bytes (2×keylen characters). Use for password hashing and key derivation.
+
+```typescript
+const hash = crypto.pbkdf2("password", "salt", 1, 20);
+// "0c60c80f961f0e71f3a9b524af6012062fe037a6"
+
+const key = crypto.pbkdf2(userPassword, randomSalt, 100000, 32);
+```
+
 ## `crypto.randomBytes(n)`
 
 Generate `n` random bytes, returned as a hex string (2n characters).
@@ -77,5 +88,6 @@ console.log(uuid);
 | `crypto.sha512()` | OpenSSL EVP API (`EVP_sha512`) |
 | `crypto.md5()` | OpenSSL EVP API (`EVP_md5`) |
 | `crypto.hmacSha256()` | OpenSSL `HMAC()` with `EVP_sha256` |
+| `crypto.pbkdf2()` | OpenSSL `PKCS5_PBKDF2_HMAC()` with `EVP_sha256` |
 | `crypto.randomBytes()` | `RAND_bytes()` |
 | `crypto.randomUUID()` | `RAND_bytes(16)` + version/variant bits + `snprintf` |

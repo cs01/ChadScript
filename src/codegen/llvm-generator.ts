@@ -1898,6 +1898,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         let isClassInstance = false;
         let isUint8Array = false;
         let isBoolean = false;
+        let isNumber = false;
         if (resolved) {
           const base = resolved.base;
           const depth = resolved.arrayDepth;
@@ -1910,6 +1911,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           isRegex = base === "RegExp";
           isObject = base === "object" && depth === 0;
           isBoolean = base === "boolean" && depth === 0;
+          isNumber = base === "number" && depth === 0;
           isUint8Array = base === "Uint8Array" && depth === 0;
           isClassInstance =
             !isRegex &&
@@ -2145,6 +2147,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         } else if (isBoolean) {
           llvmType = "double";
           kind = SymbolKind.Boolean;
+          defaultValue = "0.0";
+        } else if (isNumber) {
+          llvmType = "double";
+          kind = SymbolKind.Number;
           defaultValue = "0.0";
         } else if (isJSONParse) {
           const interfaceName = this.typeInference.getJSONParseInterface(
@@ -3520,7 +3526,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   private getGenericMethodReturnError(expr: MethodCallNode, varName: string): string | null {
     const objBase = expr.object as { type: string };
     if (objBase.type !== "variable") return null;
-    const objName = (expr.object as { type: string; name: string }).name;
+    const objName = (expr.object as VariableNode).name;
     const className = this.symbolTable.getConcreteClass(objName);
     if (!className || !this.ast || !this.ast.classes) return null;
     for (let i = 0; i < this.ast.classes.length; i++) {

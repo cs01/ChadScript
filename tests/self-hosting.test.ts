@@ -20,6 +20,7 @@ const FIXTURE_OUT_DIR = "/tmp/self-hosting-fixtures";
 
 const isMac = process.platform === "darwin";
 const brewPrefix = process.arch === "arm64" ? "/opt/homebrew" : "/usr/local";
+const targetCpuFlag = process.arch === "x64" ? "--target-cpu=x86-64" : "";
 
 const NATIVE_ENV: NodeJS.ProcessEnv = {
   PATH: process.env.PATH,
@@ -167,9 +168,12 @@ describe("Self-Hosting", { timeout: 600000 }, () => {
     it("Node.js → Stage 0: compile chad-native.ts", async () => {
       if (fsSync.existsSync(STAGE0)) fsSync.unlinkSync(STAGE0);
 
-      await execAsync(`node dist/chad-node.js build src/chad-native.ts -o ${STAGE0}`, {
-        timeout: 180000,
-      });
+      await execAsync(
+        `node dist/chad-node.js build src/chad-native.ts -o ${STAGE0} ${targetCpuFlag}`.trim(),
+        {
+          timeout: 180000,
+        },
+      );
 
       assert.ok(fsSync.existsSync(STAGE0), `Stage 0 binary should exist at ${STAGE0}`);
       const stats = fsSync.statSync(STAGE0);
@@ -204,7 +208,7 @@ describe("Self-Hosting", { timeout: 600000 }, () => {
       if (fsSync.existsSync(STAGE1)) fsSync.unlinkSync(STAGE1);
 
       await execWithRetry(
-        `${STAGE0} build -v src/chad-native.ts -o ${STAGE1} --target-cpu=x86-64`,
+        `${STAGE0} build -v src/chad-native.ts -o ${STAGE1} ${targetCpuFlag}`.trim(),
         {
           timeout: 180000,
           env: NATIVE_ENV,

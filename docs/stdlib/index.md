@@ -11,7 +11,11 @@ Most APIs are available everywhere with no import:
 ```typescript
 console.log("hello");
 const data = fs.readFileSync("file.txt");
-const hash = crypto.createHash("sha256");
+const hash = crypto.sha256("hello");
+const encoded = btoa("hello");
+const url = "https://api.example.com/q=" + encodeURIComponent(query);
+const u = new URL("https://example.com:8080/path?q=hello");
+const p = new URLSearchParams("q=hello&page=2");
 ```
 
 ## Modules

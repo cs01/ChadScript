@@ -842,6 +842,8 @@ export class MethodCallGenerator {
         return this.ctx.cryptoGen.generateRandomUUID(expr, params);
       } else if (method === "hmacSha256") {
         return this.ctx.cryptoGen.generateHmacSha256(expr, params);
+      } else if (method === "pbkdf2") {
+        return this.ctx.cryptoGen.generatePbkdf2(expr, params);
       }
     }
 
