@@ -410,7 +410,7 @@ export function compile(
   const dotenvBridgeObj = fs.existsSync(`${bridgePath}/dotenv-bridge.o`)
     ? `${bridgePath}/dotenv-bridge.o`
     : "";
-  const watchBridgeObj = `${bridgePath}/watch-bridge.o`;
+  const watchBridgeObj = generator.usesFsWatch ? `${bridgePath}/watch-bridge.o` : "";
   const cpSpawnObj = generator.getUsesSpawn() ? `${bridgePath}/child-process-spawn.o` : "";
   let extraObjs = "";
 

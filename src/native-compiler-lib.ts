@@ -510,7 +510,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const uriBridgeObj = effectiveBridgePath + "/uri-bridge.o";
   const dotenvBridgePath = effectiveBridgePath + "/dotenv-bridge.o";
   const dotenvBridgeObj = fs.existsSync(dotenvBridgePath) ? dotenvBridgePath : "";
-  const watchBridgeObj = effectiveBridgePath + "/watch-bridge.o";
+  const watchBridgeObj = generator.getUsesFsWatch() ? effectiveBridgePath + "/watch-bridge.o" : "";
   const cpSpawnObj = generator.getUsesSpawn() ? effectiveBridgePath + "/child-process-spawn.o" : "";
 
   // Sysroot and target flags for cross-compilation

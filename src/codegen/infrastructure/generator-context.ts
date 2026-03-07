@@ -780,6 +780,20 @@ export interface IGeneratorContext {
   setUsesChildProcess(value: boolean): void;
   setUsesSpawn(value: boolean): void;
   setUsesAsyncFs(value: boolean): void;
+  getUsesGC(): boolean;
+  setUsesGC(value: boolean): void;
+  getUsesOs(): boolean;
+  setUsesOs(value: boolean): void;
+  getUsesTime(): boolean;
+  setUsesTime(value: boolean): void;
+  getUsesBase64(): boolean;
+  setUsesBase64(value: boolean): void;
+  getUsesUrl(): boolean;
+  setUsesUrl(value: boolean): void;
+  getUsesFsWatch(): boolean;
+  setUsesFsWatch(value: boolean): void;
+  getUsesMathRandom(): boolean;
+  setUsesMathRandom(value: boolean): void;
 
   currentDeclaredInterfaceType: string | undefined;
   setCurrentDeclaredInterfaceType(type: string | undefined): void;
@@ -1236,6 +1250,34 @@ export class MockGeneratorContext implements IGeneratorContext {
   setUsesAsyncFs(value: boolean): void {
     this.usesAsyncFs = value ? 1 : 0;
   }
+  getUsesGC(): boolean {
+    return false;
+  }
+  setUsesGC(_value: boolean): void {}
+  getUsesOs(): boolean {
+    return false;
+  }
+  setUsesOs(_value: boolean): void {}
+  getUsesTime(): boolean {
+    return false;
+  }
+  setUsesTime(_value: boolean): void {}
+  getUsesBase64(): boolean {
+    return false;
+  }
+  setUsesBase64(_value: boolean): void {}
+  getUsesUrl(): boolean {
+    return false;
+  }
+  setUsesUrl(_value: boolean): void {}
+  getUsesFsWatch(): boolean {
+    return false;
+  }
+  setUsesFsWatch(_value: boolean): void {}
+  getUsesMathRandom(): boolean {
+    return false;
+  }
+  setUsesMathRandom(_value: boolean): void {}
   setCurrentDeclaredInterfaceType(type: string | undefined): void {
     this.currentDeclaredInterfaceType = type;
   }
