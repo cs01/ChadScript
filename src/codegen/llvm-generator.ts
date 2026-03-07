@@ -1812,7 +1812,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       return ir;
     }
     const items = this.ast.topLevelStatements;
-    const i64Eligible = findI64EligibleVariables(this.ast.topLevelStatements as object[]);
+    const i64Eligible = findI64EligibleVariables(this.ast.topLevelStatements);
     for (let stmtIdx = 0; stmtIdx < totalCount; stmtIdx++) {
       const stmt = items[stmtIdx] as {
         type: string;
