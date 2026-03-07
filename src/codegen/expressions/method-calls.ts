@@ -247,6 +247,7 @@ export interface MethodCallGeneratorContext {
   ensureI64(value: string): string;
   getWantsBinaryReturn(): boolean;
   isUint8ArrayExpression(expr: Expression): boolean;
+  setUsesOs(value: boolean): void;
 }
 
 export class MethodCallGenerator {
@@ -674,8 +675,14 @@ export class MethodCallGenerator {
         if (method === "tmpdir") return handleOsTmpdir(this.ctx);
         if (method === "cpus") return handleOsCpus(this.ctx);
         if (method === "totalmem") return handleOsTotalmem(this.ctx);
-        if (method === "freemem") return handleOsFreemem(this.ctx);
-        if (method === "uptime") return handleOsUptime(this.ctx);
+        if (method === "freemem") {
+          this.ctx.setUsesOs(true);
+          return handleOsFreemem(this.ctx);
+        }
+        if (method === "uptime") {
+          this.ctx.setUsesOs(true);
+          return handleOsUptime(this.ctx);
+        }
       }
     }
 

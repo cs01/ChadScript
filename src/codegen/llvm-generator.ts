@@ -294,6 +294,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   private dbgDwarfVerId: number = -1;
   private dbgDebugInfoVerId: number = -1;
 
+  public usesGC: number = 0;
+  public usesMathRandom: number = 0;
+
   private dbgAlloc(): number {
     const id = this.dbgNextId;
     this.dbgNextId = this.dbgNextId + 1;
@@ -1087,6 +1090,18 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public setUsesAsyncFs(value: boolean): void {
     this.usesAsyncFs = value ? 1 : 0;
   }
+  public getUsesGC(): boolean {
+    return this.usesGC !== 0;
+  }
+  public setUsesGC(value: boolean): void {
+    this.usesGC = value ? 1 : 0;
+  }
+  public getUsesMathRandom(): boolean {
+    return this.usesMathRandom !== 0;
+  }
+  public setUsesMathRandom(value: boolean): void {
+    this.usesMathRandom = value ? 1 : 0;
+  }
   public setCurrentDeclaredInterfaceType(type: string | undefined): void {
     this.currentDeclaredInterfaceType = type;
   }
@@ -1482,6 +1497,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.usesRegex = 0;
     this.usesTestRunner = 0;
     this.usesAsyncFs = 0;
+    this.usesGC = 0;
+    this.usesMathRandom = 0;
 
     this.ast = ast;
 
@@ -2840,6 +2857,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     if (this.usesStringBuilder) {
       finalParts.push(this.runtimeGen.generateStringBuilderRuntime());
+    }
+
+    for (let scanIdx = 0; scanIdx < irParts.length; scanIdx++) {
+      const part = irParts[scanIdx];
+      if (!part) continue;
+      if (part.includes("@drand48")) this.usesMathRandom = 1;
     }
 
     for (let ipi = 0; ipi < irParts.length; ipi++) {

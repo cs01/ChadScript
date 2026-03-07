@@ -401,7 +401,7 @@ export function compile(
     ? `${bridgePath}/lws-bridge.o ${picoPath}/picohttpparser.o ${bridgePath}/multipart-bridge.o`
     : "";
   const regexBridgeObj = generator.usesRegex ? `${bridgePath}/regex-bridge.o` : "";
-  const cpBridgeObj = `${bridgePath}/child-process-bridge.o`;
+  const cpBridgeObj = generator.usesChildProcess ? `${bridgePath}/child-process-bridge.o` : "";
   const osBridgeObj = `${bridgePath}/os-bridge.o`;
   const timeBridgeObj = `${bridgePath}/time-bridge.o`;
   const base64BridgeObj = `${bridgePath}/base64-bridge.o`;

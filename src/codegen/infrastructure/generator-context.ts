@@ -780,6 +780,10 @@ export interface IGeneratorContext {
   setUsesChildProcess(value: boolean): void;
   setUsesSpawn(value: boolean): void;
   setUsesAsyncFs(value: boolean): void;
+  getUsesGC(): boolean;
+  setUsesGC(value: boolean): void;
+  getUsesMathRandom(): boolean;
+  setUsesMathRandom(value: boolean): void;
 
   currentDeclaredInterfaceType: string | undefined;
   setCurrentDeclaredInterfaceType(type: string | undefined): void;
@@ -1236,6 +1240,14 @@ export class MockGeneratorContext implements IGeneratorContext {
   setUsesAsyncFs(value: boolean): void {
     this.usesAsyncFs = value ? 1 : 0;
   }
+  getUsesGC(): boolean {
+    return false;
+  }
+  setUsesGC(_value: boolean): void {}
+  getUsesMathRandom(): boolean {
+    return false;
+  }
+  setUsesMathRandom(_value: boolean): void {}
   setCurrentDeclaredInterfaceType(type: string | undefined): void {
     this.currentDeclaredInterfaceType = type;
   }

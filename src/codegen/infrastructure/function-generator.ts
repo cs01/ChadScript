@@ -104,6 +104,7 @@ export interface FunctionGeneratorContext {
   setI64EligibleVars(vars: string[]): void;
   getTargetOS(): string;
   setRawInterfaceType(name: string, type: string): void;
+  getUsesMathRandom(): boolean;
 }
 
 export class FunctionGenerator {
@@ -961,34 +962,6 @@ export class FunctionGenerator {
     hasTry?: boolean,
   ): string {
     const mainAttrs = hasTry ? "noinline optnone" : "";
-    let ir =
-      "define i32 @main(i32 %argc, i8** %argv) " +
-      mainAttrs +
-      this.ctx.getSubprogramDbgRef() +
-      " {\n";
-    ir += "entry:\n";
-    this.ctx.setCurrentLabel("entry");
-
-    ir += "  ; Initialize garbage collector\n";
-    ir += "  call void @GC_init()\n";
-    ir += "  %__seed_time = call i64 @time(i8* null)\n";
-    ir += "  call void @srand48(i64 %__seed_time)\n";
-    ir += "  %__start_ms = call double @cs_time_ms()\n";
-    ir += "\n";
-
-    const effectiveOS = this.ctx.getTargetOS();
-    if (effectiveOS === "darwin") {
-      ir += "  %__stderr_val = load i8*, i8** @__stderrp\n";
-      ir += "  store i8* %__stderr_val, i8** @stderr\n";
-      ir += "  %__stdout_val = load i8*, i8** @__stdoutp\n";
-      ir += "  store i8* %__stdout_val, i8** @stdout\n";
-      ir += "\n";
-    }
-
-    ir += "  store i32 %argc, i32* @__argc\n";
-    ir += "  store i8** %argv, i8*** @__argv\n";
-    // Load .env file at startup (silent no-op if absent)
-    ir += "  call void @cs_load_dotenv()\n";
 
     this.ctx.reset();
 
@@ -1045,6 +1018,37 @@ export class FunctionGenerator {
     }
 
     const outputStr = this.ctx.getOutputAsString();
+
+    let ir =
+      "define i32 @main(i32 %argc, i8** %argv) " +
+      mainAttrs +
+      this.ctx.getSubprogramDbgRef() +
+      " {\n";
+    ir += "entry:\n";
+
+    ir += "  call void @GC_init()\n";
+    if (this.ctx.getUsesMathRandom()) {
+      ir += "  %__seed_time = call i64 @time(i8* null)\n";
+      ir += "  call void @srand48(i64 %__seed_time)\n";
+    }
+    if (this.ctx.getUsesTestRunner()) {
+      ir += "  %__start_ms = call double @cs_time_ms()\n";
+    }
+    ir += "\n";
+
+    const effectiveOS = this.ctx.getTargetOS();
+    if (effectiveOS === "darwin") {
+      ir += "  %__stderr_val = load i8*, i8** @__stderrp\n";
+      ir += "  store i8* %__stderr_val, i8** @stderr\n";
+      ir += "  %__stdout_val = load i8*, i8** @__stdoutp\n";
+      ir += "  store i8* %__stdout_val, i8** @stdout\n";
+      ir += "\n";
+    }
+
+    ir += "  store i32 %argc, i32* @__argc\n";
+    ir += "  store i8** %argv, i8*** @__argv\n";
+    ir += "  call void @cs_load_dotenv()\n";
+
     if (outputStr.length > 0) {
       ir += outputStr;
     }
