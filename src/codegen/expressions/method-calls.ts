@@ -467,7 +467,6 @@ export class MethodCallGenerator {
       return this.generateOptionalMethodCall(expr, params);
     }
 
-    const objBase = expr.object as { type: string };
     const method = expr.method;
 
     // Handle Promise static methods (Promise.resolve, Promise.reject, Promise.all)

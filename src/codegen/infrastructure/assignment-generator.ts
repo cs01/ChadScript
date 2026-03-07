@@ -261,7 +261,8 @@ export class AssignmentGenerator {
     this.ctx.setCurrentDeclaredSetType(undefined);
 
     let instancePtr: string | null = null;
-    const objType = object.type;
+    const objectTyped = object as { type: string };
+    const objType = objectTyped.type;
     if (objType === "variable") {
       const varName = (object as VariableNode).name;
       if (this.ctx.symbolTable.isClass(varName)) {
@@ -570,7 +571,8 @@ export class AssignmentGenerator {
 
     let arrayType = "%StringArray";
     const currentClass = this.ctx.getCurrentClassName();
-    if (arrayExpr.object.type === "this" && currentClass) {
+    const arrayExprObj = arrayExpr.object;
+    if (arrayExprObj.type === "this" && currentClass) {
       const fieldInfo = this.ctx.classGenGetFieldInfo(currentClass, arrayExpr.property);
       if (fieldInfo) {
         const fi = fieldInfo as { index: number; type: string; tsType: string };

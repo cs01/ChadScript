@@ -922,9 +922,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   public getStatementType(stmt: Statement | null): string {
     if (!stmt) return "";
-    const stmtTyped = stmt as { type: string };
-    const theType = stmtTyped.type;
-    return theType || "";
+    return stmt.type || "";
   }
 
   public hasClassGen(): boolean {
@@ -1381,42 +1379,40 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       if (!propValue) {
         llvmType = "double";
       } else {
-        const propValueTyped = propValue as { type: string };
-        const propValueType = propValueTyped.type;
-        if (propValueType === "string" || this.isStringExpression(propValue)) {
+        if (propValue.type === "string" || this.isStringExpression(propValue)) {
           llvmType = "i8*";
-        } else if (propValueType === "array" || this.isStringArrayExpression(propValue)) {
+        } else if (propValue.type === "array" || this.isStringArrayExpression(propValue)) {
           llvmType = this.isStringArrayExpression(propValue) ? "%StringArray*" : "%Array*";
         } else if (this.isArrayExpression(propValue)) {
           llvmType = "%Array*";
-        } else if (propValueType === "map") {
+        } else if (propValue.type === "map") {
           llvmType = "%Map*";
-        } else if (propValueType === "set") {
+        } else if (propValue.type === "set") {
           llvmType = "%Set*";
         } else if (
-          propValueType === "number" ||
-          propValueType === "boolean" ||
-          propValueType === "unary"
+          propValue.type === "number" ||
+          propValue.type === "boolean" ||
+          propValue.type === "unary"
         ) {
           llvmType = "double";
         } else if (
-          propValueType === "call" ||
-          propValueType === "method_call" ||
-          propValueType === "member_access" ||
-          propValueType === "index_access" ||
-          propValueType === "variable" ||
-          propValueType === "template_literal" ||
-          propValueType === "conditional" ||
-          propValueType === "null" ||
-          propValueType === "undefined" ||
-          propValueType === "regex" ||
-          propValueType === "new" ||
-          propValueType === "object"
+          propValue.type === "call" ||
+          propValue.type === "method_call" ||
+          propValue.type === "member_access" ||
+          propValue.type === "index_access" ||
+          propValue.type === "variable" ||
+          propValue.type === "template_literal" ||
+          propValue.type === "conditional" ||
+          propValue.type === "null" ||
+          propValue.type === "undefined" ||
+          propValue.type === "regex" ||
+          propValue.type === "new" ||
+          propValue.type === "object"
         ) {
           // Non-numeric expression types default to pointer — safer than double
           // since most runtime values (strings, objects, arrays) are pointers
           llvmType = "i8*";
-        } else if (propValueType === "binary") {
+        } else if (propValue.type === "binary") {
           // Binary expressions could be arithmetic (double) or string concat (i8*).
           // Check if either side is a string to disambiguate.
           if (this.isStringExpression(propValue)) {
@@ -1427,7 +1423,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         } else {
           // Strict: unknown property expression type — emit warning instead of silent double
           this.emitWarning(
-            `object property '${prop.key}' has unrecognized expression type '${propValueType}', defaulting to i8*`,
+            `object property '${prop.key}' has unrecognized expression type '${propValue.type}', defaulting to i8*`,
           );
           llvmType = "i8*";
         }
@@ -1984,8 +1980,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         let kind: number = SymbolKind.Number;
         let defaultValue: string = "0.0";
 
-        const stmtValueBase = stmt.value as { type: string };
-        if (stmtValueBase.type === "new") {
+        if (stmt.value.type === "new") {
           const newNode = stmt.value as NewNode;
           if (newNode.className === "URL") {
             ir += `@${name} = global i8* null` + "\n";
@@ -2354,10 +2349,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               );
               continue;
             }
-            if (stmt.value && (stmt.value as { type: string }).type === "index_access") {
+            if (stmt.value && stmt.value.type === "index_access") {
               const idxNode = stmt.value as IndexAccessNode;
-              const idxObjBase = idxNode.object as { type: string };
-              if (idxObjBase && idxObjBase.type === "variable") {
+              if (idxNode.object && idxNode.object.type === "variable") {
                 const idxObjVar = idxNode.object as VariableNode;
                 if (idxObjVar.name) {
                   const arrSym = this.symbolTable.lookup(idxObjVar.name);
@@ -3134,11 +3128,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     while (true) {
       if (currentBin.op !== "+") return null;
       revPieces.push(currentBin.right);
-      const leftTyped = currentBin.left as { type: string };
-      const leftType = leftTyped.type;
-      if (leftType === "binary") {
+      if (currentBin.left.type === "binary") {
         currentBin = currentBin.left as BinaryNode;
-      } else if (leftType === "variable") {
+      } else if (currentBin.left.type === "variable") {
         if ((currentBin.left as VariableNode).name !== varName) return null;
         const pieces: Expression[] = [];
         let ri = revPieces.length - 1;
@@ -3314,8 +3306,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           continue;
         }
 
-        const stmtValueBase = stmt.value as { type: string };
-        if (stmtValueBase.type === "object" && this.currentFunctionTsReturnType) {
+        if (stmt.value.type === "object" && this.currentFunctionTsReturnType) {
           const inlineType = this.extractInlineInterfaceType(this.currentFunctionTsReturnType);
           if (inlineType) {
             this.currentDeclaredInterfaceType = inlineType;
@@ -3488,7 +3479,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         );
       }
     }
-    const exprBase = expr as { type: string };
     return this.exprGen.generate(expr, params);
   }
 
@@ -3549,8 +3539,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
 
   private getGenericMethodReturnError(expr: MethodCallNode, varName: string): string | null {
-    const objBase = expr.object as { type: string };
-    if (objBase.type !== "variable") return null;
+    if (expr.object.type !== "variable") return null;
     const objName = (expr.object as VariableNode).name;
     const className = this.symbolTable.getConcreteClass(objName);
     if (!className || !this.ast || !this.ast.classes) return null;
@@ -3727,8 +3716,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     }
     let hasTry = false;
     for (let i = 0; i < this.ast.topLevelStatements.length; i++) {
-      const stmt = this.ast.topLevelStatements[i] as { type: string };
-      if (stmt && stmt.type === "try") {
+      const stmt = this.ast.topLevelStatements[i];
+      if (stmt && (stmt.type as string) === "try") {
         hasTry = true;
         break;
       }

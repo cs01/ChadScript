@@ -1089,8 +1089,7 @@ export class ClassGenerator {
     for (let ai = 0; ai < loopLimit; ai++) {
       if (ai < args.length) {
         const arg = args[ai];
-        const argTyped = arg as { type: string };
-        if (argTyped.type === "arrow_function" && ai < paramTypes.length) {
+        if (arg.type === "arrow_function" && ai < paramTypes.length) {
           const paramTypeStr = paramTypes[ai];
           if (paramTypeStr.startsWith("(")) {
             const colonIdx = paramTypeStr.indexOf(": ");
@@ -1130,7 +1129,7 @@ export class ClassGenerator {
             argType = this.ctx.getVariableType(val)!;
           } else if (val.startsWith("@.str")) {
             argType = "i8*";
-          } else if (argTyped.type === "variable") {
+          } else if (arg.type === "variable") {
             const varName = (arg as VariableNode).name;
             if (this.ctx.hasVariableType(`%${varName}`)) {
               argType = this.ctx.getVariableType(`%${varName}`)!;

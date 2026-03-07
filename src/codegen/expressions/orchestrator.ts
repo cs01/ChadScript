@@ -118,8 +118,7 @@ export class ExpressionGenerator {
    * Delegates to appropriate sub-generator based on expression type
    */
   generate(expr: Expression, params: string[]): string {
-    const exprTyped = expr as { type: string };
-    if (!exprTyped.type || exprTyped.type.length === 0) {
+    if (!expr.type || expr.type.length === 0) {
       // Hard error: expressions must have a type. An empty type indicates a parser
       // or AST construction bug. Previously this silently generated a null pointer,
       // which LLVM -O2 could exploit as UB to prune unrelated code paths.
@@ -129,37 +128,37 @@ export class ExpressionGenerator {
       );
     }
     // Literals
-    if (exprTyped.type === "number") {
+    if (expr.type === "number") {
       const numExpr = expr as NumberNode;
       return this.literalGen.generateNumber(numExpr.value);
     }
 
-    if (exprTyped.type === "boolean") {
+    if (expr.type === "boolean") {
       const boolExpr = expr as BooleanNode;
       return this.literalGen.generateBoolean(boolExpr.value);
     }
 
-    if (exprTyped.type === "string") {
+    if (expr.type === "string") {
       const strExpr = expr as StringNode;
       return this.literalGen.generateString(strExpr.value);
     }
 
-    if (exprTyped.type === "null" || exprTyped.type === "undefined") {
+    if (expr.type === "null" || expr.type === "undefined") {
       this.ctx.setVariableType("null", "i8*");
       return "null";
     }
 
-    if (exprTyped.type.indexOf("spread:") === 0) {
-      const varName = exprTyped.type.substr(7);
+    if (expr.type.indexOf("spread:") === 0) {
+      const varName = expr.type.substr(7);
       return this.variableGen.generate(varName);
     }
 
-    if (exprTyped.type === "regex") {
+    if (expr.type === "regex") {
       const regexExpr = expr as RegexNode;
       return this.literalGen.generateRegex(regexExpr.pattern, regexExpr.flags);
     }
 
-    if (exprTyped.type === "array") {
+    if (expr.type === "array") {
       return this.literalGen.generateArray(expr as ArrayNode, params);
     }
 
@@ -180,45 +179,45 @@ export class ExpressionGenerator {
       return this.literalGen.generateNew(newExpr.className, newExpr.args, params, newExpr.typeArgs);
     }
 
-    if (exprTyped.type === "this") {
+    if (expr.type === "this") {
       return this.literalGen.generateThis();
     }
 
     // Variables
-    if (exprTyped.type === "variable") {
+    if (expr.type === "variable") {
       const varExpr = expr as VariableNode;
       return this.variableGen.generate(varExpr.name);
     }
 
     // Unary operators
-    if (exprTyped.type === "unary") {
+    if (expr.type === "unary") {
       const unaryExpr = expr as UnaryNode;
       return this.unaryGen.generate(unaryExpr.op, unaryExpr.operand, params);
     }
 
     // Binary operators
-    if (exprTyped.type === "binary") {
+    if (expr.type === "binary") {
       const binExpr = expr as BinaryNode;
       return this.binaryGen.generate(binExpr.op, binExpr.left, binExpr.right, params);
     }
 
     // Call expressions
-    if (exprTyped.type === "call") {
+    if (expr.type === "call") {
       return this.callGen.generate(expr as CallNode, params);
     }
 
     // Index access
-    if (exprTyped.type === "index_access") {
+    if (expr.type === "index_access") {
       return this.indexAccessGen.generate(expr as IndexAccessNode, params);
     }
 
     // Member access
-    if (exprTyped.type === "member_access") {
+    if (expr.type === "member_access") {
       return this.memberAccessGen.generate(expr as MemberAccessNode, params);
     }
 
     // Arrow functions
-    if (exprTyped.type === "arrow_function") {
+    if (expr.type === "arrow_function") {
       const scopeVarsResult = this.ctx.symbolTable.getScopeVarsArraysForClosure();
       const scopeVarsTyped = scopeVarsResult as {
         names: string[];
@@ -282,22 +281,22 @@ export class ExpressionGenerator {
     }
 
     // Conditional (ternary) expressions
-    if (exprTyped.type === "conditional") {
+    if (expr.type === "conditional") {
       return this.conditionalGen.generate(expr as ConditionalExpressionNode, params);
     }
 
     // Template literals
-    if (exprTyped.type === "template_literal") {
+    if (expr.type === "template_literal") {
       return this.templateLiteralGen.generate(expr as TemplateLiteralNode, params);
     }
 
     // Method calls
-    if (exprTyped.type === "method_call") {
+    if (expr.type === "method_call") {
       return this.methodCallGen.generate(expr as MethodCallNode, params);
     }
 
     // Await expressions
-    if (exprTyped.type === "await") {
+    if (expr.type === "await") {
       const awaitExpr = expr as AwaitExpressionNode;
       const promiseReg = this.generate(awaitExpr.argument, params);
       const valueReg = this.ctx.nextTemp();
@@ -311,10 +310,9 @@ export class ExpressionGenerator {
     // When the inner expression is a variable, record its name so that
     // allocateDeclaredInterface can inherit the source variable's field order
     // (the asserted type may reorder fields relative to the object literal layout).
-    if (exprTyped.type === "type_assertion") {
+    if (expr.type === "type_assertion") {
       const assertExpr = expr as TypeAssertionNode;
-      const innerBase = assertExpr.expression as { type: string };
-      if (innerBase.type === "variable") {
+      if (assertExpr.expression.type === "variable") {
         const innerVar = assertExpr.expression as VariableNode;
         this.ctx.setLastTypeAssertionSourceVar(innerVar.name);
       } else {
@@ -324,14 +322,14 @@ export class ExpressionGenerator {
     }
 
     // Index access assignment (arr[i] = value)
-    if (exprTyped.type === "index_access_assignment") {
+    if (expr.type === "index_access_assignment") {
       return this.indexAccessGen.generateAssignment(expr as IndexAccessAssignmentNode, params);
     }
 
     // Hard error: unsupported expression types must not silently produce null pointers.
     // A null here would be UB that LLVM -O2 can exploit to prune unrelated code.
     this.ctx.emitError(
-      "unsupported expression type: " + exprTyped.type,
+      "unsupported expression type: " + expr.type,
       (expr as { loc?: { line: number; column: number } }).loc,
     );
   }

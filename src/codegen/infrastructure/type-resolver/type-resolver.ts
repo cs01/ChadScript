@@ -1112,21 +1112,18 @@ export class TypeResolver {
 
     if (method !== "find") return null;
 
-    const arrayExpr = methodCall.object as { type: string };
-
-    if (arrayExpr.type === "member_access") {
-      const memberAccess = arrayExpr as MemberAccessNode;
+    if (methodCall.object.type === "member_access") {
+      const memberAccess = methodCall.object as MemberAccessNode;
       const propertyName = memberAccess.property;
 
       let objectInfo:
         | { ptr: string; keys: string[]; types: string[]; tsTypes?: string[] }
         | undefined;
 
-      const memberObj = memberAccess.object as { type: string };
-      if (memberObj.type === "variable") {
-        const varName = (memberObj as VariableNode).name;
+      if (memberAccess.object.type === "variable") {
+        const varName = (memberAccess.object as VariableNode).name;
         objectInfo = this.ctx.symbolTable.getObjectInfo(varName);
-      } else if (memberObj.type === "member_access" || memberObj.type === "this") {
+      } else if (memberAccess.object.type === "member_access" || memberAccess.object.type === "this") {
         const arrayType = this.resolveMemberAccessArrayType(memberAccess);
         if (arrayType) {
           return this.getInterfaceMetadata(arrayType);
@@ -1150,8 +1147,8 @@ export class TypeResolver {
       return this.getInterfaceMetadata(elementType);
     }
 
-    if (arrayExpr.type === "variable") {
-      const varExpr = arrayExpr as VariableNode;
+    if (methodCall.object.type === "variable") {
+      const varExpr = methodCall.object as VariableNode;
       const varName = varExpr.name;
       const objArrayMeta = this.ctx.symbolTable.getObjectArrayMetadata(varName);
       if (objArrayMeta) {
