@@ -99,12 +99,12 @@ export interface FunctionGeneratorContext {
   mangleUserName(name: string): string;
   getSubprogramDbgRef(): string;
   getUsesTestRunner(): boolean;
-  getUsesMathRandom(): boolean;
   ensureDouble(value: string): string;
   emitError(message: string, loc?: SourceLocation, suggestion?: string): never;
   setI64EligibleVars(vars: string[]): void;
   getTargetOS(): string;
   setRawInterfaceType(name: string, type: string): void;
+  getUsesMathRandom(): boolean;
 }
 
 export class FunctionGenerator {
