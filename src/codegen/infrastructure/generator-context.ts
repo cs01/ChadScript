@@ -767,6 +767,7 @@ export interface IGeneratorContext {
   setUsesTreeSitter(value: boolean): void;
   setUsesSqlite(value: boolean): void;
   setUsesCurl(value: boolean): void;
+  setUsesOs(value: boolean): void;
   setUsesUvHrtime(value: boolean): void;
   setUsesConsoleTime(value: boolean): void;
   setUsesArraySort(value: boolean): void;
@@ -1195,6 +1196,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   setUsesCurl(value: boolean): void {
     this.usesCurl = value ? 1 : 0;
   }
+  setUsesOs(_value: boolean): void {}
   setUsesUvHrtime(value: boolean): void {
     this.usesUvHrtime = value ? 1 : 0;
   }

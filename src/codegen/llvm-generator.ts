@@ -1009,6 +1009,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public setUsesCurl(value: boolean): void {
     this.usesCurl = value ? 1 : 0;
   }
+  public setUsesOs(_value: boolean): void {}
   public getUsesCurl(): boolean {
     return this.usesCurl !== 0;
   }
