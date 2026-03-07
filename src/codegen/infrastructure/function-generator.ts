@@ -105,6 +105,7 @@ export interface FunctionGeneratorContext {
   getTargetOS(): string;
   setRawInterfaceType(name: string, type: string): void;
   getUsesMathRandom(): boolean;
+  getUsesGC(): boolean;
 }
 
 export class FunctionGenerator {
@@ -1026,7 +1027,9 @@ export class FunctionGenerator {
       " {\n";
     ir += "entry:\n";
 
-    ir += "  call void @GC_init()\n";
+    if (this.ctx.getUsesGC()) {
+      ir += "  call void @GC_init()\n";
+    }
     if (this.ctx.getUsesMathRandom()) {
       ir += "  %__seed_time = call i64 @time(i8* null)\n";
       ir += "  call void @srand48(i64 %__seed_time)\n";

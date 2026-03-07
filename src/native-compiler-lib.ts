@@ -463,7 +463,9 @@ export function compileNative(inputFile: string, outputFile: string): void {
         : "./vendor/tree-sitter/libtree-sitter.a";
     }
   }
-  let linkLibs = "-L" + effectiveGcPath + " -lgc" + platformLibs;
+  let linkLibs = generator.getUsesGC()
+    ? "-L" + effectiveGcPath + " -lgc" + platformLibs
+    : platformLibs.trimStart();
   if (tsLibPath) {
     linkLibs = linkLibs + " " + tsLibPath;
   }

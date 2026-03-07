@@ -1,4 +1,5 @@
 export interface DeclConfig {
+  gc?: boolean;
   curl?: boolean;
   crypto?: boolean;
   sqlite?: boolean;
@@ -25,14 +26,16 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += "declare i8* @calloc(i64, i64)\n";
   ir += "declare void @free(i8*)\n";
 
-  ir += "; Boehm GC - automatic garbage collection\n";
-  ir += "declare void @GC_init()\n";
-  ir += "declare noalias i8* @GC_malloc(i64)\n";
-  ir += "declare noalias i8* @GC_malloc_atomic(i64)\n";
-  ir += "declare noalias i8* @GC_malloc_uncollectable(i64)\n";
-  ir += "declare i8* @GC_realloc(i8*, i64)\n";
-  ir += "declare void @GC_disable()\n";
-  ir += "declare void @GC_enable()\n";
+  if (config?.gc) {
+    ir += "; Boehm GC - automatic garbage collection\n";
+    ir += "declare void @GC_init()\n";
+    ir += "declare noalias i8* @GC_malloc(i64)\n";
+    ir += "declare noalias i8* @GC_malloc_atomic(i64)\n";
+    ir += "declare noalias i8* @GC_malloc_uncollectable(i64)\n";
+    ir += "declare i8* @GC_realloc(i8*, i64)\n";
+    ir += "declare void @GC_disable()\n";
+    ir += "declare void @GC_enable()\n";
+  }
   ir += "declare i8* @strcpy(i8*, i8*)\n";
   ir += "declare i8* @strncpy(i8*, i8*, i64)\n";
   ir += "declare i8* @strcat(i8*, i8*)\n";

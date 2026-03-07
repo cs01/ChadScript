@@ -1769,6 +1769,13 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.stringBuilderScap.clear();
   }
 
+  emit(instruction: string): void {
+    if (!this.usesGC && instruction.includes("@GC_")) {
+      this.usesGC = 1;
+    }
+    super.emit(instruction);
+  }
+
   getThisPointer(): string | null {
     return this.thisPointer;
   }
@@ -2551,6 +2558,23 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       }
     }
 
+    if (!this.usesGC) {
+      for (let i = 0; i < irParts.length; i++) {
+        if (irParts[i].includes("@GC_")) {
+          this.usesGC = 1;
+          break;
+        }
+      }
+    }
+    if (!this.usesGC) {
+      for (let i = 0; i < this.globalStrings.length; i++) {
+        if (this.globalStrings[i].includes("@GC_")) {
+          this.usesGC = 1;
+          break;
+        }
+      }
+    }
+
     const mainIr = this.generateMain();
 
     const liftedFunctions = this.exprGen.arrowFunctionGen.getLiftedFunctions();
@@ -2765,6 +2789,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     finalParts.push(
       this.filterDuplicateDeclarations(
         getLLVMDeclarations({
+          gc: this.usesGC !== 0,
           curl: this.usesCurl !== 0,
           crypto: this.usesCrypto !== 0,
           sqlite: this.usesSqlite !== 0,

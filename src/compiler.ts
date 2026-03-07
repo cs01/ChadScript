@@ -345,7 +345,7 @@ export function compile(
   const treeSitterPath = sdk ? sdk.vendorPath : TREESITTER_LIB_PATH;
 
   const platformLibs = targetIsMac ? "" : " -lm -ldl -lrt -lpthread";
-  let linkLibs = `-L${gcPath} -lgc` + platformLibs;
+  let linkLibs = generator.usesGC ? `-L${gcPath} -lgc` + platformLibs : platformLibs.trimStart();
   if (generator.usesJson) {
     linkLibs += ` -L${yyjsonPath} -lyyjson`;
   }

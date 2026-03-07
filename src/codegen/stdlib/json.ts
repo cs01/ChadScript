@@ -262,6 +262,7 @@ export class JsonGenerator {
       return;
     }
 
+    this.ctx.setUsesGC(true);
     const fieldCount = this.ctx.interfaceStructGenGetFieldCount(typeName);
 
     for (let fi = 0; fi < fieldCount; fi++) {
