@@ -1123,7 +1123,10 @@ export class TypeResolver {
       if (memberAccess.object.type === "variable") {
         const varName = (memberAccess.object as VariableNode).name;
         objectInfo = this.ctx.symbolTable.getObjectInfo(varName);
-      } else if (memberAccess.object.type === "member_access" || memberAccess.object.type === "this") {
+      } else if (
+        memberAccess.object.type === "member_access" ||
+        memberAccess.object.type === "this"
+      ) {
         const arrayType = this.resolveMemberAccessArrayType(memberAccess);
         if (arrayType) {
           return this.getInterfaceMetadata(arrayType);
