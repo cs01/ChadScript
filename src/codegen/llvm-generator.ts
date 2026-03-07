@@ -2775,14 +2775,47 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       irParts.push(this.embedGen.generateLengthLookupFunction());
     }
 
+    for (let psi = 0; psi < irParts.length; psi++) {
+      const part = irParts[psi];
+      if (!this.usesGC && part.includes("@GC_")) {
+        this.usesGC = 1;
+      }
+      if (!this.usesDoubleToString && part.includes("@__double_to_string(")) {
+        this.usesDoubleToString = 1;
+      }
+      if (!this.usesPath && part.includes("@__path_")) {
+        this.usesPath = 1;
+      }
+      if (!this.usesFs && part.includes("@__fs_")) {
+        this.usesFs = 1;
+      }
+      if (!this.usesBase64Bridge && (part.includes("@cs_btoa(") || part.includes("@cs_atob(") || part.includes("@cs_base64_decode("))) {
+        this.usesBase64Bridge = 1;
+      }
+      if (!this.usesUrlBridge && part.includes("@cs_url_")) {
+        this.usesUrlBridge = 1;
+      }
+      if (!this.usesUriBridge && (part.includes("@cs_encode_uri_component(") || part.includes("@cs_decode_uri_component("))) {
+        this.usesUriBridge = 1;
+      }
+    }
+    for (let gsi = 0; gsi < this.globalStrings.length; gsi++) {
+      if (!this.usesGC && this.globalStrings[gsi].includes("@GC_")) {
+        this.usesGC = 1;
+      }
+    }
+
     if (this.usesDoubleToString) {
+      this.usesGC = 1;
       irParts.push(getDoubleToStringHelper());
     }
     if (this.usesFs) {
+      this.usesGC = 1;
       irParts.push(this.fsGen.generateReaddirSyncHelper());
       irParts.push(this.fsGen.generateStatSyncHelper());
     }
     if (this.usesPath) {
+      this.usesGC = 1;
       irParts.push(this.pathGen.generateNormalizeHelper());
       irParts.push(this.pathGen.generateRelativeHelper());
       irParts.push(this.pathGen.generateParseHelper());
