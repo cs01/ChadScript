@@ -15,6 +15,20 @@ export class ObjectGenerator {
     this.ctx.emit(instruction);
   }
 
+  private allocateStruct(structType: string, structSizeBytes: number): string {
+    const key = this.ctx.getCurrentVarDeclKey();
+    if (key && this.ctx.isStackEligibleKey(key)) {
+      const allocaReg = this.ctx.nextAllocaReg("_obj");
+      this.emit(`${allocaReg} = alloca ${structType}`);
+      return allocaReg;
+    }
+    const objMem = this.nextTemp();
+    this.emit(`${objMem} = call i8* @GC_malloc(i64 ${structSizeBytes})`);
+    const objPtr = this.nextTemp();
+    this.emit(`${objPtr} = bitcast i8* ${objMem} to ${structType}*`);
+    return objPtr;
+  }
+
   generateObjectLiteral(expr: Expression, params: string[]): string {
     if (expr.type !== "object") {
       throw new Error("Expected object literal");
@@ -134,13 +148,9 @@ export class ObjectGenerator {
     }
     const structFields = llvmTypes.join(", ");
     const structSizeBytes = orderedFields.length * 8;
-
-    const objMem = this.nextTemp();
-    this.emit(`${objMem} = call i8* @GC_malloc(i64 ${structSizeBytes})`);
-
     const structType = `{ ${structFields} }`;
-    const objPtr = this.nextTemp();
-    this.emit(`${objPtr} = bitcast i8* ${objMem} to ${structType}*`);
+
+    const objPtr = this.allocateStruct(structType, structSizeBytes);
 
     for (let i = 0; i < orderedFields.length; i++) {
       const field = orderedFields[i] as { key: string; llvmType: string; value: string };
@@ -258,13 +268,9 @@ export class ObjectGenerator {
     }
 
     const structType = `%${interfaceName}`;
-    const structSize = this.ctx.interfaceStructGen?.getStructSize(interfaceName);
+    const structSize = this.ctx.interfaceStructGen?.getStructSize(interfaceName) ?? 0;
 
-    const objMem = this.nextTemp();
-    this.emit(`${objMem} = call i8* @GC_malloc(i64 ${structSize})`);
-
-    const objPtr = this.nextTemp();
-    this.emit(`${objPtr} = bitcast i8* ${objMem} to ${structType}*`);
+    const objPtr = this.allocateStruct(structType, structSize);
 
     for (let i = 0; i < orderedFields.length; i++) {
       const field = orderedFields[i] as { key: string; llvmType: string; value: string };
@@ -356,13 +362,9 @@ export class ObjectGenerator {
     }
     const structFields = llvmTypes.join(", ");
     const structSizeBytes = fieldTypes.length * 8;
-
-    const objMem = this.nextTemp();
-    this.emit(`${objMem} = call i8* @GC_malloc(i64 ${structSizeBytes})`);
-
     const structType = `{ ${structFields} }`;
-    const objPtr = this.nextTemp();
-    this.emit(`${objPtr} = bitcast i8* ${objMem} to ${structType}*`);
+
+    const objPtr = this.allocateStruct(structType, structSizeBytes);
 
     for (let i = 0; i < fieldTypes.length; i++) {
       const field = fieldTypes[i] as { key: string; llvmType: string; value: string };

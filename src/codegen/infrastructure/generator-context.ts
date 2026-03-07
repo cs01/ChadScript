@@ -942,6 +942,12 @@ export interface IGeneratorContext {
   lastTypeAssertionSourceVar: string | null;
   getLastTypeAssertionSourceVar(): string | null;
   setLastTypeAssertionSourceVar(name: string | null): void;
+
+  setStackEligibleVars(vars: string[]): void;
+  isStackEligibleKey(key: string): boolean;
+  currentVarDeclKey: string | null;
+  setCurrentVarDeclKey(key: string | null): void;
+  getCurrentVarDeclKey(): string | null;
 }
 
 /**
@@ -1001,6 +1007,9 @@ export class MockGeneratorContext implements IGeneratorContext {
   // Must be at end of field list — see BaseGenerator/IGeneratorContext comments
   public lastInlineLambdaEnvPtr: string | null = null;
   public lastTypeAssertionSourceVar: string | null = null;
+
+  private stackEligibleVars: string[] = [];
+  public currentVarDeclKey: string | null = null;
 
   constructor() {
     this.typeContext = new TypeContext();
@@ -2189,5 +2198,24 @@ export class MockGeneratorContext implements IGeneratorContext {
     const ta = this.ast.typeAliases[index];
     if (!ta || !ta.unionMembers) return null;
     return ta.unionMembers;
+  }
+
+  setStackEligibleVars(vars: string[]): void {
+    this.stackEligibleVars = vars;
+  }
+
+  isStackEligibleKey(key: string): boolean {
+    for (let i = 0; i < this.stackEligibleVars.length; i++) {
+      if (this.stackEligibleVars[i] === key) return true;
+    }
+    return false;
+  }
+
+  setCurrentVarDeclKey(key: string | null): void {
+    this.currentVarDeclKey = key;
+  }
+
+  getCurrentVarDeclKey(): string | null {
+    return this.currentVarDeclKey;
   }
 }

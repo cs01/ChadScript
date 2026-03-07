@@ -232,6 +232,8 @@ export interface VariableAllocatorContext {
   getWantsBinaryReturn(): boolean;
   getLastTypeAssertionSourceVar(): string | null;
   setLastTypeAssertionSourceVar(name: string | null): void;
+  setCurrentVarDeclKey(key: string | null): void;
+  isStackEligibleKey(key: string): boolean;
 }
 
 export class VariableAllocator {
@@ -877,6 +879,10 @@ export class VariableAllocator {
       arrayMethodReturnType,
     );
 
+    const declLine = stmt.loc ? stmt.loc.line : (stmt.line ?? -1);
+    const declCol = stmt.loc ? stmt.loc.column : -1;
+    const declKey = stmt.name + ":" + declLine + ":" + declCol;
+    this.ctx.setCurrentVarDeclKey(declKey);
     switch (classification.kind) {
       case VarKind.DeclaredInterface:
         this.allocateDeclaredInterface(stmt, params, classification.declaredInterfaceType!);
@@ -975,6 +981,8 @@ export class VariableAllocator {
         this.allocateNumeric(stmt, params);
         break;
     }
+
+    this.ctx.setCurrentVarDeclKey(null);
 
     if (resolved && !stmt.declaredType && !isNull) {
       this.ctx.symbolTable.setResolvedType(stmt.name, resolved);
