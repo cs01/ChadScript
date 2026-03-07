@@ -296,6 +296,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   public usesGC: number = 0;
   public usesMathRandom: number = 0;
+  public usesOs: number = 0;
 
   private dbgAlloc(): number {
     const id = this.dbgNextId;
@@ -1101,6 +1102,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public setUsesMathRandom(value: boolean): void {
     this.usesMathRandom = value ? 1 : 0;
   }
+  public setUsesOs(value: boolean): void {
+    this.usesOs = value ? 1 : 0;
+  }
+  public getUsesOs(): boolean {
+    return this.usesOs !== 0;
+  }
   public setCurrentDeclaredInterfaceType(type: string | undefined): void {
     this.currentDeclaredInterfaceType = type;
   }
@@ -1498,6 +1505,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.usesAsyncFs = 0;
     this.usesGC = 0;
     this.usesMathRandom = 0;
+    this.usesOs = 0;
 
     this.ast = ast;
 

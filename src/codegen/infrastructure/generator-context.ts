@@ -785,6 +785,7 @@ export interface IGeneratorContext {
   setUsesGC(value: boolean): void;
   getUsesMathRandom(): boolean;
   setUsesMathRandom(value: boolean): void;
+  setUsesOs(value: boolean): void;
 
   currentDeclaredInterfaceType: string | undefined;
   setCurrentDeclaredInterfaceType(type: string | undefined): void;
@@ -1250,6 +1251,7 @@ export class MockGeneratorContext implements IGeneratorContext {
     return false;
   }
   setUsesMathRandom(_value: boolean): void {}
+  setUsesOs(_value: boolean): void {}
   setCurrentDeclaredInterfaceType(type: string | undefined): void {
     this.currentDeclaredInterfaceType = type;
   }
