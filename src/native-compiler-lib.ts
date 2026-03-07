@@ -502,7 +502,9 @@ export function compileNative(inputFile: string, outputFile: string): void {
       "/multipart-bridge.o"
     : "";
   const regexBridgeObj = generator.getUsesRegex() ? effectiveBridgePath + "/regex-bridge.o" : "";
-  const cpBridgeObj = generator.getUsesChildProcess() ? effectiveBridgePath + "/child-process-bridge.o" : "";
+  const cpBridgeObj = generator.getUsesChildProcess()
+    ? effectiveBridgePath + "/child-process-bridge.o"
+    : "";
   const osBridgeObj = generator.getUsesOs() ? effectiveBridgePath + "/os-bridge.o" : "";
   const timeBridgeObj = generator.getUsesTime() ? effectiveBridgePath + "/time-bridge.o" : "";
   const base64BridgeObj = generator.getUsesBase64() ? effectiveBridgePath + "/base64-bridge.o" : "";
