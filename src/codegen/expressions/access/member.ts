@@ -60,6 +60,7 @@ import {
   getArrayLengthFromPtr,
   getStringLength,
   handleSpawnSyncResultProperty,
+  handleUrlProperty,
 } from "./property-handlers.js";
 import {
   parseInlineObjectTypeForAssertion,
@@ -360,6 +361,9 @@ export class MemberAccessGenerator {
     if (result !== null) return result;
 
     result = this.handleSpawnSyncResultProperty(expr);
+    if (result !== null) return result;
+
+    result = this.handleUrlProperty(expr);
     if (result !== null) return result;
 
     return null;
@@ -2418,6 +2422,10 @@ export class MemberAccessGenerator {
 
   private handleSpawnSyncResultProperty(expr: MemberAccessNode): string | null {
     return handleSpawnSyncResultProperty(this.ctx, expr);
+  }
+
+  private handleUrlProperty(expr: MemberAccessNode): string | null {
+    return handleUrlProperty(this.ctx, expr);
   }
 
   private handleParameterPropertyAccess(expr: MemberAccessNode, params: string[]): string {

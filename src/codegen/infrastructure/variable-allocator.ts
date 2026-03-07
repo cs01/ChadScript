@@ -707,6 +707,19 @@ export class VariableAllocator {
 
     const stmtValue = stmt.value!;
 
+    const stmtValueBase = stmtValue as { type: string };
+    if (stmtValueBase.type === "new") {
+      const newNode = stmtValue as NewNode;
+      if (newNode.className === "URL") {
+        this.allocateUrl(stmt, params);
+        return;
+      }
+      if (newNode.className === "URLSearchParams") {
+        this.allocateUrlSearchParams(stmt, params);
+        return;
+      }
+    }
+
     if (stmt.declaredType) {
       const strippedType = stripNullable(stmt.declaredType);
       if (strippedType === "string[]") {
@@ -2050,6 +2063,22 @@ export class VariableAllocator {
     this.ctx.defineVariable(stmt.name, allocaReg, "i8*", SymbolKind.Regex, "local");
     this.ctx.emit(`${allocaReg} = alloca i8*`);
 
+    const value = this.ctx.generateExpression(stmt.value!, params);
+    this.ctx.emit(`store i8* ${value}, i8** ${allocaReg}`);
+  }
+
+  private allocateUrl(stmt: VariableDeclaration, params: string[]): void {
+    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
+    this.ctx.symbolTable.defineUrl(stmt.name, allocaReg, "local");
+    this.ctx.emit(`${allocaReg} = alloca i8*`);
+    const value = this.ctx.generateExpression(stmt.value!, params);
+    this.ctx.emit(`store i8* ${value}, i8** ${allocaReg}`);
+  }
+
+  private allocateUrlSearchParams(stmt: VariableDeclaration, params: string[]): void {
+    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
+    this.ctx.symbolTable.defineUrlSearchParams(stmt.name, allocaReg, "local");
+    this.ctx.emit(`${allocaReg} = alloca i8*`);
     const value = this.ctx.generateExpression(stmt.value!, params);
     this.ctx.emit(`store i8* ${value}, i8** ${allocaReg}`);
   }

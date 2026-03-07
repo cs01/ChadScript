@@ -201,6 +201,12 @@ export class LiteralExpressionGenerator {
     if (className === "Date") {
       return this.generateNewDate(args, params);
     }
+    if (className === "URL") {
+      return this.generateNewUrl(args, params);
+    }
+    if (className === "URLSearchParams") {
+      return this.generateNewUrlSearchParams(args, params);
+    }
     return this.ctx.classGenGenerateNewExpression(className, args, params);
   }
 
@@ -291,6 +297,24 @@ export class LiteralExpressionGenerator {
 
     this.ctx.setVariableType(structPtr, "%Uint8Array*");
     return structPtr;
+  }
+
+  private generateNewUrl(args: Expression[], params: string[]): string {
+    if (args.length < 1) {
+      throw new Error("new URL() requires at least 1 argument");
+    }
+    const hrefPtr = this.ctx.generateExpression(args[0], params);
+    this.ctx.setVariableType(hrefPtr, "i8*");
+    return hrefPtr;
+  }
+
+  private generateNewUrlSearchParams(args: Expression[], params: string[]): string {
+    if (args.length === 0) {
+      return this.ctx.stringGen.doCreateStringConstant("");
+    }
+    const queryPtr = this.ctx.generateExpression(args[0], params);
+    this.ctx.setVariableType(queryPtr, "i8*");
+    return queryPtr;
   }
 
   private generateNewDate(args: Expression[], params: string[]): string {

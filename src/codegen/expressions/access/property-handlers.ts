@@ -1,6 +1,47 @@
 import { Expression, MemberAccessNode, VariableNode } from "../../../ast/types.js";
 import type { MemberAccessGeneratorContext } from "./member.js";
 
+export function handleUrlProperty(
+  ctx: MemberAccessGeneratorContext,
+  expr: MemberAccessNode,
+): string | null {
+  const exprObjBase = expr.object as ExprBase;
+  if (exprObjBase.type !== "variable") return null;
+  const varName = (expr.object as VariableNode).name;
+  if (!ctx.symbolTable.isUrl(varName)) return null;
+  const prop = expr.property;
+  const varAlloca = ctx.symbolTable.getAlloca(varName);
+  if (!varAlloca) return null;
+  const urlPtr = ctx.emitLoad("i8*", varAlloca);
+  if (prop === "href") {
+    ctx.setVariableType(urlPtr, "i8*");
+    return urlPtr;
+  }
+  let urlFn = "";
+  if (prop === "protocol") {
+    urlFn = "@cs_url_parse_protocol";
+  } else if (prop === "hostname") {
+    urlFn = "@cs_url_parse_hostname";
+  } else if (prop === "port") {
+    urlFn = "@cs_url_parse_port";
+  } else if (prop === "host") {
+    urlFn = "@cs_url_parse_host";
+  } else if (prop === "pathname") {
+    urlFn = "@cs_url_parse_pathname";
+  } else if (prop === "search" || prop === "searchParams") {
+    urlFn = "@cs_url_parse_search";
+  } else if (prop === "hash") {
+    urlFn = "@cs_url_parse_hash";
+  } else if (prop === "origin") {
+    urlFn = "@cs_url_parse_origin";
+  } else {
+    return null;
+  }
+  const result = ctx.emitCall("i8*", urlFn, `i8* ${urlPtr}`);
+  ctx.setVariableType(result, "i8*");
+  return result;
+}
+
 interface ExprBase {
   type: string;
 }

@@ -1264,6 +1264,78 @@ export class MethodCallGenerator {
       }
     }
 
+    // Handle URLSearchParams methods
+    if (
+      method === "get" ||
+      method === "has" ||
+      method === "set" ||
+      method === "append" ||
+      method === "delete" ||
+      method === "toString"
+    ) {
+      const urlspVarName = this.getVariableName(expr.object);
+      if (urlspVarName && this.ctx.symbolTable.isUrlSearchParams(urlspVarName)) {
+        const urlspAlloca = this.ctx.symbolTable.getAlloca(urlspVarName);
+        if (urlspAlloca) {
+          const queryPtr = this.ctx.emitLoad("i8*", urlspAlloca);
+          if (method === "get") {
+            const keyPtr = this.ctx.generateExpression(expr.args[0], params);
+            const result = this.ctx.emitCall(
+              "i8*",
+              "@cs_urlsearch_get",
+              `i8* ${queryPtr}, i8* ${keyPtr}`,
+            );
+            this.ctx.setVariableType(result, "i8*");
+            return result;
+          } else if (method === "has") {
+            const keyPtr = this.ctx.generateExpression(expr.args[0], params);
+            const i32Result = this.ctx.emitCall(
+              "i32",
+              "@cs_urlsearch_has",
+              `i8* ${queryPtr}, i8* ${keyPtr}`,
+            );
+            const dblResult = this.ctx.nextTemp();
+            this.ctx.emit(`${dblResult} = sitofp i32 ${i32Result} to double`);
+            this.ctx.setVariableType(dblResult, "double");
+            return dblResult;
+          } else if (method === "set") {
+            const keyPtr = this.ctx.generateExpression(expr.args[0], params);
+            const valPtr = this.ctx.generateExpression(expr.args[1], params);
+            const newQuery = this.ctx.emitCall(
+              "i8*",
+              "@cs_urlsearch_set",
+              `i8* ${queryPtr}, i8* ${keyPtr}, i8* ${valPtr}`,
+            );
+            this.ctx.emitStore("i8*", newQuery, urlspAlloca);
+            return newQuery;
+          } else if (method === "append") {
+            const keyPtr = this.ctx.generateExpression(expr.args[0], params);
+            const valPtr = this.ctx.generateExpression(expr.args[1], params);
+            const newQuery = this.ctx.emitCall(
+              "i8*",
+              "@cs_urlsearch_append",
+              `i8* ${queryPtr}, i8* ${keyPtr}, i8* ${valPtr}`,
+            );
+            this.ctx.emitStore("i8*", newQuery, urlspAlloca);
+            return newQuery;
+          } else if (method === "delete") {
+            const keyPtr = this.ctx.generateExpression(expr.args[0], params);
+            const newQuery = this.ctx.emitCall(
+              "i8*",
+              "@cs_urlsearch_delete",
+              `i8* ${queryPtr}, i8* ${keyPtr}`,
+            );
+            this.ctx.emitStore("i8*", newQuery, urlspAlloca);
+            return newQuery;
+          } else if (method === "toString") {
+            const result = this.ctx.emitCall("i8*", "@cs_urlsearch_tostring", `i8* ${queryPtr}`);
+            this.ctx.setVariableType(result, "i8*");
+            return result;
+          }
+        }
+      }
+    }
+
     // Handle array methods (arrayGen uses context pattern - no sync needed! 🎯)
     // Skip to class dispatch if object is a class instance (e.g. Stack.push / Stack.pop)
     if (method === "push" && !this.isClassInstanceExpression(expr.object)) {
