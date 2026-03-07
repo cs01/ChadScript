@@ -201,6 +201,8 @@ Pattern:
 2. Add build step in `scripts/build-vendor.sh` (compile to `.o`)
 3. Declare extern functions in LLVM IR and call them from codegen
 4. Add conditional linking in `src/compiler.ts` and `src/native-compiler-lib.ts`
+5. Add to `scripts/build-target-sdk.sh` bridge list (cross-compile SDK packaging)
+6. Add to `ci.yml` in all 4 places: Linux verify loop, Linux release copy, macOS verify loop, macOS release copy
 
 Existing bridges: `regex-bridge.c`, `yyjson-bridge.c`, `os-bridge.c`, `child-process-bridge.c`,
 `child-process-spawn.c`, `lws-bridge.c`, `treesitter-bridge.c`.

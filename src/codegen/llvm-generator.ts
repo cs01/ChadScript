@@ -121,6 +121,7 @@ import type { TargetInfo } from "../target-types.js";
 import { checkClosureMutations } from "../semantic/closure-mutation-checker.js";
 import { checkUnionTypes } from "../semantic/union-type-checker.js";
 import { checkTypeAssertions } from "../semantic/type-assertion-checker.js";
+import { analyzeEscapes } from "../semantic/escape-analysis.js";
 
 export interface SemaSymbolData {
   names: string[];
@@ -269,6 +270,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   private semaSymbolSchemaKeys: (string[] | undefined)[];
   private semaSymbolSchemaTypes: (string[] | undefined)[];
   private semaSymbolCount: number;
+
+  // Escape analysis result — string keys "name:line:col" for stack-eligible var decls
+  private stackEligibleVars: string[] = [];
+  public currentVarDeclKey: string | null = null;
 
   // Debug info emitter (null when debug info is disabled)
   private debugInfoEmitter: number = 0;
@@ -1108,6 +1113,21 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
   public setLastTypeAssertionSourceVar(name: string | null): void {
     this.lastTypeAssertionSourceVar = name;
+  }
+  public setStackEligibleVars(vars: string[]): void {
+    this.stackEligibleVars = vars;
+  }
+  public isStackEligibleKey(key: string): boolean {
+    for (let i = 0; i < this.stackEligibleVars.length; i++) {
+      if (this.stackEligibleVars[i] === key) return true;
+    }
+    return false;
+  }
+  public setCurrentVarDeclKey(key: string | null): void {
+    this.currentVarDeclKey = key;
+  }
+  public getCurrentVarDeclKey(): string | null {
+    return this.currentVarDeclKey;
   }
   public setIsAsyncFunction(value: boolean): void {
     this.isAsyncFunction = value;
@@ -2452,6 +2472,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     checkClosureMutations(this.ast);
     checkUnionTypes(this.ast);
     checkTypeAssertions(this.ast);
+    this.stackEligibleVars = analyzeEscapes(this.ast);
 
     const irParts: string[] = [];
 
