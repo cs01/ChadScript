@@ -309,9 +309,8 @@ export class ClosureAnalyzer {
         this.walkBlock(s.consequent);
       }
       if (s.alternate) {
-        const alt = s.alternate as { type: string };
-        if (alt.type === "if") {
-          this.walkStatement(s.alternate as Statement);
+        if (s.alternate.type === "if") {
+          this.walkStatement(s.alternate);
         } else {
           this.walkBlock(s.alternate as BlockStatement);
         }
