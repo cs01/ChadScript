@@ -130,9 +130,8 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
         funcName,
         scopeVarInterfaceTypes,
       );
-      const typedResult = analyzeResult as { captures: CapturedVariable[]; envStructName: string };
-      closureCaptures = typedResult.captures;
-      closureEnvStructName = typedResult.envStructName;
+      closureCaptures = analyzeResult.captures;
+      closureEnvStructName = analyzeResult.envStructName;
 
       if (closureCaptures.length > 0) {
         this.envStructDefs.push({
@@ -141,7 +140,7 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
         });
 
         expr.captures = closureCaptures;
-        closureInfo = typedResult;
+        closureInfo = analyzeResult;
       }
     }
 
@@ -190,7 +189,7 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
     let ir = "";
     for (let defIdx = 0; defIdx < this.envStructDefs.length; defIdx++) {
       const envDefRaw = this.envStructDefs[defIdx];
-      const envDef = envDefRaw as { name: string; fields: CapturedVariable[] };
+      const envDef = envDefRaw as EnvStructDef;
       const fieldTypesArr: string[] = [];
       for (let i = 0; i < envDef.fields.length; i++) {
         const envField = envDef.fields[i] as { name: string; llvmType: string };
