@@ -42,10 +42,8 @@ export class ArrayGenerator {
     const arrExpr = expr as ArrayNode;
     if (arrExpr.elements) {
       for (let i = 0; i < arrExpr.elements.length; i++) {
-        if (
-          arrExpr.elements[i].type === "spread_element" ||
-          arrExpr.elements[i].type.indexOf("spread:") === 0
-        ) {
+        const el = arrExpr.elements[i] as { type: string };
+        if (el.type === "spread_element" || el.type.indexOf("spread:") === 0) {
           return generateArrayLiteralWithSpread(this.ctx, arrExpr, params);
         }
       }

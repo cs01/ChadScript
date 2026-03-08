@@ -136,13 +136,15 @@ export class CallExpressionGenerator {
 
     // Handle test() - built-in test runner (only when called with string + arrow/function callback)
     if (expr.name === "test" && expr.args.length >= 2) {
-      if (expr.args[1].type === "arrow_function" || expr.args[1].type === "variable") {
+      const testSecondArg = expr.args[1] as { type: string };
+      if (testSecondArg.type === "arrow_function" || testSecondArg.type === "variable") {
         return this.generateTest(expr, params);
       }
     }
 
     if (expr.name === "describe" && expr.args.length >= 2) {
-      if (expr.args[1].type === "arrow_function" || expr.args[1].type === "variable") {
+      const descSecondArg = expr.args[1] as { type: string };
+      if (descSecondArg.type === "arrow_function" || descSecondArg.type === "variable") {
         return this.generateDescribe(expr, params);
       }
     }

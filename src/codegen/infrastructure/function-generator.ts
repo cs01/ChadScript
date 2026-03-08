@@ -729,7 +729,7 @@ export class FunctionGenerator {
     if (!block) return false;
     if (!block.statements) return false;
     for (let i = 0; i < block.statements.length; i++) {
-      const stmt = block.statements[i];
+      const stmt = block.statements[i] as { type: string };
       if (!stmt) continue;
       if (stmt.type === "return") {
         return true;
@@ -755,7 +755,7 @@ export class FunctionGenerator {
           if (!caseItem) continue;
           if (!caseItem.consequent) continue;
           for (let k = 0; k < caseItem.consequent.length; k++) {
-            const consequentStmt = caseItem.consequent[k];
+            const consequentStmt = caseItem.consequent[k] as { type: string };
             if (!consequentStmt) continue;
             if (consequentStmt.type === "return") return true;
           }
@@ -773,7 +773,7 @@ export class FunctionGenerator {
     if (!block) return false;
     if (!block.statements) return false;
     for (let i = 0; i < block.statements.length; i++) {
-      const stmt = block.statements[i];
+      const stmt = block.statements[i] as { type: string };
       if (!stmt) continue;
       if (stmt.type === "try") return true;
       if (stmt.type === "if") {

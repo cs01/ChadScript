@@ -324,7 +324,8 @@ export class ClosureAnalyzer {
       if (s.init) this.walkStatement(s.init);
       if (s.condition) this.walkExpression(s.condition);
       if (s.update) {
-        if (s.update.type) {
+        const upd = s.update as { type: string };
+        if (upd.type) {
           this.walkStatement(s.update as Statement);
         } else {
           this.walkExpression(s.update as Expression);
@@ -421,7 +422,8 @@ export class ClosureAnalyzer {
       for (let _ppi = 0; _ppi < e.params.length; _ppi++) {
         this.declaredVars.add(e.params[_ppi]);
       }
-      if (e.body.type === "block") {
+      const bodyTyped = e.body as { type: string };
+      if (bodyTyped.type === "block") {
         this.walkBlock(e.body as BlockStatement);
       } else {
         this.walkExpression(e.body as Expression);

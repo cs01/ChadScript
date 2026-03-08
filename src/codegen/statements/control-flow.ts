@@ -301,7 +301,8 @@ export class ControlFlowGenerator {
 
     // Generate init if present
     if (forStmt.init) {
-      if (forStmt.init.type === "variable_declaration") {
+      const initBase = forStmt.init as { type: string };
+      if (initBase.type === "variable_declaration") {
         const initVarDecl = forStmt.init as {
           type: string;
           kind: string;
@@ -318,7 +319,7 @@ export class ControlFlowGenerator {
         this.ctx.defineVariable(initVarDecl.name, allocaReg, "double", SymbolKind.Number, "local");
         this.emit(`${allocaReg} = alloca double`);
         this.ctx.emitStore("double", dblValue, allocaReg);
-      } else if (forStmt.init.type === "assignment") {
+      } else if (initBase.type === "assignment") {
         const initAssign = forStmt.init as AssignmentStatement;
         let value = this.ctx.generateExpression(initAssign.value, params);
         const allocaReg = this.ctx.getVariableAlloca(initAssign.name);
