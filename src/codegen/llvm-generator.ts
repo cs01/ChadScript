@@ -3435,7 +3435,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         hasTerminator = true;
       } else if (stmtType === "if") {
         lastValue = this.controlFlowGen.generateIfStatement(stmtRaw as Statement, params);
-        // Don't need to sync back - counters are already shared via bound methods
+        if (this.lastInstructionIsTerminator()) {
+          hasTerminator = true;
+        }
       } else if (stmtType === "while") {
         lastValue = this.controlFlowGen.generateWhileStatement(stmtRaw as Statement, params);
       } else if (stmtType === "do_while") {
