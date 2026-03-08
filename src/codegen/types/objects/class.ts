@@ -1672,15 +1672,28 @@ export class ClassGenerator {
       return { keys: [], types: [] };
     }
 
-    const firstIface = interfaces[0] as InterfaceDeclaration;
-    const firstFields = this.ctx.getAllInterfaceFields(firstIface);
+    const firstInterface = interfaces[0] as {
+      name: string;
+      extends: string[];
+      fields: { name: string; type: string }[];
+      methods: { name: string }[];
+    };
+    const firstFields = firstInterface.fields;
     const commonFields: CommonField[] = [];
 
-    for (const field of firstFields) {
+    for (let fi = 0; fi < firstFields.length; fi++) {
+      const field = firstFields[fi] as { name: string; type: string };
       let isCommon = true;
-      for (const ifaceTyped of interfaces) {
+      for (let ii = 0; ii < interfaces.length; ii++) {
+        const ifaceTyped = interfaces[ii] as {
+          name: string;
+          extends: string[];
+          fields: { name: string; type: string }[];
+          methods: { name: string }[];
+        };
         let found = false;
-        for (const f of this.ctx.getAllInterfaceFields(ifaceTyped as InterfaceDeclaration)) {
+        for (let fj = 0; fj < ifaceTyped.fields.length; fj++) {
+          const f = ifaceTyped.fields[fj] as { name: string; type: string };
           if (f.name === field.name && this.areTypesCompatible(f.type, field.type)) {
             found = true;
             break;
@@ -1698,7 +1711,8 @@ export class ClassGenerator {
 
     const keys: string[] = [];
     const types: string[] = [];
-    for (const f of commonFields) {
+    for (let fi = 0; fi < commonFields.length; fi++) {
+      const f = commonFields[fi] as CommonField;
       keys.push(stripOptional(f.name));
       types.push(this.fieldTypeToLlvm(f.type));
     }

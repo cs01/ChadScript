@@ -194,7 +194,6 @@ export class UnaryExpressionGenerator {
     const dblOperand = this.ctx.ensureDouble(operand);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = fneg double ${dblOperand}`);
-    this.ctx.setVariableType(result, "double");
     return result;
   }
 
