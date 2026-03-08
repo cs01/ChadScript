@@ -648,6 +648,7 @@ export class MethodCallGenerator {
       return this.generateOptionalMethodCall(expr, params);
     }
 
+    const objBase = expr.object as { type: string };
     const method = expr.method;
 
     // Named-object dispatch: console, process, fs, path, crypto, sqlite, JSON, etc.
