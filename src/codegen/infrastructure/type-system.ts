@@ -304,7 +304,7 @@ export function parseMapTypeString(s: string): { keyType: string; valueType: str
   if (!trimmed.endsWith(">")) return null;
   const inner = trimmed.substring(4, trimmed.length - 1);
   let depth = 0;
-  let commaIdx = -1;
+  let commaIdx: number = -1;
   for (let i = 0; i < inner.length; i++) {
     const ch = inner[i];
     if (ch === "<") {

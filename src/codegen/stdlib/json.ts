@@ -164,7 +164,7 @@ export class JsonGenerator {
     this.ctx.emit(`${iInc} = add i32 ${i}, 1`);
     this.ctx.emitBr(loopCond);
 
-    let phiIdx = -1;
+    let phiIdx: number = -1;
     for (let phiSearchIdx = 0; phiSearchIdx < this.ctx.getOutputLength(); phiSearchIdx++) {
       if (this.ctx.getOutputLine(phiSearchIdx).includes(phiPlaceholder)) {
         phiIdx = phiSearchIdx;

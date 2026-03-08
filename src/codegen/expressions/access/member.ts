@@ -698,7 +698,7 @@ export class MemberAccessGenerator {
     const interfaceDef = interfaceDefResult as InterfaceInfo;
     if (!interfaceDef.properties) return null;
 
-    let propIndex = -1;
+    let propIndex: number = -1;
     for (let i = 0; i < interfaceDef.properties.length; i++) {
       const p = interfaceDef.properties[i] as InterfaceProperty;
       if (p.name === expr.property) {
@@ -1268,7 +1268,7 @@ export class MemberAccessGenerator {
 
     const innerInterfaceDefResult = this.getInterfaceFromAST(innerInterfaceName);
 
-    let propIndex = -1;
+    let propIndex: number = -1;
     let propType = "";
     let fieldPtr = "";
 
@@ -1575,7 +1575,7 @@ export class MemberAccessGenerator {
         return null;
       }
 
-      let propIndex = -1;
+      let propIndex: number = -1;
       for (let i = 0; i < ifInfoProps.length; i++) {
         const p = ifInfoProps[i] as InterfaceProperty;
         if (p.name === expr.property) {
@@ -1627,7 +1627,7 @@ export class MemberAccessGenerator {
     const interfaceDef = interfaceDefResult as InterfaceDeclaration;
     if (!interfaceDef.fields) return null;
     const allFields1628 = this.ctx.getAllInterfaceFields(interfaceDef);
-    let propIndex = -1;
+    let propIndex: number = -1;
     let propTsType: string | undefined;
     for (let i = 0; i < allFields1628.length; i++) {
       const f = allFields1628[i] as { name: string; type: string };
@@ -2331,7 +2331,7 @@ export class MemberAccessGenerator {
 
     const objPtr = this.ctx.generateExpression(expr.object, params);
 
-    let propIndex = -1;
+    let propIndex: number = -1;
     for (let i = 0; i < allFields2328.length; i++) {
       const f = allFields2328[i] as { name: string; type: string };
       if (f.name === expr.property) {
@@ -2521,7 +2521,7 @@ export class MemberAccessGenerator {
             if (innerIfaceProps.length === 0) {
               return innerPtr;
             }
-            let propIndex = -1;
+            let propIndex: number = -1;
             for (let i = 0; i < innerIfaceProps.length; i++) {
               const p = innerIfaceProps[i] as InterfaceProperty;
               if (p.name === expr.property) {
@@ -2597,7 +2597,7 @@ export class MemberAccessGenerator {
           } else if (interfaceProps.length === 0) {
             // empty properties - skip
           } else {
-            let propIndex = -1;
+            let propIndex: number = -1;
             let propType = "";
             for (let i = 0; i < interfaceProps.length; i++) {
               const prop = interfaceProps[i] as InterfaceProperty;
@@ -2664,7 +2664,7 @@ export class MemberAccessGenerator {
         if (paramInterfaceType.startsWith("{")) {
           const inlineFields = this.parseInlineObjectTypeForAssertion(paramInterfaceType);
           if (inlineFields) {
-            let propIndex = -1;
+            let propIndex: number = -1;
             let propType = "";
             for (let pi = 0; pi < inlineFields.length; pi++) {
               const field = inlineFields[pi] as InterfaceField;
@@ -2725,7 +2725,7 @@ export class MemberAccessGenerator {
             }
             return "0.0";
           }
-          let propIndex = -1;
+          let propIndex: number = -1;
           for (let pi = 0; pi < ifaceProps.length; pi++) {
             const p = ifaceProps[pi] as InterfaceProperty;
             if (p.name === expr.property) {
@@ -2922,7 +2922,7 @@ export class MemberAccessGenerator {
       }
     }
 
-    let fieldIndex = -1;
+    let fieldIndex: number = -1;
     for (let i = 0; i < fields.length; i++) {
       const f = fields[i] as { name: string; type: string };
       if (f.name === property) {
@@ -2997,7 +2997,7 @@ export class MemberAccessGenerator {
       throw new Error(`Interface ${interfaceType} not found in interface struct generator`);
     }
 
-    let propIndex = -1;
+    let propIndex: number = -1;
     let propLlvmType = "";
     let propTsType = "";
     const fields = interfaceInfo.fields as InterfaceFieldInfo[];
@@ -3096,7 +3096,7 @@ export class MemberAccessGenerator {
       throw new Error(`Interface ${interfaceType} not found in interface struct generator`);
     }
 
-    let propIndex = -1;
+    let propIndex: number = -1;
     let propLlvmType = "";
     let propTsType = "";
     const fields = interfaceInfo.fields as InterfaceFieldInfo[];

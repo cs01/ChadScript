@@ -227,7 +227,7 @@ export class AssignmentGenerator {
   ): void {
     const fieldInfoResult = this.ctx.classGenGetFieldInfo(className, property);
 
-    let fieldIndex = -1;
+    let fieldIndex: number = -1;
     let fieldType = "";
     let fieldTsType: string | null = null;
     if (fieldInfoResult) {
