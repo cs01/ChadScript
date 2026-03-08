@@ -29,6 +29,7 @@ import {
   FunctionNode,
   MemberAccessNode,
   InterfaceDeclaration,
+  InterfaceField,
   SourceLocation,
 } from "../../ast/types.js";
 import type { SymbolTable } from "../infrastructure/symbol-table.js";
@@ -250,6 +251,7 @@ export interface MethodCallGeneratorContext {
     getThisFieldMapKeyType(expr: Expression): string | null;
     getThisFieldSetValueType(expr: Expression): string | null;
   };
+  getAllInterfaceFields(iface: InterfaceDeclaration): InterfaceField[];
   ensureDouble(value: string): string;
   ensureI64(value: string): string;
   getWantsBinaryReturn(): boolean;
