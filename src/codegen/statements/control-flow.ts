@@ -632,16 +632,13 @@ export class ControlFlowGenerator {
     }
     const iface = this.ctx.getInterfaceFromAST(elementInterface);
     if (iface) {
-      const ifaceTyped = iface as {
-        name: string;
-        extends: string[];
-        fields: { name: string; type: string }[];
-      };
+      const ifaceTyped = iface as InterfaceDeclaration;
+      const allFields = this.ctx.getAllInterfaceFields(ifaceTyped);
       const elementKeys: string[] = [];
       const elementTypes: string[] = [];
       const elementTsTypes: string[] = [];
-      for (let i = 0; i < ifaceTyped.fields.length; i++) {
-        const fRaw = ifaceTyped.fields[i];
+      for (let i = 0; i < allFields.length; i++) {
+        const fRaw = allFields[i];
         if (!fRaw) continue;
         const f = fRaw as { name: string; type: string };
         if (!f.name || !f.type) continue;
@@ -683,13 +680,9 @@ export class ControlFlowGenerator {
   private getInterfaceFieldType(interfaceName: string, fieldName: string): string | null {
     const iface = this.ctx.getInterfaceFromAST(interfaceName);
     if (!iface) return null;
-    const ifaceTyped = iface as {
-      name: string;
-      extends: string[];
-      fields: { name: string; type: string }[];
-    };
-    for (let i = 0; i < ifaceTyped.fields.length; i++) {
-      const fRaw = ifaceTyped.fields[i];
+    const allFields = this.ctx.getAllInterfaceFields(iface as InterfaceDeclaration);
+    for (let i = 0; i < allFields.length; i++) {
+      const fRaw = allFields[i];
       if (!fRaw) continue;
       const f = fRaw as { name: string; type: string };
       if (!f.name) continue;
@@ -801,16 +794,13 @@ export class ControlFlowGenerator {
             const elementIfaceName = fieldType.slice(0, -2).trim();
             const elemIface = this.ctx.getInterfaceFromAST(elementIfaceName);
             if (elemIface) {
-              const elemIfaceTyped = elemIface as {
-                name: string;
-                extends: string[];
-                fields: Array<{ name: string; type: string }>;
-              };
+              const elemIfaceTyped = elemIface as InterfaceDeclaration;
+              const allFields = this.ctx.getAllInterfaceFields(elemIfaceTyped);
               const elementKeys: string[] = [];
               const elementTypes: string[] = [];
               const elementTsTypes: string[] = [];
-              for (let i = 0; i < elemIfaceTyped.fields.length; i++) {
-                const fRaw = elemIfaceTyped.fields[i];
+              for (let i = 0; i < allFields.length; i++) {
+                const fRaw = allFields[i];
                 if (!fRaw) continue;
                 const f = fRaw as { name: string; type: string };
                 if (!f.name || !f.type) continue;
@@ -893,9 +883,9 @@ export class ControlFlowGenerator {
 
       const iface = this.ctx.getInterfaceFromAST(baseType);
       if (iface) {
-        const ifaceTyped = iface as { fields: { name: string; type: string }[] };
-        for (let i = 0; i < ifaceTyped.fields.length; i++) {
-          const fRaw = ifaceTyped.fields[i];
+        const allFields = this.ctx.getAllInterfaceFields(iface as InterfaceDeclaration);
+        for (let i = 0; i < allFields.length; i++) {
+          const fRaw = allFields[i];
           if (!fRaw) continue;
           const f = fRaw as { name: string; type: string };
           if (!f.name) continue;
@@ -924,15 +914,12 @@ export class ControlFlowGenerator {
     if (!iface) {
       return null;
     }
-    const ifaceTyped = iface as {
-      name: string;
-      extends: string[];
-      fields: { name: string; type: string }[];
-    };
+    const ifaceTyped = iface as InterfaceDeclaration;
+    const chainedAllFields = this.ctx.getAllInterfaceFields(ifaceTyped);
 
     let fieldDefResult: InterfaceField | null = null;
-    for (let i = 0; i < ifaceTyped.fields.length; i++) {
-      const fRaw = ifaceTyped.fields[i];
+    for (let i = 0; i < chainedAllFields.length; i++) {
+      const fRaw = chainedAllFields[i];
       if (!fRaw) continue;
       const f = fRaw as { name: string; type: string };
       if (!f.name) continue;
@@ -995,16 +982,13 @@ export class ControlFlowGenerator {
 
     const elementIface = this.ctx.getInterfaceFromAST(elementTypeName);
     if (elementIface) {
-      const elementIfaceTyped = elementIface as {
-        name: string;
-        extends: string[];
-        fields: { name: string; type: string }[];
-      };
+      const elementIfaceTyped = elementIface as InterfaceDeclaration;
+      const elementAllFields = this.ctx.getAllInterfaceFields(elementIfaceTyped);
       const elementKeys: string[] = [];
       const elementTypes: string[] = [];
       const elementTsTypes: string[] = [];
-      for (let i = 0; i < elementIfaceTyped.fields.length; i++) {
-        const f = elementIfaceTyped.fields[i] as { name: string; type: string };
+      for (let i = 0; i < elementAllFields.length; i++) {
+        const f = elementAllFields[i] as { name: string; type: string };
         elementKeys.push(f.name);
         elementTsTypes.push(f.type);
         if (f.type === "string") {
@@ -1080,16 +1064,13 @@ export class ControlFlowGenerator {
 
     const elementIface = this.ctx.getInterfaceFromAST(elementTypeName);
     if (elementIface) {
-      const elementIfaceTyped = elementIface as {
-        name: string;
-        extends: string[];
-        fields: { name: string; type: string }[];
-      };
+      const elementIfaceTyped = elementIface as InterfaceDeclaration;
+      const elementAllFields = this.ctx.getAllInterfaceFields(elementIfaceTyped);
       const elementKeys: string[] = [];
       const elementTypes: string[] = [];
       const elementTsTypes: string[] = [];
-      for (let i = 0; i < elementIfaceTyped.fields.length; i++) {
-        const f = elementIfaceTyped.fields[i] as { name: string; type: string };
+      for (let i = 0; i < elementAllFields.length; i++) {
+        const f = elementAllFields[i] as { name: string; type: string };
         elementKeys.push(f.name);
         elementTsTypes.push(f.type);
         if (f.type === "string") {
@@ -1144,14 +1125,14 @@ export class ControlFlowGenerator {
       return null;
     }
 
-    const memberInterfaces: { name: string; fields: { name: string; type: string }[] }[] = [];
+    const memberInterfaces: InterfaceDeclaration[] = [];
     for (let i = 0; i < members.length; i++) {
       const memberName = members[i];
       const iface = this.ctx.getInterfaceFromAST(memberName);
       if (!iface) {
         return null;
       }
-      memberInterfaces.push(iface);
+      memberInterfaces.push(iface as InterfaceDeclaration);
     }
 
     if (memberInterfaces.length === 0) {
@@ -1159,32 +1140,26 @@ export class ControlFlowGenerator {
     }
 
     const firstFields = new Map<string, string>();
-    const firstInterface = memberInterfaces[0] as {
-      name: string;
-      extends: string[];
-      fields: { name: string; type: string }[];
-    };
-    for (let i = 0; i < firstInterface.fields.length; i++) {
-      const f = firstInterface.fields[i] as { name: string; type: string };
+    const firstInterface = memberInterfaces[0];
+    const firstInterfaceAllFields = this.ctx.getAllInterfaceFields(firstInterface);
+    for (let i = 0; i < firstInterfaceAllFields.length; i++) {
+      const f = firstInterfaceAllFields[i] as { name: string; type: string };
       firstFields.set(f.name, f.type);
     }
 
     const commonFields: CommonField[] = [];
-    for (let _ffi = 0; _ffi < firstInterface.fields.length; _ffi++) {
-      const firstField = firstInterface.fields[_ffi] as { name: string; type: string };
+    for (let _ffi = 0; _ffi < firstInterfaceAllFields.length; _ffi++) {
+      const firstField = firstInterfaceAllFields[_ffi] as { name: string; type: string };
       const fieldName = firstField.name;
       const fieldType = firstField.type;
       let isCommon = true;
       let resolvedType = fieldType;
       for (let i = 1; i < memberInterfaces.length; i++) {
-        const otherIface = memberInterfaces[i] as {
-          name: string;
-          extends: string[];
-          fields: { name: string; type: string }[];
-        };
+        const otherIface = memberInterfaces[i];
+        const otherAllFields = this.ctx.getAllInterfaceFields(otherIface);
         let otherFieldResult: InterfaceField | null = null;
-        for (let j = 0; j < otherIface.fields.length; j++) {
-          const f = otherIface.fields[j] as { name: string; type: string };
+        for (let j = 0; j < otherAllFields.length; j++) {
+          const f = otherAllFields[j] as { name: string; type: string };
           if (f.name === fieldName) {
             otherFieldResult = f;
             break;
@@ -1655,17 +1630,18 @@ export class ControlFlowGenerator {
     }
 
     const firstInterface = interfaces[0] as InterfaceDeclaration;
-    const firstFields = firstInterface.fields;
+    const firstAllFields = this.ctx.getAllInterfaceFields(firstInterface);
     const commonFields: CommonField[] = [];
 
-    for (let fi = 0; fi < firstFields.length; fi++) {
-      const field = firstFields[fi] as { name: string; type: string };
+    for (let fi = 0; fi < firstAllFields.length; fi++) {
+      const field = firstAllFields[fi] as { name: string; type: string };
       let isCommon = true;
       for (let ii = 0; ii < interfaces.length; ii++) {
-        const ifaceTyped = interfaces[ii] as { fields: { name: string; type: string }[] };
+        const ifaceTyped = interfaces[ii] as InterfaceDeclaration;
+        const ifaceAllFields = this.ctx.getAllInterfaceFields(ifaceTyped);
         let found = false;
-        for (let fj = 0; fj < ifaceTyped.fields.length; fj++) {
-          const f = ifaceTyped.fields[fj] as { name: string; type: string };
+        for (let fj = 0; fj < ifaceAllFields.length; fj++) {
+          const f = ifaceAllFields[fj] as { name: string; type: string };
           if (f.name === field.name && this.areTypesCompatible(f.type, field.type)) {
             found = true;
             break;
@@ -1797,16 +1773,13 @@ export class ControlFlowGenerator {
 
     const ifaceResult = this.getInterfaceDecl(interfaceName);
     if (!ifaceResult) return null;
-    const iface = ifaceResult as {
-      name: string;
-      extends: string[];
-      fields: { name: string; type: string }[];
-    };
+    const iface = ifaceResult as InterfaceDeclaration;
+    const ifaceAllFields = this.ctx.getAllInterfaceFields(iface);
 
     const currentKeys: string[] = objMeta.keys as string[];
     const ifaceKeys: string[] = [];
-    for (let fi = 0; fi < iface.fields.length; fi++) {
-      const f = iface.fields[fi] as { name: string; type: string };
+    for (let fi = 0; fi < ifaceAllFields.length; fi++) {
+      const f = ifaceAllFields[fi] as { name: string; type: string };
       ifaceKeys.push(f.name);
     }
     let isCompatible = true;
@@ -1821,8 +1794,8 @@ export class ControlFlowGenerator {
     const keys: string[] = [];
     const types: string[] = [];
     const tsTypes: string[] = [];
-    for (let i = 0; i < iface.fields.length; i++) {
-      const f = iface.fields[i] as { name: string; type: string };
+    for (let i = 0; i < ifaceAllFields.length; i++) {
+      const f = ifaceAllFields[i] as { name: string; type: string };
       keys.push(stripOptional(f.name));
       types.push(this.fieldTypeToLlvm(f.type));
       tsTypes.push(f.type);
