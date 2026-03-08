@@ -112,7 +112,18 @@ export class ExpressionGenerator {
       );
     }
 
-    const dctx: ExpressionDispatchContext = this;
+    const dctx: ExpressionDispatchContext = {
+      literalGen: this.literalGen,
+      variableGen: this.variableGen,
+      binaryGen: this.binaryGen,
+      unaryGen: this.unaryGen,
+      callGen: this.callGen,
+      indexAccessGen: this.indexAccessGen,
+      memberAccessGen: this.memberAccessGen,
+      conditionalGen: this.conditionalGen,
+      templateLiteralGen: this.templateLiteralGen,
+      methodCallGen: this.methodCallGen,
+    };
 
     const r1 = dispatchPrimitiveLiteral(dctx, expr, params);
     if (r1 !== null) return r1;
