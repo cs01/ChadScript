@@ -1463,7 +1463,7 @@ function transformAugmentedAssignmentExpression(node: TreeSitterNode): Expressio
     if (!c.isNamed) {
       const t = c.type;
       if (["+=", "-=", "*=", "/=", "%=", "|=", "&=", "^=", "<<=", ">>="].includes(t)) {
-        op = t.slice(0, -1);
+        op = t.slice(0, t.length - 1);
         break;
       }
     }

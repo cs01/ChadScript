@@ -2,7 +2,7 @@ export type NumericKind = "integer" | "float";
 
 export function stripOptional(name: string): string {
   if (!name) return "";
-  return name.endsWith("?") ? name.slice(0, -1) : name;
+  return name.endsWith("?") ? name.slice(0, name.length - 1) : name;
 }
 
 export function stripNullable(t: string): string {
@@ -64,7 +64,7 @@ export function parseTypeString(typeStr: string): ResolvedType {
   }
   if (str.endsWith("?")) {
     qualifiers.isOptional = true;
-    str = str.slice(0, -1);
+    str = str.slice(0, str.length - 1);
   }
 
   let arrayDepth = 0;
@@ -282,7 +282,7 @@ function splitTopLevelUnion(typeStr: string): string[] {
       depth--;
       current += ch;
     } else if (ch === "|" && depth === 0 && typeStr[i - 1] === " " && typeStr[i + 1] === " ") {
-      parts.push(current.slice(0, -1));
+      parts.push(current.slice(0, current.length - 1));
       current = "";
       i++;
     } else {

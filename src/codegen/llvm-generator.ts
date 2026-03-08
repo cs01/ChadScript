@@ -691,7 +691,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     name: string,
   ): { keys: string[]; types: string[]; tsTypes: string[] } | null {
     if (!this.ast || !this.ast.interfaces) return null;
-    const baseName = name.endsWith("?") ? name.slice(0, -1) : name;
+    const baseName = name.endsWith("?") ? name.slice(0, name.length - 1) : name;
     const cleanName = baseName.indexOf(" | ") !== -1 ? baseName.split(" | ")[0] : baseName;
     const keys: string[] = [];
     const types: string[] = [];
@@ -706,7 +706,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           if (!field) continue;
           let fieldName = field.name;
           if (fieldName.endsWith("?")) {
-            fieldName = fieldName.slice(0, -1);
+            fieldName = fieldName.slice(0, fieldName.length - 1);
           }
           keys.push(fieldName);
           // field.type is a TS type (e.g. "string", "number") — convert to LLVM for types[]
@@ -815,7 +815,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           if (!f) continue;
           let fName = f.name;
           if (fName.endsWith("?")) {
-            fName = fName.slice(0, -1);
+            fName = fName.slice(0, fName.length - 1);
           }
           if (fName === fieldName) {
             return f.type;

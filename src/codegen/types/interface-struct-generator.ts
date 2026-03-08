@@ -122,7 +122,7 @@ export class InterfaceStructGenerator {
         const f = pFields[j] as { name: string; type: string };
         let fieldName = f.name;
         if (fieldName.endsWith("?")) {
-          fieldName = fieldName.slice(0, -1);
+          fieldName = fieldName.slice(0, fieldName.length - 1);
         }
         result.push({
           name: fieldName,
@@ -146,7 +146,7 @@ export class InterfaceStructGenerator {
       const f = fields[i] as { name: string; type: string };
       let fieldName = f.name;
       if (fieldName.endsWith("?")) {
-        fieldName = fieldName.slice(0, -1);
+        fieldName = fieldName.slice(0, fieldName.length - 1);
       }
       result.push({
         name: fieldName,

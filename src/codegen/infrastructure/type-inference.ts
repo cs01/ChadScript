@@ -763,7 +763,7 @@ export class TypeInference {
       const f = iface.fields[i] as { name: string; type: string };
       let fieldName = f.name;
       if (fieldName.endsWith("?")) {
-        fieldName = fieldName.slice(0, -1);
+        fieldName = fieldName.slice(0, fieldName.length - 1);
       }
       if (fieldName === propName) {
         return f;

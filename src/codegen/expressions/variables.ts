@@ -266,7 +266,7 @@ export class VariableExpressionGenerator {
       return true;
     }
     if (typeStr.endsWith("*")) {
-      const baseName = typeStr.slice(0, -1);
+      const baseName = typeStr.slice(0, typeStr.length - 1);
       if (baseName.startsWith("%")) {
         // Any %Name* is a valid LLVM named struct pointer type.
         // The old whitelist approach was too fragile — types like %__FetchResponse*

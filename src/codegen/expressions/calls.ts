@@ -1225,11 +1225,11 @@ export class CallExpressionGenerator {
       for (let i = 0; i < parentFields.length; i++) {
         const parentFieldPtr = this.ctx.nextTemp();
         this.ctx.emit(
-          `${parentFieldPtr} = getelementptr inbounds ${parentStructType.slice(0, -1)}, ${parentStructType} ${parentObj}, i32 0, i32 ${i}`,
+          `${parentFieldPtr} = getelementptr inbounds ${parentStructType.slice(0, parentStructType.length - 1)}, ${parentStructType} ${parentObj}, i32 0, i32 ${i}`,
         );
         const thisFieldPtr = this.ctx.nextTemp();
         this.ctx.emit(
-          `${thisFieldPtr} = getelementptr inbounds ${childStructType.slice(0, -1)}, ${childStructType} ${castedThis}, i32 0, i32 ${i}`,
+          `${thisFieldPtr} = getelementptr inbounds ${childStructType.slice(0, childStructType.length - 1)}, ${childStructType} ${castedThis}, i32 0, i32 ${i}`,
         );
         const fieldLlvmType = this.getFieldLlvmType(parentFields[i]);
         const fieldValue = this.ctx.emitLoad(fieldLlvmType, parentFieldPtr);
