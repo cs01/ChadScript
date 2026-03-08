@@ -335,6 +335,26 @@ export class TypeResolver {
     return resolved;
   }
 
+  private getAllInterfaceFields(iface: InterfaceDeclaration): InterfaceField[] {
+    const result: InterfaceField[] = [];
+    if (iface.extends && iface.extends.length > 0) {
+      for (let i = 0; i < iface.extends.length; i++) {
+        const parentName = iface.extends[i];
+        const parent = this.getInterface(parentName);
+        if (parent) {
+          const parentFields = this.getAllInterfaceFields(parent);
+          for (let j = 0; j < parentFields.length; j++) {
+            result.push(parentFields[j]);
+          }
+        }
+      }
+    }
+    for (let i = 0; i < iface.fields.length; i++) {
+      result.push(iface.fields[i]);
+    }
+    return result;
+  }
+
   getInterface(name: string): InterfaceDeclaration | null {
     if (!name) {
       return null;
@@ -390,8 +410,9 @@ export class TypeResolver {
     const keys: string[] = [];
     const types: string[] = [];
     const tsTypes: string[] = [];
-    for (let i = 0; i < iface.fields.length; i++) {
-      const f = iface.fields[i] as { name: string; type: string };
+    const allFields = this.getAllInterfaceFields(iface);
+    for (let i = 0; i < allFields.length; i++) {
+      const f = allFields[i] as { name: string; type: string };
       keys.push(stripOptional(f.name));
       types.push(canonicalTypeToLlvm(f.type, "default", this.isEnumType(f.type), false, ""));
       tsTypes.push(f.type);
@@ -405,8 +426,9 @@ export class TypeResolver {
     }
     const iface = this.getInterface(interfaceName);
     if (!iface) return null;
-    for (let i = 0; i < iface.fields.length; i++) {
-      const f = iface.fields[i] as { name: string; type: string };
+    const allFields = this.getAllInterfaceFields(iface);
+    for (let i = 0; i < allFields.length; i++) {
+      const f = allFields[i] as { name: string; type: string };
       if (!f || !f.name) {
         continue;
       }
@@ -423,8 +445,9 @@ export class TypeResolver {
     const iface = this.getInterface(interfaceName);
     if (!iface) return null;
     const properties: { name: string; type: string }[] = [];
-    for (let i = 0; i < iface.fields.length; i++) {
-      const f = iface.fields[i] as { name: string; type: string };
+    const allFields = this.getAllInterfaceFields(iface);
+    for (let i = 0; i < allFields.length; i++) {
+      const f = allFields[i] as { name: string; type: string };
       properties.push({ name: f.name, type: f.type });
     }
     return { properties };
@@ -883,8 +906,9 @@ export class TypeResolver {
       if (ifaceDecl) {
         const iface = ifaceDecl as InterfaceDeclaration;
         let field: { name: string; type: string } | null = null;
-        for (let i = 0; i < iface.fields.length; i++) {
-          const f = iface.fields[i] as { name: string; type: string };
+        const allIfaceFields = this.getAllInterfaceFields(iface);
+        for (let i = 0; i < allIfaceFields.length; i++) {
+          const f = allIfaceFields[i] as { name: string; type: string };
           if (f.name === memberExpr.property) {
             field = f;
             break;
@@ -948,8 +972,9 @@ export class TypeResolver {
     if (ifaceDecl) {
       const iface = ifaceDecl as InterfaceDeclaration;
       let field: { name: string; type: string } | null = null;
-      for (let i = 0; i < iface.fields.length; i++) {
-        const f = iface.fields[i] as { name: string; type: string };
+      const allNestedFields = this.getAllInterfaceFields(iface);
+      for (let i = 0; i < allNestedFields.length; i++) {
+        const f = allNestedFields[i] as { name: string; type: string };
         if (f.name === memberExpr.property) {
           field = f;
           break;
@@ -1044,8 +1069,9 @@ export class TypeResolver {
       if (ifaceDecl) {
         const iface = ifaceDecl as InterfaceDeclaration;
         let field: { name: string; type: string } | null = null;
-        for (let i = 0; i < iface.fields.length; i++) {
-          const f = iface.fields[i] as { name: string; type: string };
+        const allKeyFields = this.getAllInterfaceFields(iface);
+        for (let i = 0; i < allKeyFields.length; i++) {
+          const f = allKeyFields[i] as { name: string; type: string };
           if (f.name === memberExpr.property) {
             field = f;
             break;
