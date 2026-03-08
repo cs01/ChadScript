@@ -85,7 +85,11 @@ import {
   handleOsFreemem,
   handleOsUptime,
 } from "./method-calls/os.js";
-import { generateObjectKeys, generateObjectValues, generateObjectEntries } from "./method-calls/object-static.js";
+import {
+  generateObjectKeys,
+  generateObjectValues,
+  generateObjectEntries,
+} from "./method-calls/object-static.js";
 import { handlePromiseStaticMethods } from "./method-calls/promise-handlers.js";
 import {
   handleFsMethod,
@@ -364,7 +368,8 @@ export class MethodCallGenerator {
           return this.ctx.embedGen.generateGetEmbeddedFile(expr, params);
         if (method === "getEmbeddedFileAsUint8Array")
           return this.ctx.embedGen.generateGetEmbeddedFileAsUint8Array(expr, params);
-        if (method === "serveEmbedded") return this.ctx.embedGen.generateServeEmbedded(expr, params);
+        if (method === "serveEmbedded")
+          return this.ctx.embedGen.generateServeEmbedded(expr, params);
         return this.ctx.emitError(`ChadScript.${method}() is not a supported method`, expr.loc);
 
       case "Uint8Array":
@@ -416,21 +421,13 @@ export class MethodCallGenerator {
         }
         if (method === "isInteger") {
           if (expr.args.length === 0)
-            return this.ctx.emitError(
-              "Number.isInteger() requires at least 1 argument",
-              expr.loc,
-            );
+            return this.ctx.emitError("Number.isInteger() requires at least 1 argument", expr.loc);
           return handleNumberIsInteger(this.ctx, expr, params);
         }
         return null;
 
       case "console":
-        if (
-          method === "log" ||
-          method === "error" ||
-          method === "warn" ||
-          method === "debug"
-        )
+        if (method === "log" || method === "error" || method === "warn" || method === "debug")
           return generateConsoleCallInline(this.ctx, expr, params);
         if (method === "time") return generateConsoleTime(this.ctx, expr, params);
         if (method === "timeEnd") return generateConsoleTimeEnd(this.ctx, expr, params);
@@ -439,8 +436,7 @@ export class MethodCallGenerator {
       case "assert":
         this.ctx.setUsesTestRunner(true);
         if (method === "strictEqual") return handleAssertStrictEqual(this.ctx, expr, params);
-        if (method === "notStrictEqual")
-          return handleAssertNotStrictEqual(this.ctx, expr, params);
+        if (method === "notStrictEqual") return handleAssertNotStrictEqual(this.ctx, expr, params);
         if (method === "ok") return handleAssertOk(this.ctx, expr, params);
         if (method === "deepEqual") return handleAssertDeepEqual(this.ctx, expr, params);
         if (method === "fail") return handleAssertFail(this.ctx, expr, params);
