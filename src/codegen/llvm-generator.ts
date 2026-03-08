@@ -331,18 +331,20 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
 
   private dbgInit(sourceFilePath: string): void {
-    let lastSlash = -1;
-    for (let i = 0; i < sourceFilePath.length; i++) {
-      if (sourceFilePath.charAt(i) === "/") {
-        lastSlash = i;
+    let lastSlash: number = 0;
+    let foundSlash = false;
+    let pos: number = 0;
+    let ch = sourceFilePath.charAt(pos);
+    while (ch !== "") {
+      if (ch === "/") {
+        lastSlash = pos;
+        foundSlash = true;
       }
+      pos = pos + 1;
+      ch = sourceFilePath.charAt(pos);
     }
-    let filename = sourceFilePath;
-    let directory = ".";
-    if (lastSlash >= 0) {
-      filename = sourceFilePath.substring(lastSlash + 1);
-      directory = sourceFilePath.substring(0, lastSlash);
-    }
+    const filename = foundSlash ? sourceFilePath.slice(lastSlash + 1) : sourceFilePath;
+    const directory = foundSlash ? sourceFilePath.slice(0, lastSlash) : ".";
 
     this.dbgFileId = this.dbgAlloc();
     this.dbgSetNode(
@@ -698,7 +700,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     name: string,
   ): { keys: string[]; types: string[]; tsTypes: string[] } | null {
     if (!this.ast || !this.ast.interfaces) return null;
-    const baseName = name.endsWith("?") ? name.slice(0, -1) : name;
+    const qIdx = name.indexOf("?");
+    const baseName = qIdx >= 0 ? name.slice(0, qIdx) : name;
     const cleanName = baseName.indexOf(" | ") !== -1 ? baseName.split(" | ")[0] : baseName;
     const keys: string[] = [];
     const types: string[] = [];
@@ -713,7 +716,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           if (!field) continue;
           let fieldName = field.name;
           if (fieldName.endsWith("?")) {
-            fieldName = fieldName.slice(0, -1);
+            fieldName = fieldName.slice(0, fieldName.indexOf("?"));
           }
           keys.push(fieldName);
           // field.type is a TS type (e.g. "string", "number") — convert to LLVM for types[]
@@ -818,7 +821,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           if (!f) continue;
           let fName = f.name;
           if (fName.endsWith("?")) {
-            fName = fName.slice(0, -1);
+            fName = fName.slice(0, fName.indexOf("?"));
           }
           if (fName === fieldName) {
             return f.type;
