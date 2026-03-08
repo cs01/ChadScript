@@ -819,7 +819,12 @@ export class TypeResolver {
       if (!ifaceName) continue;
       const iface = this.ctx.getAstInterfaceAt(i);
       if (!iface) continue;
-      const match = this.checkInterfaceForDiscriminant(ifaceName, iface.fields, value, field);
+      const match = this.checkInterfaceForDiscriminant(
+        ifaceName,
+        this.getAllInterfaceFields(iface),
+        value,
+        field,
+      );
       if (match) return match;
     }
     return null;
