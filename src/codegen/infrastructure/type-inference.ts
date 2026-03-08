@@ -749,25 +749,6 @@ export class TypeInference {
     return null;
   }
 
-  private getAllInterfaceFields(iface: InterfaceDeclaration): InterfaceField[] {
-    const result: InterfaceField[] = [];
-    if (iface.extends && iface.extends.length > 0) {
-      for (let i = 0; i < iface.extends.length; i++) {
-        const parent = this.getInterface(iface.extends[i]);
-        if (parent) {
-          const parentFields = this.getAllInterfaceFields(parent);
-          for (let j = 0; j < parentFields.length; j++) {
-            result.push(parentFields[j]);
-          }
-        }
-      }
-    }
-    for (let i = 0; i < iface.fields.length; i++) {
-      result.push(iface.fields[i]);
-    }
-    return result;
-  }
-
   private getInterfaceProperty(interfaceName: string, propName: string): InterfaceField | null {
     if (!interfaceName || !propName) {
       return null;
@@ -778,9 +759,8 @@ export class TypeInference {
     }
     const iface = this.getInterface(interfaceName);
     if (!iface) return null;
-    const allFields = this.getAllInterfaceFields(iface);
-    for (let i = 0; i < allFields.length; i++) {
-      const f = allFields[i] as { name: string; type: string };
+    for (let i = 0; i < iface.fields.length; i++) {
+      const f = iface.fields[i] as { name: string; type: string };
       let fieldName = f.name;
       if (fieldName.endsWith("?")) {
         fieldName = fieldName.slice(0, fieldName.length - 1);
