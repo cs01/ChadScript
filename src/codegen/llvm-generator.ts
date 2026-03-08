@@ -1819,7 +1819,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     ) {
       this.usesBase64Bridge = 1;
     }
-    if (!this.usesUrlBridge && instruction.includes("@cs_url_")) {
+    if (
+      !this.usesUrlBridge &&
+      (instruction.includes("@cs_url_") || instruction.includes("@cs_urlsearch_"))
+    ) {
       this.usesUrlBridge = 1;
     }
     if (
@@ -2806,7 +2809,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       ) {
         this.usesBase64Bridge = 1;
       }
-      if (!this.usesUrlBridge && part.includes("@cs_url_")) {
+      if (!this.usesUrlBridge && (part.includes("@cs_url_") || part.includes("@cs_urlsearch_"))) {
         this.usesUrlBridge = 1;
       }
       if (
@@ -2854,6 +2857,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       finalParts.push('target datalayout = "' + this.targetInfo.dataLayout + '"\n');
       finalParts.push('target triple = "' + this.targetInfo.triple + '"\n');
       finalParts.push("\n");
+    }
+
+    if (this.usesPath) {
+      finalParts.push("%PathParseResult = type { i8*, i8*, i8*, i8*, i8* }\n\n");
     }
 
     finalParts.push("; Tree-sitter type definitions\n");

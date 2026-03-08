@@ -465,6 +465,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
   }
   const needsGcLib =
     generator.getUsesGC() ||
+    generator.getUsesRegex() ||
     generator.getUsesBase64Bridge() ||
     generator.getUsesUrlBridge() ||
     generator.getUsesUriBridge() ||

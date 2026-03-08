@@ -671,9 +671,9 @@ export class PathGenerator {
   }
 
   // %PathParseResult = { root, dir, base, name, ext } — all i8*
+  // Type definition emitted separately in llvm-generator.ts finalParts so it precedes all GEPs
   generateParseHelper(): string {
     let ir = "";
-    ir += "%PathParseResult = type { i8*, i8*, i8*, i8*, i8* }\n\n";
     ir += "define i8* @__path_parse(i8* %path) {\n";
     ir += "entry:\n";
     ir += "  %len = call i64 @strlen(i8* %path)\n";

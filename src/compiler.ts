@@ -347,6 +347,7 @@ export function compile(
   const platformLibs = targetIsMac ? "" : " -lm -ldl -lrt -lpthread";
   const needsGcLib =
     generator.usesGC ||
+    generator.usesRegex ||
     generator.usesBase64Bridge ||
     generator.usesUrlBridge ||
     generator.usesUriBridge ||
