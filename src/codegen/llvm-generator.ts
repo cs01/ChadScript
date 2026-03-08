@@ -696,13 +696,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     const keys: string[] = [];
     const types: string[] = [];
     const tsTypes: string[] = [];
-    for (let i = 0; i < this.ast.interfaces.length; i++) {
-      const iface = this.ast.interfaces[i];
+    for (const iface of this.ast.interfaces) {
       if (!iface) continue;
       if (iface.name === cleanName) {
-        if (!iface.fields) continue;
-        for (let j = 0; j < iface.fields.length; j++) {
-          const field = iface.fields[j] as InterfaceField;
+        for (const field of this.getAllInterfaceFields(iface)) {
           if (!field) continue;
           let fieldName = field.name;
           if (fieldName.endsWith("?")) {
@@ -805,13 +802,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       return null;
     }
     if (!this.ast || !this.ast.interfaces) return null;
-    for (let i = 0; i < this.ast.interfaces.length; i++) {
-      const iface = this.ast.interfaces[i];
+    for (const iface of this.ast.interfaces) {
       if (!iface) continue;
       if (iface.name === interfaceName) {
-        if (!iface.fields) continue;
-        for (let j = 0; j < iface.fields.length; j++) {
-          const f = iface.fields[j] as InterfaceField;
+        for (const f of this.getAllInterfaceFields(iface)) {
           if (!f) continue;
           let fName = f.name;
           if (fName.endsWith("?")) {
