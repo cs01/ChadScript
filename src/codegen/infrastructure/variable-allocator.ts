@@ -1370,13 +1370,12 @@ export class VariableAllocator {
     const objectInterface = this.getInterface(objectInterfaceType);
     if (!objectInterface) return null;
     const objIface = objectInterface as InterfaceDeclaration;
-    if (!objIface.fields) return null;
-    for (let i = 0; i < objIface.fields.length; i++) {
-      const field = objIface.fields[i] as { name: string; type: string };
-      if (!field || !field.name) continue;
-      const fieldName = stripOptional(field.name);
+    for (const field of this.getAllInterfaceFields(objIface)) {
+      const fieldTyped = field as { name: string; type: string };
+      if (!fieldTyped || !fieldTyped.name) continue;
+      const fieldName = stripOptional(fieldTyped.name);
       if (fieldName === memberExpr.property) {
-        const fieldType = field.type;
+        const fieldType = fieldTyped.type;
         if (
           fieldType &&
           !fieldType.endsWith("[]") &&
@@ -2621,10 +2620,10 @@ export class VariableAllocator {
     const ifaceResult = this.getInterface(interfaceName);
     if (!ifaceResult) return null;
     const iface = ifaceResult as InterfaceDeclaration;
-    for (let i = 0; i < iface.fields.length; i++) {
-      const f = iface.fields[i] as { name: string; type: string };
-      if (f.name === fieldName) {
-        return f.type;
+    for (const f of this.getAllInterfaceFields(iface)) {
+      const fTyped = f as { name: string; type: string };
+      if (fTyped.name === fieldName) {
+        return fTyped.type;
       }
     }
     return null;
