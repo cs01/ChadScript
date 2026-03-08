@@ -2136,7 +2136,7 @@ export class ControlFlowGenerator {
     this.loopBreakLabels.push(endLabel);
 
     const caseLabels: string[] = [];
-    let defaultLabelIndex = -1;
+    let defaultLabelIndex: number = -1;
 
     for (let i = 0; i < switchStmt.cases.length; i++) {
       const caseItem = switchStmt.cases[i];

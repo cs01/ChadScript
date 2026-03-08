@@ -271,7 +271,7 @@ export class ClassGenerator {
     }
 
     if (fields) {
-      let index = -1;
+      let index: number = -1;
       for (let i = 0; i < fields.length; i++) {
         const f = fields[i] as { name: string; fieldType: string; tsType: string };
         if (f.name === fieldName) {
@@ -546,7 +546,7 @@ export class ClassGenerator {
       const paramPropsLen = paramProps.length;
       for (let i = 0; i < paramPropsLen; i++) {
         const propName = paramProps[i];
-        let paramIndex = -1;
+        let paramIndex: number = -1;
         for (let pi = 0; pi < constructor.params.length; pi++) {
           if (constructor.params[pi] === propName) {
             paramIndex = pi;
