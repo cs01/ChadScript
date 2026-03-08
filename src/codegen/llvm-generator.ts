@@ -3440,12 +3440,24 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         }
       } else if (stmtType === "while") {
         lastValue = this.controlFlowGen.generateWhileStatement(stmtRaw as Statement, params);
+        if (this.lastInstructionIsTerminator()) {
+          hasTerminator = true;
+        }
       } else if (stmtType === "do_while") {
         lastValue = this.controlFlowGen.generateDoWhileStatement(stmtRaw as Statement, params);
+        if (this.lastInstructionIsTerminator()) {
+          hasTerminator = true;
+        }
       } else if (stmtType === "for") {
         lastValue = this.controlFlowGen.generateForStatement(stmtRaw as Statement, params);
+        if (this.lastInstructionIsTerminator()) {
+          hasTerminator = true;
+        }
       } else if (stmtType === "for_of") {
         lastValue = this.controlFlowGen.generateForOfStatement(stmtRaw as Statement, params);
+        if (this.lastInstructionIsTerminator()) {
+          hasTerminator = true;
+        }
       } else if (stmtType === "break") {
         lastValue = this.controlFlowGen.generateBreakStatement();
         hasTerminator = true; // break generates 'br', which is a terminator
@@ -3457,8 +3469,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         hasTerminator = true; // throw generates 'unreachable', which is a terminator
       } else if (stmtType === "try") {
         lastValue = this.controlFlowGen.generateTryStatement(stmtRaw as Statement, params);
+        if (this.lastInstructionIsTerminator()) {
+          hasTerminator = true;
+        }
       } else if (stmtType === "switch") {
         lastValue = this.controlFlowGen.generateSwitchStatement(stmtRaw as Statement, params);
+        if (this.lastInstructionIsTerminator()) {
+          hasTerminator = true;
+        }
       } else if (stmtType === "block") {
         lastValue = this.generateBlock(stmtRaw as BlockStatement, params);
       } else {
