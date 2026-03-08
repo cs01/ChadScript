@@ -54,7 +54,48 @@ import type {
   IEmbedGenerator,
 } from "../infrastructure/generator-context.js";
 import { parseMapTypeString, parseSetTypeString } from "../infrastructure/type-system.js";
-import { isProcessStdoutOrStderr, handleProcessWrite } from "./method-calls/process.js";
+import {
+  isProcessStdoutOrStderr,
+  handleProcessWrite,
+  generateProcessExitInline,
+  generateProcessCwdInline,
+  handleProcessChdir,
+  handleProcessKill,
+  handleProcessUptime,
+  handleProcessSyscallI32,
+} from "./method-calls/process.js";
+import {
+  generateConsoleCallInline,
+  generateConsoleTime,
+  generateConsoleTimeEnd,
+} from "./method-calls/console.js";
+import {
+  handleAssertStrictEqual,
+  handleAssertNotStrictEqual,
+  handleAssertOk,
+  handleAssertDeepEqual,
+  handleAssertFail,
+} from "./method-calls/assert.js";
+import {
+  handleOsHostname,
+  handleOsHomedir,
+  handleOsTmpdir,
+  handleOsCpus,
+  handleOsTotalmem,
+  handleOsFreemem,
+  handleOsUptime,
+} from "./method-calls/os.js";
+import { generateObjectKeys, generateObjectValues, generateObjectEntries } from "./method-calls/object-static.js";
+import { handlePromiseStaticMethods } from "./method-calls/promise-handlers.js";
+import {
+  handleFsMethod,
+  handlePathMethod,
+  handleChildProcessMethod,
+  handleBufferFrom,
+  handleStringFromCharCode,
+  handleUint8ArrayFromRawBytes,
+  handleTtyIsatty,
+} from "./method-calls/named-object-dispatch.js";
 import {
   handleSubstr,
   handleSubstring,
@@ -83,9 +124,11 @@ import {
   handleToUpperCase,
   handleToLowerCase,
   handleMatch,
+  handleNumberIsFinite,
+  handleNumberIsNaN,
+  handleNumberIsInteger,
 } from "./method-calls/string-methods.js";
 import { handlePromiseThen, handlePromiseFinally } from "./method-calls/promise-handlers.js";
-import { tryDispatchNamedObject } from "./method-calls/named-object-dispatch.js";
 import {
   handleClassMethods,
   handleObjectMethods,
@@ -302,6 +345,188 @@ export class MethodCallGenerator {
     return null;
   }
 
+  // Dispatch based on known named objects (console, fs, path, crypto, etc.)
+  // Must be a class method so this.ctx concrete type is preserved for inner calls.
+  private dispatchNamedObject(
+    varName: string,
+    method: string,
+    expr: MethodCallNode,
+    params: string[],
+  ): string | null {
+    switch (varName) {
+      case "Promise":
+        return handlePromiseStaticMethods(this.ctx, expr, params);
+
+      case "ChadScript":
+        if (method === "embedFile") return this.ctx.embedGen.generateEmbedFile(expr, params);
+        if (method === "embedDir") return this.ctx.embedGen.generateEmbedDir(expr, params);
+        if (method === "getEmbeddedFile")
+          return this.ctx.embedGen.generateGetEmbeddedFile(expr, params);
+        if (method === "getEmbeddedFileAsUint8Array")
+          return this.ctx.embedGen.generateGetEmbeddedFileAsUint8Array(expr, params);
+        if (method === "serveEmbedded") return this.ctx.embedGen.generateServeEmbedded(expr, params);
+        return this.ctx.emitError(`ChadScript.${method}() is not a supported method`, expr.loc);
+
+      case "Uint8Array":
+        if (method === "fromRawBytes") return handleUint8ArrayFromRawBytes(this.ctx, expr, params);
+        return null;
+
+      case "Array":
+        if (method === "from") {
+          if (expr.args.length === 0)
+            return this.ctx.emitError("Array.from() requires at least 1 argument", expr.loc);
+          return this.ctx.generateExpression(expr.args[0], params);
+        }
+        if (method === "isArray") {
+          if (expr.args.length === 0)
+            return this.ctx.emitError("Array.isArray() requires at least 1 argument", expr.loc);
+          const arg = expr.args[0];
+          const isArr =
+            this.ctx.isArrayExpression(arg) ||
+            this.ctx.isStringArrayExpression(arg) ||
+            this.ctx.isObjectArrayExpression(arg);
+          return isArr ? "1.0" : "0.0";
+        }
+        return null;
+
+      case "Buffer":
+        if (method === "from") return handleBufferFrom(this.ctx, expr, params);
+        return null;
+
+      case "String":
+        if (method === "fromCharCode") return handleStringFromCharCode(this.ctx, expr, params);
+        return null;
+
+      case "Object":
+        if (method === "keys") return generateObjectKeys(this.ctx, expr, params);
+        if (method === "values") return generateObjectValues(this.ctx, expr, params);
+        if (method === "entries") return generateObjectEntries(this.ctx, expr, params);
+        return null;
+
+      case "Number":
+        if (method === "isFinite") {
+          if (expr.args.length === 0)
+            return this.ctx.emitError("Number.isFinite() requires at least 1 argument", expr.loc);
+          return handleNumberIsFinite(this.ctx, expr, params);
+        }
+        if (method === "isNaN") {
+          if (expr.args.length === 0)
+            return this.ctx.emitError("Number.isNaN() requires at least 1 argument", expr.loc);
+          return handleNumberIsNaN(this.ctx, expr, params);
+        }
+        if (method === "isInteger") {
+          if (expr.args.length === 0)
+            return this.ctx.emitError(
+              "Number.isInteger() requires at least 1 argument",
+              expr.loc,
+            );
+          return handleNumberIsInteger(this.ctx, expr, params);
+        }
+        return null;
+
+      case "console":
+        if (
+          method === "log" ||
+          method === "error" ||
+          method === "warn" ||
+          method === "debug"
+        )
+          return generateConsoleCallInline(this.ctx, expr, params);
+        if (method === "time") return generateConsoleTime(this.ctx, expr, params);
+        if (method === "timeEnd") return generateConsoleTimeEnd(this.ctx, expr, params);
+        return null;
+
+      case "assert":
+        this.ctx.setUsesTestRunner(true);
+        if (method === "strictEqual") return handleAssertStrictEqual(this.ctx, expr, params);
+        if (method === "notStrictEqual")
+          return handleAssertNotStrictEqual(this.ctx, expr, params);
+        if (method === "ok") return handleAssertOk(this.ctx, expr, params);
+        if (method === "deepEqual") return handleAssertDeepEqual(this.ctx, expr, params);
+        if (method === "fail") return handleAssertFail(this.ctx, expr, params);
+        return null;
+
+      case "process":
+        if (method === "exit") return generateProcessExitInline(this.ctx, expr, params);
+        if (method === "cwd") return generateProcessCwdInline(this.ctx);
+        if (method === "chdir") return handleProcessChdir(this.ctx, expr, params);
+        if (method === "abort") {
+          this.ctx.emit(`call void @abort()`);
+          return "0";
+        }
+        if (method === "kill") return handleProcessKill(this.ctx, expr, params);
+        if (method === "uptime") return handleProcessUptime(this.ctx);
+        if (method === "getuid") return handleProcessSyscallI32(this.ctx, "@getuid");
+        if (method === "getgid") return handleProcessSyscallI32(this.ctx, "@getgid");
+        if (method === "geteuid") return handleProcessSyscallI32(this.ctx, "@geteuid");
+        if (method === "getegid") return handleProcessSyscallI32(this.ctx, "@getegid");
+        return null;
+
+      case "tty":
+        if (method === "isatty") return handleTtyIsatty(this.ctx, expr, params);
+        return null;
+
+      case "os":
+        if (method === "hostname") return handleOsHostname(this.ctx);
+        if (method === "homedir") return handleOsHomedir(this.ctx);
+        if (method === "tmpdir") return handleOsTmpdir(this.ctx);
+        if (method === "cpus") return handleOsCpus(this.ctx);
+        if (method === "totalmem") return handleOsTotalmem(this.ctx);
+        if (method === "freemem") {
+          this.ctx.setUsesOs(true);
+          return handleOsFreemem(this.ctx);
+        }
+        if (method === "uptime") {
+          this.ctx.setUsesOs(true);
+          return handleOsUptime(this.ctx);
+        }
+        return null;
+
+      case "fs":
+        return handleFsMethod(this.ctx, method, expr, params);
+
+      case "path":
+        return handlePathMethod(this.ctx, method, expr, params);
+
+      case "child_process":
+      case "cp":
+        return handleChildProcessMethod(this.ctx, method, expr, params);
+
+      case "JSON":
+        if (method === "parse") {
+          this.ctx.setUsesJson(true);
+          return this.ctx.jsonGen.generateParse(expr, params, expr.typeParameter);
+        }
+        if (method === "stringify") return this.ctx.jsonGen.generateStringify(expr, params);
+        return null;
+
+      case "crypto":
+        this.ctx.setUsesCrypto(true);
+        if (method === "sha256") return this.ctx.cryptoGen.generateSha256(expr, params);
+        if (method === "md5") return this.ctx.cryptoGen.generateMd5(expr, params);
+        if (method === "sha512") return this.ctx.cryptoGen.generateSha512(expr, params);
+        if (method === "randomBytes") return this.ctx.cryptoGen.generateRandomBytes(expr, params);
+        if (method === "randomUUID") return this.ctx.cryptoGen.generateRandomUUID(expr, params);
+        if (method === "hmacSha256") return this.ctx.cryptoGen.generateHmacSha256(expr, params);
+        if (method === "pbkdf2") return this.ctx.cryptoGen.generatePbkdf2(expr, params);
+        return null;
+
+      case "sqlite":
+        this.ctx.setUsesSqlite(true);
+        if (method === "open") return this.ctx.sqliteGen.generateOpen(expr, params);
+        if (method === "exec") return this.ctx.sqliteGen.generateExec(expr, params);
+        if (method === "get") return this.ctx.sqliteGen.generateGet(expr, params);
+        if (method === "getRow") return this.ctx.sqliteGen.generateGetRow(expr, params);
+        if (method === "all") return this.ctx.sqliteGen.generateAll(expr, params);
+        if (method === "query") return this.ctx.sqliteGen.generateQuery(expr, params);
+        if (method === "close") return this.ctx.sqliteGen.generateClose(expr, params);
+        return null;
+
+      default:
+        return null;
+    }
+  }
+
   private getParameterMapKeyType(varName: string): string | null {
     const currentFunc = this.ctx.getCurrentFunction();
     if (!currentFunc) return null;
@@ -432,7 +657,7 @@ export class MethodCallGenerator {
     // Named-object dispatch: console, process, fs, path, crypto, sqlite, JSON, etc.
     const varName = this.getVariableName(expr.object);
     if (varName !== null) {
-      const namedResult = tryDispatchNamedObject(this.ctx, varName, method, expr, params);
+      const namedResult = this.dispatchNamedObject(varName, method, expr, params);
       if (namedResult !== null) return namedResult;
     }
 

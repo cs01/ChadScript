@@ -1,247 +1,7 @@
 import { MethodCallNode } from "../../../ast/types.js";
 import type { MethodCallGeneratorContext } from "../method-calls.js";
-import { handlePromiseStaticMethods } from "./promise-handlers.js";
-import {
-  generateConsoleCallInline,
-  generateConsoleTime,
-  generateConsoleTimeEnd,
-} from "./console.js";
-import {
-  handleAssertStrictEqual,
-  handleAssertNotStrictEqual,
-  handleAssertOk,
-  handleAssertDeepEqual,
-  handleAssertFail,
-} from "./assert.js";
-import {
-  generateProcessExitInline,
-  generateProcessCwdInline,
-  handleProcessChdir,
-  handleProcessKill,
-  handleProcessUptime,
-  handleProcessSyscallI32,
-} from "./process.js";
-import {
-  handleOsHostname,
-  handleOsHomedir,
-  handleOsTmpdir,
-  handleOsCpus,
-  handleOsTotalmem,
-  handleOsFreemem,
-  handleOsUptime,
-} from "./os.js";
-import {
-  generateObjectKeys,
-  generateObjectValues,
-  generateObjectEntries,
-} from "./object-static.js";
-import {
-  handleNumberIsFinite,
-  handleNumberIsNaN,
-  handleNumberIsInteger,
-} from "./string-methods.js";
 
-export function tryDispatchNamedObject(
-  ctx: MethodCallGeneratorContext,
-  varName: string,
-  method: string,
-  expr: MethodCallNode,
-  params: string[],
-): string | null {
-  switch (varName) {
-    case "Promise":
-      return handlePromiseStaticMethods(ctx, expr, params);
-
-    case "ChadScript":
-      if (method === "embedFile") return ctx.embedGen.generateEmbedFile(expr, params);
-      if (method === "embedDir") return ctx.embedGen.generateEmbedDir(expr, params);
-      if (method === "getEmbeddedFile") return ctx.embedGen.generateGetEmbeddedFile(expr, params);
-      if (method === "getEmbeddedFileAsUint8Array")
-        return ctx.embedGen.generateGetEmbeddedFileAsUint8Array(expr, params);
-      if (method === "serveEmbedded") return ctx.embedGen.generateServeEmbedded(expr, params);
-      return ctx.emitError(`ChadScript.${method}() is not a supported method`, expr.loc);
-
-    case "Uint8Array":
-      if (method === "fromRawBytes") return handleUint8ArrayFromRawBytes(ctx, expr, params);
-      return null;
-
-    case "Array":
-      if (method === "from") {
-        if (expr.args.length === 0)
-          return ctx.emitError("Array.from() requires at least 1 argument", expr.loc);
-        return ctx.generateExpression(expr.args[0], params);
-      }
-      if (method === "isArray") {
-        if (expr.args.length === 0)
-          return ctx.emitError("Array.isArray() requires at least 1 argument", expr.loc);
-        const arg = expr.args[0];
-        const isArr =
-          ctx.isArrayExpression(arg) ||
-          ctx.isStringArrayExpression(arg) ||
-          ctx.isObjectArrayExpression(arg);
-        return isArr ? "1.0" : "0.0";
-      }
-      return null;
-
-    case "Buffer":
-      if (method === "from") return handleBufferFrom(ctx, expr, params);
-      return null;
-
-    case "String":
-      if (method === "fromCharCode") return handleStringFromCharCode(ctx, expr, params);
-      return null;
-
-    case "Object":
-      if (method === "keys") return generateObjectKeys(ctx, expr, params);
-      if (method === "values") return generateObjectValues(ctx, expr, params);
-      if (method === "entries") return generateObjectEntries(ctx, expr, params);
-      return null;
-
-    case "Number":
-      if (method === "isFinite") {
-        if (expr.args.length === 0)
-          return ctx.emitError("Number.isFinite() requires at least 1 argument", expr.loc);
-        return handleNumberIsFinite(ctx, expr, params);
-      }
-      if (method === "isNaN") {
-        if (expr.args.length === 0)
-          return ctx.emitError("Number.isNaN() requires at least 1 argument", expr.loc);
-        return handleNumberIsNaN(ctx, expr, params);
-      }
-      if (method === "isInteger") {
-        if (expr.args.length === 0)
-          return ctx.emitError("Number.isInteger() requires at least 1 argument", expr.loc);
-        return handleNumberIsInteger(ctx, expr, params);
-      }
-      return null;
-
-    case "console":
-      if (method === "log" || method === "error" || method === "warn" || method === "debug")
-        return generateConsoleCallInline(ctx, expr, params);
-      if (method === "time") return generateConsoleTime(ctx, expr, params);
-      if (method === "timeEnd") return generateConsoleTimeEnd(ctx, expr, params);
-      return null;
-
-    case "assert":
-      ctx.setUsesTestRunner(true);
-      if (method === "strictEqual") return handleAssertStrictEqual(ctx, expr, params);
-      if (method === "notStrictEqual") return handleAssertNotStrictEqual(ctx, expr, params);
-      if (method === "ok") return handleAssertOk(ctx, expr, params);
-      if (method === "deepEqual") return handleAssertDeepEqual(ctx, expr, params);
-      if (method === "fail") return handleAssertFail(ctx, expr, params);
-      return null;
-
-    case "process":
-      return handleProcessNamedMethod(ctx, method, expr, params);
-
-    case "tty":
-      if (method === "isatty") return handleTtyIsatty(ctx, expr, params);
-      return null;
-
-    case "os":
-      if (method === "hostname") return handleOsHostname(ctx);
-      if (method === "homedir") return handleOsHomedir(ctx);
-      if (method === "tmpdir") return handleOsTmpdir(ctx);
-      if (method === "cpus") return handleOsCpus(ctx);
-      if (method === "totalmem") return handleOsTotalmem(ctx);
-      if (method === "freemem") {
-        ctx.setUsesOs(true);
-        return handleOsFreemem(ctx);
-      }
-      if (method === "uptime") {
-        ctx.setUsesOs(true);
-        return handleOsUptime(ctx);
-      }
-      return null;
-
-    case "fs":
-      return handleFsMethod(ctx, method, expr, params);
-
-    case "path":
-      return handlePathMethod(ctx, method, expr, params);
-
-    case "child_process":
-    case "cp":
-      return handleChildProcessMethod(ctx, method, expr, params);
-
-    case "JSON":
-      if (method === "parse") {
-        ctx.setUsesJson(true);
-        return ctx.jsonGen.generateParse(expr, params, expr.typeParameter);
-      }
-      if (method === "stringify") return ctx.jsonGen.generateStringify(expr, params);
-      return null;
-
-    case "crypto":
-      ctx.setUsesCrypto(true);
-      if (method === "sha256") return ctx.cryptoGen.generateSha256(expr, params);
-      if (method === "md5") return ctx.cryptoGen.generateMd5(expr, params);
-      if (method === "sha512") return ctx.cryptoGen.generateSha512(expr, params);
-      if (method === "randomBytes") return ctx.cryptoGen.generateRandomBytes(expr, params);
-      if (method === "randomUUID") return ctx.cryptoGen.generateRandomUUID(expr, params);
-      if (method === "hmacSha256") return ctx.cryptoGen.generateHmacSha256(expr, params);
-      if (method === "pbkdf2") return ctx.cryptoGen.generatePbkdf2(expr, params);
-      return null;
-
-    case "sqlite":
-      ctx.setUsesSqlite(true);
-      if (method === "open") return ctx.sqliteGen.generateOpen(expr, params);
-      if (method === "exec") return ctx.sqliteGen.generateExec(expr, params);
-      if (method === "get") return ctx.sqliteGen.generateGet(expr, params);
-      if (method === "getRow") return ctx.sqliteGen.generateGetRow(expr, params);
-      if (method === "all") return ctx.sqliteGen.generateAll(expr, params);
-      if (method === "query") return ctx.sqliteGen.generateQuery(expr, params);
-      if (method === "close") return ctx.sqliteGen.generateClose(expr, params);
-      return null;
-
-    default:
-      return null;
-  }
-}
-
-function handleProcessNamedMethod(
-  ctx: MethodCallGeneratorContext,
-  method: string,
-  expr: MethodCallNode,
-  params: string[],
-): string | null {
-  if (method === "exit") return generateProcessExitInline(ctx, expr, params);
-  if (method === "cwd") return generateProcessCwdInline(ctx);
-  if (method === "chdir") return handleProcessChdir(ctx, expr, params);
-  if (method === "abort") {
-    ctx.emit(`call void @abort()`);
-    return "0";
-  }
-  if (method === "kill") return handleProcessKill(ctx, expr, params);
-  if (method === "uptime") return handleProcessUptime(ctx);
-  if (method === "getuid") return handleProcessSyscallI32(ctx, "@getuid");
-  if (method === "getgid") return handleProcessSyscallI32(ctx, "@getgid");
-  if (method === "geteuid") return handleProcessSyscallI32(ctx, "@geteuid");
-  if (method === "getegid") return handleProcessSyscallI32(ctx, "@getegid");
-  return null;
-}
-
-function handleTtyIsatty(
-  ctx: MethodCallGeneratorContext,
-  expr: MethodCallNode,
-  params: string[],
-): string {
-  if (expr.args.length === 0)
-    return ctx.emitError("tty.isatty() requires 1 argument (fd)", expr.loc);
-  const fdValue = ctx.generateExpression(expr.args[0], params);
-  const dblFd = ctx.ensureDouble(fdValue);
-  const fdInt = ctx.nextTemp();
-  ctx.emit(`${fdInt} = fptosi double ${dblFd} to i32`);
-  const rawResult = ctx.nextTemp();
-  ctx.emit(`${rawResult} = call i32 @isatty(i32 ${fdInt})`);
-  const boolResult = ctx.nextTemp();
-  ctx.emit(`${boolResult} = icmp ne i32 ${rawResult}, 0`);
-  const doubleResult = ctx.nextTemp();
-  ctx.emit(`${doubleResult} = uitofp i1 ${boolResult} to double`);
-  return doubleResult;
-}
-
-function handleFsMethod(
+export function handleFsMethod(
   ctx: MethodCallGeneratorContext,
   method: string,
   expr: MethodCallNode,
@@ -276,7 +36,7 @@ function handleFsMethod(
   return null;
 }
 
-function handlePathMethod(
+export function handlePathMethod(
   ctx: MethodCallGeneratorContext,
   method: string,
   expr: MethodCallNode,
@@ -294,7 +54,7 @@ function handlePathMethod(
   return null;
 }
 
-function handleChildProcessMethod(
+export function handleChildProcessMethod(
   ctx: MethodCallGeneratorContext,
   method: string,
   expr: MethodCallNode,
@@ -307,7 +67,7 @@ function handleChildProcessMethod(
   return null;
 }
 
-function handleBufferFrom(
+export function handleBufferFrom(
   ctx: MethodCallGeneratorContext,
   expr: MethodCallNode,
   params: string[],
@@ -321,7 +81,7 @@ function handleBufferFrom(
   return arrPtr;
 }
 
-function handleStringFromCharCode(
+export function handleStringFromCharCode(
   ctx: MethodCallGeneratorContext,
   expr: MethodCallNode,
   params: string[],
@@ -342,7 +102,7 @@ function handleStringFromCharCode(
   return buf;
 }
 
-function handleUint8ArrayFromRawBytes(
+export function handleUint8ArrayFromRawBytes(
   ctx: MethodCallGeneratorContext,
   expr: MethodCallNode,
   params: string[],
@@ -371,4 +131,24 @@ function handleUint8ArrayFromRawBytes(
   ctx.emit(`store i32 ${lenI32}, i32* ${f2}`);
   ctx.setVariableType(arrPtr, "%Uint8Array*");
   return arrPtr;
+}
+
+export function handleTtyIsatty(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
+  if (expr.args.length === 0)
+    return ctx.emitError("tty.isatty() requires 1 argument (fd)", expr.loc);
+  const fdValue = ctx.generateExpression(expr.args[0], params);
+  const dblFd = ctx.ensureDouble(fdValue);
+  const fdInt = ctx.nextTemp();
+  ctx.emit(`${fdInt} = fptosi double ${dblFd} to i32`);
+  const rawResult = ctx.nextTemp();
+  ctx.emit(`${rawResult} = call i32 @isatty(i32 ${fdInt})`);
+  const boolResult = ctx.nextTemp();
+  ctx.emit(`${boolResult} = icmp ne i32 ${rawResult}, 0`);
+  const doubleResult = ctx.nextTemp();
+  ctx.emit(`${doubleResult} = uitofp i1 ${boolResult} to double`);
+  return doubleResult;
 }
