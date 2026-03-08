@@ -2710,17 +2710,18 @@ export class VariableAllocator {
     }
 
     const firstInterface = interfaces[0] as InterfaceDeclaration;
-    const firstFields = firstInterface.fields;
+    const firstFields = this.getAllInterfaceFields(firstInterface);
     const commonFields: CommonField[] = [];
 
     for (let fi = 0; fi < firstFields.length; fi++) {
       const field = firstFields[fi] as { name: string; type: string };
       let isCommon = true;
       for (let ii = 0; ii < interfaces.length; ii++) {
-        const ifaceTyped = interfaces[ii] as { fields: { name: string; type: string }[] };
+        const ifaceTyped = interfaces[ii] as InterfaceDeclaration;
+        const ifaceFields = this.getAllInterfaceFields(ifaceTyped);
         let found = false;
-        for (let fj = 0; fj < ifaceTyped.fields.length; fj++) {
-          const f = ifaceTyped.fields[fj] as { name: string; type: string };
+        for (let fj = 0; fj < ifaceFields.length; fj++) {
+          const f = ifaceFields[fj] as { name: string; type: string };
           if (f.name === field.name && this.areTypesCompatible(f.type, field.type)) {
             found = true;
             break;

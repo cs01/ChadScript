@@ -588,7 +588,7 @@ export class TypeResolver {
     }
 
     const firstInterface = interfaces[0] as InterfaceDeclaration;
-    const firstFields = firstInterface.fields;
+    const firstFields = this.getAllInterfaceFields(firstInterface);
     const commonFields: CommonField[] = [];
 
     for (let fi = 0; fi < firstFields.length; fi++) {
@@ -596,9 +596,10 @@ export class TypeResolver {
       let isCommon = true;
       for (let ii = 0; ii < interfaces.length; ii++) {
         const iface = interfaces[ii] as InterfaceDeclaration;
+        const ifaceFields = this.getAllInterfaceFields(iface);
         let hasMatch = false;
-        for (let jj = 0; jj < iface.fields.length; jj++) {
-          const f = iface.fields[jj] as { name: string; type: string };
+        for (let jj = 0; jj < ifaceFields.length; jj++) {
+          const f = ifaceFields[jj] as { name: string; type: string };
           if (f.name === field.name && this.areTypesCompatible(f.type, field.type)) {
             hasMatch = true;
             break;
