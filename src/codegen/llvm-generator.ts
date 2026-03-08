@@ -1693,7 +1693,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       )
         continue;
 
-      let semaIdx = -1;
+      let semaIdx: number = -1;
       for (let si = 0; si < this.semaSymbolCount; si++) {
         if (this.semaSymbolNames[si] === name) {
           semaIdx = si;
