@@ -2674,7 +2674,7 @@ export class VariableAllocator {
 
     const typeAliasRaw = this.getTypeAlias(elementType);
     if (typeAliasRaw) {
-      const typeAlias = typeAliasRaw as { name: string; unionMembers: string[] };
+      const typeAlias = typeAliasRaw as TypeAliasDeclaration;
       if (typeAlias.unionMembers) {
         const commonFieldsResult = this.getUnionCommonFields(typeAlias.unionMembers);
         const commonFields = commonFieldsResult as UnionCommonFields;

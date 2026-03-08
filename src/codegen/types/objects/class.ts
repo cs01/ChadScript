@@ -6,6 +6,7 @@ import {
   VariableNode,
   InterfaceDeclaration,
   CommonField,
+  TypeAliasDeclaration,
 } from "../../../ast/types.js";
 import { IGeneratorContext } from "../../infrastructure/generator-context.js";
 import {
@@ -1469,14 +1470,14 @@ export class ClassGenerator {
     const ast2 = this.ctx.getAst();
     const typeAliases = ast2 ? ast2.typeAliases || [] : [];
     for (let i = 0; i < typeAliases.length; i++) {
-      const ta = typeAliases[i] as { name: string; unionMembers: string[] };
+      const ta = typeAliases[i] as TypeAliasDeclaration;
       if (ta.name === tsType) {
         typeAlias = ta;
         break;
       }
     }
     if (typeAlias) {
-      const typeAliasTyped = typeAlias as { name: string; unionMembers: string[] };
+      const typeAliasTyped = typeAlias as TypeAliasDeclaration;
       if (typeAliasTyped.unionMembers) {
         const commonFields = this.getUnionCommonFields(typeAliasTyped.unionMembers);
         this.ctx.defineVariableWithMetadata(
