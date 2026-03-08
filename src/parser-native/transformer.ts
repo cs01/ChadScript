@@ -1392,15 +1392,9 @@ function transformAwaitExpression(node: TreeSitterNode): Expression {
 
 function transformRegexNode(node: TreeSitterNode): RegexNode {
   const text = (node as NodeBase).text;
-  let lastSlash = -1;
-  for (let i = text.length - 1; i >= 0; i--) {
-    if (text.charAt(i) === "/") {
-      lastSlash = i;
-      break;
-    }
-  }
-  const pattern = text.slice(1, lastSlash);
-  const flags = text.slice(lastSlash + 1);
+  const lastSlash = text.lastIndexOf("/");
+  const pattern = text.substring(1, lastSlash);
+  const flags = text.substring(lastSlash + 1, text.length);
   return { type: "regex", pattern, flags };
 }
 
@@ -2645,7 +2639,7 @@ function transformClassDeclaration(node: TreeSitterNode): ClassNode | null {
             const params = method.params;
             for (let pi = 0; pi < method.parameterProperties.length; pi++) {
               const propName = method.parameterProperties[pi];
-              let propIdx = -1;
+              let propIdx: number = -1;
               for (let k = 0; k < params.length; k++) {
                 if (params[k] === propName) {
                   propIdx = k;
