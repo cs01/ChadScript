@@ -335,6 +335,25 @@ export class TypeResolver {
     return resolved;
   }
 
+  private getAllInterfaceFields(iface: InterfaceDeclaration): InterfaceField[] {
+    const result: InterfaceField[] = [];
+    if (iface.extends && iface.extends.length > 0) {
+      for (let i = 0; i < iface.extends.length; i++) {
+        const parent = this.getInterface(iface.extends[i]);
+        if (parent) {
+          const parentFields = this.getAllInterfaceFields(parent);
+          for (let j = 0; j < parentFields.length; j++) {
+            result.push(parentFields[j]);
+          }
+        }
+      }
+    }
+    for (let i = 0; i < iface.fields.length; i++) {
+      result.push(iface.fields[i]);
+    }
+    return result;
+  }
+
   getInterface(name: string): InterfaceDeclaration | null {
     if (!name) {
       return null;
@@ -565,7 +584,7 @@ export class TypeResolver {
     }
 
     const firstInterface = interfaces[0] as InterfaceDeclaration;
-    const firstFields = firstInterface.fields;
+    const firstFields = this.getAllInterfaceFields(firstInterface);
     const commonFields: CommonField[] = [];
 
     for (let fi = 0; fi < firstFields.length; fi++) {
@@ -573,9 +592,10 @@ export class TypeResolver {
       let isCommon = true;
       for (let ii = 0; ii < interfaces.length; ii++) {
         const iface = interfaces[ii] as InterfaceDeclaration;
+        const ifaceFields = this.getAllInterfaceFields(iface);
         let hasMatch = false;
-        for (let jj = 0; jj < iface.fields.length; jj++) {
-          const f = iface.fields[jj] as { name: string; type: string };
+        for (let jj = 0; jj < ifaceFields.length; jj++) {
+          const f = ifaceFields[jj] as { name: string; type: string };
           if (f.name === field.name && this.areTypesCompatible(f.type, field.type)) {
             hasMatch = true;
             break;

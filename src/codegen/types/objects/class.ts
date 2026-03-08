@@ -1642,23 +1642,13 @@ export class ClassGenerator {
   }
 
   private getUnionCommonFields(memberNames: string[]): { keys: string[]; types: string[] } {
-    const interfaces: {
-      name: string;
-      extends: string[];
-      fields: { name: string; type: string }[];
-      methods: { name: string }[];
-    }[] = [];
+    const interfaces: InterfaceDeclaration[] = [];
     const ast = this.ctx.getAst();
     const astInterfaces = ast ? ast.interfaces || [] : [];
     for (let i = 0; i < memberNames.length; i++) {
       const memberName = memberNames[i];
       for (let j = 0; j < astInterfaces.length; j++) {
-        const iface = astInterfaces[j] as {
-          name: string;
-          extends: string[];
-          fields: { name: string; type: string }[];
-          methods: { name: string }[];
-        };
+        const iface = astInterfaces[j] as InterfaceDeclaration;
         if (!iface) continue;
         if (!iface.name) continue;
         if (iface.name === memberName) {
@@ -1672,28 +1662,19 @@ export class ClassGenerator {
       return { keys: [], types: [] };
     }
 
-    const firstInterface = interfaces[0] as {
-      name: string;
-      extends: string[];
-      fields: { name: string; type: string }[];
-      methods: { name: string }[];
-    };
-    const firstFields = firstInterface.fields;
+    const firstInterface = interfaces[0] as InterfaceDeclaration;
+    const firstFields = this.ctx.getAllInterfaceFields(firstInterface);
     const commonFields: CommonField[] = [];
 
     for (let fi = 0; fi < firstFields.length; fi++) {
       const field = firstFields[fi] as { name: string; type: string };
       let isCommon = true;
       for (let ii = 0; ii < interfaces.length; ii++) {
-        const ifaceTyped = interfaces[ii] as {
-          name: string;
-          extends: string[];
-          fields: { name: string; type: string }[];
-          methods: { name: string }[];
-        };
+        const ifaceTyped = interfaces[ii] as InterfaceDeclaration;
+        const ifaceFields = this.ctx.getAllInterfaceFields(ifaceTyped);
         let found = false;
-        for (let fj = 0; fj < ifaceTyped.fields.length; fj++) {
-          const f = ifaceTyped.fields[fj] as { name: string; type: string };
+        for (let fj = 0; fj < ifaceFields.length; fj++) {
+          const f = ifaceFields[fj] as { name: string; type: string };
           if (f.name === field.name && this.areTypesCompatible(f.type, field.type)) {
             found = true;
             break;
