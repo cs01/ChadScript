@@ -31,6 +31,20 @@ type ClassNode = {
   typeParameters?: string[];
 };
 
+export function getInterfaceDecl(
+  ctx: MethodCallGeneratorContext,
+  name: string,
+): InterfaceDeclaration | null {
+  const len = ctx.getAstInterfacesLength();
+  for (let i = 0; i < len; i++) {
+    const ifaceName = ctx.getAstInterfaceNameAt(i);
+    if (ifaceName === name) {
+      return ctx.getAstInterfaceAt(i);
+    }
+  }
+  return null;
+}
+
 export function getInterfaceFromAST(
   ctx: MethodCallGeneratorContext,
   name: string,
@@ -41,26 +55,13 @@ export function getInterfaceFromAST(
     if (ifaceName === name) {
       const ifaceItem = ctx.getAstInterfaceAt(i);
       if (!ifaceItem) continue;
+      const allFields = ctx.getAllInterfaceFields(ifaceItem);
       const properties: { name: string; type: string }[] = [];
-      for (let j = 0; j < ifaceItem.fields.length; j++) {
-        const field = ifaceItem.fields[j] as { name: string; type: string };
+      for (let j = 0; j < allFields.length; j++) {
+        const field = allFields[j] as { name: string; type: string };
         properties.push({ name: field.name, type: field.type });
       }
       return { properties };
-    }
-  }
-  return null;
-}
-
-export function getInterfaceDecl(
-  ctx: MethodCallGeneratorContext,
-  name: string,
-): InterfaceDeclaration | null {
-  const len = ctx.getAstInterfacesLength();
-  for (let i = 0; i < len; i++) {
-    const ifaceName = ctx.getAstInterfaceNameAt(i);
-    if (ifaceName === name) {
-      return ctx.getAstInterfaceAt(i);
     }
   }
   return null;
@@ -388,8 +389,9 @@ export function resolveNestedMemberAccessType(
     const interfaceDecl = interfaceDeclResult as InterfaceDeclaration;
     if (interfaceDeclResult) {
       let fieldResult: InterfaceField | null = null;
-      for (let i = 0; i < interfaceDecl.fields.length; i++) {
-        const f = interfaceDecl.fields[i] as { name: string; type: string };
+      const allIfaceFields = ctx.getAllInterfaceFields(interfaceDecl);
+      for (let i = 0; i < allIfaceFields.length; i++) {
+        const f = allIfaceFields[i] as { name: string; type: string };
         if (f.name === memberAccess.property) {
           fieldResult = f;
           break;
@@ -641,8 +643,9 @@ export function handleClassMethods(
           const interfaceDeclResult = getInterfaceDecl(ctx, interfaceType);
           if (interfaceDeclResult) {
             const interfaceDecl = interfaceDeclResult as InterfaceDeclaration;
-            for (let i = 0; i < interfaceDecl.fields.length; i++) {
-              const f = interfaceDecl.fields[i] as { name: string; type: string };
+            const allDispatchFields = ctx.getAllInterfaceFields(interfaceDecl);
+            for (let i = 0; i < allDispatchFields.length; i++) {
+              const f = allDispatchFields[i] as { name: string; type: string };
               if (f.name === memberAccess.property) {
                 let fieldType = f.type;
                 if (fieldType.endsWith(" | null") || fieldType.endsWith(" | undefined")) {
