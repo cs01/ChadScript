@@ -14,6 +14,8 @@ import {
   SwitchStatement,
   SourceLocation,
   Statement,
+  InterfaceDeclaration,
+  InterfaceField,
 } from "../../ast/types.js";
 import {
   SymbolKind,
@@ -105,6 +107,7 @@ export interface FunctionGeneratorContext {
   getTargetOS(): string;
   setRawInterfaceType(name: string, type: string): void;
   getUsesMathRandom(): boolean;
+  getAllInterfaceFields(iface: InterfaceDeclaration): InterfaceField[];
 }
 
 export class FunctionGenerator {
@@ -328,20 +331,14 @@ export class FunctionGenerator {
           }
 
           let interfaceDefName: string = "";
-          let interfaceDefFields: { name: string; type: string }[] = [];
+          let interfaceDefFields: InterfaceField[] = [];
           const interfaces = ast ? ast.interfaces || [] : [];
           for (let ji = 0; ji < interfaces.length; ji++) {
-            const iface = interfaces[ji] as {
-              name: string;
-              extends: string[];
-              fields: { name: string; type: string }[];
-            };
+            const iface = interfaces[ji] as InterfaceDeclaration;
             if (!iface || !iface.name) continue;
             if (iface.name === paramTypes[i]) {
               interfaceDefName = iface.name;
-              if (iface.fields) {
-                interfaceDefFields = iface.fields;
-              }
+              interfaceDefFields = this.ctx.getAllInterfaceFields(iface);
               break;
             }
           }
