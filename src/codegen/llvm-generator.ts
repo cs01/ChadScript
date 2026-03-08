@@ -2859,9 +2859,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       finalParts.push("\n");
     }
 
-    if (this.usesPath) {
-      finalParts.push("%PathParseResult = type { i8*, i8*, i8*, i8*, i8* }\n\n");
-    }
+    finalParts.push("%PathParseResult = type { i8*, i8*, i8*, i8*, i8* }\n\n");
 
     finalParts.push("; Tree-sitter type definitions\n");
     finalParts.push("%TSParser = type opaque\n");
