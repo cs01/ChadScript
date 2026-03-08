@@ -271,7 +271,8 @@ export class VariableAllocator {
   private getGenericMethodReturnError(expr: Expression, varName: string): string | null {
     if (expr.type !== "method_call") return null;
     const methodExpr = expr as MethodCallNode;
-    if (methodExpr.object.type !== "variable") return null;
+    const methodObjTyped = methodExpr.object as { type: string };
+    if (methodObjTyped.type !== "variable") return null;
     const objName = (methodExpr.object as VariableNode).name;
     const className = this.ctx.symbolTable.getConcreteClass(objName);
     if (!className) return null;
@@ -705,8 +706,9 @@ export class VariableAllocator {
     }
 
     const stmtValue = stmt.value!;
+    const stmtValueBase = stmtValue as { type: string };
 
-    if (stmtValue.type === "new") {
+    if (stmtValueBase.type === "new") {
       const newNode = stmtValue as NewNode;
       if (newNode.className === "URL") {
         this.allocateUrl(stmt, params);
@@ -1824,7 +1826,8 @@ export class VariableAllocator {
     let setTypeInfoResult = this.parseSetType(stmt.declaredType);
 
     if (!setTypeInfoResult && stmt.value) {
-      if (stmt.value.type === "new") {
+      const valueBase = stmt.value as { type: string };
+      if (valueBase.type === "new") {
         const newExpr = stmt.value as {
           type: string;
           className: string;
@@ -1834,7 +1837,7 @@ export class VariableAllocator {
         if (newExpr.className === "Set" && newExpr.typeArgs && newExpr.typeArgs.length > 0) {
           setTypeInfoResult = { valueType: newExpr.typeArgs[0] };
         }
-      } else if (stmt.value.type === "set") {
+      } else if (valueBase.type === "set") {
         const setExpr = stmt.value as { valueType?: string };
         if (setExpr.valueType) {
           setTypeInfoResult = { valueType: setExpr.valueType };
