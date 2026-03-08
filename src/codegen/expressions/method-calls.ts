@@ -54,37 +54,7 @@ import type {
   IEmbedGenerator,
 } from "../infrastructure/generator-context.js";
 import { parseMapTypeString, parseSetTypeString } from "../infrastructure/type-system.js";
-import {
-  generateConsoleCallInline,
-  generateConsoleTime,
-  generateConsoleTimeEnd,
-} from "./method-calls/console.js";
-import {
-  handleAssertStrictEqual,
-  handleAssertNotStrictEqual,
-  handleAssertOk,
-  handleAssertDeepEqual,
-  handleAssertFail,
-} from "./method-calls/assert.js";
-import {
-  generateProcessExitInline,
-  generateProcessCwdInline,
-  handleProcessChdir,
-  handleProcessKill,
-  handleProcessUptime,
-  handleProcessSyscallI32,
-  isProcessStdoutOrStderr,
-  handleProcessWrite,
-} from "./method-calls/process.js";
-import {
-  handleOsHostname,
-  handleOsHomedir,
-  handleOsTmpdir,
-  handleOsCpus,
-  handleOsTotalmem,
-  handleOsFreemem,
-  handleOsUptime,
-} from "./method-calls/os.js";
+import { isProcessStdoutOrStderr, handleProcessWrite } from "./method-calls/process.js";
 import {
   handleSubstr,
   handleSubstring,
@@ -106,9 +76,6 @@ import {
   handleSlice,
   handleReplace,
   handleReplaceAll,
-  handleNumberIsFinite,
-  handleNumberIsNaN,
-  handleNumberIsInteger,
   handleNumberToString,
   handleNumberToFixed,
   handleCharAt,
@@ -117,16 +84,8 @@ import {
   handleToLowerCase,
   handleMatch,
 } from "./method-calls/string-methods.js";
-import {
-  generateObjectKeys,
-  generateObjectValues,
-  generateObjectEntries,
-} from "./method-calls/object-static.js";
-import {
-  handlePromiseStaticMethods,
-  handlePromiseThen,
-  handlePromiseFinally,
-} from "./method-calls/promise-handlers.js";
+import { handlePromiseThen, handlePromiseFinally } from "./method-calls/promise-handlers.js";
+import { tryDispatchNamedObject } from "./method-calls/named-object-dispatch.js";
 import {
   handleClassMethods,
   handleObjectMethods,
@@ -470,110 +429,11 @@ export class MethodCallGenerator {
 
     const method = expr.method;
 
-    // Handle Promise static methods (Promise.resolve, Promise.reject, Promise.all)
-    if (this.isVariableWithName(expr.object, "Promise")) {
-      return handlePromiseStaticMethods(this.ctx, expr, params);
-    }
-
-    // Handle ChadScript.embedFile/embedDir/getEmbeddedFile/getEmbeddedFileAsUint8Array
-    if (this.isVariableWithName(expr.object, "ChadScript")) {
-      if (method === "embedFile") {
-        return this.ctx.embedGen.generateEmbedFile(expr, params);
-      } else if (method === "embedDir") {
-        return this.ctx.embedGen.generateEmbedDir(expr, params);
-      } else if (method === "getEmbeddedFile") {
-        return this.ctx.embedGen.generateGetEmbeddedFile(expr, params);
-      } else if (method === "getEmbeddedFileAsUint8Array") {
-        return this.ctx.embedGen.generateGetEmbeddedFileAsUint8Array(expr, params);
-      } else if (method === "serveEmbedded") {
-        return this.ctx.embedGen.generateServeEmbedded(expr, params);
-      }
-      return this.ctx.emitError(`ChadScript.${method}() is not a supported method`, expr.loc);
-    }
-
-    // Uint8Array.fromRawBytes(dataPtr: string, len: number) → %Uint8Array*
-    // Wraps a raw i8* + byte length into a Uint8Array without copying.
-    // Used by RouterRequest.bodyBytes() to expose binary HTTP bodies.
-    if (this.isVariableWithName(expr.object, "Uint8Array") && method === "fromRawBytes") {
-      return this.handleUint8ArrayFromRawBytes(expr, params);
-    }
-
-    // Handle Array.from() - returns the argument as-is since our iterators already produce arrays
-    if (this.isVariableWithName(expr.object, "Array") && method === "from") {
-      if (expr.args.length === 0) {
-        return this.ctx.emitError("Array.from() requires at least 1 argument", expr.loc);
-      }
-      return this.ctx.generateExpression(expr.args[0], params);
-    }
-
-    if (this.isVariableWithName(expr.object, "Array") && method === "isArray") {
-      if (expr.args.length === 0) {
-        return this.ctx.emitError("Array.isArray() requires at least 1 argument", expr.loc);
-      }
-      const arg = expr.args[0];
-      const isArray =
-        this.ctx.isArrayExpression(arg) ||
-        this.ctx.isStringArrayExpression(arg) ||
-        this.ctx.isObjectArrayExpression(arg);
-      return isArray ? "1.0" : "0.0";
-    }
-
-    // Buffer.from(str, 'base64') → %Uint8Array* via cs_base64_decode C bridge
-    if (this.isVariableWithName(expr.object, "Buffer") && method === "from") {
-      return this.handleBufferFrom(expr, params);
-    }
-
-    // String.fromCharCode(n) — convert a number to a 1-char string
-    if (this.isVariableWithName(expr.object, "String") && method === "fromCharCode") {
-      if (expr.args.length === 0) {
-        return this.ctx.emitError("String.fromCharCode() requires 1 argument", expr.loc);
-      }
-      const codeVal = this.ctx.generateExpression(expr.args[0], params);
-      const dblVal = this.ctx.ensureDouble(codeVal);
-      const intVal = this.ctx.nextTemp();
-      this.ctx.emit(`${intVal} = fptosi double ${dblVal} to i32`);
-      const byteVal = this.ctx.nextTemp();
-      this.ctx.emit(`${byteVal} = trunc i32 ${intVal} to i8`);
-      // Allocate 2 bytes: the char + null terminator
-      const buf = this.ctx.emitCall("i8*", "@GC_malloc_atomic", "i64 2");
-      this.ctx.emitStore("i8", byteVal, buf);
-      const nullPtr = this.ctx.emitGep("i8", buf, "i64 1");
-      this.ctx.emitStore("i8", "0", nullPtr);
-      this.ctx.setVariableType(buf, "i8*");
-      return buf;
-    }
-
-    if (this.isVariableWithName(expr.object, "Object") && method === "keys") {
-      return generateObjectKeys(this.ctx, expr, params);
-    }
-
-    if (this.isVariableWithName(expr.object, "Object") && method === "values") {
-      return generateObjectValues(this.ctx, expr, params);
-    }
-
-    if (this.isVariableWithName(expr.object, "Object") && method === "entries") {
-      return generateObjectEntries(this.ctx, expr, params);
-    }
-
-    if (this.isVariableWithName(expr.object, "Number") && method === "isFinite") {
-      if (expr.args.length === 0) {
-        return this.ctx.emitError("Number.isFinite() requires at least 1 argument", expr.loc);
-      }
-      return handleNumberIsFinite(this.ctx, expr, params);
-    }
-
-    if (this.isVariableWithName(expr.object, "Number") && method === "isNaN") {
-      if (expr.args.length === 0) {
-        return this.ctx.emitError("Number.isNaN() requires at least 1 argument", expr.loc);
-      }
-      return handleNumberIsNaN(this.ctx, expr, params);
-    }
-
-    if (this.isVariableWithName(expr.object, "Number") && method === "isInteger") {
-      if (expr.args.length === 0) {
-        return this.ctx.emitError("Number.isInteger() requires at least 1 argument", expr.loc);
-      }
-      return handleNumberIsInteger(this.ctx, expr, params);
+    // Named-object dispatch: console, process, fs, path, crypto, sqlite, JSON, etc.
+    const varName = this.getVariableName(expr.object);
+    if (varName !== null) {
+      const namedResult = tryDispatchNamedObject(this.ctx, varName, method, expr, params);
+      if (namedResult !== null) return namedResult;
     }
 
     // Handle Promise instance methods (.then, .catch, .finally)
@@ -590,209 +450,8 @@ export class MethodCallGenerator {
       }
     }
 
-    // Handle console.log and console.error - inline check to avoid cross-class property access
-    const objBase2 = expr.object as ExprBase;
-    if (objBase2.type === "variable") {
-      const varNode = expr.object as VariableNode;
-      if (varNode.name === "console") {
-        const method2 = expr.method;
-        if (method2 === "log" || method2 === "error" || method2 === "warn" || method2 === "debug") {
-          return generateConsoleCallInline(this.ctx, expr, params);
-        }
-        if (method2 === "time") {
-          return generateConsoleTime(this.ctx, expr, params);
-        }
-        if (method2 === "timeEnd") {
-          return generateConsoleTimeEnd(this.ctx, expr, params);
-        }
-      }
-      if (varNode.name === "assert") {
-        this.ctx.setUsesTestRunner(true);
-        if (expr.method === "strictEqual") return handleAssertStrictEqual(this.ctx, expr, params);
-        if (expr.method === "notStrictEqual")
-          return handleAssertNotStrictEqual(this.ctx, expr, params);
-        if (expr.method === "ok") return handleAssertOk(this.ctx, expr, params);
-        if (expr.method === "deepEqual") return handleAssertDeepEqual(this.ctx, expr, params);
-        if (expr.method === "fail") return handleAssertFail(this.ctx, expr, params);
-      }
-    }
-
-    // Handle process.exit() - inline check
-    if (objBase2.type === "variable") {
-      const varNode = expr.object as VariableNode;
-      if (varNode.name === "process" && expr.method === "exit") {
-        return generateProcessExitInline(this.ctx, expr, params);
-      }
-      if (varNode.name === "process" && expr.method === "cwd") {
-        return generateProcessCwdInline(this.ctx);
-      }
-      if (varNode.name === "process" && expr.method === "chdir") {
-        return handleProcessChdir(this.ctx, expr, params);
-      }
-      if (varNode.name === "process" && expr.method === "abort") {
-        this.ctx.emit(`call void @abort()`);
-        return "0";
-      }
-      if (varNode.name === "process" && expr.method === "kill") {
-        return handleProcessKill(this.ctx, expr, params);
-      }
-      if (varNode.name === "process" && expr.method === "uptime") {
-        return handleProcessUptime(this.ctx);
-      }
-      if (varNode.name === "process" && expr.method === "getuid") {
-        return handleProcessSyscallI32(this.ctx, "@getuid");
-      }
-      if (varNode.name === "process" && expr.method === "getgid") {
-        return handleProcessSyscallI32(this.ctx, "@getgid");
-      }
-      if (varNode.name === "process" && expr.method === "geteuid") {
-        return handleProcessSyscallI32(this.ctx, "@geteuid");
-      }
-      if (varNode.name === "process" && expr.method === "getegid") {
-        return handleProcessSyscallI32(this.ctx, "@getegid");
-      }
-      if (varNode.name === "tty" && expr.method === "isatty") {
-        if (expr.args.length === 0) {
-          return this.ctx.emitError("tty.isatty() requires 1 argument (fd)", expr.loc);
-        }
-        const fdValue = this.ctx.generateExpression(expr.args[0], params);
-        const dblFd = this.ctx.ensureDouble(fdValue);
-        const fdInt = this.nextTemp();
-        this.ctx.emit(`${fdInt} = fptosi double ${dblFd} to i32`);
-        const rawResult = this.nextTemp();
-        this.ctx.emit(`${rawResult} = call i32 @isatty(i32 ${fdInt})`);
-        const boolResult = this.nextTemp();
-        this.ctx.emit(`${boolResult} = icmp ne i32 ${rawResult}, 0`);
-        const doubleResult = this.nextTemp();
-        this.ctx.emit(`${doubleResult} = uitofp i1 ${boolResult} to double`);
-        return doubleResult;
-      }
-      // os.* methods — POSIX wrappers for system info
-      if (varNode.name === "os") {
-        if (method === "hostname") return handleOsHostname(this.ctx);
-        if (method === "homedir") return handleOsHomedir(this.ctx);
-        if (method === "tmpdir") return handleOsTmpdir(this.ctx);
-        if (method === "cpus") return handleOsCpus(this.ctx);
-        if (method === "totalmem") return handleOsTotalmem(this.ctx);
-        if (method === "freemem") {
-          this.ctx.setUsesOs(true);
-          return handleOsFreemem(this.ctx);
-        }
-        if (method === "uptime") {
-          this.ctx.setUsesOs(true);
-          return handleOsUptime(this.ctx);
-        }
-      }
-    }
-
-    // Handle fs.* methods - inline check to avoid interface dispatch issues
-    if (objBase2.type === "variable" && (expr.object as VariableNode).name === "fs") {
-      if (method === "readFileSync") {
-        // Return Uint8Array when the call site expects binary data
-        if (this.ctx.getWantsBinaryReturn()) {
-          return this.ctx.fsGen.generateReadFileSyncBinary(expr, params);
-        }
-        return this.ctx.fsGen.generateReadFileSync(expr, params);
-      } else if (method === "writeFileSync") {
-        // Use binary-safe write when second arg is a Uint8Array
-        if (expr.args.length >= 2 && this.ctx.isUint8ArrayExpression(expr.args[1])) {
-          return this.ctx.fsGen.generateWriteFileSyncBinary(expr, params);
-        }
-        return this.ctx.fsGen.generateWriteFileSync(expr, params);
-      } else if (method === "appendFileSync") {
-        return this.ctx.fsGen.generateAppendFileSync(expr, params);
-      } else if (method === "existsSync") {
-        return this.ctx.fsGen.generateExistsSync(expr, params);
-      } else if (method === "unlinkSync") {
-        return this.ctx.fsGen.generateUnlinkSync(expr, params);
-      } else if (method === "readdirSync") {
-        return this.ctx.fsGen.generateReaddirSync(expr, params);
-      } else if (method === "statSync") {
-        return this.ctx.fsGen.generateStatSync(expr, params);
-      } else if (method === "mkdirSync") {
-        return this.ctx.fsGen.generateMkdirSync(expr, params);
-      } else if (method === "renameSync") {
-        return this.ctx.fsGen.generateRenameSync(expr, params);
-      } else if (method === "copyFileSync") {
-        return this.ctx.fsGen.generateCopyFileSync(expr, params);
-      } else if (method === "readFile") {
-        return this.ctx.fsGen.generateReadFile(expr, params);
-      } else if (method === "writeFile") {
-        return this.ctx.fsGen.generateWriteFile(expr, params);
-      } else if (method === "appendFile") {
-        return this.ctx.fsGen.generateAppendFile(expr, params);
-      } else if (method === "readdir") {
-        return this.ctx.fsGen.generateReaddir(expr, params);
-      } else if (method === "stat") {
-        return this.ctx.fsGen.generateStat(expr, params);
-      } else if (method === "unlink") {
-        return this.ctx.fsGen.generateUnlink(expr, params);
-      } else if (method === "mkdir") {
-        return this.ctx.fsGen.generateMkdir(expr, params);
-      } else if (method === "rename") {
-        return this.ctx.fsGen.generateRename(expr, params);
-      } else if (method === "copyFile") {
-        return this.ctx.fsGen.generateCopyFile(expr, params);
-      }
-    }
-
-    // Handle path.resolve() and path.dirname() (delegated to PathGenerator)
-    if (method === "resolve" && this.isVariableWithName(expr.object, "path")) {
-      return this.ctx.pathGen.generateResolve(expr, params);
-    }
-    if (method === "dirname" && this.isVariableWithName(expr.object, "path")) {
-      return this.ctx.pathGen.generateDirname(expr, params);
-    }
-    if (method === "basename" && this.isVariableWithName(expr.object, "path")) {
-      return this.ctx.pathGen.generateBasename(expr, params);
-    }
-    if (method === "join" && this.isVariableWithName(expr.object, "path")) {
-      return this.ctx.pathGen.generateJoin(expr, params);
-    }
-    if (method === "extname" && this.isVariableWithName(expr.object, "path")) {
-      return this.ctx.pathGen.generateExtname(expr, params);
-    }
-    if (method === "isAbsolute" && this.isVariableWithName(expr.object, "path")) {
-      return this.ctx.pathGen.generateIsAbsolute(expr, params);
-    }
-    if (method === "normalize" && this.isVariableWithName(expr.object, "path")) {
-      return this.ctx.pathGen.generateNormalize(expr, params);
-    }
-    if (method === "relative" && this.isVariableWithName(expr.object, "path")) {
-      return this.ctx.pathGen.generateRelative(expr, params);
-    }
-    if (method === "parse" && this.isVariableWithName(expr.object, "path")) {
-      return this.ctx.pathGen.generateParse(expr, params);
-    }
-
-    // child_process.execSync / spawnSync / exec / spawn → ChildProcessGenerator
-    if (
-      method === "execSync" ||
-      method === "spawnSync" ||
-      method === "exec" ||
-      method === "spawn"
-    ) {
-      const objName = this.getVariableName(expr.object);
-      if (objName === "child_process" || objName === "cp") {
-        if (method === "execSync") return this.ctx.childProcessGen.generateExecSync(expr, params);
-        if (method === "exec") return this.ctx.childProcessGen.generateExec(expr, params);
-        if (method === "spawn") return this.ctx.childProcessGen.generateSpawn(expr, params);
-        return this.ctx.childProcessGen.generateSpawnSync(expr, params);
-      }
-    }
-
     if (method === "write" && isProcessStdoutOrStderr(expr)) {
       return handleProcessWrite(this.ctx, expr, params);
-    }
-
-    // Handle JSON.parse() and JSON.stringify() - inline check
-    if (objBase2.type === "variable" && (expr.object as VariableNode).name === "JSON") {
-      if (method === "parse") {
-        this.ctx.setUsesJson(true);
-        return this.ctx.jsonGen.generateParse(expr, params, expr.typeParameter);
-      } else if (method === "stringify") {
-        return this.ctx.jsonGen.generateStringify(expr, params);
-      }
     }
 
     // Handle Math.* methods (delegated to MathGenerator)
@@ -816,7 +475,6 @@ export class MethodCallGenerator {
       method === "getSeconds" ||
       method === "toISOString"
     ) {
-      const varName = this.getVariableName(expr.object);
       if (varName) {
         const varType = this.ctx.getVariableType(varName);
         if (varType === "%Date*") {
@@ -824,58 +482,13 @@ export class MethodCallGenerator {
           return this.ctx.dateGen.generateDateMethod(datePtr, method);
         }
       }
-      if (objBase2.type === "new") {
+      if (objBase.type === "new") {
         const datePtr = this.ctx.generateExpression(expr.object, params);
         const objType = this.ctx.getVariableType(datePtr);
         if (objType === "%Date*") {
           return this.ctx.dateGen.generateDateMethod(datePtr, method);
         }
       }
-    }
-
-    // Handle crypto.* methods
-    if (objBase2.type === "variable" && (expr.object as VariableNode).name === "crypto") {
-      this.ctx.setUsesCrypto(true);
-      if (method === "sha256") {
-        return this.ctx.cryptoGen.generateSha256(expr, params);
-      } else if (method === "md5") {
-        return this.ctx.cryptoGen.generateMd5(expr, params);
-      } else if (method === "sha512") {
-        return this.ctx.cryptoGen.generateSha512(expr, params);
-      } else if (method === "randomBytes") {
-        return this.ctx.cryptoGen.generateRandomBytes(expr, params);
-      } else if (method === "randomUUID") {
-        return this.ctx.cryptoGen.generateRandomUUID(expr, params);
-      } else if (method === "hmacSha256") {
-        return this.ctx.cryptoGen.generateHmacSha256(expr, params);
-      } else if (method === "pbkdf2") {
-        return this.ctx.cryptoGen.generatePbkdf2(expr, params);
-      }
-    }
-
-    // Handle sqlite.* methods
-    if (objBase2.type === "variable" && (expr.object as VariableNode).name === "sqlite") {
-      this.ctx.setUsesSqlite(true);
-      if (method === "open") {
-        return this.ctx.sqliteGen.generateOpen(expr, params);
-      } else if (method === "exec") {
-        return this.ctx.sqliteGen.generateExec(expr, params);
-      } else if (method === "get") {
-        return this.ctx.sqliteGen.generateGet(expr, params);
-      } else if (method === "getRow") {
-        return this.ctx.sqliteGen.generateGetRow(expr, params);
-      } else if (method === "all") {
-        return this.ctx.sqliteGen.generateAll(expr, params);
-      } else if (method === "query") {
-        return this.ctx.sqliteGen.generateQuery(expr, params);
-      } else if (method === "close") {
-        return this.ctx.sqliteGen.generateClose(expr, params);
-      }
-    }
-
-    // Handle JSON.stringify() (legacy implementation)
-    if (method === "stringify" && this.isVariableWithName(expr.object, "JSON")) {
-      return this.handleJsonStringify(expr, params);
     }
 
     // Handle regex methods
@@ -896,7 +509,7 @@ export class MethodCallGenerator {
     if (method === "isFile" || method === "isDirectory") {
       let statI8Ptr: string | null = null;
 
-      if (objBase2.type === "variable") {
+      if (objBase.type === "variable") {
         const varName = (expr.object as VariableNode).name;
         const varType = this.ctx.getVariableType(varName);
         if (varType === "%StatResult*") {
@@ -1444,53 +1057,6 @@ export class MethodCallGenerator {
     this.throwUnsupportedMethodError(method, exprObjBase.type, expr);
   }
 
-  private handleJsonStringify(expr: MethodCallNode, params: string[]): string {
-    if (expr.args.length < 1) {
-      return this.ctx.emitError("JSON.stringify() requires 1 argument", expr.loc);
-    }
-
-    const arg = expr.args[0];
-
-    // Check if it's a string
-    if (this.ctx.isStringExpression(arg)) {
-      const strPtr = this.ctx.generateExpression(arg, params);
-
-      // For strings, we need to add quotes: "value"
-      // Calculate: 2 (quotes) + strlen + 1 (null) = strlen + 3
-      const strLen = this.nextTemp();
-      this.emit(`${strLen} = call i64 @strlen(i8* ${strPtr})`);
-      const bufferSize = this.nextTemp();
-      this.emit(`${bufferSize} = add i64 ${strLen}, 3`);
-      const buffer = this.nextTemp();
-      this.emit(`${buffer} = call i8* @GC_malloc_atomic(i64 ${bufferSize})`);
-
-      // Create format string: "\"%s\""
-      const formatStr = this.ctx.stringGen.doCreateStringConstant('"%s"');
-      const sprintfResult = this.nextTemp();
-      this.emit(
-        `${sprintfResult} = call i32 (i8*, i8*, ...) @sprintf(i8* ${buffer}, i8* ${formatStr}, i8* ${strPtr})`,
-      );
-
-      return buffer;
-    } else {
-      // For numbers, convert to string
-      const numValue = this.ctx.generateExpression(arg, params);
-
-      // Allocate buffer for number string (30 chars should be enough for double)
-      const buffer = this.nextTemp();
-      this.emit(`${buffer} = call i8* @GC_malloc_atomic(i64 30)`);
-
-      // Create format string: "%f"
-      const formatStr = this.ctx.stringGen.doCreateStringConstant("%f");
-      const sprintfResult = this.nextTemp();
-      this.emit(
-        `${sprintfResult} = call i32 (i8*, i8*, ...) @sprintf(i8* ${buffer}, i8* ${formatStr}, double ${numValue})`,
-      );
-
-      return buffer;
-    }
-  }
-
   private handleRegexTest(expr: MethodCallNode, params: string[]): string {
     const regexPtr = this.ctx.generateExpression(expr.object, params);
 
@@ -1570,51 +1136,5 @@ export class MethodCallGenerator {
       return true;
     }
     return false;
-  }
-
-  private handleUint8ArrayFromRawBytes(expr: MethodCallNode, params: string[]): string {
-    if (expr.args.length < 2) {
-      return this.ctx.emitError(
-        "Uint8Array.fromRawBytes() requires 2 arguments (data: string, len: number)",
-        expr.loc,
-      );
-    }
-    const dataPtr = this.ctx.generateExpression(expr.args[0], params);
-    const lenDbl = this.ctx.generateExpression(expr.args[1], params);
-    const lenI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${lenI64} = fptosi double ${lenDbl} to i64`);
-    const lenI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${lenI32} = trunc i64 ${lenI64} to i32`);
-    const rawPtr = this.ctx.emitCall("i8*", "@GC_malloc", "i64 16");
-    const arrPtr = this.ctx.emitBitcast(rawPtr, "i8*", "%Uint8Array*");
-    const f0 = this.ctx.nextTemp();
-    this.ctx.emit(
-      `${f0} = getelementptr inbounds %Uint8Array, %Uint8Array* ${arrPtr}, i32 0, i32 0`,
-    );
-    this.ctx.emit(`store i8* ${dataPtr}, i8** ${f0}`);
-    const f1 = this.ctx.nextTemp();
-    this.ctx.emit(
-      `${f1} = getelementptr inbounds %Uint8Array, %Uint8Array* ${arrPtr}, i32 0, i32 1`,
-    );
-    this.ctx.emit(`store i32 ${lenI32}, i32* ${f1}`);
-    const f2 = this.ctx.nextTemp();
-    this.ctx.emit(
-      `${f2} = getelementptr inbounds %Uint8Array, %Uint8Array* ${arrPtr}, i32 0, i32 2`,
-    );
-    this.ctx.emit(`store i32 ${lenI32}, i32* ${f2}`);
-    this.ctx.setVariableType(arrPtr, "%Uint8Array*");
-    return arrPtr;
-  }
-
-  private handleBufferFrom(expr: MethodCallNode, params: string[]): string {
-    if (expr.args.length === 0) {
-      return this.ctx.emitError("Buffer.from() requires at least 1 argument", expr.loc);
-    }
-    const strPtr = this.ctx.generateExpression(expr.args[0], params);
-    // cs_base64_decode returns a GC-managed %Uint8Array struct (data, len, cap)
-    const rawPtr = this.ctx.emitCall("i8*", "@cs_base64_decode", `i8* ${strPtr}`);
-    const arrPtr = this.ctx.emitBitcast(rawPtr, "i8*", "%Uint8Array*");
-    this.ctx.setVariableType(arrPtr, "%Uint8Array*");
-    return arrPtr;
   }
 }
