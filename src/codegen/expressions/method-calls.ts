@@ -501,19 +501,27 @@ export class MethodCallGenerator {
         return handleCryptoMethod(this.ctx, method, expr, params);
 
       case "sqlite":
-        this.ctx.setUsesSqlite(true);
-        if (method === "open") return this.ctx.sqliteGen.generateOpen(expr, params);
-        if (method === "exec") return this.ctx.sqliteGen.generateExec(expr, params);
-        if (method === "get") return this.ctx.sqliteGen.generateGet(expr, params);
-        if (method === "getRow") return this.ctx.sqliteGen.generateGetRow(expr, params);
-        if (method === "all") return this.ctx.sqliteGen.generateAll(expr, params);
-        if (method === "query") return this.ctx.sqliteGen.generateQuery(expr, params);
-        if (method === "close") return this.ctx.sqliteGen.generateClose(expr, params);
-        return null;
+        return this.dispatchSqliteMethod(method, expr, params);
 
       default:
         return null;
     }
+  }
+
+  private dispatchSqliteMethod(
+    method: string,
+    expr: MethodCallNode,
+    params: string[],
+  ): string | null {
+    this.ctx.setUsesSqlite(true);
+    if (method === "open") return this.ctx.sqliteGen.generateOpen(expr, params);
+    if (method === "exec") return this.ctx.sqliteGen.generateExec(expr, params);
+    if (method === "get") return this.ctx.sqliteGen.generateGet(expr, params);
+    if (method === "getRow") return this.ctx.sqliteGen.generateGetRow(expr, params);
+    if (method === "all") return this.ctx.sqliteGen.generateAll(expr, params);
+    if (method === "query") return this.ctx.sqliteGen.generateQuery(expr, params);
+    if (method === "close") return this.ctx.sqliteGen.generateClose(expr, params);
+    return null;
   }
 
   private getParameterMapKeyType(varName: string): string | null {
