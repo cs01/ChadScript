@@ -28,6 +28,7 @@ import {
   MapNode,
   SetNode,
   InterfaceDeclaration,
+  InterfaceField,
   FunctionNode,
   ClassNode,
   TypeAliasDeclaration,
@@ -627,6 +628,7 @@ export interface IGeneratorContext {
     name: string,
   ): { keys: string[]; types: string[]; tsTypes: string[] } | null;
   getInterfaceDeclByName(name: string): InterfaceDeclaration | null;
+  getAllInterfaceFields(iface: InterfaceDeclaration): InterfaceField[];
   isTypeAlias(name: string): boolean;
   getTypeAliasCommonProperties(
     name: string,
@@ -1112,6 +1114,9 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
   getInterfaceDeclByName(_name: string): InterfaceDeclaration | null {
     return null;
+  }
+  getAllInterfaceFields(iface: InterfaceDeclaration): InterfaceField[] {
+    return iface.fields;
   }
   isTypeAlias(_name: string): boolean {
     return false;

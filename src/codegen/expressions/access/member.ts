@@ -156,6 +156,7 @@ export interface MemberAccessGeneratorContext {
     name: string,
   ): { keys: string[]; types: string[]; tsTypes: string[] } | null;
   getInterfaceDeclByName(name: string): InterfaceDeclaration | null;
+  getAllInterfaceFields(iface: InterfaceDeclaration): InterfaceField[];
   isTypeAlias(name: string): boolean;
   getTypeAliasCommonProperties(
     name: string,
@@ -1090,13 +1091,12 @@ export class MemberAccessGenerator {
       const keys: string[] = [];
       const tsTypes: string[] = [];
       const types: string[] = [];
-      if (interfaceDef.fields) {
-        for (let i = 0; i < interfaceDef.fields.length; i++) {
-          const f = interfaceDef.fields[i] as { name: string; type: string };
-          keys.push(stripOptional(f.name));
-          tsTypes.push(f.type);
-          types.push(tsTypeToLlvm(f.type));
-        }
+      const allFields = this.ctx.getAllInterfaceFields(interfaceDef);
+      for (let i = 0; i < allFields.length; i++) {
+        const f = allFields[i] as { name: string; type: string };
+        keys.push(stripOptional(f.name));
+        tsTypes.push(f.type);
+        types.push(tsTypeToLlvm(f.type));
       }
       this.ctx.setJsonObjectMetadata(register, { keys, types, tsTypes, interfaceType: undefined });
     } else if (lookupType === "Expression" || lookupType === "Statement") {
@@ -1626,10 +1626,11 @@ export class MemberAccessGenerator {
 
     const interfaceDef = interfaceDefResult as InterfaceDeclaration;
     if (!interfaceDef.fields) return null;
+    const allFields1628 = this.ctx.getAllInterfaceFields(interfaceDef);
     let propIndex = -1;
     let propTsType: string | undefined;
-    for (let i = 0; i < interfaceDef.fields.length; i++) {
-      const f = interfaceDef.fields[i] as { name: string; type: string };
+    for (let i = 0; i < allFields1628.length; i++) {
+      const f = allFields1628[i] as { name: string; type: string };
       const fName = stripOptional(f.name);
       if (fName === expr.property) {
         propIndex = i;
@@ -2326,12 +2327,13 @@ export class MemberAccessGenerator {
     if (!interfaceDefResult) return null;
     const interfaceDef = interfaceDefResult as InterfaceDeclaration;
     if (!interfaceDef.fields) return null;
+    const allFields2328 = this.ctx.getAllInterfaceFields(interfaceDef);
 
     const objPtr = this.ctx.generateExpression(expr.object, params);
 
     let propIndex = -1;
-    for (let i = 0; i < interfaceDef.fields.length; i++) {
-      const f = interfaceDef.fields[i] as { name: string; type: string };
+    for (let i = 0; i < allFields2328.length; i++) {
+      const f = allFields2328[i] as { name: string; type: string };
       if (f.name === expr.property) {
         propIndex = i;
         break;
@@ -2339,8 +2341,8 @@ export class MemberAccessGenerator {
     }
     if (propIndex === -1) {
       const fieldNames: string[] = [];
-      for (let i = 0; i < interfaceDef.fields.length; i++) {
-        const field = interfaceDef.fields[i] as { name: string; type: string };
+      for (let i = 0; i < allFields2328.length; i++) {
+        const field = allFields2328[i] as { name: string; type: string };
         fieldNames.push(field.name);
       }
       throw new Error(
@@ -2348,11 +2350,11 @@ export class MemberAccessGenerator {
       );
     }
 
-    const propField = interfaceDef.fields[propIndex] as { name: string; type: string };
+    const propField = allFields2328[propIndex] as { name: string; type: string };
     const propType = tsTypeToLlvm(propField.type);
     const structTypes: string[] = [];
-    for (let i = 0; i < interfaceDef.fields.length; i++) {
-      const field = interfaceDef.fields[i] as { name: string; type: string };
+    for (let i = 0; i < allFields2328.length; i++) {
+      const field = allFields2328[i] as { name: string; type: string };
       structTypes.push(tsTypeToLlvm(field.type));
     }
     const structType = `{ ${structTypes.join(", ")} }`;

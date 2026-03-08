@@ -1442,8 +1442,9 @@ export class ClassGenerator {
       const keys: string[] = [];
       const types: string[] = [];
       const tsTypes: string[] = [];
-      for (let fi = 0; fi < interfaceDef.fields.length; fi++) {
-        const f = interfaceDef.fields[fi] as { name: string; type: string };
+      const allFields = this.ctx.getAllInterfaceFields(interfaceDef);
+      for (let fi = 0; fi < allFields.length; fi++) {
+        const f = allFields[fi] as { name: string; type: string };
         keys.push(stripOptional(f.name));
         types.push(this.fieldTypeToLlvm(f.type));
         tsTypes.push(f.type);
