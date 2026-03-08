@@ -337,7 +337,7 @@ export class VariableAllocator {
     return ret;
   }
 
-  private getAllInterfaceFields(iface: InterfaceDeclaration): InterfaceField[] {
+  public getAllInterfaceFields(iface: InterfaceDeclaration): InterfaceField[] {
     return this.interfaceAlloc.getAllInterfaceFields(iface);
   }
 
@@ -651,8 +651,9 @@ export class VariableAllocator {
               const keys: string[] = [];
               const types: string[] = [];
               const tsTypes: string[] = [];
-              for (let fi = 0; fi < interfaceDef.fields.length; fi++) {
-                const fieldRaw = interfaceDef.fields[fi];
+              const allFields = this.getAllInterfaceFields(interfaceDef);
+              for (let fi = 0; fi < allFields.length; fi++) {
+                const fieldRaw = allFields[fi];
                 if (!fieldRaw) continue;
                 const field = fieldRaw as { name: string; type: string };
                 if (!field.name || !field.type) continue;
@@ -1012,8 +1013,9 @@ export class VariableAllocator {
     } else {
       const interfaceDefResult = this.getInterface(interfaceName);
       const interfaceDef = interfaceDefResult as InterfaceDeclaration;
-      for (let i = 0; i < interfaceDef.fields.length; i++) {
-        const field = interfaceDef.fields[i] as { name: string; type: string };
+      const allFields = this.getAllInterfaceFields(interfaceDef);
+      for (let i = 0; i < allFields.length; i++) {
+        const field = allFields[i] as { name: string; type: string };
         keys.push(stripOptional(field.name));
         types.push(this.convertTsType(field.type));
         tsTypes.push(field.type);
@@ -1108,8 +1110,9 @@ export class VariableAllocator {
     } else {
       const interfaceDefResult = this.getInterface(interfaceName);
       const interfaceDef = interfaceDefResult as InterfaceDeclaration;
-      for (let i = 0; i < interfaceDef.fields.length; i++) {
-        const field = interfaceDef.fields[i] as { name: string; type: string };
+      const allFields = this.getAllInterfaceFields(interfaceDef);
+      for (let i = 0; i < allFields.length; i++) {
+        const field = allFields[i] as { name: string; type: string };
         keys.push(stripOptional(field.name));
         types.push(this.convertTsType(field.type));
         tsTypes.push(field.type);
@@ -1153,8 +1156,9 @@ export class VariableAllocator {
       const interfaceDefResult = this.getInterface(elementType);
       if (interfaceDefResult) {
         const interfaceDef = interfaceDefResult as InterfaceDeclaration;
-        for (let i = 0; i < interfaceDef.fields.length; i++) {
-          const field = interfaceDef.fields[i] as { name: string; type: string };
+        const allFields = this.getAllInterfaceFields(interfaceDef);
+        for (let i = 0; i < allFields.length; i++) {
+          const field = allFields[i] as { name: string; type: string };
           elementKeys.push(stripOptional(field.name));
           elementTypes.push(this.convertTsType(field.type));
           elementTsTypes.push(field.type);
@@ -1264,8 +1268,9 @@ export class VariableAllocator {
     const keys: string[] = [];
     const types: string[] = [];
     const tsTypes: string[] = [];
-    for (let i = 0; i < interfaceDef.fields.length; i++) {
-      const field = interfaceDef.fields[i] as { name: string; type: string };
+    const allFields = this.getAllInterfaceFields(interfaceDef);
+    for (let i = 0; i < allFields.length; i++) {
+      const field = allFields[i] as { name: string; type: string };
       keys.push(stripOptional(field.name));
       types.push(this.convertTsType(field.type));
       tsTypes.push(field.type);
@@ -1656,8 +1661,9 @@ export class VariableAllocator {
       const keys: string[] = [];
       const tsTypes: string[] = [];
       const types: string[] = [];
-      for (let i = 0; i < interfaceDef.fields.length; i++) {
-        const field = interfaceDef.fields[i] as { name: string; type: string };
+      const allFields = this.getAllInterfaceFields(interfaceDef);
+      for (let i = 0; i < allFields.length; i++) {
+        const field = allFields[i] as { name: string; type: string };
         keys.push(stripOptional(field.name));
         tsTypes.push(field.type);
         types.push(this.convertTsTypeJson(field.type));
@@ -1691,8 +1697,9 @@ export class VariableAllocator {
       keys = [];
       types = [];
       tsTypes = [];
-      for (let i = 0; i < interfaceDef.fields.length; i++) {
-        const field = interfaceDef.fields[i] as { name: string; type: string };
+      const allFields = this.getAllInterfaceFields(interfaceDef);
+      for (let i = 0; i < allFields.length; i++) {
+        const field = allFields[i] as { name: string; type: string };
         keys.push(stripOptional(field.name));
         types.push(this.convertTsType(field.type));
         tsTypes.push(field.type);
@@ -2252,8 +2259,9 @@ export class VariableAllocator {
         const keys: string[] = [];
         const types: string[] = [];
         const tsTypes: string[] = [];
-        for (let fi = 0; fi < interfaceDef.fields.length; fi++) {
-          const field = interfaceDef.fields[fi] as { name: string; type: string };
+        const allFields = this.getAllInterfaceFields(interfaceDef);
+        for (let fi = 0; fi < allFields.length; fi++) {
+          const field = allFields[fi] as { name: string; type: string };
           keys.push(stripOptional(field.name));
           types.push(this.convertTsType(field.type));
           tsTypes.push(field.type);
@@ -2652,8 +2660,9 @@ export class VariableAllocator {
       const keys: string[] = [];
       const types: string[] = [];
       const tsTypes: string[] = [];
-      for (let i = 0; i < interfaceDef.fields.length; i++) {
-        const field = interfaceDef.fields[i] as { name: string; type: string };
+      const allFields = this.getAllInterfaceFields(interfaceDef);
+      for (let i = 0; i < allFields.length; i++) {
+        const field = allFields[i] as { name: string; type: string };
         keys.push(stripOptional(field.name));
         types.push(this.convertTsType(field.type));
         tsTypes.push(field.type);

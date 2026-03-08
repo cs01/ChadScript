@@ -731,6 +731,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return null;
   }
 
+  public getAllInterfaceFields(iface: InterfaceDeclaration): InterfaceField[] {
+    return this.varAllocator.getAllInterfaceFields(iface);
+  }
+
   public isTypeAlias(name: string): boolean {
     if (!this.ast || !this.ast.typeAliases) return false;
     for (let i = 0; i < this.ast.typeAliases.length; i++) {
@@ -2228,8 +2232,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               const keys: string[] = [];
               const tsTypes: string[] = [];
               const types: string[] = [];
-              for (let i = 0; i < interfaceDef.fields.length; i++) {
-                const field = interfaceDef.fields[i] as { name: string; type: string };
+              const allFields = this.getAllInterfaceFields(interfaceDef);
+              for (let i = 0; i < allFields.length; i++) {
+                const field = allFields[i] as { name: string; type: string };
                 keys.push(stripOptional(field.name));
                 tsTypes.push(field.type);
                 types.push(this.tsTypeToLlvmJsonWithEnums(field.type));

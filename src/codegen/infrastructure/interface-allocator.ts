@@ -277,8 +277,9 @@ export class InterfaceAllocator {
     const keys: string[] = [];
     const types: string[] = [];
     const tsTypes: string[] = [];
-    for (let i = 0; i < interfaceDef.fields.length; i++) {
-      const field = interfaceDef.fields[i] as { name: string; type: string };
+    const allFields = this.getAllInterfaceFields(interfaceDef);
+    for (let i = 0; i < allFields.length; i++) {
+      const field = allFields[i] as { name: string; type: string };
       keys.push(stripOptional(field.name));
       types.push(this.convertTsType(field.type));
       tsTypes.push(field.type);
