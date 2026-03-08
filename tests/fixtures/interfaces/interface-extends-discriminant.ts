@@ -1,5 +1,5 @@
 interface Typed {
-  type: 'cat';
+  type: "cat";
   name: string;
 }
 
@@ -7,10 +7,10 @@ interface Cat extends Typed {
   lives: number;
 }
 
-const c: Cat = { type: 'cat', name: "Whiskers", lives: 9 };
+const c: Cat = { type: "cat", name: "Whiskers", lives: 9 };
 
 let result = "unknown";
-if (c.type === 'cat') {
+if (c.type === "cat") {
   result = c.name + ":" + c.lives;
 }
 
