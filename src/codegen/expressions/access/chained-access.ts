@@ -30,13 +30,10 @@ export function handleNestedInterfaceField(
     const keys: string[] = [];
     const tsTypes: string[] = [];
     const types: string[] = [];
-    if (nestedInterfaceDef.fields) {
-      for (let i = 0; i < nestedInterfaceDef.fields.length; i++) {
-        const f = nestedInterfaceDef.fields[i] as { name: string; type: string };
-        keys.push(stripOptional(f.name));
-        tsTypes.push(f.type);
-        types.push(tsTypeToLlvm(f.type));
-      }
+    for (const f of ctx.getAllInterfaceFields(nestedInterfaceDef)) {
+      keys.push(stripOptional(f.name));
+      tsTypes.push(f.type);
+      types.push(tsTypeToLlvm(f.type));
     }
     ctx.setJsonObjectMetadata(fieldItem, { keys, types, tsTypes, interfaceType: undefined });
   }
