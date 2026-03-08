@@ -2886,6 +2886,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       finalParts.push("\n");
     }
 
+    if (this.usesStringBuilder || this.usesCurl) {
+      this.usesGC = 1;
+    }
+
     finalParts.push(
       this.filterDuplicateDeclarations(
         getLLVMDeclarations({

@@ -467,7 +467,8 @@ export function compileNative(inputFile: string, outputFile: string): void {
     generator.getUsesGC() ||
     generator.getUsesBase64Bridge() ||
     generator.getUsesUrlBridge() ||
-    generator.getUsesUriBridge();
+    generator.getUsesUriBridge() ||
+    generator.usesStringBuilder !== 0;
   let linkLibs = needsGcLib
     ? "-L" + effectiveGcPath + " -lgc" + platformLibs
     : platformLibs.trimStart();

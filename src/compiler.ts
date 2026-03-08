@@ -349,7 +349,8 @@ export function compile(
     generator.usesGC ||
     generator.usesBase64Bridge ||
     generator.usesUrlBridge ||
-    generator.usesUriBridge;
+    generator.usesUriBridge ||
+    generator.usesStringBuilder;
   let linkLibs = needsGcLib ? `-L${gcPath} -lgc` + platformLibs : platformLibs.trimStart();
   if (generator.usesJson) {
     linkLibs += ` -L${yyjsonPath} -lyyjson`;
