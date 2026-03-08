@@ -133,6 +133,23 @@ export function handleUint8ArrayFromRawBytes(
   return arrPtr;
 }
 
+export function handleCryptoMethod(
+  ctx: MethodCallGeneratorContext,
+  method: string,
+  expr: MethodCallNode,
+  params: string[],
+): string | null {
+  ctx.setUsesCrypto(true);
+  if (method === "randomUUID") return ctx.cryptoGen.generateRandomUUID(expr, params);
+  if (method === "sha256") return ctx.cryptoGen.generateSha256(expr, params);
+  if (method === "md5") return ctx.cryptoGen.generateMd5(expr, params);
+  if (method === "sha512") return ctx.cryptoGen.generateSha512(expr, params);
+  if (method === "randomBytes") return ctx.cryptoGen.generateRandomBytes(expr, params);
+  if (method === "hmacSha256") return ctx.cryptoGen.generateHmacSha256(expr, params);
+  if (method === "pbkdf2") return ctx.cryptoGen.generatePbkdf2(expr, params);
+  return null;
+}
+
 export function handleTtyIsatty(
   ctx: MethodCallGeneratorContext,
   expr: MethodCallNode,

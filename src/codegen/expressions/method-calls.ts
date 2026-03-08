@@ -99,6 +99,7 @@ import {
   handleStringFromCharCode,
   handleUint8ArrayFromRawBytes,
   handleTtyIsatty,
+  handleCryptoMethod,
 } from "./method-calls/named-object-dispatch.js";
 import {
   handleSubstr,
@@ -497,15 +498,7 @@ export class MethodCallGenerator {
         return null;
 
       case "crypto":
-        this.ctx.setUsesCrypto(true);
-        if (method === "randomUUID") return this.ctx.cryptoGen.generateRandomUUID(expr, params);
-        if (method === "sha256") return this.ctx.cryptoGen.generateSha256(expr, params);
-        if (method === "md5") return this.ctx.cryptoGen.generateMd5(expr, params);
-        if (method === "sha512") return this.ctx.cryptoGen.generateSha512(expr, params);
-        if (method === "randomBytes") return this.ctx.cryptoGen.generateRandomBytes(expr, params);
-        if (method === "hmacSha256") return this.ctx.cryptoGen.generateHmacSha256(expr, params);
-        if (method === "pbkdf2") return this.ctx.cryptoGen.generatePbkdf2(expr, params);
-        return null;
+        return handleCryptoMethod(this.ctx, method, expr, params);
 
       case "sqlite":
         this.ctx.setUsesSqlite(true);
