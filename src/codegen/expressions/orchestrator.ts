@@ -1,4 +1,10 @@
-import { Expression, ArrowFunctionNode, VariableNode } from "../../ast/types.js";
+import {
+  Expression,
+  ArrowFunctionNode,
+  VariableNode,
+  AwaitExpressionNode,
+  TypeAssertionNode,
+} from "../../ast/types.js";
 import { LiteralExpressionGenerator } from "./literals.js";
 import { VariableExpressionGenerator } from "./variables.js";
 import { BinaryExpressionGenerator } from "./operators/binary.js";
@@ -17,7 +23,7 @@ import {
   dispatchConstructorLiteral,
   dispatchOperatorExpression,
   dispatchAccessExpression,
-  dispatchHighLevelExpression,
+  dispatchMethodAndAssignment,
   ExpressionDispatchContext,
 } from "./expression-dispatch.js";
 
@@ -98,33 +104,6 @@ export class ExpressionGenerator {
     );
   }
 
-  private dispatchCtx: ExpressionDispatchContext | null = null;
-
-  private getDispatchCtx(): ExpressionDispatchContext {
-    if (!this.dispatchCtx) {
-      this.dispatchCtx = {
-        literalGen: this.literalGen,
-        variableGen: this.variableGen,
-        binaryGen: this.binaryGen,
-        unaryGen: this.unaryGen,
-        callGen: this.callGen,
-        indexAccessGen: this.indexAccessGen,
-        memberAccessGen: this.memberAccessGen,
-        conditionalGen: this.conditionalGen,
-        templateLiteralGen: this.templateLiteralGen,
-        methodCallGen: this.methodCallGen,
-        setVariableType: (name: string, type: string) => this.ctx.setVariableType(name, type),
-        setUsesPromises: (value: boolean) => this.ctx.setUsesPromises(value),
-        setLastTypeAssertionSourceVar: (name: string | null) =>
-          this.ctx.setLastTypeAssertionSourceVar(name),
-        nextTemp: () => this.ctx.nextTemp(),
-        emit: (instruction: string) => this.ctx.emit(instruction),
-        generateExpression: (expr: Expression, params: string[]) => this.generate(expr, params),
-      };
-    }
-    return this.dispatchCtx;
-  }
-
   generate(expr: Expression, params: string[]): string {
     if (!expr.type || expr.type.length === 0) {
       this.ctx.emitError(
@@ -133,10 +112,15 @@ export class ExpressionGenerator {
       );
     }
 
-    const dctx = this.getDispatchCtx();
+    const dctx: ExpressionDispatchContext = this;
 
     const r1 = dispatchPrimitiveLiteral(dctx, expr, params);
     if (r1 !== null) return r1;
+
+    if (expr.type === "null" || expr.type === "undefined") {
+      this.ctx.setVariableType("null", "i8*");
+      return "null";
+    }
 
     const r2 = dispatchComplexLiteral(dctx, expr, params);
     if (r2 !== null) return r2;
@@ -154,13 +138,37 @@ export class ExpressionGenerator {
     const r5 = dispatchAccessExpression(dctx, expr, params);
     if (r5 !== null) return r5;
 
-    const r6 = dispatchHighLevelExpression(dctx, expr, params);
+    const r6 = dispatchMethodAndAssignment(dctx, expr, params);
     if (r6 !== null) return r6;
+
+    if (expr.type === "await") {
+      return this.generateAwaitExpression(expr as AwaitExpressionNode, params);
+    }
+
+    if (expr.type === "type_assertion") {
+      const assertExpr = expr as TypeAssertionNode;
+      if (assertExpr.expression.type === "variable") {
+        const innerVar = assertExpr.expression as VariableNode;
+        this.ctx.setLastTypeAssertionSourceVar(innerVar.name);
+      } else {
+        this.ctx.setLastTypeAssertionSourceVar(null);
+      }
+      return this.generate(assertExpr.expression, params);
+    }
 
     this.ctx.emitError(
       "unsupported expression type: " + expr.type,
       (expr as { loc?: { line: number; column: number } }).loc,
     );
+  }
+
+  private generateAwaitExpression(expr: AwaitExpressionNode, params: string[]): string {
+    const promiseReg = this.generate(expr.argument, params);
+    const valueReg = this.ctx.nextTemp();
+    this.ctx.emit(`${valueReg} = call i8* @__Promise_await(%Promise* ${promiseReg})`);
+    this.ctx.setVariableType(valueReg, "i8*");
+    this.ctx.setUsesPromises(true);
+    return valueReg;
   }
 
   private generateArrowFunctionExpression(expr: ArrowFunctionNode, params: string[]): string {

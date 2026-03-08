@@ -18,8 +18,6 @@ import {
   ConditionalExpressionNode,
   TemplateLiteralNode,
   MethodCallNode,
-  AwaitExpressionNode,
-  TypeAssertionNode,
   IndexAccessAssignmentNode,
 } from "../../ast/types.js";
 import type { LiteralExpressionGenerator } from "./literals.js";
@@ -44,12 +42,6 @@ export interface ExpressionDispatchContext {
   conditionalGen: ConditionalExpressionGenerator;
   templateLiteralGen: TemplateLiteralGenerator;
   methodCallGen: MethodCallGenerator;
-  setVariableType(name: string, type: string): void;
-  setUsesPromises(value: boolean): void;
-  setLastTypeAssertionSourceVar(name: string | null): void;
-  nextTemp(): string;
-  emit(instruction: string): void;
-  generateExpression(expr: Expression, params: string[]): string;
 }
 
 export function dispatchPrimitiveLiteral(
@@ -65,10 +57,6 @@ export function dispatchPrimitiveLiteral(
   }
   if (expr.type === "string") {
     return ctx.literalGen.generateString((expr as StringNode).value);
-  }
-  if (expr.type === "null" || expr.type === "undefined") {
-    ctx.setVariableType("null", "i8*");
-    return "null";
   }
   return null;
 }
@@ -158,32 +146,13 @@ export function dispatchAccessExpression(
   return null;
 }
 
-export function dispatchHighLevelExpression(
+export function dispatchMethodAndAssignment(
   ctx: ExpressionDispatchContext,
   expr: Expression,
   params: string[],
 ): string | null {
   if (expr.type === "method_call") {
     return ctx.methodCallGen.generate(expr as MethodCallNode, params);
-  }
-  if (expr.type === "await") {
-    const awaitExpr = expr as AwaitExpressionNode;
-    const promiseReg = ctx.generateExpression(awaitExpr.argument, params);
-    const valueReg = ctx.nextTemp();
-    ctx.emit(`${valueReg} = call i8* @__Promise_await(%Promise* ${promiseReg})`);
-    ctx.setVariableType(valueReg, "i8*");
-    ctx.setUsesPromises(true);
-    return valueReg;
-  }
-  if (expr.type === "type_assertion") {
-    const assertExpr = expr as TypeAssertionNode;
-    if (assertExpr.expression.type === "variable") {
-      const innerVar = assertExpr.expression as VariableNode;
-      ctx.setLastTypeAssertionSourceVar(innerVar.name);
-    } else {
-      ctx.setLastTypeAssertionSourceVar(null);
-    }
-    return ctx.generateExpression(assertExpr.expression, params);
   }
   if (expr.type === "index_access_assignment") {
     return ctx.indexAccessGen.generateAssignment(expr as IndexAccessAssignmentNode, params);
