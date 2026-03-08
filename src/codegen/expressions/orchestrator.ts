@@ -1,27 +1,9 @@
 import {
   Expression,
-  ArrayNode,
-  ObjectNode,
-  MapNode,
-  SetNode,
-  NewNode,
-  RegexNode,
   ArrowFunctionNode,
-  ConditionalExpressionNode,
-  TemplateLiteralNode,
-  MethodCallNode,
+  VariableNode,
   AwaitExpressionNode,
   TypeAssertionNode,
-  IndexAccessAssignmentNode,
-  CallNode,
-  IndexAccessNode,
-  MemberAccessNode,
-  VariableNode,
-  BinaryNode,
-  UnaryNode,
-  NumberNode,
-  StringNode,
-  BooleanNode,
 } from "../../ast/types.js";
 import { LiteralExpressionGenerator } from "./literals.js";
 import { VariableExpressionGenerator } from "./variables.js";
@@ -35,6 +17,15 @@ import { ConditionalExpressionGenerator } from "./conditionals.js";
 import { TemplateLiteralGenerator } from "./templates.js";
 import { MethodCallGenerator } from "./method-calls.js";
 import type { SymbolTable } from "../infrastructure/symbol-table.js";
+import {
+  dispatchPrimitiveLiteral,
+  dispatchComplexLiteral,
+  dispatchConstructorLiteral,
+  dispatchOperatorExpression,
+  dispatchAccessExpression,
+  dispatchMethodAndAssignment,
+  ExpressionDispatchContext,
+} from "./expression-dispatch.js";
 
 interface ExpressionOrchestratorContext {
   readonly symbolTable: SymbolTable;
@@ -113,203 +104,58 @@ export class ExpressionGenerator {
     );
   }
 
-  /**
-   * Generate LLVM IR for any expression
-   * Delegates to appropriate sub-generator based on expression type
-   */
   generate(expr: Expression, params: string[]): string {
     if (!expr.type || expr.type.length === 0) {
-      // Hard error: expressions must have a type. An empty type indicates a parser
-      // or AST construction bug. Previously this silently generated a null pointer,
-      // which LLVM -O2 could exploit as UB to prune unrelated code paths.
       this.ctx.emitError(
         "expression has empty type — this likely indicates a parser bug",
         (expr as { loc?: { line: number; column: number } }).loc,
       );
     }
-    // Literals
-    if (expr.type === "number") {
-      const numExpr = expr as NumberNode;
-      return this.literalGen.generateNumber(numExpr.value);
-    }
 
-    if (expr.type === "boolean") {
-      const boolExpr = expr as BooleanNode;
-      return this.literalGen.generateBoolean(boolExpr.value);
-    }
+    const dctx: ExpressionDispatchContext = {
+      literalGen: this.literalGen,
+      variableGen: this.variableGen,
+      binaryGen: this.binaryGen,
+      unaryGen: this.unaryGen,
+      callGen: this.callGen,
+      indexAccessGen: this.indexAccessGen,
+      memberAccessGen: this.memberAccessGen,
+      conditionalGen: this.conditionalGen,
+      templateLiteralGen: this.templateLiteralGen,
+      methodCallGen: this.methodCallGen,
+    };
 
-    if (expr.type === "string") {
-      const strExpr = expr as StringNode;
-      return this.literalGen.generateString(strExpr.value);
-    }
+    const r1 = dispatchPrimitiveLiteral(dctx, expr, params);
+    if (r1 !== null) return r1;
 
     if (expr.type === "null" || expr.type === "undefined") {
       this.ctx.setVariableType("null", "i8*");
       return "null";
     }
 
-    if (expr.type.indexOf("spread:") === 0) {
-      const varName = expr.type.substr(7);
-      return this.variableGen.generate(varName);
-    }
+    const r2 = dispatchComplexLiteral(dctx, expr, params);
+    if (r2 !== null) return r2;
 
-    if (expr.type === "regex") {
-      const regexExpr = expr as RegexNode;
-      return this.literalGen.generateRegex(regexExpr.pattern, regexExpr.flags);
-    }
+    const r3 = dispatchConstructorLiteral(dctx, expr, params);
+    if (r3 !== null) return r3;
 
-    if (expr.type === "array") {
-      return this.literalGen.generateArray(expr as ArrayNode, params);
-    }
+    const r4 = dispatchOperatorExpression(dctx, expr, params);
+    if (r4 !== null) return r4;
 
-    if ((expr as ObjectNode).type === "object") {
-      return this.literalGen.generateObject(expr as ObjectNode, params);
-    }
-
-    if ((expr as MapNode).type === "map") {
-      return this.literalGen.generateMap(expr as MapNode, params);
-    }
-
-    if ((expr as SetNode).type === "set") {
-      return this.literalGen.generateSet(expr as SetNode, params);
-    }
-
-    if ((expr as NewNode).type === "new") {
-      const newExpr = expr as NewNode;
-      return this.literalGen.generateNew(newExpr.className, newExpr.args, params, newExpr.typeArgs);
-    }
-
-    if (expr.type === "this") {
-      return this.literalGen.generateThis();
-    }
-
-    // Variables
-    if (expr.type === "variable") {
-      const varExpr = expr as VariableNode;
-      return this.variableGen.generate(varExpr.name);
-    }
-
-    // Unary operators
-    if (expr.type === "unary") {
-      const unaryExpr = expr as UnaryNode;
-      return this.unaryGen.generate(unaryExpr.op, unaryExpr.operand, params);
-    }
-
-    // Binary operators
-    if (expr.type === "binary") {
-      const binExpr = expr as BinaryNode;
-      return this.binaryGen.generate(binExpr.op, binExpr.left, binExpr.right, params);
-    }
-
-    // Call expressions
-    if (expr.type === "call") {
-      return this.callGen.generate(expr as CallNode, params);
-    }
-
-    // Index access
-    if (expr.type === "index_access") {
-      return this.indexAccessGen.generate(expr as IndexAccessNode, params);
-    }
-
-    // Member access
-    if (expr.type === "member_access") {
-      return this.memberAccessGen.generate(expr as MemberAccessNode, params);
-    }
-
-    // Arrow functions
     if (expr.type === "arrow_function") {
-      const scopeVarsResult = this.ctx.symbolTable.getScopeVarsArraysForClosure();
-      const scopeVarsTyped = scopeVarsResult as {
-        names: string[];
-        types: string[];
-        interfaceTypes: string[];
-      };
-      let typeHints: { paramTypes?: string[]; returnType?: string } | undefined = undefined;
-      const cbParamType = this.ctx.getExpectedCallbackParamType();
-      const cbReturnType = this.ctx.getExpectedCallbackReturnType();
-      if (cbParamType || cbReturnType) {
-        const hintParamTypes: string[] | undefined = cbParamType ? [cbParamType] : undefined;
-        typeHints = { paramTypes: hintParamTypes, returnType: cbReturnType || undefined };
-      }
-      const lambdaName = this.arrowFunctionGen.generateArrowFunction(
-        expr as ArrowFunctionNode,
-        params,
-        typeHints,
-        scopeVarsTyped.names,
-        scopeVarsTyped.types,
-        scopeVarsTyped.interfaceTypes,
-      );
-
-      // For inline lambdas with captures (e.g., arr.map(x => x + captured)),
-      // allocate the env struct here so array methods can pass it as first arg.
-      const closureInfoResult = this.arrowFunctionGen.getClosureInfoForLambda(lambdaName);
-      if (closureInfoResult) {
-        const closureInfo = closureInfoResult as {
-          captures: { name: string; llvmType: string }[];
-          envStructName: string;
-        };
-        const captures = closureInfo.captures;
-        const envStructName = closureInfo.envStructName;
-        const structSize = captures.length * 8;
-        const envRawPtr = this.ctx.nextTemp();
-        this.ctx.emit(`${envRawPtr} = call i8* @GC_malloc(i64 ${structSize})`);
-        const envTypedPtr = this.ctx.nextTemp();
-        this.ctx.emit(`${envTypedPtr} = bitcast i8* ${envRawPtr} to ${envStructName}*`);
-
-        for (let i = 0; i < captures.length; i++) {
-          const cap = captures[i] as { name: string; llvmType: string };
-          const allocaReg = this.ctx.symbolTable.getAlloca(cap.name);
-          if (!allocaReg) {
-            this.ctx.emitError(
-              `cannot capture '${cap.name}' in closure — module-level variables are not in scope. move the variable into a function or class.`,
-            );
-          }
-
-          const valueReg = this.ctx.nextTemp();
-          this.ctx.emit(`${valueReg} = load ${cap.llvmType}, ${cap.llvmType}* ${allocaReg}`);
-          const fieldPtr = this.ctx.nextTemp();
-          this.ctx.emit(
-            `${fieldPtr} = getelementptr ${envStructName}, ${envStructName}* ${envTypedPtr}, i32 0, i32 ${i}`,
-          );
-          this.ctx.emit(`store ${cap.llvmType} ${valueReg}, ${cap.llvmType}* ${fieldPtr}`);
-        }
-
-        this.ctx.setLastInlineLambdaEnvPtr(envRawPtr);
-      }
-
-      return lambdaName;
+      return this.generateArrowFunctionExpression(expr as ArrowFunctionNode, params);
     }
 
-    // Conditional (ternary) expressions
-    if (expr.type === "conditional") {
-      return this.conditionalGen.generate(expr as ConditionalExpressionNode, params);
-    }
+    const r5 = dispatchAccessExpression(dctx, expr, params);
+    if (r5 !== null) return r5;
 
-    // Template literals
-    if (expr.type === "template_literal") {
-      return this.templateLiteralGen.generate(expr as TemplateLiteralNode, params);
-    }
+    const r6 = dispatchMethodAndAssignment(dctx, expr, params);
+    if (r6 !== null) return r6;
 
-    // Method calls
-    if (expr.type === "method_call") {
-      return this.methodCallGen.generate(expr as MethodCallNode, params);
-    }
-
-    // Await expressions
     if (expr.type === "await") {
-      const awaitExpr = expr as AwaitExpressionNode;
-      const promiseReg = this.generate(awaitExpr.argument, params);
-      const valueReg = this.ctx.nextTemp();
-      this.ctx.emit(`${valueReg} = call i8* @__Promise_await(%Promise* ${promiseReg})`);
-      this.ctx.setVariableType(valueReg, "i8*");
-      this.ctx.setUsesPromises(true);
-      return valueReg;
+      return this.generateAwaitExpression(expr as AwaitExpressionNode, params);
     }
 
-    // Type assertions (expr as Type) - evaluate inner expression, type info tracked at declaration level.
-    // When the inner expression is a variable, record its name so that
-    // allocateDeclaredInterface can inherit the source variable's field order
-    // (the asserted type may reorder fields relative to the object literal layout).
     if (expr.type === "type_assertion") {
       const assertExpr = expr as TypeAssertionNode;
       if (assertExpr.expression.type === "variable") {
@@ -321,17 +167,80 @@ export class ExpressionGenerator {
       return this.generate(assertExpr.expression, params);
     }
 
-    // Index access assignment (arr[i] = value)
-    if (expr.type === "index_access_assignment") {
-      return this.indexAccessGen.generateAssignment(expr as IndexAccessAssignmentNode, params);
-    }
-
-    // Hard error: unsupported expression types must not silently produce null pointers.
-    // A null here would be UB that LLVM -O2 can exploit to prune unrelated code.
     this.ctx.emitError(
       "unsupported expression type: " + expr.type,
       (expr as { loc?: { line: number; column: number } }).loc,
     );
+  }
+
+  private generateAwaitExpression(expr: AwaitExpressionNode, params: string[]): string {
+    const promiseReg = this.generate(expr.argument, params);
+    const valueReg = this.ctx.nextTemp();
+    this.ctx.emit(`${valueReg} = call i8* @__Promise_await(%Promise* ${promiseReg})`);
+    this.ctx.setVariableType(valueReg, "i8*");
+    this.ctx.setUsesPromises(true);
+    return valueReg;
+  }
+
+  private generateArrowFunctionExpression(expr: ArrowFunctionNode, params: string[]): string {
+    const scopeVarsResult = this.ctx.symbolTable.getScopeVarsArraysForClosure();
+    const scopeVarsTyped = scopeVarsResult as {
+      names: string[];
+      types: string[];
+      interfaceTypes: string[];
+    };
+    let typeHints: { paramTypes?: string[]; returnType?: string } | undefined = undefined;
+    const cbParamType = this.ctx.getExpectedCallbackParamType();
+    const cbReturnType = this.ctx.getExpectedCallbackReturnType();
+    if (cbParamType || cbReturnType) {
+      const hintParamTypes: string[] | undefined = cbParamType ? [cbParamType] : undefined;
+      typeHints = { paramTypes: hintParamTypes, returnType: cbReturnType || undefined };
+    }
+    const lambdaName = this.arrowFunctionGen.generateArrowFunction(
+      expr,
+      params,
+      typeHints,
+      scopeVarsTyped.names,
+      scopeVarsTyped.types,
+      scopeVarsTyped.interfaceTypes,
+    );
+
+    const closureInfoResult = this.arrowFunctionGen.getClosureInfoForLambda(lambdaName);
+    if (closureInfoResult) {
+      const closureInfo = closureInfoResult as {
+        captures: { name: string; llvmType: string }[];
+        envStructName: string;
+      };
+      const captures = closureInfo.captures;
+      const envStructName = closureInfo.envStructName;
+      const structSize = captures.length * 8;
+      const envRawPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${envRawPtr} = call i8* @GC_malloc(i64 ${structSize})`);
+      const envTypedPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${envTypedPtr} = bitcast i8* ${envRawPtr} to ${envStructName}*`);
+
+      for (let i = 0; i < captures.length; i++) {
+        const cap = captures[i] as { name: string; llvmType: string };
+        const allocaReg = this.ctx.symbolTable.getAlloca(cap.name);
+        if (!allocaReg) {
+          this.ctx.emitError(
+            `cannot capture '${cap.name}' in closure — module-level variables are not in scope. move the variable into a function or class.`,
+          );
+        }
+
+        const valueReg = this.ctx.nextTemp();
+        this.ctx.emit(`${valueReg} = load ${cap.llvmType}, ${cap.llvmType}* ${allocaReg}`);
+        const fieldPtr = this.ctx.nextTemp();
+        this.ctx.emit(
+          `${fieldPtr} = getelementptr ${envStructName}, ${envStructName}* ${envTypedPtr}, i32 0, i32 ${i}`,
+        );
+        this.ctx.emit(`store ${cap.llvmType} ${valueReg}, ${cap.llvmType}* ${fieldPtr}`);
+      }
+
+      this.ctx.setLastInlineLambdaEnvPtr(envRawPtr);
+    }
+
+    return lambdaName;
   }
 
   /**
