@@ -79,37 +79,11 @@ import {
   handleSqliteMethod,
 } from "./method-calls/named-object-dispatch.js";
 import {
-  handleSubstr,
-  handleSubstring,
-  handleConcat,
-  handleRepeat,
-  handlePadStart,
-  handlePadEnd,
-  handleSplit,
-  handleStartsWith,
-  handleEndsWith,
-  handleTrim,
-  handleTrimStart,
-  handleTrimEnd,
-  handleIndexOf,
-  handleLastIndexOf,
-  handleStringArrayIndexOf,
-  handleStringArrayIncludes,
-  handleStringIncludes,
-  handleSlice,
-  handleReplace,
-  handleReplaceAll,
-  handleNumberToString,
-  handleNumberToFixed,
-  handleCharAt,
-  handleCharCodeAt,
-  handleToUpperCase,
-  handleToLowerCase,
-  handleMatch,
   handleNumberIsFinite,
   handleNumberIsNaN,
   handleNumberIsInteger,
 } from "./method-calls/string-methods.js";
+import { dispatchStringMethod, dispatchArrayMethod } from "./method-calls/string-dispatch.js";
 import { handlePromiseThen, handlePromiseFinally } from "./method-calls/promise-handlers.js";
 import {
   handleClassMethods,
@@ -718,111 +692,8 @@ export class MethodCallGenerator {
       }
     }
 
-    // Handle string methods
-    if (method === "substr") {
-      return handleSubstr(this.ctx, expr, params);
-    }
-    if (method === "substring") {
-      return handleSubstring(this.ctx, expr, params);
-    }
-    if (
-      method === "concat" &&
-      !this.ctx.isArrayExpression(expr.object) &&
-      !this.ctx.isStringArrayExpression(expr.object) &&
-      !this.ctx.isObjectArrayExpression(expr.object)
-    ) {
-      return handleConcat(this.ctx, expr, params);
-    }
-    if (method === "repeat") {
-      return handleRepeat(this.ctx, expr, params);
-    }
-    if (method === "padStart") {
-      return handlePadStart(this.ctx, expr, params);
-    }
-    if (method === "padEnd") {
-      return handlePadEnd(this.ctx, expr, params);
-    }
-    if (method === "split") {
-      return handleSplit(this.ctx, expr, params);
-    }
-    if (method === "startsWith") {
-      return handleStartsWith(this.ctx, expr, params);
-    }
-    if (method === "endsWith") {
-      return handleEndsWith(this.ctx, expr, params);
-    }
-    if (method === "trim") {
-      return handleTrim(this.ctx, expr, params);
-    }
-    if (method === "trimStart") {
-      return handleTrimStart(this.ctx, expr, params);
-    }
-    if (method === "trimEnd") {
-      return handleTrimEnd(this.ctx, expr, params);
-    }
-    if (method === "indexOf") {
-      if (this.ctx.isStringArrayExpression(expr.object)) {
-        return handleStringArrayIndexOf(this.ctx, expr, params);
-      }
-      if (this.ctx.isArrayExpression(expr.object)) {
-        return this.ctx.arrayGen.generateArrayIndexOf(expr, params);
-      }
-      return handleIndexOf(this.ctx, expr, params);
-    }
-    if (method === "lastIndexOf") {
-      return handleLastIndexOf(this.ctx, expr, params);
-    }
-    if (method === "includes") {
-      if (this.ctx.isStringArrayExpression(expr.object)) {
-        return handleStringArrayIncludes(this.ctx, expr, params);
-      }
-      if (!this.ctx.isArrayExpression(expr.object)) {
-        return handleStringIncludes(this.ctx, expr, params);
-      }
-    }
-    if (
-      method === "slice" &&
-      !this.ctx.isArrayExpression(expr.object) &&
-      !this.ctx.isStringArrayExpression(expr.object) &&
-      !this.ctx.isObjectArrayExpression(expr.object)
-    ) {
-      return handleSlice(this.ctx, expr, params);
-    }
-    if (method === "replace") {
-      return handleReplace(this.ctx, expr, params);
-    }
-    if (method === "replaceAll") {
-      return handleReplaceAll(this.ctx, expr, params);
-    }
-    if (method === "charAt") {
-      return handleCharAt(this.ctx, expr, params);
-    }
-    if (method === "charCodeAt") {
-      return handleCharCodeAt(this.ctx, expr, params);
-    }
-    if (method === "toUpperCase") {
-      return handleToUpperCase(this.ctx, expr, params);
-    }
-    if (method === "toLowerCase") {
-      return handleToLowerCase(this.ctx, expr, params);
-    }
-    if (method === "toString") {
-      if (
-        !this.ctx.isStringExpression(expr.object) &&
-        !this.ctx.isArrayExpression(expr.object) &&
-        !this.ctx.isStringArrayExpression(expr.object)
-      ) {
-        return handleNumberToString(this.ctx, expr, params);
-      }
-    }
-    if (method === "toFixed") {
-      return handleNumberToFixed(this.ctx, expr, params);
-    }
-    if (method === "match") {
-      if (this.ctx.isStringExpression(expr.object)) {
-        return handleMatch(this.ctx, expr, params);
-      }
-    }
+    const stringResult = dispatchStringMethod(this.ctx, method, expr, params);
+    if (stringResult !== null) return stringResult;
 
     // Handle Map methods
     if (
@@ -1098,65 +969,14 @@ export class MethodCallGenerator {
       }
     }
 
-    // Handle array methods (arrayGen uses context pattern - no sync needed! 🎯)
-    // Skip to class dispatch if object is a class instance (e.g. Stack.push / Stack.pop)
-    if (method === "push" && !this.isClassInstanceExpression(expr.object)) {
-      return this.ctx.arrayGen.generateArrayPush(expr, params);
-    } else if (method === "pop" && !this.isClassInstanceExpression(expr.object)) {
-      return this.ctx.arrayGen.generateArrayPop(expr, params);
-    } else if (method === "includes" && this.ctx.isArrayExpression(expr.object)) {
-      return this.ctx.arrayGen.generateArrayIncludes(expr, params);
-    } else if (method === "map") {
-      if (this.ctx.isStringArrayExpression(expr.object)) {
-        return this.ctx.arrayGen.generateStringArrayMap(expr, params);
-      }
-      return this.ctx.arrayGen.generateArrayMap(expr, params);
-    } else if (
-      method === "join" &&
-      (this.ctx.isStringArrayExpression(expr.object) ||
-        this.ctx.isArrayExpression(expr.object) ||
-        this.ctx.isObjectArrayExpression(expr.object))
-    ) {
-      return this.ctx.arrayGen.generateArrayJoin(expr, params);
-    } else if (method === "find") {
-      return this.ctx.arrayGen.generateArrayFind(expr, params);
-    } else if (method === "some") {
-      return this.ctx.arrayGen.generateArraySome(expr, params);
-    } else if (method === "every") {
-      return this.ctx.arrayGen.generateArrayEvery(expr, params);
-    } else if (method === "filter") {
-      return this.ctx.arrayGen.generateArrayFilter(expr, params);
-    } else if (method === "forEach") {
-      return this.ctx.arrayGen.generateArrayForEach(expr, params);
-    } else if (method === "reduce") {
-      return this.ctx.arrayGen.generateArrayReduce(expr, params);
-    } else if (
-      method === "slice" &&
-      (this.ctx.isArrayExpression(expr.object) ||
-        this.ctx.isStringArrayExpression(expr.object) ||
-        this.ctx.isObjectArrayExpression(expr.object))
-    ) {
-      return this.ctx.arrayGen.generateArraySlice(expr, params);
-    } else if (
-      method === "concat" &&
-      (this.ctx.isArrayExpression(expr.object) ||
-        this.ctx.isStringArrayExpression(expr.object) ||
-        this.ctx.isObjectArrayExpression(expr.object))
-    ) {
-      return this.ctx.arrayGen.generateArrayConcat(expr, params);
-    } else if (method === "reverse") {
-      return this.ctx.arrayGen.generateArrayReverse(expr, params);
-    } else if (method === "shift") {
-      return this.ctx.arrayGen.generateArrayShift(expr, params);
-    } else if (method === "unshift") {
-      return this.ctx.arrayGen.generateArrayUnshift(expr, params);
-    } else if (method === "findIndex") {
-      return this.ctx.arrayGen.generateArrayFindIndex(expr, params);
-    } else if (method === "sort") {
-      return this.ctx.arrayGen.generateArraySort(expr, params);
-    } else if (method === "splice") {
-      return this.ctx.arrayGen.generateArraySplice(expr, params);
-    }
+    const arrayResult = dispatchArrayMethod(
+      this.ctx,
+      method,
+      expr,
+      params,
+      this.isClassInstanceExpression(expr.object),
+    );
+    if (arrayResult !== null) return arrayResult;
 
     // Handle class instance methods
     const classResult = handleClassMethods(this.ctx, expr, params);
