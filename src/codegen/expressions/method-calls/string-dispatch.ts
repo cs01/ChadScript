@@ -1,0 +1,150 @@
+import { Expression, MethodCallNode } from "../../../ast/types.js";
+import type { MethodCallGeneratorContext } from "../method-calls.js";
+import {
+  handleSubstr,
+  handleSubstring,
+  handleConcat,
+  handleRepeat,
+  handlePadStart,
+  handlePadEnd,
+  handleSplit,
+  handleStartsWith,
+  handleEndsWith,
+  handleTrim,
+  handleTrimStart,
+  handleTrimEnd,
+  handleIndexOf,
+  handleLastIndexOf,
+  handleStringArrayIndexOf,
+  handleStringArrayIncludes,
+  handleStringIncludes,
+  handleSlice,
+  handleReplace,
+  handleReplaceAll,
+  handleNumberToString,
+  handleNumberToFixed,
+  handleCharAt,
+  handleCharCodeAt,
+  handleToUpperCase,
+  handleToLowerCase,
+  handleMatch,
+} from "./string-methods.js";
+
+export function dispatchStringMethod(
+  ctx: MethodCallGeneratorContext,
+  method: string,
+  expr: MethodCallNode,
+  params: string[],
+): string | null {
+  if (method === "substr") return handleSubstr(ctx, expr, params);
+  if (method === "substring") return handleSubstring(ctx, expr, params);
+  if (
+    method === "concat" &&
+    !ctx.isArrayExpression(expr.object) &&
+    !ctx.isStringArrayExpression(expr.object) &&
+    !ctx.isObjectArrayExpression(expr.object)
+  )
+    return handleConcat(ctx, expr, params);
+  if (method === "repeat") return handleRepeat(ctx, expr, params);
+  if (method === "padStart") return handlePadStart(ctx, expr, params);
+  if (method === "padEnd") return handlePadEnd(ctx, expr, params);
+  if (method === "split") return handleSplit(ctx, expr, params);
+  if (method === "startsWith") return handleStartsWith(ctx, expr, params);
+  if (method === "endsWith") return handleEndsWith(ctx, expr, params);
+  if (method === "trim") return handleTrim(ctx, expr, params);
+  if (method === "trimStart") return handleTrimStart(ctx, expr, params);
+  if (method === "trimEnd") return handleTrimEnd(ctx, expr, params);
+  if (method === "indexOf") {
+    if (ctx.isStringArrayExpression(expr.object))
+      return handleStringArrayIndexOf(ctx, expr, params);
+    if (ctx.isArrayExpression(expr.object)) return ctx.arrayGen.generateArrayIndexOf(expr, params);
+    return handleIndexOf(ctx, expr, params);
+  }
+  if (method === "lastIndexOf") return handleLastIndexOf(ctx, expr, params);
+  if (method === "includes") {
+    if (ctx.isStringArrayExpression(expr.object))
+      return handleStringArrayIncludes(ctx, expr, params);
+    if (!ctx.isArrayExpression(expr.object)) return handleStringIncludes(ctx, expr, params);
+    return null;
+  }
+  if (
+    method === "slice" &&
+    !ctx.isArrayExpression(expr.object) &&
+    !ctx.isStringArrayExpression(expr.object) &&
+    !ctx.isObjectArrayExpression(expr.object)
+  )
+    return handleSlice(ctx, expr, params);
+  if (method === "replace") return handleReplace(ctx, expr, params);
+  if (method === "replaceAll") return handleReplaceAll(ctx, expr, params);
+  if (method === "charAt") return handleCharAt(ctx, expr, params);
+  if (method === "charCodeAt") return handleCharCodeAt(ctx, expr, params);
+  if (method === "toUpperCase") return handleToUpperCase(ctx, expr, params);
+  if (method === "toLowerCase") return handleToLowerCase(ctx, expr, params);
+  if (method === "toString") {
+    if (
+      !ctx.isStringExpression(expr.object) &&
+      !ctx.isArrayExpression(expr.object) &&
+      !ctx.isStringArrayExpression(expr.object)
+    )
+      return handleNumberToString(ctx, expr, params);
+    return null;
+  }
+  if (method === "toFixed") return handleNumberToFixed(ctx, expr, params);
+  if (method === "match") {
+    if (ctx.isStringExpression(expr.object)) return handleMatch(ctx, expr, params);
+    return null;
+  }
+  return null;
+}
+
+export function dispatchArrayMethod(
+  ctx: MethodCallGeneratorContext,
+  method: string,
+  expr: MethodCallNode,
+  params: string[],
+  isClassInstance: boolean,
+): string | null {
+  if (method === "push" && !isClassInstance) return ctx.arrayGen.generateArrayPush(expr, params);
+  if (method === "pop" && !isClassInstance) return ctx.arrayGen.generateArrayPop(expr, params);
+  if (method === "includes" && ctx.isArrayExpression(expr.object))
+    return ctx.arrayGen.generateArrayIncludes(expr, params);
+  if (method === "map") {
+    if (ctx.isStringArrayExpression(expr.object))
+      return ctx.arrayGen.generateStringArrayMap(expr, params);
+    return ctx.arrayGen.generateArrayMap(expr, params);
+  }
+  if (
+    method === "join" &&
+    (ctx.isStringArrayExpression(expr.object) ||
+      ctx.isArrayExpression(expr.object) ||
+      ctx.isObjectArrayExpression(expr.object))
+  )
+    return ctx.arrayGen.generateArrayJoin(expr, params);
+  if (method === "find") return ctx.arrayGen.generateArrayFind(expr, params);
+  if (method === "some") return ctx.arrayGen.generateArraySome(expr, params);
+  if (method === "every") return ctx.arrayGen.generateArrayEvery(expr, params);
+  if (method === "filter") return ctx.arrayGen.generateArrayFilter(expr, params);
+  if (method === "forEach") return ctx.arrayGen.generateArrayForEach(expr, params);
+  if (method === "reduce") return ctx.arrayGen.generateArrayReduce(expr, params);
+  if (
+    method === "slice" &&
+    (ctx.isArrayExpression(expr.object) ||
+      ctx.isStringArrayExpression(expr.object) ||
+      ctx.isObjectArrayExpression(expr.object))
+  )
+    return ctx.arrayGen.generateArraySlice(expr, params);
+  if (
+    method === "concat" &&
+    (ctx.isArrayExpression(expr.object) ||
+      ctx.isStringArrayExpression(expr.object) ||
+      ctx.isObjectArrayExpression(expr.object))
+  )
+    return ctx.arrayGen.generateArrayConcat(expr, params);
+  if (method === "reverse") return ctx.arrayGen.generateArrayReverse(expr, params);
+  if (method === "shift") return ctx.arrayGen.generateArrayShift(expr, params);
+  if (method === "unshift") return ctx.arrayGen.generateArrayUnshift(expr, params);
+  if (method === "findIndex") return ctx.arrayGen.generateArrayFindIndex(expr, params);
+  if (method === "sort") return ctx.arrayGen.generateArraySort(expr, params);
+  if (method === "splice") return ctx.arrayGen.generateArraySplice(expr, params);
+  return null;
+}
