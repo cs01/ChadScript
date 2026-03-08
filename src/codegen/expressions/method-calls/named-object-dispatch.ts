@@ -1,5 +1,34 @@
 import { MethodCallNode } from "../../../ast/types.js";
 import type { MethodCallGeneratorContext } from "../method-calls.js";
+import {
+  generateProcessExitInline,
+  generateProcessCwdInline,
+  handleProcessChdir,
+  handleProcessKill,
+  handleProcessUptime,
+  handleProcessSyscallI32,
+} from "./process.js";
+import {
+  generateConsoleCallInline,
+  generateConsoleTime,
+  generateConsoleTimeEnd,
+} from "./console.js";
+import {
+  handleAssertStrictEqual,
+  handleAssertNotStrictEqual,
+  handleAssertOk,
+  handleAssertDeepEqual,
+  handleAssertFail,
+} from "./assert.js";
+import {
+  handleOsHostname,
+  handleOsHomedir,
+  handleOsTmpdir,
+  handleOsCpus,
+  handleOsTotalmem,
+  handleOsFreemem,
+  handleOsUptime,
+} from "./os.js";
 
 export function handleFsMethod(
   ctx: MethodCallGeneratorContext,
@@ -168,4 +197,108 @@ export function handleTtyIsatty(
   const doubleResult = ctx.nextTemp();
   ctx.emit(`${doubleResult} = uitofp i1 ${boolResult} to double`);
   return doubleResult;
+}
+
+export function handleProcessMethod(
+  ctx: MethodCallGeneratorContext,
+  method: string,
+  expr: MethodCallNode,
+  params: string[],
+): string | null {
+  if (method === "exit") return generateProcessExitInline(ctx, expr, params);
+  if (method === "cwd") return generateProcessCwdInline(ctx);
+  if (method === "chdir") return handleProcessChdir(ctx, expr, params);
+  if (method === "abort") {
+    ctx.emit(`call void @abort()`);
+    return "0";
+  }
+  if (method === "kill") return handleProcessKill(ctx, expr, params);
+  if (method === "uptime") return handleProcessUptime(ctx);
+  if (method === "getuid") return handleProcessSyscallI32(ctx, "@getuid");
+  if (method === "getgid") return handleProcessSyscallI32(ctx, "@getgid");
+  if (method === "geteuid") return handleProcessSyscallI32(ctx, "@geteuid");
+  if (method === "getegid") return handleProcessSyscallI32(ctx, "@getegid");
+  return null;
+}
+
+export function handleAssertMethod(
+  ctx: MethodCallGeneratorContext,
+  method: string,
+  expr: MethodCallNode,
+  params: string[],
+): string | null {
+  ctx.setUsesTestRunner(true);
+  if (method === "strictEqual") return handleAssertStrictEqual(ctx, expr, params);
+  if (method === "notStrictEqual") return handleAssertNotStrictEqual(ctx, expr, params);
+  if (method === "ok") return handleAssertOk(ctx, expr, params);
+  if (method === "deepEqual") return handleAssertDeepEqual(ctx, expr, params);
+  if (method === "fail") return handleAssertFail(ctx, expr, params);
+  return null;
+}
+
+export function handleOsMethod(
+  ctx: MethodCallGeneratorContext,
+  method: string,
+  expr: MethodCallNode,
+  params: string[],
+): string | null {
+  if (method === "hostname") return handleOsHostname(ctx);
+  if (method === "homedir") return handleOsHomedir(ctx);
+  if (method === "tmpdir") return handleOsTmpdir(ctx);
+  if (method === "cpus") return handleOsCpus(ctx);
+  if (method === "totalmem") return handleOsTotalmem(ctx);
+  if (method === "freemem") {
+    ctx.setUsesOs(true);
+    return handleOsFreemem(ctx);
+  }
+  if (method === "uptime") {
+    ctx.setUsesOs(true);
+    return handleOsUptime(ctx);
+  }
+  return null;
+}
+
+export function handleConsoleMethod(
+  ctx: MethodCallGeneratorContext,
+  method: string,
+  expr: MethodCallNode,
+  params: string[],
+): string | null {
+  if (method === "log" || method === "error" || method === "warn" || method === "debug")
+    return generateConsoleCallInline(ctx, expr, params);
+  if (method === "time") return generateConsoleTime(ctx, expr, params);
+  if (method === "timeEnd") return generateConsoleTimeEnd(ctx, expr, params);
+  return null;
+}
+
+export function handleChadScriptMethod(
+  ctx: MethodCallGeneratorContext,
+  method: string,
+  expr: MethodCallNode,
+  params: string[],
+): string | null {
+  if (method === "embedFile") return ctx.embedGen.generateEmbedFile(expr, params);
+  if (method === "embedDir") return ctx.embedGen.generateEmbedDir(expr, params);
+  if (method === "getEmbeddedFile") return ctx.embedGen.generateGetEmbeddedFile(expr, params);
+  if (method === "getEmbeddedFileAsUint8Array")
+    return ctx.embedGen.generateGetEmbeddedFileAsUint8Array(expr, params);
+  if (method === "serveEmbedded") return ctx.embedGen.generateServeEmbedded(expr, params);
+  return ctx.emitError(`ChadScript.${method}() is not a supported method`, expr.loc);
+}
+
+export function handleSqliteMethod(
+  ctx: MethodCallGeneratorContext,
+  method: string,
+  expr: MethodCallNode,
+  params: string[],
+): string | null {
+  ctx.setUsesSqlite(true);
+  if (method === "open") return ctx.sqliteGen.generateOpen(expr, params);
+  if (method === "exec") return ctx.sqliteGen.generateExec(expr, params);
+  if (method === "get") return ctx.sqliteGen.generateGet(expr, params);
+  if (method === "getRow") return ctx.sqliteGen.generateGetRow(expr, params);
+  if (method === "all") return ctx.sqliteGen.generateAll(expr, params);
+  if (method === "query") return ctx.sqliteGen.generateQuery(expr, params);
+  if (method === "close") return ctx.sqliteGen.generateClose(expr, params);
+  return null;
 }
