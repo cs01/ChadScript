@@ -79,7 +79,7 @@ export class ObjectGenerator {
       let name = part.slice(0, colonIdx).trim();
       const fieldType = part.slice(colonIdx + 1).trim();
       if (name.endsWith("?")) {
-        name = name.slice(0, -1);
+        name = name.slice(0, name.length - 1);
       }
       fields.push({ name, type: fieldType });
     }

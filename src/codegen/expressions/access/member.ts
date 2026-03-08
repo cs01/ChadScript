@@ -750,7 +750,7 @@ export class MemberAccessGenerator {
     } else {
       let nestedTypeName = propType;
       if (nestedTypeName.endsWith("?")) {
-        nestedTypeName = nestedTypeName.slice(0, -1);
+        nestedTypeName = nestedTypeName.slice(0, nestedTypeName.length - 1);
       }
       if (nestedTypeName.indexOf(" | ") !== -1) {
         nestedTypeName = nestedTypeName.split(" | ")[0].trim();
@@ -1426,7 +1426,7 @@ export class MemberAccessGenerator {
     } else {
       let nestedTypeName = propType;
       if (nestedTypeName.endsWith("?")) {
-        nestedTypeName = nestedTypeName.slice(0, -1);
+        nestedTypeName = nestedTypeName.slice(0, nestedTypeName.length - 1);
       }
       if (nestedTypeName.indexOf(" | null") !== -1) {
         nestedTypeName = nestedTypeName.replace(" | null", "");
@@ -2117,7 +2117,7 @@ export class MemberAccessGenerator {
           const f = inlineFields[i];
           let fName = f.name;
           if (fName.endsWith("?")) {
-            fName = fName.slice(0, -1);
+            fName = fName.slice(0, fName.length - 1);
           }
           if (fName === fieldName) {
             return f.type;
@@ -2506,7 +2506,7 @@ export class MemberAccessGenerator {
             if (fieldInfo) {
               const fieldPtr = this.ctx.nextTemp();
               this.ctx.emit(
-                `${fieldPtr} = getelementptr inbounds ${innerType.slice(0, -1)}, ${innerType} ${innerPtr}, i32 0, i32 ${fieldInfo.index}`,
+                `${fieldPtr} = getelementptr inbounds ${innerType.slice(0, innerType.length - 1)}, ${innerType} ${innerPtr}, i32 0, i32 ${fieldInfo.index}`,
               );
               return this.loadFieldValue(fieldPtr, fieldInfo);
             }

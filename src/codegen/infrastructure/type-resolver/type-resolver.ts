@@ -962,7 +962,7 @@ export class TypeResolver {
           fieldType = fieldType.replace(/ \| null$/, "").replace(/ \| undefined$/, "");
         }
         if (fieldType.endsWith("?")) {
-          fieldType = fieldType.slice(0, -1);
+          fieldType = fieldType.slice(0, fieldType.length - 1);
         }
         return fieldType;
       }
@@ -987,7 +987,7 @@ export class TypeResolver {
             fieldType = fieldType.replace(/ \| null$/, "").replace(/ \| undefined$/, "");
           }
           if (fieldType.endsWith("?")) {
-            fieldType = fieldType.slice(0, -1);
+            fieldType = fieldType.slice(0, fieldType.length - 1);
           }
           return fieldType;
         }

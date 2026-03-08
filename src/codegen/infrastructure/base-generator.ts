@@ -230,8 +230,9 @@ export class BaseGenerator {
       this.outputIsTerminator.push(this.classifyTerminator(dbgInstruction));
       this.outputCount++;
     }
-    if (dbgInstruction.trim().endsWith(":")) {
-      const label = dbgInstruction.trim().slice(0, -1);
+    const trimmedInstruction = dbgInstruction.trim();
+    if (trimmedInstruction.endsWith(":")) {
+      const label = trimmedInstruction.slice(0, trimmedInstruction.length - 1);
       this.currentLabel = label;
     }
   }
