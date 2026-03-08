@@ -309,9 +309,8 @@ export class ClosureAnalyzer {
         this.walkBlock(s.consequent);
       }
       if (s.alternate) {
-        const alt = s.alternate as { type: string };
-        if (alt.type === "if") {
-          this.walkStatement(s.alternate as Statement);
+        if (s.alternate.type === "if") {
+          this.walkStatement(s.alternate);
         } else {
           this.walkBlock(s.alternate as BlockStatement);
         }
@@ -366,8 +365,7 @@ export class ClosureAnalyzer {
   }
 
   private walkExpression(expr: Expression): void {
-    const exprTyped = expr as { type: string };
-    const exprType = exprTyped.type;
+    const exprType = expr.type;
 
     if (exprType === "variable") {
       const e = expr as VariableExpr;
@@ -413,9 +411,8 @@ export class ClosureAnalyzer {
       const e = expr as TemplateLiteralExpr;
       for (let _pti = 0; _pti < e.parts.length; _pti++) {
         const part = e.parts[_pti];
-        const partAsObj = part as { type: string };
-        if (partAsObj.type && partAsObj.type !== "string") {
-          this.walkExpression(part as Expression);
+        if (typeof part !== "string") {
+          this.walkExpression(part);
         }
       }
     } else if (exprType === "arrow_function") {

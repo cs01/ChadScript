@@ -77,9 +77,9 @@ export class TemplateLiteralGenerator {
         partValue = this.ctx.stringGen.doCreateStringConstant(partAsObj.value || "");
       } else {
         const exprPart = part as Expression;
-        const exprPartObj = exprPart as { type: string };
+        const exprPartTyped = exprPart as { type: string };
         const exprValue = this.ctx.generateExpression(exprPart, params);
-        if (exprPartObj.type === "boolean") {
+        if (exprPartTyped.type === "boolean") {
           partValue = this.booleanToString(exprValue);
         } else if (
           this.ctx.isStringExpression(exprPart) ||

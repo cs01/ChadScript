@@ -269,11 +269,10 @@ export class VariableAllocator {
   }
 
   private getGenericMethodReturnError(expr: Expression, varName: string): string | null {
-    const e = expr as { type: string };
-    if (e.type !== "method_call") return null;
+    if (expr.type !== "method_call") return null;
     const methodExpr = expr as MethodCallNode;
-    const objBase = methodExpr.object as { type: string };
-    if (objBase.type !== "variable") return null;
+    const methodObjTyped = methodExpr.object as { type: string };
+    if (methodObjTyped.type !== "variable") return null;
     const objName = (methodExpr.object as VariableNode).name;
     const className = this.ctx.symbolTable.getConcreteClass(objName);
     if (!className) return null;
@@ -304,8 +303,7 @@ export class VariableAllocator {
   }
 
   private resolveGenericCallReturnType(expr: Expression): string | null {
-    const e = expr as { type: string };
-    if (e.type !== "call") return null;
+    if (expr.type !== "call") return null;
     const callNode = expr as CallNode;
     if (!callNode.typeArgs || callNode.typeArgs.length === 0) return null;
     const ast = this.ctx.getAst();
@@ -708,8 +706,8 @@ export class VariableAllocator {
     }
 
     const stmtValue = stmt.value!;
-
     const stmtValueBase = stmtValue as { type: string };
+
     if (stmtValueBase.type === "new") {
       const newNode = stmtValue as NewNode;
       if (newNode.className === "URL") {

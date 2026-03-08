@@ -296,10 +296,8 @@ export class BinaryExpressionGenerator {
     leftExpr: Expression,
     rightExpr: Expression,
   ): string {
-    const leftExprTyped = leftExpr as { type: string };
-    const rightExprTyped = rightExpr as { type: string };
-    const leftIsNullish = leftExprTyped.type === "null" || leftExprTyped.type === "undefined";
-    const rightIsNullish = rightExprTyped.type === "null" || rightExprTyped.type === "undefined";
+    const leftIsNullish = leftExpr.type === "null" || leftExpr.type === "undefined";
+    const rightIsNullish = rightExpr.type === "null" || rightExpr.type === "undefined";
     if (leftIsNullish || rightIsNullish) {
       return this.generatePointerNullComparison(op, leftValue, rightValue);
     }
