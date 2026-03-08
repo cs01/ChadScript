@@ -55,37 +55,7 @@ import type {
   IEmbedGenerator,
 } from "../infrastructure/generator-context.js";
 import { parseMapTypeString, parseSetTypeString } from "../infrastructure/type-system.js";
-import {
-  isProcessStdoutOrStderr,
-  handleProcessWrite,
-  generateProcessExitInline,
-  generateProcessCwdInline,
-  handleProcessChdir,
-  handleProcessKill,
-  handleProcessUptime,
-  handleProcessSyscallI32,
-} from "./method-calls/process.js";
-import {
-  generateConsoleCallInline,
-  generateConsoleTime,
-  generateConsoleTimeEnd,
-} from "./method-calls/console.js";
-import {
-  handleAssertStrictEqual,
-  handleAssertNotStrictEqual,
-  handleAssertOk,
-  handleAssertDeepEqual,
-  handleAssertFail,
-} from "./method-calls/assert.js";
-import {
-  handleOsHostname,
-  handleOsHomedir,
-  handleOsTmpdir,
-  handleOsCpus,
-  handleOsTotalmem,
-  handleOsFreemem,
-  handleOsUptime,
-} from "./method-calls/os.js";
+import { isProcessStdoutOrStderr, handleProcessWrite } from "./method-calls/process.js";
 import {
   generateObjectKeys,
   generateObjectValues,
@@ -101,6 +71,12 @@ import {
   handleUint8ArrayFromRawBytes,
   handleTtyIsatty,
   handleCryptoMethod,
+  handleProcessMethod,
+  handleAssertMethod,
+  handleOsMethod,
+  handleConsoleMethod,
+  handleChadScriptMethod,
+  handleSqliteMethod,
 } from "./method-calls/named-object-dispatch.js";
 import {
   handleSubstr,
@@ -365,15 +341,7 @@ export class MethodCallGenerator {
         return handlePromiseStaticMethods(this.ctx, expr, params);
 
       case "ChadScript":
-        if (method === "embedFile") return this.ctx.embedGen.generateEmbedFile(expr, params);
-        if (method === "embedDir") return this.ctx.embedGen.generateEmbedDir(expr, params);
-        if (method === "getEmbeddedFile")
-          return this.ctx.embedGen.generateGetEmbeddedFile(expr, params);
-        if (method === "getEmbeddedFileAsUint8Array")
-          return this.ctx.embedGen.generateGetEmbeddedFileAsUint8Array(expr, params);
-        if (method === "serveEmbedded")
-          return this.ctx.embedGen.generateServeEmbedded(expr, params);
-        return this.ctx.emitError(`ChadScript.${method}() is not a supported method`, expr.loc);
+        return handleChadScriptMethod(this.ctx, method, expr, params);
 
       case "Uint8Array":
         if (method === "fromRawBytes") return handleUint8ArrayFromRawBytes(this.ctx, expr, params);
@@ -430,56 +398,20 @@ export class MethodCallGenerator {
         return null;
 
       case "console":
-        if (method === "log" || method === "error" || method === "warn" || method === "debug")
-          return generateConsoleCallInline(this.ctx, expr, params);
-        if (method === "time") return generateConsoleTime(this.ctx, expr, params);
-        if (method === "timeEnd") return generateConsoleTimeEnd(this.ctx, expr, params);
-        return null;
+        return handleConsoleMethod(this.ctx, method, expr, params);
 
       case "assert":
-        this.ctx.setUsesTestRunner(true);
-        if (method === "strictEqual") return handleAssertStrictEqual(this.ctx, expr, params);
-        if (method === "notStrictEqual") return handleAssertNotStrictEqual(this.ctx, expr, params);
-        if (method === "ok") return handleAssertOk(this.ctx, expr, params);
-        if (method === "deepEqual") return handleAssertDeepEqual(this.ctx, expr, params);
-        if (method === "fail") return handleAssertFail(this.ctx, expr, params);
-        return null;
+        return handleAssertMethod(this.ctx, method, expr, params);
 
       case "process":
-        if (method === "exit") return generateProcessExitInline(this.ctx, expr, params);
-        if (method === "cwd") return generateProcessCwdInline(this.ctx);
-        if (method === "chdir") return handleProcessChdir(this.ctx, expr, params);
-        if (method === "abort") {
-          this.ctx.emit(`call void @abort()`);
-          return "0";
-        }
-        if (method === "kill") return handleProcessKill(this.ctx, expr, params);
-        if (method === "uptime") return handleProcessUptime(this.ctx);
-        if (method === "getuid") return handleProcessSyscallI32(this.ctx, "@getuid");
-        if (method === "getgid") return handleProcessSyscallI32(this.ctx, "@getgid");
-        if (method === "geteuid") return handleProcessSyscallI32(this.ctx, "@geteuid");
-        if (method === "getegid") return handleProcessSyscallI32(this.ctx, "@getegid");
-        return null;
+        return handleProcessMethod(this.ctx, method, expr, params);
 
       case "tty":
         if (method === "isatty") return handleTtyIsatty(this.ctx, expr, params);
         return null;
 
       case "os":
-        if (method === "hostname") return handleOsHostname(this.ctx);
-        if (method === "homedir") return handleOsHomedir(this.ctx);
-        if (method === "tmpdir") return handleOsTmpdir(this.ctx);
-        if (method === "cpus") return handleOsCpus(this.ctx);
-        if (method === "totalmem") return handleOsTotalmem(this.ctx);
-        if (method === "freemem") {
-          this.ctx.setUsesOs(true);
-          return handleOsFreemem(this.ctx);
-        }
-        if (method === "uptime") {
-          this.ctx.setUsesOs(true);
-          return handleOsUptime(this.ctx);
-        }
-        return null;
+        return handleOsMethod(this.ctx, method, expr, params);
 
       case "fs":
         return handleFsMethod(this.ctx, method, expr, params);
@@ -503,27 +435,11 @@ export class MethodCallGenerator {
         return handleCryptoMethod(this.ctx, method, expr, params);
 
       case "sqlite":
-        return this.dispatchSqliteMethod(method, expr, params);
+        return handleSqliteMethod(this.ctx, method, expr, params);
 
       default:
         return null;
     }
-  }
-
-  private dispatchSqliteMethod(
-    method: string,
-    expr: MethodCallNode,
-    params: string[],
-  ): string | null {
-    this.ctx.setUsesSqlite(true);
-    if (method === "open") return this.ctx.sqliteGen.generateOpen(expr, params);
-    if (method === "exec") return this.ctx.sqliteGen.generateExec(expr, params);
-    if (method === "get") return this.ctx.sqliteGen.generateGet(expr, params);
-    if (method === "getRow") return this.ctx.sqliteGen.generateGetRow(expr, params);
-    if (method === "all") return this.ctx.sqliteGen.generateAll(expr, params);
-    if (method === "query") return this.ctx.sqliteGen.generateQuery(expr, params);
-    if (method === "close") return this.ctx.sqliteGen.generateClose(expr, params);
-    return null;
   }
 
   private getParameterMapKeyType(varName: string): string | null {
