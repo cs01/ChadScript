@@ -1239,16 +1239,22 @@ export class CallExpressionGenerator {
     return "0";
   }
 
+  private getFieldLlvmTypeForTsType(tsType: string): string | null {
+    if (tsType.startsWith("Map<string,")) return "%StringMap*";
+    if (tsType.startsWith("Map<")) return "%Map*";
+    if (tsType === "Set<string>") return "%StringSet*";
+    if (tsType.startsWith("Set<")) return "%Set*";
+    return null;
+  }
+
   private getFieldLlvmType(field: { name: string; fieldType: string; tsType?: string }): string {
     if (field.fieldType === "string") return "i8*";
     if (field.fieldType === "string[]") return "%StringArray*";
     if (field.fieldType.endsWith("[]")) return "%Array*";
     if (field.fieldType === "boolean") return "i1";
     if (field.tsType) {
-      if (field.tsType.startsWith("Map<string,")) return "%StringMap*";
-      if (field.tsType.startsWith("Map<")) return "%Map*";
-      if (field.tsType === "Set<string>") return "%StringSet*";
-      if (field.tsType.startsWith("Set<")) return "%Set*";
+      const collType = this.getFieldLlvmTypeForTsType(field.tsType);
+      if (collType) return collType;
       if (field.tsType === "number" || field.tsType === "boolean") return "double";
       const classFields = this.ctx.classGenGetClassFields(field.tsType);
       if (classFields.length > 0) {

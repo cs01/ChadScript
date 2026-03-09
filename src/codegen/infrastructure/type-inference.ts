@@ -68,17 +68,29 @@ export interface TypeInferenceContext {
 export class TypeInference {
   constructor(private ctx: TypeInferenceContext) {}
 
+  private resolveSimpleLiteralType(eType: string): ResolvedType | null {
+    if (eType === "number") return this.ctx.typeContext.numberType;
+    if (eType === "string") return this.ctx.typeContext.stringType;
+    if (eType === "template_literal") return this.ctx.typeContext.stringType;
+    if (eType === "boolean") return this.ctx.typeContext.booleanType;
+    return null;
+  }
+
+  private resolveSpecialLiteralType(eType: string): ResolvedType | null {
+    if (eType === "null") return this.ctx.typeContext.nullType;
+    if (eType === "regex") return this.ctx.typeContext.resolve("RegExp");
+    if (eType === "object") return this.ctx.typeContext.resolve("object");
+    return null;
+  }
+
   resolveExpressionType(expr: Expression): ResolvedType | null {
     if (!expr) return null;
     const e = expr as ExprBase;
     if (!e.type) return null;
-    if (e.type === "number") return this.ctx.typeContext.numberType;
-    if (e.type === "string") return this.ctx.typeContext.stringType;
-    if (e.type === "template_literal") return this.ctx.typeContext.stringType;
-    if (e.type === "boolean") return this.ctx.typeContext.booleanType;
-    if (e.type === "null") return this.ctx.typeContext.nullType;
-    if (e.type === "regex") return this.ctx.typeContext.resolve("RegExp");
-    if (e.type === "object") return this.ctx.typeContext.resolve("object");
+    const simple = this.resolveSimpleLiteralType(e.type);
+    if (simple) return simple;
+    const special = this.resolveSpecialLiteralType(e.type);
+    if (special) return special;
     if (e.type === "map") {
       const mapExpr = expr as MapNode;
       const keyType = mapExpr.keyType || "string";
