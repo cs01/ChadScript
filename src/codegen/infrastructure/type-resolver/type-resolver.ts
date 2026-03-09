@@ -208,20 +208,38 @@ function getBuiltinAstTypeByDiscriminant(discriminant: string): BuiltinAstType |
   return null;
 }
 
-function getBuiltinAstTypeByName(name: string): BuiltinAstType | null {
+function getBuiltinAstTypeGroup1(name: string): BuiltinAstType | null {
   if (name === "AssignmentStatement") return getBuiltinAstTypeByDiscriminant("assignment");
   if (name === "VariableDeclaration")
     return getBuiltinAstTypeByDiscriminant("variable_declaration");
   if (name === "ReturnStatement") return getBuiltinAstTypeByDiscriminant("return");
   if (name === "IfStatement") return getBuiltinAstTypeByDiscriminant("if");
+  return null;
+}
+
+function getBuiltinAstTypeGroup2(name: string): BuiltinAstType | null {
   if (name === "WhileStatement") return getBuiltinAstTypeByDiscriminant("while");
   if (name === "ForStatement") return getBuiltinAstTypeByDiscriminant("for");
   if (name === "ForOfStatement") return getBuiltinAstTypeByDiscriminant("for_of");
   if (name === "BlockStatement") return getBuiltinAstTypeByDiscriminant("block");
+  return null;
+}
+
+function getBuiltinAstTypeGroup3(name: string): BuiltinAstType | null {
   if (name === "ThrowStatement") return getBuiltinAstTypeByDiscriminant("throw");
   if (name === "TryStatement") return getBuiltinAstTypeByDiscriminant("try");
   if (name === "SwitchStatement") return getBuiltinAstTypeByDiscriminant("switch");
   if (name === "BreakStatement") return getBuiltinAstTypeByDiscriminant("break");
+  return null;
+}
+
+function getBuiltinAstTypeByName(name: string): BuiltinAstType | null {
+  const g1 = getBuiltinAstTypeGroup1(name);
+  if (g1) return g1;
+  const g2 = getBuiltinAstTypeGroup2(name);
+  if (g2) return g2;
+  const g3 = getBuiltinAstTypeGroup3(name);
+  if (g3) return g3;
   if (name === "ContinueStatement") return getBuiltinAstTypeByDiscriminant("continue");
   return null;
 }

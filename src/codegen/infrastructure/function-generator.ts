@@ -798,15 +798,27 @@ export class FunctionGenerator {
     return this.ctx.isEnumType(typeName);
   }
 
-  private llvmTypeToSymbolKind(llvmType: string): number {
+  private llvmTypeToSymbolKindPrimitive(llvmType: string): number | null {
     if (llvmType === "double") return SymbolKind.Number;
     if (llvmType === "i8*") return SymbolKind.String;
     if (llvmType === "%Array*") return SymbolKind.Array;
     if (llvmType === "%ObjectArray*") return SymbolKind.ObjectArray;
+    return null;
+  }
+
+  private llvmTypeToSymbolKindCollection(llvmType: string): number | null {
     if (llvmType === "%StringArray*") return SymbolKind.StringArray;
     if (llvmType === "%Map*") return SymbolKind.Map;
     if (llvmType === "%StringMap*") return SymbolKind.Map;
     if (llvmType === "%Set*") return SymbolKind.Set;
+    return null;
+  }
+
+  private llvmTypeToSymbolKind(llvmType: string): number {
+    const prim = this.llvmTypeToSymbolKindPrimitive(llvmType);
+    if (prim !== null) return prim;
+    const coll = this.llvmTypeToSymbolKindCollection(llvmType);
+    if (coll !== null) return coll;
     if (llvmType === "%StringSet*") return SymbolKind.Set;
     return SymbolKind.Object;
   }
