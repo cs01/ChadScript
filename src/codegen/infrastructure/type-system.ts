@@ -233,6 +233,8 @@ export function canonicalTypeToLlvm(
   if (coll) return coll;
   if (tsType.startsWith("Map<")) return "%StringMap*";
   if (tsType.startsWith("'") || tsType.startsWith('"')) return "i8*";
+  if (tsType === "i8*" || tsType === "double" || tsType === "i64" || tsType === "i1") return tsType;
+  if (tsType.startsWith("%")) return tsType;
 
   if (tsType.indexOf(" | ") !== -1) {
     const parts = tsType.split(" | ");
@@ -256,6 +258,32 @@ export function canonicalTypeToLlvm(
     return "i8*";
   }
 
+  if (
+    tsType === "any" ||
+    tsType === "unknown" ||
+    tsType === "object" ||
+    tsType === "void" ||
+    tsType === "never"
+  ) {
+    return "i8*";
+  }
+
+  if (tsType.indexOf("=>") !== -1 || tsType.startsWith("(")) {
+    return "i8*";
+  }
+
+  if (tsType.startsWith("{")) {
+    return "i8*";
+  }
+
+  const firstChar = tsType.charAt(0);
+  if (firstChar === firstChar.toUpperCase() && firstChar !== firstChar.toLowerCase()) {
+    return "i8*";
+  }
+
+  // native compiler string corruption produces garbage type strings (294+ per build)
+  // root cause: inline `as { name: string; type: string }` assertions on InterfaceField
+  // TODO: fix root cause by replacing inline assertions with named InterfaceField type
   return "i8*";
 }
 

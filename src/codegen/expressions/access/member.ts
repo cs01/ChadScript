@@ -1716,7 +1716,7 @@ export class MemberAccessGenerator {
     if (propIndex === -1) return null;
 
     const innerPtr = this.ctx.generateExpression(expr.object, params);
-    const llvmType = tsTypeToLlvm(propTsType || "i8*");
+    const llvmType = propTsType ? tsTypeToLlvm(propTsType) : "i8*";
 
     const fieldPtr = this.ctx.nextTemp();
     this.ctx.emit(
