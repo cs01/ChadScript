@@ -278,7 +278,7 @@ class TypeAssertionChecker {
       const indices: number[] = [];
       let allFound = true;
       for (let j = 0; j < assertedNames.length; j++) {
-        let idx = -1;
+        let idx: number = -1;
         for (let k = 0; k < allFields.length; k++) {
           const f = allFields[k] as InterfaceField;
           if (this.stripOpt(f.name) === assertedNames[j]) {
@@ -388,7 +388,7 @@ class TypeAssertionChecker {
         const tf = tFields[ti] as InterfaceField;
         if (tf.name.endsWith("?")) continue;
         const reqName = this.stripOpt(tf.name);
-        let uIdx = -1;
+        let uIdx: number = -1;
         for (let k = 0; k < uFields.length; k++) {
           if (this.stripOpt((uFields[k] as InterfaceField).name) === reqName) {
             uIdx = k;
