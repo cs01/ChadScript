@@ -1741,6 +1741,15 @@ export class ControlFlowGenerator {
       };
     }
 
+    const parts = this.extractTypeGuardBinaryParts(condition);
+    if (!parts) return null;
+
+    return this.resolveTypeGuardFromBinary(parts.binary, parts.memberAccess, parts.literalValue);
+  }
+
+  private extractTypeGuardBinaryParts(
+    condition: Expression,
+  ): { binary: BinaryNode; memberAccess: MemberAccessNode; literalValue: string } | null {
     if (condition.type !== "binary") return null;
 
     const binary = condition as BinaryNode;
@@ -1766,6 +1775,17 @@ export class ControlFlowGenerator {
     }
 
     if (!memberAccess || !literalValue) return null;
+    return { binary, memberAccess, literalValue };
+  }
+
+  private resolveTypeGuardFromBinary(
+    binary: BinaryNode,
+    memberAccess: MemberAccessNode,
+    literalValue: string,
+  ): {
+    varName: string;
+    narrowedMetadata: { keys: string[]; types: string[]; tsTypes?: string[] };
+  } | null {
     if (memberAccess.property !== "type") return null;
     const maObjBase = memberAccess.object as ExprBase;
     if (maObjBase.type !== "variable") return null;
@@ -1774,28 +1794,10 @@ export class ControlFlowGenerator {
     const objMeta = this.ctx.symbolTable.getObjectMetadata(varName);
     if (!objMeta) return null;
 
-    const interfaceName = this.findInterfaceByDiscriminant(literalValue);
-    if (!interfaceName) return null;
+    const ifaceAllFields = this.resolveCompatibleInterface(literalValue, objMeta.keys as string[]);
+    if (!ifaceAllFields) return null;
 
-    const ifaceResult = this.getInterfaceDecl(interfaceName);
-    if (!ifaceResult) return null;
-    const iface = ifaceResult as InterfaceDeclaration;
-    const ifaceAllFields = this.ctx.getAllInterfaceFields(iface);
-
-    const currentKeys: string[] = objMeta.keys as string[];
-    const ifaceKeys: string[] = [];
-    for (let fi = 0; fi < ifaceAllFields.length; fi++) {
-      const f = ifaceAllFields[fi] as { name: string; type: string };
-      ifaceKeys.push(f.name);
-    }
-    let isCompatible = true;
-    for (let ki = 0; ki < currentKeys.length; ki++) {
-      if (ifaceKeys.indexOf(currentKeys[ki]) === -1) {
-        isCompatible = false;
-        break;
-      }
-    }
-    if (!isCompatible) return null;
+    if (binary.op === "!==" || binary.op === "!=") return null;
 
     const keys: string[] = [];
     const types: string[] = [];
@@ -1807,14 +1809,31 @@ export class ControlFlowGenerator {
       tsTypes.push(f.type);
     }
 
-    if (binary.op === "!==" || binary.op === "!=") {
-      return null;
+    return { varName, narrowedMetadata: { keys, types, tsTypes } };
+  }
+
+  private resolveCompatibleInterface(
+    discriminantValue: string,
+    currentKeys: string[],
+  ): object[] | null {
+    const interfaceName = this.findInterfaceByDiscriminant(discriminantValue);
+    if (!interfaceName) return null;
+
+    const ifaceResult = this.getInterfaceDecl(interfaceName);
+    if (!ifaceResult) return null;
+    const iface = ifaceResult as InterfaceDeclaration;
+    const ifaceAllFields = this.ctx.getAllInterfaceFields(iface);
+
+    const ifaceKeys: string[] = [];
+    for (let fi = 0; fi < ifaceAllFields.length; fi++) {
+      const f = ifaceAllFields[fi] as { name: string; type: string };
+      ifaceKeys.push(f.name);
+    }
+    for (let ki = 0; ki < currentKeys.length; ki++) {
+      if (ifaceKeys.indexOf(currentKeys[ki]) === -1) return null;
     }
 
-    return {
-      varName,
-      narrowedMetadata: { keys, types, tsTypes },
-    };
+    return ifaceAllFields;
   }
 
   private findInterfaceByDiscriminant(discriminantValue: string): string | null {
