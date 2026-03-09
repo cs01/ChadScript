@@ -108,15 +108,27 @@ export class TypeContext {
     return undefined;
   }
 
-  resolve(typeStr: string): ResolvedType {
+  private resolvePrimitive(typeStr: string): ResolvedType | null {
     if (!typeStr) return this.unknownType;
     if (typeStr === "string") return this.stringType;
     if (typeStr === "number") return this.numberType;
     if (typeStr === "boolean") return this.booleanType;
+    return null;
+  }
+
+  private resolveSpecial(typeStr: string): ResolvedType | null {
     if (typeStr === "void") return this.voidType;
     if (typeStr === "null" || typeStr === "undefined") return this.nullType;
     if (typeStr === "string[]") return this.getArrayType("string");
     if (typeStr === "number[]") return this.getArrayType("number");
+    return null;
+  }
+
+  resolve(typeStr: string): ResolvedType {
+    const prim = this.resolvePrimitive(typeStr);
+    if (prim) return prim;
+    const special = this.resolveSpecial(typeStr);
+    if (special) return special;
     if (typeStr === "boolean[]") return this.getArrayType("boolean");
     if (typeStr.endsWith("[]")) {
       const elem = typeStr.substring(0, typeStr.length - 2);
