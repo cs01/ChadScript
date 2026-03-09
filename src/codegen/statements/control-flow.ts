@@ -34,6 +34,7 @@ import {
   createObjectMetadataWithInterface,
 } from "../infrastructure/symbol-table.js";
 import type { UnionCommonFields } from "../infrastructure/type-resolver/index.js";
+import type { FieldInfo } from "../infrastructure/type-resolver/types.js";
 import { stripOptional } from "../infrastructure/type-system.js";
 
 interface ExprBase {
@@ -1875,7 +1876,7 @@ export class ControlFlowGenerator {
       const className = this.ctx.getCurrentClassName();
       if (memberObjBase.type === "this" && className) {
         const fieldInfoResult = this.ctx.classGenGetFieldInfo(className, memberExpr.property);
-        const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+        const fieldInfo = fieldInfoResult as FieldInfo;
         if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.startsWith("Set<string>")) {
           return true;
         }
@@ -1899,7 +1900,7 @@ export class ControlFlowGenerator {
       const className = this.ctx.getCurrentClassName();
       if (memberObjBase.type === "this" && className) {
         const fieldInfoResult = this.ctx.classGenGetFieldInfo(className, memberExpr.property);
-        const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+        const fieldInfo = fieldInfoResult as FieldInfo;
         if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.startsWith("Map<")) {
           return true;
         }
@@ -1922,7 +1923,7 @@ export class ControlFlowGenerator {
       const className = this.ctx.getCurrentClassName();
       if (memberObjBase.type === "this" && className) {
         const fieldInfoResult = this.ctx.classGenGetFieldInfo(className, memberExpr.property);
-        const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+        const fieldInfo = fieldInfoResult as FieldInfo;
         if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.startsWith("Map<")) {
           return true;
         }
@@ -2025,7 +2026,7 @@ export class ControlFlowGenerator {
           classNameForLookup,
           memberExpr.property,
         );
-        const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+        const fieldInfo = fieldInfoResult as FieldInfo;
         if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.startsWith("Map<")) {
           const mapPtr = this.ctx.generateExpression(stmt.iterable, params);
           iterableValue = this.ctx.stringMapGen.generateStringMapEntries(mapPtr);

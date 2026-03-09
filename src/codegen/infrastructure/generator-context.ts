@@ -44,7 +44,7 @@ import type {
   InterfaceStructInfo,
   InterfaceFieldInfo,
 } from "../types/interface-struct-generator.js";
-import type { TypeGuardInfo } from "./type-resolver/types.js";
+import type { TypeGuardInfo, FieldInfo } from "./type-resolver/types.js";
 import type { JsonObjectMeta } from "../expressions/access/member.js";
 import type { DiagnosticEngine } from "../../diagnostics/engine.js";
 import { TypeContext } from "./type-context.js";
@@ -54,10 +54,7 @@ interface ExprBase {
 }
 
 export interface IClassGenContext {
-  getFieldInfo(
-    className: string,
-    fieldName: string,
-  ): { index: number; type: string; tsType?: string } | null;
+  getFieldInfo(className: string, fieldName: string): FieldInfo | null;
   getClassFields(className: string): { name: string; fieldType: string }[];
   getFieldType(className: string, fieldName: string): string | null;
   getFieldTsType(className: string, fieldName: string): string | null;
@@ -843,10 +840,7 @@ export interface IGeneratorContext {
    * Access to class generator for field type lookups
    */
   readonly classGen: IClassGenContext;
-  classGenGetFieldInfo(
-    className: string | null,
-    fieldName: string | null,
-  ): { index: number; type: string; tsType?: string } | null;
+  classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
   classGenGetFieldType(className: string, fieldName: string): string | null;
   classGenGetFieldTsType(className: string, fieldName: string): string | null;
   classGenGetClassFields(className: string): { name: string; fieldType: string }[];
@@ -1765,10 +1759,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
 
   classGen = {
-    getFieldInfo: (
-      _className: string,
-      _fieldName: string,
-    ): { index: number; type: string; tsType?: string } | null => null,
+    getFieldInfo: (_className: string, _fieldName: string): FieldInfo | null => null,
     getClassFields: (_className: string): { name: string; fieldType: string }[] => [],
     getFieldType: (_className: string, _fieldName: string): string | null => null,
     getFieldTsType: (_className: string, _fieldName: string): string | null => null,
@@ -1782,10 +1773,7 @@ export class MockGeneratorContext implements IGeneratorContext {
       _params: string[],
     ): string => "%mock_method_result",
   };
-  classGenGetFieldInfo(
-    _className: string | null,
-    _fieldName: string | null,
-  ): { index: number; type: string; tsType?: string } | null {
+  classGenGetFieldInfo(_className: string | null, _fieldName: string | null): FieldInfo | null {
     return null;
   }
   classGenGetFieldType(_className: string, _fieldName: string): string | null {

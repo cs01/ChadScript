@@ -1,5 +1,6 @@
 import { Expression, MemberAccessNode, VariableNode } from "../../../ast/types.js";
 import type { MemberAccessGeneratorContext } from "./member.js";
+import type { FieldInfo } from "../../infrastructure/type-resolver/types.js";
 
 export function handleUrlProperty(
   ctx: MemberAccessGeneratorContext,
@@ -163,7 +164,7 @@ export function handleMemberAccessLength(
     const classMeta = ctx.symbolTable.getClassInfo((innerAccess.object as VariableNode).name);
     if (classMeta) {
       const fieldInfoResult = ctx.classGenGetFieldInfo(classMeta.className, innerAccess.property);
-      const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+      const fieldInfo = fieldInfoResult as FieldInfo;
       if (fieldInfoResult && fieldInfo.type === "string[]") {
         const stringArrayPtr = ctx.generateExpression(expr.object, params);
         return getStringArrayLength(ctx, stringArrayPtr);
@@ -238,7 +239,7 @@ export function handleMemberAccessLength(
     const className = ctx.getCurrentClassName();
     if (className) {
       const fieldInfoResult = ctx.classGenGetFieldInfo(className, innerAccess.property);
-      const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+      const fieldInfo = fieldInfoResult as FieldInfo;
       if (fieldInfoResult && fieldInfo.type === "string[]") {
         const stringArrayPtr = ctx.generateExpression(expr.object, params);
         return getStringArrayLength(ctx, stringArrayPtr);

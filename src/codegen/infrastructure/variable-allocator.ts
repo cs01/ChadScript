@@ -55,6 +55,7 @@ import {
 } from "./symbol-table.js";
 import type { TypeChecker } from "../../typescript/type-checker.js";
 import { TypeResolver, UnionCommonFields } from "./type-resolver/index.js";
+import type { FieldInfo } from "./type-resolver/types.js";
 import {
   stripOptional,
   stripNullable,
@@ -202,10 +203,7 @@ export interface VariableAllocatorContext {
   emitWarning(message: string, loc?: SourceLocation, suggestion?: string): void;
   getAst(): AST | undefined;
   hasClassGen(): boolean;
-  classGenGetFieldInfo(
-    className: string | null,
-    fieldName: string | null,
-  ): { index: number; type: string; tsType?: string } | null;
+  classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
   classGenGetClassFields(className: string): { name: string; fieldType: string }[];
   readonly symbolTable: SymbolTable;
   setExpectedArrayElementType(type: "string" | "number" | "boolean" | "pointer" | null): void;
@@ -1238,7 +1236,7 @@ export class VariableAllocator {
         memberExpr.property,
       );
       if (!fieldInfoResult) return null;
-      const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+      const fieldInfo = fieldInfoResult as FieldInfo;
       if (!fieldInfo.tsType) return null;
 
       const mapParsed = parseMapTypeString(fieldInfo.tsType);
@@ -1477,7 +1475,7 @@ export class VariableAllocator {
           this.ctx.getCurrentClassName()!,
           memberExpr.property,
         );
-        const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+        const fieldInfo = fieldInfoResult as FieldInfo;
         if (fieldInfoResult && fieldInfo.tsType) {
           const mapParsed = parseMapTypeString(fieldInfo.tsType);
           if (mapParsed && mapParsed.valueType) {
@@ -2555,9 +2553,7 @@ export class VariableAllocator {
     if (!objectType) return null;
 
     const classFieldInfo = this.ctx.classGenGetFieldInfo(objectType, memberAccess.property);
-    const classFieldTsType = classFieldInfo
-      ? (classFieldInfo as { index: number; type: string; tsType: string }).tsType
-      : null;
+    const classFieldTsType = classFieldInfo ? (classFieldInfo as FieldInfo).tsType : null;
     const fieldType =
       this.getInterfaceFieldTypeByName(objectType, memberAccess.property) || classFieldTsType;
     if (!fieldType) return null;
@@ -2595,7 +2591,7 @@ export class VariableAllocator {
       if (!memberObjBase || !memberObjBase.type) return null;
       if (memberObjBase.type === "this") {
         const fieldInfoResult = this.getThisFieldInfo(member.property);
-        const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+        const fieldInfo = fieldInfoResult as FieldInfo;
         if (fieldInfoResult && fieldInfo.tsType) {
           return fieldInfo.tsType;
         }

@@ -88,6 +88,7 @@ import type { ResolvedType } from "./infrastructure/type-system.js";
 import { DiagnosticEngine } from "../diagnostics/engine.js";
 import { TypeContext } from "./infrastructure/type-context.js";
 import { IGeneratorContext, IArrowFunctionGenerator } from "./infrastructure/generator-context.js";
+import type { FieldInfo } from "./infrastructure/type-resolver/types.js";
 import { ArrayGenerator } from "./types/collections/array.js";
 import { StringGenerator } from "./types/collections/string.js";
 import { ObjectGenerator } from "./types/objects/object.js";
@@ -1306,7 +1307,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public classGenGetFieldInfo(
     className: string | null,
     fieldName: string | null,
-  ): { index: number; type: string; tsType?: string } | null {
+  ): FieldInfo | null {
     if (!className || !fieldName) return null;
     return this.classGen.getFieldInfo(className, fieldName);
   }

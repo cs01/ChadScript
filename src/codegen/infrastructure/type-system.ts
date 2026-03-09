@@ -281,9 +281,6 @@ export function canonicalTypeToLlvm(
     return "i8*";
   }
 
-  // native compiler string corruption produces garbage type strings (294+ per build)
-  // root cause: inline `as { name: string; type: string }` assertions on InterfaceField
-  // TODO: fix root cause by replacing inline assertions with named InterfaceField type
   return "i8*";
 }
 

@@ -24,6 +24,7 @@ import { SymbolTable, SymbolKind } from "./symbol-table.js";
 import type { TypeChecker } from "../../typescript/type-checker.js";
 import type { ClassGenerator } from "../types/objects/class.js";
 import type { TypeResolver } from "./type-resolver/index.js";
+import type { FieldInfo } from "./type-resolver/types.js";
 import { stripNullable, parseMapTypeString } from "./type-system.js";
 import type { ResolvedType } from "./type-system.js";
 import type { TypeContext } from "./type-context.js";
@@ -54,10 +55,7 @@ export interface TypeInferenceContext {
   typeChecker: TypeChecker | null;
   classGen: ClassGenerator | null;
   hasClassGen(): boolean;
-  classGenGetFieldInfo(
-    className: string | null,
-    fieldName: string | null,
-  ): { index: number; type: string; tsType?: string } | null;
+  classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
   classGenGetFieldType(className: string, fieldName: string): string | null;
   classGenGetFieldTsType(className: string, fieldName: string): string | null;
   typeResolver?: TypeResolver;
@@ -618,7 +616,7 @@ export class TypeInference {
             this.ctx.getCurrentClassName(),
             memberAccess.property,
           );
-          const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+          const fieldInfo = fieldInfoResult as FieldInfo;
           if (fieldInfoResult && fieldInfo.tsType) {
             const mapParsed = parseMapTypeString(fieldInfo.tsType);
             if (mapParsed) {

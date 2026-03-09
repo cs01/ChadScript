@@ -13,11 +13,7 @@ import {
 import type { SymbolTable, ClassInfo, ObjectArrayMetadata } from "./symbol-table.js";
 import type { InterfaceStructGenerator } from "../types/interface-struct-generator.js";
 
-interface FieldInfo {
-  index: number;
-  type: string;
-  tsType?: string;
-}
+import type { FieldInfo } from "./type-resolver/types.js";
 
 interface ObjectInfo {
   ptr: string;
@@ -35,10 +31,7 @@ export interface AssignmentGeneratorContext {
   generateExpression(expr: Expression, params: string[]): string;
   getVariableAlloca(name: string): string | null;
   getVariableType(name: string): string | null;
-  classGenGetFieldInfo(
-    className: string | null,
-    fieldName: string | null,
-  ): { index: number; type: string; tsType?: string } | null;
+  classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
   classGenGetClassFields(className: string): { name: string; fieldType: string }[];
   getAst(): AST | undefined;
   expectedArrayElementType: "string" | "number" | "boolean" | "pointer" | null;
@@ -231,7 +224,7 @@ export class AssignmentGenerator {
     let fieldType = "";
     let fieldTsType: string | null = null;
     if (fieldInfoResult) {
-      const fi = fieldInfoResult as { index: number; type: string; tsType?: string };
+      const fi = fieldInfoResult as FieldInfo;
       fieldIndex = fi.index;
       fieldType = fi.type;
       if (fi.tsType !== null && fi.tsType !== undefined) {
@@ -388,7 +381,7 @@ export class AssignmentGenerator {
     value: string,
     memberAccessValue: MemberAccessAssignmentNode,
   ): void {
-    const fi = fieldInfo as { index: number; type: string; tsType?: string };
+    const fi = fieldInfo as FieldInfo;
     const fiType = fi.type;
 
     if (fiType === null || fiType === undefined) {
@@ -577,7 +570,7 @@ export class AssignmentGenerator {
     if (arrayExprObj.type === "this" && currentClass) {
       const fieldInfo = this.ctx.classGenGetFieldInfo(currentClass, arrayExpr.property);
       if (fieldInfo) {
-        const fi = fieldInfo as { index: number; type: string; tsType: string };
+        const fi = fieldInfo as FieldInfo;
         if (fi.type === "string[]") {
           arrayType = "%StringArray";
         } else if (fi.type.endsWith("[]")) {
