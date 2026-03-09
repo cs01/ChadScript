@@ -145,6 +145,45 @@ export function resolvedTypeToLlvm(rt: ResolvedType): string {
 
 export type TypeMappingMode = "default" | "param" | "return" | "struct_field" | "json";
 
+function ffiTypeToLlvm1(tsType: string): string | null {
+  if (tsType === "i8") return "i8";
+  if (tsType === "i16") return "i16";
+  if (tsType === "i32") return "i32";
+  if (tsType === "i64") return "i64";
+  return null;
+}
+
+function ffiTypeToLlvm2(tsType: string): string | null {
+  if (tsType === "u8") return "i8";
+  if (tsType === "u16") return "i16";
+  if (tsType === "u32") return "i32";
+  if (tsType === "u64") return "i64";
+  return null;
+}
+
+function ffiTypeToLlvm3(tsType: string): string | null {
+  if (tsType === "f32") return "float";
+  if (tsType === "f64") return "double";
+  if (tsType === "i8_ptr" || tsType === "ptr") return "i8*";
+  return null;
+}
+
+function basicTypeToLlvm(tsType: string): string | null {
+  if (tsType === "string") return "i8*";
+  if (tsType === "number" || tsType === "boolean") return "double";
+  if (tsType === "void") return "void";
+  if (tsType === "string[]") return "%StringArray*";
+  return null;
+}
+
+function collectionTypeToLlvm(tsType: string): string | null {
+  if (tsType === "number[]" || tsType === "boolean[]") return "%Array*";
+  if (tsType === "Uint8Array") return "%Uint8Array*";
+  if (tsType.endsWith("[]")) return "%ObjectArray*";
+  if (tsType.startsWith("Set<")) return "%StringSet*";
+  return null;
+}
+
 export function canonicalTypeToLlvm(
   tsType: string,
   mode: string,
@@ -153,26 +192,16 @@ export function canonicalTypeToLlvm(
   fieldName: string,
 ): string {
   if (tsType === null || tsType === undefined || tsType === "") {
-    // Empty/null type: callers should provide a valid type. These defaults are
-    // intentional language semantics — untyped returns are double (number),
-    // untyped params/fields are i8* (pointer, the safer default).
     if (mode === "return") return "double";
     return "i8*";
   }
 
-  // FFI type passthrough — zero-cost: maps directly to LLVM types with no
-  // double conversion. Used in `declare function` for calling C code.
-  if (tsType === "i8") return "i8";
-  if (tsType === "i16") return "i16";
-  if (tsType === "i32") return "i32";
-  if (tsType === "i64") return "i64";
-  if (tsType === "u8") return "i8";
-  if (tsType === "u16") return "i16";
-  if (tsType === "u32") return "i32";
-  if (tsType === "u64") return "i64";
-  if (tsType === "f32") return "float";
-  if (tsType === "f64") return "double";
-  if (tsType === "i8_ptr" || tsType === "ptr") return "i8*";
+  const ffi1 = ffiTypeToLlvm1(tsType);
+  if (ffi1) return ffi1;
+  const ffi2 = ffiTypeToLlvm2(tsType);
+  if (ffi2) return ffi2;
+  const ffi3 = ffiTypeToLlvm3(tsType);
+  if (ffi3) return ffi3;
 
   if (fieldName === "nodePtr" || fieldName === "treePtr") return "i8*";
 
@@ -186,14 +215,10 @@ export function canonicalTypeToLlvm(
 
   if (isEnum) return "double";
 
-  if (tsType === "string") return "i8*";
-  if (tsType === "number" || tsType === "boolean") return "double";
-  if (tsType === "void") return "void";
-  if (tsType === "string[]") return "%StringArray*";
-  if (tsType === "number[]" || tsType === "boolean[]") return "%Array*";
-  if (tsType === "Uint8Array") return "%Uint8Array*";
-  if (tsType.endsWith("[]")) return "%ObjectArray*";
-  if (tsType.startsWith("Set<")) return "%StringSet*";
+  const basic = basicTypeToLlvm(tsType);
+  if (basic) return basic;
+  const coll = collectionTypeToLlvm(tsType);
+  if (coll) return coll;
   if (tsType.startsWith("Map<")) return "%StringMap*";
   if (tsType.startsWith("'") || tsType.startsWith('"')) return "i8*";
 
