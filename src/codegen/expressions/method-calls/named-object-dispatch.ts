@@ -30,7 +30,7 @@ import {
   handleOsUptime,
 } from "./os.js";
 
-export function handleFsMethod(
+function handleFsSyncReadWrite(
   ctx: MethodCallGeneratorContext,
   method: string,
   expr: MethodCallNode,
@@ -47,25 +47,78 @@ export function handleFsMethod(
   }
   if (method === "appendFileSync") return ctx.fsGen.generateAppendFileSync(expr, params);
   if (method === "existsSync") return ctx.fsGen.generateExistsSync(expr, params);
+  return null;
+}
+
+function handleFsSyncOps(
+  ctx: MethodCallGeneratorContext,
+  method: string,
+  expr: MethodCallNode,
+  params: string[],
+): string | null {
   if (method === "unlinkSync") return ctx.fsGen.generateUnlinkSync(expr, params);
   if (method === "readdirSync") return ctx.fsGen.generateReaddirSync(expr, params);
   if (method === "statSync") return ctx.fsGen.generateStatSync(expr, params);
   if (method === "mkdirSync") return ctx.fsGen.generateMkdirSync(expr, params);
+  return null;
+}
+
+function handleFsSyncCopy(
+  ctx: MethodCallGeneratorContext,
+  method: string,
+  expr: MethodCallNode,
+  params: string[],
+): string | null {
   if (method === "renameSync") return ctx.fsGen.generateRenameSync(expr, params);
   if (method === "copyFileSync") return ctx.fsGen.generateCopyFileSync(expr, params);
   if (method === "readFile") return ctx.fsGen.generateReadFile(expr, params);
   if (method === "writeFile") return ctx.fsGen.generateWriteFile(expr, params);
+  return null;
+}
+
+function handleFsAsync(
+  ctx: MethodCallGeneratorContext,
+  method: string,
+  expr: MethodCallNode,
+  params: string[],
+): string | null {
   if (method === "appendFile") return ctx.fsGen.generateAppendFile(expr, params);
   if (method === "readdir") return ctx.fsGen.generateReaddir(expr, params);
   if (method === "stat") return ctx.fsGen.generateStat(expr, params);
   if (method === "unlink") return ctx.fsGen.generateUnlink(expr, params);
+  return null;
+}
+
+function handleFsAsyncOps(
+  ctx: MethodCallGeneratorContext,
+  method: string,
+  expr: MethodCallNode,
+  params: string[],
+): string | null {
   if (method === "mkdir") return ctx.fsGen.generateMkdir(expr, params);
   if (method === "rename") return ctx.fsGen.generateRename(expr, params);
   if (method === "copyFile") return ctx.fsGen.generateCopyFile(expr, params);
   return null;
 }
 
-export function handlePathMethod(
+export function handleFsMethod(
+  ctx: MethodCallGeneratorContext,
+  method: string,
+  expr: MethodCallNode,
+  params: string[],
+): string | null {
+  const syncRw = handleFsSyncReadWrite(ctx, method, expr, params);
+  if (syncRw) return syncRw;
+  const syncOps = handleFsSyncOps(ctx, method, expr, params);
+  if (syncOps) return syncOps;
+  const syncCopy = handleFsSyncCopy(ctx, method, expr, params);
+  if (syncCopy) return syncCopy;
+  const async1 = handleFsAsync(ctx, method, expr, params);
+  if (async1) return async1;
+  return handleFsAsyncOps(ctx, method, expr, params);
+}
+
+function handlePathCoreOps(
   ctx: MethodCallGeneratorContext,
   method: string,
   expr: MethodCallNode,
@@ -75,10 +128,32 @@ export function handlePathMethod(
   if (method === "dirname") return ctx.pathGen.generateDirname(expr, params);
   if (method === "basename") return ctx.pathGen.generateBasename(expr, params);
   if (method === "join") return ctx.pathGen.generateJoin(expr, params);
+  return null;
+}
+
+function handlePathUtilOps(
+  ctx: MethodCallGeneratorContext,
+  method: string,
+  expr: MethodCallNode,
+  params: string[],
+): string | null {
   if (method === "extname") return ctx.pathGen.generateExtname(expr, params);
   if (method === "isAbsolute") return ctx.pathGen.generateIsAbsolute(expr, params);
   if (method === "normalize") return ctx.pathGen.generateNormalize(expr, params);
   if (method === "relative") return ctx.pathGen.generateRelative(expr, params);
+  return null;
+}
+
+export function handlePathMethod(
+  ctx: MethodCallGeneratorContext,
+  method: string,
+  expr: MethodCallNode,
+  params: string[],
+): string | null {
+  const core = handlePathCoreOps(ctx, method, expr, params);
+  if (core) return core;
+  const util = handlePathUtilOps(ctx, method, expr, params);
+  if (util) return util;
   if (method === "parse") return ctx.pathGen.generateParse(expr, params);
   return null;
 }
@@ -162,6 +237,19 @@ export function handleUint8ArrayFromRawBytes(
   return arrPtr;
 }
 
+function handleCryptoHashOps(
+  ctx: MethodCallGeneratorContext,
+  method: string,
+  expr: MethodCallNode,
+  params: string[],
+): string | null {
+  if (method === "randomUUID") return ctx.cryptoGen.generateRandomUUID(expr, params);
+  if (method === "sha256") return ctx.cryptoGen.generateSha256(expr, params);
+  if (method === "md5") return ctx.cryptoGen.generateMd5(expr, params);
+  if (method === "sha512") return ctx.cryptoGen.generateSha512(expr, params);
+  return null;
+}
+
 export function handleCryptoMethod(
   ctx: MethodCallGeneratorContext,
   method: string,
@@ -169,10 +257,8 @@ export function handleCryptoMethod(
   params: string[],
 ): string | null {
   ctx.setUsesCrypto(true);
-  if (method === "randomUUID") return ctx.cryptoGen.generateRandomUUID(expr, params);
-  if (method === "sha256") return ctx.cryptoGen.generateSha256(expr, params);
-  if (method === "md5") return ctx.cryptoGen.generateMd5(expr, params);
-  if (method === "sha512") return ctx.cryptoGen.generateSha512(expr, params);
+  const hash = handleCryptoHashOps(ctx, method, expr, params);
+  if (hash) return hash;
   if (method === "randomBytes") return ctx.cryptoGen.generateRandomBytes(expr, params);
   if (method === "hmacSha256") return ctx.cryptoGen.generateHmacSha256(expr, params);
   if (method === "pbkdf2") return ctx.cryptoGen.generatePbkdf2(expr, params);
@@ -199,7 +285,7 @@ export function handleTtyIsatty(
   return doubleResult;
 }
 
-export function handleProcessMethod(
+function handleProcessCoreOps(
   ctx: MethodCallGeneratorContext,
   method: string,
   expr: MethodCallNode,
@@ -212,12 +298,45 @@ export function handleProcessMethod(
     ctx.emit(`call void @abort()`);
     return "0";
   }
-  if (method === "kill") return handleProcessKill(ctx, expr, params);
+  return null;
+}
+
+function handleProcessIdOps(
+  ctx: MethodCallGeneratorContext,
+  method: string,
+): string | null {
   if (method === "uptime") return handleProcessUptime(ctx);
   if (method === "getuid") return handleProcessSyscallI32(ctx, "@getuid");
   if (method === "getgid") return handleProcessSyscallI32(ctx, "@getgid");
   if (method === "geteuid") return handleProcessSyscallI32(ctx, "@geteuid");
+  return null;
+}
+
+export function handleProcessMethod(
+  ctx: MethodCallGeneratorContext,
+  method: string,
+  expr: MethodCallNode,
+  params: string[],
+): string | null {
+  const core = handleProcessCoreOps(ctx, method, expr, params);
+  if (core) return core;
+  if (method === "kill") return handleProcessKill(ctx, expr, params);
+  const idOps = handleProcessIdOps(ctx, method);
+  if (idOps) return idOps;
   if (method === "getegid") return handleProcessSyscallI32(ctx, "@getegid");
+  return null;
+}
+
+function handleAssertCoreOps(
+  ctx: MethodCallGeneratorContext,
+  method: string,
+  expr: MethodCallNode,
+  params: string[],
+): string | null {
+  if (method === "strictEqual") return handleAssertStrictEqual(ctx, expr, params);
+  if (method === "notStrictEqual") return handleAssertNotStrictEqual(ctx, expr, params);
+  if (method === "ok") return handleAssertOk(ctx, expr, params);
+  if (method === "deepEqual") return handleAssertDeepEqual(ctx, expr, params);
   return null;
 }
 
@@ -228,11 +347,20 @@ export function handleAssertMethod(
   params: string[],
 ): string | null {
   ctx.setUsesTestRunner(true);
-  if (method === "strictEqual") return handleAssertStrictEqual(ctx, expr, params);
-  if (method === "notStrictEqual") return handleAssertNotStrictEqual(ctx, expr, params);
-  if (method === "ok") return handleAssertOk(ctx, expr, params);
-  if (method === "deepEqual") return handleAssertDeepEqual(ctx, expr, params);
+  const core = handleAssertCoreOps(ctx, method, expr, params);
+  if (core) return core;
   if (method === "fail") return handleAssertFail(ctx, expr, params);
+  return null;
+}
+
+function handleOsCoreOps(
+  ctx: MethodCallGeneratorContext,
+  method: string,
+): string | null {
+  if (method === "hostname") return handleOsHostname(ctx);
+  if (method === "homedir") return handleOsHomedir(ctx);
+  if (method === "tmpdir") return handleOsTmpdir(ctx);
+  if (method === "cpus") return handleOsCpus(ctx);
   return null;
 }
 
@@ -242,10 +370,8 @@ export function handleOsMethod(
   expr: MethodCallNode,
   params: string[],
 ): string | null {
-  if (method === "hostname") return handleOsHostname(ctx);
-  if (method === "homedir") return handleOsHomedir(ctx);
-  if (method === "tmpdir") return handleOsTmpdir(ctx);
-  if (method === "cpus") return handleOsCpus(ctx);
+  const core = handleOsCoreOps(ctx, method);
+  if (core) return core;
   if (method === "totalmem") return handleOsTotalmem(ctx);
   if (method === "freemem") {
     ctx.setUsesOs(true);
@@ -271,7 +397,7 @@ export function handleConsoleMethod(
   return null;
 }
 
-export function handleChadScriptMethod(
+function handleChadScriptEmbedOps(
   ctx: MethodCallGeneratorContext,
   method: string,
   expr: MethodCallNode,
@@ -282,8 +408,32 @@ export function handleChadScriptMethod(
   if (method === "getEmbeddedFile") return ctx.embedGen.generateGetEmbeddedFile(expr, params);
   if (method === "getEmbeddedFileAsUint8Array")
     return ctx.embedGen.generateGetEmbeddedFileAsUint8Array(expr, params);
+  return null;
+}
+
+export function handleChadScriptMethod(
+  ctx: MethodCallGeneratorContext,
+  method: string,
+  expr: MethodCallNode,
+  params: string[],
+): string | null {
+  const embed = handleChadScriptEmbedOps(ctx, method, expr, params);
+  if (embed) return embed;
   if (method === "serveEmbedded") return ctx.embedGen.generateServeEmbedded(expr, params);
   return ctx.emitError(`ChadScript.${method}() is not a supported method`, expr.loc);
+}
+
+function handleSqliteCoreOps(
+  ctx: MethodCallGeneratorContext,
+  method: string,
+  expr: MethodCallNode,
+  params: string[],
+): string | null {
+  if (method === "open") return ctx.sqliteGen.generateOpen(expr, params);
+  if (method === "exec") return ctx.sqliteGen.generateExec(expr, params);
+  if (method === "get") return ctx.sqliteGen.generateGet(expr, params);
+  if (method === "getRow") return ctx.sqliteGen.generateGetRow(expr, params);
+  return null;
 }
 
 export function handleSqliteMethod(
@@ -293,10 +443,8 @@ export function handleSqliteMethod(
   params: string[],
 ): string | null {
   ctx.setUsesSqlite(true);
-  if (method === "open") return ctx.sqliteGen.generateOpen(expr, params);
-  if (method === "exec") return ctx.sqliteGen.generateExec(expr, params);
-  if (method === "get") return ctx.sqliteGen.generateGet(expr, params);
-  if (method === "getRow") return ctx.sqliteGen.generateGetRow(expr, params);
+  const core = handleSqliteCoreOps(ctx, method, expr, params);
+  if (core) return core;
   if (method === "all") return ctx.sqliteGen.generateAll(expr, params);
   if (method === "query") return ctx.sqliteGen.generateQuery(expr, params);
   if (method === "close") return ctx.sqliteGen.generateClose(expr, params);
