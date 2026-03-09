@@ -247,7 +247,7 @@ export class MemberAccessGenerator {
     const exprObjBase = expr.object as ExprBase;
     const exprObjType = exprObjBase ? exprObjBase.type : null;
     if (exprObjType === null || exprObjType === undefined) {
-      this.ctx.emitError(
+      return this.ctx.emitError(
         `cannot access property '${expr.property}' — object expression has no type`,
         expr.loc,
       );
@@ -2841,7 +2841,7 @@ export class MemberAccessGenerator {
               this.ctx.setVariableType(objPtr, "i8*");
               return objPtr;
             }
-            this.ctx.emitError(
+            return this.ctx.emitError(
               `cannot access property '${prop}' on parameter '${varName}' — interface '${paramInterfaceType}' has no properties`,
               expr.loc,
             );
@@ -3144,7 +3144,7 @@ export class MemberAccessGenerator {
         const f = fields[i] as { name: string; tsType: string; llvmType: string };
         fieldNames.push(f.name);
       }
-      this.ctx.emitError(
+      return this.ctx.emitError(
         `Property '${property}' not found on interface '${interfaceType}'. Available properties: ${fieldNames.join(", ")}`,
       );
     }

@@ -16,7 +16,7 @@ export function accessObjectWithMetadata(
   const propIndex = metadata.keys.indexOf(property);
   if (propIndex === -1) {
     const varType = ctx.getVariableType(varName) || "unknown";
-    ctx.emitError(
+    return ctx.emitError(
       `Property '${property}' not found on object '${varName}' (llvmType=${varType}, keys=${metadata.keys.length}). Available properties: ${metadata.keys.join(", ")}`,
     );
   }
