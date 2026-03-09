@@ -2409,10 +2409,7 @@ export class MemberAccessGenerator {
     return value;
   }
 
-  private handleCallResultPropertyAccess(
-    expr: MemberAccessNode,
-    params: string[],
-  ): string | null {
+  private handleCallResultPropertyAccess(expr: MemberAccessNode, params: string[]): string | null {
     const callExpr = expr.object as CallNode;
     const ast = this.ctx.getAst();
     if (!ast || !ast.functions) return null;
