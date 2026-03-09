@@ -1,6 +1,7 @@
 import { Expression, MemberAccessNode, VariableNode, SourceLocation } from "../../../ast/types.js";
 import type { SymbolTable } from "../../infrastructure/symbol-table.js";
 import type { IStringGenerator } from "../../infrastructure/generator-context.js";
+import type { FieldInfo } from "../../infrastructure/type-resolver/types.js";
 
 interface ExprBase {
   type: string;
@@ -18,7 +19,7 @@ interface UnaryExpressionContext {
   classGenGetFieldInfo(
     className: string | null,
     fieldName: string | null,
-  ): { index: number; type: string; tsType?: string } | null;
+  ): FieldInfo | null;
   generateExpression(expr: Expression, params: string[]): string;
   ensureDouble(value: string): string;
   readonly stringGen: IStringGenerator;
@@ -220,7 +221,7 @@ export class UnaryExpressionGenerator {
     if (!fieldInfoResult) {
       return this.ctx.emitError("Cannot find field '" + fieldName + "' in class " + className);
     }
-    const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+    const fieldInfo = fieldInfoResult as FieldInfo;
 
     const fieldPtr = this.ctx.nextTemp();
     this.ctx.emit(

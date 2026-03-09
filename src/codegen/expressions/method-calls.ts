@@ -55,6 +55,7 @@ import type {
   IEmbedGenerator,
 } from "../infrastructure/generator-context.js";
 import { parseMapTypeString, parseSetTypeString } from "../infrastructure/type-system.js";
+import type { FieldInfo } from "../infrastructure/type-resolver/types.js";
 import { isProcessStdoutOrStderr, handleProcessWrite } from "./method-calls/process.js";
 import {
   generateObjectKeys,
@@ -159,7 +160,7 @@ export interface MethodCallGeneratorContext {
   classGenGetFieldInfo(
     className: string | null,
     fieldName: string | null,
-  ): { index: number; type: string; tsType?: string } | null;
+  ): FieldInfo | null;
   classGenGenerateMethodCall(
     instancePtr: string,
     className: string,
@@ -486,7 +487,7 @@ export class MethodCallGenerator {
         classNameForLookup,
         memberExpr.property,
       );
-      const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+      const fieldInfo = fieldInfoResult as FieldInfo;
       if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
       const mapParsed = parseMapTypeString(fieldInfo.tsType);
@@ -512,7 +513,7 @@ export class MethodCallGenerator {
     const classNameForSet = this.ctx.getCurrentClassName();
     if (!classNameForSet) return null;
     const fieldInfoResult = this.ctx.classGenGetFieldInfo(classNameForSet, memberExpr.property);
-    const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+    const fieldInfo = fieldInfoResult as FieldInfo;
     if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
     const setParsed = parseSetTypeString(fieldInfo.tsType);

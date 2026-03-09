@@ -11,6 +11,7 @@ import {
   IndexAccessNode,
 } from "../../../ast/types.js";
 import type { MethodCallGeneratorContext } from "../method-calls.js";
+import type { FieldInfo } from "../../infrastructure/type-resolver/types.js";
 
 interface ExprBase {
   type: string;
@@ -348,7 +349,7 @@ export function resolveNestedMemberAccessType(
     }
     if (classExists) {
       const fieldInfoResult = ctx.classGenGetFieldInfo(parentType, memberAccess.property);
-      const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+      const fieldInfo = fieldInfoResult as FieldInfo;
       if (fieldInfoResult && fieldInfo.tsType) {
         let cleanFieldType = fieldInfo.tsType;
         if (cleanFieldType.indexOf(" | ") !== -1) {
@@ -524,7 +525,7 @@ export function handleClassMethods(
     const classNameForField = ctx.getCurrentClassName();
     if (memberAccessObjBase.type === "this" && classNameForField) {
       const fieldInfoResult = ctx.classGenGetFieldInfo(classNameForField, memberAccess.property);
-      const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+      const fieldInfo = fieldInfoResult as FieldInfo;
       if (fieldInfoResult && fieldInfo.tsType) {
         let fieldClassName = fieldInfo.tsType;
         if (fieldClassName.indexOf(" | ") !== -1) {
@@ -572,7 +573,7 @@ export function handleClassMethods(
         ctx.symbolTable.getConcreteClass(varName) || ctx.getActualClassType(varName);
       if (concreteClass) {
         const fieldInfoResult = ctx.classGenGetFieldInfo(concreteClass, memberAccess.property);
-        const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+        const fieldInfo = fieldInfoResult as FieldInfo;
         if (fieldInfoResult && fieldInfo.tsType) {
           let fieldClassName = fieldInfo.tsType;
           if (fieldClassName.indexOf(" | ") !== -1) {
@@ -597,7 +598,7 @@ export function handleClassMethods(
         const classMeta = ctx.symbolTable.getClassInfo(varName)!;
         const outerClassName = classMeta.className;
         const fieldInfoResult = ctx.classGenGetFieldInfo(outerClassName, memberAccess.property);
-        const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+        const fieldInfo = fieldInfoResult as FieldInfo;
         if (fieldInfoResult && fieldInfo.tsType) {
           let fieldClassName = fieldInfo.tsType;
           if (fieldClassName.indexOf(" | ") !== -1) {
@@ -686,7 +687,7 @@ export function handleClassMethods(
         const curClassName = ctx.getCurrentClassName();
         if (curClassName) {
           const fieldInfoResult = ctx.classGenGetFieldInfo(curClassName, memberAccess.property);
-          const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+          const fieldInfo = fieldInfoResult as FieldInfo;
           if (fieldInfoResult && fieldInfo.tsType) {
             let tsType = fieldInfo.tsType;
             if (tsType.indexOf(" | ") !== -1) {

@@ -17,6 +17,7 @@ import {
   createClassMetadata,
 } from "../../infrastructure/symbol-table.js";
 import { stripOptional, canonicalTypeToLlvm } from "../../infrastructure/type-system.js";
+import type { FieldInfo } from "../../infrastructure/type-resolver/types.js";
 
 // ============================================
 // CLASS GENERATOR - Class and instance operations
@@ -300,7 +301,7 @@ export class ClassGenerator {
   getFieldType(className: string, fieldName: string): string | null {
     const info = this.getFieldInfo(className, fieldName);
     if (info) {
-      const infoTyped = info as { index: number; type: string; tsType: string };
+      const infoTyped = info as FieldInfo;
       return infoTyped.type;
     }
     return null;
@@ -310,7 +311,7 @@ export class ClassGenerator {
   getFieldTsType(className: string, fieldName: string): string | null {
     const info = this.getFieldInfo(className, fieldName);
     if (info) {
-      const infoTyped = info as { index: number; type: string; tsType: string };
+      const infoTyped = info as FieldInfo;
       return infoTyped.tsType || null;
     }
     return null;
@@ -560,7 +561,7 @@ export class ClassGenerator {
         if (paramIndex !== -1) {
           const fieldInfo = this.getFieldInfo(className, propName);
           if (fieldInfo) {
-            const fieldInfoTyped = fieldInfo as { index: number; type: string; tsType?: string };
+            const fieldInfoTyped = fieldInfo as FieldInfo;
             const fieldIndex = fieldInfoTyped.index;
             const paramAlloca = this.ctx.getVariableAlloca(propName);
             if (paramAlloca) {

@@ -68,7 +68,7 @@ export interface TypeResolverContext {
   classGenGetFieldInfo(
     className: string | null,
     fieldName: string | null,
-  ): { index: number; type: string; tsType?: string } | null;
+  ): FieldInfo | null;
   hasClassGen(): boolean;
 }
 
@@ -516,7 +516,7 @@ export class TypeResolver {
             this.ctx.getCurrentClassName()!,
             member.property,
           );
-          const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+          const fieldInfo = fieldInfoResult as FieldInfo;
           if (fieldInfoResult && fieldInfo.tsType) {
             return fieldInfo.tsType;
           }
@@ -669,7 +669,7 @@ export class TypeResolver {
 
   getClassFieldMapType(className: string, fieldName: string): MapTypeInfo | null {
     const fieldInfoResult = this.getClassFieldInfo(className, fieldName);
-    const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+    const fieldInfo = fieldInfoResult as FieldInfo;
     if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
     const mapParsed = parseMapTypeString(fieldInfo.tsType);
@@ -694,7 +694,7 @@ export class TypeResolver {
 
   getClassFieldSetType(className: string, fieldName: string): SetTypeInfo | null {
     const fieldInfoResult = this.getClassFieldInfo(className, fieldName);
-    const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+    const fieldInfo = fieldInfoResult as FieldInfo;
     if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
     const setParsed = parseSetTypeString(fieldInfo.tsType);
@@ -931,7 +931,7 @@ export class TypeResolver {
       if (!currentCls) return null;
 
       const fieldInfoResult = this.getClassFieldInfo(currentCls, fieldName);
-      const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+      const fieldInfo = fieldInfoResult as FieldInfo;
       if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
       const mapParsed = parseMapTypeString(fieldInfo.tsType);
@@ -1076,7 +1076,7 @@ export class TypeResolver {
     if (!currentClsSet) return null;
 
     const fieldInfoResult = this.getClassFieldInfo(currentClsSet, fieldName);
-    const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+    const fieldInfo = fieldInfoResult as FieldInfo;
     if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
     const setParsed = parseSetTypeString(fieldInfo.tsType);
@@ -1095,7 +1095,7 @@ export class TypeResolver {
       const currentClsKey = this.ctx.getCurrentClassName();
       if (!currentClsKey) return null;
       const fieldInfoResult = this.getClassFieldInfo(currentClsKey, memberExpr.property);
-      const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+      const fieldInfo = fieldInfoResult as FieldInfo;
       if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
       const mapParsed = parseMapTypeString(fieldInfo.tsType);
@@ -1164,7 +1164,7 @@ export class TypeResolver {
     const currentClsSetVal = this.ctx.getCurrentClassName();
     if (!currentClsSetVal) return null;
     const fieldInfoResult = this.getClassFieldInfo(currentClsSetVal, memberExpr.property);
-    const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+    const fieldInfo = fieldInfoResult as FieldInfo;
     if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
     const setParsed = parseSetTypeString(fieldInfo.tsType);

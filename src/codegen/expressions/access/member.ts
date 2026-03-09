@@ -83,11 +83,7 @@ interface ExprBase {
   type: string;
 }
 
-interface FieldInfo {
-  index: number;
-  type: string;
-  tsType?: string;
-}
+import type { FieldInfo } from "../../infrastructure/type-resolver/types.js";
 
 interface MapGeneratorLike {
   generateMapSize(mapPtr: string): string;
@@ -182,7 +178,7 @@ export interface MemberAccessGeneratorContext {
   classGenGetFieldInfo(
     className: string | null,
     fieldName: string | null,
-  ): { index: number; type: string; tsType?: string } | null;
+  ): FieldInfo | null;
   classGenGetFieldType(className: string, fieldName: string): string | null;
   classGenGetFieldTsType(className: string, fieldName: string): string | null;
   classGenGetClassFields(className: string): { name: string; fieldType: string }[];
@@ -919,7 +915,7 @@ export class MemberAccessGenerator {
     const fields = this.ctx.classGenGetClassFields(className);
 
     if (fieldInfoResult) {
-      const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+      const fieldInfo = fieldInfoResult as FieldInfo;
       const fieldPtr = this.ctx.nextTemp();
       if (fields.length > 0) {
         this.ctx.emit(
@@ -1374,11 +1370,7 @@ export class MemberAccessGenerator {
       if (implementingClass) {
         const classFieldInfo = this.ctx.classGenGetFieldInfo(implementingClass, expr.property);
         if (classFieldInfo) {
-          const classFieldInfoTyped = classFieldInfo as {
-            index: number;
-            type: string;
-            tsType?: string;
-          };
+          const classFieldInfoTyped = classFieldInfo as FieldInfo;
           const castPtr = this.ctx.nextTemp();
           this.ctx.emit(
             `${castPtr} = bitcast %${innerInterfaceName}* ${innerPtr} to %${implementingClass}_struct*`,
@@ -1409,11 +1401,7 @@ export class MemberAccessGenerator {
         if (structuralClass) {
           const classFieldInfo = this.ctx.classGenGetFieldInfo(structuralClass, expr.property);
           if (classFieldInfo) {
-            const classFieldInfoTyped = classFieldInfo as {
-              index: number;
-              type: string;
-              tsType?: string;
-            };
+            const classFieldInfoTyped = classFieldInfo as FieldInfo;
             const castPtr = this.ctx.nextTemp();
             this.ctx.emit(
               `${castPtr} = bitcast %${innerInterfaceName}* ${innerPtr} to %${structuralClass}_struct*`,
@@ -1584,7 +1572,7 @@ export class MemberAccessGenerator {
     const fieldName = innerExpr.property;
     const fieldInfoResult = this.ctx.classGenGetFieldInfo(className, fieldName);
     if (!fieldInfoResult) return null;
-    const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+    const fieldInfo = fieldInfoResult as FieldInfo;
     if (!fieldInfo.tsType) return null;
 
     // Strip nullable suffixes so "Foo | undefined" produces valid LLVM type "%Foo"
@@ -1623,11 +1611,7 @@ export class MemberAccessGenerator {
       if (implementingClass) {
         const classFieldInfo = this.ctx.classGenGetFieldInfo(implementingClass, expr.property);
         if (classFieldInfo) {
-          const classFieldInfoTyped = classFieldInfo as {
-            index: number;
-            type: string;
-            tsType?: string;
-          };
+          const classFieldInfoTyped = classFieldInfo as FieldInfo;
           const innerPtr = this.ctx.generateExpression(expr.object, params);
           const resolvedClass = this.ctx.getActualClassType(innerPtr) || implementingClass;
           const castPtr = this.ctx.nextTemp();
@@ -1681,11 +1665,7 @@ export class MemberAccessGenerator {
     if (implementingClass2) {
       const classFieldInfo = this.ctx.classGenGetFieldInfo(implementingClass2, expr.property);
       if (classFieldInfo) {
-        const classFieldInfoTyped = classFieldInfo as {
-          index: number;
-          type: string;
-          tsType?: string;
-        };
+        const classFieldInfoTyped = classFieldInfo as FieldInfo;
         const innerPtr = this.ctx.generateExpression(expr.object, params);
         const resolvedClass2 = this.ctx.getActualClassType(innerPtr) || implementingClass2;
         const castPtr = this.ctx.nextTemp();
@@ -2031,7 +2011,7 @@ export class MemberAccessGenerator {
         const className = this.ctx.getCurrentClassName();
         if (className) {
           const fieldInfoResult = this.ctx.classGenGetFieldInfo(className, memberAccess.property);
-          const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+          const fieldInfo = fieldInfoResult as FieldInfo;
           if (fieldInfoResult && fieldInfo.tsType) {
             return fieldInfo.tsType;
           }
@@ -2392,7 +2372,7 @@ export class MemberAccessGenerator {
     if (!classNameForLookup) return null;
 
     const fieldInfoResult = this.ctx.classGenGetFieldInfo(classNameForLookup, memberExpr.property);
-    const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+    const fieldInfo = fieldInfoResult as FieldInfo;
     if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
     const mapParsed = parseMapTypeString(fieldInfo.tsType);
@@ -2872,11 +2852,7 @@ export class MemberAccessGenerator {
                   expr.property,
                 );
                 if (classFieldInfo) {
-                  const classFieldInfoTyped = classFieldInfo as {
-                    index: number;
-                    type: string;
-                    tsType?: string;
-                  };
+                  const classFieldInfoTyped = classFieldInfo as FieldInfo;
                   const objPtrRaw = this.ctx.nextTemp();
                   this.ctx.emit(`${objPtrRaw} = load i8*, i8** ${paramPtr}`);
                   const objPtr = this.ctx.nextTemp();
