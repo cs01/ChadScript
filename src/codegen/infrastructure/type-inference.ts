@@ -1347,14 +1347,17 @@ export class TypeInference {
     }
     if (e.type === "variable") {
       const resolved = this.resolveExpressionType(expr);
-      if (
-        resolved &&
-        resolved.arrayDepth > 0 &&
-        resolved.base !== "string" &&
-        resolved.base !== "number" &&
-        resolved.base !== "boolean"
-      ) {
-        return true;
+      if (resolved && resolved.arrayDepth > 0) {
+        if (resolved.arrayDepth > 1) {
+          return true;
+        }
+        if (
+          resolved.base !== "string" &&
+          resolved.base !== "number" &&
+          resolved.base !== "boolean"
+        ) {
+          return true;
+        }
       }
       return false;
     }
@@ -2209,7 +2212,7 @@ export class TypeInference {
     }
     if (e.type === "variable") {
       const resolved = this.resolveExpressionType(expr);
-      if (resolved && resolved.arrayDepth > 0 && resolved.base === "string") {
+      if (resolved && resolved.arrayDepth === 1 && resolved.base === "string") {
         return true;
       }
       return false;

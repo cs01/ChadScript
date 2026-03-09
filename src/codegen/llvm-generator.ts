@@ -84,7 +84,7 @@ import {
   mapReturnTypeToLLVM,
   mapParamTypeToLLVM,
 } from "./infrastructure/type-system.js";
-import type { ResolvedType } from "./infrastructure/type-system.js";
+import { parseTypeString, type ResolvedType } from "./infrastructure/type-system.js";
 import { DiagnosticEngine } from "../diagnostics/engine.js";
 import { TypeContext } from "./infrastructure/type-context.js";
 import { IGeneratorContext, IArrowFunctionGenerator } from "./infrastructure/generator-context.js";
@@ -2076,6 +2076,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             this.symbolTable.setRawInterfaceType(name, elementType);
           } else {
             this.defineVariable(name, `@${name}`, llvmType, kind, "global");
+          }
+          if (stmt.declaredType) {
+            this.symbolTable.setResolvedType(name, parseTypeString(stmt.declaredType));
           }
           continue;
         } else if (isArray) {

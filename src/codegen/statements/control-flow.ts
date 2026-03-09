@@ -35,7 +35,7 @@ import {
 } from "../infrastructure/symbol-table.js";
 import type { UnionCommonFields } from "../infrastructure/type-resolver/index.js";
 import type { FieldInfo } from "../infrastructure/type-resolver/types.js";
-import { stripOptional } from "../infrastructure/type-system.js";
+import { stripOptional, createResolvedType } from "../infrastructure/type-system.js";
 
 interface ExprBase {
   type: string;
@@ -456,6 +456,18 @@ export class ControlFlowGenerator {
       arrayType = "%ObjectArray";
       elementType = "i8*";
       elementKind = SymbolKind.Object;
+      const iterableBase = forOfStmt.iterable as ExprBase;
+      if (iterableBase.type === "variable") {
+        const varName = (forOfStmt.iterable as VariableNode).name;
+        const sym = this.ctx.symbolTable.lookup(varName);
+        if (sym && sym.resolvedType && sym.resolvedType.arrayDepth > 1) {
+          if (sym.resolvedType.base === "string") {
+            elementKind = SymbolKind.StringArray;
+          } else if (sym.resolvedType.base === "number") {
+            elementKind = SymbolKind.Array;
+          }
+        }
+      }
     } else {
       arrayType = "%Array";
       elementType = "double";
@@ -473,10 +485,35 @@ export class ControlFlowGenerator {
     this.emit(`${indexAlloca} = alloca i32`);
     this.ctx.emitStore("i32", "0", indexAlloca);
 
-    const elemAlloca = this.ctx.nextAllocaReg(forOfStmt.variableName);
-    this.emit(`${elemAlloca} = alloca ${elementType}`);
+    let actualElementType = elementType;
+    if (elementKind === SymbolKind.StringArray) {
+      actualElementType = "%StringArray*";
+    } else if (elementKind === SymbolKind.Array && isObjectArray) {
+      actualElementType = "%Array*";
+    }
 
-    this.ctx.defineVariable(forOfStmt.variableName, elemAlloca, elementType, elementKind, "local");
+    const elemAlloca = this.ctx.nextAllocaReg(forOfStmt.variableName);
+    this.emit(`${elemAlloca} = alloca ${actualElementType}`);
+
+    this.ctx.defineVariable(
+      forOfStmt.variableName,
+      elemAlloca,
+      actualElementType,
+      elementKind,
+      "local",
+    );
+
+    if (elementKind === SymbolKind.StringArray) {
+      this.ctx.symbolTable.setResolvedType(
+        forOfStmt.variableName,
+        createResolvedType("string", {}, 1),
+      );
+    } else if (elementKind === SymbolKind.Array && isObjectArray) {
+      this.ctx.symbolTable.setResolvedType(
+        forOfStmt.variableName,
+        createResolvedType("number", {}, 1),
+      );
+    }
 
     const condLabel = this.nextLabel("forof_cond");
     const bodyLabel = this.nextLabel("forof_body");
@@ -528,8 +565,13 @@ export class ControlFlowGenerator {
     }
     const elemValue = this.ctx.emitLoad(elementType, elemPtr);
 
+    let storeValue = elemValue;
+    if (actualElementType !== elementType) {
+      storeValue = this.ctx.emitBitcast(elemValue, elementType, actualElementType);
+    }
+
     // Store in loop variable
-    this.ctx.emitStore(elementType, elemValue, elemAlloca);
+    this.ctx.emitStore(actualElementType, storeValue, elemAlloca);
 
     // Execute the loop body
     this.loopContinueLabels.push(updateLabel);
@@ -715,6 +757,46 @@ export class ControlFlowGenerator {
     if (iterable.type === "member_access") {
       const memberAccess = iterable as MemberAccessNode;
       const memberAccessObjBase = memberAccess.object as ExprBase;
+      if (memberAccessObjBase.type === "this") {
+        const className = this.ctx.getCurrentClassName();
+        if (className) {
+          const fieldTsType = this.ctx.classGenGetFieldTsType(className, memberAccess.property);
+          if (fieldTsType && fieldTsType.endsWith("[]")) {
+            const elementTypeName = fieldTsType.slice(0, -2).trim();
+            const elemIface = this.ctx.getInterfaceFromAST(elementTypeName);
+            if (elemIface) {
+              const elemIfaceTyped = elemIface as InterfaceDeclaration;
+              const allFields = this.ctx.getAllInterfaceFields(elemIfaceTyped);
+              const elementKeys: string[] = [];
+              const elementTypes: string[] = [];
+              const elementTsTypes: string[] = [];
+              for (let i = 0; i < allFields.length; i++) {
+                const fRaw = allFields[i];
+                if (!fRaw) continue;
+                const f = fRaw as InterfaceField;
+                if (!f.name || !f.type) continue;
+                elementKeys.push(f.name);
+                elementTsTypes.push(f.type);
+                if (f.type === "string") {
+                  elementTypes.push("i8*");
+                } else if (f.type === "number") {
+                  elementTypes.push("double");
+                } else if (f.type === "boolean") {
+                  elementTypes.push("i32");
+                } else {
+                  elementTypes.push("i8*");
+                }
+              }
+              return {
+                elementInterfaceName: elemIfaceTyped.name,
+                elementKeys,
+                elementTypes,
+                elementTsTypes,
+              };
+            }
+          }
+        }
+      }
       if (memberAccessObjBase.type === "variable") {
         const varName = (memberAccess.object as VariableNode).name;
         const propName = memberAccess.property;
@@ -838,6 +920,53 @@ export class ControlFlowGenerator {
       const methodCallInfo = this.getMethodCallArrayInfo(iterable as MethodCallNode);
       if (methodCallInfo) {
         return methodCallInfo;
+      }
+    }
+
+    if (iterable.type === "call") {
+      const callNode = iterable as { type: string; name: string };
+      const ast = this.ctx.getAst();
+      if (ast && ast.functions) {
+        for (let fi = 0; fi < ast.functions.length; fi++) {
+          const func = ast.functions[fi];
+          if (!func || func.name !== callNode.name) continue;
+          const retType = func.returnType;
+          if (retType && retType.endsWith("[]")) {
+            const elementTypeName = retType.slice(0, -2).trim();
+            const elemIface = this.ctx.getInterfaceFromAST(elementTypeName);
+            if (elemIface) {
+              const elemIfaceTyped = elemIface as InterfaceDeclaration;
+              const allFields = this.ctx.getAllInterfaceFields(elemIfaceTyped);
+              const elementKeys: string[] = [];
+              const elementTypes: string[] = [];
+              const elementTsTypes: string[] = [];
+              for (let ffi = 0; ffi < allFields.length; ffi++) {
+                const fRaw = allFields[ffi];
+                if (!fRaw) continue;
+                const f = fRaw as InterfaceField;
+                if (!f.name || !f.type) continue;
+                elementKeys.push(f.name);
+                elementTsTypes.push(f.type);
+                if (f.type === "string") {
+                  elementTypes.push("i8*");
+                } else if (f.type === "number") {
+                  elementTypes.push("double");
+                } else if (f.type === "boolean") {
+                  elementTypes.push("i32");
+                } else {
+                  elementTypes.push("i8*");
+                }
+              }
+              return {
+                elementInterfaceName: elemIfaceTyped.name,
+                elementKeys,
+                elementTypes,
+                elementTsTypes,
+              };
+            }
+          }
+          break;
+        }
       }
     }
 
