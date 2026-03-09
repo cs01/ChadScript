@@ -628,6 +628,7 @@ export interface IGeneratorContext {
     name: string,
   ): { keys: string[]; types: string[]; tsTypes: string[] } | null;
   getInterfaceDeclByName(name: string): InterfaceDeclaration | null;
+  findInterfaceForFields(fieldNames: string[]): string | null;
   getAllInterfaceFields(iface: InterfaceDeclaration): InterfaceField[];
   isTypeAlias(name: string): boolean;
   getTypeAliasCommonProperties(
@@ -1113,6 +1114,9 @@ export class MockGeneratorContext implements IGeneratorContext {
     return null;
   }
   getInterfaceDeclByName(_name: string): InterfaceDeclaration | null {
+    return null;
+  }
+  findInterfaceForFields(_fieldNames: string[]): string | null {
     return null;
   }
   getAllInterfaceFields(iface: InterfaceDeclaration): InterfaceField[] {
