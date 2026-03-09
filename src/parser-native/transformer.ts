@@ -970,6 +970,16 @@ function transformCallExpression(node: TreeSitterNode): Expression {
       : { type: "variable" as const, name: "undefined" };
     const method = propNode ? (propNode as NodeBase).text : "";
 
+    let isOptional = false;
+    if (objNode) {
+      const objEnd = (objNode as NodeBase).endIndex;
+      const propStart = propNode ? (propNode as NodeBase).startIndex : fn.endIndex;
+      const operatorText = fn.source.substring(objEnd, propStart);
+      if (operatorText.indexOf("?.") !== -1) {
+        isOptional = true;
+      }
+    }
+
     return {
       type: "method_call",
       object: object,
@@ -977,6 +987,8 @@ function transformCallExpression(node: TreeSitterNode): Expression {
       args: args,
       typeParameter: typeParameter,
       pos: 0,
+      loc: undefined,
+      optional: isOptional || undefined,
     };
   } else if (fn.type === "identifier") {
     let callTypeArgs: string[] | undefined;
@@ -1002,6 +1014,8 @@ function transformCallExpression(node: TreeSitterNode): Expression {
       args,
       typeParameter: undefined,
       pos: 0,
+      loc: undefined,
+      optional: undefined,
     };
   }
 }
@@ -2107,6 +2121,8 @@ function transformForInStatement(node: TreeSitterNode): ForOfStatement {
       args: [iterable],
       typeParameter: undefined,
       pos: 0,
+      loc: undefined,
+      optional: undefined,
     };
   }
 
