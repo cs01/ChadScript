@@ -77,7 +77,7 @@ interface BuiltinAstType {
   fields: { name: string; type: string }[];
 }
 
-function getBuiltinAstTypeByDiscriminant(discriminant: string): BuiltinAstType | null {
+function getDiscriminantAssignVarReturn(discriminant: string): BuiltinAstType | null {
   if (discriminant === "assignment") {
     return {
       name: "AssignmentStatement",
@@ -120,6 +120,10 @@ function getBuiltinAstTypeByDiscriminant(discriminant: string): BuiltinAstType |
       ],
     };
   }
+  return null;
+}
+
+function getDiscriminantLoopBlock(discriminant: string): BuiltinAstType | null {
   if (discriminant === "while") {
     return {
       name: "WhileStatement",
@@ -163,6 +167,10 @@ function getBuiltinAstTypeByDiscriminant(discriminant: string): BuiltinAstType |
       ],
     };
   }
+  return null;
+}
+
+function getDiscriminantErrorHandler(discriminant: string): BuiltinAstType | null {
   if (discriminant === "throw") {
     return {
       name: "ThrowStatement",
@@ -199,6 +207,16 @@ function getBuiltinAstTypeByDiscriminant(discriminant: string): BuiltinAstType |
       fields: [{ name: "type", type: "'break'" }],
     };
   }
+  return null;
+}
+
+function getBuiltinAstTypeByDiscriminant(discriminant: string): BuiltinAstType | null {
+  const avr = getDiscriminantAssignVarReturn(discriminant);
+  if (avr) return avr;
+  const lb = getDiscriminantLoopBlock(discriminant);
+  if (lb) return lb;
+  const eh = getDiscriminantErrorHandler(discriminant);
+  if (eh) return eh;
   if (discriminant === "continue") {
     return {
       name: "ContinueStatement",

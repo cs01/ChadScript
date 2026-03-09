@@ -125,6 +125,22 @@ export function tsTypeToLlvm(tsType: string): string {
   return canonicalTypeToLlvm(tsType, "default", false, false, "");
 }
 
+function resolvedPrimitiveToLlvm(rt: ResolvedType): string | null {
+  if (rt.base === "string") return "i8*";
+  if (rt.base === "Uint8Array" && rt.arrayDepth === 0) return "%Uint8Array*";
+  if (rt.base === "number" && rt.qualifiers.numericKind === "integer") return "i64";
+  if (rt.base === "number" || rt.base === "boolean") return "double";
+  return null;
+}
+
+function resolvedSpecialToLlvm(rt: ResolvedType): string | null {
+  if (rt.base === "void") return "void";
+  if (rt.base === "null" || rt.base === "undefined") return "i8*";
+  if (rt.base.startsWith("Map")) return "%StringMap*";
+  if (rt.base.startsWith("Set")) return "%StringSet*";
+  return null;
+}
+
 export function resolvedTypeToLlvm(rt: ResolvedType): string {
   if (rt.cachedLlvmType) return rt.cachedLlvmType;
   if (rt.arrayDepth > 0) {
@@ -132,14 +148,10 @@ export function resolvedTypeToLlvm(rt: ResolvedType): string {
     if (rt.base === "number" || rt.base === "boolean") return "%Array*";
     return "%ObjectArray*";
   }
-  if (rt.base === "string") return "i8*";
-  if (rt.base === "Uint8Array" && rt.arrayDepth === 0) return "%Uint8Array*";
-  if (rt.base === "number" && rt.qualifiers.numericKind === "integer") return "i64";
-  if (rt.base === "number" || rt.base === "boolean") return "double";
-  if (rt.base === "void") return "void";
-  if (rt.base === "null" || rt.base === "undefined") return "i8*";
-  if (rt.base.startsWith("Map")) return "%StringMap*";
-  if (rt.base.startsWith("Set")) return "%StringSet*";
+  const prim = resolvedPrimitiveToLlvm(rt);
+  if (prim) return prim;
+  const special = resolvedSpecialToLlvm(rt);
+  if (special) return special;
   return "i8*";
 }
 
