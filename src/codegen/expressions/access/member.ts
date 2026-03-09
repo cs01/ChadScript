@@ -14,6 +14,8 @@ import {
   IndexAccessNode,
   TypeAssertionNode,
   FunctionParameter,
+  CallNode,
+  FunctionNode,
   SourceLocation,
 } from "../../../ast/types.js";
 import type { SymbolTable } from "../../infrastructure/symbol-table.js";
@@ -333,6 +335,11 @@ export class MemberAccessGenerator {
 
     if (exprObjType === "method_call") {
       result = this.handleMethodCallResultPropertyAccess(expr, params);
+      if (result !== null) return result;
+    }
+
+    if (exprObjType === "call") {
+      result = this.handleCallResultPropertyAccess(expr, params);
       if (result !== null) return result;
     }
 
@@ -2402,6 +2409,63 @@ export class MemberAccessGenerator {
     return value;
   }
 
+  private handleCallResultPropertyAccess(
+    expr: MemberAccessNode,
+    params: string[],
+  ): string | null {
+    const callExpr = expr.object as CallNode;
+    const ast = this.ctx.getAst();
+    if (!ast || !ast.functions) return null;
+
+    let func: FunctionNode | null = null;
+    for (const f of ast.functions) {
+      if ((f as FunctionNode).name === callExpr.name) {
+        func = f as FunctionNode;
+        break;
+      }
+    }
+    if (!func || !func.returnType) return null;
+
+    let returnType = stripNullable(func.returnType);
+    if (returnType.startsWith("{")) return null;
+
+    const interfaceDef = this.getInterfaceDecl(returnType);
+    if (!interfaceDef) return null;
+    const allFields = this.ctx.getAllInterfaceFields(interfaceDef as InterfaceDeclaration);
+
+    let propIndex = -1;
+    for (let i = 0; i < allFields.length; i++) {
+      const f = allFields[i] as { name: string; type: string };
+      if (stripOptional(f.name) === expr.property) {
+        propIndex = i;
+        break;
+      }
+    }
+    if (propIndex === -1) return null;
+
+    const propField = allFields[propIndex] as { name: string; type: string };
+    const propType = tsTypeToLlvm(propField.type);
+    const structTypes: string[] = [];
+    for (let i = 0; i < allFields.length; i++) {
+      const field = allFields[i] as { name: string; type: string };
+      structTypes.push(tsTypeToLlvm(field.type));
+    }
+    const structType = `{ ${structTypes.join(", ")} }`;
+
+    const objPtr = this.ctx.generateExpression(expr.object, params);
+
+    const typedPtr = this.ctx.emitBitcast(objPtr, "i8*", `${structType}*`);
+    const fieldPtr = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${typedPtr}, i32 0, i32 ${propIndex}`,
+    );
+
+    const value = this.ctx.emitLoad(propType, fieldPtr);
+    this.ctx.setVariableType(value, propType);
+
+    return value;
+  }
+
   private handleLengthProperty(expr: MemberAccessNode, params: string[]): string {
     return handleLengthProperty(this.ctx, expr, params);
   }
@@ -2481,7 +2545,8 @@ export class MemberAccessGenerator {
       if (
         exprObjType === "member_access" ||
         exprObjType === "method_call" ||
-        exprObjType === "index_access"
+        exprObjType === "index_access" ||
+        exprObjType === "call"
       ) {
         const innerPtr = this.ctx.generateExpression(expr.object, params);
         const innerType = this.ctx.getVariableType(innerPtr);

@@ -149,7 +149,8 @@ export class InterfaceAllocator {
       !stmt.value ||
       (stmt.value.type !== "variable" &&
         stmt.value.type !== "object" &&
-        stmt.value.type !== "method_call")
+        stmt.value.type !== "method_call" &&
+        stmt.value.type !== "call")
     )
       return null;
     const interfaceDefResult2 = this.getInterface(stmt.declaredType);

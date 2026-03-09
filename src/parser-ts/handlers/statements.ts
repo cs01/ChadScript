@@ -15,6 +15,7 @@ import {
   TryStatement,
   IndexAccessNode,
   MemberAccessNode,
+  VariableNode,
 } from "../../ast/types.js";
 import { transformExpression } from "./expressions.js";
 import { getLoc } from "../transformer.js";
@@ -107,6 +108,8 @@ function transformVariableStatement(
   return first;
 }
 
+let destructureCounter = 0;
+
 function desugarObjectDestructuring(
   decl: ts.VariableDeclaration,
   pattern: ts.ObjectBindingPattern,
@@ -121,6 +124,27 @@ function desugarObjectDestructuring(
     source = transformExpression(decl.initializer, checker);
   }
 
+  let objectRef: Expression = source!;
+  if (source && source.type !== "variable") {
+    const tempName = `__destructure_${destructureCounter++}`;
+    let declaredType: string | undefined;
+    if (decl.initializer && checker) {
+      const initType = checker.getTypeAtLocation(decl.initializer);
+      const typeStr = checker.typeToString(initType);
+      if (typeStr && typeStr !== "any" && typeStr !== "unknown") {
+        declaredType = typeStr;
+      }
+    }
+    statements.push({
+      type: "variable_declaration",
+      kind: "const",
+      name: tempName,
+      value: source,
+      declaredType,
+    } as VariableDeclaration);
+    objectRef = { type: "variable", name: tempName } as VariableNode;
+  }
+
   for (const element of pattern.elements) {
     if (!ts.isBindingElement(element)) continue;
     if (!ts.isIdentifier(element.name)) continue;
@@ -133,7 +157,7 @@ function desugarObjectDestructuring(
 
     const memberAccess: MemberAccessNode = {
       type: "member_access",
-      object: source!,
+      object: objectRef,
       property: propertyName,
     };
 
@@ -157,6 +181,27 @@ function desugarArrayDestructuring(
     source = transformExpression(decl.initializer, checker);
   }
 
+  let arrayRef: Expression = source!;
+  if (source && source.type !== "variable") {
+    const tempName = `__destructure_${destructureCounter++}`;
+    let declaredType: string | undefined;
+    if (decl.initializer && checker) {
+      const initType = checker.getTypeAtLocation(decl.initializer);
+      const typeStr = checker.typeToString(initType);
+      if (typeStr && typeStr !== "any" && typeStr !== "unknown") {
+        declaredType = typeStr;
+      }
+    }
+    statements.push({
+      type: "variable_declaration",
+      kind: "const",
+      name: tempName,
+      value: source,
+      declaredType,
+    } as VariableDeclaration);
+    arrayRef = { type: "variable", name: tempName } as VariableNode;
+  }
+
   for (let i = 0; i < pattern.elements.length; i++) {
     const element = pattern.elements[i];
     if (ts.isOmittedExpression(element)) continue;
@@ -167,7 +212,7 @@ function desugarArrayDestructuring(
 
     const indexAccess: IndexAccessNode = {
       type: "index_access",
-      object: source!,
+      object: arrayRef,
       index: { type: "number", value: i },
     };
 
