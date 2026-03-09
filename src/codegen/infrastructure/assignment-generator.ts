@@ -300,7 +300,7 @@ export class AssignmentGenerator {
       this.ctx.emit(`${fieldPtr} = getelementptr inbounds double, double* ${instancePtr}, i32 0`);
       this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}`);
     } else {
-      this.ctx.emitError(
+      return this.ctx.emitError(
         "Field '" +
           property +
           "' not found in class " +

@@ -131,7 +131,7 @@ export class ExpressionGenerator {
     const remaining = this.dispatchRemainingExpressions(dctx, expr, params);
     if (remaining !== null) return remaining;
 
-    this.ctx.emitError(
+    return this.ctx.emitError(
       "unsupported expression type: " + expr.type,
       (expr as { loc?: { line: number; column: number } }).loc,
     );

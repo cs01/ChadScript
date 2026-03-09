@@ -2981,7 +2981,7 @@ export class MemberAccessGenerator {
         this.ctx.setVariableType(value, "i8*");
         return value;
       }
-      this.ctx.emitError(
+      return this.ctx.emitError(
         `cannot access property '${prop}' on '${varName}' — no type information available`,
         expr.loc,
       );
@@ -2994,7 +2994,7 @@ export class MemberAccessGenerator {
       this.ctx.setVariableType(objPtr, "i8*");
       return objPtr;
     }
-    this.ctx.emitError(
+    return this.ctx.emitError(
       `cannot access property '${prop}' on '${varName}' — variable has no type information or alloca`,
       expr.loc,
     );

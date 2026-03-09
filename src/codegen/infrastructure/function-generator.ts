@@ -142,14 +142,14 @@ export class FunctionGenerator {
     if (funcIsAsync) {
       const asyncRetType = func.returnType || "";
       if (asyncRetType === "any") {
-        this.ctx.emitError(
+        return this.ctx.emitError(
           "Async function '" +
             funcName +
             "' has return type 'any' — async functions must have an explicit Promise<T> return type (e.g., Promise<void>, Promise<string>)",
         );
       }
       if (asyncRetType !== "" && !asyncRetType.startsWith("Promise<")) {
-        this.ctx.emitError(
+        return this.ctx.emitError(
           "Async function '" +
             funcName +
             "' has return type '" +
