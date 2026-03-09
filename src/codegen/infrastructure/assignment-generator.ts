@@ -80,7 +80,7 @@ export class AssignmentGenerator {
       return;
     }
     if (valueType !== "member_access_assignment") {
-      this.ctx.emitError("Invalid member access assignment format");
+      return this.ctx.emitError("Invalid member access assignment format");
     }
     const memberAccessValue = stmtValue as MemberAccessAssignmentNode;
 
@@ -123,7 +123,7 @@ export class AssignmentGenerator {
     } else if (objType === "this") {
       const thisPtr = this.ctx.getThisPointer();
       if (!thisPtr) {
-        this.ctx.emitError("this.field = value used outside of class method or constructor");
+        return this.ctx.emitError("this.field = value used outside of class method or constructor");
       }
       className = this.ctx.getCurrentClassName();
       if (!className) {
@@ -186,7 +186,7 @@ export class AssignmentGenerator {
     const value = this.ctx.generateExpression(memberAccessValue.value, params);
     const propIndex = objMeta.keys.indexOf(property);
     if (propIndex === -1) {
-      this.ctx.emitError(
+      return this.ctx.emitError(
         "Unknown property: " +
           property +
           " on object " +
@@ -275,7 +275,9 @@ export class AssignmentGenerator {
     }
 
     if (!instancePtr) {
-      this.ctx.emitError("Cannot determine class instance for field assignment on " + objType);
+      return this.ctx.emitError(
+        "Cannot determine class instance for field assignment on " + objType,
+      );
     }
 
     const fields = this.ctx.classGenGetClassFields(className);
