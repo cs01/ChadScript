@@ -1,6 +1,10 @@
 let passed = true;
 
-const matrix: number[][] = [[1, 2], [3, 4], [5, 6]];
+const matrix: number[][] = [
+  [1, 2],
+  [3, 4],
+  [5, 6],
+];
 let total = 0;
 for (const row of matrix) {
   for (const val of row) {
@@ -12,7 +16,10 @@ if (total !== 21) {
   passed = false;
 }
 
-const words: string[][] = [["hello", "world"], ["foo", "bar"]];
+const words: string[][] = [
+  ["hello", "world"],
+  ["foo", "bar"],
+];
 let allWords = "";
 for (const group of words) {
   for (const word of group) {
