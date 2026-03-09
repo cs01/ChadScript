@@ -2047,13 +2047,13 @@ export class VariableAllocator {
   ): { keys: string[]; types: string[]; tsTypes: string[] } | null {
     const e = expr as ExprBase;
     if (e.type !== "array") return null;
-    const arrayExpr = expr as unknown as ArrayNode;
+    const arrayExpr = expr as ArrayNode;
     const elements = arrayExpr.elements || [];
     if (elements.length === 0) return null;
     const firstElem = elements[0] as ExprBase;
     if (firstElem.type !== "object") return null;
 
-    const objNode = elements[0] as unknown as ObjectNode;
+    const objNode = elements[0] as ObjectNode;
     const keys: string[] = [];
     const types: string[] = [];
     const tsTypes: string[] = [];

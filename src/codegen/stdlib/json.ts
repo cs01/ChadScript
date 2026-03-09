@@ -518,7 +518,7 @@ export class JsonGenerator {
     const spaces = this.getSpaces(expr);
     if (expr.args[0].type === "type_assertion") {
       return this.generateStringifyArgWithSpaces(
-        (expr.args[0] as unknown as TypeAssertionNode).expression,
+        (expr.args[0] as TypeAssertionNode).expression,
         params,
         spaces,
       );
@@ -540,11 +540,11 @@ export class JsonGenerator {
     }
 
     if (arg.type === "object") {
-      return this.stringifyObjectLiteral(arg as unknown as ObjectNode, params, spaces);
+      return this.stringifyObjectLiteral(arg as ObjectNode, params, spaces);
     }
 
     if (arg.type === "array") {
-      const arrayExpr = arg as unknown as ArrayNode;
+      const arrayExpr = arg as ArrayNode;
       const elements = arrayExpr.elements || [];
       if (elements.length > 0 && (elements[0] as ExprBase).type === "object") {
         return stringifyObjectArrayLiteral(this.ctx, arrayExpr, params, spaces);
@@ -761,7 +761,7 @@ export class JsonGenerator {
   ): string {
     if (!this.ctx.interfaceStructGenHasInterface(elementType)) {
       if (arg.type === "variable") {
-        const varName = (arg as unknown as VariableNode).name;
+        const varName = (arg as VariableNode).name;
         const meta = this.ctx.symbolTable.getObjectArrayMetadata(varName);
         if (meta && meta.elementKeys.length > 0) {
           return stringifyObjectArrayWithMeta(
@@ -975,7 +975,7 @@ export class JsonGenerator {
           "@csyyjson_obj_add_obj",
           `i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${nameConst}`,
         );
-        this.buildJsonProperties(prop.value as unknown as ObjectNode, params, jsonDoc, childObj);
+        this.buildJsonProperties(prop.value as ObjectNode, params, jsonDoc, childObj);
       } else if (prop.value.type === "boolean") {
         const val = this.ctx.generateExpression(prop.value, params);
         const boolI32 = this.ctx.nextTemp();
