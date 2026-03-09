@@ -186,7 +186,7 @@ export class AssignmentGenerator {
     const value = this.ctx.generateExpression(memberAccessValue.value, params);
     const propIndex = objMeta.keys.indexOf(property);
     if (propIndex === -1) {
-      this.ctx.emitError(
+      return this.ctx.emitError(
         "Unknown property: " +
           property +
           " on object " +

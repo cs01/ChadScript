@@ -106,7 +106,7 @@ export class ExpressionGenerator {
 
   generate(expr: Expression, params: string[]): string {
     if (!expr.type || expr.type.length === 0) {
-      this.ctx.emitError(
+      return this.ctx.emitError(
         "expression has empty type — this likely indicates a parser bug",
         (expr as { loc?: { line: number; column: number } }).loc,
       );
@@ -242,7 +242,7 @@ export class ExpressionGenerator {
         const cap = captures[i] as { name: string; llvmType: string };
         const allocaReg = this.ctx.symbolTable.getAlloca(cap.name);
         if (!allocaReg) {
-          this.ctx.emitError(
+          return this.ctx.emitError(
             `cannot capture '${cap.name}' in closure — module-level variables are not in scope. move the variable into a function or class.`,
           );
         }
