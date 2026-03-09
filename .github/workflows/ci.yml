@@ -18,6 +18,12 @@ jobs:
           cache: npm
       - run: npm install --ignore-scripts
       - run: npx prettier --check .
+      - name: Ban inline InterfaceField assertions
+        run: |
+          if grep -rn 'as { name: string; type: string }' src/codegen/; then
+            echo "::error::Found inline 'as { name: string; type: string }' assertions. Use 'as InterfaceField' from src/ast/types.ts instead."
+            exit 1
+          fi
 
   build-linux-glibc:
     runs-on: ubuntu-22.04
