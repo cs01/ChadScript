@@ -995,22 +995,11 @@ export class ClassGenerator {
   generateNewExpression(className: string, args: Expression[], params: string[]): string {
     // Resolve import aliases (e.g., import MyGreeter from './greeter' → Greeter)
     const resolvedClassName = this.ctx.resolveImportAlias(className);
-    let classNodeResult: ClassNode | null = null;
-    const ast = this.ctx.getAst();
-    if (ast && ast.classes) {
-      for (let ci = 0; ci < ast.classes.length; ci++) {
-        const c = ast.classes[ci] as { name: string };
-        if (!c) continue;
-        if (!c.name) continue;
-        if (c.name === resolvedClassName) {
-          classNodeResult = ast.classes[ci] as ClassNode;
-          break;
-        }
-      }
-    }
-    const classNode = classNodeResult as ClassNode;
-    if (!classNodeResult) {
-      return "null";
+    const classNode = this.findClassNode(resolvedClassName);
+    if (!classNode) {
+      return this.ctx.emitError(
+        `class '${className}' not found — cannot create instance with 'new ${className}()'`,
+      );
     }
     let constructorResult2: ClassMethod | null = null;
     for (let mi = 0; mi < classNode.methods.length; mi++) {
