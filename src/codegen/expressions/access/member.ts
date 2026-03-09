@@ -930,6 +930,18 @@ export class MemberAccessGenerator {
       if (ft) fieldType = ft;
       if (tst) tsType = tst;
     }
+    const primitive = this.loadPrimitiveFieldValue(fieldPtr, fieldType, tsType);
+    if (primitive) return primitive;
+    const collection = this.loadCollectionFieldValue(fieldPtr, fieldType, tsType);
+    if (collection) return collection;
+    return this.loadFallbackFieldValue(fieldPtr, fieldType, tsType);
+  }
+
+  private loadPrimitiveFieldValue(
+    fieldPtr: string,
+    fieldType: string,
+    tsType: string | undefined,
+  ): string | null {
     if (fieldType === "string") {
       const value = this.ctx.nextTemp();
       this.ctx.emit(`${value} = load i8*, i8** ${fieldPtr}`);
@@ -976,7 +988,16 @@ export class MemberAccessGenerator {
       this.ctx.emit(`${value} = load double, double* ${fieldPtr}`);
       this.ctx.setVariableType(value, "double");
       return value;
-    } else if (tsType && tsType.startsWith("Map<string,")) {
+    }
+    return null;
+  }
+
+  private loadCollectionFieldValue(
+    fieldPtr: string,
+    fieldType: string,
+    tsType: string | undefined,
+  ): string | null {
+    if (tsType && tsType.startsWith("Map<string,")) {
       const value = this.ctx.nextTemp();
       this.ctx.emit(`${value} = load %StringMap*, %StringMap** ${fieldPtr}`);
       this.ctx.setVariableType(value, "%StringMap*");
@@ -996,7 +1017,16 @@ export class MemberAccessGenerator {
       this.ctx.emit(`${value} = load %Set*, %Set** ${fieldPtr}`);
       this.ctx.setVariableType(value, "%Set*");
       return value;
-    } else if (
+    }
+    return null;
+  }
+
+  private loadFallbackFieldValue(
+    fieldPtr: string,
+    fieldType: string,
+    tsType: string | undefined,
+  ): string {
+    if (
       (fieldType === "double" || fieldType === "number") &&
       (!tsType || tsType === "number" || tsType === "boolean")
     ) {
@@ -1016,50 +1046,48 @@ export class MemberAccessGenerator {
         this.ctx.setVariableType(value, "%Array*");
       }
       return value;
+    }
+    const value = this.ctx.nextTemp();
+    let cleanTsType = tsType || "";
+    if (cleanTsType.indexOf(" | ") !== -1) {
+      cleanTsType = stripNullable(cleanTsType);
+    }
+    const classNode = this.ctx.classGenGetClassFields(cleanTsType);
+    if (classNode.length > 0) {
+      const structType = `%${cleanTsType}_struct*`;
+      this.ctx.emit(`${value} = load ${structType}, ${structType}* ${fieldPtr}`);
+      this.ctx.setVariableType(value, structType);
+      this.ctx.setActualClassType(value, cleanTsType);
     } else {
-      const value = this.ctx.nextTemp();
-      let cleanTsType = tsType || "";
-      // Use indexOf/substring instead of regex for native compiler compatibility
-      if (cleanTsType.indexOf(" | ") !== -1) {
-        cleanTsType = stripNullable(cleanTsType);
-      }
-      const classNode = this.ctx.classGenGetClassFields(cleanTsType);
-      if (classNode.length > 0) {
-        const structType = `%${cleanTsType}_struct*`;
-        this.ctx.emit(`${value} = load ${structType}, ${structType}* ${fieldPtr}`);
-        this.ctx.setVariableType(value, structType);
-        this.ctx.setActualClassType(value, cleanTsType);
-      } else {
-        this.ctx.emit(`${value} = load i8*, i8** ${fieldPtr}`);
-        this.ctx.setVariableType(value, "i8*");
-        if (tsType) {
-          let isKnownClass = false;
-          const classCount = this.ctx.getClassesCount();
-          for (let ci = 0; ci < classCount; ci++) {
-            const classNode = this.ctx.getAstClassAt(ci);
-            if (classNode && classNode.name === cleanTsType) {
-              isKnownClass = true;
-              break;
-            }
+      this.ctx.emit(`${value} = load i8*, i8** ${fieldPtr}`);
+      this.ctx.setVariableType(value, "i8*");
+      if (tsType) {
+        let isKnownClass = false;
+        const classCount = this.ctx.getClassesCount();
+        for (let ci = 0; ci < classCount; ci++) {
+          const classNode = this.ctx.getAstClassAt(ci);
+          if (classNode && classNode.name === cleanTsType) {
+            isKnownClass = true;
+            break;
           }
-          if (isKnownClass) {
-            this.ctx.setActualClassType(value, cleanTsType);
+        }
+        if (isKnownClass) {
+          this.ctx.setActualClassType(value, cleanTsType);
+        } else {
+          this.storeInterfaceMetadata(value, cleanTsType);
+          const concreteClass = this.findClassImplementingInterface(cleanTsType);
+          if (concreteClass) {
+            this.ctx.setActualClassType(value, concreteClass);
           } else {
-            this.storeInterfaceMetadata(value, cleanTsType);
-            const concreteClass = this.findClassImplementingInterface(cleanTsType);
-            if (concreteClass) {
-              this.ctx.setActualClassType(value, concreteClass);
-            } else {
-              const structuralMatch = this.findClassStructurallyMatchingInterface(cleanTsType);
-              if (structuralMatch) {
-                this.ctx.setActualClassType(value, structuralMatch);
-              }
+            const structuralMatch = this.findClassStructurallyMatchingInterface(cleanTsType);
+            if (structuralMatch) {
+              this.ctx.setActualClassType(value, structuralMatch);
             }
           }
         }
       }
-      return value;
     }
+    return value;
   }
 
   private storeInterfaceMetadata(register: string, tsType: string): void {
