@@ -281,7 +281,15 @@ export function canonicalTypeToLlvm(
     return "i8*";
   }
 
-  return "i8*";
+  for (let ci = 0; ci < tsType.length; ci++) {
+    if (tsType.charCodeAt(ci) < 32 || tsType.charCodeAt(ci) > 126) {
+      return "i8*";
+    }
+  }
+
+  throw new Error(
+    `canonicalTypeToLlvm: unrecognized type '${tsType}' (mode=${mode}, fieldName=${fieldName})`,
+  );
 }
 
 export function tsTypeToLlvmJson(tsType: string): string {
