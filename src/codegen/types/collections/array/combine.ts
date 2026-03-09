@@ -574,6 +574,21 @@ function generateStringArrayJoin(
 // slice
 // ============================================
 
+function normalizeSliceIndex(gen: IGeneratorContext, rawI32: string, length: string): string {
+  const isNeg = gen.emitIcmp("slt", "i32", rawI32, "0");
+  const adjusted = gen.nextTemp();
+  gen.emit(`${adjusted} = add i32 ${length}, ${rawI32}`);
+  const selected = gen.nextTemp();
+  gen.emit(`${selected} = select i1 ${isNeg}, i32 ${adjusted}, i32 ${rawI32}`);
+  const tooSmall = gen.emitIcmp("slt", "i32", selected, "0");
+  const clamped = gen.nextTemp();
+  gen.emit(`${clamped} = select i1 ${tooSmall}, i32 0, i32 ${selected}`);
+  const tooBig = gen.emitIcmp("sgt", "i32", clamped, length);
+  const final = gen.nextTemp();
+  gen.emit(`${final} = select i1 ${tooBig}, i32 ${length}, i32 ${clamped}`);
+  return final;
+}
+
 export function generateArraySlice(
   gen: IGeneratorContext,
   expr: MethodCallNode,
@@ -616,20 +631,25 @@ export function generateArraySlice(
   if (expr.args.length >= 1) {
     const startDouble = gen.generateExpression(expr.args[0], params);
     const dblStart = gen.ensureDouble(startDouble);
-    startI32 = gen.nextTemp();
-    gen.emit(`${startI32} = fptosi double ${dblStart} to i32`);
+    const rawStart = gen.nextTemp();
+    gen.emit(`${rawStart} = fptosi double ${dblStart} to i32`);
+    startI32 = normalizeSliceIndex(gen, rawStart, length);
   }
 
   let endI32 = length;
   if (expr.args.length >= 2) {
     const endDouble = gen.generateExpression(expr.args[1], params);
     const dblEnd = gen.ensureDouble(endDouble);
-    endI32 = gen.nextTemp();
-    gen.emit(`${endI32} = fptosi double ${dblEnd} to i32`);
+    const rawEnd = gen.nextTemp();
+    gen.emit(`${rawEnd} = fptosi double ${dblEnd} to i32`);
+    endI32 = normalizeSliceIndex(gen, rawEnd, length);
   }
 
   const sliceLen = gen.nextTemp();
   gen.emit(`${sliceLen} = sub i32 ${endI32}, ${startI32}`);
+  const lenIsNeg = gen.emitIcmp("slt", "i32", sliceLen, "0");
+  const finalSliceLen = gen.nextTemp();
+  gen.emit(`${finalSliceLen} = select i1 ${lenIsNeg}, i32 0, i32 ${sliceLen}`);
 
   const sizePtr = gen.nextTemp();
   gen.emit(`${sizePtr} = getelementptr %Array, %Array* null, i32 1`);
@@ -639,7 +659,7 @@ export function generateArraySlice(
   const newArrayPtr = gen.emitBitcast(arrayMem, "i8*", "%Array*");
 
   const sliceLenI64 = gen.nextTemp();
-  gen.emit(`${sliceLenI64} = zext i32 ${sliceLen} to i64`);
+  gen.emit(`${sliceLenI64} = zext i32 ${finalSliceLen} to i64`);
   const dataSize = gen.nextTemp();
   gen.emit(`${dataSize} = mul i64 ${sliceLenI64}, 8`);
   const dataMem = gen.emitCall("i8*", "@GC_malloc_atomic", `i64 ${dataSize}`);
@@ -659,11 +679,11 @@ export function generateArraySlice(
 
   const newLenField = gen.nextTemp();
   gen.emit(`${newLenField} = getelementptr inbounds %Array, %Array* ${newArrayPtr}, i32 0, i32 1`);
-  gen.emitStore("i32", sliceLen, newLenField);
+  gen.emitStore("i32", finalSliceLen, newLenField);
 
   const newCapField = gen.nextTemp();
   gen.emit(`${newCapField} = getelementptr inbounds %Array, %Array* ${newArrayPtr}, i32 0, i32 2`);
-  gen.emitStore("i32", sliceLen, newCapField);
+  gen.emitStore("i32", finalSliceLen, newCapField);
 
   gen.setVariableType(newArrayPtr, "%Array*");
   return newArrayPtr;
@@ -697,20 +717,25 @@ function generateStringArraySlice(
   if (expr.args.length >= 1) {
     const startDouble = gen.generateExpression(expr.args[0], params);
     const dblStart = gen.ensureDouble(startDouble);
-    startI32 = gen.nextTemp();
-    gen.emit(`${startI32} = fptosi double ${dblStart} to i32`);
+    const rawStart = gen.nextTemp();
+    gen.emit(`${rawStart} = fptosi double ${dblStart} to i32`);
+    startI32 = normalizeSliceIndex(gen, rawStart, length);
   }
 
   let endI32 = length;
   if (expr.args.length >= 2) {
     const endDouble = gen.generateExpression(expr.args[1], params);
     const dblEnd = gen.ensureDouble(endDouble);
-    endI32 = gen.nextTemp();
-    gen.emit(`${endI32} = fptosi double ${dblEnd} to i32`);
+    const rawEnd = gen.nextTemp();
+    gen.emit(`${rawEnd} = fptosi double ${dblEnd} to i32`);
+    endI32 = normalizeSliceIndex(gen, rawEnd, length);
   }
 
   const sliceLen = gen.nextTemp();
   gen.emit(`${sliceLen} = sub i32 ${endI32}, ${startI32}`);
+  const lenIsNeg = gen.emitIcmp("slt", "i32", sliceLen, "0");
+  const finalSliceLen = gen.nextTemp();
+  gen.emit(`${finalSliceLen} = select i1 ${lenIsNeg}, i32 0, i32 ${sliceLen}`);
 
   const sizePtr = gen.nextTemp();
   gen.emit(`${sizePtr} = getelementptr ${arrType}, ${arrType}* null, i32 1`);
@@ -720,7 +745,7 @@ function generateStringArraySlice(
   const newArrayPtr = gen.emitBitcast(arrayMem, "i8*", `${arrType}*`);
 
   const sliceLenI64 = gen.nextTemp();
-  gen.emit(`${sliceLenI64} = zext i32 ${sliceLen} to i64`);
+  gen.emit(`${sliceLenI64} = zext i32 ${finalSliceLen} to i64`);
   const dataSize = gen.nextTemp();
   gen.emit(`${dataSize} = mul i64 ${sliceLenI64}, 8`);
   const dataMem = gen.emitCall("i8*", "@GC_malloc", `i64 ${dataSize}`);
@@ -749,13 +774,13 @@ function generateStringArraySlice(
   gen.emit(
     `${newLenField} = getelementptr inbounds ${arrType}, ${arrType}* ${newArrayPtr}, i32 0, i32 1`,
   );
-  gen.emitStore("i32", sliceLen, newLenField);
+  gen.emitStore("i32", finalSliceLen, newLenField);
 
   const newCapField = gen.nextTemp();
   gen.emit(
     `${newCapField} = getelementptr inbounds ${arrType}, ${arrType}* ${newArrayPtr}, i32 0, i32 2`,
   );
-  gen.emitStore("i32", sliceLen, newCapField);
+  gen.emitStore("i32", finalSliceLen, newCapField);
 
   gen.setVariableType(newArrayPtr, `${arrType}*`);
   return newArrayPtr;
