@@ -22,7 +22,7 @@ function buildObjectProperties(
         "@csyyjson_obj_add_obj",
         `i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${nameConst}`,
       );
-      buildObjectProperties(ctx, prop.value as unknown as ObjectNode, params, jsonDoc, childObj);
+      buildObjectProperties(ctx, prop.value as ObjectNode, params, jsonDoc, childObj);
     } else if (prop.value.type === "boolean") {
       const val = ctx.generateExpression(prop.value, params);
       const boolI32 = ctx.nextTemp();
@@ -93,7 +93,7 @@ export function stringifyObjectArrayLiteral(
         "@csyyjson_mut_arr_add_obj",
         `i8* ${jsonDoc}, i8* ${jsonArr}`,
       );
-      buildObjectProperties(ctx, elem as unknown as ObjectNode, params, jsonDoc, subObj);
+      buildObjectProperties(ctx, elem as ObjectNode, params, jsonDoc, subObj);
     }
   }
 
