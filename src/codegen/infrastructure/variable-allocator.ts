@@ -1012,8 +1012,12 @@ export class VariableAllocator {
       }
     } else {
       const interfaceDefResult = this.getInterface(interfaceName);
-      const interfaceDef = interfaceDefResult as InterfaceDeclaration;
-      const allFields = this.getAllInterfaceFields(interfaceDef);
+      if (!interfaceDefResult) {
+        return this.ctx.emitError(
+          `interface '${interfaceName}' not found when allocating function return variable '${stmt.name}'`,
+        );
+      }
+      const allFields = this.getAllInterfaceFields(interfaceDefResult as InterfaceDeclaration);
       for (let i = 0; i < allFields.length; i++) {
         const field = allFields[i] as { name: string; type: string };
         keys.push(stripOptional(field.name));
@@ -1109,8 +1113,12 @@ export class VariableAllocator {
       tsTypes.push("number");
     } else {
       const interfaceDefResult = this.getInterface(interfaceName);
-      const interfaceDef = interfaceDefResult as InterfaceDeclaration;
-      const allFields = this.getAllInterfaceFields(interfaceDef);
+      if (!interfaceDefResult) {
+        return this.ctx.emitError(
+          `interface '${interfaceName}' not found when allocating method return variable '${stmt.name}'`,
+        );
+      }
+      const allFields = this.getAllInterfaceFields(interfaceDefResult as InterfaceDeclaration);
       for (let i = 0; i < allFields.length; i++) {
         const field = allFields[i] as { name: string; type: string };
         keys.push(stripOptional(field.name));
@@ -1263,6 +1271,11 @@ export class VariableAllocator {
       return;
     }
     const interfaceDefResult = this.getInterface(interfaceName);
+    if (!interfaceDefResult) {
+      return this.ctx.emitError(
+        `interface '${interfaceName}' not found when allocating Map.get() return variable '${stmt.name}'`,
+      );
+    }
     const interfaceDef = interfaceDefResult as InterfaceDeclaration;
     const allocaReg = this.ctx.nextAllocaReg(stmt.name);
     const keys: string[] = [];
