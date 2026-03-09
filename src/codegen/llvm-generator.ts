@@ -729,6 +729,32 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return null;
   }
 
+  public findInterfaceForFields(fieldNames: string[]): string | null {
+    if (!this.ast || !this.ast.interfaces) return null;
+    for (let i = 0; i < this.ast.interfaces.length; i++) {
+      const iface = this.ast.interfaces[i];
+      if (!iface) continue;
+      const allFields = this.getAllInterfaceFields(iface);
+      let allFound = true;
+      for (let j = 0; j < fieldNames.length; j++) {
+        let found = false;
+        for (let k = 0; k < allFields.length; k++) {
+          const fn = allFields[k].name;
+          if (fn === fieldNames[j] || fn === fieldNames[j] + "?") {
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          allFound = false;
+          break;
+        }
+      }
+      if (allFound && this.interfaceStructGen?.hasInterface(iface.name)) return iface.name;
+    }
+    return null;
+  }
+
   public getAllInterfaceFields(iface: InterfaceDeclaration): InterfaceField[] {
     return this.varAllocator.getAllInterfaceFields(iface);
   }

@@ -158,6 +158,7 @@ export interface MemberAccessGeneratorContext {
     name: string,
   ): { keys: string[]; types: string[]; tsTypes: string[] } | null;
   getInterfaceDeclByName(name: string): InterfaceDeclaration | null;
+  findInterfaceForFields(fieldNames: string[]): string | null;
   getAllInterfaceFields(iface: InterfaceDeclaration): InterfaceField[];
   isTypeAlias(name: string): boolean;
   getTypeAliasCommonProperties(
@@ -3014,6 +3015,23 @@ export class MemberAccessGenerator {
     let fields: InterfaceField[] = [];
 
     if (assertedType.startsWith("{")) {
+      const inlineFields = parseInlineObjectTypeForAssertion(assertedType);
+      if (inlineFields && inlineFields.length >= 2) {
+        const fieldNames: string[] = [];
+        for (let fi = 0; fi < inlineFields.length; fi++) {
+          fieldNames.push(inlineFields[fi].name);
+        }
+        const matchedIface = this.ctx.findInterfaceForFields(fieldNames);
+        if (matchedIface) {
+          const objPtr = this.ctx.generateExpression(assertion.expression, params);
+          const ifaceResult = this.accessObjectPropertyWithNamedInterface(
+            objPtr,
+            property,
+            matchedIface,
+          );
+          if (ifaceResult !== null) return ifaceResult;
+        }
+      }
       const syntheticExpr: MemberAccessNode = {
         type: "member_access",
         object: assertion.expression,
