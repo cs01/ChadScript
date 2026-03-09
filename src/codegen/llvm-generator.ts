@@ -2614,7 +2614,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       if (handlerReturnType) {
         const retIface = this.getInterfaceFromAST(handlerReturnType);
         if (retIface) {
-          const fields = (retIface as { fields: { name: string }[] }).fields;
+          const fields = this.getAllInterfaceFields(retIface as InterfaceDeclaration);
           for (let fj = 0; fj < fields.length; fj++) {
             if (fields[fj].name === "headers") {
               hasHeaders = true;
