@@ -269,32 +269,11 @@ export class TypeInference {
     if (cached) return cached;
     const varType = this.ctx.symbolTable.getType(name);
     if (varType) {
-      if (varType === "%StringArray*" || varType === "%StringArray")
-        return this.ctx.typeContext.getArrayType("string");
-      if (varType === "%Array*" || varType === "%Array")
-        return this.ctx.typeContext.getArrayType("number");
-      if (varType === "%ObjectArray*") return this.ctx.typeContext.getArrayType("object");
-      if (varType === "%StringMap*") return this.ctx.typeContext.getMapType("string", "string");
-      if (varType === "%StringSet*") return this.ctx.typeContext.getSetType("string");
-      if (varType === "%Promise*") return this.ctx.typeContext.resolve("Promise");
-      if (varType === "%__FetchResponse*") return this.ctx.typeContext.resolve("Response");
-      if (varType === "double") return this.ctx.typeContext.numberType;
+      const fromVarType = this.resolveFromVarType(varType);
+      if (fromVarType) return fromVarType;
     }
-    if (this.ctx.symbolTable.isString(name)) return this.ctx.typeContext.stringType;
-    if (this.ctx.symbolTable.isNumberArray(name))
-      return this.ctx.typeContext.getArrayType("number");
-    if (this.ctx.symbolTable.isMap(name))
-      return this.ctx.typeContext.getMapType("string", "string");
-    if (this.ctx.symbolTable.isSet(name)) return this.ctx.typeContext.getSetType("string");
-    if (this.ctx.symbolTable.isRegex(name)) return this.ctx.typeContext.resolve("RegExp");
-    if (this.ctx.symbolTable.isObject(name)) return this.ctx.typeContext.resolve("object");
-    if (this.ctx.symbolTable.isJSON(name)) return this.ctx.typeContext.resolve("object");
-    if (this.ctx.symbolTable.isClass(name)) {
-      const className = this.ctx.symbolTable.getClassName(name);
-      if (className) return this.ctx.typeContext.getClassType(className);
-    }
-    if (this.ctx.symbolTable.isObjectArray(name))
-      return this.ctx.typeContext.getArrayType("object");
+    const fromSymbol = this.resolveFromSymbolKind(name);
+    if (fromSymbol) return fromSymbol;
     if (varType) {
       if (varType === "i8*") {
         const ifaceType = this.ctx.symbolTable.getInterfaceType(name);
@@ -312,6 +291,47 @@ export class TypeInference {
     if (paramType) {
       return this.ctx.typeContext.resolve(stripNullable(paramType));
     }
+    return null;
+  }
+
+  private resolveFromVarType(varType: string): ResolvedType | null {
+    if (varType === "%StringArray*" || varType === "%StringArray")
+      return this.ctx.typeContext.getArrayType("string");
+    if (varType === "%Array*" || varType === "%Array")
+      return this.ctx.typeContext.getArrayType("number");
+    if (varType === "%ObjectArray*") return this.ctx.typeContext.getArrayType("object");
+    if (varType === "%StringMap*") return this.ctx.typeContext.getMapType("string", "string");
+    return this.resolveFromVarTypeExtended(varType);
+  }
+
+  private resolveFromVarTypeExtended(varType: string): ResolvedType | null {
+    if (varType === "%StringSet*") return this.ctx.typeContext.getSetType("string");
+    if (varType === "%Promise*") return this.ctx.typeContext.resolve("Promise");
+    if (varType === "%__FetchResponse*") return this.ctx.typeContext.resolve("Response");
+    if (varType === "double") return this.ctx.typeContext.numberType;
+    return null;
+  }
+
+  private resolveFromSymbolKind(name: string): ResolvedType | null {
+    if (this.ctx.symbolTable.isString(name)) return this.ctx.typeContext.stringType;
+    if (this.ctx.symbolTable.isNumberArray(name))
+      return this.ctx.typeContext.getArrayType("number");
+    if (this.ctx.symbolTable.isMap(name))
+      return this.ctx.typeContext.getMapType("string", "string");
+    if (this.ctx.symbolTable.isSet(name)) return this.ctx.typeContext.getSetType("string");
+    return this.resolveFromSymbolKindExtended(name);
+  }
+
+  private resolveFromSymbolKindExtended(name: string): ResolvedType | null {
+    if (this.ctx.symbolTable.isRegex(name)) return this.ctx.typeContext.resolve("RegExp");
+    if (this.ctx.symbolTable.isObject(name)) return this.ctx.typeContext.resolve("object");
+    if (this.ctx.symbolTable.isJSON(name)) return this.ctx.typeContext.resolve("object");
+    if (this.ctx.symbolTable.isClass(name)) {
+      const className = this.ctx.symbolTable.getClassName(name);
+      if (className) return this.ctx.typeContext.getClassType(className);
+    }
+    if (this.ctx.symbolTable.isObjectArray(name))
+      return this.ctx.typeContext.getArrayType("object");
     return null;
   }
 
@@ -1740,15 +1760,18 @@ export class TypeInference {
     const e = expr as ExprBase;
     if (e.type === "new") {
       const newExpr = expr as NewNode;
-      if (newExpr.className === "Promise") return false;
-      if (newExpr.className === "RegExp") return false;
-      if (newExpr.className === "Uint8Array") return false;
-      if (newExpr.className === "Date") return false;
-      if (newExpr.className === "URL") return false;
-      if (newExpr.className === "URLSearchParams") return false;
+      if (this.isBuiltinClassName(newExpr.className)) return false;
       return true;
     }
     return false;
+  }
+
+  private isBuiltinClassName(className: string): boolean {
+    if (className === "Promise") return true;
+    if (className === "RegExp") return true;
+    if (className === "Uint8Array") return true;
+    if (className === "Date") return true;
+    return className === "URL" || className === "URLSearchParams";
   }
 
   isUint8ArrayExpression(expr: Expression): boolean {
