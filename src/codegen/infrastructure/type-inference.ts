@@ -833,6 +833,15 @@ export class TypeInference {
     return null;
   }
 
+  private getCallReturnType(expr: Expression): string | null {
+    const e = expr as ExprBase;
+    if (e.type !== "call") return null;
+    const callExpr = expr as CallNode;
+    const func = this.getFunction(callExpr.name);
+    if (!func || !func.returnType) return null;
+    return stripNullable(func.returnType);
+  }
+
   // Resolve import aliases by checking the AST's import specifiers directly
   private resolveClassAlias(name: string): string {
     const ast = this.ctx.getAst();
@@ -1182,6 +1191,11 @@ export class TypeInference {
       }
       return false;
     }
+    if (e.type === "call") {
+      const rt = this.getCallReturnType(expr);
+      if (rt === "number[]" || rt === "boolean[]") return true;
+      return false;
+    }
     if (e.type === "member_access") {
       const memberExpr = expr as MemberAccessNode;
       if (!memberExpr.object) {
@@ -1251,6 +1265,13 @@ export class TypeInference {
           return this.isObjectArrayExpression(binExpr.left);
         }
       }
+    }
+    if (e.type === "call") {
+      const rt = this.getCallReturnType(expr);
+      if (rt && rt.endsWith("[]") && rt !== "string[]" && rt !== "number[]" && rt !== "boolean[]") {
+        return true;
+      }
+      return false;
     }
     if (e.type === "variable") {
       const resolved = this.resolveExpressionType(expr);
@@ -2101,6 +2122,11 @@ export class TypeInference {
         return true;
       }
       return this.isStringArrayExpression(assertion.expression);
+    }
+    if (e.type === "call") {
+      const rt = this.getCallReturnType(expr);
+      if (rt === "string[]") return true;
+      return false;
     }
     if (e.type === "variable") {
       const resolved = this.resolveExpressionType(expr);
