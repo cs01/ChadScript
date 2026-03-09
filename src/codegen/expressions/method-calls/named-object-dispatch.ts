@@ -301,10 +301,7 @@ function handleProcessCoreOps(
   return null;
 }
 
-function handleProcessIdOps(
-  ctx: MethodCallGeneratorContext,
-  method: string,
-): string | null {
+function handleProcessIdOps(ctx: MethodCallGeneratorContext, method: string): string | null {
   if (method === "uptime") return handleProcessUptime(ctx);
   if (method === "getuid") return handleProcessSyscallI32(ctx, "@getuid");
   if (method === "getgid") return handleProcessSyscallI32(ctx, "@getgid");
@@ -353,10 +350,7 @@ export function handleAssertMethod(
   return null;
 }
 
-function handleOsCoreOps(
-  ctx: MethodCallGeneratorContext,
-  method: string,
-): string | null {
+function handleOsCoreOps(ctx: MethodCallGeneratorContext, method: string): string | null {
   if (method === "hostname") return handleOsHostname(ctx);
   if (method === "homedir") return handleOsHomedir(ctx);
   if (method === "tmpdir") return handleOsTmpdir(ctx);
