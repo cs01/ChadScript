@@ -57,7 +57,9 @@ export function accessObjectProperty(
 ): string {
   const propIndex = keys.indexOf(property);
   if (propIndex === -1) {
-    return ctx.emitError(`Property '${property}' not found. Available properties: ${keys.join(", ")}`);
+    return ctx.emitError(
+      `Property '${property}' not found. Available properties: ${keys.join(", ")}`,
+    );
   }
 
   const propType = types[propIndex];

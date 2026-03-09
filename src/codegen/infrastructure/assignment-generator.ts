@@ -275,7 +275,9 @@ export class AssignmentGenerator {
     }
 
     if (!instancePtr) {
-      return this.ctx.emitError("Cannot determine class instance for field assignment on " + objType);
+      return this.ctx.emitError(
+        "Cannot determine class instance for field assignment on " + objType,
+      );
     }
 
     const fields = this.ctx.classGenGetClassFields(className);
