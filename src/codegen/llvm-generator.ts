@@ -699,14 +699,15 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     for (const iface of this.ast.interfaces) {
       if (!iface) continue;
       if (iface.name === cleanName) {
-        for (const field of this.getAllInterfaceFields(iface)) {
+        const allFields = this.getAllInterfaceFields(iface);
+        for (let fi = 0; fi < allFields.length; fi++) {
+          const field = allFields[fi] as InterfaceField;
           if (!field) continue;
           let fieldName = field.name;
           if (fieldName.endsWith("?")) {
             fieldName = fieldName.slice(0, fieldName.length - 1);
           }
           keys.push(fieldName);
-          // field.type is a TS type (e.g. "string", "number") — convert to LLVM for types[]
           types.push(tsTypeToLlvm(field.type));
           tsTypes.push(field.type);
         }
@@ -805,7 +806,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     for (const iface of this.ast.interfaces) {
       if (!iface) continue;
       if (iface.name === interfaceName) {
-        for (const f of this.getAllInterfaceFields(iface)) {
+        const allFields = this.getAllInterfaceFields(iface);
+        for (let fi = 0; fi < allFields.length; fi++) {
+          const f = allFields[fi] as InterfaceField;
           if (!f) continue;
           let fName = f.name;
           if (fName.endsWith("?")) {

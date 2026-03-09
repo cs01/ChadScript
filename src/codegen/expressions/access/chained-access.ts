@@ -30,7 +30,9 @@ export function handleNestedInterfaceField(
     const keys: string[] = [];
     const tsTypes: string[] = [];
     const types: string[] = [];
-    for (const f of ctx.getAllInterfaceFields(nestedInterfaceDef)) {
+    const allFields = ctx.getAllInterfaceFields(nestedInterfaceDef);
+    for (let fi = 0; fi < allFields.length; fi++) {
+      const f = allFields[fi] as { name: string; type: string };
       keys.push(stripOptional(f.name));
       tsTypes.push(f.type);
       types.push(tsTypeToLlvm(f.type));
