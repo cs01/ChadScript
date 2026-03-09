@@ -45,10 +45,10 @@ import type {
 
 export function varDeclKey(decl: VariableDeclaration): string {
   const line =
-    (decl as unknown as VariableDeclaration).loc?.line ??
-    (decl as unknown as VariableDeclaration).line ??
+    (decl as VariableDeclaration).loc?.line ??
+    (decl as VariableDeclaration).line ??
     -1;
-  const col = (decl as unknown as VariableDeclaration).loc?.column ?? -1;
+  const col = (decl as VariableDeclaration).loc?.column ?? -1;
   return decl.name + ":" + line + ":" + col;
 }
 
@@ -113,19 +113,19 @@ class EscapeAnalyzer {
   private stmtContainsArrow(stmt: Statement): boolean {
     const s = stmt as StmtBase;
     if (s.type === "variable_declaration") {
-      const d = stmt as unknown as VariableDeclaration;
+      const d = stmt as VariableDeclaration;
       return d.value ? this.exprContainsArrow(d.value) : false;
     }
     if (s.type === "assignment") {
-      const a = stmt as unknown as AssignmentStatement;
+      const a = stmt as AssignmentStatement;
       return this.exprContainsArrow(a.value);
     }
     if (s.type === "return") {
-      const r = stmt as unknown as ReturnStatement;
+      const r = stmt as ReturnStatement;
       return r.value ? this.exprContainsArrow(r.value) : false;
     }
     if (s.type === "if") {
-      const i = stmt as unknown as IfStatement;
+      const i = stmt as IfStatement;
       return (
         this.exprContainsArrow(i.condition) ||
         this.blockContainsArrow(i.thenBlock.statements) ||
@@ -133,19 +133,19 @@ class EscapeAnalyzer {
       );
     }
     if (s.type === "while" || s.type === "do_while") {
-      const w = stmt as unknown as WhileStatement;
+      const w = stmt as WhileStatement;
       return this.exprContainsArrow(w.condition) || this.blockContainsArrow(w.body.statements);
     }
     if (s.type === "for") {
-      const f = stmt as unknown as ForStatement;
+      const f = stmt as ForStatement;
       return this.blockContainsArrow(f.body.statements);
     }
     if (s.type === "for_of") {
-      const f = stmt as unknown as ForOfStatement;
+      const f = stmt as ForOfStatement;
       return this.exprContainsArrow(f.iterable) || this.blockContainsArrow(f.body.statements);
     }
     if (s.type === "try") {
-      const t = stmt as unknown as TryStatement;
+      const t = stmt as TryStatement;
       return (
         this.blockContainsArrow(t.tryBlock.statements) ||
         (t.catchBody ? this.blockContainsArrow(t.catchBody.statements) : false) ||
@@ -153,7 +153,7 @@ class EscapeAnalyzer {
       );
     }
     if (s.type === "switch") {
-      const sw = stmt as unknown as SwitchStatement;
+      const sw = stmt as SwitchStatement;
       for (let i = 0; i < sw.cases.length; i++) {
         const c = sw.cases[i] as { test: Expression | null; consequent: Statement[] };
         if (this.blockContainsArrow(c.consequent)) return true;
@@ -161,10 +161,10 @@ class EscapeAnalyzer {
       return false;
     }
     if (s.type === "block") {
-      const b = stmt as unknown as BlockStatement;
+      const b = stmt as BlockStatement;
       return this.blockContainsArrow(b.statements);
     }
-    return this.exprContainsArrow(stmt as unknown as Expression);
+    return this.exprContainsArrow(stmt as Expression);
   }
 
   private exprContainsArrow(expr: Expression): boolean {
@@ -184,14 +184,14 @@ class EscapeAnalyzer {
       return false;
     }
     if (e.type === "call") {
-      const c = expr as unknown as CallNode;
+      const c = expr as CallNode;
       for (let i = 0; i < c.args.length; i++) {
         if (this.exprContainsArrow(c.args[i])) return true;
       }
       return false;
     }
     if (e.type === "method_call") {
-      const m = expr as unknown as MethodCallNode;
+      const m = expr as MethodCallNode;
       if (this.exprContainsArrow(m.object)) return true;
       for (let i = 0; i < m.args.length; i++) {
         if (this.exprContainsArrow(m.args[i])) return true;
@@ -199,37 +199,37 @@ class EscapeAnalyzer {
       return false;
     }
     if (e.type === "new") {
-      const n = expr as unknown as NewNode;
+      const n = expr as NewNode;
       for (let i = 0; i < n.args.length; i++) {
         if (this.exprContainsArrow(n.args[i])) return true;
       }
       return false;
     }
     if (e.type === "binary") {
-      const b = expr as unknown as BinaryNode;
+      const b = expr as BinaryNode;
       return this.exprContainsArrow(b.left) || this.exprContainsArrow(b.right);
     }
     if (e.type === "unary") {
-      const u = expr as unknown as UnaryNode;
+      const u = expr as UnaryNode;
       return this.exprContainsArrow(u.operand);
     }
     if (e.type === "member_access") {
-      const m = expr as unknown as MemberAccessNode;
+      const m = expr as MemberAccessNode;
       return this.exprContainsArrow(m.object);
     }
     if (e.type === "index_access") {
-      const i = expr as unknown as IndexAccessNode;
+      const i = expr as IndexAccessNode;
       return this.exprContainsArrow(i.object) || this.exprContainsArrow(i.index);
     }
     if (e.type === "array") {
-      const a = expr as unknown as ArrayNode;
+      const a = expr as ArrayNode;
       for (let i = 0; i < a.elements.length; i++) {
         if (this.exprContainsArrow(a.elements[i])) return true;
       }
       return false;
     }
     if (e.type === "object") {
-      const o = expr as unknown as ObjectNode;
+      const o = expr as ObjectNode;
       for (let i = 0; i < o.properties.length; i++) {
         const prop = o.properties[i] as { key: string; value: Expression };
         if (this.exprContainsArrow(prop.value)) return true;
@@ -237,7 +237,7 @@ class EscapeAnalyzer {
       return false;
     }
     if (e.type === "conditional") {
-      const c = expr as unknown as ConditionalExpressionNode;
+      const c = expr as ConditionalExpressionNode;
       return (
         this.exprContainsArrow(c.condition) ||
         this.exprContainsArrow(c.consequent) ||
@@ -245,7 +245,7 @@ class EscapeAnalyzer {
       );
     }
     if (e.type === "template_literal") {
-      const t = expr as unknown as TemplateLiteralNode;
+      const t = expr as TemplateLiteralNode;
       for (let i = 0; i < t.parts.length; i++) {
         const part = t.parts[i];
         if (typeof part !== "string" && this.exprContainsArrow(part as Expression)) return true;
@@ -253,19 +253,19 @@ class EscapeAnalyzer {
       return false;
     }
     if (e.type === "await") {
-      const a = expr as unknown as AwaitExpressionNode;
+      const a = expr as AwaitExpressionNode;
       return this.exprContainsArrow(a.argument);
     }
     if (e.type === "member_access_assignment") {
-      const m = expr as unknown as MemberAccessAssignmentNode;
+      const m = expr as MemberAccessAssignmentNode;
       return this.exprContainsArrow(m.object) || this.exprContainsArrow(m.value);
     }
     if (e.type === "index_access_assignment") {
-      const i = expr as unknown as IndexAccessAssignmentNode;
+      const i = expr as IndexAccessAssignmentNode;
       return this.exprContainsArrow(i.object) || this.exprContainsArrow(i.value);
     }
     if (e.type === "type_assertion") {
-      const t = expr as unknown as TypeAssertionNode;
+      const t = expr as TypeAssertionNode;
       return this.exprContainsArrow(t.expression);
     }
     return false;
@@ -301,33 +301,33 @@ class EscapeAnalyzer {
   private collectCandidatesFromStmt(stmt: Statement): void {
     const s = stmt as StmtBase;
     if (s.type === "if") {
-      const ifStmt = stmt as unknown as IfStatement;
+      const ifStmt = stmt as IfStatement;
       this.collectCandidates(ifStmt.thenBlock.statements);
       if (ifStmt.elseBlock) {
         this.collectCandidates(ifStmt.elseBlock.statements);
       }
     } else if (s.type === "while" || s.type === "do_while") {
-      const w = stmt as unknown as WhileStatement;
+      const w = stmt as WhileStatement;
       this.collectCandidates(w.body.statements);
     } else if (s.type === "for") {
-      const f = stmt as unknown as ForStatement;
+      const f = stmt as ForStatement;
       this.collectCandidates(f.body.statements);
     } else if (s.type === "for_of") {
-      const f = stmt as unknown as ForOfStatement;
+      const f = stmt as ForOfStatement;
       this.collectCandidates(f.body.statements);
     } else if (s.type === "try") {
-      const t = stmt as unknown as TryStatement;
+      const t = stmt as TryStatement;
       this.collectCandidates(t.tryBlock.statements);
       if (t.catchBody) this.collectCandidates(t.catchBody.statements);
       if (t.finallyBlock) this.collectCandidates(t.finallyBlock.statements);
     } else if (s.type === "switch") {
-      const sw = stmt as unknown as SwitchStatement;
+      const sw = stmt as SwitchStatement;
       for (let i = 0; i < sw.cases.length; i++) {
         const c = sw.cases[i] as { test: Expression | null; consequent: Statement[] };
         this.collectCandidates(c.consequent);
       }
     } else if (s.type === "block") {
-      const b = stmt as unknown as BlockStatement;
+      const b = stmt as BlockStatement;
       this.collectCandidates(b.statements);
     }
   }
@@ -341,42 +341,42 @@ class EscapeAnalyzer {
   private scanStmtForEscapes(stmt: Statement): void {
     const s = stmt as StmtBase;
     if (s.type === "variable_declaration") {
-      const decl = stmt as unknown as VariableDeclaration;
+      const decl = stmt as VariableDeclaration;
       if (decl.value) {
         const v = decl.value as ExprBase;
         if (v.type === "variable") {
-          const varRef = decl.value as unknown as { type: string; name: string };
+          const varRef = decl.value as { type: string; name: string };
           this.escapedNames.push(varRef.name);
         } else {
           this.walkExprEscaping(decl.value);
         }
       }
     } else if (s.type === "assignment") {
-      const a = stmt as unknown as AssignmentStatement;
+      const a = stmt as AssignmentStatement;
       const v = a.value as ExprBase;
       if (v.type === "variable") {
-        const varRef = a.value as unknown as { type: string; name: string };
+        const varRef = a.value as { type: string; name: string };
         this.escapedNames.push(varRef.name);
       } else {
         this.walkExprEscaping(a.value);
       }
     } else if (s.type === "return") {
-      const r = stmt as unknown as ReturnStatement;
+      const r = stmt as ReturnStatement;
       if (r.value) this.walkExprEscaping(r.value);
     } else if (s.type === "throw") {
-      const t = stmt as unknown as ThrowStatement;
+      const t = stmt as ThrowStatement;
       this.walkExprEscaping(t.argument);
     } else if (s.type === "if") {
-      const ifStmt = stmt as unknown as IfStatement;
+      const ifStmt = stmt as IfStatement;
       this.walkExprNonEscaping(ifStmt.condition);
       this.scanBlockForEscapes(ifStmt.thenBlock);
       if (ifStmt.elseBlock) this.scanBlockForEscapes(ifStmt.elseBlock);
     } else if (s.type === "while" || s.type === "do_while") {
-      const w = stmt as unknown as WhileStatement;
+      const w = stmt as WhileStatement;
       this.walkExprNonEscaping(w.condition);
       this.scanBlockForEscapes(w.body);
     } else if (s.type === "for") {
-      const f = stmt as unknown as ForStatement;
+      const f = stmt as ForStatement;
       if (f.init) this.scanStmtForEscapes(f.init as Statement);
       if (f.condition) this.walkExprNonEscaping(f.condition);
       if (f.update) {
@@ -389,16 +389,16 @@ class EscapeAnalyzer {
       }
       this.scanBlockForEscapes(f.body);
     } else if (s.type === "for_of") {
-      const f = stmt as unknown as ForOfStatement;
+      const f = stmt as ForOfStatement;
       this.walkExprNonEscaping(f.iterable);
       this.scanBlockForEscapes(f.body);
     } else if (s.type === "try") {
-      const t = stmt as unknown as TryStatement;
+      const t = stmt as TryStatement;
       this.scanBlockForEscapes(t.tryBlock);
       if (t.catchBody) this.scanBlockForEscapes(t.catchBody);
       if (t.finallyBlock) this.scanBlockForEscapes(t.finallyBlock);
     } else if (s.type === "switch") {
-      const sw = stmt as unknown as SwitchStatement;
+      const sw = stmt as SwitchStatement;
       this.walkExprNonEscaping(sw.discriminant);
       for (let i = 0; i < sw.cases.length; i++) {
         const c = sw.cases[i] as { test: Expression | null; consequent: Statement[] };
@@ -408,17 +408,17 @@ class EscapeAnalyzer {
         }
       }
     } else if (s.type === "block") {
-      const b = stmt as unknown as BlockStatement;
+      const b = stmt as BlockStatement;
       this.scanBlockForEscapes(b);
     } else {
-      this.walkExprNonEscaping(stmt as unknown as Expression);
+      this.walkExprNonEscaping(stmt as Expression);
     }
   }
 
   private walkExprEscaping(expr: Expression): void {
     const e = expr as ExprBase;
     if (e.type === "variable") {
-      const v = expr as unknown as { type: string; name: string };
+      const v = expr as { type: string; name: string };
       this.escapedNames.push(v.name);
       return;
     }
@@ -447,20 +447,20 @@ class EscapeAnalyzer {
     }
     if (e.type === "variable") {
       if (isEscaping) {
-        const v = expr as unknown as { type: string; name: string };
+        const v = expr as { type: string; name: string };
         this.escapedNames.push(v.name);
       }
       return;
     }
     if (e.type === "call") {
-      const c = expr as unknown as CallNode;
+      const c = expr as CallNode;
       for (let i = 0; i < c.args.length; i++) {
         this.walkExprEscaping(c.args[i]);
       }
       return;
     }
     if (e.type === "method_call") {
-      const m = expr as unknown as MethodCallNode;
+      const m = expr as MethodCallNode;
       if (isEscaping) {
         this.walkExprEscaping(m.object);
       } else {
@@ -472,25 +472,25 @@ class EscapeAnalyzer {
       return;
     }
     if (e.type === "new") {
-      const n = expr as unknown as NewNode;
+      const n = expr as NewNode;
       for (let i = 0; i < n.args.length; i++) {
         this.walkExprEscaping(n.args[i]);
       }
       return;
     }
     if (e.type === "binary") {
-      const b = expr as unknown as BinaryNode;
+      const b = expr as BinaryNode;
       this.walkExprNonEscaping(b.left);
       this.walkExprNonEscaping(b.right);
       return;
     }
     if (e.type === "unary") {
-      const u = expr as unknown as UnaryNode;
+      const u = expr as UnaryNode;
       this.walkExprNonEscaping(u.operand);
       return;
     }
     if (e.type === "member_access") {
-      const m = expr as unknown as MemberAccessNode;
+      const m = expr as MemberAccessNode;
       if (isEscaping) {
         this.walkExprEscaping(m.object);
       } else {
@@ -499,7 +499,7 @@ class EscapeAnalyzer {
       return;
     }
     if (e.type === "index_access") {
-      const i = expr as unknown as IndexAccessNode;
+      const i = expr as IndexAccessNode;
       if (isEscaping) {
         this.walkExprEscaping(i.object);
       } else {
@@ -509,14 +509,14 @@ class EscapeAnalyzer {
       return;
     }
     if (e.type === "array") {
-      const a = expr as unknown as ArrayNode;
+      const a = expr as ArrayNode;
       for (let i = 0; i < a.elements.length; i++) {
         this.walkExprEscaping(a.elements[i]);
       }
       return;
     }
     if (e.type === "object") {
-      const o = expr as unknown as ObjectNode;
+      const o = expr as ObjectNode;
       for (let i = 0; i < o.properties.length; i++) {
         const prop = o.properties[i] as { key: string; value: Expression };
         this.walkExprEscaping(prop.value);
@@ -524,9 +524,9 @@ class EscapeAnalyzer {
       return;
     }
     if (e.type === "arrow_function") {
-      const a = expr as unknown as ArrowFunctionNode;
+      const a = expr as ArrowFunctionNode;
       if ((a.body as ExprBase).type === "block") {
-        const block = a.body as unknown as BlockStatement;
+        const block = a.body as BlockStatement;
         this.scanBlockForArrowEscapes(block);
       } else {
         this.scanArrowExprForEscapes(a.body as Expression);
@@ -534,7 +534,7 @@ class EscapeAnalyzer {
       return;
     }
     if (e.type === "template_literal") {
-      const t = expr as unknown as TemplateLiteralNode;
+      const t = expr as TemplateLiteralNode;
       for (let i = 0; i < t.parts.length; i++) {
         const part = t.parts[i];
         if (typeof part !== "string") {
@@ -544,7 +544,7 @@ class EscapeAnalyzer {
       return;
     }
     if (e.type === "conditional") {
-      const c = expr as unknown as ConditionalExpressionNode;
+      const c = expr as ConditionalExpressionNode;
       this.walkExprNonEscaping(c.condition);
       if (isEscaping) {
         this.walkExprEscaping(c.consequent);
@@ -556,12 +556,12 @@ class EscapeAnalyzer {
       return;
     }
     if (e.type === "await") {
-      const a = expr as unknown as AwaitExpressionNode;
+      const a = expr as AwaitExpressionNode;
       this.walkExprEscaping(a.argument);
       return;
     }
     if (e.type === "member_access_assignment") {
-      const m = expr as unknown as MemberAccessAssignmentNode;
+      const m = expr as MemberAccessAssignmentNode;
       if (isEscaping) {
         this.walkExprEscaping(m.object);
       } else {
@@ -571,7 +571,7 @@ class EscapeAnalyzer {
       return;
     }
     if (e.type === "index_access_assignment") {
-      const i = expr as unknown as IndexAccessAssignmentNode;
+      const i = expr as IndexAccessAssignmentNode;
       if (isEscaping) {
         this.walkExprEscaping(i.object);
       } else {
@@ -582,7 +582,7 @@ class EscapeAnalyzer {
       return;
     }
     if (e.type === "type_assertion") {
-      const t = expr as unknown as TypeAssertionNode;
+      const t = expr as TypeAssertionNode;
       if (isEscaping) {
         this.walkExprEscaping(t.expression);
       } else {
@@ -591,7 +591,7 @@ class EscapeAnalyzer {
       return;
     }
     if (e.type === "spread_element") {
-      const s = expr as unknown as { type: string; argument: Expression };
+      const s = expr as { type: string; argument: Expression };
       this.walkExprEscaping(s.argument);
       return;
     }
@@ -606,25 +606,25 @@ class EscapeAnalyzer {
   private scanArrowStmtForEscapes(stmt: Statement): void {
     const s = stmt as StmtBase;
     if (s.type === "return") {
-      const r = stmt as unknown as ReturnStatement;
+      const r = stmt as ReturnStatement;
       if (r.value) this.walkExprEscaping(r.value);
     } else if (s.type === "variable_declaration") {
-      const d = stmt as unknown as VariableDeclaration;
+      const d = stmt as VariableDeclaration;
       if (d.value) this.walkExprEscaping(d.value);
     } else if (s.type === "assignment") {
-      const a = stmt as unknown as AssignmentStatement;
+      const a = stmt as AssignmentStatement;
       this.walkExprEscaping(a.value);
     } else if (s.type === "if") {
-      const i = stmt as unknown as IfStatement;
+      const i = stmt as IfStatement;
       this.walkExprEscaping(i.condition);
       this.scanBlockForArrowEscapes(i.thenBlock);
       if (i.elseBlock) this.scanBlockForArrowEscapes(i.elseBlock);
     } else if (s.type === "while" || s.type === "do_while") {
-      const w = stmt as unknown as WhileStatement;
+      const w = stmt as WhileStatement;
       this.walkExprEscaping(w.condition);
       this.scanBlockForArrowEscapes(w.body);
     } else if (s.type === "for") {
-      const f = stmt as unknown as ForStatement;
+      const f = stmt as ForStatement;
       if (f.init) this.scanArrowStmtForEscapes(f.init as Statement);
       if (f.condition) this.walkExprEscaping(f.condition);
       if (f.update) {
@@ -637,16 +637,16 @@ class EscapeAnalyzer {
       }
       this.scanBlockForArrowEscapes(f.body);
     } else if (s.type === "for_of") {
-      const f = stmt as unknown as ForOfStatement;
+      const f = stmt as ForOfStatement;
       this.walkExprEscaping(f.iterable);
       this.scanBlockForArrowEscapes(f.body);
     } else if (s.type === "try") {
-      const t = stmt as unknown as TryStatement;
+      const t = stmt as TryStatement;
       this.scanBlockForArrowEscapes(t.tryBlock);
       if (t.catchBody) this.scanBlockForArrowEscapes(t.catchBody);
       if (t.finallyBlock) this.scanBlockForArrowEscapes(t.finallyBlock);
     } else if (s.type === "switch") {
-      const sw = stmt as unknown as SwitchStatement;
+      const sw = stmt as SwitchStatement;
       this.walkExprEscaping(sw.discriminant);
       for (let i = 0; i < sw.cases.length; i++) {
         const c = sw.cases[i] as { test: Expression | null; consequent: Statement[] };
@@ -656,13 +656,13 @@ class EscapeAnalyzer {
         }
       }
     } else if (s.type === "throw") {
-      const t = stmt as unknown as ThrowStatement;
+      const t = stmt as ThrowStatement;
       this.walkExprEscaping(t.argument);
     } else if (s.type === "block") {
-      const b = stmt as unknown as BlockStatement;
+      const b = stmt as BlockStatement;
       this.scanBlockForArrowEscapes(b);
     } else {
-      this.scanArrowExprForEscapes(stmt as unknown as Expression);
+      this.scanArrowExprForEscapes(stmt as Expression);
     }
   }
 
