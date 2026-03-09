@@ -2430,7 +2430,7 @@ export class MemberAccessGenerator {
     if (!interfaceDef) return null;
     const allFields = this.ctx.getAllInterfaceFields(interfaceDef as InterfaceDeclaration);
 
-    let propIndex = -1;
+    let propIndex: number = -1;
     for (let i = 0; i < allFields.length; i++) {
       const f = allFields[i] as { name: string; type: string };
       if (stripOptional(f.name) === expr.property) {
