@@ -485,7 +485,7 @@ export function handleClassMethods(
   } else if (exprObjBase.type === "this") {
     const thisPtr = ctx.getThisPointer();
     if (!thisPtr) {
-      ctx.emitError(`this.${method}() called outside of class method`, expr.loc);
+      return ctx.emitError(`this.${method}() called outside of class method`, expr.loc);
     }
     instancePtr = thisPtr;
     if (ctx.getCurrentClassName()) {
@@ -493,7 +493,7 @@ export function handleClassMethods(
     } else {
       const classesLen5 = ctx.getAstClassesLength();
       if (classesLen5 === 0) {
-        ctx.emitError(`Method ${method} not found in any class - no AST`, expr.loc);
+        return ctx.emitError(`Method ${method} not found in any class - no AST`, expr.loc);
       }
       let classWithMethodResult: ClassNode | null = null;
       for (let ci = 0; ci < classesLen5; ci++) {
@@ -514,7 +514,7 @@ export function handleClassMethods(
       }
       const classWithMethod = classWithMethodResult as ClassNode;
       if (!classWithMethodResult) {
-        ctx.emitError(`Method ${method} not found in any class`, expr.loc);
+        return ctx.emitError(`Method ${method} not found in any class`, expr.loc);
       }
       className = classWithMethod.name;
     }
@@ -713,10 +713,10 @@ export function handleClassMethods(
   } else if (exprObjBase.type === "super") {
     const thisPtr = ctx.getThisPointer();
     if (!thisPtr) {
-      ctx.emitError("super.method() called outside of class method", expr.loc);
+      return ctx.emitError("super.method() called outside of class method", expr.loc);
     }
     if (!ctx.getCurrentClassName()) {
-      ctx.emitError("super.method() called outside of class context", expr.loc);
+      return ctx.emitError("super.method() called outside of class context", expr.loc);
     }
     let currentClassResult: ClassNode | null = null;
     const classesLen6 = ctx.getAstClassesLength();
@@ -729,7 +729,7 @@ export function handleClassMethods(
     }
     const currentClass = currentClassResult as ClassNode;
     if (!currentClassResult || !currentClass.extends) {
-      ctx.emitError(
+      return ctx.emitError(
         `super.method() called but current class ${ctx.getCurrentClassName()} has no parent class`,
         expr.loc,
       );
@@ -773,7 +773,7 @@ export function handleClassMethods(
       }
     }
     if (!resolvedClass) {
-      ctx.emitError(`Method ${method} not found in class ${className}`, expr.loc);
+      return ctx.emitError(`Method ${method} not found in class ${className}`, expr.loc);
     }
 
     const instanceClass = isInterfaceClass ? resolvedClass : className;
@@ -852,7 +852,7 @@ export function handleObjectMethods(
     }
   }
   if (!funcExists) {
-    ctx.emitError(`Function ${method} not found for object method call`, expr.loc);
+    return ctx.emitError(`Function ${method} not found for object method call`, expr.loc);
   }
 
   // Get function type from AST for correct parameter/return types

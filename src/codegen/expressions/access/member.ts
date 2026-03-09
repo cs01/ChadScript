@@ -2562,11 +2562,11 @@ export class MemberAccessGenerator {
   private handleParameterPropertyAccess(expr: MemberAccessNode, params: string[]): string {
     const prop = expr.property;
     if (!prop || prop.length === 0) {
-      this.ctx.emitError("member access with empty property name", expr.loc);
+      return this.ctx.emitError("member access with empty property name", expr.loc);
     }
     const exprObjBase = expr.object as ExprBase;
     if (!exprObjBase || !exprObjBase.type || exprObjBase.type.length === 0) {
-      this.ctx.emitError(
+      return this.ctx.emitError(
         `cannot access property '${prop}' — object expression has no type`,
         expr.loc,
       );
