@@ -64,7 +64,7 @@ export class ClassGenerator {
   }
 
   private fieldToLlvmType(f: ClassField): string {
-    if (!f) return "double";
+    if (!f) throw new Error("fieldToLlvmType called with null/undefined field");
     const ft = f.fieldType;
     let ts = f.tsType;
     if (ts && ts.indexOf(" | ") !== -1) {
@@ -102,7 +102,8 @@ export class ClassGenerator {
         }
         return "i8*";
       }
-      return "double";
+      if (ft === "double") return "double";
+      throw new Error(`fieldToLlvmType: field '${f.name}' has no fieldType and no tsType`);
     }
     if (ft === "string") {
       return "i8*";
@@ -138,7 +139,9 @@ export class ClassGenerator {
         return "i8*";
       }
     }
-    return "double";
+    throw new Error(
+      `fieldToLlvmType: unrecognized field type '${ft}' with no tsType for field '${f.name}'`,
+    );
   }
 
   private emitFieldInit(fieldPtr: string, llvmType: string): void {
