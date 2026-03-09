@@ -854,16 +854,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       return -1;
     }
     for (let i = 0; i < this.ast.enums.length; i++) {
-      const eRaw = this.ast.enums[i];
-      if (!eRaw) {
-        continue;
-      }
-      const e = eRaw as { name: string; members: { name: string; value: number }[] };
+      const e = this.ast.enums[i];
+      if (!e) continue;
       if (e.name === enumName && e.members) {
         for (let j = 0; j < e.members.length; j++) {
-          const mRaw = e.members[j];
-          if (!mRaw) continue;
-          const m = mRaw as { name: string; value: number };
+          const m = e.members[j];
+          if (!m) continue;
           if (m.name === memberName) {
             return m.value;
           }
@@ -878,18 +874,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       return null;
     }
     for (let i = 0; i < this.ast.enums.length; i++) {
-      const eRaw = this.ast.enums[i];
-      if (!eRaw) continue;
-      const e = eRaw as {
-        name: string;
-        members: { name: string; value: number; stringValue?: string }[];
-      };
+      const e = this.ast.enums[i];
+      if (!e) continue;
       if (e.name === enumName && e.members) {
         for (let j = 0; j < e.members.length; j++) {
-          const mRaw = e.members[j];
-          if (!mRaw) continue;
-          // Type assertion must match actual struct field order: { name, value, stringValue }
-          const m = mRaw as { name: string; value: number; stringValue?: string };
+          const m = e.members[j];
+          if (!m) continue;
           if (m.name === memberName && m.stringValue) {
             return m.stringValue;
           }
@@ -3776,23 +3766,24 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
 
   private inferArrowHandlerReturnType(arrow: ArrowFunctionNode): string | null {
-    const body = arrow.body as { type: string };
-    let expr: { type: string } | null = null;
-    if (body.type === "block") {
-      const stmts = (arrow.body as { statements: { type: string; value?: { type: string } }[] })
-        .statements;
-      for (let i = 0; i < stmts.length; i++) {
-        if (stmts[i].type === "return" && stmts[i].value) {
-          expr = stmts[i].value!;
-          break;
+    let expr: Expression | null = null;
+    if (arrow.body.type === "block") {
+      const block = arrow.body as BlockStatement;
+      for (const s of block.statements) {
+        if (s.type === "return") {
+          const ret = s as ReturnStatement;
+          if (ret.value) {
+            expr = ret.value;
+            break;
+          }
         }
       }
     } else {
-      expr = body;
+      expr = arrow.body as Expression;
     }
     if (!expr || expr.type !== "method_call") return null;
     const mc = expr as MethodCallNode;
-    if ((mc.object as { type: string }).type !== "variable") return null;
+    if (mc.object.type !== "variable") return null;
     const varName = (mc.object as VariableNode).name;
     const className = this.symbolTable.getConcreteClass(varName);
     if (!className) return null;
