@@ -246,7 +246,12 @@ export class MemberAccessGenerator {
 
     const exprObjBase = expr.object as ExprBase;
     const exprObjType = exprObjBase ? exprObjBase.type : null;
-    if (exprObjType === null || exprObjType === undefined) return "0.0";
+    if (exprObjType === null || exprObjType === undefined) {
+      this.ctx.emitError(
+        `cannot access property '${expr.property}' — object expression has no type`,
+        expr.loc,
+      );
+    }
 
     result = this.dispatchByExpressionType(expr, params, exprObjType);
     if (result !== null) return result;
@@ -2556,23 +2561,17 @@ export class MemberAccessGenerator {
 
   private handleParameterPropertyAccess(expr: MemberAccessNode, params: string[]): string {
     const prop = expr.property;
-    if (!prop) {
-      return "0.0";
-    }
-    if (prop.length === 0) {
-      return "0.0";
+    if (!prop || prop.length === 0) {
+      this.ctx.emitError("member access with empty property name", expr.loc);
     }
     const exprObjBase = expr.object as ExprBase;
-    if (!exprObjBase) {
-      return "0.0";
+    if (!exprObjBase || !exprObjBase.type || exprObjBase.type.length === 0) {
+      this.ctx.emitError(
+        `cannot access property '${prop}' — object expression has no type`,
+        expr.loc,
+      );
     }
     const exprObjType = exprObjBase.type;
-    if (!exprObjType) {
-      return "0.0";
-    }
-    if (exprObjType.length === 0) {
-      return "0.0";
-    }
     if (exprObjType !== "variable") {
       if (
         exprObjType === "member_access" ||
@@ -2685,6 +2684,10 @@ export class MemberAccessGenerator {
         }
         return innerPtr;
       }
+      this.ctx.emitWarning(
+        `unresolved property '${prop}' on expression of type '${exprObjBase.type}' — defaulting to 0.0`,
+        expr.loc,
+      );
       return "0.0";
     }
 
@@ -2830,7 +2833,7 @@ export class MemberAccessGenerator {
         if (interfaceDefResult) {
           const interfaceDef = interfaceDefResult as InterfaceInfo;
           const ifaceProps = interfaceDef.properties;
-          if (!ifaceProps) {
+          if (!ifaceProps || ifaceProps.length === 0) {
             const fallbackAlloca = this.ctx.getVariableAlloca(varName);
             if (fallbackAlloca) {
               const objPtr = this.ctx.nextTemp();
@@ -2838,17 +2841,10 @@ export class MemberAccessGenerator {
               this.ctx.setVariableType(objPtr, "i8*");
               return objPtr;
             }
-            return "0.0";
-          }
-          if (ifaceProps.length === 0) {
-            const fallbackAlloca = this.ctx.getVariableAlloca(varName);
-            if (fallbackAlloca) {
-              const objPtr = this.ctx.nextTemp();
-              this.ctx.emit(`${objPtr} = load i8*, i8** ${fallbackAlloca}`);
-              this.ctx.setVariableType(objPtr, "i8*");
-              return objPtr;
-            }
-            return "0.0";
+            this.ctx.emitError(
+              `cannot access property '${prop}' on parameter '${varName}' — interface '${paramInterfaceType}' has no properties`,
+              expr.loc,
+            );
           }
           let propIndex: number = -1;
           for (let pi = 0; pi < ifaceProps.length; pi++) {
@@ -2980,7 +2976,10 @@ export class MemberAccessGenerator {
         this.ctx.setVariableType(value, "i8*");
         return value;
       }
-      return "0.0";
+      this.ctx.emitError(
+        `cannot access property '${prop}' on '${varName}' — no type information available`,
+        expr.loc,
+      );
     }
 
     const fallbackAlloca = this.ctx.getVariableAlloca(varName);
@@ -2990,7 +2989,10 @@ export class MemberAccessGenerator {
       this.ctx.setVariableType(objPtr, "i8*");
       return objPtr;
     }
-    return "0.0";
+    this.ctx.emitError(
+      `cannot access property '${prop}' on '${varName}' — variable has no type information or alloca`,
+      expr.loc,
+    );
   }
 
   private handleTypeAssertionPropertyAccess(
