@@ -2449,8 +2449,7 @@ export class MemberAccessGenerator {
     return value;
   }
 
-  private handleCallResultPropertyAccess(expr: MemberAccessNode, params: string[]): string | null {
-    const callExpr = expr.object as CallNode;
+  private findFunctionReturnInterfaceFields(callExpr: CallNode): object[] | null {
     const ast = this.ctx.getAst();
     if (!ast || !ast.functions) return null;
 
@@ -2463,12 +2462,18 @@ export class MemberAccessGenerator {
     }
     if (!func || !func.returnType) return null;
 
-    let returnType = stripNullable(func.returnType);
+    const returnType = stripNullable(func.returnType);
     if (returnType.startsWith("{")) return null;
 
     const interfaceDef = this.getInterfaceDecl(returnType);
     if (!interfaceDef) return null;
-    const allFields = this.ctx.getAllInterfaceFields(interfaceDef as InterfaceDeclaration);
+    return this.ctx.getAllInterfaceFields(interfaceDef as InterfaceDeclaration);
+  }
+
+  private handleCallResultPropertyAccess(expr: MemberAccessNode, params: string[]): string | null {
+    const callExpr = expr.object as CallNode;
+    const allFields = this.findFunctionReturnInterfaceFields(callExpr);
+    if (!allFields) return null;
 
     let propIndex: number = -1;
     for (let i = 0; i < allFields.length; i++) {
