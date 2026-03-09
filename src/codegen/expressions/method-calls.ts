@@ -1043,7 +1043,10 @@ export class MethodCallGenerator {
             imp.source.startsWith("../") ||
             imp.source.startsWith("/");
           if (!isRelative && imp.specifiers && imp.specifiers.indexOf(varName) !== -1) {
-            return "null";
+            return this.ctx.emitError(
+              `'${varName}.${method}()' — module '${imp.source}' is not supported by ChadScript`,
+              expr.loc,
+            );
           }
         }
       }
