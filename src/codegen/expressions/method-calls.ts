@@ -736,6 +736,10 @@ export class MethodCallGenerator {
               return this.ctx.stringMapGen.generateStringMapClear(mapAlloca);
             }
           }
+          return this.ctx.emitError(
+            `Map<string, *>.${method}() failed: no alloca found for '${varName}'`,
+            expr.loc,
+          );
         }
 
         if (method === "set") {
@@ -868,6 +872,10 @@ export class MethodCallGenerator {
               return this.ctx.stringSetGen.generateStringSetDelete(setAlloca, valueValue);
             }
           }
+          return this.ctx.emitError(
+            `Set<string>.${method}() failed: no alloca found for '${varName}'`,
+            expr.loc,
+          );
         }
 
         if (method === "add") {
@@ -892,6 +900,14 @@ export class MethodCallGenerator {
           } else {
             const valueValue = this.ctx.generateExpression(expr.args[0], params);
             return this.ctx.stringSetGen.generateStringSetDelete(setPtr, valueValue);
+          }
+        } else {
+          if (method === "add") {
+            return this.ctx.setGen.generateSetAdd(expr, params);
+          } else if (method === "has") {
+            return this.ctx.setGen.generateSetHas(expr, params);
+          } else {
+            return this.ctx.setGen.generateSetDelete(expr, params);
           }
         }
       }
