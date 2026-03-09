@@ -16,10 +16,7 @@ interface UnaryExpressionContext {
   getThisPointer(): string | null;
   getCurrentClassName(): string | null;
   hasClassGen(): boolean;
-  classGenGetFieldInfo(
-    className: string | null,
-    fieldName: string | null,
-  ): FieldInfo | null;
+  classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
   generateExpression(expr: Expression, params: string[]): string;
   ensureDouble(value: string): string;
   readonly stringGen: IStringGenerator;

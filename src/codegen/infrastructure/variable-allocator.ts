@@ -203,10 +203,7 @@ export interface VariableAllocatorContext {
   emitWarning(message: string, loc?: SourceLocation, suggestion?: string): void;
   getAst(): AST | undefined;
   hasClassGen(): boolean;
-  classGenGetFieldInfo(
-    className: string | null,
-    fieldName: string | null,
-  ): FieldInfo | null;
+  classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
   classGenGetClassFields(className: string): { name: string; fieldType: string }[];
   readonly symbolTable: SymbolTable;
   setExpectedArrayElementType(type: "string" | "number" | "boolean" | "pointer" | null): void;
@@ -2556,9 +2553,7 @@ export class VariableAllocator {
     if (!objectType) return null;
 
     const classFieldInfo = this.ctx.classGenGetFieldInfo(objectType, memberAccess.property);
-    const classFieldTsType = classFieldInfo
-      ? (classFieldInfo as FieldInfo).tsType
-      : null;
+    const classFieldTsType = classFieldInfo ? (classFieldInfo as FieldInfo).tsType : null;
     const fieldType =
       this.getInterfaceFieldTypeByName(objectType, memberAccess.property) || classFieldTsType;
     if (!fieldType) return null;

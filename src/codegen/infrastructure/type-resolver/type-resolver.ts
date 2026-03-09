@@ -65,10 +65,7 @@ export interface TypeResolverContext {
   currentClassName?: string | null;
   getCurrentClassName(): string | null;
   currentFunction?: string | null;
-  classGenGetFieldInfo(
-    className: string | null,
-    fieldName: string | null,
-  ): FieldInfo | null;
+  classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
   hasClassGen(): boolean;
 }
 

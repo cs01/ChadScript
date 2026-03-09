@@ -157,10 +157,7 @@ export interface MethodCallGeneratorContext {
   setUsesHttpServer(value: boolean): void;
   setUsesMultipart(value: boolean): void;
   setUsesTestRunner(value: boolean): void;
-  classGenGetFieldInfo(
-    className: string | null,
-    fieldName: string | null,
-  ): FieldInfo | null;
+  classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
   classGenGenerateMethodCall(
     instancePtr: string,
     className: string,

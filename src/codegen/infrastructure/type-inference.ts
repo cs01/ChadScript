@@ -55,10 +55,7 @@ export interface TypeInferenceContext {
   typeChecker: TypeChecker | null;
   classGen: ClassGenerator | null;
   hasClassGen(): boolean;
-  classGenGetFieldInfo(
-    className: string | null,
-    fieldName: string | null,
-  ): FieldInfo | null;
+  classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
   classGenGetFieldType(className: string, fieldName: string): string | null;
   classGenGetFieldTsType(className: string, fieldName: string): string | null;
   typeResolver?: TypeResolver;

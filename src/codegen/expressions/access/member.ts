@@ -175,10 +175,7 @@ export interface MemberAccessGeneratorContext {
   emitError(message: string, loc?: SourceLocation, suggestion?: string): never;
   emitWarning(message: string, loc?: SourceLocation, suggestion?: string): void;
   getObjectMetadata(obj: ObjectNode): ObjectMetadata;
-  classGenGetFieldInfo(
-    className: string | null,
-    fieldName: string | null,
-  ): FieldInfo | null;
+  classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
   classGenGetFieldType(className: string, fieldName: string): string | null;
   classGenGetFieldTsType(className: string, fieldName: string): string | null;
   classGenGetClassFields(className: string): { name: string; fieldType: string }[];
