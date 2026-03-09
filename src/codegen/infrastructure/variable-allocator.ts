@@ -65,7 +65,7 @@ import {
   parseSetTypeString,
   parseArrayTypeString,
 } from "./type-system.js";
-import type { ResolvedType } from "./type-system.js";
+import { parseTypeString, type ResolvedType } from "./type-system.js";
 import { InterfaceAllocator } from "./interface-allocator.js";
 
 interface ExprBase {
@@ -981,8 +981,11 @@ export class VariableAllocator {
 
     this.ctx.setCurrentVarDeclKey(null);
 
-    if (resolved && !stmt.declaredType && !isNull) {
+    if (resolved && !isNull) {
       this.ctx.symbolTable.setResolvedType(stmt.name, resolved);
+    }
+    if (stmt.declaredType && !isNull) {
+      this.ctx.symbolTable.setResolvedType(stmt.name, parseTypeString(stmt.declaredType));
     }
 
     this.ctx.setExpectedArrayElementType(null);
