@@ -30,7 +30,7 @@ import {
   handleMatch,
 } from "./string-methods.js";
 
-export function dispatchStringMethod(
+function dispatchStringBasicOps(
   ctx: MethodCallGeneratorContext,
   method: string,
   expr: MethodCallNode,
@@ -46,14 +46,60 @@ export function dispatchStringMethod(
   )
     return handleConcat(ctx, expr, params);
   if (method === "repeat") return handleRepeat(ctx, expr, params);
+  return null;
+}
+
+function dispatchStringPadSplit(
+  ctx: MethodCallGeneratorContext,
+  method: string,
+  expr: MethodCallNode,
+  params: string[],
+): string | null {
   if (method === "padStart") return handlePadStart(ctx, expr, params);
   if (method === "padEnd") return handlePadEnd(ctx, expr, params);
   if (method === "split") return handleSplit(ctx, expr, params);
   if (method === "startsWith") return handleStartsWith(ctx, expr, params);
+  return null;
+}
+
+function dispatchStringTrimOps(
+  ctx: MethodCallGeneratorContext,
+  method: string,
+  expr: MethodCallNode,
+  params: string[],
+): string | null {
   if (method === "endsWith") return handleEndsWith(ctx, expr, params);
   if (method === "trim") return handleTrim(ctx, expr, params);
   if (method === "trimStart") return handleTrimStart(ctx, expr, params);
   if (method === "trimEnd") return handleTrimEnd(ctx, expr, params);
+  return null;
+}
+
+function dispatchStringReplaceCase(
+  ctx: MethodCallGeneratorContext,
+  method: string,
+  expr: MethodCallNode,
+  params: string[],
+): string | null {
+  if (method === "replace") return handleReplace(ctx, expr, params);
+  if (method === "replaceAll") return handleReplaceAll(ctx, expr, params);
+  if (method === "charAt") return handleCharAt(ctx, expr, params);
+  if (method === "charCodeAt") return handleCharCodeAt(ctx, expr, params);
+  return null;
+}
+
+export function dispatchStringMethod(
+  ctx: MethodCallGeneratorContext,
+  method: string,
+  expr: MethodCallNode,
+  params: string[],
+): string | null {
+  const basic = dispatchStringBasicOps(ctx, method, expr, params);
+  if (basic) return basic;
+  const padSplit = dispatchStringPadSplit(ctx, method, expr, params);
+  if (padSplit) return padSplit;
+  const trim = dispatchStringTrimOps(ctx, method, expr, params);
+  if (trim) return trim;
   if (method === "indexOf") {
     if (ctx.isStringArrayExpression(expr.object))
       return handleStringArrayIndexOf(ctx, expr, params);
@@ -74,10 +120,8 @@ export function dispatchStringMethod(
     !ctx.isObjectArrayExpression(expr.object)
   )
     return handleSlice(ctx, expr, params);
-  if (method === "replace") return handleReplace(ctx, expr, params);
-  if (method === "replaceAll") return handleReplaceAll(ctx, expr, params);
-  if (method === "charAt") return handleCharAt(ctx, expr, params);
-  if (method === "charCodeAt") return handleCharCodeAt(ctx, expr, params);
+  const replaceCase = dispatchStringReplaceCase(ctx, method, expr, params);
+  if (replaceCase) return replaceCase;
   if (method === "toUpperCase") return handleToUpperCase(ctx, expr, params);
   if (method === "toLowerCase") return handleToLowerCase(ctx, expr, params);
   if (method === "toString") {
@@ -97,7 +141,7 @@ export function dispatchStringMethod(
   return null;
 }
 
-export function dispatchArrayMethod(
+function dispatchArrayMutators(
   ctx: MethodCallGeneratorContext,
   method: string,
   expr: MethodCallNode,
@@ -113,6 +157,57 @@ export function dispatchArrayMethod(
       return ctx.arrayGen.generateStringArrayMap(expr, params);
     return ctx.arrayGen.generateArrayMap(expr, params);
   }
+  return null;
+}
+
+function dispatchArrayIterators(
+  ctx: MethodCallGeneratorContext,
+  method: string,
+  expr: MethodCallNode,
+  params: string[],
+): string | null {
+  if (method === "find") return ctx.arrayGen.generateArrayFind(expr, params);
+  if (method === "some") return ctx.arrayGen.generateArraySome(expr, params);
+  if (method === "every") return ctx.arrayGen.generateArrayEvery(expr, params);
+  if (method === "filter") return ctx.arrayGen.generateArrayFilter(expr, params);
+  return null;
+}
+
+function dispatchArrayTransforms(
+  ctx: MethodCallGeneratorContext,
+  method: string,
+  expr: MethodCallNode,
+  params: string[],
+): string | null {
+  if (method === "forEach") return ctx.arrayGen.generateArrayForEach(expr, params);
+  if (method === "reduce") return ctx.arrayGen.generateArrayReduce(expr, params);
+  if (method === "reverse") return ctx.arrayGen.generateArrayReverse(expr, params);
+  if (method === "shift") return ctx.arrayGen.generateArrayShift(expr, params);
+  return null;
+}
+
+function dispatchArrayReorder(
+  ctx: MethodCallGeneratorContext,
+  method: string,
+  expr: MethodCallNode,
+  params: string[],
+): string | null {
+  if (method === "unshift") return ctx.arrayGen.generateArrayUnshift(expr, params);
+  if (method === "findIndex") return ctx.arrayGen.generateArrayFindIndex(expr, params);
+  if (method === "sort") return ctx.arrayGen.generateArraySort(expr, params);
+  if (method === "splice") return ctx.arrayGen.generateArraySplice(expr, params);
+  return null;
+}
+
+export function dispatchArrayMethod(
+  ctx: MethodCallGeneratorContext,
+  method: string,
+  expr: MethodCallNode,
+  params: string[],
+  isClassInstance: boolean,
+): string | null {
+  const mutator = dispatchArrayMutators(ctx, method, expr, params, isClassInstance);
+  if (mutator) return mutator;
   if (
     method === "join" &&
     (ctx.isStringArrayExpression(expr.object) ||
@@ -120,12 +215,10 @@ export function dispatchArrayMethod(
       ctx.isObjectArrayExpression(expr.object))
   )
     return ctx.arrayGen.generateArrayJoin(expr, params);
-  if (method === "find") return ctx.arrayGen.generateArrayFind(expr, params);
-  if (method === "some") return ctx.arrayGen.generateArraySome(expr, params);
-  if (method === "every") return ctx.arrayGen.generateArrayEvery(expr, params);
-  if (method === "filter") return ctx.arrayGen.generateArrayFilter(expr, params);
-  if (method === "forEach") return ctx.arrayGen.generateArrayForEach(expr, params);
-  if (method === "reduce") return ctx.arrayGen.generateArrayReduce(expr, params);
+  const iterator = dispatchArrayIterators(ctx, method, expr, params);
+  if (iterator) return iterator;
+  const transform = dispatchArrayTransforms(ctx, method, expr, params);
+  if (transform) return transform;
   if (
     method === "slice" &&
     (ctx.isArrayExpression(expr.object) ||
@@ -140,11 +233,7 @@ export function dispatchArrayMethod(
       ctx.isObjectArrayExpression(expr.object))
   )
     return ctx.arrayGen.generateArrayConcat(expr, params);
-  if (method === "reverse") return ctx.arrayGen.generateArrayReverse(expr, params);
-  if (method === "shift") return ctx.arrayGen.generateArrayShift(expr, params);
-  if (method === "unshift") return ctx.arrayGen.generateArrayUnshift(expr, params);
-  if (method === "findIndex") return ctx.arrayGen.generateArrayFindIndex(expr, params);
-  if (method === "sort") return ctx.arrayGen.generateArraySort(expr, params);
-  if (method === "splice") return ctx.arrayGen.generateArraySplice(expr, params);
+  const reorder = dispatchArrayReorder(ctx, method, expr, params);
+  if (reorder) return reorder;
   return null;
 }
