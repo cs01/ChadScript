@@ -1586,11 +1586,17 @@ export class ClassGenerator {
     this.ctx.defineVariable(paramName, allocaReg, llvmType, SymbolKind.Object, "local");
   }
 
-  private fieldTypeToLlvm(fieldType: string): string {
+  private fieldTypeToLlvmPrimitive(fieldType: string): string | null {
     if (fieldType === "string") return "i8*";
     if (fieldType === "number") return "double";
     if (fieldType === "boolean") return "double";
     if (fieldType.startsWith("'") || fieldType.startsWith('"')) return "i8*";
+    return null;
+  }
+
+  private fieldTypeToLlvm(fieldType: string): string {
+    const prim = this.fieldTypeToLlvmPrimitive(fieldType);
+    if (prim) return prim;
     if (fieldType === "string[]") return "%StringArray*";
     if (fieldType === "number[]" || fieldType === "boolean[]") return "%Array*";
     if (fieldType.endsWith("[]")) return "%ObjectArray*";
