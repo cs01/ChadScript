@@ -45,7 +45,6 @@ export class CallExpressionGenerator {
    * @param params - Function parameter names
    */
   generate(expr: CallNode, params: string[]): string {
-    // Handle super() constructor call
     if (expr.name === "super") {
       return this.generateSuperCall(expr, params);
     }
@@ -69,6 +68,31 @@ export class CallExpressionGenerator {
       return fnPtr;
     }
 
+    const runtimeResult = this.dispatchRuntimeCalls(expr, params);
+    if (runtimeResult !== null) return runtimeResult;
+
+    const serverResult = this.dispatchServerCalls(expr, params);
+    if (serverResult !== null) return serverResult;
+
+    const timerResult = this.dispatchTimerAndTestCalls(expr, params);
+    if (timerResult !== null) return timerResult;
+
+    const conversionResult = this.dispatchConversionCalls(expr, params);
+    if (conversionResult !== null) return conversionResult;
+
+    const encodingResult = this.dispatchEncodingCalls(expr, params);
+    if (encodingResult !== null) return encodingResult;
+
+    const ffiResult = this.dispatchCFfiCalls(expr, params);
+    if (ffiResult !== null) return ffiResult;
+
+    const tsResult = this.dispatchTreeSitterCalls(expr, params);
+    if (tsResult !== null) return tsResult;
+
+    return this.generateGenericCall(expr, params);
+  }
+
+  private dispatchRuntimeCalls(expr: CallNode, params: string[]): string | null {
     if (expr.name === "__gc_disable") {
       this.ctx.emitCallVoid("@GC_disable", "");
       return "0.0";
@@ -79,14 +103,12 @@ export class CallExpressionGenerator {
       return "0.0";
     }
 
-    // cs_exec_passthrough(command) — run command with inherited stdio (for chad run)
     if (expr.name === "cs_exec_passthrough") {
       const arg0 = this.ctx.generateExpression(expr.args[0], params);
       this.ctx.emitCallVoid("@cs_exec_passthrough", `i8* ${arg0}`);
       return "0.0";
     }
 
-    // cs_watch_loop(chad_binary, source_file, output_binary) — file watcher FFI
     if (expr.name === "cs_watch_loop") {
       if (expr.args.length >= 3) {
         const arg0 = this.ctx.generateExpression(expr.args[0], params);
@@ -97,25 +119,30 @@ export class CallExpressionGenerator {
       return "0.0";
     }
 
+    return null;
+  }
+
+  private dispatchServerCalls(expr: CallNode, params: string[]): string | null {
     if (expr.name === "execSync") {
       return this.generateExecSync(expr, params);
     }
 
-    // Handle httpServe() special built-in function
     if (expr.name === "httpServe") {
       return this.ctx.generateHttpServe(expr, params);
     }
 
-    // Handle wsBroadcast() - broadcast message to all WebSocket clients
     if (expr.name === "wsBroadcast") {
       return this.ctx.generateWsBroadcast(expr, params);
     }
 
-    // Handle wsSend(connId, msg) - send message to a specific WebSocket connection
     if (expr.name === "wsSend") {
       return this.ctx.generateWsSend(expr, params);
     }
 
+    return null;
+  }
+
+  private dispatchTimerAndTestCalls(expr: CallNode, params: string[]): string | null {
     if (expr.name === "parseMultipart") {
       return this.ctx.generateParseMultipart(expr, params);
     }
@@ -124,17 +151,18 @@ export class CallExpressionGenerator {
       return this.generateBytesResponse(expr, params);
     }
 
-    // Handle setTimeout() - libuv timer (one-shot)
     if (expr.name === "setTimeout") {
       return this.generateSetTimeout(expr, params);
     }
 
-    // Handle setInterval() - libuv timer (repeating)
     if (expr.name === "setInterval") {
       return this.generateSetInterval(expr, params);
     }
 
-    // Handle test() - built-in test runner (only when called with string + arrow/function callback)
+    return null;
+  }
+
+  private dispatchConversionCalls(expr: CallNode, params: string[]): string | null {
     if (expr.name === "test" && expr.args.length >= 2) {
       const testSecondArg = expr.args[1] as { type: string };
       if (testSecondArg.type === "arrow_function" || testSecondArg.type === "variable") {
@@ -149,18 +177,18 @@ export class CallExpressionGenerator {
       }
     }
 
-    // Handle clearTimeout() / clearInterval() - stop timer
     if (expr.name === "clearTimeout" || expr.name === "clearInterval") {
       return this.generateClearTimer(expr, params);
     }
 
-    // Handle runEventLoop() - run libuv event loop
     if (expr.name === "runEventLoop") {
       return this.generateRunEventLoop();
     }
 
-    // Handle fetch() special built-in function
-    // Returns a Promise that resolves to a Response object
+    return null;
+  }
+
+  private dispatchEncodingCalls(expr: CallNode, params: string[]): string | null {
     if (expr.name === "fetch") {
       if (expr.args.length < 1) {
         return this.ctx.emitError("fetch() requires at least 1 argument (URL)", expr.loc);
@@ -173,27 +201,26 @@ export class CallExpressionGenerator {
       return temp;
     }
 
-    // Handle parseInt(str, radix?) global function
     if (expr.name === "parseInt") {
       return this.generateParseInt(expr, params);
     }
 
-    // Handle parseFloat(str) global function
     if (expr.name === "parseFloat") {
       return this.generateParseFloat(expr, params);
     }
 
-    // Handle Number(value) global function
     if (expr.name === "Number") {
       return this.generateNumber(expr, params);
     }
 
-    // Handle String(value) global function
+    return this.dispatchStringEncodingCalls(expr, params);
+  }
+
+  private dispatchStringEncodingCalls(expr: CallNode, params: string[]): string | null {
     if (expr.name === "String") {
       return this.generateString(expr, params);
     }
 
-    // Handle isNaN(value) global function
     if (expr.name === "isNaN") {
       return this.generateIsNaN(expr, params);
     }
@@ -218,6 +245,10 @@ export class CallExpressionGenerator {
       return result;
     }
 
+    return this.dispatchUriCalls(expr, params);
+  }
+
+  private dispatchUriCalls(expr: CallNode, params: string[]): string | null {
     if (expr.name === "encodeURIComponent") {
       if (expr.args.length !== 1) {
         return this.ctx.emitError("encodeURIComponent() requires exactly 1 argument", expr.loc);
@@ -238,7 +269,10 @@ export class CallExpressionGenerator {
       return result;
     }
 
-    // Handle C built-in functions with proper signatures
+    return null;
+  }
+
+  private dispatchCFfiCalls(expr: CallNode, params: string[]): string | null {
     if (expr.name === "malloc") {
       return this.generateMalloc(expr, params);
     }
@@ -255,6 +289,10 @@ export class CallExpressionGenerator {
       return this.generateClose(expr, params);
     }
 
+    return null;
+  }
+
+  private dispatchTreeSitterCalls(expr: CallNode, params: string[]): string | null {
     if (expr.name === "htons") {
       return this.generateHtons(expr, params);
     }
@@ -271,6 +309,10 @@ export class CallExpressionGenerator {
       return this.generateAccept(expr, params);
     }
 
+    return this.dispatchTreeSitterNodeCalls(expr, params);
+  }
+
+  private dispatchTreeSitterNodeCalls(expr: CallNode, params: string[]): string | null {
     if (expr.name === "__ts_parse_source") {
       this.ctx.setUsesTreeSitter(true);
       return this.generateTsParseSource(expr, params);
@@ -288,6 +330,10 @@ export class CallExpressionGenerator {
       return this.generateTsNodeChildCount(expr, params);
     }
 
+    return this.dispatchTreeSitterAccessCalls(expr, params);
+  }
+
+  private dispatchTreeSitterAccessCalls(expr: CallNode, params: string[]): string | null {
     if (expr.name === "__ts_node_named_child_count") {
       return this.generateTsNodeNamedChildCount(expr, params);
     }
@@ -304,6 +350,10 @@ export class CallExpressionGenerator {
       return this.generateTsNodeText(expr, params);
     }
 
+    return this.dispatchTreeSitterQueryCalls(expr, params);
+  }
+
+  private dispatchTreeSitterQueryCalls(expr: CallNode, params: string[]): string | null {
     if (expr.name === "__ts_node_is_null") {
       return this.generateTsNodeIsNull(expr, params);
     }
@@ -316,6 +366,10 @@ export class CallExpressionGenerator {
       return this.generateTsNodeStartByte(expr, params);
     }
 
+    return this.dispatchTreeSitterByteCalls(expr, params);
+  }
+
+  private dispatchTreeSitterByteCalls(expr: CallNode, params: string[]): string | null {
     if (expr.name === "__ts_node_end_byte") {
       return this.generateTsNodeEndByte(expr, params);
     }
@@ -324,8 +378,7 @@ export class CallExpressionGenerator {
       return this.generateTsNodeChildByFieldName(expr, params);
     }
 
-    // Generic function call with type checking
-    return this.generateGenericCall(expr, params);
+    return null;
   }
 
   private generateParseInt(expr: CallNode, params: string[]): string {
