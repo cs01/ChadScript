@@ -150,10 +150,7 @@ export class TypeInference {
     return undefined;
   }
 
-  private resolveCompoundExprType(
-    e: ExprBase,
-    expr: Expression,
-  ): ResolvedType | null | undefined {
+  private resolveCompoundExprType(e: ExprBase, expr: Expression): ResolvedType | null | undefined {
     if (e.type === "array") {
       const arrayExpr = expr as ArrayNode;
       const elements = arrayExpr.elements || [];
@@ -208,10 +205,7 @@ export class TypeInference {
     return undefined;
   }
 
-  private resolveDispatchExprType(
-    e: ExprBase,
-    expr: Expression,
-  ): ResolvedType | null | undefined {
+  private resolveDispatchExprType(e: ExprBase, expr: Expression): ResolvedType | null | undefined {
     if (e.type === "method_call") {
       return this.resolveMethodCallType(expr as MethodCallNode);
     }
@@ -274,10 +268,7 @@ export class TypeInference {
     return undefined;
   }
 
-  private resolveComplexExprType(
-    e: ExprBase,
-    expr: Expression,
-  ): ResolvedType | null | undefined {
+  private resolveComplexExprType(e: ExprBase, expr: Expression): ResolvedType | null | undefined {
     if (e.type === "conditional") {
       const condExpr = expr as ConditionalExpressionNode;
       const consequentResolved = this.resolveExpressionType(condExpr.consequent);
