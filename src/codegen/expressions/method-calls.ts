@@ -755,8 +755,10 @@ export class MethodCallGenerator {
             `Map.${method}() only supported for Map<string, *> types`,
             expr.loc,
           );
-        } else {
+        } else if (method === "clear") {
           return this.ctx.mapGen.generateMapClear(expr, params);
+        } else {
+          return this.ctx.emitError(`Map.${method}() is not supported`, expr.loc);
         }
       }
 
@@ -784,8 +786,13 @@ export class MethodCallGenerator {
               return this.ctx.stringMapGen.generateStringMapEntries(mapPtr);
             } else if (method === "values") {
               return this.ctx.stringMapGen.generateStringMapValues(mapPtr);
-            } else {
+            } else if (method === "keys") {
               return this.ctx.stringMapGen.generateStringMapKeys(mapPtr);
+            } else {
+              return this.ctx.emitError(
+                `Map.${method}() not supported for Map<string, *> parameter types`,
+                expr.loc,
+              );
             }
           } else {
             if (method === "set") {
@@ -828,8 +835,13 @@ export class MethodCallGenerator {
             return this.ctx.stringMapGen.generateStringMapEntries(mapPtr);
           } else if (method === "values") {
             return this.ctx.stringMapGen.generateStringMapValues(mapPtr);
-          } else {
+          } else if (method === "clear") {
             return this.ctx.stringMapGen.generateStringMapClear(mapPtr);
+          } else {
+            return this.ctx.emitError(
+              `Map.${method}() not supported for Map<string, *> types`,
+              expr.loc,
+            );
           }
         } else {
           const mapPtr = this.ctx.generateExpression(expr.object, params);
@@ -867,9 +879,11 @@ export class MethodCallGenerator {
             } else if (method === "has") {
               const valueValue = this.ctx.generateExpression(expr.args[0], params);
               return this.ctx.stringSetGen.generateStringSetHas(setAlloca, valueValue);
-            } else {
+            } else if (method === "delete") {
               const valueValue = this.ctx.generateExpression(expr.args[0], params);
               return this.ctx.stringSetGen.generateStringSetDelete(setAlloca, valueValue);
+            } else {
+              return this.ctx.emitError(`Set.${method}() is not supported`, expr.loc);
             }
           }
           return this.ctx.emitError(
@@ -882,8 +896,10 @@ export class MethodCallGenerator {
           return this.ctx.setGen.generateSetAdd(expr, params);
         } else if (method === "has") {
           return this.ctx.setGen.generateSetHas(expr, params);
-        } else {
+        } else if (method === "delete") {
           return this.ctx.setGen.generateSetDelete(expr, params);
+        } else {
+          return this.ctx.emitError(`Set.${method}() is not supported`, expr.loc);
         }
       }
 
@@ -897,9 +913,11 @@ export class MethodCallGenerator {
           } else if (method === "has") {
             const valueValue = this.ctx.generateExpression(expr.args[0], params);
             return this.ctx.stringSetGen.generateStringSetHas(setPtr, valueValue);
-          } else {
+          } else if (method === "delete") {
             const valueValue = this.ctx.generateExpression(expr.args[0], params);
             return this.ctx.stringSetGen.generateStringSetDelete(setPtr, valueValue);
+          } else {
+            return this.ctx.emitError(`Set.${method}() is not supported`, expr.loc);
           }
         } else {
           if (method === "add") {
