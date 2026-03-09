@@ -224,8 +224,9 @@ Existing bridges: `regex-bridge.c`, `yyjson-bridge.c`, `os-bridge.c`, `child-pro
 When building field lists for an interface (keys/types arrays for ObjectMetadata), always use
 `getAllInterfaceFields(interfaceDef)` instead of `interfaceDef.fields`. The latter only returns the
 interface's OWN fields, missing inherited fields from `extends`. This causes wrong GEP indices for
-any interface with inheritance. `allocateDeclaredInterface` does this correctly; several other methods
-(`allocateMemberAccessInterface`, `allocateFunctionInterfaceReturn`, etc.) currently do not.
+any interface with inheritance. All current allocation methods (`allocateDeclaredInterface`,
+`allocateMemberAccessInterface`, `allocateFunctionInterfaceReturn`, etc.) use `getAllInterfaceFields`
+correctly — maintain this when adding new ones.
 
 ## Loop Style
 

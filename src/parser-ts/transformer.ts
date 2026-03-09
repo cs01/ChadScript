@@ -445,6 +445,8 @@ function getCompoundOperator(op: ts.SyntaxKind): string | null {
   }
 }
 
+let destructureSeqTransformer = 0;
+
 export function transformVariableDeclaration(
   decl: ts.VariableDeclaration,
   flags: ts.NodeFlags,
@@ -459,6 +461,27 @@ export function transformVariableDeclaration(
       source = transformExpression(decl.initializer, checker);
     }
 
+    let objectRef: Expression | null = source;
+    if (source && source.type !== "variable") {
+      const tempName = `__destructure_obj_${destructureSeqTransformer++}`;
+      let declaredType: string | undefined;
+      if (decl.initializer && checker) {
+        const initType = checker.getTypeAtLocation(decl.initializer);
+        const typeStr = checker.typeToString(initType);
+        if (typeStr && typeStr !== "any" && typeStr !== "unknown") {
+          declaredType = typeStr;
+        }
+      }
+      statements.push({
+        type: "variable_declaration",
+        kind: "const",
+        name: tempName,
+        value: source,
+        declaredType,
+      } as VariableDeclaration);
+      objectRef = { type: "variable", name: tempName } as Expression;
+    }
+
     for (const element of decl.name.elements) {
       if (!ts.isBindingElement(element)) continue;
       if (!ts.isIdentifier(element.name)) continue;
@@ -471,7 +494,7 @@ export function transformVariableDeclaration(
 
       const memberAccess: MemberAccessNode = {
         type: "member_access",
-        object: source!,
+        object: objectRef!,
         property: propertyName,
       };
 
@@ -490,6 +513,27 @@ export function transformVariableDeclaration(
       source = transformExpression(decl.initializer, checker);
     }
 
+    let arrayRef: Expression | null = source;
+    if (source && source.type !== "variable") {
+      const tempName = `__destructure_arr_${destructureSeqTransformer++}`;
+      let declaredType: string | undefined;
+      if (decl.initializer && checker) {
+        const initType = checker.getTypeAtLocation(decl.initializer);
+        const typeStr = checker.typeToString(initType);
+        if (typeStr && typeStr !== "any" && typeStr !== "unknown") {
+          declaredType = typeStr;
+        }
+      }
+      statements.push({
+        type: "variable_declaration",
+        kind: "const",
+        name: tempName,
+        value: source,
+        declaredType,
+      } as VariableDeclaration);
+      arrayRef = { type: "variable", name: tempName } as Expression;
+    }
+
     for (let i = 0; i < decl.name.elements.length; i++) {
       const element = decl.name.elements[i];
       if (ts.isOmittedExpression(element)) continue;
@@ -500,7 +544,7 @@ export function transformVariableDeclaration(
 
       const indexAccess: IndexAccessNode = {
         type: "index_access",
-        object: source!,
+        object: arrayRef!,
         index: { type: "number", value: i },
       };
 
