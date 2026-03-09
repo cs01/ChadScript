@@ -91,6 +91,26 @@ export class TypeInference {
     if (simple) return simple;
     const special = this.resolveSpecialLiteralType(e.type);
     if (special) return special;
+
+    const collection = this.resolveCollectionExprType(e, expr);
+    if (collection !== undefined) return collection;
+
+    const compound = this.resolveCompoundExprType(e, expr);
+    if (compound !== undefined) return compound;
+
+    const dispatch = this.resolveDispatchExprType(e, expr);
+    if (dispatch !== undefined) return dispatch;
+
+    const complex = this.resolveComplexExprType(e, expr);
+    if (complex !== undefined) return complex;
+
+    return null;
+  }
+
+  private resolveCollectionExprType(
+    e: ExprBase,
+    expr: Expression,
+  ): ResolvedType | null | undefined {
     if (e.type === "map") {
       const mapExpr = expr as MapNode;
       const keyType = mapExpr.keyType || "string";
@@ -122,12 +142,15 @@ export class TypeInference {
       if (newExpr.className === "RegExp") return this.ctx.typeContext.resolve("RegExp");
       if (newExpr.className === "Promise") return this.ctx.typeContext.resolve("Promise");
       if (newExpr.className === "Uint8Array") return this.ctx.typeContext.resolve("Uint8Array");
-      // Resolve import alias for default imports (e.g., import Foo from './bar' → BarClass)
       const resolvedClassName = this.resolveClassAlias(newExpr.className);
       const cls = this.getClass(resolvedClassName);
       if (cls) return this.ctx.typeContext.getClassType(resolvedClassName);
       return null;
     }
+    return undefined;
+  }
+
+  private resolveCompoundExprType(e: ExprBase, expr: Expression): ResolvedType | null | undefined {
     if (e.type === "array") {
       const arrayExpr = expr as ArrayNode;
       const elements = arrayExpr.elements || [];
@@ -179,6 +202,10 @@ export class TypeInference {
         }
       }
     }
+    return undefined;
+  }
+
+  private resolveDispatchExprType(e: ExprBase, expr: Expression): ResolvedType | null | undefined {
     if (e.type === "method_call") {
       return this.resolveMethodCallType(expr as MethodCallNode);
     }
@@ -238,6 +265,10 @@ export class TypeInference {
         if (rightResolved) return rightResolved;
       }
     }
+    return undefined;
+  }
+
+  private resolveComplexExprType(e: ExprBase, expr: Expression): ResolvedType | null | undefined {
     if (e.type === "conditional") {
       const condExpr = expr as ConditionalExpressionNode;
       const consequentResolved = this.resolveExpressionType(condExpr.consequent);
@@ -261,7 +292,7 @@ export class TypeInference {
         return this.ctx.typeContext.stringType;
       }
     }
-    return null;
+    return undefined;
   }
 
   private resolveVariableType(name: string): ResolvedType | null {
@@ -400,6 +431,17 @@ export class TypeInference {
       if (this.isPromiseExpression(expr.object)) return this.ctx.typeContext.resolve("Promise");
     }
 
+    const objDispatch = this.resolveMethodCallByObjectType(expr, method, objBase);
+    if (objDispatch) return objDispatch;
+
+    return this.resolveMethodCallByMethod(expr, method, objBase);
+  }
+
+  private resolveMethodCallByObjectType(
+    expr: MethodCallNode,
+    method: string,
+    objBase: ExprBase,
+  ): ResolvedType | null {
     if (objBase.type === "variable") {
       const varName = (expr.object as VariableNode).name;
 
@@ -514,6 +556,14 @@ export class TypeInference {
       }
     }
 
+    return null;
+  }
+
+  private resolveMethodCallByMethod(
+    expr: MethodCallNode,
+    method: string,
+    objBase: ExprBase,
+  ): ResolvedType | null {
     if (method === "slice" || method === "concat") {
       const objResolved = this.resolveExpressionType(expr.object);
       if (objResolved) return objResolved;
@@ -1152,6 +1202,10 @@ export class TypeInference {
       }
       return false;
     }
+    return this.isArrayExpressionByType(e, expr);
+  }
+
+  private isArrayExpressionByType(e: ExprBase, expr: Expression): boolean {
     if (e.type === "method_call") {
       const methodExpr = expr as MethodCallNode;
       if (
@@ -1306,6 +1360,10 @@ export class TypeInference {
       }
       return false;
     }
+    return this.isObjectArrayByDispatch(e, expr);
+  }
+
+  private isObjectArrayByDispatch(e: ExprBase, expr: Expression): boolean {
     if (e.type === "method_call") {
       const methodExpr = expr as MethodCallNode;
       const methodObjBase = methodExpr.object as ExprBase;
