@@ -97,14 +97,12 @@ export class IndexAccessGenerator {
       return this.generateJSONArrayIndex(expr, params);
     }
 
-    // Determine if we're indexing into a string array, numeric array, or object array
     const isStringArray = this.ctx.isStringArrayExpression(expr.object);
     const isObjectArray = !isStringArray && this.ctx.isObjectArrayExpression(expr.object);
     const isUint8Array =
       !isStringArray && !isObjectArray && this.ctx.isUint8ArrayExpression(expr.object);
     const isNumericArray =
       !isStringArray && !isObjectArray && !isUint8Array && this.ctx.isArrayExpression(expr.object);
-
     if (isStringArray) {
       return this.generateStringArrayIndex(expr, params);
     } else if (isObjectArray) {
