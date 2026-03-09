@@ -1114,7 +1114,7 @@ export class MethodCallGenerator {
       ? `Method '${method}' on '${objectDescription}' is not supported.`
       : `Method '${method}' is not supported.`;
 
-    this.ctx.emitError(errorMsg, methodCallExpr ? methodCallExpr.loc : undefined, suggestion);
+    return this.ctx.emitError(errorMsg, methodCallExpr ? methodCallExpr.loc : undefined, suggestion);
   }
 
   private isLikelyResponseExpression(expr: MethodCallNode): boolean {
