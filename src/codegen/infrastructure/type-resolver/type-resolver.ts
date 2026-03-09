@@ -448,7 +448,7 @@ export class TypeResolver {
     const tsTypes: string[] = [];
     const allFields = this.getAllInterfaceFields(iface);
     for (let i = 0; i < allFields.length; i++) {
-      const f = allFields[i] as { name: string; type: string };
+      const f = allFields[i] as InterfaceField;
       keys.push(stripOptional(f.name));
       types.push(canonicalTypeToLlvm(f.type, "default", this.isEnumType(f.type), false, ""));
       tsTypes.push(f.type);
@@ -464,7 +464,7 @@ export class TypeResolver {
     if (!iface) return null;
     const allFields = this.getAllInterfaceFields(iface);
     for (let i = 0; i < allFields.length; i++) {
-      const f = allFields[i] as { name: string; type: string };
+      const f = allFields[i] as InterfaceField;
       if (!f || !f.name) {
         continue;
       }
@@ -483,7 +483,7 @@ export class TypeResolver {
     const properties: { name: string; type: string }[] = [];
     const allFields = this.getAllInterfaceFields(iface);
     for (let i = 0; i < allFields.length; i++) {
-      const f = allFields[i] as { name: string; type: string };
+      const f = allFields[i] as InterfaceField;
       properties.push({ name: f.name, type: f.type });
     }
     return { properties };
@@ -628,14 +628,14 @@ export class TypeResolver {
     const commonFields: CommonField[] = [];
 
     for (let fi = 0; fi < firstFields.length; fi++) {
-      const field = firstFields[fi] as { name: string; type: string };
+      const field = firstFields[fi] as InterfaceField;
       let isCommon = true;
       for (let ii = 0; ii < interfaces.length; ii++) {
         const iface = interfaces[ii] as InterfaceDeclaration;
         const ifaceFields = this.getAllInterfaceFields(iface);
         let hasMatch = false;
         for (let jj = 0; jj < ifaceFields.length; jj++) {
-          const f = ifaceFields[jj] as { name: string; type: string };
+          const f = ifaceFields[jj] as InterfaceField;
           if (f.name === field.name && this.areTypesCompatible(f.type, field.type)) {
             hasMatch = true;
             break;
@@ -874,7 +874,7 @@ export class TypeResolver {
     field: string,
   ): string | null {
     for (let i = 0; i < fields.length; i++) {
-      const f = fields[i] as { name: string; type: string };
+      const f = fields[i] as InterfaceField;
       if (f.name === field) {
         if (f.type === `'${value}'` || f.type === `"${value}"`) {
           return ifaceName;
@@ -950,14 +950,14 @@ export class TypeResolver {
         let field: { name: string; type: string } | null = null;
         const allIfaceFields = this.getAllInterfaceFields(iface);
         for (let i = 0; i < allIfaceFields.length; i++) {
-          const f = allIfaceFields[i] as { name: string; type: string };
+          const f = allIfaceFields[i] as InterfaceField;
           if (f.name === memberExpr.property) {
             field = f;
             break;
           }
         }
         if (field) {
-          const fieldTyped = field as { name: string; type: string };
+          const fieldTyped = field as InterfaceField;
           const mapParsed = parseMapTypeString(fieldTyped.type);
           if (mapParsed) {
             return {
@@ -1016,14 +1016,14 @@ export class TypeResolver {
       let field: { name: string; type: string } | null = null;
       const allNestedFields = this.getAllInterfaceFields(iface);
       for (let i = 0; i < allNestedFields.length; i++) {
-        const f = allNestedFields[i] as { name: string; type: string };
+        const f = allNestedFields[i] as InterfaceField;
         if (f.name === memberExpr.property) {
           field = f;
           break;
         }
       }
       if (field) {
-        const fieldTyped = field as { name: string; type: string };
+        const fieldTyped = field as InterfaceField;
         let fieldType = fieldTyped.type;
         if (fieldType.endsWith(" | null") || fieldType.endsWith(" | undefined")) {
           fieldType = fieldType.replace(/ \| null$/, "").replace(/ \| undefined$/, "");
@@ -1113,14 +1113,14 @@ export class TypeResolver {
         let field: { name: string; type: string } | null = null;
         const allKeyFields = this.getAllInterfaceFields(iface);
         for (let i = 0; i < allKeyFields.length; i++) {
-          const f = allKeyFields[i] as { name: string; type: string };
+          const f = allKeyFields[i] as InterfaceField;
           if (f.name === memberExpr.property) {
             field = f;
             break;
           }
         }
         if (field) {
-          const fieldTyped = field as { name: string; type: string };
+          const fieldTyped = field as InterfaceField;
           const mapParsed = parseMapTypeString(fieldTyped.type);
           if (mapParsed) {
             return mapParsed.keyType;

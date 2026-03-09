@@ -172,7 +172,7 @@ export class InterfaceAllocator {
       const inlineFields = this.parseInlineObjectType(interfaceName);
       if (inlineFields) {
         for (let i = 0; i < inlineFields.length; i++) {
-          const field = inlineFields[i] as { name: string; type: string };
+          const field = inlineFields[i] as InterfaceField;
           keys.push(stripOptional(field.name));
           types.push(this.convertTsType(field.type));
           tsTypes.push(field.type);
@@ -183,7 +183,7 @@ export class InterfaceAllocator {
       const interfaceDef = interfaceDefResult as InterfaceDeclaration;
       const allFields = this.getAllInterfaceFields(interfaceDef);
       for (let i = 0; i < allFields.length; i++) {
-        const field = allFields[i] as { name: string; type: string };
+        const field = allFields[i] as InterfaceField;
         keys.push(stripOptional(field.name));
         types.push(this.convertTsType(field.type));
         tsTypes.push(field.type);
@@ -280,7 +280,7 @@ export class InterfaceAllocator {
     const tsTypes: string[] = [];
     const allFields = this.getAllInterfaceFields(interfaceDef);
     for (let i = 0; i < allFields.length; i++) {
-      const field = allFields[i] as { name: string; type: string };
+      const field = allFields[i] as InterfaceField;
       keys.push(stripOptional(field.name));
       types.push(this.convertTsType(field.type));
       tsTypes.push(field.type);

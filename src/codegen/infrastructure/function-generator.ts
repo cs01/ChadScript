@@ -402,7 +402,7 @@ export class FunctionGenerator {
             const keys: string[] = [];
             const types: string[] = [];
             for (let j = 0; j < interfaceDefFields.length; j++) {
-              const field = interfaceDefFields[j] as { name: string; type: string };
+              const field = interfaceDefFields[j] as InterfaceField;
               if (!field || !field.name) continue;
               const fieldName = stripOptional(field.name);
               keys.push(fieldName);
@@ -849,7 +849,7 @@ export class FunctionGenerator {
     const commonFields: CommonField[] = [];
 
     for (let fi = 0; fi < firstFields.length; fi++) {
-      const field = firstFields[fi] as { name: string; type: string };
+      const field = firstFields[fi] as InterfaceField;
       if (!field || !field.name) continue;
       let isCommon = true;
       for (let ii = 0; ii < interfaces.length; ii++) {
@@ -857,7 +857,7 @@ export class FunctionGenerator {
         const ifaceFields = this.ctx.getAllInterfaceFields(ifaceTyped);
         let found = false;
         for (let fj = 0; fj < ifaceFields.length; fj++) {
-          const f = ifaceFields[fj] as { name: string; type: string };
+          const f = ifaceFields[fj] as InterfaceField;
           if (!f || !f.name) continue;
           if (f.name === field.name && this.areTypesCompatible(f.type, field.type)) {
             found = true;

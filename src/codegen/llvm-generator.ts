@@ -2221,7 +2221,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               const types: string[] = [];
               const allFields = this.getAllInterfaceFields(interfaceDef);
               for (let i = 0; i < allFields.length; i++) {
-                const field = allFields[i] as { name: string; type: string };
+                const field = allFields[i] as InterfaceField;
                 keys.push(stripOptional(field.name));
                 tsTypes.push(field.type);
                 types.push(this.tsTypeToLlvmJsonWithEnums(field.type));

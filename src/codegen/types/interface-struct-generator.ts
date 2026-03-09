@@ -1,4 +1,4 @@
-import { InterfaceDeclaration } from "../../ast/types.js";
+import { InterfaceDeclaration, InterfaceField } from "../../ast/types.js";
 import { canonicalTypeToLlvm } from "../infrastructure/type-system.js";
 
 const BUILTIN_TYPES = [
@@ -119,7 +119,7 @@ export class InterfaceStructGenerator {
       const pFieldsLen = pFields.length;
       if (pFieldsLen === 0) continue;
       for (let j = 0; j < pFieldsLen; j++) {
-        const f = pFields[j] as { name: string; type: string };
+        const f = pFields[j] as InterfaceField;
         let fieldName = f.name;
         if (fieldName.endsWith("?")) {
           fieldName = fieldName.slice(0, fieldName.length - 1);
@@ -143,7 +143,7 @@ export class InterfaceStructGenerator {
     }
     const fields = this.getInterfaceFields(idx);
     for (let i = 0; i < fields.length; i++) {
-      const f = fields[i] as { name: string; type: string };
+      const f = fields[i] as InterfaceField;
       let fieldName = f.name;
       if (fieldName.endsWith("?")) {
         fieldName = fieldName.slice(0, fieldName.length - 1);

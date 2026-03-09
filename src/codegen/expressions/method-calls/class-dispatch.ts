@@ -58,7 +58,7 @@ export function getInterfaceFromAST(
       const allFields = ctx.getAllInterfaceFields(ifaceItem);
       const properties: { name: string; type: string }[] = [];
       for (let j = 0; j < allFields.length; j++) {
-        const field = allFields[j] as { name: string; type: string };
+        const field = allFields[j] as InterfaceField;
         properties.push({ name: field.name, type: field.type });
       }
       return { properties };
@@ -391,13 +391,13 @@ export function resolveNestedMemberAccessType(
       let fieldResult: InterfaceField | null = null;
       const allIfaceFields = ctx.getAllInterfaceFields(interfaceDecl);
       for (let i = 0; i < allIfaceFields.length; i++) {
-        const f = allIfaceFields[i] as { name: string; type: string };
+        const f = allIfaceFields[i] as InterfaceField;
         if (f.name === memberAccess.property) {
           fieldResult = f;
           break;
         }
       }
-      const field = fieldResult as { name: string; type: string };
+      const field = fieldResult as InterfaceField;
       if (fieldResult) {
         let fieldType = field.type;
         if (fieldType.endsWith(" | null") || fieldType.endsWith(" | undefined")) {
@@ -645,7 +645,7 @@ export function handleClassMethods(
             const interfaceDecl = interfaceDeclResult as InterfaceDeclaration;
             const allDispatchFields = ctx.getAllInterfaceFields(interfaceDecl);
             for (let i = 0; i < allDispatchFields.length; i++) {
-              const f = allDispatchFields[i] as { name: string; type: string };
+              const f = allDispatchFields[i] as InterfaceField;
               if (f.name === memberAccess.property) {
                 let fieldType = f.type;
                 if (fieldType.endsWith(" | null") || fieldType.endsWith(" | undefined")) {

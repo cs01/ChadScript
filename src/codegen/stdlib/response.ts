@@ -8,6 +8,8 @@
  * - response.ok - Boolean indicating success (status 200-299)
  */
 
+import type { InterfaceField } from "../../ast/types.js";
+
 interface InterfaceStructGenerator {
   hasInterface(name: string): boolean;
 }
@@ -146,7 +148,7 @@ export class ResponseGenerator {
   private generateJsonStruct(typeName: string, interfaceDef: InterfaceDefInfo): void {
     const fieldTypes: string[] = [];
     for (let i = 0; i < interfaceDef.properties.length; i++) {
-      const prop = interfaceDef.properties[i] as { name: string; type: string };
+      const prop = interfaceDef.properties[i] as InterfaceField;
       if (prop.type === "string") {
         fieldTypes.push("i8*");
       } else if (prop.type === "number") {
@@ -199,7 +201,7 @@ export class ResponseGenerator {
 
     parserIR += `json_error:` + "\n";
     for (let fieldIndex = 0; fieldIndex < interfaceDef.properties.length; fieldIndex++) {
-      const prop = interfaceDef.properties[fieldIndex] as { name: string; type: string };
+      const prop = interfaceDef.properties[fieldIndex] as InterfaceField;
       const propType = prop.type;
       const fieldPtr = `%err_field_ptr_${fieldIndex}`;
       parserIR +=
@@ -219,7 +221,7 @@ export class ResponseGenerator {
 
     parserIR += `json_ok:` + "\n";
     for (let fieldIndex = 0; fieldIndex < interfaceDef.properties.length; fieldIndex++) {
-      const prop = interfaceDef.properties[fieldIndex] as { name: string; type: string };
+      const prop = interfaceDef.properties[fieldIndex] as InterfaceField;
       const propName = prop.name;
       const propType = prop.type;
       const fieldNameConst = this.ctx.nextString();

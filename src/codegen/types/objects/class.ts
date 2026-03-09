@@ -5,6 +5,7 @@ import {
   ClassField,
   VariableNode,
   InterfaceDeclaration,
+  InterfaceField,
   CommonField,
   TypeAliasDeclaration,
 } from "../../../ast/types.js";
@@ -1437,7 +1438,7 @@ export class ClassGenerator {
       const tsTypes: string[] = [];
       const allFields = this.ctx.getAllInterfaceFields(interfaceDef);
       for (let fi = 0; fi < allFields.length; fi++) {
-        const f = allFields[fi] as { name: string; type: string };
+        const f = allFields[fi] as InterfaceField;
         keys.push(stripOptional(f.name));
         types.push(this.fieldTypeToLlvm(f.type));
         tsTypes.push(f.type);
@@ -1515,7 +1516,7 @@ export class ClassGenerator {
         const types: string[] = [];
         const tsTypes: string[] = [];
         for (let fi = 0; fi < inlineFields.length; fi++) {
-          const f = inlineFields[fi] as { name: string; type: string };
+          const f = inlineFields[fi] as InterfaceField;
           keys.push(stripOptional(f.name));
           types.push(this.fieldTypeToLlvm(f.type));
           tsTypes.push(f.type);
@@ -1666,14 +1667,14 @@ export class ClassGenerator {
     const commonFields: CommonField[] = [];
 
     for (let fi = 0; fi < firstFields.length; fi++) {
-      const field = firstFields[fi] as { name: string; type: string };
+      const field = firstFields[fi] as InterfaceField;
       let isCommon = true;
       for (let ii = 0; ii < interfaces.length; ii++) {
         const ifaceTyped = interfaces[ii] as InterfaceDeclaration;
         const ifaceFields = this.ctx.getAllInterfaceFields(ifaceTyped);
         let found = false;
         for (let fj = 0; fj < ifaceFields.length; fj++) {
-          const f = ifaceFields[fj] as { name: string; type: string };
+          const f = ifaceFields[fj] as InterfaceField;
           if (f.name === field.name && this.areTypesCompatible(f.type, field.type)) {
             found = true;
             break;
