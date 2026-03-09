@@ -255,6 +255,13 @@ export class MemberAccessGenerator {
   }
 
   private dispatchSpecialValues(expr: MemberAccessNode, params: string[]): string | null {
+    const enumResult = this.dispatchEnumAndStaticAccess(expr);
+    if (enumResult !== null) return enumResult;
+
+    return this.dispatchBuiltinPropertyAccess(expr);
+  }
+
+  private dispatchEnumAndStaticAccess(expr: MemberAccessNode): string | null {
     let result: string | null;
 
     result = this.handleStringEnumMemberAccess(expr);
@@ -266,15 +273,17 @@ export class MemberAccessGenerator {
     result = this.handleStaticFieldAccess(expr);
     if (result !== null) return result;
 
-    result = this.handleTypedJsonStructAccess(expr);
-    if (result !== null) return result;
+    return this.handleTypedJsonStructAccess(expr);
+  }
 
+  private dispatchBuiltinPropertyAccess(expr: MemberAccessNode): string | null {
     if (isProcessArgv(expr)) return this.handleProcessArgv();
 
     if (isProcessPlatform(expr)) return handleProcessPlatform(this.ctx);
 
     if (isProcessEnvAccess(expr)) return this.handleProcessEnvAccess(expr);
 
+    let result: string | null;
     result = handleProcessSimpleProperty(this.ctx, expr);
     if (result !== null) return result;
 
@@ -301,6 +310,17 @@ export class MemberAccessGenerator {
   }
 
   private dispatchByExpressionType(
+    expr: MemberAccessNode,
+    params: string[],
+    exprObjType: string,
+  ): string | null {
+    const structured = this.dispatchStructuredAccess(expr, params, exprObjType);
+    if (structured !== null) return structured;
+
+    return this.dispatchCallAndObjectAccess(expr, params, exprObjType);
+  }
+
+  private dispatchStructuredAccess(
     expr: MemberAccessNode,
     params: string[],
     exprObjType: string,
@@ -333,6 +353,16 @@ export class MemberAccessGenerator {
       if (result !== null) return result;
     }
 
+    return null;
+  }
+
+  private dispatchCallAndObjectAccess(
+    expr: MemberAccessNode,
+    params: string[],
+    exprObjType: string,
+  ): string | null {
+    let result: string | null;
+
     if (exprObjType === "method_call") {
       result = this.handleMethodCallResultPropertyAccess(expr, params);
       if (result !== null) return result;
@@ -350,14 +380,19 @@ export class MemberAccessGenerator {
   }
 
   private dispatchPropertyHandlers(expr: MemberAccessNode, params: string[]): string | null {
-    let result: string | null;
-
     if (expr.property === "length") return this.handleLengthProperty(expr, params);
 
-    if (expr.property === "size") {
-      result = this.handleSizeProperty(expr, params);
-      if (result !== null) return result;
-    }
+    const common = this.dispatchCommonPropertyHandlers(expr, params);
+    if (common !== null) return common;
+
+    return this.dispatchExtendedPropertyHandlers(expr);
+  }
+
+  private dispatchCommonPropertyHandlers(expr: MemberAccessNode, params: string[]): string | null {
+    let result: string | null;
+
+    result = this.handleSizeProperty(expr, params);
+    if (result !== null) return result;
 
     result = this.handleResponseProperty(expr);
     if (result !== null) return result;
@@ -365,16 +400,16 @@ export class MemberAccessGenerator {
     result = this.handleStatProperty(expr);
     if (result !== null) return result;
 
-    result = this.handlePathParseProperty(expr);
-    if (result !== null) return result;
+    return this.handlePathParseProperty(expr);
+  }
+
+  private dispatchExtendedPropertyHandlers(expr: MemberAccessNode): string | null {
+    let result: string | null;
 
     result = this.handleSpawnSyncResultProperty(expr);
     if (result !== null) return result;
 
-    result = this.handleUrlProperty(expr);
-    if (result !== null) return result;
-
-    return null;
+    return this.handleUrlProperty(expr);
   }
 
   private hasObjectInfo(name: string): boolean {

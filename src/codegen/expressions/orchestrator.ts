@@ -125,6 +125,23 @@ export class ExpressionGenerator {
       methodCallGen: this.methodCallGen,
     };
 
+    const literalResult = this.dispatchLiteralsAndOperators(dctx, expr, params);
+    if (literalResult !== null) return literalResult;
+
+    const remaining = this.dispatchRemainingExpressions(dctx, expr, params);
+    if (remaining !== null) return remaining;
+
+    this.ctx.emitError(
+      "unsupported expression type: " + expr.type,
+      (expr as { loc?: { line: number; column: number } }).loc,
+    );
+  }
+
+  private dispatchLiteralsAndOperators(
+    dctx: ExpressionDispatchContext,
+    expr: Expression,
+    params: string[],
+  ): string | null {
     const r1 = dispatchPrimitiveLiteral(dctx, expr, params);
     if (r1 !== null) return r1;
 
@@ -139,9 +156,14 @@ export class ExpressionGenerator {
     const r3 = dispatchConstructorLiteral(dctx, expr, params);
     if (r3 !== null) return r3;
 
-    const r4 = dispatchOperatorExpression(dctx, expr, params);
-    if (r4 !== null) return r4;
+    return dispatchOperatorExpression(dctx, expr, params);
+  }
 
+  private dispatchRemainingExpressions(
+    dctx: ExpressionDispatchContext,
+    expr: Expression,
+    params: string[],
+  ): string | null {
     if (expr.type === "arrow_function") {
       return this.generateArrowFunctionExpression(expr as ArrowFunctionNode, params);
     }
@@ -167,10 +189,7 @@ export class ExpressionGenerator {
       return this.generate(assertExpr.expression, params);
     }
 
-    this.ctx.emitError(
-      "unsupported expression type: " + expr.type,
-      (expr as { loc?: { line: number; column: number } }).loc,
-    );
+    return null;
   }
 
   private generateAwaitExpression(expr: AwaitExpressionNode, params: string[]): string {
