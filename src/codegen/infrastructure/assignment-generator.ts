@@ -70,7 +70,7 @@ export class AssignmentGenerator {
     const stmtValueTyped = stmtValue as { type: string };
     const valueType = stmtValueTyped.type;
     if (valueType === null || valueType === undefined) {
-      return;
+      return this.ctx.emitError("malformed assignment — value expression has no type", stmt.loc);
     }
     if (valueType !== "member_access_assignment") {
       return this.ctx.emitError("Invalid member access assignment format");
@@ -81,7 +81,7 @@ export class AssignmentGenerator {
     const objectTyped = object as { type: string };
     const objType = objectTyped.type;
     if (objType === null || objType === undefined) {
-      return;
+      return this.ctx.emitError("malformed assignment — target object has no type", stmt.loc);
     }
     const property = memberAccessValue.property;
 
@@ -455,10 +455,18 @@ export class AssignmentGenerator {
     params: string[],
   ): void {
     const elementInfo = this.getObjectArrayElementInfoForAssignment(indexAccess.object);
-    if (!elementInfo) return;
+    if (!elementInfo) {
+      return this.ctx.emitError(
+        `cannot assign to '${property}' — unable to determine element type for index access`,
+      );
+    }
 
     const propIndex = elementInfo.keys.indexOf(property);
-    if (propIndex === -1) return;
+    if (propIndex === -1) {
+      return this.ctx.emitError(
+        `unknown property '${property}' on array element — available properties: ${elementInfo.keys.join(", ")}`,
+      );
+    }
 
     const arrayPtr = this.ctx.generateExpression(indexAccess.object, params);
     const indexDouble = this.ctx.generateExpression(indexAccess.index, params);
