@@ -23,6 +23,8 @@
     "test:parity": "npm run build && node --import tsx --test tests/ast-parity.test.ts",
     "verify": "bash scripts/verify.sh",
     "verify:quick": "bash scripts/verify.sh --quick",
+    "coverage": "CHADC_COMPILER='node dist/chad-node.js' c8 node --import tsx --test tests/compiler.test.ts tests/unit/symbol-table.test.ts tests/unit/type-system.test.ts",
+    "coverage:report": "c8 report",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "husky"
@@ -42,6 +44,7 @@
     "@types/express": "^5.0.6",
     "@types/node": "^20.0.0",
     "date-fns": "^4.1.0",
+    "c8": "^11.0.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
     "prettier": "^3.8.1",
