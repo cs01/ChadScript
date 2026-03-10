@@ -236,6 +236,7 @@ function generateNumericArrayShift(gen: IGeneratorContext, arrayPtr: string): st
   gen.emitLabel(endLabel);
   const result = gen.nextTemp();
   gen.emit(`${result} = phi double [ 0.0, %${emptyLabel} ], [ ${firstElem}, %${notEmptyLabel} ]`);
+  gen.setVariableType(result, "double");
   return result;
 }
 

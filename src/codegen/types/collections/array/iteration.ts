@@ -154,6 +154,7 @@ function generateNumericArrayFilter(
   gen.emitBr(checkLabel);
 
   gen.emitLabel(endLabel);
+  gen.setVariableType(resultArrayPtr, "%Array*");
   return resultArrayPtr;
 }
 
@@ -580,8 +581,7 @@ function generateStringArrayReduce(
   gen.emitBr(checkLabel);
 
   gen.emitLabel(endLabel);
-  const finalAcc = gen.nextTemp();
-  gen.emit(`${finalAcc} = load i8*, i8** ${accPtr}`);
+  const finalAcc = gen.emitLoad("i8*", accPtr);
   return finalAcc;
 }
 
@@ -737,6 +737,7 @@ function generateNumericArrayMap(
   gen.emitBr(checkLabel);
 
   gen.emitLabel(endLabel);
+  gen.setVariableType(resultArrayPtr, "%Array*");
   return resultArrayPtr;
 }
 

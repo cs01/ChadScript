@@ -30,6 +30,7 @@ interface ResponseGeneratorContext {
   setVariableType(name: string, type: string): void;
   interfaceStructGen?: InterfaceStructGenerator;
   interfaceStructGenHasInterface(name: string): boolean;
+  setUsesJson(value: boolean): void;
 }
 
 export class ResponseGenerator {
@@ -68,7 +69,7 @@ export class ResponseGenerator {
    * @param responsePtr - LLVM register holding Response*
    */
   generateJson(responsePtr: string): string {
-    // Get the body string first
+    this.ctx.setUsesJson(true);
     const bodyPtr = this.generateText(responsePtr);
 
     // Parse JSON using cJSON library (same as JSON.parse())
@@ -117,6 +118,7 @@ export class ResponseGenerator {
    * @param interfaceDef - Interface definition with properties
    */
   generateTypedJson(responsePtr: string, typeName: string, interfaceDef: InterfaceDefInfo): string {
+    this.ctx.setUsesJson(true);
     const alreadyDefined = this.ctx.interfaceStructGen?.hasInterface(typeName);
 
     if (!this.generatedStructs.has(typeName) && !alreadyDefined) {
