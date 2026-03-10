@@ -35,6 +35,7 @@ import {
 import type {
   IStringGenerator,
   IMapGenerator,
+  IStringMapGenerator,
   ISetGenerator,
   IResponseGenerator,
 } from "../../infrastructure/generator-context.js";
@@ -181,6 +182,7 @@ export interface MemberAccessGeneratorContext {
   classGenGetClassFields(className: string): { name: string; fieldType: string }[];
   readonly responseGen: IResponseGenerator;
   readonly mapGen: IMapGenerator;
+  readonly stringMapGen: IStringMapGenerator;
   readonly setGen: ISetGenerator;
   readonly interfaceStructGen?: InterfaceStructGenerator;
   generateExpression(expr: Expression, params: string[]): string;

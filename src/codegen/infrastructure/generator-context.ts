@@ -250,6 +250,7 @@ export interface IStringMapGenerator {
   generateStringMapEntries(mapPtr: string): string;
   generateStringMapValues(mapPtr: string): string;
   generateStringMapKeys(mapPtr: string): string;
+  generateStringMapSize(mapPtr: string): string;
   generateEmptyStringMap(): string;
 }
 
@@ -1829,6 +1830,7 @@ export class MockGeneratorContext implements IGeneratorContext {
     generateStringMapEntries: (_mapPtr: string): string => "%mock_entries",
     generateStringMapValues: (_mapPtr: string): string => "%mock_values",
     generateStringMapKeys: (_mapPtr: string): string => "%mock_keys",
+    generateStringMapSize: (_mapPtr: string): string => "%mock_size",
     generateEmptyStringMap: (): string => "%mock_empty_map",
   };
 
