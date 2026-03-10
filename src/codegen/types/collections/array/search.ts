@@ -219,7 +219,10 @@ export function generateArrayFindIndex(
     predicateFn = gen.generateExpression(predicateArg, params);
     gen.setExpectedCallbackParamType(null);
   } else {
-    return gen.emitError("findIndex() argument must be a function name or inline function", expr.loc);
+    return gen.emitError(
+      "findIndex() argument must be a function name or inline function",
+      expr.loc,
+    );
   }
 
   let result: string;

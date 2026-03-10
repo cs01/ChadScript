@@ -402,7 +402,10 @@ export function generateArrayReduce(
   params: string[],
 ): string {
   if (expr.args.length < 1 || expr.args.length > 2) {
-    return gen.emitError("reduce() requires 1-2 arguments (callback, optional initialValue)", expr.loc);
+    return gen.emitError(
+      "reduce() requires 1-2 arguments (callback, optional initialValue)",
+      expr.loc,
+    );
   }
 
   const arrayPtr = gen.generateExpression(expr.object, params);
