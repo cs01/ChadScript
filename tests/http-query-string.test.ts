@@ -3,12 +3,13 @@ import assert from "node:assert";
 import { exec, spawn, ChildProcess } from "node:child_process";
 import { promisify } from "node:util";
 import * as fsSync from "node:fs";
+import * as net from "node:net";
 
 const execAsync = promisify(exec);
 
 const SERVER_SOURCE = "tests/fixtures/network/http-query-string-test.ts";
 const SERVER_BINARY = ".build/tests/fixtures/network/http-query-string-test";
-const PORT = 9985;
+let PORT = 0;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -27,6 +28,14 @@ describe("HTTP Query String Tests", { concurrency: 1 }, () => {
   let serverProcess: ChildProcess | null = null;
 
   before(async () => {
+    PORT = await new Promise<number>((resolve, reject) => {
+      const srv = net.createServer();
+      srv.listen(0, "127.0.0.1", () => {
+        const p = (srv.address() as net.AddressInfo).port;
+        srv.close(() => resolve(p));
+      });
+      srv.on("error", reject);
+    });
     await execAsync(`node dist/chad-node.js build ${SERVER_SOURCE}`, { timeout: 60000 });
     assert.ok(fsSync.existsSync(SERVER_BINARY), "Server binary should exist");
   });
@@ -39,7 +48,7 @@ describe("HTTP Query String Tests", { concurrency: 1 }, () => {
     }
   });
 
-  async function waitForServer(maxAttempts = 50): Promise<void> {
+  async function waitForServer(maxAttempts = 100): Promise<void> {
     for (let i = 0; i < maxAttempts; i++) {
       try {
         const resp = await fetch(`http://127.0.0.1:${PORT}/check-path`);
@@ -60,7 +69,7 @@ describe("HTTP Query String Tests", { concurrency: 1 }, () => {
       await sleep(500);
     }
 
-    serverProcess = spawn(SERVER_BINARY, [], {
+    serverProcess = spawn(SERVER_BINARY, ["-p", String(PORT)], {
       detached: true,
       stdio: ["ignore", "pipe", "pipe"],
     });

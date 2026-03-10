@@ -1,11 +1,18 @@
 // @test-skip
-// Regression test: using JSON.parse<T>() and response.json<T>() with the same
-// interface in the same file previously caused a duplicate parse_json_T
-// function definition in the generated LLVM IR.
 
 interface Item {
   id: number;
   name: string;
+}
+
+function getPort(): string {
+  const args = process.argv;
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "-p") {
+      return args[i + 1];
+    }
+  }
+  return "19882";
 }
 
 async function runTests(): Promise<void> {
@@ -19,7 +26,8 @@ async function runTests(): Promise<void> {
     process.exit(1);
   }
 
-  const response = await fetch("http://127.0.0.1:19882/item");
+  const port = getPort();
+  const response = await fetch("http://127.0.0.1:" + port + "/item");
   const fromJson = response.json<Item>();
   if (fromJson.id !== 2) {
     console.log("FAIL: response.json id");

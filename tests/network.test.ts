@@ -3,16 +3,23 @@ import assert from "node:assert";
 import { exec, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import * as http from "node:http";
+import * as net from "node:net";
 
 const execAsync = promisify(exec);
 
-describe("Network Tests", () => {
-  // TCP socket and client tests are static fixtures auto-discovered by compiler.test.ts:
-  //   tests/fixtures/network/tcp-test-socket.ts
-  //   tests/fixtures/network/tcp-client.ts
+function getRandomPort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const srv = net.createServer();
+    srv.listen(0, "127.0.0.1", () => {
+      const port = (srv.address() as net.AddressInfo).port;
+      srv.close(() => resolve(port));
+    });
+    srv.on("error", reject);
+  });
+}
 
+describe("Network Tests", () => {
   it("should perform HTTP requests using fetch() builtin", async () => {
-    // Start a Node.js HTTP server for testing
     const server = http.createServer((req, res) => {
       if (req.url === "/test") {
         res.writeHead(200, { "Content-Type": "text/plain" });
@@ -30,20 +37,19 @@ describe("Network Tests", () => {
     });
 
     await new Promise<void>((resolve) => {
-      server.listen(9998, "127.0.0.1", resolve);
+      server.listen(0, "127.0.0.1", resolve);
     });
 
+    const port = (server.address() as { port: number }).port;
+
     try {
-      // Compile the fetch test fixture
       const testFile = "tests/fixtures/network/fetch-integration-test.ts";
       await execAsync(`node dist/chad-node.js build ${testFile}`);
 
-      // Run the compiled program
-      const { stdout, stderr } = await execAsync(
-        ".build/tests/fixtures/network/fetch-integration-test",
+      const { stdout } = await execAsync(
+        `.build/tests/fixtures/network/fetch-integration-test -p ${port}`,
       );
 
-      // Verify the test passed
       assert.ok(stdout.includes("TEST_PASSED"), "fetch() integration test should pass");
       assert.ok(!stdout.includes("TEST_FAILED"), "fetch() test should not fail");
     } finally {
@@ -69,13 +75,17 @@ describe("Network Tests", () => {
     });
 
     await new Promise<void>((resolve) => {
-      server.listen(19881, "127.0.0.1", resolve);
+      server.listen(0, "127.0.0.1", resolve);
     });
+
+    const port = (server.address() as { port: number }).port;
 
     try {
       const testFile = "tests/fixtures/network/promise-all-fetch-test.ts";
       await execAsync(`node dist/chad-node.js build ${testFile}`);
-      const { stdout } = await execAsync(".build/tests/fixtures/network/promise-all-fetch-test");
+      const { stdout } = await execAsync(
+        `.build/tests/fixtures/network/promise-all-fetch-test -p ${port}`,
+      );
       assert.ok(stdout.includes("TEST_PASSED"), "Promise.all + fetch test should pass");
     } finally {
       server.close();
@@ -89,13 +99,17 @@ describe("Network Tests", () => {
     });
 
     await new Promise<void>((resolve) => {
-      server.listen(19878, "127.0.0.1", resolve);
+      server.listen(0, "127.0.0.1", resolve);
     });
+
+    const port = (server.address() as { port: number }).port;
 
     try {
       const testFile = "tests/fixtures/network/async-fetch-test.ts";
       await execAsync(`node dist/chad-node.js build ${testFile}`);
-      const { stdout } = await execAsync(".build/tests/fixtures/network/async-fetch-test");
+      const { stdout } = await execAsync(
+        `.build/tests/fixtures/network/async-fetch-test -p ${port}`,
+      );
       assert.ok(stdout.includes("TEST_PASSED"), "async fetch test should pass");
     } finally {
       server.close();
@@ -112,13 +126,17 @@ describe("Network Tests", () => {
     });
 
     await new Promise<void>((resolve) => {
-      server.listen(19880, "127.0.0.1", resolve);
+      server.listen(0, "127.0.0.1", resolve);
     });
+
+    const port = (server.address() as { port: number }).port;
 
     try {
       const testFile = "tests/fixtures/network/promise-all-concurrent.ts";
       await execAsync(`node dist/chad-node.js build ${testFile}`);
-      const { stdout } = await execAsync(".build/tests/fixtures/network/promise-all-concurrent");
+      const { stdout } = await execAsync(
+        `.build/tests/fixtures/network/promise-all-concurrent -p ${port}`,
+      );
       assert.ok(stdout.includes("TEST_PASSED"), "Promise.all concurrent test should pass");
     } finally {
       server.close();
@@ -137,14 +155,16 @@ describe("Network Tests", () => {
     });
 
     await new Promise<void>((resolve) => {
-      server.listen(19882, "127.0.0.1", resolve);
+      server.listen(0, "127.0.0.1", resolve);
     });
+
+    const port = (server.address() as { port: number }).port;
 
     try {
       const testFile = "tests/fixtures/network/json-parse-and-response-json-test.ts";
       await execAsync(`node dist/chad-node.js build ${testFile}`);
       const { stdout } = await execAsync(
-        ".build/tests/fixtures/network/json-parse-and-response-json-test",
+        `.build/tests/fixtures/network/json-parse-and-response-json-test -p ${port}`,
       );
       assert.ok(
         stdout.includes("TEST_PASSED"),
@@ -163,19 +183,21 @@ describe("Network Tests", () => {
   });
 
   it("should run HTTP server using httpServe()", async () => {
+    const port = await getRandomPort();
     const testFile = "tests/fixtures/network/http-server-test.ts";
     await execAsync(`node dist/chad-node.js build ${testFile}`);
 
-    const serverProcess = spawn(".build/tests/fixtures/network/http-server-test", [], {
-      detached: true,
-      stdio: "ignore",
-    });
+    const serverProcess = spawn(
+      ".build/tests/fixtures/network/http-server-test",
+      ["-p", String(port)],
+      { detached: true, stdio: "ignore" },
+    );
 
-    async function waitForServer9997(maxMs = 5000): Promise<void> {
+    async function waitForServer(maxMs = 10000): Promise<void> {
       const start = Date.now();
       while (Date.now() - start < maxMs) {
         try {
-          await fetch("http://127.0.0.1:9997/");
+          await fetch(`http://127.0.0.1:${port}/`);
           return;
         } catch {
           await new Promise((resolve) => setTimeout(resolve, 100));
@@ -184,13 +206,13 @@ describe("Network Tests", () => {
       throw new Error("Server not ready after " + maxMs + "ms");
     }
 
-    await waitForServer9997();
+    await waitForServer();
 
     try {
       const responses = await Promise.all([
-        fetch("http://127.0.0.1:9997/").then((r) => r.text()),
-        fetch("http://127.0.0.1:9997/json").then((r) => r.text()),
-        fetch("http://127.0.0.1:9997/notfound").then((r) => r.text()),
+        fetch(`http://127.0.0.1:${port}/`).then((r) => r.text()),
+        fetch(`http://127.0.0.1:${port}/json`).then((r) => r.text()),
+        fetch(`http://127.0.0.1:${port}/notfound`).then((r) => r.text()),
       ]);
 
       assert.strictEqual(

@@ -53,4 +53,15 @@ function handleRequest(req: Request): Response {
   return { status: 404, body: "Not Found", headers: "" };
 }
 
-httpServe(9986, handleRequest);
+function getPortNum(): number {
+  const args = process.argv;
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "-p") {
+      return parseInt(args[i + 1]);
+    }
+  }
+  return 9986;
+}
+
+const port = getPortNum();
+httpServe(port, handleRequest);
