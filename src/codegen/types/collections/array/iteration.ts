@@ -511,6 +511,7 @@ function generateNumericArrayReduce(
 
   gen.emitLabel(endLabel);
   const finalAcc = gen.emitLoad("double", accPtr);
+  gen.setVariableType(finalAcc, "double");
   return finalAcc;
 }
 
@@ -585,6 +586,7 @@ function generateStringArrayReduce(
 
   gen.emitLabel(endLabel);
   const finalAcc = gen.emitLoad("i8*", accPtr);
+  gen.setVariableType(finalAcc, "i8*");
   return finalAcc;
 }
 
