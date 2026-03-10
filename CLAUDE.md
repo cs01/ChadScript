@@ -10,6 +10,21 @@ cd .worktrees/<name>
 # do work, commit, then open a PR
 ```
 
+## Autonomous PR Workflow
+
+Agents can work autonomously end-to-end: create worktrees, make changes, push branches, create PRs,
+monitor CI, and merge when green. You have push access to feature branches and merge access to PRs.
+
+1. Create a worktree and branch
+2. Make changes, run `npm run verify:quick`, commit
+3. `git push origin <branch>` — push to remote
+4. `gh pr create` — open a PR
+5. `gh pr checks <number>` — monitor CI
+6. When CI is green: `gh pr merge <number> --squash` — merge to main
+7. Pull main and continue with next task
+
+**Never push to main directly.** Always go through PRs.
+
 ## Testing & Commit Workflow
 
 After completing each todo:
