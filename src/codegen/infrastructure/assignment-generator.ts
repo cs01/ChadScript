@@ -158,6 +158,11 @@ export class AssignmentGenerator {
 
     if (className) {
       this.handleClassFieldAssignment(object, className, property, memberAccessValue, params);
+    } else {
+      const objTypeName = (object as { type: string }).type || "unknown";
+      this.ctx.emitError(
+        `cannot assign to '${property}' — unable to determine class for object of type '${objTypeName}'`,
+      );
     }
   }
 
