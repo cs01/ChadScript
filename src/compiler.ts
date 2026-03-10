@@ -486,11 +486,12 @@ export function compile(
   // Homebrew's clang can't find lld by short name on macOS CI runners.
   // Try ld.lld first (ELF-specific), fall back to lld (multicall binary, auto-detects format).
   const crossLinker = crossCompiling ? ` -fuse-ld=${findLLD()}` : "";
+  const suppressLdWarnings = targetIsMac ? " -Wl,-w" : "";
   // User-provided linker flags (--link-obj, --link-lib, --link-path)
   const userObjs = extraLinkObjs.length > 0 ? " " + extraLinkObjs.join(" ") : "";
   const userPaths = extraLinkPaths.map((p) => ` -L${p}`).join("");
   const userLibs = extraLinkLibs.map((l) => ` -l${l}`).join("");
-  const linkCmd = `${linker} ${objFile} ${lwsBridgeObj} ${regexBridgeObj} ${cpBridgeObj} ${osBridgeObj} ${timeBridgeObj} ${base64BridgeObj} ${urlBridgeObj} ${uriBridgeObj} ${dotenvBridgeObj} ${watchBridgeObj} ${cpSpawnObj}${extraObjs}${userObjs} -o ${outputFile}${noPie}${debugFlag}${stripFlag}${staticFlag}${crossTarget}${crossLinker}${sanitizeFlags} ${linkLibs}${userPaths}${userLibs}`;
+  const linkCmd = `${linker} ${objFile} ${lwsBridgeObj} ${regexBridgeObj} ${cpBridgeObj} ${osBridgeObj} ${timeBridgeObj} ${base64BridgeObj} ${urlBridgeObj} ${uriBridgeObj} ${dotenvBridgeObj} ${watchBridgeObj} ${cpSpawnObj}${extraObjs}${userObjs} -o ${outputFile}${noPie}${debugFlag}${stripFlag}${staticFlag}${crossTarget}${crossLinker}${suppressLdWarnings}${sanitizeFlags} ${linkLibs}${userPaths}${userLibs}`;
   logger.info(` ${linkCmd}`);
   const linkStdio = logger.getLevel() >= LogLevel.Verbose ? "inherit" : "pipe";
   execSync(linkCmd, { stdio: linkStdio });
