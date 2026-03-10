@@ -266,7 +266,7 @@ export class SetGenerator {
 
     this.ctx.emitLabel(endLabel);
     const result = this.ctx.emitLoad("double", resultReg);
-
+    this.ctx.setVariableType(result, "double");
     return result;
   }
 
@@ -369,6 +369,7 @@ export class SetGenerator {
 
     this.ctx.emitLabel(endLabel);
     const result = this.ctx.emitLoad("double", resultReg);
+    this.ctx.setVariableType(result, "double");
     return result;
   }
 }
@@ -684,7 +685,10 @@ export class StringSetGenerator {
     this.emit(
       `${sizeFieldPtr} = getelementptr inbounds %StringSet, %StringSet* ${setPtr}, i32 0, i32 1`,
     );
-    const size = this.ctx.emitLoad("i32", sizeFieldPtr);
+    const sizeI32 = this.ctx.emitLoad("i32", sizeFieldPtr);
+    const size = this.nextTemp();
+    this.emit(`${size} = sitofp i32 ${sizeI32} to double`);
+    this.ctx.setVariableType(size, "double");
     return size;
   }
 }
