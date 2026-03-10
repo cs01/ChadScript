@@ -27,8 +27,8 @@ export function generateSplit(ctx: IGeneratorContext, strPtr: string, delimiter:
 
   ctx.emitLabel(emptyDelimLabel);
 
-  const emptyArrPtr = ctx.nextTemp();
-  ctx.emit(`${emptyArrPtr} = alloca %StringArray`);
+  const emptyArrMem = ctx.emitCall("i8*", "@GC_malloc", "i64 24");
+  const emptyArrPtr = ctx.emitBitcast(emptyArrMem, "i8*", "%StringArray*");
 
   const emptyDataSize = ctx.nextTemp();
   ctx.emit(`${emptyDataSize} = mul i32 ${strLenI32}, 8`);
@@ -158,8 +158,8 @@ export function generateSplit(ctx: IGeneratorContext, strPtr: string, delimiter:
   ctx.emitLabel(countEndLabel);
   const totalParts = ctx.emitLoad("i32", partCountPtr);
 
-  const arrayPtr = ctx.nextTemp();
-  ctx.emit(`${arrayPtr} = alloca %StringArray`);
+  const arrayMem = ctx.emitCall("i8*", "@GC_malloc", "i64 24");
+  const arrayPtr = ctx.emitBitcast(arrayMem, "i8*", "%StringArray*");
 
   const dataSize = ctx.nextTemp();
   ctx.emit(`${dataSize} = mul i32 ${totalParts}, 8`);
