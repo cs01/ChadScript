@@ -34,6 +34,16 @@ Or manually:
 
 New features have complex side effects that may not be caught by unit tests alone. A change that passes all tests can still break self-hosting. The Stage 2 test is the true verification — it proves the compiler's output is correct enough to compile itself.
 
+## Versioning & Releases
+
+Version is defined in one place: `package.json`. `npm run build` auto-generates `src/version.ts` via the `prebuild` script (`scripts/gen-version.js`). Both `chad-node.ts` and `chad-native.ts` import `VERSION` from there.
+
+To bump a version:
+1. Edit `version` in `package.json`
+2. `npm run build` (regenerates `src/version.ts`)
+3. Merge to main
+4. `git tag v<version> && git push origin v<version>` — CI creates a GitHub Release with binaries
+
 ## Stale Native Compiler
 
 After a rebase or merge that brings in new codegen features, `.build/chad` becomes stale — it was compiled
