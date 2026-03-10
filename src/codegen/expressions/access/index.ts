@@ -18,6 +18,7 @@ interface ObjectMetaBasic {
 }
 import type { SymbolTable } from "../../infrastructure/symbol-table.js";
 import type { IStringGenerator } from "../../infrastructure/generator-context.js";
+import type { SourceLocation } from "../../../ast/types.js";
 
 export interface IndexAccessGeneratorContext {
   nextTemp(): string;
@@ -36,6 +37,7 @@ export interface IndexAccessGeneratorContext {
   readonly stringGen: IStringGenerator;
   ensureDouble(value: string): string;
   setUsesJson(value: boolean): void;
+  emitError(message: string, loc?: SourceLocation, suggestion?: string): never;
 }
 
 /**
@@ -384,8 +386,9 @@ export class IndexAccessGenerator {
       index = this.ctx.nextTemp();
       this.ctx.emit(`${index} = trunc i64 ${indexDouble} to i32`);
     } else if (indexType !== "i32" && indexType !== "i64") {
-      throw new Error(
+      return this.ctx.emitError(
         `String character index must be a number, got type: ${indexType}. Dynamic object property access with string keys is not yet supported.`,
+        expr.loc,
       );
     }
 
@@ -654,7 +657,7 @@ export class IndexAccessGenerator {
       }
     }
 
-    throw new Error("Index access assignment only supported for arrays and objects");
+    return this.ctx.emitError("Index access assignment only supported for arrays and objects", expr.loc);
   }
 
   private generateStringArrayAssignment(
@@ -779,12 +782,12 @@ export class IndexAccessGenerator {
     const keyValue = this.ctx.generateExpression(expr.index, params);
     const keyType = this.ctx.getVariableType(keyValue);
     if (keyType !== "i8*" && !this.ctx.isStringExpression(expr.index)) {
-      throw new Error(`Dynamic object property access requires a string key, got: ${keyType}`);
+      return this.ctx.emitError(`Dynamic object property access requires a string key, got: ${keyType}`, expr.loc);
     }
 
     const objAlloca = this.ctx.getVariableAlloca(varName);
     if (!objAlloca) {
-      throw new Error(`Cannot find alloca for object '${varName}'`);
+      return this.ctx.emitError(`Cannot find alloca for object '${varName}'`, expr.loc);
     }
     const objPtr = this.ctx.nextTemp();
     this.ctx.emit(`${objPtr} = load i8*, i8** ${objAlloca}`);
@@ -879,12 +882,12 @@ export class IndexAccessGenerator {
     const keyValue = this.ctx.generateExpression(expr.index, params);
     const keyType = this.ctx.getVariableType(keyValue);
     if (keyType !== "i8*" && !this.ctx.isStringExpression(expr.index)) {
-      throw new Error(`Dynamic object property write requires a string key, got: ${keyType}`);
+      return this.ctx.emitError(`Dynamic object property write requires a string key, got: ${keyType}`, expr.loc);
     }
 
     const objAlloca = this.ctx.getVariableAlloca(varName);
     if (!objAlloca) {
-      throw new Error(`Cannot find alloca for object '${varName}'`);
+      return this.ctx.emitError(`Cannot find alloca for object '${varName}'`, expr.loc);
     }
     const objPtr = this.ctx.nextTemp();
     this.ctx.emit(`${objPtr} = load i8*, i8** ${objAlloca}`);

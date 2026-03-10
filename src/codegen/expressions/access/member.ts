@@ -752,7 +752,7 @@ export class MemberAccessGenerator {
       }
     }
     if (propIndex === -1) {
-      throw new Error(`Property '${expr.property}' not found in interface ${structTypeName}`);
+      return this.ctx.emitError(`Property '${expr.property}' not found in interface ${structTypeName}`, expr.loc);
     }
 
     const propField = interfaceDef.properties[propIndex] as InterfaceProperty;
@@ -958,8 +958,9 @@ export class MemberAccessGenerator {
       this.ctx.emit(`${value} = load double, double* ${fieldPtr}`);
       return value;
     } else {
-      throw new Error(
+      return this.ctx.emitError(
         `Field '${expr.property}' not found in class ${className}. Did you forget to declare it with a type annotation?`,
+        expr.loc,
       );
     }
   }
@@ -2294,8 +2295,9 @@ export class MemberAccessGenerator {
     const propIndex = keys.indexOf(expr.property);
     if (propIndex === -1) {
       const objDesc = exprObjType === "variable" ? (expr.object as VariableNode).name : "literal";
-      throw new Error(
+      return this.ctx.emitError(
         `Unknown property: ${expr.property} on object ${objDesc}. Available properties: ${keys.join(", ")}`,
+        expr.loc,
       );
     }
 
@@ -2405,8 +2407,9 @@ export class MemberAccessGenerator {
         const field = allFields2328[i] as { name: string; type: string };
         fieldNames.push(field.name);
       }
-      throw new Error(
+      return this.ctx.emitError(
         `Unknown property: ${expr.property} on interface ${valueType}. Available properties: ${fieldNames.join(", ")}`,
+        expr.loc,
       );
     }
 
@@ -3130,7 +3133,7 @@ export class MemberAccessGenerator {
   ): string {
     const interfaceInfo = this.ctx.interfaceStructGen?.getInterfaceStruct(interfaceType);
     if (!interfaceInfo) {
-      throw new Error(`Interface ${interfaceType} not found in interface struct generator`);
+      return this.ctx.emitError(`Interface ${interfaceType} not found in interface struct generator`);
     }
 
     let propIndex: number = -1;
@@ -3161,7 +3164,7 @@ export class MemberAccessGenerator {
     const structType = `%${interfaceType}`;
     const varPtr = this.ctx.getVariableAlloca(varName);
     if (!varPtr) {
-      throw new Error(`Variable ${varName} not found in symbol table`);
+      return this.ctx.emitError(`Variable ${varName} not found in symbol table`);
     }
 
     const objPtrRaw = this.ctx.nextTemp();
@@ -3229,7 +3232,7 @@ export class MemberAccessGenerator {
 
     const interfaceInfo = this.ctx.interfaceStructGen?.getInterfaceStruct(interfaceType);
     if (!interfaceInfo) {
-      throw new Error(`Interface ${interfaceType} not found in interface struct generator`);
+      return this.ctx.emitError(`Interface ${interfaceType} not found in interface struct generator`);
     }
 
     let propIndex: number = -1;
