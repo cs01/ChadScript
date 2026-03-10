@@ -970,9 +970,9 @@ export class VariableAllocator {
               return this.ctx.emitError(genericErr);
             }
           }
-          this.ctx.emitWarning(
+          return this.ctx.emitError(
             `variable '${stmt.name}' classified as numeric from expression type '${nodeType}' — ` +
-              `if this is wrong, add a type annotation`,
+              `add a type annotation to fix this`,
           );
         }
         this.allocateNumeric(stmt, params);
