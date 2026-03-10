@@ -752,7 +752,10 @@ export class MemberAccessGenerator {
       }
     }
     if (propIndex === -1) {
-      return this.ctx.emitError(`Property '${expr.property}' not found in interface ${structTypeName}`, expr.loc);
+      return this.ctx.emitError(
+        `Property '${expr.property}' not found in interface ${structTypeName}`,
+        expr.loc,
+      );
     }
 
     const propField = interfaceDef.properties[propIndex] as InterfaceProperty;
@@ -3133,7 +3136,9 @@ export class MemberAccessGenerator {
   ): string {
     const interfaceInfo = this.ctx.interfaceStructGen?.getInterfaceStruct(interfaceType);
     if (!interfaceInfo) {
-      return this.ctx.emitError(`Interface ${interfaceType} not found in interface struct generator`);
+      return this.ctx.emitError(
+        `Interface ${interfaceType} not found in interface struct generator`,
+      );
     }
 
     let propIndex: number = -1;
@@ -3232,7 +3237,9 @@ export class MemberAccessGenerator {
 
     const interfaceInfo = this.ctx.interfaceStructGen?.getInterfaceStruct(interfaceType);
     if (!interfaceInfo) {
-      return this.ctx.emitError(`Interface ${interfaceType} not found in interface struct generator`);
+      return this.ctx.emitError(
+        `Interface ${interfaceType} not found in interface struct generator`,
+      );
     }
 
     let propIndex: number = -1;

@@ -657,7 +657,10 @@ export class IndexAccessGenerator {
       }
     }
 
-    return this.ctx.emitError("Index access assignment only supported for arrays and objects", expr.loc);
+    return this.ctx.emitError(
+      "Index access assignment only supported for arrays and objects",
+      expr.loc,
+    );
   }
 
   private generateStringArrayAssignment(
@@ -782,7 +785,10 @@ export class IndexAccessGenerator {
     const keyValue = this.ctx.generateExpression(expr.index, params);
     const keyType = this.ctx.getVariableType(keyValue);
     if (keyType !== "i8*" && !this.ctx.isStringExpression(expr.index)) {
-      return this.ctx.emitError(`Dynamic object property access requires a string key, got: ${keyType}`, expr.loc);
+      return this.ctx.emitError(
+        `Dynamic object property access requires a string key, got: ${keyType}`,
+        expr.loc,
+      );
     }
 
     const objAlloca = this.ctx.getVariableAlloca(varName);
@@ -882,7 +888,10 @@ export class IndexAccessGenerator {
     const keyValue = this.ctx.generateExpression(expr.index, params);
     const keyType = this.ctx.getVariableType(keyValue);
     if (keyType !== "i8*" && !this.ctx.isStringExpression(expr.index)) {
-      return this.ctx.emitError(`Dynamic object property write requires a string key, got: ${keyType}`, expr.loc);
+      return this.ctx.emitError(
+        `Dynamic object property write requires a string key, got: ${keyType}`,
+        expr.loc,
+      );
     }
 
     const objAlloca = this.ctx.getVariableAlloca(varName);
