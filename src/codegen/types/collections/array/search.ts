@@ -119,6 +119,7 @@ function generateNumericArrayIndexOf(
   const resultI32 = gen.emitLoad("i32", resultPtr);
   const result = gen.nextTemp();
   gen.emit(`${result} = sitofp i32 ${resultI32} to double`);
+  gen.setVariableType(result, "double");
   return result;
 }
 
@@ -186,6 +187,7 @@ function generateStringArrayIndexOf(
   const resultI32 = gen.emitLoad("i32", resultPtr);
   const result = gen.nextTemp();
   gen.emit(`${result} = sitofp i32 ${resultI32} to double`);
+  gen.setVariableType(result, "double");
   return result;
 }
 
@@ -296,6 +298,7 @@ function generateNumericArrayFindIndex(
   const resultI32 = gen.emitLoad("i32", resultPtr);
   const result = gen.nextTemp();
   gen.emit(`${result} = sitofp i32 ${resultI32} to double`);
+  gen.setVariableType(result, "double");
   return result;
 }
 
@@ -367,5 +370,6 @@ function generateStringArrayFindIndex(
   const resultI32 = gen.emitLoad("i32", resultPtr);
   const result = gen.nextTemp();
   gen.emit(`${result} = sitofp i32 ${resultI32} to double`);
+  gen.setVariableType(result, "double");
   return result;
 }

@@ -92,6 +92,7 @@ export function handleProcessSyscallI32(ctx: MethodCallGeneratorContext, funcNam
   ctx.emit(`${rawResult} = call i32 ${funcName}()`);
   const result = ctx.nextTemp();
   ctx.emit(`${result} = sitofp i32 ${rawResult} to double`);
+  ctx.setVariableType(result, "double");
   return result;
 }
 

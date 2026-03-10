@@ -443,6 +443,7 @@ export class FilesystemGenerator {
     this.ctx.emit(`${phiResult} = phi i32 [ 1, %${existsLabel} ], [ 0, %${notExistsLabel} ]`);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = sitofp i32 ${phiResult} to double`);
+    this.ctx.setVariableType(result, "double");
 
     return result;
   }

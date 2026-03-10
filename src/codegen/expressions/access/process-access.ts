@@ -70,6 +70,7 @@ export function handleProcessSimpleProperty(
     ctx.emit(`${pidI32} = call i32 @getpid()`);
     const pidDouble = ctx.nextTemp();
     ctx.emit(`${pidDouble} = sitofp i32 ${pidI32} to double`);
+    ctx.setVariableType(pidDouble, "double");
     return pidDouble;
   }
   if (prop === "ppid") {
@@ -77,6 +78,7 @@ export function handleProcessSimpleProperty(
     ctx.emit(`${ppidI32} = call i32 @getppid()`);
     const ppidDouble = ctx.nextTemp();
     ctx.emit(`${ppidDouble} = sitofp i32 ${ppidI32} to double`);
+    ctx.setVariableType(ppidDouble, "double");
     return ppidDouble;
   }
   if (prop === "execPath" || prop === "argv0") {

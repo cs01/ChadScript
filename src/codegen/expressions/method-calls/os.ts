@@ -46,6 +46,7 @@ export function handleOsCpus(ctx: MethodCallGeneratorContext): string {
   ctx.emit(`${raw} = call i64 @sysconf(i32 ${scVal})`);
   const result = ctx.nextTemp();
   ctx.emit(`${result} = sitofp i64 ${raw} to double`);
+  ctx.setVariableType(result, "double");
   return result;
 }
 
@@ -62,6 +63,7 @@ export function handleOsTotalmem(ctx: MethodCallGeneratorContext): string {
   ctx.emit(`${bytes} = mul i64 ${pages}, ${pageSize}`);
   const result = ctx.nextTemp();
   ctx.emit(`${result} = uitofp i64 ${bytes} to double`);
+  ctx.setVariableType(result, "double");
   return result;
 }
 
@@ -72,6 +74,7 @@ export function handleOsFreemem(ctx: MethodCallGeneratorContext): string {
   ctx.emit(`${raw} = call i64 @chad_os_freemem()`);
   const result = ctx.nextTemp();
   ctx.emit(`${result} = uitofp i64 ${raw} to double`);
+  ctx.setVariableType(result, "double");
   return result;
 }
 
