@@ -200,6 +200,7 @@ export class SqliteGenerator {
         const dblVal = this.ctx.ensureDouble(val);
         strVal = this.ctx.nextTemp();
         this.ctx.emit(`${strVal} = call i8* @__double_to_string(double ${dblVal})`);
+        this.ctx.setVariableType(strVal, "i8*");
       } else {
         strVal = val;
       }

@@ -837,6 +837,7 @@ export class IndexAccessGenerator {
         this.ctx.emit(`${doubleVal} = load double, double* ${fieldPtr}`);
         fieldValue = this.ctx.nextTemp();
         this.ctx.emit(`${fieldValue} = call i8* @__double_to_string(double ${doubleVal})`);
+        this.ctx.setVariableType(fieldValue, "i8*");
       } else {
         fieldValue = this.ctx.nextTemp();
         this.ctx.emit(`${fieldValue} = load i8*, i8** ${fieldPtr}`);
