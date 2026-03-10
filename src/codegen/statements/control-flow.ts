@@ -312,7 +312,7 @@ export class ControlFlowGenerator {
           declaredType?: string;
         };
         if (!initVarDecl.value) {
-          throw new Error("Variable declaration in for loop must have an initializer");
+          return this.ctx.emitError("Variable declaration in for loop must have an initializer");
         }
         const value = this.ctx.generateExpression(initVarDecl.value, params);
         const dblValue = this.ctx.ensureDouble(value);
@@ -1493,7 +1493,7 @@ export class ControlFlowGenerator {
 
   generateBreakStatement(): string {
     if (this.loopBreakLabels.length === 0) {
-      throw new Error("break statement outside of loop");
+      return this.ctx.emitError("break statement outside of loop");
     }
     const breakLabel = this.loopBreakLabels[this.loopBreakLabels.length - 1];
     this.ctx.emitBr(breakLabel);
@@ -1502,7 +1502,7 @@ export class ControlFlowGenerator {
 
   generateContinueStatement(): string {
     if (this.loopContinueLabels.length === 0) {
-      throw new Error("continue statement outside of loop");
+      return this.ctx.emitError("continue statement outside of loop");
     }
     const continueLabel = this.loopContinueLabels[this.loopContinueLabels.length - 1];
     this.ctx.emitBr(continueLabel);

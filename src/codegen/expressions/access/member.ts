@@ -882,7 +882,10 @@ export class MemberAccessGenerator {
     } else if (exprObjType === "this") {
       const thisPtr = this.ctx.getThisPointer();
       if (!thisPtr) {
-        throw new Error("this.field accessed outside of class method or constructor");
+        return this.ctx.emitError(
+          "this.field accessed outside of class method or constructor",
+          expr.loc,
+        );
       }
       instancePtr = thisPtr;
       className = this.ctx.getCurrentClassName() || null;

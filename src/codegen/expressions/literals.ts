@@ -5,6 +5,7 @@ import {
   MapNode,
   SetNode,
   StringNode,
+  SourceLocation,
 } from "../../ast/types.js";
 
 import { parseMapTypeString, parseSetTypeString } from "../infrastructure/type-system.js";
@@ -42,6 +43,7 @@ export interface LiteralGeneratorContext {
   readonly objectGen: {
     generateObjectLiteral(expr: Expression, params: string[]): string;
   };
+  emitError(message: string, loc?: SourceLocation): never;
 }
 
 /**
@@ -186,7 +188,7 @@ export class LiteralExpressionGenerator {
     }
     if (className === "Set") {
       if (!typeArgs || typeArgs.length === 0) {
-        throw new Error(
+        return this.ctx.emitError(
           "new Set() requires an explicit type argument, e.g. new Set<string>() or new Set<number>()",
         );
       }
@@ -224,7 +226,7 @@ export class LiteralExpressionGenerator {
 
   generateNewRegExp(args: Expression[], params: string[]): string {
     if (args.length < 1) {
-      throw new Error("new RegExp() requires at least 1 argument");
+      return this.ctx.emitError("new RegExp() requires at least 1 argument");
     }
 
     const patternArg = args[0] as StringNode;
@@ -252,7 +254,7 @@ export class LiteralExpressionGenerator {
 
   private generateNewUint8Array(args: Expression[], params: string[]): string {
     if (args.length < 1) {
-      throw new Error("new Uint8Array() requires a size argument");
+      return this.ctx.emitError("new Uint8Array() requires a size argument");
     }
 
     const sizeValue = this.ctx.generateExpression(args[0], params);
@@ -301,7 +303,7 @@ export class LiteralExpressionGenerator {
 
   private generateNewUrl(args: Expression[], params: string[]): string {
     if (args.length < 1) {
-      throw new Error("new URL() requires at least 1 argument");
+      return this.ctx.emitError("new URL() requires at least 1 argument");
     }
     const hrefPtr = this.ctx.generateExpression(args[0], params);
     this.ctx.setVariableType(hrefPtr, "i8*");
@@ -346,7 +348,7 @@ export class LiteralExpressionGenerator {
   generateThis(): string {
     const thisPtr = this.ctx.getThisPointer();
     if (!thisPtr) {
-      throw new Error("this keyword used outside of class method or constructor");
+      return this.ctx.emitError("this keyword used outside of class method or constructor");
     }
     return thisPtr;
   }
