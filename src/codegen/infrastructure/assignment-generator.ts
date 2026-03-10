@@ -70,10 +70,7 @@ export class AssignmentGenerator {
     const stmtValueTyped = stmtValue as { type: string };
     const valueType = stmtValueTyped.type;
     if (valueType === null || valueType === undefined) {
-      return this.ctx.emitError(
-        "malformed assignment — value expression has no type",
-        stmt.loc,
-      );
+      return this.ctx.emitError("malformed assignment — value expression has no type", stmt.loc);
     }
     if (valueType !== "member_access_assignment") {
       return this.ctx.emitError("Invalid member access assignment format");
@@ -84,10 +81,7 @@ export class AssignmentGenerator {
     const objectTyped = object as { type: string };
     const objType = objectTyped.type;
     if (objType === null || objType === undefined) {
-      return this.ctx.emitError(
-        "malformed assignment — target object has no type",
-        stmt.loc,
-      );
+      return this.ctx.emitError("malformed assignment — target object has no type", stmt.loc);
     }
     const property = memberAccessValue.property;
 
