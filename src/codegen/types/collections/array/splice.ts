@@ -1,4 +1,4 @@
-import { Expression, MethodCallNode, VariableNode } from "../../../../ast/types.js";
+import { Expression, MethodCallNode, SourceLocation, VariableNode } from "../../../../ast/types.js";
 
 interface ExprBase {
   type: string;
@@ -18,6 +18,7 @@ interface ArraySpliceContext {
   setVariableType(name: string, type: string): void;
   generateExpression(expr: Expression, params: string[]): string;
   ensureDouble(value: string): string;
+  emitError(message: string, loc?: SourceLocation, suggestion?: string): never;
 }
 
 export function generateArraySplice(
@@ -26,7 +27,7 @@ export function generateArraySplice(
   params: string[],
 ): string {
   if (expr.args.length < 1 || expr.args.length > 2) {
-    throw new Error("splice() requires 1 or 2 arguments (start, deleteCount)");
+    return gen.emitError("splice() requires 1 or 2 arguments (start, deleteCount)", expr.loc);
   }
 
   const arrayPtr = gen.generateExpression(expr.object, params);

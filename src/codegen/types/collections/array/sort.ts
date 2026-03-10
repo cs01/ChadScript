@@ -57,7 +57,7 @@ export function generateArraySort(
   params: string[],
 ): string {
   if (expr.args.length > 1) {
-    throw new Error("sort() expects 0 or 1 arguments");
+    return gen.emitError("sort() expects 0 or 1 arguments", expr.loc);
   }
 
   const arrayPtr = gen.generateExpression(expr.object, params);
@@ -89,7 +89,7 @@ export function generateArraySort(
   } else if (predicateArg.type === "arrow_function") {
     compareFn = gen.generateExpression(predicateArg, params);
   } else {
-    throw new Error("sort() comparator must be a function name or inline function");
+    return gen.emitError("sort() comparator must be a function name or inline function", expr.loc);
   }
 
   // Capture env ptr for inline lambda closures, then clear it

@@ -28,7 +28,7 @@ export function generateArrayFind(
   params: string[],
 ): string {
   if (expr.args.length !== 1) {
-    throw new Error("find() requires exactly 1 argument (predicate function)");
+    return gen.emitError("find() requires exactly 1 argument (predicate function)", expr.loc);
   }
 
   const arrayPtr = gen.generateExpression(expr.object, params);
@@ -45,7 +45,7 @@ export function generateArrayFind(
     predicateFn = gen.generateExpression(predicateArg, params);
     gen.setExpectedCallbackParamType(null);
   } else {
-    throw new Error("find() argument must be a function name or inline function");
+    return gen.emitError("find() argument must be a function name or inline function", expr.loc);
   }
 
   let result: string;
@@ -200,7 +200,7 @@ export function generateArraySome(
   params: string[],
 ): string {
   if (expr.args.length !== 1) {
-    throw new Error("some() requires exactly 1 argument (predicate function)");
+    return gen.emitError("some() requires exactly 1 argument (predicate function)", expr.loc);
   }
 
   const arrayPtr = gen.generateExpression(expr.object, params);
@@ -217,7 +217,7 @@ export function generateArraySome(
     predicateFn = gen.generateExpression(predicateArg, params);
     gen.setExpectedCallbackParamType(null);
   } else {
-    throw new Error("some() argument must be a function name or inline function");
+    return gen.emitError("some() argument must be a function name or inline function", expr.loc);
   }
 
   let result: string;
@@ -376,7 +376,7 @@ export function generateArrayEvery(
   params: string[],
 ): string {
   if (expr.args.length !== 1) {
-    throw new Error("every() requires exactly 1 argument (predicate function)");
+    return gen.emitError("every() requires exactly 1 argument (predicate function)", expr.loc);
   }
 
   const arrayPtr = gen.generateExpression(expr.object, params);
@@ -393,7 +393,7 @@ export function generateArrayEvery(
     predicateFn = gen.generateExpression(predicateArg, params);
     gen.setExpectedCallbackParamType(null);
   } else {
-    throw new Error("every() argument must be a function name or inline function");
+    return gen.emitError("every() argument must be a function name or inline function", expr.loc);
   }
 
   let result: string;
@@ -552,7 +552,7 @@ export function generateArrayIncludes(
   params: string[],
 ): string {
   if (expr.args.length !== 1) {
-    throw new Error("includes() requires exactly 1 argument");
+    return gen.emitError("includes() requires exactly 1 argument", expr.loc);
   }
 
   const arrayPtr = gen.generateExpression(expr.object, params);

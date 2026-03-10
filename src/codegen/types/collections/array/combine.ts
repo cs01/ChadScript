@@ -365,7 +365,7 @@ export function generateArrayJoin(
   params: string[],
 ): string {
   if (expr.args.length > 1) {
-    throw new Error("join() accepts 0 or 1 arguments (separator)");
+    return gen.emitError("join() accepts 0 or 1 arguments (separator)", expr.loc);
   }
 
   const arrayPtr = gen.generateExpression(expr.object, params);
@@ -812,7 +812,7 @@ export function generateArrayConcat(
   }
 
   if (expr.args.length !== 1) {
-    throw new Error("concat() requires exactly 1 argument");
+    return gen.emitError("concat() requires exactly 1 argument", expr.loc);
   }
 
   const otherArrayPtr = gen.generateExpression(expr.args[0], params);

@@ -28,7 +28,7 @@ export function generateArrayFilter(
   params: string[],
 ): string {
   if (expr.args.length !== 1) {
-    throw new Error("filter() requires exactly 1 argument (predicate function)");
+    return gen.emitError("filter() requires exactly 1 argument (predicate function)", expr.loc);
   }
 
   const arrayPtr = gen.generateExpression(expr.object, params);
@@ -45,7 +45,7 @@ export function generateArrayFilter(
     predicateFn = gen.generateExpression(callbackArg, params);
     gen.setExpectedCallbackParamType(null);
   } else {
-    throw new Error("filter() argument must be a function name or inline function");
+    return gen.emitError("filter() argument must be a function name or inline function", expr.loc);
   }
 
   let result: string;
@@ -271,7 +271,7 @@ export function generateArrayForEach(
   params: string[],
 ): string {
   if (expr.args.length !== 1) {
-    throw new Error("forEach() requires exactly 1 argument (callback function)");
+    return gen.emitError("forEach() requires exactly 1 argument (callback function)", expr.loc);
   }
 
   const arrayPtr = gen.generateExpression(expr.object, params);
@@ -288,7 +288,7 @@ export function generateArrayForEach(
     callbackFn = gen.generateExpression(callbackArg, params);
     gen.setExpectedCallbackParamType(null);
   } else {
-    throw new Error("forEach() argument must be a function name or inline function");
+    return gen.emitError("forEach() argument must be a function name or inline function", expr.loc);
   }
 
   let result: string;
@@ -402,7 +402,7 @@ export function generateArrayReduce(
   params: string[],
 ): string {
   if (expr.args.length < 1 || expr.args.length > 2) {
-    throw new Error("reduce() requires 1-2 arguments (callback, optional initialValue)");
+    return gen.emitError("reduce() requires 1-2 arguments (callback, optional initialValue)", expr.loc);
   }
 
   const arrayPtr = gen.generateExpression(expr.object, params);
@@ -430,7 +430,7 @@ export function generateArrayReduce(
     callbackFn = gen.generateExpression(callbackArg, params);
     gen.setExpectedCallbackParamType(null);
   } else {
-    throw new Error("reduce() argument must be a function name or inline function");
+    return gen.emitError("reduce() argument must be a function name or inline function", expr.loc);
   }
 
   let initialValue: string | null = null;
@@ -595,7 +595,7 @@ export function generateArrayMap(
   params: string[],
 ): string {
   if (expr.args.length !== 1) {
-    throw new Error("map() requires exactly 1 argument (callback function)");
+    return gen.emitError("map() requires exactly 1 argument (callback function)", expr.loc);
   }
 
   const arrayPtr = gen.generateExpression(expr.object, params);
@@ -616,7 +616,7 @@ export function generateArrayMap(
     gen.setExpectedCallbackParamType(null);
     gen.setExpectedCallbackReturnType(null);
   } else {
-    throw new Error("map() argument must be a function name or inline function");
+    return gen.emitError("map() argument must be a function name or inline function", expr.loc);
   }
 
   let result: string;
@@ -635,7 +635,7 @@ export function generateStringArrayMap(
   params: string[],
 ): string {
   if (expr.args.length !== 1) {
-    throw new Error("map() requires exactly 1 argument (callback function)");
+    return gen.emitError("map() requires exactly 1 argument (callback function)", expr.loc);
   }
 
   const arrayPtr = gen.generateExpression(expr.object, params);
@@ -651,7 +651,7 @@ export function generateStringArrayMap(
     gen.setExpectedCallbackParamType(null);
     gen.setExpectedCallbackReturnType(null);
   } else {
-    throw new Error("map() argument must be a function name or inline function");
+    return gen.emitError("map() argument must be a function name or inline function", expr.loc);
   }
 
   const result = generateStringArrayMapImpl(gen, arrayPtr, callbackFn);

@@ -33,7 +33,7 @@ export function generateArrayLiteral(
 ): string {
   const e = expr as ExprBase;
   if (e.type !== "array") {
-    throw new Error("Expected array literal");
+    return gen.emitError("Expected array literal");
   }
 
   const arrExpr = expr as ArrayExpr;

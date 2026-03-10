@@ -24,7 +24,7 @@ export function generateArrayIndexOf(
   params: string[],
 ): string {
   if (expr.args.length < 1 || expr.args.length > 2) {
-    throw new Error("indexOf() requires 1 or 2 arguments");
+    return gen.emitError("indexOf() requires 1 or 2 arguments", expr.loc);
   }
 
   const arrayPtr = gen.generateExpression(expr.object, params);
@@ -195,7 +195,7 @@ export function generateArrayFindIndex(
   params: string[],
 ): string {
   if (expr.args.length !== 1) {
-    throw new Error("findIndex() requires exactly 1 argument (predicate function)");
+    return gen.emitError("findIndex() requires exactly 1 argument (predicate function)", expr.loc);
   }
 
   const arrayPtr = gen.generateExpression(expr.object, params);
@@ -219,7 +219,7 @@ export function generateArrayFindIndex(
     predicateFn = gen.generateExpression(predicateArg, params);
     gen.setExpectedCallbackParamType(null);
   } else {
-    throw new Error("findIndex() argument must be a function name or inline function");
+    return gen.emitError("findIndex() argument must be a function name or inline function", expr.loc);
   }
 
   let result: string;
