@@ -4,9 +4,7 @@ class FilterStore {
 
   constructor(items: number[]) {
     this.filtered = items.filter((x: number): boolean => x > 2);
-    this.mapped = ["hello", "world", "test"].map(
-      (s: string): string => s + "!",
-    );
+    this.mapped = ["hello", "world", "test"].map((s: string): string => s + "!");
   }
 
   getFiltered(): number[] {
