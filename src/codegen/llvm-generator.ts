@@ -84,7 +84,11 @@ import {
   mapReturnTypeToLLVM,
   mapParamTypeToLLVM,
 } from "./infrastructure/type-system.js";
-import { parseTypeString, type ResolvedType } from "./infrastructure/type-system.js";
+import {
+  parseTypeString,
+  parseMapTypeString,
+  type ResolvedType,
+} from "./infrastructure/type-system.js";
 import { DiagnosticEngine } from "../diagnostics/engine.js";
 import { TypeContext } from "./infrastructure/type-context.js";
 import { IGeneratorContext, IArrowFunctionGenerator } from "./infrastructure/generator-context.js";
@@ -2109,16 +2113,27 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           }
         } else if (isMap) {
           let isStringMap = false;
+          let mapValueType = "string";
           if (stmt.declaredType) {
             const dt = stmt.declaredType;
             if (dt.indexOf("Map<string") !== -1) {
               isStringMap = true;
+              const parsed = parseMapTypeString(dt);
+              if (parsed) mapValueType = parsed.valueType;
+            }
+          }
+          if (!isStringMap && stmt.value) {
+            const mapNode = stmt.value as MapNode;
+            if (mapNode.keyType === "string") {
+              isStringMap = true;
+              mapValueType = mapNode.valueType || "string";
             }
           }
           if (isStringMap) {
             llvmType = "%StringMap*";
             kind = SymbolKind.Map;
             defaultValue = "null";
+            const llvmValueType = mapValueType === "number" ? "double" : "i8*";
             ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
             this.globalVariables.set(name, { llvmType, kind, initialized: false });
             this.defineVariableWithMetadata(
@@ -2129,9 +2144,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               "global",
               createMapMetadataSymbol({
                 keyType: "string",
-                valueType: "string",
+                valueType: mapValueType,
                 llvmKeyType: "i8*",
-                llvmValueType: "i8*",
+                llvmValueType,
               }),
             );
             continue;

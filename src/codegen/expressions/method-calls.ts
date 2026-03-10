@@ -717,7 +717,16 @@ export class MethodCallGenerator {
               return this.ctx.stringMapGen.generateStringMapSet(mapAlloca, keyValue, valueValue);
             } else if (method === "get") {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
-              return this.ctx.stringMapGen.generateStringMapGet(mapAlloca, keyValue);
+              const rawResult = this.ctx.stringMapGen.generateStringMapGet(mapAlloca, keyValue);
+              if (mapMeta.valueType === "number") {
+                const asI64 = this.ctx.nextTemp();
+                this.ctx.emit(`${asI64} = ptrtoint i8* ${rawResult} to i64`);
+                const asDouble = this.ctx.nextTemp();
+                this.ctx.emit(`${asDouble} = bitcast i64 ${asI64} to double`);
+                this.ctx.setVariableType(asDouble, "double");
+                return asDouble;
+              }
+              return rawResult;
             } else if (method === "has") {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
               return this.ctx.stringMapGen.generateStringMapHas(mapAlloca, keyValue);

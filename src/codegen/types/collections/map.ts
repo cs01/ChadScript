@@ -569,6 +569,29 @@ export class StringMapGenerator {
   }
 
   generateStringMapSet(mapPtr: string, keyValue: string, valueValue: string): string {
+    const valueType = this.ctx.getVariableType(valueValue);
+    let storedValue = valueValue;
+    if (valueType === "double") {
+      const asI64 = this.nextTemp();
+      this.emit(`${asI64} = bitcast double ${valueValue} to i64`);
+      storedValue = this.nextTemp();
+      this.emit(`${storedValue} = inttoptr i64 ${asI64} to i8*`);
+    } else if (valueType === "i64") {
+      const asDouble = this.nextTemp();
+      this.emit(`${asDouble} = sitofp i64 ${valueValue} to double`);
+      const asI64Bits = this.nextTemp();
+      this.emit(`${asI64Bits} = bitcast double ${asDouble} to i64`);
+      storedValue = this.nextTemp();
+      this.emit(`${storedValue} = inttoptr i64 ${asI64Bits} to i8*`);
+    } else if (valueType === "i1") {
+      const asDouble = this.nextTemp();
+      this.emit(`${asDouble} = uitofp i1 ${valueValue} to double`);
+      const asI64Bits = this.nextTemp();
+      this.emit(`${asI64Bits} = bitcast double ${asDouble} to i64`);
+      storedValue = this.nextTemp();
+      this.emit(`${storedValue} = inttoptr i64 ${asI64Bits} to i8*`);
+    }
+
     const keysFieldPtr = this.nextTemp();
     this.emit(
       `${keysFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 0`,
@@ -670,7 +693,7 @@ export class StringMapGenerator {
     this.ctx.emitLabel(foundLabel);
     const valElemPtrFound = this.nextTemp();
     this.emit(`${valElemPtrFound} = getelementptr inbounds i8*, i8** ${valuesPtr}, i32 ${slot}`);
-    this.ctx.emitStore("i8*", valueValue, valElemPtrFound);
+    this.ctx.emitStore("i8*", storedValue, valElemPtrFound);
     this.ctx.emitBr(endLabel);
 
     // Next probe slot
@@ -690,7 +713,7 @@ export class StringMapGenerator {
     this.ctx.emitStore("i8*", keyValue, keyInsertPtr);
     const valInsertPtr = this.nextTemp();
     this.emit(`${valInsertPtr} = getelementptr inbounds i8*, i8** ${valuesPtr}, i32 ${insertSlot}`);
-    this.ctx.emitStore("i8*", valueValue, valInsertPtr);
+    this.ctx.emitStore("i8*", storedValue, valInsertPtr);
 
     const newSize = this.ctx.emitLoad("i32", sizeFieldPtr);
     const incSize = this.nextTemp();
