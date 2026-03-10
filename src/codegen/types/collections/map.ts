@@ -317,7 +317,7 @@ export class MapGenerator {
 
     this.ctx.emitLabel(endLabel);
     const result = this.ctx.emitLoad("double", resultReg);
-
+    this.ctx.setVariableType(result, "double");
     return result;
   }
 
@@ -385,15 +385,17 @@ export class MapGenerator {
 
     this.ctx.emitLabel(endLabel);
     const result = this.ctx.emitLoad("double", resultReg);
-
+    this.ctx.setVariableType(result, "double");
     return result;
   }
 
   generateMapSize(mapPtr: string): string {
-    // Get size field
     const sizeFieldPtr = this.nextTemp();
     this.emit(`${sizeFieldPtr} = getelementptr inbounds %Map, %Map* ${mapPtr}, i32 0, i32 2`);
-    const size = this.ctx.emitLoad("i32", sizeFieldPtr);
+    const sizeI32 = this.ctx.emitLoad("i32", sizeFieldPtr);
+    const size = this.nextTemp();
+    this.emit(`${size} = sitofp i32 ${sizeI32} to double`);
+    this.ctx.setVariableType(size, "double");
     return size;
   }
 
@@ -832,7 +834,7 @@ export class StringMapGenerator {
 
     this.ctx.emitLabel(endLabel);
     const result = this.ctx.emitLoad("double", resultReg);
-
+    this.ctx.setVariableType(result, "double");
     return result;
   }
 
@@ -841,7 +843,10 @@ export class StringMapGenerator {
     this.emit(
       `${sizeFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 2`,
     );
-    const size = this.ctx.emitLoad("i32", sizeFieldPtr);
+    const sizeI32 = this.ctx.emitLoad("i32", sizeFieldPtr);
+    const size = this.nextTemp();
+    this.emit(`${size} = sitofp i32 ${sizeI32} to double`);
+    this.ctx.setVariableType(size, "double");
     return size;
   }
 
@@ -1031,7 +1036,7 @@ export class StringMapGenerator {
 
     this.ctx.emitLabel(endLabel);
     const result = this.ctx.emitLoad("double", resultReg);
-
+    this.ctx.setVariableType(result, "double");
     return result;
   }
 

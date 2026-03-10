@@ -266,7 +266,7 @@ export class SetGenerator {
 
     this.ctx.emitLabel(endLabel);
     const result = this.ctx.emitLoad("double", resultReg);
-
+    this.ctx.setVariableType(result, "double");
     return result;
   }
 
@@ -369,6 +369,7 @@ export class SetGenerator {
 
     this.ctx.emitLabel(endLabel);
     const result = this.ctx.emitLoad("double", resultReg);
+    this.ctx.setVariableType(result, "double");
     return result;
   }
 }
