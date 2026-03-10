@@ -11,6 +11,7 @@ import { AST, ImportDeclaration, ClassNode, FunctionNode } from "./ast/types.js"
 import { LogLevel, logger } from "./utils/logger.js";
 import { TargetInfo, resolveTarget, getHostTarget, isCrossCompiling } from "./target.js";
 import { loadTargetSDK, ensureTargetSDK, TargetSDK } from "./cross-compile.js";
+import { VERSION } from "./version.js";
 
 function findLLVMTool(name: string): string {
   const candidates = [
@@ -159,12 +160,7 @@ export function compile(
   const target = targetOverride || getHostTarget();
   const crossCompiling = isCrossCompiling(target);
 
-  // Get version from package.json
-  const packageJsonPath = path.join(process.cwd(), "package.json");
-  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
-  const version = packageJson.version;
-
-  logger.info(`ChadScript compiler version ${version}`);
+  logger.info(`ChadScript compiler version ${VERSION}`);
   logger.info(`Target: ${target.archString}-${target.platformString}`);
   if (crossCompiling) {
     logger.info(`Cross-compiling for ${target.triple}`);

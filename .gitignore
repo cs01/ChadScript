@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 
+# Generated
+src/version.ts
+
 # Build outputs
 dist/
 build/

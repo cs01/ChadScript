@@ -55,7 +55,7 @@ declare function cs_watch_loop(
   output_binary: string,
 ): void;
 
-const VERSION = "0.1.0";
+import { VERSION } from "./version.js";
 
 const parser = new ArgumentParser("chad", "compile TypeScript to native binaries via LLVM");
 // Color enabled unless NO_COLOR is set (https://no-color.org/) or TERM=dumb

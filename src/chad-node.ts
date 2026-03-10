@@ -24,6 +24,7 @@ import * as path from "path";
 import * as fs from "fs";
 import { execSync, spawn as spawnProc, ChildProcess } from "child_process";
 import { installTargetSDK, listInstalledSDKs, getSDKBaseDir } from "./cross-compile.js";
+import { VERSION } from "./version.js";
 
 const parser = new ArgumentParser("chad", "compile TypeScript to native binaries via LLVM");
 parser.setColorEnabled(process.stdout.isTTY === true);
@@ -88,13 +89,7 @@ parser.addPositional("input", "Input .ts or .js file");
 parser.parse(process.argv.slice(2));
 
 if (parser.getFlag("version")) {
-  const packageJsonPath = path.join(import.meta.dirname || process.cwd(), "..", "package.json");
-  try {
-    const pkg = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
-    console.log(`chad ${pkg.version}`);
-  } catch {
-    console.log("chad 0.1.0");
-  }
+  console.log(`chad ${VERSION}`);
   process.exit(0);
 }
 
