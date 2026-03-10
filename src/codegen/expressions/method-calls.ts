@@ -414,7 +414,7 @@ export class MethodCallGenerator {
     }
   }
 
-  private getParameterMapKeyType(varName: string): string | null {
+  private getParameterMapInfo(varName: string): { keyType: string; valueType: string } | null {
     const currentFunc = this.ctx.getCurrentFunction();
     if (!currentFunc) return null;
 
@@ -457,12 +457,31 @@ export class MethodCallGenerator {
     for (let i = 0; i < funcParams.length; i++) {
       const p = funcParams[i] as { name: string; type?: string };
       if (p.name === varName && p.type) {
-        const mapParsed = parseMapTypeString(p.type);
-        if (mapParsed) {
-          return mapParsed.keyType;
-        }
+        return parseMapTypeString(p.type);
       }
     }
+    return null;
+  }
+
+  private getThisFieldMapInfo(expr: Expression): { keyType: string; valueType: string } | null {
+    const e2 = expr as ExprBase;
+    if (e2.type !== "member_access") return null;
+    const memberExpr = expr as MemberAccessNode;
+
+    const objBase = memberExpr.object as ExprBase;
+    if (objBase.type === "this") {
+      const classNameForLookup = this.ctx.getCurrentClassName();
+      if (!classNameForLookup) return null;
+      const fieldInfoResult = this.ctx.classGenGetFieldInfo(
+        classNameForLookup,
+        memberExpr.property,
+      );
+      const fieldInfo = fieldInfoResult as FieldInfo;
+      if (!fieldInfoResult || !fieldInfo.tsType) return null;
+
+      return parseMapTypeString(fieldInfo.tsType);
+    }
+
     return null;
   }
 
@@ -519,6 +538,18 @@ export class MethodCallGenerator {
   }
 
   // Helper methods delegate to context
+  private unboxStringMapGet(rawResult: string, valueType: string): string {
+    if (valueType === "number") {
+      const asI64 = this.ctx.nextTemp();
+      this.ctx.emit(`${asI64} = ptrtoint i8* ${rawResult} to i64`);
+      const asDouble = this.ctx.nextTemp();
+      this.ctx.emit(`${asDouble} = bitcast i64 ${asI64} to double`);
+      this.ctx.setVariableType(asDouble, "double");
+      return asDouble;
+    }
+    return rawResult;
+  }
+
   private nextTemp(): string {
     return this.ctx.nextTemp();
   }
@@ -718,15 +749,7 @@ export class MethodCallGenerator {
             } else if (method === "get") {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
               const rawResult = this.ctx.stringMapGen.generateStringMapGet(mapAlloca, keyValue);
-              if (mapMeta.valueType === "number") {
-                const asI64 = this.ctx.nextTemp();
-                this.ctx.emit(`${asI64} = ptrtoint i8* ${rawResult} to i64`);
-                const asDouble = this.ctx.nextTemp();
-                this.ctx.emit(`${asDouble} = bitcast i64 ${asI64} to double`);
-                this.ctx.setVariableType(asDouble, "double");
-                return asDouble;
-              }
-              return rawResult;
+              return this.unboxStringMapGet(rawResult, mapMeta.valueType || "string");
             } else if (method === "has") {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
               return this.ctx.stringMapGen.generateStringMapHas(mapAlloca, keyValue);
@@ -772,17 +795,18 @@ export class MethodCallGenerator {
       }
 
       if (varName) {
-        const paramMapKeyType = this.getParameterMapKeyType(varName);
-        if (paramMapKeyType) {
+        const paramMapInfo = this.getParameterMapInfo(varName);
+        if (paramMapInfo) {
           const mapPtr = this.ctx.generateExpression(expr.object, params);
-          if (paramMapKeyType === "string") {
+          if (paramMapInfo.keyType === "string") {
             if (method === "set") {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
               const valueValue = this.ctx.generateExpression(expr.args[1], params);
               return this.ctx.stringMapGen.generateStringMapSet(mapPtr, keyValue, valueValue);
             } else if (method === "get") {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
-              return this.ctx.stringMapGen.generateStringMapGet(mapPtr, keyValue);
+              const rawResult = this.ctx.stringMapGen.generateStringMapGet(mapPtr, keyValue);
+              return this.unboxStringMapGet(rawResult, paramMapInfo.valueType);
             } else if (method === "has") {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
               return this.ctx.stringMapGen.generateStringMapHas(mapPtr, keyValue);
@@ -815,7 +839,7 @@ export class MethodCallGenerator {
               return this.ctx.pointerMapGen.generatePointerMapClear(mapPtr);
             } else {
               return this.ctx.emitError(
-                `Map.${method}() not supported for Map<${paramMapKeyType}, *> parameter types`,
+                `Map.${method}() not supported for Map<${paramMapInfo.keyType}, *> parameter types`,
                 expr.loc,
               );
             }
@@ -823,7 +847,10 @@ export class MethodCallGenerator {
         }
       }
 
-      const thisFieldMapKeyType = this.getThisFieldMapKeyType(expr.object);
+      const thisFieldMapInfo = this.getThisFieldMapInfo(expr.object);
+      const thisFieldMapKeyType = thisFieldMapInfo
+        ? thisFieldMapInfo.keyType
+        : this.getThisFieldMapKeyType(expr.object);
       if (thisFieldMapKeyType) {
         const mapPtr = this.ctx.generateExpression(expr.object, params);
         if (thisFieldMapKeyType === "string") {
@@ -833,7 +860,11 @@ export class MethodCallGenerator {
             return this.ctx.stringMapGen.generateStringMapSet(mapPtr, keyValue, valueValue);
           } else if (method === "get") {
             const keyValue = this.ctx.generateExpression(expr.args[0], params);
-            return this.ctx.stringMapGen.generateStringMapGet(mapPtr, keyValue);
+            const rawResult = this.ctx.stringMapGen.generateStringMapGet(mapPtr, keyValue);
+            return this.unboxStringMapGet(
+              rawResult,
+              thisFieldMapInfo ? thisFieldMapInfo.valueType : "string",
+            );
           } else if (method === "has") {
             const keyValue = this.ctx.generateExpression(expr.args[0], params);
             return this.ctx.stringMapGen.generateStringMapHas(mapPtr, keyValue);

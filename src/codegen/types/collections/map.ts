@@ -569,7 +569,13 @@ export class StringMapGenerator {
   }
 
   generateStringMapSet(mapPtr: string, keyValue: string, valueValue: string): string {
-    const valueType = this.ctx.getVariableType(valueValue);
+    let valueType = this.ctx.getVariableType(valueValue);
+    if (!valueType && valueValue !== "null") {
+      const fc = valueValue.charAt(0);
+      if ((fc >= "0" && fc <= "9") || fc === "-" || fc === ".") {
+        valueType = "double";
+      }
+    }
     let storedValue = valueValue;
     if (valueType === "double") {
       const asI64 = this.nextTemp();
