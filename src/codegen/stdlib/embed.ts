@@ -355,6 +355,7 @@ export class EmbedGenerator {
     // Field 3: bodyLen = byte length as double
     const contentLenDbl = this.ctx.nextTemp();
     this.ctx.emit(contentLenDbl + " = sitofp i64 " + contentLen + " to double");
+    this.ctx.setVariableType(contentLenDbl, "double");
     const fLenPtr = this.ctx.nextTemp();
     this.ctx.emit(
       fLenPtr +

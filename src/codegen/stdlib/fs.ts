@@ -141,6 +141,7 @@ export class FilesystemGenerator {
     const modeStr = this.ctx.createStringConstant("rb");
     const filePtr = this.ctx.nextTemp();
     this.ctx.emit(`${filePtr} = call i8* @fopen(i8* ${filenamePtr}, i8* ${modeStr})`);
+    this.ctx.setVariableType(filePtr, "i8*");
 
     const isNull = this.ctx.nextTemp();
     this.ctx.emit(`${isNull} = icmp eq i8* ${filePtr}, null`);
@@ -246,6 +247,7 @@ export class FilesystemGenerator {
     const modeStr = this.ctx.createStringConstant("wb");
     const filePtr = this.ctx.nextTemp();
     this.ctx.emit(`${filePtr} = call i8* @fopen(i8* ${filenamePtr}, i8* ${modeStr})`);
+    this.ctx.setVariableType(filePtr, "i8*");
 
     const isNull = this.ctx.nextTemp();
     this.ctx.emit(`${isNull} = icmp eq i8* ${filePtr}, null`);
@@ -443,6 +445,7 @@ export class FilesystemGenerator {
     this.ctx.emit(`${phiResult} = phi i32 [ 1, %${existsLabel} ], [ 0, %${notExistsLabel} ]`);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = sitofp i32 ${phiResult} to double`);
+    this.ctx.setVariableType(result, "double");
 
     return result;
   }

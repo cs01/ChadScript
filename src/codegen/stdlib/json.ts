@@ -119,6 +119,7 @@ export class JsonGenerator {
     const sizeI32 = this.ctx.emitCall("i32", "@csyyjson_arr_size", `i8* ${jsonRoot}`);
     const size = this.ctx.nextTemp();
     this.ctx.emit(`${size} = sitofp i32 ${sizeI32} to double`);
+    this.ctx.setVariableType(size, "double");
 
     const sizeI64 = this.ctx.nextTemp();
     this.ctx.emit(`${sizeI64} = fptosi double ${size} to i64`);

@@ -85,10 +85,12 @@ export class DateGenerator {
     this.ctx.emit(`${fieldI32} = load i32, i32* ${fieldPtr}`);
     const fieldDbl = this.ctx.nextTemp();
     this.ctx.emit(`${fieldDbl} = sitofp i32 ${fieldI32} to double`);
+    this.ctx.setVariableType(fieldDbl, "double");
 
     if (method === "getFullYear") {
       const result = this.ctx.nextTemp();
       this.ctx.emit(`${result} = fadd fast double ${fieldDbl}, 1900.0`);
+      this.ctx.setVariableType(result, "double");
       return result;
     }
 

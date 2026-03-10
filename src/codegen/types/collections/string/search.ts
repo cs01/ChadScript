@@ -20,6 +20,7 @@ export function generateStartsWith(ctx: IGeneratorContext, strPtr: string, prefi
 
   const result = ctx.nextTemp();
   ctx.emit(`${result} = sitofp i32 ${resultI32} to double`);
+  ctx.setVariableType(result, "double");
 
   return result;
 }
@@ -94,6 +95,7 @@ export function generateIndexOf(ctx: IGeneratorContext, strPtr: string, substrin
 
   const result = ctx.nextTemp();
   ctx.emit(`${result} = sitofp i32 ${resultI32} to double`);
+  ctx.setVariableType(result, "double");
 
   return result;
 }
@@ -143,6 +145,7 @@ export function generateLastIndexOf(
   const resultI32 = ctx.emitLoad("i32", lastPosPtr);
   const result = ctx.nextTemp();
   ctx.emit(`${result} = sitofp i32 ${resultI32} to double`);
+  ctx.setVariableType(result, "double");
 
   return result;
 }
@@ -161,6 +164,7 @@ export function generateIncludes(
 
   const result = ctx.nextTemp();
   ctx.emit(`${result} = sitofp i32 ${resultI32} to double`);
+  ctx.setVariableType(result, "double");
 
   return result;
 }
@@ -197,6 +201,7 @@ export function generateEndsWith(ctx: IGeneratorContext, strPtr: string, suffix:
   ctx.emitLabel(endLabel);
   const result = ctx.nextTemp();
   ctx.emit(`${result} = phi double [ ${matchesDouble}, %${checkLabel} ], [ 0.0, %${falseLabel} ]`);
+  ctx.setVariableType(result, "double");
 
   return result;
 }
