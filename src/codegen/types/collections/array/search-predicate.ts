@@ -289,6 +289,7 @@ function generateNumericArraySome(
   const resultI32 = gen.emitLoad("i32", resultPtr);
   const result = gen.nextTemp();
   gen.emit(`${result} = sitofp i32 ${resultI32} to double`);
+  gen.setVariableType(result, "double");
   return result;
 }
 
@@ -361,6 +362,7 @@ function generateStringArraySome(
   const resultI32 = gen.emitLoad("i32", resultPtr);
   const result = gen.nextTemp();
   gen.emit(`${result} = sitofp i32 ${resultI32} to double`);
+  gen.setVariableType(result, "double");
   return result;
 }
 
@@ -463,6 +465,7 @@ function generateNumericArrayEvery(
   const resultI32 = gen.emitLoad("i32", resultPtr);
   const result = gen.nextTemp();
   gen.emit(`${result} = sitofp i32 ${resultI32} to double`);
+  gen.setVariableType(result, "double");
   return result;
 }
 
@@ -535,6 +538,7 @@ function generateStringArrayEvery(
   const resultI32 = gen.emitLoad("i32", resultPtr);
   const result = gen.nextTemp();
   gen.emit(`${result} = sitofp i32 ${resultI32} to double`);
+  gen.setVariableType(result, "double");
   return result;
 }
 
@@ -628,6 +632,7 @@ function generateIntArrayIncludes(
   gen.emit(`${resultI32} = phi i32 [ 0, %${checkLabel} ], [ 1, %${foundLabel} ]`);
   const result = gen.nextTemp();
   gen.emit(`${result} = sitofp i32 ${resultI32} to double`);
+  gen.setVariableType(result, "double");
   return result;
 }
 
@@ -691,5 +696,6 @@ function generateStringArrayIncludes(
   gen.emit(`${resultI32} = phi i32 [ 0, %${checkLabel} ], [ 1, %${foundLabel} ]`);
   const result = gen.nextTemp();
   gen.emit(`${result} = sitofp i32 ${resultI32} to double`);
+  gen.setVariableType(result, "double");
   return result;
 }
