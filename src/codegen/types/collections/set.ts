@@ -101,7 +101,7 @@ export class SetGenerator {
 
   generateSetAdd(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length !== 1) {
-      throw new Error("Set.add() requires exactly 1 argument");
+      return this.ctx.emitError("Set.add() requires exactly 1 argument", expr.loc);
     }
 
     const setPtr = this.ctx.generateExpression(expr.object, params);
@@ -205,7 +205,7 @@ export class SetGenerator {
   generateSetHas(expr: MethodCallNode, params: string[]): string {
     // set.has(value) - returns 1 if value exists, 0 otherwise
     if (expr.args.length !== 1) {
-      throw new Error("Set.has() requires exactly 1 argument");
+      return this.ctx.emitError("Set.has() requires exactly 1 argument", expr.loc);
     }
 
     // Get set pointer
@@ -282,7 +282,7 @@ export class SetGenerator {
 
   generateSetDelete(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length !== 1) {
-      throw new Error("Set.delete() requires exactly 1 argument");
+      return this.ctx.emitError("Set.delete() requires exactly 1 argument", expr.loc);
     }
 
     const setPtr = this.ctx.generateExpression(expr.object, params);

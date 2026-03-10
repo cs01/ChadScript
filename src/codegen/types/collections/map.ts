@@ -112,7 +112,7 @@ export class MapGenerator {
 
   generateMapSet(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length !== 2) {
-      throw new Error("Map.set() requires exactly 2 arguments");
+      return this.ctx.emitError("Map.set() requires exactly 2 arguments", expr.loc);
     }
 
     const mapPtr = this.ctx.generateExpression(expr.object, params);
@@ -245,7 +245,7 @@ export class MapGenerator {
   generateMapGet(expr: MethodCallNode, params: string[]): string {
     // map.get(key)
     if (expr.args.length !== 1) {
-      throw new Error("Map.get() requires exactly 1 argument");
+      return this.ctx.emitError("Map.get() requires exactly 1 argument", expr.loc);
     }
 
     // Get map pointer
@@ -324,7 +324,7 @@ export class MapGenerator {
   generateMapHas(expr: MethodCallNode, params: string[]): string {
     // map.has(key) - returns 1 if key exists, 0 otherwise
     if (expr.args.length !== 1) {
-      throw new Error("Map.has() requires exactly 1 argument");
+      return this.ctx.emitError("Map.has() requires exactly 1 argument", expr.loc);
     }
 
     // Get map pointer
@@ -409,7 +409,7 @@ export class MapGenerator {
 
   generateMapDelete(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length !== 1) {
-      throw new Error("Map.delete() requires exactly 1 argument");
+      return this.ctx.emitError("Map.delete() requires exactly 1 argument", expr.loc);
     }
 
     const mapPtr = this.ctx.generateExpression(expr.object, params);
