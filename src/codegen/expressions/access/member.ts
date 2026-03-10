@@ -2681,11 +2681,10 @@ export class MemberAccessGenerator {
         return innerPtr;
       }
       if (exprObjBase.type === "type_assertion") {
-        this.ctx.emitWarning(
-          `unresolved property '${prop}' on type_assertion expression — defaulting to 0.0`,
+        return this.ctx.emitError(
+          `unresolved property '${prop}' on type_assertion expression`,
           expr.loc,
         );
-        return "0.0";
       }
       return this.ctx.emitError(
         `unresolved property '${prop}' on expression of type '${exprObjBase.type}'`,
@@ -3028,6 +3027,7 @@ export class MemberAccessGenerator {
         type: "member_access",
         object: assertion.expression,
         property: property,
+        loc: expr.loc,
       };
       return this.generate(syntheticExpr, params);
     } else {
@@ -3053,6 +3053,7 @@ export class MemberAccessGenerator {
             type: "member_access",
             object: assertion.expression,
             property: property,
+            loc: expr.loc,
           };
           return this.generate(syntheticExpr, params);
         }

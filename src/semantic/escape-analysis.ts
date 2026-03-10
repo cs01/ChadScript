@@ -44,8 +44,8 @@ import type {
 } from "../ast/types.js";
 
 export function varDeclKey(decl: VariableDeclaration): string {
-  const line = (decl as VariableDeclaration).loc?.line ?? (decl as VariableDeclaration).line ?? -1;
-  const col = (decl as VariableDeclaration).loc?.column ?? -1;
+  const line = decl.loc ? decl.loc.line : decl.line ? decl.line : -1;
+  const col = decl.loc ? decl.loc.column : -1;
   return decl.name + ":" + line + ":" + col;
 }
 
