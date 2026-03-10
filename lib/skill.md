@@ -78,7 +78,7 @@ Combine with `ChadScript.embedDir("./public")` and `ChadScript.serveEmbedded(req
 - **No `node_modules` imports** — only built-in modules and local files
 - **No `any` type** — all values must have a concrete type
 - **Closures capture by value** — mutating a variable after it's captured in a closure won't update the closure's copy
-- **`process.exit()` is required** at the end of synchronous programs (no implicit exit)
+- Programs exit implicitly — `process.exit()` is only needed to exit early with a specific code
 - **Generics use type erasure** — `T` becomes `i8*` (opaque pointer), numeric type params not supported
 - **Union types** limited to members with the same LLVM representation
 
