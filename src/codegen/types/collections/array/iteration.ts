@@ -72,9 +72,9 @@ function generateNumericArrayFilter(
   const dataPtr = gen.nextTemp();
   gen.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
 
-  // Create result array (allocate with same capacity as input)
-  const resultArrayPtr = gen.nextTemp();
-  gen.emit(`${resultArrayPtr} = alloca %Array`);
+  // Create result array (heap-allocate so pointer survives if stored in class fields)
+  const resultArrayMem = gen.emitCall("i8*", "@GC_malloc", "i64 24");
+  const resultArrayPtr = gen.emitBitcast(resultArrayMem, "i8*", "%Array*");
 
   const doubleSize = 8;
   const lengthI64 = gen.nextTemp();
@@ -176,8 +176,8 @@ function generateStringArrayFilter(
   const dataPtr = gen.nextTemp();
   gen.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
 
-  const resultArrayPtr = gen.nextTemp();
-  gen.emit(`${resultArrayPtr} = alloca %StringArray`);
+  const resultArrayMem = gen.emitCall("i8*", "@GC_malloc", "i64 24");
+  const resultArrayPtr = gen.emitBitcast(resultArrayMem, "i8*", "%StringArray*");
 
   const ptrSize = 8;
   const lengthI64 = gen.nextTemp();
@@ -673,9 +673,9 @@ function generateNumericArrayMap(
   const dataPtr = gen.nextTemp();
   gen.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
 
-  // Create result array with same length
-  const resultArrayPtr = gen.nextTemp();
-  gen.emit(`${resultArrayPtr} = alloca %Array`);
+  // Create result array with same length (heap-allocate for safety)
+  const resultArrayMem = gen.emitCall("i8*", "@GC_malloc", "i64 24");
+  const resultArrayPtr = gen.emitBitcast(resultArrayMem, "i8*", "%Array*");
 
   const doubleSize = 8;
   const lengthI64 = gen.nextTemp();
@@ -759,8 +759,8 @@ function generateStringArrayMapImpl(
   const dataPtr = gen.nextTemp();
   gen.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
 
-  const resultArrayPtr = gen.nextTemp();
-  gen.emit(`${resultArrayPtr} = alloca %StringArray`);
+  const resultArrayMem = gen.emitCall("i8*", "@GC_malloc", "i64 24");
+  const resultArrayPtr = gen.emitBitcast(resultArrayMem, "i8*", "%StringArray*");
 
   const pointerSize = 8;
   const lengthI64 = gen.nextTemp();
