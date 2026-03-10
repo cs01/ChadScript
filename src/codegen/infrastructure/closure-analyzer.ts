@@ -270,7 +270,8 @@ export class ClosureAnalyzer {
     if (idx !== -1) {
       return this.scopeVarTypes[idx];
     }
-    throw new Error(`getScopeVarType: variable '${name}' not found in closure scope`);
+    console.log("error: variable '" + name + "' not found in closure scope");
+    process.exit(1);
   }
 
   private walkBlock(block: BlockStatement): void {
