@@ -321,6 +321,44 @@ export function getSafeStringHelper(): string {
   return ir;
 }
 
+export function getBoundsCheckHelper(): string {
+  let ir = "";
+  ir += '@.str.oob_fmt = private unnamed_addr constant [49 x i8] c"Error: array index %d out of bounds (length %d)\\0A\\00", align 1\n';
+  ir += "define void @__cs_bounds_check(i32 %index, i32 %length) {\n";
+  ir += "entry:\n";
+  ir += "  %too_high = icmp sge i32 %index, %length\n";
+  ir += "  %too_low = icmp slt i32 %index, 0\n";
+  ir += "  %oob = or i1 %too_high, %too_low\n";
+  ir += "  br i1 %oob, label %fail, label %ok\n";
+  ir += "fail:\n";
+  ir += "  %stderr = load i8*, i8** @stderr\n";
+  ir += '  call i32 (i8*, i8*, ...) @fprintf(i8* %stderr, i8* getelementptr([49 x i8], [49 x i8]* @.str.oob_fmt, i32 0, i32 0), i32 %index, i32 %length)\n';
+  ir += "  call void @exit(i32 1)\n";
+  ir += "  unreachable\n";
+  ir += "ok:\n";
+  ir += "  ret void\n";
+  ir += "}\n\n";
+  return ir;
+}
+
+export function getNullCheckHelper(): string {
+  let ir = "";
+  ir += '@.str.null_fmt = private unnamed_addr constant [39 x i8] c"Error: cannot access property of null\\0A\\00", align 1\n';
+  ir += "define void @__cs_null_check(i8* %ptr) {\n";
+  ir += "entry:\n";
+  ir += "  %is_null = icmp eq i8* %ptr, null\n";
+  ir += "  br i1 %is_null, label %fail, label %ok\n";
+  ir += "fail:\n";
+  ir += "  %stderr = load i8*, i8** @stderr\n";
+  ir += '  call i32 (i8*, i8*, ...) @fprintf(i8* %stderr, i8* getelementptr([39 x i8], [39 x i8]* @.str.null_fmt, i32 0, i32 0))\n';
+  ir += "  call void @exit(i32 1)\n";
+  ir += "  unreachable\n";
+  ir += "ok:\n";
+  ir += "  ret void\n";
+  ir += "}\n\n";
+  return ir;
+}
+
 export function getStringHashHelper(): string {
   let ir = "";
   ir += "; DJB2 hash function for strings\n";
