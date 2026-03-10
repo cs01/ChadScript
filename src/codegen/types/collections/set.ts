@@ -31,7 +31,7 @@ export class SetGenerator {
   generateSetLiteral(expr: Expression, params: string[]): string {
     const setExpr = expr as SetNode;
     if (setExpr.type !== "set") {
-      throw new Error("Expected set literal");
+      return this.ctx.emitError("Expected set literal");
     }
 
     // Allocate Set struct on heap so it's safe to store in class fields

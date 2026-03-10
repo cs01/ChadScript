@@ -65,7 +65,7 @@ export class ClassGenerator {
   }
 
   private fieldToLlvmType(f: ClassField): string {
-    if (!f) throw new Error("fieldToLlvmType called with null/undefined field");
+    if (!f) return this.ctx.emitError("fieldToLlvmType called with null/undefined field");
     const ft = f.fieldType;
     let ts = f.tsType;
     if (ts && ts.indexOf(" | ") !== -1) {
@@ -104,7 +104,9 @@ export class ClassGenerator {
         return "i8*";
       }
       if (ft === "double") return "double";
-      throw new Error(`fieldToLlvmType: field '${f.name}' has no fieldType and no tsType`);
+      return this.ctx.emitError(
+        `fieldToLlvmType: field '${f.name}' has no fieldType and no tsType`,
+      );
     }
     if (ft === "string") {
       return "i8*";
@@ -140,7 +142,7 @@ export class ClassGenerator {
         return "i8*";
       }
     }
-    throw new Error(
+    return this.ctx.emitError(
       `fieldToLlvmType: unrecognized field type '${ft}' with no tsType for field '${f.name}'`,
     );
   }
@@ -1064,7 +1066,7 @@ export class ClassGenerator {
   ): string {
     const methodInfoResult = this.getMethodInfo(className, methodName);
     if (!methodInfoResult) {
-      throw new Error(`Method ${methodName} not found in class ${className}`);
+      return this.ctx.emitError(`Method ${methodName} not found in class ${className}`);
     }
     const methodInfo = methodInfoResult as { method: ClassMethod; ownerClass: string };
     const method = methodInfo.method as ClassMethod;
@@ -1204,7 +1206,7 @@ export class ClassGenerator {
   ): string {
     const methodInfoResult = this.getMethodInfo(className, methodName);
     if (!methodInfoResult) {
-      throw new Error(`Static method ${methodName} not found in class ${className}`);
+      return this.ctx.emitError(`Static method ${methodName} not found in class ${className}`);
     }
     const methodInfo = methodInfoResult as { method: ClassMethod; ownerClass: string };
     const method = methodInfo.method as ClassMethod;
