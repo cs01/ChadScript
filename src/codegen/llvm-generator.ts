@@ -1459,12 +1459,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           } else {
             llvmType = "double";
           }
-        } else {
-          // Strict: unknown property expression type — emit warning instead of silent double
-          this.emitWarning(
-            `object property '${prop.key}' has unrecognized expression type '${propValueType}', defaulting to i8*`,
-          );
+        } else if (propValueType === "type_assertion") {
           llvmType = "i8*";
+        } else {
+          return this.emitError(
+            `object property '${prop.key}' has unrecognized expression type '${propValueType}'`,
+          );
         }
       }
 
