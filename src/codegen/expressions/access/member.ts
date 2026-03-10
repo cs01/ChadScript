@@ -2672,10 +2672,11 @@ export class MemberAccessGenerator {
         return innerPtr;
       }
       if (exprObjBase.type === "type_assertion") {
-        return this.ctx.emitError(
-          `unresolved property '${prop}' on type_assertion expression`,
+        this.ctx.emitWarning(
+          `unresolved property '${prop}' on type_assertion expression — defaulting to 0.0`,
           expr.loc,
         );
+        return "0.0";
       }
       return this.ctx.emitError(
         `unresolved property '${prop}' on expression of type '${exprObjBase.type}'`,

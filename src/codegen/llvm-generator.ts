@@ -1459,6 +1459,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           } else {
             llvmType = "double";
           }
+        } else if (propValueType === "type_assertion") {
+          llvmType = "i8*";
         } else {
           return this.emitError(
             `object property '${prop.key}' has unrecognized expression type '${propValueType}'`,
