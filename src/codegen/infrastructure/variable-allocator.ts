@@ -1429,7 +1429,9 @@ export class VariableAllocator {
       const methodExpr = stmt.value as MethodCallNode;
       className = this.getMapGetClassName(methodExpr) || "Unknown";
     } else {
-      throw new Error(`Cannot allocate class instance for expression type: ${valueBase.type}`);
+      return this.ctx.emitError(
+        `Cannot allocate class instance for expression type: ${valueBase.type}`,
+      );
     }
 
     const fields = this.ctx.classGenGetClassFields(className);
@@ -2376,7 +2378,9 @@ export class VariableAllocator {
         const captureItem = captures[i] as CaptureInfo;
         const allocaReg = this.ctx.symbolTable.getAlloca(captureItem.name);
         if (!allocaReg) {
-          throw new Error(`Closure capture error: variable '${captureItem.name}' not found`);
+          return this.ctx.emitError(
+            `Closure capture error: variable '${captureItem.name}' not found`,
+          );
         }
 
         const valueReg = this.ctx.nextTemp();

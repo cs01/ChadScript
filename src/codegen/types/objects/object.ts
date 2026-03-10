@@ -31,7 +31,7 @@ export class ObjectGenerator {
 
   generateObjectLiteral(expr: Expression, params: string[]): string {
     if (expr.type !== "object") {
-      throw new Error("Expected object literal");
+      return this.ctx.emitError("Expected object literal");
     }
     const objExpr = expr as ObjectNode;
 

@@ -36,7 +36,7 @@ export class MapGenerator {
   generateMapLiteral(expr: Expression, params: string[]): string {
     const mapExpr = expr as MapNode;
     if (mapExpr.type !== "map") {
-      throw new Error("Expected map literal");
+      return this.ctx.emitError("Expected map literal");
     }
 
     const entries = mapExpr.entries || [];

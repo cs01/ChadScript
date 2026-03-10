@@ -103,11 +103,9 @@ export function handleConcat(
         }
       }
     }
-    throw new Error(
-      `concat() was dispatched to string handler but received an array type '${ptrType}'.\n` +
-        `  This indicates isArrayExpression/isStringArrayExpression/isObjectArrayExpression failed to detect the array.\n` +
-        `  ${details}\n` +
-        `  Check type tracking for this expression.`,
+    return ctx.emitError(
+      `concat() was dispatched to string handler but received an array type '${ptrType}'. Check type tracking for this expression.`,
+      expr.loc,
     );
   }
 
@@ -435,11 +433,9 @@ export function handleStringIncludes(
       ptrType === "%ObjectArray*" ||
       ptrType.endsWith("Array*"))
   ) {
-    throw new Error(
-      `includes() was dispatched to string handler but received an array type '${ptrType}'.\n` +
-        `  This indicates isArrayExpression/isStringArrayExpression failed to detect the array.\n` +
-        `  Expression type: ${expr.object.type}\n` +
-        `  Check type tracking for this expression.`,
+    return ctx.emitError(
+      `includes() was dispatched to string handler but received an array type '${ptrType}'. Check type tracking for this expression.`,
+      expr.loc,
     );
   }
 
@@ -452,12 +448,9 @@ export function handleStringIncludes(
       const mc = expr.object as MethodCallNode;
       details += `, method: ${mc.method}`;
     }
-    throw new Error(
-      `includes() called on expression with unknown type.\n` +
-        `  Result register: ${strPtr}, type: ${ptrType || "undefined"}\n` +
-        `  ${details}\n` +
-        `  If this is an array, isArrayExpression/isStringArrayExpression is not detecting it.\n` +
-        `  Fix type tracking to ensure proper dispatch.`,
+    return ctx.emitError(
+      `includes() called on expression with unknown type (${details}). If this is an array, the type tracker is not detecting it.`,
+      expr.loc,
     );
   }
 
@@ -484,11 +477,9 @@ export function handleSlice(
       ptrType === "%ObjectArray*" ||
       ptrType.endsWith("Array*"))
   ) {
-    throw new Error(
-      `slice() was dispatched to string handler but received an array type '${ptrType}'.\n` +
-        `  This indicates isArrayExpression/isStringArrayExpression/isObjectArrayExpression failed to detect the array.\n` +
-        `  Expression type: ${expr.object.type}\n` +
-        `  Check type tracking for this expression.`,
+    return ctx.emitError(
+      `slice() was dispatched to string handler but received an array type '${ptrType}'. Check type tracking for this expression.`,
+      expr.loc,
     );
   }
 
@@ -501,12 +492,9 @@ export function handleSlice(
       const mc = expr.object as MethodCallNode;
       details += `, method: ${mc.method}`;
     }
-    throw new Error(
-      `slice() called on expression with unknown type.\n` +
-        `  Result register: ${strPtr}, type: ${ptrType || "undefined"}\n` +
-        `  ${details}\n` +
-        `  If this is an array, isArrayExpression/isStringArrayExpression/isObjectArrayExpression is not detecting it.\n` +
-        `  Fix type tracking to ensure proper dispatch.`,
+    return ctx.emitError(
+      `slice() called on expression with unknown type (${details}). If this is an array, the type tracker is not detecting it.`,
+      expr.loc,
     );
   }
 

@@ -3102,7 +3102,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     const allocaReg = this.getVariableAlloca(stmtName);
     if (!allocaReg) {
-      throw new Error(`Unknown variable: ${stmtName}`);
+      this.emitError(`Unknown variable: ${stmtName}`);
     }
     const varType = this.getVariableType(stmtName) || "double";
     const valueType = this.getVariableType(value);
@@ -3179,7 +3179,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     const allocaReg = this.getVariableAlloca(stmtName);
     if (!allocaReg) {
-      throw new Error(`Unknown variable: ${stmtName}`);
+      this.emitError(`Unknown variable: ${stmtName}`);
     }
     const varType = this.getVariableType(stmtName) || "double";
     const valueType = this.getVariableType(value);
@@ -3448,7 +3448,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         this.currentDeclaredInterfaceType = undefined;
 
         if (!lastValue || lastValue === "") {
-          throw new Error(
+          this.emitError(
             `Return statement generated empty value for function ${this.currentFunction}`,
           );
         }
