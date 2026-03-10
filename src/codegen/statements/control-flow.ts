@@ -435,6 +435,14 @@ export class ControlFlowGenerator {
       return this.generateMapEntriesForOf(stmt, params);
     }
 
+    const isStringIterable = this.ctx.isStringExpression(forOfStmt.iterable);
+    if (isStringIterable) {
+      return this.ctx.emitError(
+        "for...of on strings is not yet supported — use a for loop with str[i] or str.charCodeAt(i) instead",
+        stmt.loc,
+      );
+    }
+
     const iterableValue = this.ctx.generateExpression(forOfStmt.iterable, params);
 
     const isStringArray = this.ctx.isStringArrayExpression(forOfStmt.iterable);
