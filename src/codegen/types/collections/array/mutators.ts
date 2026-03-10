@@ -19,7 +19,7 @@ export function generateArrayPush(
 ): string {
   // arr.push(value) - adds value to array and returns new length
   if (expr.args.length !== 1) {
-    throw new Error("push() requires exactly 1 argument");
+    return gen.emitError("push() requires exactly 1 argument", expr.loc);
   }
 
   const arrayPtr = gen.generateExpression(expr.object, params);
@@ -69,7 +69,7 @@ export function generateArrayPop(
 ): string {
   // arr.pop() - removes and returns last element
   if (expr.args.length !== 0) {
-    throw new Error("pop() requires 0 arguments");
+    return gen.emitError("pop() requires 0 arguments", expr.loc);
   }
 
   const arrayPtr = gen.generateExpression(expr.object, params);

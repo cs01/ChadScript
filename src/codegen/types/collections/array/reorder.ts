@@ -14,7 +14,7 @@ export function generateArrayReverse(
   params: string[],
 ): string {
   if (expr.args.length !== 0) {
-    throw new Error("reverse() requires 0 arguments");
+    return gen.emitError("reverse() requires 0 arguments", expr.loc);
   }
 
   const arrayPtr = gen.generateExpression(expr.object, params);
@@ -161,7 +161,7 @@ export function generateArrayShift(
   params: string[],
 ): string {
   if (expr.args.length !== 0) {
-    throw new Error("shift() requires 0 arguments");
+    return gen.emitError("shift() requires 0 arguments", expr.loc);
   }
 
   const arrayPtr = gen.generateExpression(expr.object, params);
@@ -363,7 +363,7 @@ export function generateArrayUnshift(
   params: string[],
 ): string {
   if (expr.args.length !== 1) {
-    throw new Error("unshift() requires exactly 1 argument");
+    return gen.emitError("unshift() requires exactly 1 argument", expr.loc);
   }
 
   const arrayPtr = gen.generateExpression(expr.object, params);

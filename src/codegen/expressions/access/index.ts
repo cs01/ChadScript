@@ -165,20 +165,34 @@ export class IndexAccessGenerator {
     return arg;
   }
 
+  private toI32Index(indexValue: string): string {
+    const indexType = this.ctx.getVariableType(indexValue);
+    if (indexType === "double") {
+      const temp = this.ctx.nextTemp();
+      this.ctx.emit(`${temp} = fptosi double ${indexValue} to i32`);
+      return temp;
+    } else if (indexType === "i64") {
+      const temp = this.ctx.nextTemp();
+      this.ctx.emit(`${temp} = trunc i64 ${indexValue} to i32`);
+      return temp;
+    }
+    return indexValue;
+  }
+
+  private emitBoundsCheck(arrayPtr: string, arrayType: string, index: string): void {
+    const lenPtr = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${lenPtr} = getelementptr inbounds ${arrayType}, ${arrayType}* ${arrayPtr}, i32 0, i32 1`,
+    );
+    const len = this.ctx.nextTemp();
+    this.ctx.emit(`${len} = load i32, i32* ${lenPtr}`);
+    this.ctx.emit(`call void @__cs_bounds_check(i32 ${index}, i32 ${len})`);
+  }
+
   private generateStringArrayIndex(expr: IndexAccessNode, params: string[]): string {
     const stringArrayPtr = this.ctx.generateExpression(expr.object, params);
     const indexDouble = this.ctx.generateExpression(expr.index, params);
-
-    // Convert double index to i32 for getelementptr
-    const indexType = this.ctx.getVariableType(indexDouble);
-    let index = indexDouble;
-    if (indexType === "double") {
-      index = this.ctx.nextTemp();
-      this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
-    } else if (indexType === "i64") {
-      index = this.ctx.nextTemp();
-      this.ctx.emit(`${index} = trunc i64 ${indexDouble} to i32`);
-    }
+    const index = this.toI32Index(indexDouble);
 
     const dataPtr = this.ctx.nextTemp();
     this.ctx.emit(
@@ -193,7 +207,6 @@ export class IndexAccessGenerator {
 
     const elem = this.ctx.nextTemp();
     this.ctx.emit(`${elem} = load i8*, i8** ${elemPtr}`);
-    // Track that this loaded value is a string
     this.ctx.setVariableType(elem, "i8*");
     return elem;
   }
@@ -201,17 +214,9 @@ export class IndexAccessGenerator {
   private generateNumericArrayIndex(expr: IndexAccessNode, params: string[]): string {
     const arrayPtr = this.ctx.generateExpression(expr.object, params);
     const indexDouble = this.ctx.generateExpression(expr.index, params);
+    const index = this.toI32Index(indexDouble);
 
-    // Convert double index to i32 for getelementptr
-    const indexType = this.ctx.getVariableType(indexDouble);
-    let index = indexDouble;
-    if (indexType === "double") {
-      index = this.ctx.nextTemp();
-      this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
-    } else if (indexType === "i64") {
-      index = this.ctx.nextTemp();
-      this.ctx.emit(`${index} = trunc i64 ${indexDouble} to i32`);
-    }
+    this.emitBoundsCheck(arrayPtr, "%Array", index);
 
     const dataPtr = this.ctx.nextTemp();
     this.ctx.emit(`${dataPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
@@ -222,7 +227,6 @@ export class IndexAccessGenerator {
     const elemPtr = this.ctx.nextTemp();
     this.ctx.emit(`${elemPtr} = getelementptr inbounds double, double* ${data}, i32 ${index}`);
 
-    // Load double element
     const elem = this.ctx.nextTemp();
     this.ctx.emit(`${elem} = load double, double* ${elemPtr}`);
     this.ctx.setVariableType(elem, "double");
@@ -233,15 +237,7 @@ export class IndexAccessGenerator {
     const arrayPtr = this.ctx.generateExpression(expr.object, params);
     const indexDouble = this.ctx.generateExpression(expr.index, params);
 
-    const indexType = this.ctx.getVariableType(indexDouble);
-    let index = indexDouble;
-    if (indexType === "double") {
-      index = this.ctx.nextTemp();
-      this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
-    } else if (indexType === "i64") {
-      index = this.ctx.nextTemp();
-      this.ctx.emit(`${index} = trunc i64 ${indexDouble} to i32`);
-    }
+    const index = this.toI32Index(indexDouble);
 
     const arrayType = this.ctx.getVariableType(arrayPtr);
     if (arrayType === "%ObjectArray*") {
@@ -313,15 +309,9 @@ export class IndexAccessGenerator {
     const arrayPtr = this.ctx.generateExpression(expr.object, params);
     const indexDouble = this.ctx.generateExpression(expr.index, params);
 
-    const indexType = this.ctx.getVariableType(indexDouble);
-    let index = indexDouble;
-    if (indexType === "double") {
-      index = this.ctx.nextTemp();
-      this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
-    } else if (indexType === "i64") {
-      index = this.ctx.nextTemp();
-      this.ctx.emit(`${index} = trunc i64 ${indexDouble} to i32`);
-    }
+    const index = this.toI32Index(indexDouble);
+
+    this.emitBoundsCheck(arrayPtr, "%Uint8Array", index);
 
     const dataFieldPtr = this.ctx.nextTemp();
     this.ctx.emit(

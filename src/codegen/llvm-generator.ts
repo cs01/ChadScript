@@ -69,6 +69,8 @@ import {
   getSafeStringHelper,
   getDoubleToStringHelper,
   getStringHashHelper,
+  getBoundsCheckHelper,
+  getNullCheckHelper,
   getGlobalVariables,
 } from "./infrastructure/llvm-declarations.js";
 import {
@@ -2558,6 +2560,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (strHash) {
       irParts.push(strHash);
     }
+    irParts.push(getBoundsCheckHelper());
+    irParts.push(getNullCheckHelper());
 
     irParts.push(this.fsGen.generateReaddirSyncHelper());
     irParts.push(this.fsGen.generateStatSyncHelper());
