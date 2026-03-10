@@ -691,32 +691,28 @@ export class MethodCallGenerator {
     if (method === "text" || method === "json") {
       const isLikelyResponse = this.isLikelyResponseExpression(expr);
       if (isLikelyResponse) {
-        try {
-          let responsePtr = this.ctx.generateExpression(expr.object, params);
+        let responsePtr = this.ctx.generateExpression(expr.object, params);
 
-          const objType = this.ctx.getVariableType(responsePtr);
-          if (objType === "i8*") {
-            const castPtr = this.ctx.nextTemp();
-            this.ctx.emit(`${castPtr} = bitcast i8* ${responsePtr} to %__FetchResponse*`);
-            responsePtr = castPtr;
-          }
+        const objType = this.ctx.getVariableType(responsePtr);
+        if (objType === "i8*") {
+          const castPtr = this.ctx.nextTemp();
+          this.ctx.emit(`${castPtr} = bitcast i8* ${responsePtr} to %__FetchResponse*`);
+          responsePtr = castPtr;
+        }
 
-          if (method === "text") {
-            return this.ctx.responseGen.generateText(responsePtr);
-          } else if (method === "json") {
-            this.ctx.setUsesJson(true);
-            if (expr.typeParameter) {
-              const typeName = expr.typeParameter;
-              const interfaceDefResult = getInterfaceFromAST(this.ctx, typeName);
-              if (interfaceDefResult) {
-                const interfaceDef = interfaceDefResult as InterfaceDefInfo;
-                return this.ctx.responseGen.generateTypedJson(responsePtr, typeName, interfaceDef);
-              }
+        if (method === "text") {
+          return this.ctx.responseGen.generateText(responsePtr);
+        } else if (method === "json") {
+          this.ctx.setUsesJson(true);
+          if (expr.typeParameter) {
+            const typeName = expr.typeParameter;
+            const interfaceDefResult = getInterfaceFromAST(this.ctx, typeName);
+            if (interfaceDefResult) {
+              const interfaceDef = interfaceDefResult as InterfaceDefInfo;
+              return this.ctx.responseGen.generateTypedJson(responsePtr, typeName, interfaceDef);
             }
-            return this.ctx.responseGen.generateJson(responsePtr);
           }
-        } catch (e) {
-          throw e;
+          return this.ctx.responseGen.generateJson(responsePtr);
         }
       }
     }
