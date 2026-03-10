@@ -182,15 +182,8 @@ export class FunctionGenerator {
     } else {
       const hasParameters = func.parameters ? true : false;
       if (hasParameters) {
-        let paramCount = 0;
         const paramsArr = func.parameters;
-        if (paramsArr) {
-          let idx = 0;
-          while (paramsArr[idx]) {
-            paramCount = paramCount + 1;
-            idx = idx + 1;
-          }
-        }
+        const paramCount = paramsArr ? paramsArr.length : 0;
         if (paramCount > 0) {
           const entryTypes: string[] = [];
           const entryNames: string[] = [];
