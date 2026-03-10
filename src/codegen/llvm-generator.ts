@@ -2473,6 +2473,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
         this.globalVariables.set(name, { llvmType, kind, initialized: false });
         this.defineVariable(name, `@${name}`, llvmType, kind, "global");
+        if (stmt.declaredType) {
+          this.symbolTable.setResolvedType(name, parseTypeString(stmt.declaredType));
+        } else if (stmt.value) {
+          const resolved = this.typeInference.resolveExpressionType(stmt.value);
+          if (resolved) {
+            this.symbolTable.setResolvedType(name, resolved);
+          }
+        }
       }
     }
     if (ir.length > 0) {
