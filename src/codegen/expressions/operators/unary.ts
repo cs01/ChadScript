@@ -73,7 +73,7 @@ export class UnaryExpressionGenerator {
     const varName = operandVar.name;
     const allocaReg = this.ctx.getVariableAlloca(varName);
     if (!allocaReg) {
-      throw new Error(`Cannot find alloca for variable: ${varName}`);
+      return this.ctx.emitError(`Cannot find alloca for variable: ${varName}`);
     }
 
     const varLlvmType = this.ctx.getVariableType(varName) || "double";
@@ -117,7 +117,7 @@ export class UnaryExpressionGenerator {
     const varName = operandVarPre.name;
     const allocaReg = this.ctx.getVariableAlloca(varName);
     if (!allocaReg) {
-      throw new Error(`Cannot find alloca for variable: ${varName}`);
+      return this.ctx.emitError(`Cannot find alloca for variable: ${varName}`);
     }
 
     const varLlvmType = this.ctx.getVariableType(varName) || "double";

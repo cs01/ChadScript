@@ -26,7 +26,7 @@ export function accessObjectWithMetadata(
 
   const varPtr = ctx.getVariableAlloca(varName);
   if (!varPtr) {
-    throw new Error(`Variable ${varName} not found in symbol table`);
+    return ctx.emitError(`Variable ${varName} not found in symbol table`);
   }
 
   const objPtr = ctx.nextTemp();
