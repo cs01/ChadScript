@@ -276,7 +276,7 @@ export function handleLengthProperty(
   const exprObjBase = expr.object as ExprBase;
   const exprObjType = exprObjBase.type;
   if (exprObjType === null || exprObjType === undefined) {
-    return "0.0";
+    return ctx.emitError(`cannot access .length on expression with unknown type`, expr.loc);
   }
   if (
     exprObjType === "variable" &&
