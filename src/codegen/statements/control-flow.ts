@@ -132,7 +132,7 @@ export class ControlFlowGenerator {
 
   generateIfStatement(stmt: Statement, params: string[]): string {
     if (stmt.type !== "if") {
-      throw new Error("Expected if statement");
+      return this.ctx.emitError("Expected if statement", stmt.loc);
     }
 
     const ifStmt = stmt as {
@@ -207,7 +207,7 @@ export class ControlFlowGenerator {
 
   generateWhileStatement(stmt: Statement, params: string[]): string {
     if (stmt.type !== "while") {
-      throw new Error("Expected while statement");
+      return this.ctx.emitError("Expected while statement", stmt.loc);
     }
 
     const whileStmt = stmt as WhileStatement;
@@ -249,7 +249,7 @@ export class ControlFlowGenerator {
   // continue jumps to cond (matching JS semantics), break jumps to end.
   generateDoWhileStatement(stmt: Statement, params: string[]): string {
     if (stmt.type !== "do_while") {
-      throw new Error("Expected do_while statement");
+      return this.ctx.emitError("Expected do_while statement", stmt.loc);
     }
 
     const doWhileStmt = stmt as DoWhileStatement;
@@ -289,7 +289,7 @@ export class ControlFlowGenerator {
 
   generateForStatement(stmt: Statement, params: string[]): string {
     if (stmt.type !== "for") {
-      throw new Error("Expected for statement");
+      return this.ctx.emitError("Expected for statement", stmt.loc);
     }
 
     const forStmt = stmt as {
@@ -325,7 +325,7 @@ export class ControlFlowGenerator {
         let value = this.ctx.generateExpression(initAssign.value, params);
         const allocaReg = this.ctx.getVariableAlloca(initAssign.name);
         if (!allocaReg) {
-          throw new Error(`Variable ${initAssign.name} not found`);
+          return this.ctx.emitError(`Variable ${initAssign.name} not found`, stmt.loc);
         }
         const varType = this.ctx.getVariableType(initAssign.name) || "double";
         const valType = this.ctx.getVariableType(value);
@@ -380,12 +380,12 @@ export class ControlFlowGenerator {
       if (updateType === "assignment") {
         const updateName = updateTyped.name;
         if (!updateName) {
-          throw new Error("Assignment update has no name");
+          return this.ctx.emitError("Assignment update has no name", stmt.loc);
         }
         let value = this.ctx.generateExpression(updateTyped.value, params);
         const allocaReg = this.ctx.getVariableAlloca(updateName);
         if (!allocaReg) {
-          throw new Error(`Variable ${updateName} not found in update`);
+          return this.ctx.emitError(`Variable ${updateName} not found in update`, stmt.loc);
         }
         const varType = this.ctx.getVariableType(updateName) || "double";
         const valType = this.ctx.getVariableType(value);
@@ -410,7 +410,7 @@ export class ControlFlowGenerator {
 
   generateForOfStatement(stmt: Statement, params: string[]): string {
     if (stmt.type !== "for_of") {
-      throw new Error("Expected for...of statement");
+      return this.ctx.emitError("Expected for...of statement", stmt.loc);
     }
 
     const forOfStmt = stmt as {
@@ -1400,7 +1400,7 @@ export class ControlFlowGenerator {
     objArrayInfo: ObjectArrayMetadata,
   ): string {
     if (stmt.type !== "for_of") {
-      throw new Error("Expected for...of statement");
+      return this.ctx.emitError("Expected for...of statement", stmt.loc);
     }
 
     const forOfStmt = stmt as {
@@ -1519,7 +1519,7 @@ export class ControlFlowGenerator {
 
   generateThrowStatement(stmt: Statement, params: string[]): string {
     if (stmt.type !== "throw") {
-      throw new Error("Expected throw statement");
+      return this.ctx.emitError("Expected throw statement", stmt.loc);
     }
 
     const throwStmt = stmt as ThrowStatement;
@@ -1577,7 +1577,7 @@ export class ControlFlowGenerator {
 
   generateTryStatement(stmt: Statement, params: string[]): string {
     if (stmt.type !== "try") {
-      throw new Error("Expected try statement");
+      return this.ctx.emitError("Expected try statement", stmt.loc);
     }
     const tryStmt = stmt as {
       type: string;
@@ -2285,7 +2285,7 @@ export class ControlFlowGenerator {
 
   generateSwitchStatement(stmt: Statement, params: string[]): string {
     if (stmt.type !== "switch") {
-      throw new Error("Expected switch statement");
+      return this.ctx.emitError("Expected switch statement", stmt.loc);
     }
 
     const switchStmt = stmt as SwitchStatement;
