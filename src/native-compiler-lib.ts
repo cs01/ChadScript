@@ -557,6 +557,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
   // Use full path because Homebrew clang can't find lld by short name.
   // Try ld.lld first (ELF-specific), fall back to lld (multicall binary, auto-detects format).
   const crossLinker = crossCompiling ? " -fuse-ld=" + findLLD() : "";
+  const suppressLdWarnings = isMac ? " -Wl,-w" : "";
 
   // User-provided linker flags (--link-obj, --link-lib, --link-path)
   let userLinkObjs = "";
@@ -608,6 +609,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
     staticFlag +
     crossTargetFlag +
     crossLinker +
+    suppressLdWarnings +
     " " +
     linkLibs +
     userLinkFlags;
