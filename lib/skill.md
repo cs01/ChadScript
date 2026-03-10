@@ -42,9 +42,9 @@ ChadScript supports a practical subset of TypeScript:
 ## Built-in Modules
 
 ```typescript
-import * as fs from "fs";           // readFileSync, writeFileSync, existsSync, etc.
-import * as path from "path";       // join, resolve, dirname, basename, extname
-import * as os from "os";           // platform, arch, cpus, totalmem, homedir
+import * as fs from "fs"; // readFileSync, writeFileSync, existsSync, etc.
+import * as path from "path"; // join, resolve, dirname, basename, extname
+import * as os from "os"; // platform, arch, cpus, totalmem, homedir
 import * as child_process from "child_process"; // execSync
 ```
 
