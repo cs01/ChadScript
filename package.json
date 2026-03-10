@@ -1,6 +1,6 @@
 {
   "name": "chadscript",
-  "version": "0.1.0",
+  "version": "0.1.1-alpha",
   "description": "A JavaScript to native code compiler using LLVM",
   "type": "module",
   "main": "dist/chad-node.js",
@@ -9,6 +9,7 @@
   },
   "scripts": {
     "compile": "tsx src/chad-node.ts build",
+    "prebuild": "node scripts/gen-version.js",
     "build": "tsc",
     "test": "npm run test:node && npm run test:native",
     "test:node": "node scripts/test.js --node",
