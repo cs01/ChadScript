@@ -1,5 +1,4 @@
 // @test-skip
-// HTTP server fixture used by network.test.ts (needs external test orchestration)
 import { httpServe } from "chadscript/http";
 
 interface Request {
@@ -16,6 +15,16 @@ interface Response {
   headers: string;
 }
 
+function getPortNum(): number {
+  const args = process.argv;
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "-p") {
+      return parseInt(args[i + 1]);
+    }
+  }
+  return 9997;
+}
+
 function handleRequest(req: Request): Response {
   if (req.path == "/") {
     return { status: 200, body: "Hello from ChadScript!", headers: "" };
@@ -26,4 +35,5 @@ function handleRequest(req: Request): Response {
   return { status: 404, body: "Not Found", headers: "" };
 }
 
-httpServe(9997, handleRequest);
+const port = getPortNum();
+httpServe(port, handleRequest);

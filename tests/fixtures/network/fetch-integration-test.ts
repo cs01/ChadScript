@@ -1,22 +1,26 @@
 // @test-skip
-// Integration test for fetch() builtin with Response API
-// This test expects an HTTP server running on localhost:9998
-// that responds with specific test data
-
-// fetch() returns a Promise<Response> that resolves to a Response object with:
-// - .text() method to get body
-// - .json() method to parse JSON
-// - .status property for HTTP status code
-// - .ok property for success check (200-299)
+// @test-args: -p 9998
 
 interface JsonTestResponse {
   status: string;
   message: string;
 }
 
+function getPort(): string {
+  const args = process.argv;
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "-p") {
+      return args[i + 1];
+    }
+  }
+  return "9998";
+}
+
 async function runTests(): Promise<string> {
-  // Test 1: Basic endpoint with .ok and .status checks
-  const response1 = await fetch("http://localhost:9998/test");
+  const port = getPort();
+  const base = "http://localhost:" + port;
+
+  const response1 = await fetch(base + "/test");
   if (!response1.ok) {
     throw new Error("Expected response1.ok to be true");
   }
@@ -29,8 +33,7 @@ async function runTests(): Promise<string> {
     throw new Error("Expected at least 3 lines in response");
   }
 
-  // Test 2: JSON endpoint with .json<T>() method
-  const response2 = await fetch("http://localhost:9998/json");
+  const response2 = await fetch(base + "/json");
   if (!response2.ok) {
     throw new Error("Expected response2.ok to be true");
   }
@@ -42,8 +45,7 @@ async function runTests(): Promise<string> {
     throw new Error("Expected json2.message to equal 'JSON response'");
   }
 
-  // Test 3: Plain text endpoint
-  const response3 = await fetch("http://localhost:9998/plain");
+  const response3 = await fetch(base + "/plain");
   if (!response3.ok) {
     throw new Error("Expected response3.ok to be true");
   }

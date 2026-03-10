@@ -1,10 +1,19 @@
 // @test-skip
+function getPort(): string {
+  const args = process.argv;
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "-p") {
+      return args[i + 1];
+    }
+  }
+  return "19881";
+}
+
 async function testPromiseAllFetch(): Promise<void> {
-  const results = await Promise.all([
-    fetch("http://127.0.0.1:19881/a"),
-    fetch("http://127.0.0.1:19881/b"),
-    fetch("http://127.0.0.1:19881/c"),
-  ]);
+  const port = getPort();
+  const base = "http://127.0.0.1:" + port;
+
+  const results = await Promise.all([fetch(base + "/a"), fetch(base + "/b"), fetch(base + "/c")]);
 
   const bodyA = results[0].text();
   const bodyB = results[1].text();

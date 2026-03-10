@@ -1,5 +1,4 @@
 // @test-skip
-// HTTP route isolation fixture used by http-routes.test.ts (needs external test orchestration)
 import { httpServe } from "chadscript/http";
 
 interface Request {
@@ -16,6 +15,16 @@ interface Response {
   status: number;
   body: string;
   headers: string;
+}
+
+function getPortNum(): number {
+  const args = process.argv;
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "-p") {
+      return parseInt(args[i + 1]);
+    }
+  }
+  return 9987;
 }
 
 function homeHandler(req: Request): Response {
@@ -88,4 +97,5 @@ function handleRequest(req: Request): Response {
   return notFoundHandler(req);
 }
 
-httpServe(9987, handleRequest);
+const port = getPortNum();
+httpServe(port, handleRequest);

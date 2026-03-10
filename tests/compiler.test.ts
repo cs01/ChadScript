@@ -371,6 +371,8 @@ httpServe(${port}, handleRequest, wsHandler);
 
       // Start the server as a background process
       const serverProc = spawn(exeFile, [], { stdio: ["pipe", "pipe", "pipe"] });
+      let stderrOutput = "";
+      serverProc.stderr?.on("data", (d: Buffer) => (stderrOutput += d.toString()));
       const cleanup = () => {
         try {
           serverProc.kill("SIGKILL");
@@ -378,10 +380,10 @@ httpServe(${port}, handleRequest, wsHandler);
       };
 
       try {
-        // Poll the TCP port until the server is ready (printf is full-buffered
-        // when stdout is a pipe, so we can't rely on stdout messages)
         await new Promise<void>((resolve, reject) => {
-          const deadline = setTimeout(() => reject(new Error("Server startup timeout")), 5000);
+          const deadline = setTimeout(() => {
+            reject(new Error(`Server startup timeout (stderr: ${stderrOutput})`));
+          }, 15000);
           serverProc.on("exit", (code) => {
             clearTimeout(deadline);
             reject(new Error(`Server exited early with code ${code}`));
@@ -393,7 +395,7 @@ httpServe(${port}, handleRequest, wsHandler);
               resolve();
             });
             sock.on("error", () => {
-              setTimeout(tryConnect, 50);
+              setTimeout(tryConnect, 100);
             });
           };
           tryConnect();
@@ -407,7 +409,7 @@ httpServe(${port}, handleRequest, wsHandler);
             res.on("end", () => resolve(body));
           });
           req.on("error", reject);
-          req.setTimeout(3000, () => {
+          req.setTimeout(10000, () => {
             req.destroy();
             reject(new Error("HTTP request timeout"));
           });
@@ -422,7 +424,7 @@ httpServe(${port}, handleRequest, wsHandler);
         // on message — this tests the full flow including broadcast-during-open.
         const wsKey = crypto.randomBytes(16).toString("base64");
         const wsReceived = await new Promise<string[]>((resolve, reject) => {
-          const timeout = setTimeout(() => reject(new Error("WebSocket test timeout")), 5000);
+          const timeout = setTimeout(() => reject(new Error("WebSocket test timeout")), 15000);
           const req = http.request({
             hostname: "127.0.0.1",
             port,

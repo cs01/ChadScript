@@ -1,6 +1,17 @@
 // @test-skip
+function getPort(): string {
+  const args = process.argv;
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "-p") {
+      return args[i + 1];
+    }
+  }
+  return "19878";
+}
+
 async function testAsyncFetch(): Promise<string> {
-  const response = await fetch("http://127.0.0.1:19878/test");
+  const port = getPort();
+  const response = await fetch("http://127.0.0.1:" + port + "/test");
   if (response.ok) {
     const body = response.text();
     if (body === "/test") {
