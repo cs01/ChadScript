@@ -219,9 +219,10 @@ export function canonicalTypeToLlvm(
 
   if (mode === "param") {
     if (tsType === "any" || tsType === "unknown") {
-      throw new Error(
-        `Parameter type '${tsType}' is not allowed — add explicit type annotations or fix the parser`,
+      console.error(
+        "error: parameter type '" + tsType + "' is not allowed — add explicit type annotations",
       );
+      process.exit(1);
     }
   }
 
