@@ -508,6 +508,16 @@ export class SemanticAnalyzer {
             llvmType: elemLlvm,
           });
         }
+        if (forOfStmt.destructuredNames) {
+          const names = forOfStmt.destructuredNames as string[];
+          for (let i = 0; i < names.length; i++) {
+            this.symbols.set(names[i], {
+              name: names[i],
+              type: "string",
+              llvmType: "i8*",
+            });
+          }
+        }
         if (forOfStmt.body) this.analyzeBlock(forOfStmt.body);
       } else if (stmtType === "try") {
         const tryStmt = stmt as TryStatement;
