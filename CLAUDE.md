@@ -25,6 +25,9 @@ monitor CI, and merge when green. You have push access to feature branches and m
 
 **Never push to main directly.** Always go through PRs.
 
+PR descriptions should be **user-centric** — lead with how the change affects users (better error messages,
+fewer crashes, new capabilities), not just technical implementation details.
+
 ## Testing & Commit Workflow
 
 After completing each todo:
