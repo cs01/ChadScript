@@ -115,6 +115,7 @@ function generateNumericArrayFind(
 
   gen.emitLabel(endLabel);
   const result = gen.emitLoad("double", resultPtr);
+  gen.setVariableType(result, "double");
   return result;
 }
 
