@@ -277,6 +277,7 @@ export interface IStringSetGenerator {
   generateStringSetAdd(setAlloca: string, valueValue: string): string;
   generateStringSetHas(setAlloca: string, valueValue: string): string;
   generateStringSetDelete(setAlloca: string, valueValue: string): string;
+  generateStringSetSize(setPtr: string): string;
 }
 
 export interface IPointerMapGenerator {
@@ -1989,6 +1990,7 @@ export class MockGeneratorContext implements IGeneratorContext {
       "%mock_string_set_has",
     generateStringSetDelete: (_setAlloca: string, _valueValue: string): string =>
       "%mock_string_set_delete",
+    generateStringSetSize: (_setPtr: string): string => "%mock_string_set_size",
   };
   pointerMapGen: IPointerMapGenerator = {
     generatePointerMapSet: (_mapPtr: string, _keyValue: string, _valueValue: string): string =>

@@ -376,7 +376,12 @@ export function handleSizeProperty(
     return ctx.mapGen.generateMapSize(mapPtr);
   }
   if (exprObjType === "variable" && ctx.symbolTable.isSet((expr.object as VariableNode).name)) {
+    const varName = (expr.object as VariableNode).name;
+    const setValueType = ctx.symbolTable.getSetValueType(varName);
     const setPtr = ctx.generateExpression(expr.object, params);
+    if (setValueType === "string") {
+      return ctx.stringSetGen.generateStringSetSize(setPtr);
+    }
     return ctx.setGen.generateSetSize(setPtr);
   }
   if (exprObjType === "member_access") {
@@ -392,7 +397,9 @@ export function handleSizeProperty(
           fieldInfo.tsType.startsWith("Set<") || fieldInfo.tsType.indexOf("Set<") !== -1;
         if (isMap || isSet) {
           const ptr = ctx.generateExpression(expr.object, params);
-          if (isSet) {
+          if (isSet && fieldInfo.tsType.indexOf("Set<string") !== -1) {
+            return ctx.stringSetGen.generateStringSetSize(ptr);
+          } else if (isSet) {
             return ctx.setGen.generateSetSize(ptr);
           } else if (fieldInfo.tsType.indexOf("Map<string") !== -1) {
             return ctx.stringMapGen.generateStringMapSize(ptr);
