@@ -17,6 +17,7 @@ import {
 const dtsContent = ChadScript.embedFile("../chadscript.d.ts");
 registerStdlib("argparse.ts", ChadScript.embedFile("../lib/argparse.ts"));
 registerStdlib("http.ts", ChadScript.embedFile("../lib/http.ts"));
+const skillContent = ChadScript.embedFile("../lib/skill.md");
 import { ArgumentParser } from "chadscript/argparse";
 
 declare const fs: {
@@ -72,6 +73,7 @@ parser.addSubcommandInGroup("target", "Manage cross-compilation target SDKs", "A
 parser.addSubcommandInGroup("ast-dump", "Dump parsed AST as JSON", "Advanced");
 
 parser.addFlag("version", "", "Show version");
+parser.addFlag("skill", "", "Print Claude Code skill to stdout");
 parser.addScopedOption("output", "o", "Specify output file", "", "build,run,ir");
 parser.addScopedFlag("verbose", "v", "Show compilation steps", "build,run,ir");
 parser.addScopedFlag("debug-info", "g", "Emit DWARF debug info (skips stripping)", "build,run");
@@ -108,6 +110,11 @@ if (parser.getFlag("version")) {
   process.exit(0);
 }
 
+if (parser.getFlag("skill")) {
+  console.log(skillContent);
+  process.exit(0);
+}
+
 const command = parser.getSubcommand();
 
 if (command === "init") {
@@ -131,6 +138,14 @@ if (command === "init") {
   } else {
     fs.writeFileSync("hello.ts", 'console.log("Hello from ChadScript!");\nprocess.exit(0);\n');
     console.log("  created hello.ts");
+  }
+  const skillPath = ".claude/skills/chadscript/SKILL.md";
+  if (fs.existsSync(skillPath)) {
+    console.log("  skip " + skillPath + " (already exists)");
+  } else {
+    child_process.execSync("mkdir -p .claude/skills/chadscript");
+    fs.writeFileSync(skillPath, skillContent);
+    console.log("  created " + skillPath);
   }
   console.log("");
   console.log("Ready!");

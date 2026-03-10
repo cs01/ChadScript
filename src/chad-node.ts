@@ -41,6 +41,7 @@ parser.addSubcommandInGroup("target", "Manage cross-compilation target SDKs", "A
 parser.addSubcommandInGroup("ast-dump", "Dump parsed AST as JSON", "Advanced");
 
 parser.addFlag("version", "", "Show version");
+parser.addFlag("skill", "", "Print Claude Code skill to stdout");
 parser.addScopedOption("output", "o", "Specify output file", "", "build,run,ir");
 parser.addScopedFlag("verbose", "v", "Show compilation steps", "build,run,ir,watch");
 parser.addScopedFlag("debug", "", "Show internal debugging information", "build,run,ir");
@@ -94,6 +95,12 @@ if (parser.getFlag("version")) {
   } catch {
     console.log("chad 0.1.0");
   }
+  process.exit(0);
+}
+
+if (parser.getFlag("skill")) {
+  const skillPath = path.join(import.meta.dirname || process.cwd(), "../lib/skill.md");
+  process.stdout.write(fs.readFileSync(skillPath, "utf8"));
   process.exit(0);
 }
 
