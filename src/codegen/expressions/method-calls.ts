@@ -730,8 +730,10 @@ export class MethodCallGenerator {
               return this.ctx.stringMapGen.generateStringMapValues(mapAlloca);
             } else if (method === "keys") {
               return this.ctx.stringMapGen.generateStringMapKeys(mapAlloca);
-            } else {
+            } else if (method === "clear") {
               return this.ctx.stringMapGen.generateStringMapClear(mapAlloca);
+            } else {
+              return this.ctx.emitError(`Map<string, *>.${method}() is not supported`, expr.loc);
             }
           }
           return this.ctx.emitError(
@@ -922,8 +924,10 @@ export class MethodCallGenerator {
             return this.ctx.setGen.generateSetAdd(expr, params);
           } else if (method === "has") {
             return this.ctx.setGen.generateSetHas(expr, params);
-          } else {
+          } else if (method === "delete") {
             return this.ctx.setGen.generateSetDelete(expr, params);
+          } else {
+            return this.ctx.emitError(`Set.${method}() is not supported`, expr.loc);
           }
         }
       }
