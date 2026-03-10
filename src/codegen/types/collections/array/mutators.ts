@@ -155,6 +155,7 @@ function generateIntArrayPop(gen: IGeneratorContext, arrayPtr: string): string {
   gen.emitLabel(endLabel);
   const result = gen.nextTemp();
   gen.emit(`${result} = phi double [ 0.0, %${emptyLabel} ], [ ${lastElem}, %${notEmptyLabel} ]`);
+  gen.setVariableType(result, "double");
 
   return result;
 }
