@@ -36,6 +36,10 @@ export class UnaryExpressionGenerator {
       return this.generatePreIncDec(op, operand, params);
     }
 
+    if (op === "typeof") {
+      return this.generateTypeof(operand, params);
+    }
+
     const operandValue = this.ctx.generateExpression(operand, params);
 
     if (op === "!") {
@@ -48,10 +52,6 @@ export class UnaryExpressionGenerator {
 
     if (op === "+") {
       return operandValue;
-    }
-
-    if (op === "typeof") {
-      return this.generateTypeof(operand, operandValue);
     }
 
     if (op === "~") {
@@ -259,8 +259,7 @@ export class UnaryExpressionGenerator {
     return result;
   }
 
-  private generateTypeof(operand: Expression, operandValue: string): string {
-    const operandType = this.ctx.getVariableType(operandValue);
+  private generateTypeof(operand: Expression, params: string[]): string {
     let typeString: string;
 
     if (operand.type === "string") {
@@ -269,6 +268,10 @@ export class UnaryExpressionGenerator {
       typeString = "number";
     } else if (operand.type === "boolean") {
       typeString = "boolean";
+    } else if (operand.type === "null") {
+      typeString = "object";
+    } else if (operand.type === "undefined") {
+      typeString = "undefined";
     } else if (operand.type === "arrow_function") {
       typeString = "function";
     } else if (operand.type === "variable") {
@@ -279,15 +282,25 @@ export class UnaryExpressionGenerator {
         typeString = "string";
       } else if (this.ctx.symbolTable.isBoolean(varName)) {
         typeString = "boolean";
-      } else if (operandType === "double" || operandType === "i64") {
+      } else if (this.ctx.symbolTable.isClosure(varName)) {
+        typeString = "function";
+      } else {
+        const operandValue = this.ctx.generateExpression(operand, params);
+        const operandType = this.ctx.getVariableType(operandValue);
+        if (operandType === "double" || operandType === "i64") {
+          typeString = "number";
+        } else {
+          typeString = "object";
+        }
+      }
+    } else {
+      const operandValue = this.ctx.generateExpression(operand, params);
+      const operandType = this.ctx.getVariableType(operandValue);
+      if (operandType === "double" || operandType === "i64") {
         typeString = "number";
       } else {
         typeString = "object";
       }
-    } else if (operandType === "double" || operandType === "i64") {
-      typeString = "number";
-    } else {
-      typeString = "object";
     }
 
     const strPtr = this.ctx.stringGen.doCreateStringConstant(typeString);
