@@ -444,6 +444,13 @@ export class SymbolTable {
   private scopeNamesCount: number = 0;
   private scopeBoundaries: number[];
   private scopeBoundariesCount: number = 0;
+  private savedNames: string[];
+  private savedAllocas: string[];
+  private savedTypes: string[];
+  private savedKinds: number[];
+  private savedCount: number = 0;
+  private savedBoundaries: number[];
+  private savedBoundariesCount: number = 0;
   private typeContext: TypeContext | null;
 
   constructor(typeContext?: TypeContext) {
@@ -453,12 +460,19 @@ export class SymbolTable {
     this.interfaceTypes = new Map();
     this.scopeNames = [];
     this.scopeBoundaries = [];
+    this.savedNames = [];
+    this.savedAllocas = [];
+    this.savedTypes = [];
+    this.savedKinds = [];
+    this.savedBoundaries = [];
     this.typeContext = typeContext || null;
   }
 
   pushScope(kind: string): void {
     this.scopeBoundaries.push(this.scopeNamesCount);
     this.scopeBoundariesCount++;
+    this.savedBoundaries.push(this.savedCount);
+    this.savedBoundariesCount++;
   }
 
   popScope(): void {
@@ -466,26 +480,27 @@ export class SymbolTable {
     this.scopeBoundariesCount--;
     const boundary = this.scopeBoundaries[this.scopeBoundariesCount];
     this.scopeBoundaries.length = this.scopeBoundariesCount;
-    for (let i = this.scopeNamesCount - 1; i >= boundary; i--) {
-      const name = this.scopeNames[i];
-      this.symbols.delete(name);
-      this.interfaceTypes.delete(name);
+    if (this.savedBoundariesCount > 0) {
+      this.savedBoundariesCount--;
+      const savedBoundary = this.savedBoundaries[this.savedBoundariesCount];
+      this.savedBoundaries.length = this.savedBoundariesCount;
+      for (let i = this.savedCount - 1; i >= savedBoundary; i--) {
+        const rName = this.savedNames[i];
+        const sym = this.symbols.get(rName);
+        if (sym) {
+          sym.allocaRegister = this.savedAllocas[i];
+          sym.llvmType = this.savedTypes[i];
+          sym.kind = this.savedKinds[i];
+        }
+      }
+      this.savedCount = savedBoundary;
+      this.savedNames.length = savedBoundary;
+      this.savedAllocas.length = savedBoundary;
+      this.savedTypes.length = savedBoundary;
+      this.savedKinds.length = savedBoundary;
     }
     this.scopeNamesCount = boundary;
     this.scopeNames.length = boundary;
-    let writeIdx = 0;
-    const count = this.symbolKeysCount;
-    for (let readIdx = 0; readIdx < count; readIdx++) {
-      const key = this.symbolKeys[readIdx];
-      if (!key) continue;
-      if (this.symbols.has(key)) {
-        if (writeIdx !== readIdx) {
-          this.symbolKeys[writeIdx] = key;
-        }
-        writeIdx++;
-      }
-    }
-    this.symbolKeysCount = writeIdx;
   }
 
   lookupLocal(name: string): Symbol | undefined {
@@ -560,9 +575,16 @@ export class SymbolTable {
       interfaceType: undefined,
       concreteClass: undefined,
     };
-    if (!this.symbols.has(name)) {
+    const existingSym = this.symbols.get(name);
+    if (!existingSym) {
       this.symbolKeys.push(name);
       this.symbolKeysCount++;
+    } else if (scope === "local" && this.scopeBoundariesCount > 0) {
+      this.savedNames.push(name);
+      this.savedAllocas.push(existingSym.allocaRegister);
+      this.savedTypes.push(existingSym.llvmType);
+      this.savedKinds.push(existingSym.kind);
+      this.savedCount++;
     }
     this.symbols.set(name, symbol);
     if (scope === "local" && this.scopeBoundariesCount > 0) {
@@ -608,7 +630,6 @@ export class SymbolTable {
     if (metadata.isPointerAlloca !== undefined) symbol.isPointerAlloca = metadata.isPointerAlloca;
     if (metadata.interfaceType) {
       symbol.interfaceType = metadata.interfaceType;
-      this.interfaceTypes.set(name, metadata.interfaceType);
     }
     if (metadata.concreteClass) symbol.concreteClass = metadata.concreteClass;
     if (metadata.resolvedType) symbol.resolvedType = metadata.resolvedType;
@@ -620,6 +641,9 @@ export class SymbolTable {
     if (scope === "local" && this.scopeBoundariesCount > 0) {
       this.scopeNames.push(name);
       this.scopeNamesCount++;
+    }
+    if (metadata.interfaceType) {
+      this.interfaceTypes.set(name, metadata.interfaceType);
     }
   }
 

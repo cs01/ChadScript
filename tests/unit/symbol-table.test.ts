@@ -437,32 +437,43 @@ describe("SymbolTable", () => {
       table.popScope();
 
       assert.strictEqual(table.has("x"), true);
-      assert.strictEqual(table.has("y"), false);
+      assert.strictEqual(table.has("y"), true);
     });
 
-    it("should support nested scopes", () => {
+    it("should restore shadowed variables on pop", () => {
+      const table = new SymbolTable();
+      table.define("x", SymbolKind.Number, "double", "%1", "local");
+
+      table.pushScope("block");
+      table.define("x", SymbolKind.String, "i8*", "%2", "local");
+      assert.strictEqual(table.getType("x"), "i8*");
+
+      table.popScope();
+
+      assert.strictEqual(table.has("x"), true);
+      assert.strictEqual(table.getType("x"), "double");
+      assert.strictEqual(table.getAlloca("x"), "%1");
+    });
+
+    it("should support nested scopes with shadowing", () => {
       const table = new SymbolTable();
       table.define("a", SymbolKind.Number, "double", "%1", "local");
 
       table.pushScope("block");
-      table.define("b", SymbolKind.Number, "double", "%2", "local");
+      table.define("a", SymbolKind.String, "i8*", "%2", "local");
+      assert.strictEqual(table.getType("a"), "i8*");
 
       table.pushScope("block");
-      table.define("c", SymbolKind.Number, "double", "%3", "local");
-
-      assert.strictEqual(table.has("a"), true);
-      assert.strictEqual(table.has("b"), true);
-      assert.strictEqual(table.has("c"), true);
+      table.define("a", SymbolKind.Boolean, "double", "%3", "local");
+      assert.strictEqual(table.getAlloca("a"), "%3");
 
       table.popScope();
-      assert.strictEqual(table.has("a"), true);
-      assert.strictEqual(table.has("b"), true);
-      assert.strictEqual(table.has("c"), false);
+      assert.strictEqual(table.getType("a"), "i8*");
+      assert.strictEqual(table.getAlloca("a"), "%2");
 
       table.popScope();
-      assert.strictEqual(table.has("a"), true);
-      assert.strictEqual(table.has("b"), false);
-      assert.strictEqual(table.has("c"), false);
+      assert.strictEqual(table.getType("a"), "double");
+      assert.strictEqual(table.getAlloca("a"), "%1");
     });
 
     it("should not pop below global scope", () => {
@@ -481,7 +492,7 @@ describe("SymbolTable", () => {
       table.popScope();
 
       assert.strictEqual(table.has("g"), true);
-      assert.strictEqual(table.has("x"), false);
+      assert.strictEqual(table.has("x"), true);
     });
 
     it("lookupLocal should only find symbols in current scope", () => {
