@@ -599,6 +599,12 @@ export class JsonGenerator {
           return this.stringifyClassInstance(arg, params, className, spaces);
         }
       }
+      if (this.ctx.symbolTable.isSet(varNode.name)) {
+        return this.ctx.emitError(
+          `JSON.stringify: Set is not JSON-serializable. Convert to array first: JSON.stringify([...set])`,
+          (arg as { loc?: SourceLocation }).loc,
+        );
+      }
       return this.ctx.emitError(
         `JSON.stringify: unsupported type for variable '${varNode.name}' — only string, number, boolean, interface, class, string[], number[], object[], and Map are supported`,
       );

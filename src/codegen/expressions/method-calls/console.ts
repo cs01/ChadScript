@@ -439,6 +439,22 @@ function emitSingleArg(
     return;
   }
 
+  if (arg.type === "variable") {
+    const varName = (arg as VariableNode).name;
+    const ifaceType =
+      ctx.symbolTable.getInterfaceType(varName) || ctx.symbolTable.getRawInterfaceType(varName);
+    if (ifaceType) {
+      const jsonStr = ctx.jsonGen.generateStringifyExpr(arg, params);
+      emitPrintStrNoNl(ctx, useStderr, jsonStr);
+      return;
+    }
+    const cn = ctx.symbolTable.getClassName(varName);
+    if (cn) {
+      emitClassInstancePrint(ctx, useStderr, arg, params, cn);
+      return;
+    }
+  }
+
   const argValue = ctx.generateExpression(arg, params);
 
   const isString = ctx.isStringExpression(arg);
@@ -490,7 +506,8 @@ function emitSingleArg(
   }
   if (varType && varType.endsWith("*")) {
     if (arg.type === "variable") {
-      const cn = ctx.symbolTable.getClassName((arg as VariableNode).name);
+      const varName = (arg as VariableNode).name;
+      const cn = ctx.symbolTable.getClassName(varName);
       if (cn) {
         emitClassInstancePrint(ctx, useStderr, arg, params, cn);
         return;
