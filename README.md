@@ -8,14 +8,14 @@ The compiler is self-hosting: tens of thousands of lines of TypeScript that comp
 
 > Status: **Alpha** — self-hosting and usable for real projects. The compiler catches type mismatches at compile time instead of crashing at runtime.
 >
-> | Milestone                           | Status      |
-> | ----------------------------------- | ----------- |
-> | Proof of concept                    | Done        |
-> | Standard library + external linking | Done        |
-> | Self-hosting (3-stage)              | Done        |
-> | Performance (LLVM -O2)              | Done        |
-> | Testing (470+ tests, CI)            | Done        |
-> | Compile-time error coverage         | Done        |
+> | Milestone                           | Status |
+> | ----------------------------------- | ------ |
+> | Proof of concept                    | Done   |
+> | Standard library + external linking | Done   |
+> | Self-hosting (3-stage)              | Done   |
+> | Performance (LLVM -O2)              | Done   |
+> | Testing (470+ tests, CI)            | Done   |
+> | Compile-time error coverage         | Done   |
 
 ---
 

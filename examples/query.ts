@@ -24,11 +24,9 @@ for (let i = 0; i < users.length; i++) {
   console.log("  " + users[i].id + " | " + users[i].name + " | " + users[i].role);
 }
 
-const alice: User = sqlite.getRow<User>(
-  db,
-  "SELECT id, name, role FROM users WHERE name = ?",
-  ["Alice"],
-);
+const alice: User = sqlite.getRow<User>(db, "SELECT id, name, role FROM users WHERE name = ?", [
+  "Alice",
+]);
 console.log("Alice's role: " + alice.role);
 
 const counts: RoleCount[] = sqlite.query<RoleCount>(
