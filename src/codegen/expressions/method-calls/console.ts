@@ -439,6 +439,13 @@ function emitSingleArg(
     return;
   }
 
+  if (arg.type === "boolean") {
+    const boolNode = arg as { type: string; value: boolean };
+    const str = ctx.stringGen.doCreateStringConstant(boolNode.value ? "true" : "false");
+    emitPrintStrNoNl(ctx, useStderr, str);
+    return;
+  }
+
   if (arg.type === "variable") {
     const varName = (arg as VariableNode).name;
     const ifaceType =
