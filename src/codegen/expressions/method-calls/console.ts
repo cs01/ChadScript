@@ -394,6 +394,19 @@ function emitSetPrint(
   ctx.emitLabel(doneLabel);
 }
 
+function emitClassInstancePrint(
+  ctx: MethodCallGeneratorContext,
+  useStderr: boolean,
+  arg: Expression,
+  params: string[],
+  className: string,
+): void {
+  const headerStr = ctx.stringGen.doCreateStringConstant(className + " ");
+  emitPrintStrNoNl(ctx, useStderr, headerStr);
+  const jsonStr = ctx.jsonGen.generateStringifyExpr(arg, params);
+  emitPrintStrNoNl(ctx, useStderr, jsonStr);
+}
+
 function emitSingleArg(
   ctx: MethodCallGeneratorContext,
   useStderr: boolean,
@@ -458,7 +471,19 @@ function emitSingleArg(
     emitSetPrint(ctx, useStderr, argValue, varType);
     return;
   }
+  if (varType && varType.endsWith("_struct*") && varType.startsWith("%")) {
+    const className = varType.slice(1, -8);
+    emitClassInstancePrint(ctx, useStderr, arg, params, className);
+    return;
+  }
   if (varType && varType.endsWith("*")) {
+    if (arg.type === "variable") {
+      const cn = ctx.symbolTable.getClassName((arg as VariableNode).name);
+      if (cn) {
+        emitClassInstancePrint(ctx, useStderr, arg, params, cn);
+        return;
+      }
+    }
     const objStr = ctx.stringGen.doCreateStringConstant("[object Object]");
     emitPrintStrNoNl(ctx, useStderr, objStr);
     return;
