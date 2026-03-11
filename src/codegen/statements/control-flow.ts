@@ -2149,6 +2149,13 @@ export class ControlFlowGenerator {
     if (iterableBase.type === "variable") {
       const varName = (stmt.iterable as VariableNode).name;
       if (this.ctx.symbolTable.isMap(varName)) {
+        const mapMeta = this.ctx.symbolTable.getMapMetadata(varName);
+        if (!mapMeta || mapMeta.keyType !== "string") {
+          return this.ctx.emitError(
+            "for...of on Map<number, *> is not supported — use Map<string, *> instead",
+            stmt.loc,
+          );
+        }
         const mapPtr = this.ctx.generateExpression(stmt.iterable, params);
         iterableValue = this.ctx.stringMapGen.generateStringMapEntries(mapPtr);
       } else {
@@ -2165,6 +2172,12 @@ export class ControlFlowGenerator {
         );
         const fieldInfo = fieldInfoResult as FieldInfo;
         if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.startsWith("Map<")) {
+          if (fieldInfo.tsType.startsWith("Map<number")) {
+            return this.ctx.emitError(
+              "for...of on Map<number, *> is not supported — use Map<string, *> instead",
+              stmt.loc,
+            );
+          }
           const mapPtr = this.ctx.generateExpression(stmt.iterable, params);
           iterableValue = this.ctx.stringMapGen.generateStringMapEntries(mapPtr);
         } else {
