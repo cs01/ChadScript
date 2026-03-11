@@ -419,6 +419,38 @@ function emitClassInstancePrint(
   emitPrintStrNoNl(ctx, useStderr, jsonStr);
 }
 
+function ensureI1(ctx: MethodCallGeneratorContext, value: string): string {
+  const varType = ctx.getVariableType(value);
+  if (varType === "i1") return value;
+  if (varType === "double") {
+    const cmp = ctx.nextTemp();
+    ctx.emit(`${cmp} = fcmp one double ${value}, 0.0`);
+    return cmp;
+  }
+  if (varType === "i64") {
+    const trunc = ctx.nextTemp();
+    ctx.emit(`${trunc} = trunc i64 ${value} to i1`);
+    return trunc;
+  }
+  const dbl = ctx.ensureDouble(value);
+  const cmp = ctx.nextTemp();
+  ctx.emit(`${cmp} = fcmp one double ${dbl}, 0.0`);
+  return cmp;
+}
+
+function emitBooleanPrint(
+  ctx: MethodCallGeneratorContext,
+  useStderr: boolean,
+  value: string,
+): void {
+  const trueStr = ctx.stringGen.doCreateStringConstant("true");
+  const falseStr = ctx.stringGen.doCreateStringConstant("false");
+  const boolVal = ensureI1(ctx, value);
+  const sel = ctx.nextTemp();
+  ctx.emit(`${sel} = select i1 ${boolVal}, i8* ${trueStr}, i8* ${falseStr}`);
+  emitPrintStrNoNl(ctx, useStderr, sel);
+}
+
 function emitSingleArg(
   ctx: MethodCallGeneratorContext,
   useStderr: boolean,
@@ -440,21 +472,20 @@ function emitSingleArg(
   }
 
   if (arg.type === "boolean") {
-    const boolNode = arg as { type: string; value: boolean };
-    const str = ctx.stringGen.doCreateStringConstant(boolNode.value ? "true" : "false");
-    emitPrintStrNoNl(ctx, useStderr, str);
+    const argValue = ctx.generateExpression(arg, params);
+    emitBooleanPrint(ctx, useStderr, argValue);
     return;
   }
 
   if (arg.type === "null") {
-    const str = ctx.stringGen.doCreateStringConstant("null");
-    emitPrintStrNoNl(ctx, useStderr, str);
+    const nullStr = ctx.stringGen.doCreateStringConstant("null");
+    emitPrintStrNoNl(ctx, useStderr, nullStr);
     return;
   }
 
   if (arg.type === "undefined") {
-    const str = ctx.stringGen.doCreateStringConstant("undefined");
-    emitPrintStrNoNl(ctx, useStderr, str);
+    const undefStr = ctx.stringGen.doCreateStringConstant("undefined");
+    emitPrintStrNoNl(ctx, useStderr, undefStr);
     return;
   }
 
@@ -475,6 +506,11 @@ function emitSingleArg(
   }
 
   const argValue = ctx.generateExpression(arg, params);
+
+  if (ctx.isBooleanExpression(arg)) {
+    emitBooleanPrint(ctx, useStderr, argValue);
+    return;
+  }
 
   const isString = ctx.isStringExpression(arg);
   if (isString) {
@@ -516,6 +552,10 @@ function emitSingleArg(
   }
   if (varType === "%StringSet*" || varType === "%Set*") {
     emitSetPrint(ctx, useStderr, argValue, varType);
+    return;
+  }
+  if (varType === "i1") {
+    emitBooleanPrint(ctx, useStderr, argValue);
     return;
   }
   if (varType && varType.endsWith("_struct*") && varType.startsWith("%")) {

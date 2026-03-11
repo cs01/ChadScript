@@ -3701,6 +3701,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return this.typeInference.isUint8ArrayExpression(expr);
   }
 
+  public isBooleanExpression(expr: Expression): boolean {
+    return this.typeInference.isBooleanExpression(expr);
+  }
+
   public isPromiseExpression(expr: Expression): boolean {
     return this.typeInference.isPromiseExpression(expr);
   }
