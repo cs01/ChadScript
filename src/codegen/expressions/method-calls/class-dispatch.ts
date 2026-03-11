@@ -855,7 +855,9 @@ export function handleObjectMethods(
     if (funcNode.parameters) {
       for (let i = 0; i < funcNode.parameters.length; i++) {
         const param = funcNode.parameters[i];
-        paramTypes.push(param.type ? mapParamTypeToLLVM(param.type, param.name || "arg", false, false) : "double");
+        paramTypes.push(
+          param.type ? mapParamTypeToLLVM(param.type, param.name || "arg", false, false) : "double",
+        );
       }
     } else if (funcNode.paramTypes) {
       for (let i = 0; i < funcNode.paramTypes.length; i++) {
