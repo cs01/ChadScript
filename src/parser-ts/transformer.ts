@@ -283,6 +283,10 @@ function transformTopLevelStatement(
       ) {
         ast.topLevelExpressions.push(expr as CallNode | NewNode | MethodCallNode);
         ast.topLevelItems!.push(expr as TopLevelItem);
+      } else if (expr.type === "unary") {
+        throw new Error(
+          "Increment/decrement (++/--) at global scope is not supported. Use x = x + 1 instead, or wrap in a function.",
+        );
       } else if (isAssignmentExpression(exprStmt.expression)) {
         const binExpr = exprStmt.expression as ts.BinaryExpression;
         const assignment = transformAssignmentExpression(binExpr, checker);
