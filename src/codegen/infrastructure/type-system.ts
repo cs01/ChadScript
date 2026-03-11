@@ -40,7 +40,11 @@ export function createResolvedType(
 ): ResolvedType {
   return {
     base,
-    qualifiers: { ...DEFAULT_QUALIFIERS, ...qualifiers },
+    qualifiers: {
+      isNullable: qualifiers.isNullable || false,
+      isOptional: qualifiers.isOptional || false,
+      numericKind: qualifiers.numericKind,
+    },
     arrayDepth,
     typeParams,
   };

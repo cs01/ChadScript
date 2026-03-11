@@ -509,6 +509,8 @@ function transformObjectLiteral(
       const key = prop.name.text;
       const value: VariableNode = { type: "variable", name: key };
       properties.push({ key, value });
+    } else if (ts.isSpreadAssignment(prop)) {
+      throw new Error("Object spread (...) is not yet supported in ChadScript");
     } else if (ts.isMethodDeclaration(prop)) {
       const key = ts.isIdentifier(prop.name) ? prop.name.text : prop.name.getText();
       const body = prop.body
