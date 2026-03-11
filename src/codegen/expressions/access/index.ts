@@ -196,6 +196,8 @@ export class IndexAccessGenerator {
     const indexDouble = this.ctx.generateExpression(expr.index, params);
     const index = this.toI32Index(indexDouble);
 
+    this.emitBoundsCheck(stringArrayPtr, "%StringArray", index);
+
     const dataPtr = this.ctx.nextTemp();
     this.ctx.emit(
       `${dataPtr} = getelementptr inbounds %StringArray, %StringArray* ${stringArrayPtr}, i32 0, i32 0`,
@@ -243,6 +245,8 @@ export class IndexAccessGenerator {
 
     const arrayType = this.ctx.getVariableType(arrayPtr);
     if (arrayType === "%ObjectArray*") {
+      this.emitBoundsCheck(arrayPtr, "%ObjectArray", index);
+
       const dataPtr = this.ctx.nextTemp();
       this.ctx.emit(
         `${dataPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`,
@@ -267,6 +271,8 @@ export class IndexAccessGenerator {
       const arrayCast = this.ctx.nextTemp();
       this.ctx.emit(`${arrayCast} = bitcast i8* ${arrayPtr} to %ObjectArray*`);
 
+      this.emitBoundsCheck(arrayCast, "%ObjectArray", index);
+
       const dataPtr = this.ctx.nextTemp();
       this.ctx.emit(
         `${dataPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayCast}, i32 0, i32 0`,
@@ -286,6 +292,8 @@ export class IndexAccessGenerator {
       this.ctx.setVariableType(elem, "i8*");
       return elem;
     }
+
+    this.emitBoundsCheck(arrayPtr, "%ObjectArray", index);
 
     const dataPtr = this.ctx.nextTemp();
     this.ctx.emit(
