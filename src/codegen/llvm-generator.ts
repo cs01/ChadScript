@@ -2178,48 +2178,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             continue;
           }
         } else if (isMap) {
-          let isStringMap = false;
-          let mapValueType = "string";
-          if (stmt.declaredType) {
-            const dt = stmt.declaredType;
-            if (dt.indexOf("Map<string") !== -1) {
-              isStringMap = true;
-              const parsed = parseMapTypeString(dt);
-              if (parsed) mapValueType = parsed.valueType;
-            }
-          }
-          if (!isStringMap && stmt.value) {
-            const mapNode = stmt.value as MapNode;
-            if (mapNode.keyType === "string") {
-              isStringMap = true;
-              mapValueType = mapNode.valueType || "string";
-            }
-          }
-          if (isStringMap) {
-            llvmType = "%StringMap*";
-            kind = SymbolKind.Map;
-            defaultValue = "null";
-            const llvmValueType = mapValueType === "number" ? "double" : "i8*";
-            ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
-            this.globalVariables.set(name, { llvmType, kind, initialized: false });
-            this.defineVariableWithMetadata(
-              name,
-              `@${name}`,
-              llvmType,
-              kind,
-              "global",
-              createMapMetadataSymbol({
-                keyType: "string",
-                valueType: mapValueType,
-                llvmKeyType: "i8*",
-                llvmValueType,
-              }),
-            );
-            continue;
-          }
-          llvmType = "%Map*";
-          kind = SymbolKind.Map;
-          defaultValue = "null";
+          this.emitError(
+            "Map operations at the top level are not supported — wrap in a function",
+            undefined,
+            "function main() { const " + name + " = new Map(...); ... } main();",
+          );
+          return "";
         } else if (isSet) {
           let isStringSet = false;
           if (stmt.declaredType) {
