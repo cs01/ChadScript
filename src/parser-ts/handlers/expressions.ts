@@ -369,7 +369,9 @@ function transformCallExpression(
 ): CallNode | MethodCallNode {
   const args = node.arguments.map((arg) => {
     if (ts.isSpreadElement(arg)) {
-      throw new Error("Spread arguments (...) in function calls are not yet supported in ChadScript");
+      throw new Error(
+        "Spread arguments (...) in function calls are not yet supported in ChadScript",
+      );
     }
     return transformExpression(arg, checker);
   });

@@ -40,9 +40,7 @@ export function transformFunctionDeclaration(
     let paramType = p.type ? extractTypeString(p.type) : undefined;
     const optional = !!p.questionToken;
     if (p.dotDotDotToken) {
-      throw new Error(
-        `Rest parameters (...${paramName}) are not yet supported in ChadScript`,
-      );
+      throw new Error(`Rest parameters (...${paramName}) are not yet supported in ChadScript`);
     }
     let defaultValue = undefined;
     if (p.initializer) {
