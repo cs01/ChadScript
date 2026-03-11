@@ -28,7 +28,6 @@ import {
   createMapMetadataSymbol,
   SymbolMetadata,
 } from "./symbol-table.js";
-import type { ClosureInfo } from "./closure-analyzer.js";
 import type { TypeChecker } from "../../typescript/type-checker.js";
 import type { StringGenerator } from "../types/collections/string.js";
 import type { ControlFlowGenerator } from "../statements/control-flow.js";
@@ -40,10 +39,7 @@ import {
   canonicalTypeToLlvm,
 } from "./type-system.js";
 import { findI64EligibleVariables } from "./integer-analysis.js";
-
-interface LiftedFunction extends FunctionNode {
-  closureInfo?: ClosureInfo;
-}
+import type { LiftedFunction } from "../expressions/arrow-functions.js";
 
 export interface FunctionGeneratorContext {
   reset(): void;

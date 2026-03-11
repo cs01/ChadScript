@@ -92,15 +92,8 @@ import {
   handleClassMethods,
   handleObjectMethods,
   getInterfaceFromAST,
+  type InterfaceDefInfo,
 } from "./method-calls/class-dispatch.js";
-
-interface ExprBase {
-  type: string;
-}
-
-interface InterfaceDefInfo {
-  properties: { name: string; type: string }[];
-}
 
 export interface MethodCallGeneratorContext {
   nextTemp(): string;
@@ -275,7 +268,7 @@ export class MethodCallGenerator {
   }
 
   private isClassInstanceExpression(expr: Expression): boolean {
-    const e = expr as ExprBase;
+    const e = expr as { type: string };
     if (e.type !== "variable") return false;
     const varName = (expr as VariableNode).name;
     return this.ctx.symbolTable.isClass(varName);
@@ -285,7 +278,7 @@ export class MethodCallGenerator {
     if (!expr) {
       return false;
     }
-    const e = expr as ExprBase;
+    const e = expr as { type: string };
     const eType = e.type;
     if (eType !== "variable") {
       return false;
@@ -296,7 +289,7 @@ export class MethodCallGenerator {
   }
 
   private getVariableName(expr: Expression): string | null {
-    const e = expr as ExprBase;
+    const e = expr as { type: string };
     if (e.type === "variable") {
       return (expr as VariableNode).name;
     }
@@ -639,7 +632,7 @@ export class MethodCallGenerator {
       return objectResult;
     }
 
-    const exprObjBase = expr.object as ExprBase;
+    const exprObjBase = expr.object as { type: string };
     if (exprObjBase.type === "method_call") {
       return this.ctx.emitError(
         `Method chaining on class instances is not supported. Assign the result to a variable first.`,
@@ -700,10 +693,10 @@ export class MethodCallGenerator {
     if (methodCallExpr) {
       const expr = methodCallExpr.object;
       if (expr) {
-        const e = expr as ExprBase;
+        const e = expr as { type: string };
         if (e.type === "member_access") {
           const memberExpr = expr as MemberAccessNode;
-          const memberObjBase = memberExpr.object as ExprBase;
+          const memberObjBase = memberExpr.object as { type: string };
           if (memberObjBase && memberObjBase.type === "variable") {
             objectDescription = `${(memberExpr.object as VariableNode).name}.${memberExpr.property}`;
           } else {
@@ -737,7 +730,7 @@ export class MethodCallGenerator {
   }
 
   private isLikelyResponseExpression(expr: MethodCallNode): boolean {
-    const exprObj = expr.object as ExprBase;
+    const exprObj = expr.object as { type: string };
     if (exprObj.type === "variable") {
       const varName = (expr.object as VariableNode).name;
       const varType = this.ctx.symbolTable.getType(varName);
