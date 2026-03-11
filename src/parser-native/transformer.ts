@@ -1132,6 +1132,8 @@ function transformObjectExpression(node: TreeSitterNode): ObjectNode {
     } else if (c.type === "shorthand_property_identifier") {
       const key = c.text;
       properties.push({ key, value: { type: "variable", name: key } });
+    } else if (c.type === "spread_element") {
+      throw new Error("Object spread (...) is not yet supported in ChadScript");
     } else if (c.type === "method_definition") {
       const nameNode = getChildByFieldName(child, "name");
       const paramsNode = getChildByFieldName(child, "parameters");
