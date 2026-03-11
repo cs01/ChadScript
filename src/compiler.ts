@@ -12,6 +12,7 @@ import { LogLevel, logger } from "./utils/logger.js";
 import { TargetInfo, resolveTarget, getHostTarget, isCrossCompiling } from "./target.js";
 import { loadTargetSDK, ensureTargetSDK, TargetSDK } from "./cross-compile.js";
 import { VERSION } from "./version.js";
+import { setGlobalDiagnosticColor } from "./diagnostics/engine.js";
 
 function findLLVMTool(name: string): string {
   const candidates = [
@@ -87,6 +88,7 @@ let diagnosticColorEnabled: boolean = process.stderr.isTTY === true;
 
 export function setDiagnosticColor(enabled: boolean): void {
   diagnosticColorEnabled = enabled;
+  setGlobalDiagnosticColor(enabled);
 }
 
 export function setTargetCpu(value: string): void {
@@ -270,8 +272,9 @@ export function compile(
 
   // Generate LLVM IR
   let entryFileCode = "";
+  const absInputFile = path.resolve(inputFile);
   for (let efci = 0; efci < fileContentKeys.length; efci++) {
-    if (fileContentKeys[efci] === inputFile) {
+    if (fileContentKeys[efci] === inputFile || fileContentKeys[efci] === absInputFile) {
       entryFileCode = fileContentValues[efci];
       break;
     }
@@ -286,6 +289,7 @@ export function compile(
   };
   const generator = new LLVMGenerator(mergedAST, typeChecker, generatorOptions);
   generator.diagnostics.setColor(diagnosticColorEnabled);
+  setGlobalDiagnosticColor(diagnosticColorEnabled);
   const llvmIR = generator.generate();
 
   // Write IR to file
