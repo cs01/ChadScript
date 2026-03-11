@@ -74,7 +74,7 @@ echo ""
 
 # --- 1. hello.ts (simple print) ---
 
-echo "[1/8] hello.ts"
+echo "[1/9] hello.ts"
 if compile examples/hello.ts "$BUILD_DIR/hello"; then
   OUTPUT=$("$BUILD_DIR/hello" 2>&1) || true
   if echo "$OUTPUT" | grep -q "Hello from ChadScript"; then
@@ -88,7 +88,7 @@ fi
 
 # --- 2. timers.ts (event loop, self-terminating) ---
 
-echo "[2/8] timers.ts"
+echo "[2/9] timers.ts"
 if compile examples/timers.ts "$BUILD_DIR/timers"; then
   # No `timeout` on macOS — use background process + wait with a deadline
   "$BUILD_DIR/timers" > "$BUILD_DIR/timers.out" 2>&1 &
@@ -110,7 +110,7 @@ fi
 
 # --- 3. query.ts (sqlite in-memory) ---
 
-echo "[3/8] query.ts"
+echo "[3/9] query.ts"
 if compile examples/query.ts "$BUILD_DIR/query"; then
   OUTPUT=$("$BUILD_DIR/query" 2>&1) || true
   if echo "$OUTPUT" | grep -q "Alice"; then
@@ -124,7 +124,7 @@ fi
 
 # --- 4. word-count.ts (file I/O + argparse) ---
 
-echo "[4/8] word-count.ts"
+echo "[4/9] word-count.ts"
 if compile examples/word-count.ts "$BUILD_DIR/word-count"; then
   # Create a test file to count
   echo "hello world foo bar" > "$BUILD_DIR/test-input.txt"
@@ -140,7 +140,7 @@ fi
 
 # --- 5. string-search.ts (grep-like) ---
 
-echo "[5/8] string-search.ts"
+echo "[5/9] string-search.ts"
 if compile examples/string-search.ts "$BUILD_DIR/string-search"; then
   # Create a test file to search
   printf "line one\nfind me here\nline three\n" > "$BUILD_DIR/search-input.txt"
@@ -156,7 +156,7 @@ fi
 
 # --- 6. http-server.ts (server + curl) ---
 
-echo "[6/8] http-server.ts"
+echo "[6/9] http-server.ts"
 if compile examples/http-server.ts "$BUILD_DIR/http-server"; then
   PORT=18080
   "$BUILD_DIR/http-server" -p "$PORT" &
@@ -194,7 +194,7 @@ fi
 
 # --- 7. hackernews/app.ts (full-stack server + curl) ---
 
-echo "[7/8] hackernews/app.ts"
+echo "[7/9] hackernews/app.ts"
 if compile examples/hackernews/app.ts "$BUILD_DIR/hackernews"; then
   PORT=18081
   "$BUILD_DIR/hackernews" -p "$PORT" &
@@ -226,7 +226,7 @@ fi
 
 # --- 8. parallel.ts (parallel HTTP fetches with Promise.all) ---
 
-echo "[8/8] parallel.ts"
+echo "[8/9] parallel.ts"
 if compile examples/parallel.ts "$BUILD_DIR/parallel"; then
   "$BUILD_DIR/parallel" > "$BUILD_DIR/parallel.out" 2>&1 &
   PARALLEL_PID=$!
@@ -243,6 +243,27 @@ if compile examples/parallel.ts "$BUILD_DIR/parallel"; then
   fi
 else
   fail "parallel.ts" "compile failed"
+fi
+
+# --- 9. jsonc/jsonc.ts (JSONC parser) ---
+
+echo "[9/9] jsonc/jsonc.ts"
+if compile examples/jsonc/jsonc.ts "$BUILD_DIR/jsonc"; then
+  # Create a test JSONC file
+  printf '{\n  // comment\n  "name": "test",\n  "values": [1, 2, /* inline */ 3,],\n  "flag": true,\n}\n' > "$BUILD_DIR/test.jsonc"
+  OUTPUT=$("$BUILD_DIR/jsonc" "$BUILD_DIR/test.jsonc" 2>&1) || true
+  if echo "$OUTPUT" | grep -q '"name":"test"'; then
+    # Verify comments and trailing commas are stripped
+    if echo "$OUTPUT" | grep -q "comment"; then
+      fail "jsonc/jsonc.ts" "comments not stripped: $OUTPUT"
+    else
+      pass "jsonc/jsonc.ts"
+    fi
+  else
+    fail "jsonc/jsonc.ts" "unexpected output: $OUTPUT"
+  fi
+else
+  fail "jsonc/jsonc.ts" "compile failed"
 fi
 
 # --- Summary ---

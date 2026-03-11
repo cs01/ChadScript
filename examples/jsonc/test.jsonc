@@ -1,0 +1,45 @@
+{
+  // Database configuration
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "name": "myapp_dev",
+    "credentials": {
+      "user": "admin",
+      "password": "s3cret!", // TODO: use env var
+    },
+  },
+
+  /*
+   * Server settings
+   * These control the HTTP listener
+   */
+  "server": {
+    "port": 3000,
+    "debug": true,
+    "cors": {
+      "origins": [
+        "http://localhost:8080",
+        "https://myapp.com", // production
+      ],
+      "methods": ["GET", "POST", "PUT", "DELETE"],
+    },
+  },
+
+  // Feature flags
+  "features": {
+    "newDashboard": true,
+    "betaApi": false,
+    "maxRetries": 3,
+    "timeout": 30.5,
+    "ratio": 1.5e2,
+    "label": null,
+  },
+
+  "empty": {},
+  "list": [],
+  "nested": [[1, 2], [3, 4]],
+
+  // Strings with escapes
+  "escapes": "hello\tworld\nnewline\\backslash\"quote",
+}
