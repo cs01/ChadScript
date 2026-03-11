@@ -1,4 +1,10 @@
-import { Expression, MethodCallNode, StringNode, VariableNode, BinaryNode } from "../../../ast/types.js";
+import {
+  Expression,
+  MethodCallNode,
+  StringNode,
+  VariableNode,
+  BinaryNode,
+} from "../../../ast/types.js";
 import type { MethodCallGeneratorContext } from "../method-calls.js";
 
 function emitPrint(

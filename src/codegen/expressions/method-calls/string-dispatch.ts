@@ -41,16 +41,10 @@ function rejectNonString(
     ctx.isObjectArrayExpression(expr.object) ||
     ctx.isBooleanExpression(expr.object)
   ) {
-    return ctx.emitError(
-      `.${method}() is only available on strings`,
-      expr.loc,
-    );
+    return ctx.emitError(`.${method}() is only available on strings`, expr.loc);
   }
   if (expr.object.type === "number") {
-    return ctx.emitError(
-      `.${method}() is only available on strings`,
-      expr.loc,
-    );
+    return ctx.emitError(`.${method}() is only available on strings`, expr.loc);
   }
   return null;
 }
