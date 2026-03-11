@@ -1,22 +1,21 @@
 # ChadScript
 
-ChadScript's goal:
-
 > As fast as C, as ergonomic as TypeScript.
 
 ChadScript is a natively-compiled systems language with TypeScript syntax. Write familiar TypeScript, run `chad build`, get a standalone ELF or Mach-O binary via LLVM — no Node.js, no JVM, no runtime.
 
-The compiler is self-hosting: tens of thousands of lines of TypeScript that compile itself to a native binary. You install it with curl, not npm.
+The compiler is self-hosting: tens of thousands of lines of TypeScript that compile themselves to a native binary. You install it with curl, not npm.
 
-> Status: **Alpha** — usable and self-hosting, but expect crashes. Compiler warnings need improvement and more strictness.
+> Status: **Alpha** — self-hosting and usable for real projects. The compiler catches type mismatches at compile time instead of crashing at runtime.
 >
 > | Milestone                           | Status      |
 > | ----------------------------------- | ----------- |
-> | Proof of concept                    | ✅          |
-> | Standard library + external linking | ✅          |
-> | Self-hosting                        | ✅          |
-> | Performance improvements            | ✅          |
-> | Testing & hardening                 | In progress |
+> | Proof of concept                    | Done        |
+> | Standard library + external linking | Done        |
+> | Self-hosting (3-stage)              | Done        |
+> | Performance (LLVM -O2)              | Done        |
+> | Testing (470+ tests, CI)            | Done        |
+> | Compile-time error coverage         | Done        |
 
 ---
 
@@ -30,7 +29,36 @@ Requires LLVM (`brew install llvm` / `apt install llvm clang`).
 
 ---
 
-## Example: HTTP server in a single binary
+## Quick taste
+
+```typescript
+// Fetch two APIs in parallel, parse typed JSON, print results
+interface Repo {
+  stargazers_count: number;
+}
+
+async function main(): Promise<void> {
+  const results = await Promise.all([
+    fetch("https://api.github.com/repos/vuejs/vue"),
+    fetch("https://api.github.com/repos/facebook/react"),
+  ]);
+  const vue = results[0].json<Repo>();
+  const react = results[1].json<Repo>();
+  console.log(`Vue: ${vue.stargazers_count} stars`);
+  console.log(`React: ${react.stargazers_count} stars`);
+}
+
+main();
+```
+
+```bash
+chad build app.ts -o app
+./app   # cold start ~2ms, no node_modules, no runtime
+```
+
+---
+
+## HTTP server in a single binary
 
 ```typescript
 import { httpServe, Router, Context } from "chadscript/http";
@@ -59,11 +87,6 @@ app.get("/api/posts/:id", (c: Context) => {
 httpServe(3000, (req: HttpRequest) => app.handle(req));
 ```
 
-```bash
-chad build server.ts -o server
-./server   # starts as fast as ~2ms, no node_modules, no runtime
-```
-
 ---
 
 ## How it works
@@ -78,21 +101,22 @@ The same LLVM backend used by Clang, Rust, and Swift. Direct calls into C librar
 
 ## Why TypeScript syntax?
 
-TypeScript is my favorite language to write and the type system is terse and intuitive. It's familiar to tens of millions of developers and LLMs are well trained on it. ChadScript uses a statically-safe subset where every type is known at compile time, enabling:
+TypeScript is familiar to tens of millions of developers, and LLMs are well-trained on it. ChadScript uses a statically-safe subset where every type is known at compile time:
 
-- **Null safety** — `string` is never null. Use `string | null` to express optional values and `?.` for safe access.
-- **GC-managed memory** — Boehm GC handles allocation; no use-after-free or double-frees.
-- **IDE support** — run `chad init` to get `tsconfig.json` pointing at ChadScript types and standard library. Language services in VS Code work.
+- **Null safety** — `string` is never null. Use `string | null` and `?.` for optional values.
+- **GC-managed memory** — Boehm GC handles allocation. No use-after-free, no double-frees.
+- **Compile-time checks** — type mismatches, invalid method calls, and unsafe patterns are caught before your code runs.
+- **IDE support** — `chad init` generates `tsconfig.json` with ChadScript types. VS Code language services work out of the box.
 
 ---
 
-## Batteries included
+## What's included
 
 No `npm install`. Everything ships with the compiler:
 
 | Module                | What it does               |
 | --------------------- | -------------------------- |
-| `fetch`               | HTTP client                |
+| `fetch`               | HTTP client (libcurl)      |
 | `Router`, `httpServe` | HTTP server with routing   |
 | `fs`                  | File system                |
 | `sqlite`              | Embedded SQLite database   |
@@ -100,6 +124,10 @@ No `npm install`. Everything ships with the compiler:
 | `JSON`                | Typed JSON parse/stringify |
 | `child_process`       | Spawn subprocesses         |
 | `WebSocket`           | WebSocket server           |
+| `Map`, `Set`          | Hash map and set           |
+| `RegExp`              | Regular expressions        |
+| `console`             | Prints any type correctly  |
+| `ArgumentParser`      | CLI argument parsing       |
 
 ---
 
@@ -112,8 +140,10 @@ chad run examples/hello.ts
 chad run examples/parallel.ts          # async/await + Promise.all
 chad run examples/query.ts             # SQLite
 chad run examples/http-server.ts       # http://localhost:3000
-chad run examples/hackernews/app.ts    # Hacker News clone, single binary — live at https://chadsmith.dev/hn
+chad run examples/hackernews/app.ts    # Hacker News clone — live at https://chadsmith.dev/hn
 ```
+
+See [`examples/`](examples/) for the full list: grep tool, word counter, WebSocket chat, TUI apps, and more.
 
 ---
 
