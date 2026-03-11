@@ -177,7 +177,6 @@ function transformBinaryExpression(
 ): Expression {
   const left = transformExpression(node.left, checker);
   const right = transformExpression(node.right, checker);
-  const op = getBinaryOperator(node.operatorToken.kind);
 
   if (isAssignmentOperator(node.operatorToken.kind)) {
     const compoundOp = getCompoundOperator(node.operatorToken.kind);
@@ -188,6 +187,7 @@ function transformBinaryExpression(
     return createAssignment(node.left, right, checker);
   }
 
+  const op = getBinaryOperator(node.operatorToken.kind);
   return { type: "binary", op, left, right, loc: getLoc(node) };
 }
 
@@ -226,8 +226,14 @@ function isAssignmentOperator(kind: ts.SyntaxKind): boolean {
     kind === ts.SyntaxKind.MinusEqualsToken ||
     kind === ts.SyntaxKind.AsteriskEqualsToken ||
     kind === ts.SyntaxKind.SlashEqualsToken ||
+    kind === ts.SyntaxKind.PercentEqualsToken ||
     kind === ts.SyntaxKind.BarEqualsToken ||
-    kind === ts.SyntaxKind.AmpersandEqualsToken
+    kind === ts.SyntaxKind.AmpersandEqualsToken ||
+    kind === ts.SyntaxKind.CaretEqualsToken ||
+    kind === ts.SyntaxKind.LessThanLessThanEqualsToken ||
+    kind === ts.SyntaxKind.GreaterThanGreaterThanEqualsToken ||
+    kind === ts.SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken ||
+    kind === ts.SyntaxKind.AsteriskAsteriskEqualsToken
   );
 }
 
@@ -241,10 +247,22 @@ function getCompoundOperator(kind: ts.SyntaxKind): string | null {
       return "*";
     case ts.SyntaxKind.SlashEqualsToken:
       return "/";
+    case ts.SyntaxKind.PercentEqualsToken:
+      return "%";
     case ts.SyntaxKind.BarEqualsToken:
       return "|";
     case ts.SyntaxKind.AmpersandEqualsToken:
       return "&";
+    case ts.SyntaxKind.CaretEqualsToken:
+      return "^";
+    case ts.SyntaxKind.LessThanLessThanEqualsToken:
+      return "<<";
+    case ts.SyntaxKind.GreaterThanGreaterThanEqualsToken:
+      return ">>";
+    case ts.SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken:
+      return ">>>";
+    case ts.SyntaxKind.AsteriskAsteriskEqualsToken:
+      return "**";
     default:
       return null;
   }

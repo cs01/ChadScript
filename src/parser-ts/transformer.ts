@@ -444,6 +444,22 @@ function getCompoundOperator(op: ts.SyntaxKind): string | null {
       return "*";
     case ts.SyntaxKind.SlashEqualsToken:
       return "/";
+    case ts.SyntaxKind.PercentEqualsToken:
+      return "%";
+    case ts.SyntaxKind.BarEqualsToken:
+      return "|";
+    case ts.SyntaxKind.AmpersandEqualsToken:
+      return "&";
+    case ts.SyntaxKind.CaretEqualsToken:
+      return "^";
+    case ts.SyntaxKind.LessThanLessThanEqualsToken:
+      return "<<";
+    case ts.SyntaxKind.GreaterThanGreaterThanEqualsToken:
+      return ">>";
+    case ts.SyntaxKind.GreaterThanGreaterThanGreaterThanEqualsToken:
+      return ">>>";
+    case ts.SyntaxKind.AsteriskAsteriskEqualsToken:
+      return "**";
     default:
       return null;
   }
