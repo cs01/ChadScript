@@ -9,28 +9,16 @@ import {
   FunctionNode,
   FunctionParameter,
   IndexAccessNode,
+  NewNode,
+  ObjectNode,
+  ClassNode,
 } from "../../../ast/types.js";
 import type { MethodCallGeneratorContext } from "../method-calls.js";
 import type { FieldInfo } from "../../infrastructure/type-resolver/types.js";
 
-interface ExprBase {
-  type: string;
-}
-interface InterfaceDefInfo {
+export interface InterfaceDefInfo {
   properties: { name: string; type: string }[];
 }
-
-type NewMeta = { type: "new"; className: string };
-type ObjectNode = { type: "object"; properties: { key: string }[] };
-type ClassNode = {
-  name: string;
-  extends?: string;
-  implements?: string[];
-  fields: { name: string; type: string }[];
-  methods: { name: string; isConstructor?: boolean; isStatic?: boolean }[];
-  loc?: { line: number; column: number };
-  typeParameters?: string[];
-};
 
 export function getInterfaceDecl(
   ctx: MethodCallGeneratorContext,
@@ -313,7 +301,7 @@ export function resolveNestedMemberAccessType(
   ctx: MethodCallGeneratorContext,
   expr: Expression,
 ): string | null {
-  const e = expr as ExprBase;
+  const e = expr as { type: string };
   if (e.type === "this") {
     return ctx.getCurrentClassName();
   }
@@ -447,7 +435,7 @@ export function handleClassMethods(
   let className: string | null = null;
   let instancePtr: string | null = null;
 
-  const exprObjBase = expr.object as ExprBase;
+  const exprObjBase = expr.object as { type: string };
 
   // Static method dispatch: ClassName.staticMethod() — the object is the class name itself
   if (exprObjBase.type === "variable") {
@@ -480,7 +468,7 @@ export function handleClassMethods(
       }
     }
   } else if (exprObjBase.type === "new") {
-    const newExpr = expr.object as NewMeta;
+    const newExpr = expr.object as NewNode;
     className = newExpr.className;
     instancePtr = ctx.generateExpression(expr.object, params);
   } else if (exprObjBase.type === "this") {
@@ -521,7 +509,7 @@ export function handleClassMethods(
     }
   } else if (exprObjBase.type === "member_access") {
     const memberAccess = expr.object as MemberAccessNode;
-    const memberAccessObjBase = memberAccess.object as ExprBase;
+    const memberAccessObjBase = memberAccess.object as { type: string };
     const classNameForField = ctx.getCurrentClassName();
     if (memberAccessObjBase.type === "this" && classNameForField) {
       const fieldInfoResult = ctx.classGenGetFieldInfo(classNameForField, memberAccess.property);
@@ -679,10 +667,10 @@ export function handleClassMethods(
   } else if (exprObjBase.type === "index_access") {
     const indexAccess = expr.object as IndexAccessNode;
     const baseExpr = indexAccess.object;
-    const baseExprBase = baseExpr as ExprBase;
+    const baseExprBase = baseExpr as { type: string };
     if (baseExprBase.type === "member_access") {
       const memberAccess = baseExpr as MemberAccessNode;
-      const memberObjBase = memberAccess.object as ExprBase;
+      const memberObjBase = memberAccess.object as { type: string };
       if (memberObjBase.type === "this") {
         const curClassName = ctx.getCurrentClassName();
         if (curClassName) {
@@ -744,7 +732,7 @@ export function handleClassMethods(
   } else if (exprObjBase.type === "type_assertion") {
     const assertExpr = expr.object as TypeAssertionNode;
     const innerExpr = assertExpr.expression;
-    const innerExprBase = innerExpr as ExprBase;
+    const innerExprBase = innerExpr as { type: string };
     if (innerExprBase.type === "variable") {
       const varName = (innerExpr as VariableNode).name;
       if (ctx.symbolTable.isClass(varName)) {
@@ -812,7 +800,7 @@ export function handleObjectMethods(
   const method = expr.method;
   let isObjectMethod = false;
 
-  const exprObjBase = expr.object as ExprBase;
+  const exprObjBase = expr.object as { type: string };
   if (exprObjBase.type === "variable") {
     const varName = (expr.object as VariableNode).name;
     if (ctx.symbolTable.isObject(varName)) {

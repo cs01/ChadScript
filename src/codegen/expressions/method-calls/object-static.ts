@@ -1,14 +1,6 @@
 import { MethodCallNode, VariableNode, InterfaceDeclaration } from "../../../ast/types.js";
 import type { MethodCallGeneratorContext } from "../method-calls.js";
-import { getInterfaceFromAST } from "./class-dispatch.js";
-
-interface ExprBase {
-  type: string;
-}
-
-interface InterfaceDefInfo {
-  properties: { name: string; type: string }[];
-}
+import { getInterfaceFromAST, type InterfaceDefInfo } from "./class-dispatch.js";
 
 function getObjectFieldInfo(
   ctx: MethodCallGeneratorContext,
@@ -63,7 +55,7 @@ export function generateObjectKeys(
   }
 
   const arg = expr.args[0];
-  const argBase = arg as ExprBase;
+  const argBase = arg as { type: string };
   if (argBase.type !== "variable") {
     return ctx.emitError("Object.keys() argument must be a variable", expr.loc);
   }
@@ -145,7 +137,7 @@ export function generateObjectValues(
   }
 
   const arg = expr.args[0];
-  const argBase = arg as ExprBase;
+  const argBase = arg as { type: string };
   if (argBase.type !== "variable") {
     return ctx.emitError("Object.values() argument must be a variable", expr.loc);
   }
@@ -315,7 +307,7 @@ export function generateObjectEntries(
   }
 
   const arg = expr.args[0];
-  const argBase = arg as ExprBase;
+  const argBase = arg as { type: string };
   if (argBase.type !== "variable") {
     return ctx.emitError("Object.entries() argument must be a variable", expr.loc);
   }

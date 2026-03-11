@@ -12,9 +12,7 @@ interface InterfaceStructGenerator {
   hasInterface(name: string): boolean;
 }
 
-interface InterfaceDefInfo {
-  properties: { name: string; type: string }[];
-}
+import type { InterfaceDefInfo } from "../expressions/method-calls/class-dispatch.js";
 
 interface ResponseGeneratorContext {
   nextTemp(): string;
