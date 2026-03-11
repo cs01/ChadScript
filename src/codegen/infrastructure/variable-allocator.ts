@@ -1808,6 +1808,10 @@ export class VariableAllocator {
         this.allocateStringMap(stmt, params, mapTypeInfo);
         return;
       }
+      if (mapTypeInfo.keyType !== "number") {
+        this.allocatePointerMap(stmt, params, mapTypeInfo);
+        return;
+      }
     }
     const allocaReg = this.ctx.nextAllocaReg(stmt.name);
     this.ctx.defineVariable(stmt.name, allocaReg, "%Map*", SymbolKind.Map, "local");
@@ -1838,6 +1842,39 @@ export class VariableAllocator {
         valueType: mapTypeInfo.valueType,
         llvmKeyType: "i8*",
         llvmValueType,
+      }),
+    );
+    this.ctx.emit(`${allocaReg} = alloca %StringMap`);
+
+    const declaredMapType =
+      stmt.declaredType || `Map<${mapTypeInfo.keyType}, ${mapTypeInfo.valueType}>`;
+    this.ctx.setCurrentDeclaredMapType(declaredMapType);
+    const value = this.ctx.generateExpression(stmt.value!, params);
+    this.ctx.setCurrentDeclaredMapType(undefined);
+
+    const loadedMap = this.ctx.nextTemp();
+    this.ctx.emit(`${loadedMap} = load %StringMap, %StringMap* ${value}`);
+    this.ctx.emit(`store %StringMap ${loadedMap}, %StringMap* ${allocaReg}`);
+  }
+
+  private allocatePointerMap(
+    stmt: VariableDeclaration,
+    params: string[],
+    mapTypeInfo: MapTypeInfo,
+  ): void {
+    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
+
+    this.ctx.defineVariableWithMetadata(
+      stmt.name,
+      allocaReg,
+      "%StringMap*",
+      SymbolKind.Map,
+      "local",
+      createMapMetadataSymbol({
+        keyType: mapTypeInfo.keyType,
+        valueType: mapTypeInfo.valueType,
+        llvmKeyType: "i8*",
+        llvmValueType: "i8*",
       }),
     );
     this.ctx.emit(`${allocaReg} = alloca %StringMap`);

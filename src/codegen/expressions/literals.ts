@@ -147,6 +147,9 @@ export class LiteralExpressionGenerator {
       if (mapParsed && mapParsed.keyType === "string") {
         return this.ctx.stringMapGen.generateEmptyStringMap();
       }
+      if (mapParsed && mapParsed.keyType !== "number") {
+        return this.ctx.stringMapGen.generateEmptyStringMap();
+      }
     }
 
     return this.ctx.mapGen.generateMapLiteral(expr, params);

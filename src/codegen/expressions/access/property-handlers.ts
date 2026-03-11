@@ -384,6 +384,9 @@ export function handleSizeProperty(
     if (mapMeta && mapMeta.keyType === "string") {
       return ctx.stringMapGen.generateStringMapSize(mapPtr);
     }
+    if (mapMeta && mapMeta.keyType !== "number") {
+      return ctx.pointerMapGen.generatePointerMapSize(mapPtr);
+    }
     return ctx.mapGen.generateMapSize(mapPtr);
   }
   if (exprObjType === "variable" && ctx.symbolTable.isSet((expr.object as VariableNode).name)) {
@@ -414,8 +417,10 @@ export function handleSizeProperty(
             return ctx.setGen.generateSetSize(ptr);
           } else if (fieldInfo.tsType.indexOf("Map<string") !== -1) {
             return ctx.stringMapGen.generateStringMapSize(ptr);
-          } else {
+          } else if (fieldInfo.tsType.indexOf("Map<number") !== -1) {
             return ctx.mapGen.generateMapSize(ptr);
+          } else {
+            return ctx.pointerMapGen.generatePointerMapSize(ptr);
           }
         }
       }

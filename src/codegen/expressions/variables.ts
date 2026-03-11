@@ -82,7 +82,7 @@ export class VariableExpressionGenerator {
     if (this.ctx.symbolTable.isMap(name)) {
       let allocaReg = this.ctx.getVariableAlloca(name)!;
       const mapMeta = this.ctx.symbolTable.getMapMetadata(name);
-      const mapType = mapMeta && mapMeta.keyType === "string" ? "%StringMap*" : "%Map*";
+      const mapType = mapMeta && mapMeta.keyType !== "number" ? "%StringMap*" : "%Map*";
       if (allocaReg.startsWith("@")) {
         const loaded = this.ctx.nextTemp();
         this.ctx.emit(`${loaded} = load ${mapType}, ${mapType}* ${allocaReg}`);

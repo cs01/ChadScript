@@ -774,6 +774,42 @@ export class MethodCallGenerator {
           );
         }
 
+        if (mapMeta && mapMeta.keyType !== "number") {
+          let mapAlloca = this.ctx.symbolTable.getAlloca(varName);
+          if (mapAlloca) {
+            if (mapAlloca.startsWith("@")) {
+              mapAlloca = this.ctx.emitLoad("%StringMap*", mapAlloca);
+            }
+            if (method === "set") {
+              const keyValue = this.ctx.generateExpression(expr.args[0], params);
+              const valueValue = this.ctx.generateExpression(expr.args[1], params);
+              return this.ctx.pointerMapGen.generatePointerMapSet(mapAlloca, keyValue, valueValue);
+            } else if (method === "get") {
+              const keyValue = this.ctx.generateExpression(expr.args[0], params);
+              return this.ctx.pointerMapGen.generatePointerMapGet(mapAlloca, keyValue, "i8*");
+            } else if (method === "has") {
+              const keyValue = this.ctx.generateExpression(expr.args[0], params);
+              return this.ctx.pointerMapGen.generatePointerMapHas(mapAlloca, keyValue);
+            } else if (method === "delete") {
+              const keyValue = this.ctx.generateExpression(expr.args[0], params);
+              return this.ctx.pointerMapGen.generatePointerMapDelete(mapAlloca, keyValue);
+            } else if (method === "entries") {
+              return this.ctx.pointerMapGen.generatePointerMapEntries(mapAlloca);
+            } else if (method === "values") {
+              return this.ctx.pointerMapGen.generatePointerMapValues(mapAlloca);
+            } else if (method === "keys") {
+              return this.ctx.pointerMapGen.generatePointerMapKeys(mapAlloca);
+            } else if (method === "clear") {
+              return this.ctx.pointerMapGen.generatePointerMapClear(mapAlloca);
+            } else {
+              return this.ctx.emitError(
+                `Map<${mapMeta.keyType}, *>.${method}() is not supported`,
+                expr.loc,
+              );
+            }
+          }
+        }
+
         if (method === "set") {
           return this.ctx.mapGen.generateMapSet(expr, params);
         } else if (method === "get") {
@@ -837,6 +873,18 @@ export class MethodCallGenerator {
               return this.ctx.pointerMapGen.generatePointerMapGet(mapPtr, keyValue, "i8*");
             } else if (method === "clear") {
               return this.ctx.pointerMapGen.generatePointerMapClear(mapPtr);
+            } else if (method === "has") {
+              const keyValue = this.ctx.generateExpression(expr.args[0], params);
+              return this.ctx.pointerMapGen.generatePointerMapHas(mapPtr, keyValue);
+            } else if (method === "delete") {
+              const keyValue = this.ctx.generateExpression(expr.args[0], params);
+              return this.ctx.pointerMapGen.generatePointerMapDelete(mapPtr, keyValue);
+            } else if (method === "entries") {
+              return this.ctx.pointerMapGen.generatePointerMapEntries(mapPtr);
+            } else if (method === "keys") {
+              return this.ctx.pointerMapGen.generatePointerMapKeys(mapPtr);
+            } else if (method === "values") {
+              return this.ctx.pointerMapGen.generatePointerMapValues(mapPtr);
             } else {
               return this.ctx.emitError(
                 `Map.${method}() not supported for Map<${paramMapInfo.keyType}, *> parameter types`,
@@ -894,6 +942,18 @@ export class MethodCallGenerator {
             return this.ctx.pointerMapGen.generatePointerMapGet(mapPtr, keyValue, "i8*");
           } else if (method === "clear") {
             return this.ctx.pointerMapGen.generatePointerMapClear(mapPtr);
+          } else if (method === "has") {
+            const keyValue = this.ctx.generateExpression(expr.args[0], params);
+            return this.ctx.pointerMapGen.generatePointerMapHas(mapPtr, keyValue);
+          } else if (method === "delete") {
+            const keyValue = this.ctx.generateExpression(expr.args[0], params);
+            return this.ctx.pointerMapGen.generatePointerMapDelete(mapPtr, keyValue);
+          } else if (method === "entries") {
+            return this.ctx.pointerMapGen.generatePointerMapEntries(mapPtr);
+          } else if (method === "keys") {
+            return this.ctx.pointerMapGen.generatePointerMapKeys(mapPtr);
+          } else if (method === "values") {
+            return this.ctx.pointerMapGen.generatePointerMapValues(mapPtr);
           } else {
             return this.ctx.emitError(
               `Map.${method}() not supported for Map<${thisFieldMapKeyType}, *> types`,
