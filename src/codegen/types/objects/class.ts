@@ -327,7 +327,7 @@ export class ClassGenerator {
     const ast = this.ctx.getAst();
     if (ast && ast.classes) {
       for (let ci = 0; ci < ast.classes.length; ci++) {
-        const c = ast.classes[ci] as { name: string };
+        const c = ast.classes[ci] as ClassNode;
         if (!c) continue;
         if (!c.name) continue;
         if (c.name === className) {

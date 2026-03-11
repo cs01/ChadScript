@@ -37,6 +37,7 @@ import {
   ReturnStatement,
   StringNode,
   MemberAccessNode,
+  EnumDeclaration,
 } from "../ast/types.js";
 import { BaseGenerator, SymbolKind, SymbolTable } from "./infrastructure/base-generator.js";
 import {
@@ -690,7 +691,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     for (let i = 0; i < this.ast.enums.length; i++) {
       const eRaw = this.ast.enums[i];
       if (!eRaw) continue;
-      const e = eRaw as { name: string };
+      const e = eRaw as EnumDeclaration;
       if (e.name === name) return true;
     }
     return false;

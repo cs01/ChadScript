@@ -555,7 +555,7 @@ export class VariableAllocator {
       return;
     }
 
-    const stmtValueAsVar = stmt.value as { type?: string; name?: string };
+    const stmtValueAsVar = stmt.value as VariableNode;
     const isAstNullLiteral =
       stmtValueAsVar && stmtValueAsVar.type === "variable" && stmtValueAsVar.name === "null";
     if (stmt.value === null || isAstNullLiteral) {
