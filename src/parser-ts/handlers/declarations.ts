@@ -39,9 +39,10 @@ export function transformFunctionDeclaration(
     const paramName = ts.isIdentifier(p.name) ? p.name.text : "";
     let paramType = p.type ? extractTypeString(p.type) : undefined;
     const optional = !!p.questionToken;
-    const isRest = !!p.dotDotDotToken;
-    if (isRest && paramType && !paramType.endsWith("[]")) {
-      paramType = paramType + "[]";
+    if (p.dotDotDotToken) {
+      throw new Error(
+        `Rest parameters (...${paramName}) are not yet supported in ChadScript`,
+      );
     }
     let defaultValue = undefined;
     if (p.initializer) {
