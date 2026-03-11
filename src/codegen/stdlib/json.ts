@@ -593,8 +593,14 @@ export class JsonGenerator {
       if (this.ctx.symbolTable.isMap(varNode.name)) {
         return this.stringifyMap(arg, params, varNode.name, spaces);
       }
+      if (this.ctx.symbolTable.isClass(varNode.name)) {
+        const className = this.ctx.symbolTable.getConcreteClass(varNode.name);
+        if (className) {
+          return this.stringifyClassInstance(arg, params, className, spaces);
+        }
+      }
       return this.ctx.emitError(
-        `JSON.stringify: unsupported type for variable '${varNode.name}' — only string, number, boolean, interface, string[], number[], object[], and Map are supported`,
+        `JSON.stringify: unsupported type for variable '${varNode.name}' — only string, number, boolean, interface, class, string[], number[], object[], and Map are supported`,
       );
     }
 
@@ -694,6 +700,78 @@ export class JsonGenerator {
     this.ctx.emitBr(loopCond);
 
     this.ctx.emitLabel(loopEnd);
+    const result = this.emitStringify(jsonDoc, spaces);
+    this.ctx.setVariableType(result, "i8*");
+    return result;
+  }
+
+  private stringifyClassInstance(
+    arg: Expression,
+    params: string[],
+    className: string,
+    spaces: number = 0,
+  ): string {
+    const fields = this.ctx.classGenGetClassFields(className);
+    if (fields.length === 0) {
+      this.ctx.setUsesJson(true);
+      const jsonDoc = this.ctx.emitCall("i8*", "@csyyjson_create_obj", "");
+      const result = this.emitStringify(jsonDoc, spaces);
+      this.ctx.setVariableType(result, "i8*");
+      return result;
+    }
+
+    const llvmFieldTypes: string[] = [];
+    for (let fi = 0; fi < fields.length; fi++) {
+      const ft = fields[fi].fieldType;
+      if (ft === "string" || ft === "i8*") {
+        llvmFieldTypes.push("i8*");
+      } else {
+        llvmFieldTypes.push("double");
+      }
+    }
+    const structType = `{ ${llvmFieldTypes.join(", ")} }`;
+
+    const objPtr = this.ctx.generateExpression(arg, params);
+    const typedPtr = this.ctx.emitBitcast(objPtr, "i8*", `${structType}*`);
+
+    this.ctx.setUsesJson(true);
+    const jsonDoc = this.ctx.emitCall("i8*", "@csyyjson_create_obj", "");
+    const jsonObj = this.ctx.emitCall("i8*", "@csyyjson_mut_get_root", `i8* ${jsonDoc}`);
+
+    for (let i = 0; i < fields.length; i++) {
+      const field = fields[i];
+      const llvmType = llvmFieldTypes[i];
+      const fieldPtr = this.ctx.nextTemp();
+      this.ctx.emit(
+        `${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${typedPtr}, i32 0, i32 ${i}`,
+      );
+      const nameConst = this.ctx.createStringConstant(field.name);
+
+      if (llvmType === "i8*") {
+        const val = this.ctx.emitLoad("i8*", fieldPtr);
+        this.ctx.emitCallVoid(
+          "@csyyjson_obj_add_str",
+          `i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${nameConst}, i8* ${val}`,
+        );
+      } else if (field.fieldType === "boolean") {
+        const val = this.ctx.emitLoad("double", fieldPtr);
+        const boolCmp = this.ctx.nextTemp();
+        this.ctx.emit(`${boolCmp} = fcmp une double ${val}, 0.0`);
+        const boolInt = this.ctx.nextTemp();
+        this.ctx.emit(`${boolInt} = zext i1 ${boolCmp} to i32`);
+        this.ctx.emitCallVoid(
+          "@csyyjson_obj_add_bool",
+          `i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${nameConst}, i32 ${boolInt}`,
+        );
+      } else {
+        const val = this.ctx.emitLoad("double", fieldPtr);
+        this.ctx.emitCallVoid(
+          "@csyyjson_obj_add_num",
+          `i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${nameConst}, double ${val}`,
+        );
+      }
+    }
+
     const result = this.emitStringify(jsonDoc, spaces);
     this.ctx.setVariableType(result, "i8*");
     return result;
