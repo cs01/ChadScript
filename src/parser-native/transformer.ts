@@ -351,6 +351,10 @@ function handleExpressionStatement(node: TreeSitterNode, ast: AST): void {
     ast.topLevelExpressions.push(expr as CallNode | NewNode | MethodCallNode);
     ast.topLevelItems!.push(expr as TopLevelItem);
     ast.topLevelItemTypes!.push(e.type);
+  } else if (e.type === "unary") {
+    throw new Error(
+      "Increment/decrement (++/--) at global scope is not supported. Use x = x + 1 instead, or wrap in a function.",
+    );
   } else if (e.type === "binary") {
     const binExprTyped = expr as { type: string; op: string; left: Expression; right: Expression };
     if (binExprTyped.op === "=") {
