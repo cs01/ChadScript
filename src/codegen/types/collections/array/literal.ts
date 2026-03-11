@@ -1,26 +1,11 @@
-import { Expression } from "../../../../ast/types.js";
+import {
+  Expression,
+  ArrayNode,
+  VariableNode,
+  MethodCallNode,
+  CallNode,
+} from "../../../../ast/types.js";
 import { IGeneratorContext } from "./context.js";
-
-interface ExprBase {
-  type: string;
-}
-interface ArrayExpr {
-  type: string;
-  elements: Expression[];
-}
-interface VariableExpr {
-  type: string;
-  name: string;
-}
-interface MethodCallExpr {
-  type: string;
-  object: Expression;
-  method: string;
-}
-interface CallExpr {
-  type: string;
-  name: string;
-}
 
 /**
  * Array literal generation
@@ -31,12 +16,12 @@ export function generateArrayLiteral(
   expr: Expression,
   params: string[],
 ): string {
-  const e = expr as ExprBase;
+  const e = expr as { type: string };
   if (e.type !== "array") {
     return gen.emitError("Expected array literal");
   }
 
-  const arrExpr = expr as ArrayExpr;
+  const arrExpr = expr as ArrayNode;
   const length = arrExpr.elements.length;
 
   // Determine if this is a string array:
@@ -46,7 +31,7 @@ export function generateArrayLiteral(
   if (length > 0) {
     let allStrings = true;
     for (let i = 0; i < arrExpr.elements.length; i++) {
-      const el = arrExpr.elements[i] as ExprBase;
+      const el = arrExpr.elements[i] as { type: string };
       if (el.type !== "string") {
         allStrings = false;
         break;
@@ -74,9 +59,9 @@ export function generateArrayLiteral(
     if (!isPointerArray && !isStringArray) {
       for (let i = 0; i < arrExpr.elements.length; i++) {
         const elem = arrExpr.elements[i];
-        const el = elem as ExprBase;
+        const el = elem as { type: string };
         if (el.type === "variable") {
-          const varExpr = elem as VariableExpr;
+          const varExpr = elem as VariableNode;
           const varName = varExpr.name;
           const varType = gen.getVariableType(varName);
           if (varType && (varType.indexOf("%Promise") !== -1 || varType.indexOf("*") !== -1)) {
@@ -85,11 +70,11 @@ export function generateArrayLiteral(
           }
         }
         if (el.type === "method_call") {
-          const mcExpr = elem as MethodCallExpr;
+          const mcExpr = elem as MethodCallNode;
           const obj = mcExpr.object;
-          const objBase = obj as ExprBase;
+          const objBase = obj as { type: string };
           if (obj && objBase.type === "variable") {
-            const objVar = obj as VariableExpr;
+            const objVar = obj as VariableNode;
             if (objVar.name === "Promise") {
               isPointerArray = true;
               break;
@@ -97,7 +82,7 @@ export function generateArrayLiteral(
           }
         }
         if (el.type === "call") {
-          const callExpr = elem as CallExpr;
+          const callExpr = elem as CallNode;
           const callName = callExpr.name;
           if (callName === "fetch") {
             isPointerArray = true;
