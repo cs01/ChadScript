@@ -262,6 +262,8 @@ function getBinaryOperator(kind: ts.SyntaxKind): string {
       return "/";
     case ts.SyntaxKind.PercentToken:
       return "%";
+    case ts.SyntaxKind.AsteriskAsteriskToken:
+      return "**";
     case ts.SyntaxKind.LessThanToken:
       return "<";
     case ts.SyntaxKind.GreaterThanToken:

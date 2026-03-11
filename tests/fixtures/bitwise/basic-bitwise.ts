@@ -1,4 +1,3 @@
-// @test-skip
 let passed = true;
 
 if ((5 & 3) !== 1) passed = false;
