@@ -2,7 +2,7 @@ import { Expression, BinaryNode, UnaryNode } from "../../../../ast/types.js";
 import { IGeneratorContext } from "../../../infrastructure/generator-context.js";
 import { convertNumberToString, createStringConstant } from "./constants.js";
 
-function isComparisonOp(op: string): boolean {
+function isConcatComparisonOp(op: string): boolean {
   if (op === "===" || op === "!==" || op === "==" || op === "!=") return true;
   if (op === "<" || op === ">" || op === "<=" || op === ">=") return true;
   return false;
@@ -11,7 +11,7 @@ function isComparisonOp(op: string): boolean {
 function isBooleanExpr(expr: Expression, valueType: string | null | undefined): boolean {
   if (expr.type === "boolean") return true;
   if (valueType === "i1") return true;
-  if (expr.type === "binary" && isComparisonOp((expr as BinaryNode).op)) return true;
+  if (expr.type === "binary" && isConcatComparisonOp((expr as BinaryNode).op)) return true;
   if (expr.type === "unary" && (expr as UnaryNode).op === "!") return true;
   return false;
 }
