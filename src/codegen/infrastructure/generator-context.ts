@@ -262,6 +262,8 @@ export interface IMapGenerator {
   generateMapDelete(expr: MethodCallNode, params: string[]): string;
   generateMapClear(expr: MethodCallNode, params: string[]): string;
   generateMapSize(mapPtr: string): string;
+  generateMapKeys(mapPtr: string): string;
+  generateMapValues(mapPtr: string): string;
 }
 
 export interface ISetGenerator {
@@ -1980,6 +1982,8 @@ export class MockGeneratorContext implements IGeneratorContext {
     generateMapDelete: (_expr: MethodCallNode, _params: string[]): string => "%mock_map_delete",
     generateMapClear: (_expr: MethodCallNode, _params: string[]): string => "%mock_map_clear",
     generateMapSize: (_mapPtr: string): string => "%mock_map_size",
+    generateMapKeys: (_mapPtr: string): string => "%mock_map_keys",
+    generateMapValues: (_mapPtr: string): string => "%mock_map_values",
   };
   setGen: ISetGenerator = {
     generateSetLiteral: (_expr: SetNode, _params: string[]): string => "%mock_set_literal",
