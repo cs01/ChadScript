@@ -539,6 +539,22 @@ function emitSingleArg(
     }
   }
 
+  if (arg.type === "method_call") {
+    const mc = arg as MethodCallNode;
+    const m = mc.method;
+    if (
+      m === "includes" ||
+      m === "startsWith" ||
+      m === "endsWith" ||
+      m === "has" ||
+      m === "some" ||
+      m === "every"
+    ) {
+      emitBooleanPrint(ctx, useStderr, argValue);
+      return;
+    }
+  }
+
   const isString = ctx.isStringExpression(arg);
   if (isString) {
     emitPrintStrNoNl(ctx, useStderr, argValue);
