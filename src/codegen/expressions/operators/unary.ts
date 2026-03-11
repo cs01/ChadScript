@@ -54,10 +54,14 @@ export class UnaryExpressionGenerator {
       return this.generateTypeof(operand, operandValue);
     }
 
+    if (op === "~") {
+      return this.generateBitwiseNot(operandValue);
+    }
+
     return this.ctx.emitError(
       "Unknown unary operator: " + op,
       undefined,
-      "supported operators: !, -, +, typeof, ++, --",
+      "supported operators: !, -, +, ~, typeof, ++, --",
     );
   }
 
@@ -238,6 +242,21 @@ export class UnaryExpressionGenerator {
     this.ctx.emit(`store double ${newValue}, double* ${fieldPtr}`);
 
     return isPost ? originalValue : newValue;
+  }
+
+  private generateBitwiseNot(operand: string): string {
+    const operandType = this.ctx.getVariableType(operand);
+    let intVal: string;
+    if (operandType === "i64") {
+      intVal = operand;
+    } else {
+      intVal = this.ctx.nextTemp();
+      this.ctx.emit(`${intVal} = fptosi double ${operand} to i64`);
+    }
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = xor i64 ${intVal}, -1`);
+    this.ctx.setVariableType(result, "i64");
+    return result;
   }
 
   private generateTypeof(operand: Expression, operandValue: string): string {

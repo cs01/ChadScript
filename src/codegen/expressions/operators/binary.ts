@@ -72,6 +72,7 @@ export class BinaryExpressionGenerator {
       "^": "xor",
       "<<": "shl",
       ">>": "ashr", // arithmetic shift right (preserves sign)
+      ">>>": "lshr", // logical shift right (zero-fill)
     };
 
     // Comparison operators (fcmp returns i1, need to extend to i32)
@@ -86,7 +87,9 @@ export class BinaryExpressionGenerator {
       "!==": "one", // Strict inequality (same as != for double)
     };
 
-    if (op === "%") {
+    if (op === "**") {
+      return this.generateExponentiation(leftValue, rightValue);
+    } else if (op === "%") {
       return this.generateModulo(leftValue, rightValue, left, right);
     } else if (arithMap[op]) {
       return this.generateArithmetic(op, arithMap[op], leftValue, rightValue);
@@ -286,6 +289,15 @@ export class BinaryExpressionGenerator {
     this.ctx.emit(`${resultInt} = ${llvmOp} i64 ${leftInt}, ${rightInt}`);
     this.ctx.setVariableType(resultInt, "i64");
     return resultInt;
+  }
+
+  private generateExponentiation(left: string, right: string): string {
+    const dblLeft = this.ctx.ensureDouble(left);
+    const dblRight = this.ctx.ensureDouble(right);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call double @llvm.pow.f64(double ${dblLeft}, double ${dblRight})`);
+    this.ctx.setVariableType(result, "double");
+    return result;
   }
 
   private generateComparison(

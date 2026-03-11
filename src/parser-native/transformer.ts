@@ -842,6 +842,7 @@ function transformBinaryExpression(node: TreeSitterNode): BinaryNode {
           "<<",
           ">>",
           ">>>",
+          "**",
         ].includes(t)
       ) {
         op = t;
