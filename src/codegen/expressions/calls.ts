@@ -7,6 +7,7 @@ import {
   VariableNode,
   FunctionParameter,
   ClassNode,
+  ClassMethod,
 } from "../../ast/types.js";
 import { IGeneratorContext } from "../infrastructure/generator-context.js";
 import {
@@ -1255,13 +1256,37 @@ export class CallExpressionGenerator {
     const parentClassName = currentClass.extends;
     const parentStructType = `%${parentClassName}_struct*`;
 
+    let parentConstructor: ClassMethod | null = null;
+    for (let ci = 0; ci < ast.classes.length; ci++) {
+      const pc = ast.classes[ci] as ClassNode;
+      if (pc.name === parentClassName) {
+        for (let mi = 0; mi < pc.methods.length; mi++) {
+          const m = pc.methods[mi] as ClassMethod;
+          if (m && m.isConstructor) {
+            parentConstructor = m;
+            break;
+          }
+        }
+        break;
+      }
+    }
+    const parentParamTypes = parentConstructor ? parentConstructor.paramTypes || [] : [];
+
     const argValues: string[] = [];
     for (let i = 0; i < expr.args.length; i++) {
       argValues.push(this.ctx.generateExpression(expr.args[i], params));
     }
     const argsWithTypesParts: string[] = [];
     for (let ai = 0; ai < argValues.length; ai++) {
-      argsWithTypesParts.push("i8* " + argValues[ai]);
+      const llvmType =
+        ai < parentParamTypes.length
+          ? mapParamTypeToLLVM(parentParamTypes[ai], "arg", false, false)
+          : "i8*";
+      if (llvmType === "double") {
+        argsWithTypesParts.push("double " + this.ctx.ensureDouble(argValues[ai]));
+      } else {
+        argsWithTypesParts.push(llvmType + " " + argValues[ai]);
+      }
     }
     const argsWithTypes = argsWithTypesParts.join(", ");
     const parentObj = this.ctx.emitCall(
