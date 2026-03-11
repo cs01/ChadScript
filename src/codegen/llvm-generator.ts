@@ -2217,6 +2217,38 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             );
             continue;
           }
+          let isPointerMap = false;
+          let pointerMapKeyType = "";
+          let pointerMapValueType = "string";
+          if (stmt.declaredType) {
+            const parsed = parseMapTypeString(stmt.declaredType);
+            if (parsed && parsed.keyType !== "string" && parsed.keyType !== "number") {
+              isPointerMap = true;
+              pointerMapKeyType = parsed.keyType;
+              pointerMapValueType = parsed.valueType;
+            }
+          }
+          if (isPointerMap) {
+            llvmType = "%StringMap*";
+            kind = SymbolKind.Map;
+            defaultValue = "null";
+            ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
+            this.globalVariables.set(name, { llvmType, kind, initialized: false });
+            this.defineVariableWithMetadata(
+              name,
+              `@${name}`,
+              llvmType,
+              kind,
+              "global",
+              createMapMetadataSymbol({
+                keyType: pointerMapKeyType,
+                valueType: pointerMapValueType,
+                llvmKeyType: "i8*",
+                llvmValueType: "i8*",
+              }),
+            );
+            continue;
+          }
           llvmType = "%Map*";
           kind = SymbolKind.Map;
           defaultValue = "null";

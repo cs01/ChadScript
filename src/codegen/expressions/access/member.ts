@@ -36,6 +36,7 @@ import type {
   IStringGenerator,
   IMapGenerator,
   IStringMapGenerator,
+  IPointerMapGenerator,
   ISetGenerator,
   IStringSetGenerator,
   IResponseGenerator,
@@ -184,6 +185,7 @@ export interface MemberAccessGeneratorContext {
   readonly responseGen: IResponseGenerator;
   readonly mapGen: IMapGenerator;
   readonly stringMapGen: IStringMapGenerator;
+  readonly pointerMapGen: IPointerMapGenerator;
   readonly setGen: ISetGenerator;
   readonly stringSetGen: IStringSetGenerator;
   readonly interfaceStructGen?: InterfaceStructGenerator;

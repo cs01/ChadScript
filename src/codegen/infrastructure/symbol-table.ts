@@ -95,10 +95,10 @@ export interface ClosureMetadata {
  * Map-specific metadata for typed Maps
  */
 export interface MapMetadata {
-  keyType: "string" | "number"; // TypeScript key type
-  valueType: string; // TypeScript value type (string, number, or interface name)
-  llvmKeyType: string; // LLVM type for keys (i8* for string, double for number)
-  llvmValueType: string; // LLVM type for values
+  keyType: string;
+  valueType: string;
+  llvmKeyType: string;
+  llvmValueType: string;
 }
 
 /**

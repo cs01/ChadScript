@@ -284,6 +284,12 @@ export interface IPointerMapGenerator {
   generatePointerMapSet(mapPtr: string, keyValue: string, valueValue: string): string;
   generatePointerMapGet(mapPtr: string, keyValue: string, valueType: string): string;
   generatePointerMapClear(mapPtr: string): string;
+  generatePointerMapHas(mapPtr: string, keyToFind: string): string;
+  generatePointerMapDelete(mapPtr: string, keyToFind: string): string;
+  generatePointerMapSize(mapPtr: string): string;
+  generatePointerMapEntries(mapPtr: string): string;
+  generatePointerMapKeys(mapPtr: string): string;
+  generatePointerMapValues(mapPtr: string): string;
 }
 
 export interface IArrayGenerator {
@@ -1998,6 +2004,14 @@ export class MockGeneratorContext implements IGeneratorContext {
     generatePointerMapGet: (_mapPtr: string, _keyValue: string, _valueType: string): string =>
       "%mock_pointer_map_get",
     generatePointerMapClear: (_mapPtr: string): string => "%mock_pointer_map_clear",
+    generatePointerMapHas: (_mapPtr: string, _keyToFind: string): string =>
+      "%mock_pointer_map_has",
+    generatePointerMapDelete: (_mapPtr: string, _keyToFind: string): string =>
+      "%mock_pointer_map_delete",
+    generatePointerMapSize: (_mapPtr: string): string => "%mock_pointer_map_size",
+    generatePointerMapEntries: (_mapPtr: string): string => "%mock_pointer_map_entries",
+    generatePointerMapKeys: (_mapPtr: string): string => "%mock_pointer_map_keys",
+    generatePointerMapValues: (_mapPtr: string): string => "%mock_pointer_map_values",
   };
   embedGen: IEmbedGenerator = {
     generateEmbedFile: (_expr: MethodCallNode, _params: string[]): string => "%mock_embed_file",
