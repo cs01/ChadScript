@@ -2,17 +2,8 @@
  * Reads files as raw Buffers (not UTF-8) to preserve binary content like images. */
 import * as fs from "fs";
 import * as path from "path";
-import { MethodCallNode } from "../../ast/types.js";
+import { MethodCallNode, StringNode } from "../../ast/types.js";
 import { IGeneratorContext } from "../infrastructure/generator-context.js";
-
-interface ExprBase {
-  type: string;
-}
-
-interface StringLiteralNode {
-  type: "string";
-  value: string;
-}
 
 export class EmbedGenerator {
   private embeddedKeys: string[] = [];
@@ -153,7 +144,7 @@ export class EmbedGenerator {
       return this.ctx.emitError("ChadScript.embedFile() requires 1 argument (file path)", expr.loc);
     }
 
-    const argBase = expr.args[0] as ExprBase;
+    const argBase = expr.args[0] as { type: string };
     if (argBase.type !== "string") {
       return this.ctx.emitError(
         "ChadScript.embedFile() argument must be a string literal",
@@ -161,7 +152,7 @@ export class EmbedGenerator {
       );
     }
 
-    const relPath = (expr.args[0] as StringLiteralNode).value;
+    const relPath = (expr.args[0] as StringNode).value;
     const absPath = path.resolve(this.entryDir, relPath);
 
     if (!fs.existsSync(absPath)) {
@@ -205,7 +196,7 @@ export class EmbedGenerator {
       );
     }
 
-    const argBase = expr.args[0] as ExprBase;
+    const argBase = expr.args[0] as { type: string };
     if (argBase.type !== "string") {
       return this.ctx.emitError(
         "ChadScript.embedDir() argument must be a string literal",
@@ -213,7 +204,7 @@ export class EmbedGenerator {
       );
     }
 
-    const relPath = (expr.args[0] as StringLiteralNode).value;
+    const relPath = (expr.args[0] as StringNode).value;
     const absPath = path.resolve(this.entryDir, relPath);
 
     if (!fs.existsSync(absPath)) {

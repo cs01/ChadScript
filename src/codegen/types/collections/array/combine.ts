@@ -3,19 +3,12 @@
 
 import {
   Expression,
+  ArrayNode,
   MethodCallNode,
   VariableNode,
   SpreadElementNode,
 } from "../../../../ast/types.js";
 import { IGeneratorContext, loadArrayMeta } from "./context.js";
-
-interface ExprBase {
-  type: string;
-}
-interface ArrayExpr {
-  type: string;
-  elements: Expression[];
-}
 
 // ============================================
 // spread literals
@@ -23,12 +16,12 @@ interface ArrayExpr {
 
 export function generateArrayLiteralWithSpread(
   gen: IGeneratorContext,
-  arrExpr: ArrayExpr,
+  arrExpr: ArrayNode,
   params: string[],
 ): string {
   let isStringArray = false;
   for (let i = 0; i < arrExpr.elements.length; i++) {
-    const el = arrExpr.elements[i] as ExprBase;
+    const el = arrExpr.elements[i] as { type: string };
     if (el.type === "string") {
       isStringArray = true;
       break;
@@ -49,7 +42,7 @@ export function generateArrayLiteralWithSpread(
 
   let literalCount = 0;
   for (let i = 0; i < arrExpr.elements.length; i++) {
-    const el = arrExpr.elements[i] as ExprBase;
+    const el = arrExpr.elements[i] as { type: string };
     if (el.type.indexOf("spread:") !== 0 && el.type !== "spread_element") {
       literalCount = literalCount + 1;
     }
@@ -58,7 +51,7 @@ export function generateArrayLiteralWithSpread(
   // Compute total length by summing literal count + each spread array's length
   let totalLen = `${literalCount}`;
   for (let i = 0; i < arrExpr.elements.length; i++) {
-    const el = arrExpr.elements[i] as ExprBase;
+    const el = arrExpr.elements[i] as { type: string };
     if (el.type.indexOf("spread:") === 0) {
       const varName = el.type.substr(7);
       const alloca = gen.getVariableAlloca(varName)!;
@@ -96,7 +89,7 @@ export function generateArrayLiteralWithSpread(
   gen.emitStore("i32", "0", offsetPtr);
 
   for (let i = 0; i < arrExpr.elements.length; i++) {
-    const el = arrExpr.elements[i] as ExprBase;
+    const el = arrExpr.elements[i] as { type: string };
     if (el.type.indexOf("spread:") === 0) {
       const varName = el.type.substr(7);
       const alloca = gen.getVariableAlloca(varName)!;
@@ -213,14 +206,14 @@ export function generateArrayLiteralWithSpread(
 
 function generateStringArrayLiteralWithSpread(
   gen: IGeneratorContext,
-  arrExpr: ArrayExpr,
+  arrExpr: ArrayNode,
   params: string[],
 ): string {
   const spreadSources: { index: number; ptr: string }[] = [];
   const literalValues: { index: number; value: string }[] = [];
 
   for (let i = 0; i < arrExpr.elements.length; i++) {
-    const el = arrExpr.elements[i] as ExprBase;
+    const el = arrExpr.elements[i] as { type: string };
     if (el.type.indexOf("spread:") === 0) {
       const varName = el.type.substr(7);
       const alloca = gen.getVariableAlloca(varName)!;
@@ -270,7 +263,7 @@ function generateStringArrayLiteralWithSpread(
   let spreadIdx = 0;
   let litIdx = 0;
   for (let i = 0; i < arrExpr.elements.length; i++) {
-    const el = arrExpr.elements[i] as ExprBase;
+    const el = arrExpr.elements[i] as { type: string };
     if (el.type === "spread_element" || el.type.indexOf("spread:") === 0) {
       const src = spreadSources[spreadIdx];
       spreadIdx++;
@@ -377,7 +370,7 @@ export function generateArrayJoin(
   }
 
   let isStringArray = false;
-  const exprObjBase = expr.object as ExprBase;
+  const exprObjBase = expr.object as { type: string };
   if (exprObjBase.type === "variable") {
     const varName = (expr.object as VariableNode).name;
     const varType = gen.getVariableType(varName);
@@ -598,7 +591,7 @@ export function generateArraySlice(
 
   let isStringArray = false;
   let isObjectArray = false;
-  const exprObjBase = expr.object as ExprBase;
+  const exprObjBase = expr.object as { type: string };
   if (exprObjBase.type === "variable") {
     const varName = (expr.object as VariableNode).name;
     const varType = gen.getVariableType(varName);
@@ -799,7 +792,7 @@ export function generateArrayConcat(
 
   let isStringArray = false;
   let isObjectArray = false;
-  const exprObjBase = expr.object as ExprBase;
+  const exprObjBase = expr.object as { type: string };
   if (exprObjBase.type === "variable") {
     const varName = (expr.object as VariableNode).name;
     const varType = gen.getVariableType(varName);
