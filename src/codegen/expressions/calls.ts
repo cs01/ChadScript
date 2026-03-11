@@ -823,7 +823,12 @@ export class CallExpressionGenerator {
     const envPtrRegister = closureMetadata.envPtrRegister;
     const captures = closureMetadata.captures;
 
-    const returnType = "double";
+    let returnType = "double";
+    if (closureMetadata.returnType === "string") {
+      returnType = "i8*";
+    } else if (closureMetadata.returnType === "void") {
+      returnType = "void";
+    }
 
     const argsList: string[] = [];
     if (captures && captures.length > 0) {
@@ -839,7 +844,15 @@ export class CallExpressionGenerator {
       argsList.push(`double ${coerced}`);
     }
 
+    if (returnType === "void") {
+      this.ctx.emitCallVoid(`@${lambdaName}`, argsList.join(", "));
+      return "0.0";
+    }
+
     const temp = this.ctx.emitCall(returnType, `@${lambdaName}`, argsList.join(", "));
+    if (returnType === "i8*") {
+      this.ctx.setVariableType(temp, "i8*");
+    }
 
     return temp;
   }

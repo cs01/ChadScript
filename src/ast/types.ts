@@ -178,6 +178,7 @@ export interface ArrowFunctionNode {
   async?: boolean;
   captures?: { name: string; llvmType: string }[];
   loc?: SourceLocation;
+  returnType?: string;
 }
 
 export interface AwaitExpressionNode {

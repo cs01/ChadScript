@@ -622,12 +622,18 @@ function transformArrowFunction(
 
   const isAsync = node.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword) || false;
 
+  let returnType: string | undefined = undefined;
+  if (node.type) {
+    returnType = node.type.getText();
+  }
+
   return {
     type: "arrow_function",
     params,
     body,
     async: isAsync || undefined,
     loc: getLoc(node),
+    returnType,
   };
 }
 

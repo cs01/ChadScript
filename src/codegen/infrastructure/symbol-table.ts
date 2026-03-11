@@ -89,6 +89,7 @@ export interface ClosureMetadata {
   envStructName: string; // The environment struct type name
   envPtrRegister: string; // Register holding the environment pointer
   captures: { name: string; llvmType: string }[]; // Captured variables
+  returnType?: string;
 }
 
 /**

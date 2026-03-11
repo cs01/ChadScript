@@ -124,6 +124,7 @@ interface ArrowFunctionGeneratorLike {
     scopeVarTypes?: string[],
   ): string;
   getClosureInfoForLambda(lambdaName: string): ClosureInfoResult | null;
+  getLiftedFunctionByName(name: string): { returnType?: string } | undefined;
 }
 
 interface ClosureInfoResult {
@@ -2412,6 +2413,12 @@ export class VariableAllocator {
     }
   }
 
+  private getLambdaReturnType(lambdaName: string): string | undefined {
+    const lifted = this.ctx.arrowFunctionGen.getLiftedFunctionByName(lambdaName);
+    if (lifted && lifted.returnType) return lifted.returnType;
+    return undefined;
+  }
+
   private allocateArrowFunction(stmt: VariableDeclaration, params: string[]): void {
     if (!stmt.value) return;
     const scopeVarsResult = this.ctx.symbolTable.getScopeVarsArraysForClosure();
@@ -2476,6 +2483,7 @@ export class VariableAllocator {
           envStructName: closureInfo.envStructName,
           envPtrRegister: envMemReg,
           captures: captures,
+          returnType: this.getLambdaReturnType(lambdaName),
         }),
       );
     } else {
@@ -2491,6 +2499,7 @@ export class VariableAllocator {
           envStructName: "",
           envPtrRegister: "null",
           captures: [],
+          returnType: this.getLambdaReturnType(lambdaName),
         }),
       );
     }

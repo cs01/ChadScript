@@ -3427,6 +3427,31 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
           if (this.currentFunctionReturnType === "void") {
             this.emit(`ret void`);
+          } else if (
+            lastValue.startsWith("__lambda_") &&
+            this.currentFunctionReturnType === "i8*"
+          ) {
+            const liftedFunc = this.exprGen.arrowFunctionGen.getLiftedFunctionByName(lastValue);
+            if (liftedFunc) {
+              const retType = liftedFunc.returnType || "";
+              const llvmRet =
+                retType === "string" || retType === "i8*"
+                  ? "i8*"
+                  : retType === "void"
+                    ? "void"
+                    : "double";
+              const paramCount = liftedFunc.params ? liftedFunc.params.length : 0;
+              let funcType = `${llvmRet} (i8*`;
+              for (let pi = 0; pi < paramCount; pi++) {
+                funcType += ", double";
+              }
+              funcType += ")*";
+              const castPtr = this.nextTemp();
+              this.emit(`${castPtr} = bitcast ${funcType} @${lastValue} to i8*`);
+              this.emit(`ret i8* ${castPtr}`);
+            } else {
+              this.emit(`ret ${this.currentFunctionReturnType} ${lastValue}`);
+            }
           } else {
             this.emit(`ret ${this.currentFunctionReturnType} ${lastValue}`);
           }
