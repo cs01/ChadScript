@@ -33,7 +33,19 @@ class JsoncParser {
     if (ch === "[") {
       return this.parseArray();
     }
-    if (ch === "-" || ch === "0" || ch === "1" || ch === "2" || ch === "3" || ch === "4" || ch === "5" || ch === "6" || ch === "7" || ch === "8" || ch === "9") {
+    if (
+      ch === "-" ||
+      ch === "0" ||
+      ch === "1" ||
+      ch === "2" ||
+      ch === "3" ||
+      ch === "4" ||
+      ch === "5" ||
+      ch === "6" ||
+      ch === "7" ||
+      ch === "8" ||
+      ch === "9"
+    ) {
       return this.parseNumber();
     }
     if (ch === "t" || ch === "f" || ch === "n") {
@@ -72,7 +84,18 @@ class JsoncParser {
     }
     while (this.pos < this.len) {
       const nCh = this.input.charAt(this.pos);
-      if (nCh === "0" || nCh === "1" || nCh === "2" || nCh === "3" || nCh === "4" || nCh === "5" || nCh === "6" || nCh === "7" || nCh === "8" || nCh === "9") {
+      if (
+        nCh === "0" ||
+        nCh === "1" ||
+        nCh === "2" ||
+        nCh === "3" ||
+        nCh === "4" ||
+        nCh === "5" ||
+        nCh === "6" ||
+        nCh === "7" ||
+        nCh === "8" ||
+        nCh === "9"
+      ) {
         this.pos = this.pos + 1;
       } else {
         break;
@@ -82,7 +105,18 @@ class JsoncParser {
       this.pos = this.pos + 1;
       while (this.pos < this.len) {
         const dCh = this.input.charAt(this.pos);
-        if (dCh === "0" || dCh === "1" || dCh === "2" || dCh === "3" || dCh === "4" || dCh === "5" || dCh === "6" || dCh === "7" || dCh === "8" || dCh === "9") {
+        if (
+          dCh === "0" ||
+          dCh === "1" ||
+          dCh === "2" ||
+          dCh === "3" ||
+          dCh === "4" ||
+          dCh === "5" ||
+          dCh === "6" ||
+          dCh === "7" ||
+          dCh === "8" ||
+          dCh === "9"
+        ) {
           this.pos = this.pos + 1;
         } else {
           break;
@@ -101,7 +135,18 @@ class JsoncParser {
         }
         while (this.pos < this.len) {
           const eCh = this.input.charAt(this.pos);
-          if (eCh === "0" || eCh === "1" || eCh === "2" || eCh === "3" || eCh === "4" || eCh === "5" || eCh === "6" || eCh === "7" || eCh === "8" || eCh === "9") {
+          if (
+            eCh === "0" ||
+            eCh === "1" ||
+            eCh === "2" ||
+            eCh === "3" ||
+            eCh === "4" ||
+            eCh === "5" ||
+            eCh === "6" ||
+            eCh === "7" ||
+            eCh === "8" ||
+            eCh === "9"
+          ) {
             this.pos = this.pos + 1;
           } else {
             break;
@@ -271,16 +316,16 @@ check("simple object", '{"a":1}', '{"a":1}');
 check("line comment", '{"a":1} // comment', '{"a":1}');
 check("block comment", '{"a": /* inline */ 1}', '{"a":1}');
 check("trailing comma object", '{"a":1, "b":2,}', '{"a":1,"b":2}');
-check("trailing comma array", '[1, 2, 3,]', '[1,2,3]');
+check("trailing comma array", "[1, 2, 3,]", "[1,2,3]");
 check("nested comments", '{\n  // comment\n  "x": [1, /* c */ 2]\n}', '{"x":[1,2]}');
 check("string escapes", '"hello\\nworld"', '"hello\\nworld"');
 check("negative number", '{"n":-42}', '{"n":-42}');
 check("float", '{"f":3.14}', '{"f":3.14}');
 check("exponent", '{"e":1.5e2}', '{"e":1.5e2}');
 check("literals", '{"a":true,"b":false,"c":null}', '{"a":true,"b":false,"c":null}');
-check("empty object", '{}', '{}');
-check("empty array", '[]', '[]');
-check("nested arrays", '[[1,2],[3]]', '[[1,2],[3]]');
+check("empty object", "{}", "{}");
+check("empty array", "[]", "[]");
+check("nested arrays", "[[1,2],[3]]", "[[1,2],[3]]");
 check("multiline block comment", '{\n  /*\n   * multi\n   * line\n   */\n  "x": 1\n}', '{"x":1}');
 
 if (failed === 0) {

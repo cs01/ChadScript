@@ -40,7 +40,19 @@ class JsoncParser {
     if (ch === "[") {
       return this.parseArray();
     }
-    if (ch === "-" || ch === "0" || ch === "1" || ch === "2" || ch === "3" || ch === "4" || ch === "5" || ch === "6" || ch === "7" || ch === "8" || ch === "9") {
+    if (
+      ch === "-" ||
+      ch === "0" ||
+      ch === "1" ||
+      ch === "2" ||
+      ch === "3" ||
+      ch === "4" ||
+      ch === "5" ||
+      ch === "6" ||
+      ch === "7" ||
+      ch === "8" ||
+      ch === "9"
+    ) {
       return this.parseNumber();
     }
     if (ch === "t" || ch === "f" || ch === "n") {
@@ -79,7 +91,18 @@ class JsoncParser {
     }
     while (this.pos < this.len) {
       const nCh = this.input.charAt(this.pos);
-      if (nCh === "0" || nCh === "1" || nCh === "2" || nCh === "3" || nCh === "4" || nCh === "5" || nCh === "6" || nCh === "7" || nCh === "8" || nCh === "9") {
+      if (
+        nCh === "0" ||
+        nCh === "1" ||
+        nCh === "2" ||
+        nCh === "3" ||
+        nCh === "4" ||
+        nCh === "5" ||
+        nCh === "6" ||
+        nCh === "7" ||
+        nCh === "8" ||
+        nCh === "9"
+      ) {
         this.pos = this.pos + 1;
       } else {
         break;
@@ -89,7 +112,18 @@ class JsoncParser {
       this.pos = this.pos + 1;
       while (this.pos < this.len) {
         const dCh = this.input.charAt(this.pos);
-        if (dCh === "0" || dCh === "1" || dCh === "2" || dCh === "3" || dCh === "4" || dCh === "5" || dCh === "6" || dCh === "7" || dCh === "8" || dCh === "9") {
+        if (
+          dCh === "0" ||
+          dCh === "1" ||
+          dCh === "2" ||
+          dCh === "3" ||
+          dCh === "4" ||
+          dCh === "5" ||
+          dCh === "6" ||
+          dCh === "7" ||
+          dCh === "8" ||
+          dCh === "9"
+        ) {
           this.pos = this.pos + 1;
         } else {
           break;
@@ -108,7 +142,18 @@ class JsoncParser {
         }
         while (this.pos < this.len) {
           const eCh = this.input.charAt(this.pos);
-          if (eCh === "0" || eCh === "1" || eCh === "2" || eCh === "3" || eCh === "4" || eCh === "5" || eCh === "6" || eCh === "7" || eCh === "8" || eCh === "9") {
+          if (
+            eCh === "0" ||
+            eCh === "1" ||
+            eCh === "2" ||
+            eCh === "3" ||
+            eCh === "4" ||
+            eCh === "5" ||
+            eCh === "6" ||
+            eCh === "7" ||
+            eCh === "8" ||
+            eCh === "9"
+          ) {
             this.pos = this.pos + 1;
           } else {
             break;
@@ -310,7 +355,10 @@ class JsoncParser {
   }
 }
 
-const argParser = new ArgumentParser("jsonc", "JSONC to JSON converter — strips comments and trailing commas");
+const argParser = new ArgumentParser(
+  "jsonc",
+  "JSONC to JSON converter — strips comments and trailing commas",
+);
 argParser.addFlag("pretty", "p", "Pretty-print the output");
 argParser.addFlag("validate", "v", "Validate only (exit 0 if valid, 1 if not)");
 argParser.addPositional("file", "JSONC file to convert");

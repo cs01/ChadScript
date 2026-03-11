@@ -38,7 +38,10 @@
 
   "empty": {},
   "list": [],
-  "nested": [[1, 2], [3, 4]],
+  "nested": [
+    [1, 2],
+    [3, 4],
+  ],
 
   // Strings with escapes
   "escapes": "hello\tworld\nnewline\\backslash\"quote",
