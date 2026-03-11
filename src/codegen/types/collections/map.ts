@@ -1488,7 +1488,6 @@ export class StringMapGenerator {
 
     this.ctx.emitLabel(endLabel);
 
-    // emitBitcast already set arrayPtr type to %StringArray*
     return arrayPtr;
   }
 }
@@ -1877,7 +1876,7 @@ export class PointerMapGenerator {
     const mapSize = this.ctx.emitLoad("i32", sizeFieldPtr);
 
     const arrayMem = this.ctx.emitCall("i8*", "@GC_malloc", "i64 24");
-    const arrayPtr = this.ctx.emitBitcast(arrayMem, "i8*", "%Array*");
+    const arrayPtr = this.ctx.emitBitcast(arrayMem, "i8*", "%ObjectArray*");
 
     const mapSizeI64 = this.nextTemp();
     this.emit(`${mapSizeI64} = sext i32 ${mapSize} to i64`);
@@ -1886,16 +1885,21 @@ export class PointerMapGenerator {
     const dataMem = this.ctx.emitCall("i8*", "@GC_malloc", `i64 ${dataSize}`);
     const dataPtr = this.ctx.emitBitcast(dataMem, "i8*", "i8**");
 
+    const dataPtrField = this.nextTemp();
+    this.emit(
+      `${dataPtrField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`,
+    );
+    this.ctx.emitStore("i8*", dataMem, dataPtrField);
     const lenFieldPtr = this.nextTemp();
-    this.emit(`${lenFieldPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${lenFieldPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 1`,
+    );
     this.ctx.emitStore("i32", mapSize, lenFieldPtr);
     const capFieldPtr = this.nextTemp();
-    this.emit(`${capFieldPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
+    this.emit(
+      `${capFieldPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 2`,
+    );
     this.ctx.emitStore("i32", mapSize, capFieldPtr);
-    const dataFieldPtr = this.nextTemp();
-    this.emit(`${dataFieldPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 2`);
-    const dataCast = this.ctx.emitBitcast(dataPtr, "i8**", "double*");
-    this.ctx.emitStore("double*", dataCast, dataFieldPtr);
 
     const loopLabel = this.nextLabel("ptrmap_entries_loop");
     const bodyLabel = this.nextLabel("ptrmap_entries_body");
@@ -1945,6 +1949,7 @@ export class PointerMapGenerator {
 
     this.ctx.emitLabel(endLabel);
 
+    this.ctx.setVariableType(arrayPtr, "%ObjectArray*");
     return arrayPtr;
   }
 
@@ -2017,6 +2022,7 @@ export class PointerMapGenerator {
 
     this.ctx.emitLabel(endLabel);
 
+    this.ctx.setVariableType(arrayPtr, "%ObjectArray*");
     return arrayPtr;
   }
 
@@ -2091,6 +2097,7 @@ export class PointerMapGenerator {
 
     this.ctx.emitLabel(endLabel);
 
+    this.ctx.setVariableType(arrayPtr, "%ObjectArray*");
     return arrayPtr;
   }
 }
