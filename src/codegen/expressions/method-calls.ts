@@ -736,8 +736,11 @@ export class MethodCallGenerator {
         const mapMeta = this.ctx.symbolTable.getMapMetadata(varName);
 
         if (mapMeta && mapMeta.keyType === "string") {
-          const mapAlloca = this.ctx.symbolTable.getAlloca(varName);
+          let mapAlloca = this.ctx.symbolTable.getAlloca(varName);
           if (mapAlloca) {
+            if (mapAlloca.startsWith("@")) {
+              mapAlloca = this.ctx.emitLoad("%StringMap*", mapAlloca);
+            }
             if (method === "set") {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
               const valueValue = this.ctx.generateExpression(expr.args[1], params);
@@ -907,8 +910,11 @@ export class MethodCallGenerator {
         const setValueType = this.ctx.symbolTable.getSetValueType(varName);
 
         if (setValueType && setValueType === "string") {
-          const setAlloca = this.ctx.symbolTable.getAlloca(varName);
+          let setAlloca = this.ctx.symbolTable.getAlloca(varName);
           if (setAlloca) {
+            if (setAlloca.startsWith("@")) {
+              setAlloca = this.ctx.emitLoad("%StringSet*", setAlloca);
+            }
             if (method === "add") {
               const valueValue = this.ctx.generateExpression(expr.args[0], params);
               return this.ctx.stringSetGen.generateStringSetAdd(setAlloca, valueValue);

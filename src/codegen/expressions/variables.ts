@@ -80,25 +80,31 @@ export class VariableExpressionGenerator {
 
     // Check if it's a map variable
     if (this.ctx.symbolTable.isMap(name)) {
-      const allocaReg = this.ctx.getVariableAlloca(name)!;
+      let allocaReg = this.ctx.getVariableAlloca(name)!;
       const mapMeta = this.ctx.symbolTable.getMapMetadata(name);
-      if (mapMeta && mapMeta.keyType === "string") {
-        this.ctx.setVariableType(allocaReg, "%StringMap*");
-      } else {
-        this.ctx.setVariableType(allocaReg, "%Map*");
+      const mapType = mapMeta && mapMeta.keyType === "string" ? "%StringMap*" : "%Map*";
+      if (allocaReg.startsWith("@")) {
+        const loaded = this.ctx.nextTemp();
+        this.ctx.emit(`${loaded} = load ${mapType}, ${mapType}* ${allocaReg}`);
+        this.ctx.setVariableType(loaded, mapType);
+        return loaded;
       }
+      this.ctx.setVariableType(allocaReg, mapType);
       return allocaReg;
     }
 
     // Check if it's a set variable
     if (this.ctx.symbolTable.isSet(name)) {
-      const allocaReg = this.ctx.getVariableAlloca(name)!;
+      let allocaReg = this.ctx.getVariableAlloca(name)!;
       const setValueType = this.ctx.symbolTable.getSetValueType(name);
-      if (setValueType === "string") {
-        this.ctx.setVariableType(allocaReg, "%StringSet*");
-      } else {
-        this.ctx.setVariableType(allocaReg, "%Set*");
+      const setType = setValueType === "string" ? "%StringSet*" : "%Set*";
+      if (allocaReg.startsWith("@")) {
+        const loaded = this.ctx.nextTemp();
+        this.ctx.emit(`${loaded} = load ${setType}, ${setType}* ${allocaReg}`);
+        this.ctx.setVariableType(loaded, setType);
+        return loaded;
       }
+      this.ctx.setVariableType(allocaReg, setType);
       return allocaReg;
     }
 
