@@ -128,7 +128,10 @@ export function generatePadStart(
   const paddingNeeded = ctx.nextTemp();
   ctx.emit(`${paddingNeeded} = sub i32 ${targetLength}, ${strLenI32}`);
 
-  const needsPadding = ctx.emitIcmp("sgt", "i32", paddingNeeded, "0");
+  const needsPaddingRaw = ctx.emitIcmp("sgt", "i32", paddingNeeded, "0");
+  const padNonEmpty = ctx.emitIcmp("sgt", "i32", padLenI32, "0");
+  const needsPadding = ctx.nextTemp();
+  ctx.emit(`${needsPadding} = and i1 ${needsPaddingRaw}, ${padNonEmpty}`);
 
   const noPadLabel = ctx.nextLabel("padstart_nopad");
   const doPadLabel = ctx.nextLabel("padstart_dopad");
@@ -231,7 +234,10 @@ export function generatePadEnd(
   const paddingNeeded = ctx.nextTemp();
   ctx.emit(`${paddingNeeded} = sub i32 ${targetLength}, ${strLenI32}`);
 
-  const needsPadding = ctx.emitIcmp("sgt", "i32", paddingNeeded, "0");
+  const needsPaddingRaw = ctx.emitIcmp("sgt", "i32", paddingNeeded, "0");
+  const padNonEmpty = ctx.emitIcmp("sgt", "i32", padLenI32, "0");
+  const needsPadding = ctx.nextTemp();
+  ctx.emit(`${needsPadding} = and i1 ${needsPaddingRaw}, ${padNonEmpty}`);
 
   const noPadLabel = ctx.nextLabel("padend_nopad");
   const doPadLabel = ctx.nextLabel("padend_dopad");
