@@ -239,9 +239,18 @@ export class ObjectGenerator {
         finalValue = valueReg;
         const valueType = this.ctx.getVariableType(valueReg) || "double";
         if (fieldLlvmType === "i1") {
-          const i1Value = this.nextTemp();
-          this.emit(`${i1Value} = fcmp one double ${valueReg}, 0.0`);
-          finalValue = i1Value;
+          if (valueType === "i1") {
+            finalValue = valueReg;
+          } else if (valueType === "i64") {
+            const i1Value = this.nextTemp();
+            this.emit(`${i1Value} = icmp ne i64 ${valueReg}, 0`);
+            finalValue = i1Value;
+          } else {
+            const dbl = this.ctx.ensureDouble(valueReg);
+            const i1Value = this.nextTemp();
+            this.emit(`${i1Value} = fcmp one double ${dbl}, 0.0`);
+            finalValue = i1Value;
+          }
         } else if (fieldLlvmType === "double") {
           if (valueType.indexOf("*") !== -1) {
             const isTreeSitterType =
@@ -345,9 +354,18 @@ export class ObjectGenerator {
 
       let finalValue = valueReg;
       if (llvmType === "i1") {
-        const i1Value = this.nextTemp();
-        this.emit(`${i1Value} = fcmp one double ${valueReg}, 0.0`);
-        finalValue = i1Value;
+        if (generatedType === "i1") {
+          finalValue = valueReg;
+        } else if (generatedType === "i64") {
+          const i1Value = this.nextTemp();
+          this.emit(`${i1Value} = icmp ne i64 ${valueReg}, 0`);
+          finalValue = i1Value;
+        } else {
+          const dbl = this.ctx.ensureDouble(valueReg);
+          const i1Value = this.nextTemp();
+          this.emit(`${i1Value} = fcmp one double ${dbl}, 0.0`);
+          finalValue = i1Value;
+        }
       } else if (llvmType === "double") {
         finalValue = this.ctx.ensureDouble(valueReg);
       }
