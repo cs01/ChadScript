@@ -18,7 +18,17 @@ export function generateSubstr(
   const strLenI32 = ctx.nextTemp();
   ctx.emit(`${strLenI32} = trunc i64 ${strLen} to i32`);
 
-  const startI32 = startIndex;
+  const startIsNeg = ctx.emitIcmp("slt", "i32", startIndex, "0");
+  const negAdjusted = ctx.nextTemp();
+  ctx.emit(`${negAdjusted} = add i32 ${strLenI32}, ${startIndex}`);
+  const afterNeg = ctx.nextTemp();
+  ctx.emit(`${afterNeg} = select i1 ${startIsNeg}, i32 ${negAdjusted}, i32 ${startIndex}`);
+  const stillNeg = ctx.emitIcmp("slt", "i32", afterNeg, "0");
+  const clampedLow = ctx.nextTemp();
+  ctx.emit(`${clampedLow} = select i1 ${stillNeg}, i32 0, i32 ${afterNeg}`);
+  const startTooBig = ctx.emitIcmp("sgt", "i32", clampedLow, strLenI32);
+  const startI32 = ctx.nextTemp();
+  ctx.emit(`${startI32} = select i1 ${startTooBig}, i32 ${strLenI32}, i32 ${clampedLow}`);
 
   let substrLen: string;
   if (length === null) {
