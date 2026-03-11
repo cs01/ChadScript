@@ -1061,6 +1061,10 @@ export class TypeInference {
   private getFieldTypeFromType(typeName: string, fieldName: string): string | null {
     if (!typeName) return null;
     if (!fieldName) return null;
+    const stripped = stripNullable(typeName);
+    if (stripped !== typeName) {
+      return this.getFieldTypeFromType(stripped, fieldName);
+    }
     const cls = this.getClass(typeName);
     if (cls) {
       const fieldTsType = this.ctx.classGenGetFieldTsType(typeName, fieldName);
