@@ -134,8 +134,22 @@ export class ObjectGenerator {
         } else if (tsType === "string[]") {
           this.ctx.setExpectedArrayElementType("string");
         }
+        const savedDeclaredInterface = this.ctx.getCurrentDeclaredInterfaceType();
+        if (tsType && valueExpr.type === "object") {
+          let resolvedFieldType = tsType;
+          if (resolvedFieldType.endsWith(" | null")) {
+            resolvedFieldType = resolvedFieldType.slice(0, resolvedFieldType.length - 7);
+          }
+          if (resolvedFieldType.endsWith(" | undefined")) {
+            resolvedFieldType = resolvedFieldType.slice(0, resolvedFieldType.length - 12);
+          }
+          if (this.ctx.interfaceStructGen?.hasInterface(resolvedFieldType)) {
+            this.ctx.setCurrentDeclaredInterfaceType(resolvedFieldType);
+          }
+        }
         finalValue = this.ctx.generateExpression(valueExpr, params);
         this.ctx.setExpectedArrayElementType(savedExpectedType);
+        this.ctx.setCurrentDeclaredInterfaceType(savedDeclaredInterface);
       }
 
       orderedFields.push({ key: field.name, llvmType, value: finalValue });
@@ -222,6 +236,7 @@ export class ObjectGenerator {
         }
       } else {
         const savedExpectedType = this.ctx.getExpectedArrayElementType();
+        const savedDeclaredInterface = this.ctx.getCurrentDeclaredInterfaceType();
         const tsType = fieldTsType;
         if (
           tsType &&
@@ -234,8 +249,21 @@ export class ObjectGenerator {
         } else if (tsType === "string[]") {
           this.ctx.setExpectedArrayElementType("string");
         }
+        if (tsType && valueExpr.type === "object") {
+          let resolvedFieldType = tsType;
+          if (resolvedFieldType.endsWith(" | null")) {
+            resolvedFieldType = resolvedFieldType.slice(0, resolvedFieldType.length - 7);
+          }
+          if (resolvedFieldType.endsWith(" | undefined")) {
+            resolvedFieldType = resolvedFieldType.slice(0, resolvedFieldType.length - 12);
+          }
+          if (this.ctx.interfaceStructGen?.hasInterface(resolvedFieldType)) {
+            this.ctx.setCurrentDeclaredInterfaceType(resolvedFieldType);
+          }
+        }
         const valueReg = this.ctx.generateExpression(valueExpr, params);
         this.ctx.setExpectedArrayElementType(savedExpectedType);
+        this.ctx.setCurrentDeclaredInterfaceType(savedDeclaredInterface);
         finalValue = valueReg;
         const valueType = this.ctx.getVariableType(valueReg) || "double";
         if (fieldLlvmType === "i1") {
