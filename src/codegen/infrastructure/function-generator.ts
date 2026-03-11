@@ -16,6 +16,7 @@ import {
   Statement,
   InterfaceDeclaration,
   InterfaceField,
+  ClassNode,
 } from "../../ast/types.js";
 import {
   SymbolKind,
@@ -311,7 +312,7 @@ export class FunctionGenerator {
           let classDefName: string = "";
           const classes = ast ? ast.classes || [] : [];
           for (let jc = 0; jc < classes.length; jc++) {
-            const cls = classes[jc] as { name: string };
+            const cls = classes[jc] as ClassNode;
             if (!cls || !cls.name) continue;
             if (cls.name === paramTypes[i]) {
               classDefName = cls.name;

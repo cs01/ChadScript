@@ -7,6 +7,7 @@ import {
   IndexAccessNode,
   AST,
   ClassNode,
+  ClassField,
   AssignmentStatement,
   SourceLocation,
 } from "../../ast/types.js";
@@ -127,7 +128,7 @@ export class AssignmentGenerator {
           const c = classes[ci] as ClassNode;
           let hasField = false;
           for (let fi = 0; fi < c.fields.length; fi++) {
-            const f = c.fields[fi] as { name: string };
+            const f = c.fields[fi] as ClassField;
             if (f.name === property) {
               hasField = true;
               break;
