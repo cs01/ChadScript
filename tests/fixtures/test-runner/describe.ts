@@ -1,3 +1,4 @@
+// @test-skip
 describe("math", () => {
   test("addition", () => {
     assert.strictEqual(1 + 1, 2);
