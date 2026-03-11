@@ -1423,11 +1423,13 @@ export class VariableAllocator {
     const valueBase = stmt.value as ExprBase;
     if (valueBase.type === "new") {
       const newExpr = stmt.value as NewNode;
-      // Resolve import alias (e.g., import MyGreeter from './greeter' → Greeter)
       className = this.ctx.resolveImportAlias(newExpr.className);
     } else if (valueBase.type === "method_call") {
       const methodExpr = stmt.value as MethodCallNode;
       className = this.getMapGetClassName(methodExpr) || "Unknown";
+    } else if (valueBase.type === "call") {
+      const callExpr = stmt.value as CallNode;
+      className = this.getCallReturnClassName(callExpr) || "Unknown";
     } else {
       return this.ctx.emitError(
         `Cannot allocate class instance for expression type: ${valueBase.type}`,
@@ -1485,6 +1487,34 @@ export class VariableAllocator {
           const mapParsed = parseMapTypeString(fieldInfo.tsType);
           if (mapParsed && mapParsed.valueType) {
             return mapParsed.valueType;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  private getCallReturnClassName(callExpr: CallNode): string | null {
+    if (!callExpr.name) return null;
+    const ast = this.ctx.getAst();
+    if (!ast) return null;
+    for (let i = 0; i < ast.functions.length; i++) {
+      const fn = ast.functions[i];
+      if (fn && fn.name === callExpr.name && fn.returnType) {
+        const rt = stripNullable(fn.returnType);
+        if (this.isKnownClass(rt)) {
+          return this.ctx.resolveImportAlias(rt);
+        }
+      }
+    }
+    if (callExpr.name) {
+      const resolved = this.ctx.resolveImportAlias(callExpr.name);
+      for (let i = 0; i < ast.functions.length; i++) {
+        const fn = ast.functions[i];
+        if (fn && fn.name === resolved && fn.returnType) {
+          const rt = stripNullable(fn.returnType);
+          if (this.isKnownClass(rt)) {
+            return this.ctx.resolveImportAlias(rt);
           }
         }
       }
