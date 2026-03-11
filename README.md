@@ -29,36 +29,7 @@ Requires LLVM (`brew install llvm` / `apt install llvm clang`).
 
 ---
 
-## Quick taste
-
-```typescript
-// Fetch two APIs in parallel, parse typed JSON, print results
-interface Repo {
-  stargazers_count: number;
-}
-
-async function main(): Promise<void> {
-  const results = await Promise.all([
-    fetch("https://api.github.com/repos/vuejs/vue"),
-    fetch("https://api.github.com/repos/facebook/react"),
-  ]);
-  const vue = results[0].json<Repo>();
-  const react = results[1].json<Repo>();
-  console.log(`Vue: ${vue.stargazers_count} stars`);
-  console.log(`React: ${react.stargazers_count} stars`);
-}
-
-main();
-```
-
-```bash
-chad build app.ts -o app
-./app   # cold start ~2ms, no node_modules, no runtime
-```
-
----
-
-## HTTP server in a single binary
+## Example: HTTP server in a single binary
 
 ```typescript
 import { httpServe, Router, Context } from "chadscript/http";
