@@ -15,6 +15,7 @@ import {
 } from "../../../ast/types.js";
 import type { MethodCallGeneratorContext } from "../method-calls.js";
 import type { FieldInfo } from "../../infrastructure/type-resolver/types.js";
+import { mapParamTypeToLLVM, mapReturnTypeToLLVM } from "../../infrastructure/type-system.js";
 
 export interface InterfaceDefInfo {
   properties: { name: string; type: string }[];
@@ -850,16 +851,18 @@ export function handleObjectMethods(
 
   const funcNode = getFunctionFromAST(ctx, method);
   if (funcNode) {
-    returnType = funcNode.returnType === "string" ? "i8*" : "double";
+    returnType = funcNode.returnType ? mapReturnTypeToLLVM(funcNode.returnType, false) : "double";
     if (funcNode.parameters) {
       for (let i = 0; i < funcNode.parameters.length; i++) {
         const param = funcNode.parameters[i];
-        paramTypes.push(param.type === "string" ? "i8*" : "double");
+        paramTypes.push(
+          param.type ? mapParamTypeToLLVM(param.type, param.name || "arg", false, false) : "double",
+        );
       }
     } else if (funcNode.paramTypes) {
       for (let i = 0; i < funcNode.paramTypes.length; i++) {
         const t = funcNode.paramTypes[i];
-        paramTypes.push(t === "string" ? "i8*" : "double");
+        paramTypes.push(mapParamTypeToLLVM(t, "arg", false, false));
       }
     }
   }
