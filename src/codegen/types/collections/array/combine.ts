@@ -387,7 +387,14 @@ export function generateArrayJoin(
     return generateStringArrayJoin(gen, arrayPtr, separator);
   }
 
-  // Numeric array join -- stub that allocates an empty buffer
+  return generateNumericArrayJoin(gen, arrayPtr, separator);
+}
+
+function generateNumericArrayJoin(
+  gen: IGeneratorContext,
+  arrayPtr: string,
+  separator: string,
+): string {
   const lenPtr = gen.nextTemp();
   gen.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
   const length = gen.emitLoad("i32", lenPtr);
@@ -398,11 +405,87 @@ export function generateArrayJoin(
 
   const bufferSize = 8192;
   const resultBuffer = gen.emitCall("i8*", "@GC_malloc_atomic", `i64 ${bufferSize}`);
+  gen.emitStore("i8", "0", resultBuffer);
 
-  const nullByte = gen.nextTemp();
-  gen.emit(`${nullByte} = getelementptr inbounds i8, i8* ${resultBuffer}, i64 0`);
-  gen.emitStore("i8", "0", nullByte);
+  const offsetPtr = gen.nextAllocaReg("join_off");
+  gen.emit(`${offsetPtr} = alloca i64`);
+  gen.emitStore("i64", "0", offsetPtr);
 
+  const counterPtr = gen.nextAllocaReg("join_idx");
+  gen.emit(`${counterPtr} = alloca i32`);
+  gen.emitStore("i32", "0", counterPtr);
+
+  const sepLen = gen.emitCall("i64", "@strlen", `i8* ${separator}`);
+
+  const fmtInt = gen.createStringConstant("%.0f");
+  const fmtFloat = gen.createStringConstant("%.15g");
+
+  const checkLabel = gen.nextLabel("numjoin_check");
+  const bodyLabel = gen.nextLabel("numjoin_body");
+  const endLabel = gen.nextLabel("numjoin_end");
+
+  gen.emitBr(checkLabel);
+
+  gen.emitLabel(checkLabel);
+  const counter = gen.emitLoad("i32", counterPtr);
+  const cond = gen.emitIcmp("slt", "i32", counter, length);
+  gen.emitBrCond(cond, bodyLabel, endLabel);
+
+  gen.emitLabel(bodyLabel);
+  const offset = gen.emitLoad("i64", offsetPtr);
+
+  const addSepLabel = gen.nextLabel("numjoin_sep");
+  const noSepLabel = gen.nextLabel("numjoin_nosep");
+  const afterSepLabel = gen.nextLabel("numjoin_after_sep");
+  const isFirst = gen.emitIcmp("eq", "i32", counter, "0");
+  gen.emitBrCond(isFirst, noSepLabel, addSepLabel);
+
+  gen.emitLabel(addSepLabel);
+  const sepOffset = gen.emitLoad("i64", offsetPtr);
+  const sepDest = gen.nextTemp();
+  gen.emit(`${sepDest} = getelementptr inbounds i8, i8* ${resultBuffer}, i64 ${sepOffset}`);
+  gen.emitCallVoid("@llvm.memcpy.p0i8.p0i8.i64", `i8* ${sepDest}, i8* ${separator}, i64 ${sepLen}, i1 false`);
+  const sepNewOff = gen.nextTemp();
+  gen.emit(`${sepNewOff} = add i64 ${sepOffset}, ${sepLen}`);
+  gen.emitStore("i64", sepNewOff, offsetPtr);
+  gen.emitBr(afterSepLabel);
+
+  gen.emitLabel(noSepLabel);
+  gen.emitBr(afterSepLabel);
+
+  gen.emitLabel(afterSepLabel);
+  const curOff = gen.emitLoad("i64", offsetPtr);
+  const elemPtr = gen.nextTemp();
+  gen.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${counter}`);
+  const elemVal = gen.emitLoad("double", elemPtr);
+
+  const truncated = gen.nextTemp();
+  gen.emit(`${truncated} = fptosi double ${elemVal} to i64`);
+  const backToDouble = gen.nextTemp();
+  gen.emit(`${backToDouble} = sitofp i64 ${truncated} to double`);
+  const isInt = gen.nextTemp();
+  gen.emit(`${isInt} = fcmp oeq double ${elemVal}, ${backToDouble}`);
+  const fmt = gen.nextTemp();
+  gen.emit(`${fmt} = select i1 ${isInt}, i8* ${fmtInt}, i8* ${fmtFloat}`);
+
+  const dest = gen.nextTemp();
+  gen.emit(`${dest} = getelementptr inbounds i8, i8* ${resultBuffer}, i64 ${curOff}`);
+  const remaining = gen.nextTemp();
+  gen.emit(`${remaining} = sub i64 ${bufferSize}, ${curOff}`);
+  const written = gen.nextTemp();
+  gen.emit(`${written} = call i32 (i8*, i64, i8*, ...) @snprintf(i8* ${dest}, i64 ${remaining}, i8* ${fmt}, double ${elemVal})`);
+  const writtenI64 = gen.nextTemp();
+  gen.emit(`${writtenI64} = sext i32 ${written} to i64`);
+  const newOff = gen.nextTemp();
+  gen.emit(`${newOff} = add i64 ${curOff}, ${writtenI64}`);
+  gen.emitStore("i64", newOff, offsetPtr);
+
+  const nextCounter = gen.nextTemp();
+  gen.emit(`${nextCounter} = add i32 ${counter}, 1`);
+  gen.emitStore("i32", nextCounter, counterPtr);
+  gen.emitBr(checkLabel);
+
+  gen.emitLabel(endLabel);
   gen.setVariableType(resultBuffer, "i8*");
   return resultBuffer;
 }
