@@ -818,9 +818,15 @@ export class MethodCallGenerator {
           return this.ctx.mapGen.generateMapHas(expr, params);
         } else if (method === "delete") {
           return this.ctx.mapGen.generateMapDelete(expr, params);
-        } else if (method === "entries" || method === "values" || method === "keys") {
+        } else if (method === "keys") {
+          const mapPtr = this.ctx.generateExpression(expr.object, params);
+          return this.ctx.mapGen.generateMapKeys(mapPtr);
+        } else if (method === "values") {
+          const mapPtr = this.ctx.generateExpression(expr.object, params);
+          return this.ctx.mapGen.generateMapValues(mapPtr);
+        } else if (method === "entries") {
           return this.ctx.emitError(
-            `Map.${method}() only supported for Map<string, *> types`,
+            `Map.entries() not yet supported for Map<number, *> types — use .keys() and .get()`,
             expr.loc,
           );
         } else if (method === "clear") {
