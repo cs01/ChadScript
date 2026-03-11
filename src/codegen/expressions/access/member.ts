@@ -16,6 +16,7 @@ import {
   FunctionParameter,
   CallNode,
   FunctionNode,
+  ClassField,
   SourceLocation,
 } from "../../../ast/types.js";
 import type { SymbolTable } from "../../infrastructure/symbol-table.js";
@@ -902,7 +903,7 @@ export class MemberAccessGenerator {
           if (!c || !c.fields) continue;
           let hasField = false;
           for (let fi = 0; fi < c.fields.length; fi++) {
-            const f = c.fields[fi] as { name: string };
+            const f = c.fields[fi] as ClassField;
             if (f.name === fieldName) {
               hasField = true;
               break;

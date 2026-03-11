@@ -215,7 +215,7 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
     let funcResult: LiftedFunction | null = null;
     for (let i = 0; i < this.liftedFunctions.length; i++) {
       const fRaw = this.liftedFunctions[i];
-      const f = fRaw as { name: string };
+      const f = fRaw as LiftedFunction;
       if (f.name === lambdaName) {
         funcResult = fRaw as LiftedFunction;
         break;

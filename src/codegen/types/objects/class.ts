@@ -280,7 +280,7 @@ export class ClassGenerator {
     if (fields) {
       let index: number = -1;
       for (let i = 0; i < fields.length; i++) {
-        const f = fields[i] as { name: string; fieldType: string; tsType: string };
+        const f = fields[i] as ClassField;
         if (f.name === fieldName) {
           index = i;
           break;
@@ -1487,11 +1487,11 @@ export class ClassGenerator {
       }
     }
 
-    let classDef: { name: string } | null = null;
+    let classDef: ClassNode | null = null;
     const ast3 = this.ctx.getAst();
     const classes = ast3 ? ast3.classes || [] : [];
     for (let i = 0; i < classes.length; i++) {
-      const cls = classes[i] as { name: string };
+      const cls = classes[i] as ClassNode;
       if (!cls) continue;
       if (!cls.name) continue;
       if (cls.name === tsType) {
