@@ -14,12 +14,24 @@
  * - With interpolation: `Hello ${name}` -> concatenate "Hello " with name value
  */
 
-import { Expression, TemplateLiteralNode, StringNode } from "../../ast/types.js";
+import {
+  Expression,
+  TemplateLiteralNode,
+  StringNode,
+  BinaryNode,
+  UnaryNode,
+} from "../../ast/types.js";
 import { IGeneratorContext } from "../infrastructure/generator-context.js";
 import {
   createStringConstant,
   convertNumberToString,
 } from "../types/collections/string/constants.js";
+
+function isComparisonOp(op: string): boolean {
+  if (op === "===" || op === "!==" || op === "==" || op === "!=") return true;
+  if (op === "<" || op === ">" || op === "<=" || op === ">=") return true;
+  return false;
+}
 
 export class TemplateLiteralGenerator {
   constructor(private ctx: IGeneratorContext) {}
@@ -27,8 +39,16 @@ export class TemplateLiteralGenerator {
   private booleanToString(boolValue: string): string {
     const trueStr = createStringConstant(this.ctx, "true");
     const falseStr = createStringConstant(this.ctx, "false");
+    const varType = this.ctx.getVariableType(boolValue);
     const cmp = this.ctx.nextTemp();
-    this.ctx.emit(`${cmp} = fcmp one double ${boolValue}, 0.0`);
+    if (varType === "i1") {
+      this.ctx.emit(`${cmp} = select i1 ${boolValue}, i8* ${trueStr}, i8* ${falseStr}`);
+      return cmp;
+    } else if (varType === "i64") {
+      this.ctx.emit(`${cmp} = icmp ne i64 ${boolValue}, 0`);
+    } else {
+      this.ctx.emit(`${cmp} = fcmp one double ${boolValue}, 0.0`);
+    }
     const selected = this.ctx.nextTemp();
     this.ctx.emit(`${selected} = select i1 ${cmp}, i8* ${trueStr}, i8* ${falseStr}`);
     return selected;
@@ -79,12 +99,15 @@ export class TemplateLiteralGenerator {
         const exprPart = part as Expression;
         const exprPartTyped = exprPart as { type: string };
         const exprValue = this.ctx.generateExpression(exprPart, params);
-        if (exprPartTyped.type === "boolean") {
+        const varType = this.ctx.getVariableType(exprValue);
+        const isBoolExpr =
+          exprPartTyped.type === "boolean" ||
+          varType === "i1" ||
+          (exprPartTyped.type === "binary" && isComparisonOp((exprPart as BinaryNode).op)) ||
+          (exprPartTyped.type === "unary" && (exprPart as UnaryNode).op === "!");
+        if (isBoolExpr) {
           partValue = this.booleanToString(exprValue);
-        } else if (
-          this.ctx.isStringExpression(exprPart) ||
-          this.ctx.getVariableType(exprValue) === "i8*"
-        ) {
+        } else if (this.ctx.isStringExpression(exprPart) || varType === "i8*") {
           partValue = this.nullSafeString(exprValue);
         } else {
           partValue = convertNumberToString(this.ctx, exprValue);
