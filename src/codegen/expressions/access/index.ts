@@ -400,6 +400,12 @@ export class IndexAccessGenerator {
       );
     }
 
+    const strLen64 = this.ctx.nextTemp();
+    this.ctx.emit(`${strLen64} = call i64 @strlen(i8* ${objPtr})`);
+    const strLen = this.ctx.nextTemp();
+    this.ctx.emit(`${strLen} = trunc i64 ${strLen64} to i32`);
+    this.ctx.emit(`call void @__cs_bounds_check(i32 ${index}, i32 ${strLen})`);
+
     const indexI64 = this.ctx.nextTemp();
     this.ctx.emit(`${indexI64} = sext i32 ${index} to i64`);
 
