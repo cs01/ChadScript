@@ -169,7 +169,9 @@ export class ControlFlowGenerator {
       this.ctx.symbolTable.narrowType(tg.varName, tg.narrowedMetadata);
     }
 
+    this.ctx.symbolTable.pushScope("if-then");
     this.ctx.generateBlock(ifStmt.thenBlock, params);
+    this.ctx.symbolTable.popScope();
 
     if (typeGuard) {
       const tg = typeGuard as {
@@ -188,7 +190,9 @@ export class ControlFlowGenerator {
     if (ifStmt.elseBlock) {
       this.ctx.emitLabel(elseLabel);
       this.ctx.setCurrentLabel(elseLabel);
+      this.ctx.symbolTable.pushScope("if-else");
       this.ctx.generateBlock(ifStmt.elseBlock, params);
+      this.ctx.symbolTable.popScope();
       elseHasTerminator = this.ctx.lastInstructionIsTerminator();
       if (!elseHasTerminator) {
         this.ctx.emitBr(mergeLabel);
@@ -367,7 +371,6 @@ export class ControlFlowGenerator {
     this.ctx.generateBlock(forStmt.body, params);
     this.loopContinueLabels.pop();
     this.loopBreakLabels.pop();
-    // Check if the LAST instruction is a terminator
     const bodyHasTerminator3 = this.ctx.lastInstructionIsTerminator();
     if (!bodyHasTerminator3) {
       this.ctx.emitBr(updateLabel);
@@ -579,7 +582,6 @@ export class ControlFlowGenerator {
     // Store in loop variable
     this.ctx.emitStore(actualElementType, storeValue, elemAlloca);
 
-    // Execute the loop body
     this.loopContinueLabels.push(updateLabel);
     this.loopBreakLabels.push(endLabel);
     this.ctx.generateBlock(forOfStmt.body, params);
