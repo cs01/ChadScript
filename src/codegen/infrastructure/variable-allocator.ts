@@ -1929,7 +1929,7 @@ export class VariableAllocator {
           setTypeInfoResult = { valueType: newExpr.typeArgs[0] };
         }
       } else if (valueBase.type === "set") {
-        const setExpr = stmt.value as { valueType?: string };
+        const setExpr = stmt.value as SetNode;
         if (setExpr.valueType) {
           setTypeInfoResult = { valueType: setExpr.valueType };
         }
