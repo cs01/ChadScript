@@ -26,39 +26,79 @@ export function generateStartsWith(ctx: IGeneratorContext, strPtr: string, prefi
 }
 
 export function generateCharAt(ctx: IGeneratorContext, strPtr: string, index: string): string {
+  const strLen = ctx.emitCall("i64", "@strlen", `i8* ${strPtr}`);
+  const strLenI32 = ctx.nextTemp();
+  ctx.emit(`${strLenI32} = trunc i64 ${strLen} to i32`);
+
+  const inBoundsLow = ctx.emitIcmp("sge", "i32", index, "0");
+  const inBoundsHigh = ctx.emitIcmp("slt", "i32", index, strLenI32);
+  const inBounds = ctx.nextTemp();
+  ctx.emit(`${inBounds} = and i1 ${inBoundsLow}, ${inBoundsHigh}`);
+
+  const validLabel = ctx.nextLabel("charat_valid");
+  const oobLabel = ctx.nextLabel("charat_oob");
+  const endLabel = ctx.nextLabel("charat_end");
+
+  ctx.emitBrCond(inBounds, validLabel, oobLabel);
+
+  ctx.emitLabel(validLabel);
   const indexI64 = ctx.nextTemp();
   ctx.emit(`${indexI64} = sext i32 ${index} to i64`);
-
   const charPtr = ctx.nextTemp();
   ctx.emit(`${charPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${indexI64}`);
-
   const charI8 = ctx.emitLoad("i8", charPtr);
-
   const resultPtr = ctx.emitCall("i8*", "@GC_malloc_atomic", "i64 2");
-
   ctx.emitStore("i8", charI8, resultPtr);
-
   const nullPtr = ctx.nextTemp();
   ctx.emit(`${nullPtr} = getelementptr inbounds i8, i8* ${resultPtr}, i64 1`);
   ctx.emitStore("i8", "0", nullPtr);
+  ctx.emitBr(endLabel);
 
-  return resultPtr;
+  ctx.emitLabel(oobLabel);
+  const emptyStr = ctx.emitCall("i8*", "@GC_malloc_atomic", "i64 1");
+  ctx.emitStore("i8", "0", emptyStr);
+  ctx.emitBr(endLabel);
+
+  ctx.emitLabel(endLabel);
+  const result = ctx.nextTemp();
+  ctx.emit(`${result} = phi i8* [${resultPtr}, %${validLabel}], [${emptyStr}, %${oobLabel}]`);
+  return result;
 }
 
 export function generateCharCodeAt(ctx: IGeneratorContext, strPtr: string, index: string): string {
+  const strLen = ctx.emitCall("i64", "@strlen", `i8* ${strPtr}`);
+  const strLenI32 = ctx.nextTemp();
+  ctx.emit(`${strLenI32} = trunc i64 ${strLen} to i32`);
+
+  const inBoundsLow = ctx.emitIcmp("sge", "i32", index, "0");
+  const inBoundsHigh = ctx.emitIcmp("slt", "i32", index, strLenI32);
+  const inBounds = ctx.nextTemp();
+  ctx.emit(`${inBounds} = and i1 ${inBoundsLow}, ${inBoundsHigh}`);
+
+  const validLabel = ctx.nextLabel("charcodeat_valid");
+  const oobLabel = ctx.nextLabel("charcodeat_oob");
+  const endLabel = ctx.nextLabel("charcodeat_end");
+
+  ctx.emitBrCond(inBounds, validLabel, oobLabel);
+
+  ctx.emitLabel(validLabel);
   const indexI64 = ctx.nextTemp();
   ctx.emit(`${indexI64} = sext i32 ${index} to i64`);
-
   const charPtr = ctx.nextTemp();
   ctx.emit(`${charPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${indexI64}`);
-
   const charI8 = ctx.emitLoad("i8", charPtr);
-
   const charI32 = ctx.nextTemp();
   ctx.emit(`${charI32} = zext i8 ${charI8} to i32`);
+  const validResult = ctx.nextTemp();
+  ctx.emit(`${validResult} = sitofp i32 ${charI32} to double`);
+  ctx.emitBr(endLabel);
 
+  ctx.emitLabel(oobLabel);
+  ctx.emitBr(endLabel);
+
+  ctx.emitLabel(endLabel);
   const result = ctx.nextTemp();
-  ctx.emit(`${result} = sitofp i32 ${charI32} to double`);
+  ctx.emit(`${result} = phi double [${validResult}, %${validLabel}], [0.0, %${oobLabel}]`);
   ctx.setVariableType(result, "double");
 
   return result;
