@@ -162,8 +162,25 @@ export class BinaryExpressionGenerator {
     const rightType = this.ctx.getVariableType(right);
 
     if (leftType === "i64" && rightType === "i64") {
+      const isZero = this.ctx.emitIcmp("eq", "i64", right, "0");
+      const sremLabel = this.ctx.nextLabel("mod_i64_srem");
+      const zeroLabel = this.ctx.nextLabel("mod_i64_zero");
+      const mergeLabel = this.ctx.nextLabel("mod_i64_merge");
+      this.ctx.emitBrCond(isZero, zeroLabel, sremLabel);
+
+      this.ctx.emitLabel(sremLabel);
+      const sremVal = this.ctx.nextTemp();
+      this.ctx.emit(`${sremVal} = srem i64 ${left}, ${right}`);
+      const sremEnd = this.ctx.getCurrentLabel();
+      this.ctx.emitBr(mergeLabel);
+
+      this.ctx.emitLabel(zeroLabel);
+      const zeroEnd = this.ctx.getCurrentLabel();
+      this.ctx.emitBr(mergeLabel);
+
+      this.ctx.emitLabel(mergeLabel);
       const temp = this.ctx.nextTemp();
-      this.ctx.emit(`${temp} = srem i64 ${left}, ${right}`);
+      this.ctx.emit(`${temp} = phi i64 [ ${sremVal}, %${sremEnd} ], [ 0, %${zeroEnd} ]`);
       this.ctx.setVariableType(temp, "i64");
       return temp;
     }
@@ -192,14 +209,34 @@ export class BinaryExpressionGenerator {
     const rightIsKnown = this.isKnownInteger(rightExpr);
 
     if (leftIsKnown && rightIsKnown) {
+      const rightIsZero = this.ctx.nextTemp();
+      this.ctx.emit(`${rightIsZero} = fcmp oeq double ${right}, 0.0`);
+      const knownSremLabel = this.ctx.nextLabel("mod_known_srem");
+      const knownNanLabel = this.ctx.nextLabel("mod_known_nan");
+      const knownMergeLabel = this.ctx.nextLabel("mod_known_merge");
+      this.ctx.emitBrCond(rightIsZero, knownNanLabel, knownSremLabel);
+
+      this.ctx.emitLabel(knownSremLabel);
       const leftInt = this.ctx.nextTemp();
       this.ctx.emit(`${leftInt} = fptosi double ${left} to i64`);
       const rightInt = this.ctx.nextTemp();
       this.ctx.emit(`${rightInt} = fptosi double ${right} to i64`);
       const sremResult = this.ctx.nextTemp();
       this.ctx.emit(`${sremResult} = srem i64 ${leftInt}, ${rightInt}`);
+      const intResult = this.ctx.nextTemp();
+      this.ctx.emit(`${intResult} = sitofp i64 ${sremResult} to double`);
+      const knownSremEnd = this.ctx.getCurrentLabel();
+      this.ctx.emitBr(knownMergeLabel);
+
+      this.ctx.emitLabel(knownNanLabel);
+      const knownNanEnd = this.ctx.getCurrentLabel();
+      this.ctx.emitBr(knownMergeLabel);
+
+      this.ctx.emitLabel(knownMergeLabel);
       const result = this.ctx.nextTemp();
-      this.ctx.emit(`${result} = sitofp i64 ${sremResult} to double`);
+      this.ctx.emit(
+        `${result} = phi double [ ${intResult}, %${knownSremEnd} ], [ 0x7FF8000000000000, %${knownNanEnd} ]`,
+      );
       this.ctx.setVariableType(result, "double");
       return result;
     }
@@ -237,11 +274,21 @@ export class BinaryExpressionGenerator {
     this.ctx.emit(`${leftInt} = fptosi double ${left} to i64`);
     const rightInt = this.ctx.nextTemp();
     this.ctx.emit(`${rightInt} = fptosi double ${right} to i64`);
+    const dynIsZero = this.ctx.emitIcmp("eq", "i64", rightInt, "0");
+    const dynSremLabel = this.ctx.nextLabel("mod_dyn_srem");
+    const dynNanLabel = this.ctx.nextLabel("mod_dyn_nan");
+    this.ctx.emitBrCond(dynIsZero, dynNanLabel, dynSremLabel);
+
+    this.ctx.emitLabel(dynSremLabel);
     const sremResult = this.ctx.nextTemp();
     this.ctx.emit(`${sremResult} = srem i64 ${leftInt}, ${rightInt}`);
     const intResult = this.ctx.nextTemp();
     this.ctx.emit(`${intResult} = sitofp i64 ${sremResult} to double`);
     const intBranchEnd = this.ctx.getCurrentLabel();
+    this.ctx.emitBr(mergeLabel);
+
+    this.ctx.emitLabel(dynNanLabel);
+    const dynNanEnd = this.ctx.getCurrentLabel();
     this.ctx.emitBr(mergeLabel);
 
     this.ctx.emitLabel(floatModLabel);
@@ -253,7 +300,7 @@ export class BinaryExpressionGenerator {
     this.ctx.emitLabel(mergeLabel);
     const result = this.ctx.nextTemp();
     this.ctx.emit(
-      `${result} = phi double [ ${intResult}, %${intBranchEnd} ], [ ${fremResult}, %${floatBranchEnd} ]`,
+      `${result} = phi double [ ${intResult}, %${intBranchEnd} ], [ 0x7FF8000000000000, %${dynNanEnd} ], [ ${fremResult}, %${floatBranchEnd} ]`,
     );
     this.ctx.setVariableType(result, "double");
     return result;
