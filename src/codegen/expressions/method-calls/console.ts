@@ -1,4 +1,4 @@
-import { Expression, MethodCallNode, StringNode } from "../../../ast/types.js";
+import { Expression, MethodCallNode, StringNode, VariableNode } from "../../../ast/types.js";
 import type { MethodCallGeneratorContext } from "../method-calls.js";
 
 function emitPrint(
@@ -157,6 +157,268 @@ function emitArrayPrint(
   ctx.emitLabel(doneLabel);
 }
 
+function emitMapPrint(
+  ctx: MethodCallGeneratorContext,
+  useStderr: boolean,
+  mapPtr: string,
+  mapType: string,
+  valueType: string = "string",
+): void {
+  const isString = mapType === "%StringMap*";
+  const structType = isString ? "%StringMap" : "%Map";
+
+  const sizePtr = ctx.nextTemp();
+  ctx.emit(
+    `${sizePtr} = getelementptr inbounds ${structType}, ${structType}* ${mapPtr}, i32 0, i32 2`,
+  );
+  const size = ctx.emitLoad("i32", sizePtr);
+  const capPtr = ctx.nextTemp();
+  ctx.emit(
+    `${capPtr} = getelementptr inbounds ${structType}, ${structType}* ${mapPtr}, i32 0, i32 3`,
+  );
+  const capacity = ctx.emitLoad("i32", capPtr);
+
+  const headerStr = ctx.stringGen.doCreateStringConstant("Map(");
+  emitPrintStrNoNl(ctx, useStderr, headerStr);
+  const sizeDouble = ctx.nextTemp();
+  ctx.emit(`${sizeDouble} = sitofp i32 ${size} to double`);
+  emitPrintNumNoNl(ctx, useStderr, sizeDouble);
+  const openStr = ctx.stringGen.doCreateStringConstant(") { ");
+  const closeStr = ctx.stringGen.doCreateStringConstant(" }");
+  const emptyCloseStr = ctx.stringGen.doCreateStringConstant(") {}");
+  const separator = ctx.stringGen.doCreateStringConstant(", ");
+  const arrow = ctx.stringGen.doCreateStringConstant(" => ");
+
+  const isEmpty = ctx.emitIcmp("eq", "i32", size, "0");
+  const emptyLabel = ctx.nextLabel("map_empty");
+  const nonEmptyLabel = ctx.nextLabel("map_nonempty");
+  const doneLabel = ctx.nextLabel("map_done");
+
+  ctx.emitBrCond(isEmpty, emptyLabel, nonEmptyLabel);
+
+  ctx.emitLabel(emptyLabel);
+  emitPrintStrNoNl(ctx, useStderr, emptyCloseStr);
+  ctx.emitBr(doneLabel);
+
+  ctx.emitLabel(nonEmptyLabel);
+  emitPrintStrNoNl(ctx, useStderr, openStr);
+
+  const keysFieldPtr = ctx.nextTemp();
+  ctx.emit(
+    `${keysFieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${mapPtr}, i32 0, i32 0`,
+  );
+  const valsFieldPtr = ctx.nextTemp();
+  ctx.emit(
+    `${valsFieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${mapPtr}, i32 0, i32 1`,
+  );
+  const keys = ctx.emitLoad(isString ? "i8**" : "double*", keysFieldPtr);
+  const vals = ctx.emitLoad(isString ? "i8**" : "double*", valsFieldPtr);
+
+  const iAlloca = ctx.nextTemp();
+  ctx.emit(`${iAlloca} = alloca i32`);
+  ctx.emitStore("i32", "0", iAlloca);
+  const printedAlloca = ctx.nextTemp();
+  ctx.emit(`${printedAlloca} = alloca i32`);
+  ctx.emitStore("i32", "0", printedAlloca);
+
+  const loopLabel = ctx.nextLabel("map_loop");
+  const checkSlotLabel = ctx.nextLabel("map_check");
+  const bodyLabel = ctx.nextLabel("map_body");
+  const sepLabel = ctx.nextLabel("map_sep");
+  const skipLabel = ctx.nextLabel("map_skip");
+  const latchLabel = ctx.nextLabel("map_latch");
+  const endLabel = ctx.nextLabel("map_end");
+
+  ctx.emitBr(loopLabel);
+
+  ctx.emitLabel(loopLabel);
+  const i = ctx.emitLoad("i32", iAlloca);
+  const reachedCap = ctx.emitIcmp("sge", "i32", i, capacity);
+  ctx.emitBrCond(reachedCap, endLabel, checkSlotLabel);
+
+  ctx.emitLabel(checkSlotLabel);
+  if (isString) {
+    const keyElemPtr = ctx.nextTemp();
+    ctx.emit(`${keyElemPtr} = getelementptr inbounds i8*, i8** ${keys}, i32 ${i}`);
+    const keyAtSlot = ctx.emitLoad("i8*", keyElemPtr);
+    const isNull = ctx.emitIcmp("eq", "i8*", keyAtSlot, "null");
+    ctx.emitBrCond(isNull, latchLabel, bodyLabel);
+  } else {
+    ctx.emitBr(bodyLabel);
+  }
+
+  ctx.emitLabel(bodyLabel);
+  const printed = ctx.emitLoad("i32", printedAlloca);
+  const isFirstPrint = ctx.emitIcmp("eq", "i32", printed, "0");
+  ctx.emitBrCond(isFirstPrint, skipLabel, sepLabel);
+
+  ctx.emitLabel(sepLabel);
+  emitPrintStrNoNl(ctx, useStderr, separator);
+  ctx.emitBr(skipLabel);
+
+  ctx.emitLabel(skipLabel);
+  if (isString) {
+    const keyElemPtr2 = ctx.nextTemp();
+    ctx.emit(`${keyElemPtr2} = getelementptr inbounds i8*, i8** ${keys}, i32 ${i}`);
+    const key = ctx.emitLoad("i8*", keyElemPtr2);
+    emitPrintStrNoNl(ctx, useStderr, key);
+  } else {
+    const keyElemPtr2 = ctx.nextTemp();
+    ctx.emit(`${keyElemPtr2} = getelementptr inbounds double, double* ${keys}, i32 ${i}`);
+    const key = ctx.emitLoad("double", keyElemPtr2);
+    emitPrintNumNoNl(ctx, useStderr, key);
+  }
+  emitPrintStrNoNl(ctx, useStderr, arrow);
+  if (isString) {
+    const valElemPtr = ctx.nextTemp();
+    ctx.emit(`${valElemPtr} = getelementptr inbounds i8*, i8** ${vals}, i32 ${i}`);
+    const val = ctx.emitLoad("i8*", valElemPtr);
+    if (valueType === "number") {
+      const asI64 = ctx.nextTemp();
+      ctx.emit(`${asI64} = ptrtoint i8* ${val} to i64`);
+      const asDouble = ctx.nextTemp();
+      ctx.emit(`${asDouble} = bitcast i64 ${asI64} to double`);
+      emitPrintNumNoNl(ctx, useStderr, asDouble);
+    } else {
+      emitPrintStrNoNl(ctx, useStderr, val);
+    }
+  } else {
+    const valElemPtr = ctx.nextTemp();
+    ctx.emit(`${valElemPtr} = getelementptr inbounds double, double* ${vals}, i32 ${i}`);
+    const val = ctx.emitLoad("double", valElemPtr);
+    emitPrintNumNoNl(ctx, useStderr, val);
+  }
+
+  const printedCurrent = ctx.emitLoad("i32", printedAlloca);
+  const printedNext = ctx.nextTemp();
+  ctx.emit(`${printedNext} = add i32 ${printedCurrent}, 1`);
+  ctx.emitStore("i32", printedNext, printedAlloca);
+
+  ctx.emitBr(latchLabel);
+
+  ctx.emitLabel(latchLabel);
+  const iCurrent = ctx.emitLoad("i32", iAlloca);
+  const iNext = ctx.nextTemp();
+  ctx.emit(`${iNext} = add i32 ${iCurrent}, 1`);
+  ctx.emitStore("i32", iNext, iAlloca);
+  ctx.emitBr(loopLabel);
+
+  ctx.emitLabel(endLabel);
+  emitPrintStrNoNl(ctx, useStderr, closeStr);
+  ctx.emitBr(doneLabel);
+
+  ctx.emitLabel(doneLabel);
+}
+
+function emitSetPrint(
+  ctx: MethodCallGeneratorContext,
+  useStderr: boolean,
+  setPtr: string,
+  setType: string,
+): void {
+  const isString = setType === "%StringSet*";
+  const structType = isString ? "%StringSet" : "%Set";
+
+  const sizePtr = ctx.nextTemp();
+  ctx.emit(
+    `${sizePtr} = getelementptr inbounds ${structType}, ${structType}* ${setPtr}, i32 0, i32 1`,
+  );
+  const size = ctx.emitLoad("i32", sizePtr);
+
+  const headerStr = ctx.stringGen.doCreateStringConstant("Set(");
+  emitPrintStrNoNl(ctx, useStderr, headerStr);
+  const sizeDouble = ctx.nextTemp();
+  ctx.emit(`${sizeDouble} = sitofp i32 ${size} to double`);
+  emitPrintNumNoNl(ctx, useStderr, sizeDouble);
+  const openStr = ctx.stringGen.doCreateStringConstant(") { ");
+  const closeStr = ctx.stringGen.doCreateStringConstant(" }");
+  const emptyCloseStr = ctx.stringGen.doCreateStringConstant(") {}");
+  const separator = ctx.stringGen.doCreateStringConstant(", ");
+
+  const isEmpty = ctx.emitIcmp("eq", "i32", size, "0");
+  const emptyLabel = ctx.nextLabel("set_empty");
+  const nonEmptyLabel = ctx.nextLabel("set_nonempty");
+  const doneLabel = ctx.nextLabel("set_done");
+
+  ctx.emitBrCond(isEmpty, emptyLabel, nonEmptyLabel);
+
+  ctx.emitLabel(emptyLabel);
+  emitPrintStrNoNl(ctx, useStderr, emptyCloseStr);
+  ctx.emitBr(doneLabel);
+
+  ctx.emitLabel(nonEmptyLabel);
+  emitPrintStrNoNl(ctx, useStderr, openStr);
+
+  const dataFieldPtr = ctx.nextTemp();
+  ctx.emit(
+    `${dataFieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${setPtr}, i32 0, i32 0`,
+  );
+  const data = ctx.emitLoad(isString ? "i8**" : "double*", dataFieldPtr);
+
+  const iAlloca = ctx.nextTemp();
+  ctx.emit(`${iAlloca} = alloca i32`);
+  ctx.emitStore("i32", "0", iAlloca);
+
+  const loopLabel = ctx.nextLabel("set_loop");
+  const bodyLabel = ctx.nextLabel("set_body");
+  const sepLabel = ctx.nextLabel("set_sep");
+  const latchLabel = ctx.nextLabel("set_latch");
+  const endLabel = ctx.nextLabel("set_end");
+
+  ctx.emitBr(loopLabel);
+
+  ctx.emitLabel(loopLabel);
+  const i = ctx.emitLoad("i32", iAlloca);
+  const isFirst = ctx.emitIcmp("eq", "i32", i, "0");
+  ctx.emitBrCond(isFirst, bodyLabel, sepLabel);
+
+  ctx.emitLabel(sepLabel);
+  emitPrintStrNoNl(ctx, useStderr, separator);
+  ctx.emitBr(bodyLabel);
+
+  ctx.emitLabel(bodyLabel);
+  if (isString) {
+    const elemPtr = ctx.nextTemp();
+    ctx.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${data}, i32 ${i}`);
+    const elem = ctx.emitLoad("i8*", elemPtr);
+    emitPrintStrNoNl(ctx, useStderr, elem);
+  } else {
+    const elemPtr = ctx.nextTemp();
+    ctx.emit(`${elemPtr} = getelementptr inbounds double, double* ${data}, i32 ${i}`);
+    const elem = ctx.emitLoad("double", elemPtr);
+    emitPrintNumNoNl(ctx, useStderr, elem);
+  }
+
+  ctx.emitBr(latchLabel);
+
+  ctx.emitLabel(latchLabel);
+  const iCurrent = ctx.emitLoad("i32", iAlloca);
+  const iNext = ctx.nextTemp();
+  ctx.emit(`${iNext} = add i32 ${iCurrent}, 1`);
+  ctx.emitStore("i32", iNext, iAlloca);
+  const done = ctx.emitIcmp("eq", "i32", iNext, size);
+  ctx.emitBrCond(done, endLabel, loopLabel);
+
+  ctx.emitLabel(endLabel);
+  emitPrintStrNoNl(ctx, useStderr, closeStr);
+  ctx.emitBr(doneLabel);
+
+  ctx.emitLabel(doneLabel);
+}
+
+function emitClassInstancePrint(
+  ctx: MethodCallGeneratorContext,
+  useStderr: boolean,
+  arg: Expression,
+  params: string[],
+  className: string,
+): void {
+  const headerStr = ctx.stringGen.doCreateStringConstant(className + " ");
+  emitPrintStrNoNl(ctx, useStderr, headerStr);
+  const jsonStr = ctx.jsonGen.generateStringifyExpr(arg, params);
+  emitPrintStrNoNl(ctx, useStderr, jsonStr);
+}
+
 function emitSingleArg(
   ctx: MethodCallGeneratorContext,
   useStderr: boolean,
@@ -175,6 +437,41 @@ function emitSingleArg(
     const argValue = ctx.generateExpression(arg, params);
     emitPrintNumNoNl(ctx, useStderr, argValue);
     return;
+  }
+
+  if (arg.type === "boolean") {
+    const boolNode = arg as { type: string; value: boolean };
+    const str = ctx.stringGen.doCreateStringConstant(boolNode.value ? "true" : "false");
+    emitPrintStrNoNl(ctx, useStderr, str);
+    return;
+  }
+
+  if (arg.type === "null") {
+    const str = ctx.stringGen.doCreateStringConstant("null");
+    emitPrintStrNoNl(ctx, useStderr, str);
+    return;
+  }
+
+  if (arg.type === "undefined") {
+    const str = ctx.stringGen.doCreateStringConstant("undefined");
+    emitPrintStrNoNl(ctx, useStderr, str);
+    return;
+  }
+
+  if (arg.type === "variable") {
+    const varName = (arg as VariableNode).name;
+    const ifaceType =
+      ctx.symbolTable.getInterfaceType(varName) || ctx.symbolTable.getRawInterfaceType(varName);
+    if (ifaceType) {
+      const jsonStr = ctx.jsonGen.generateStringifyExpr(arg, params);
+      emitPrintStrNoNl(ctx, useStderr, jsonStr);
+      return;
+    }
+    const cn = ctx.symbolTable.getClassName(varName);
+    if (cn) {
+      emitClassInstancePrint(ctx, useStderr, arg, params, cn);
+      return;
+    }
   }
 
   const argValue = ctx.generateExpression(arg, params);
@@ -208,7 +505,33 @@ function emitSingleArg(
     emitPrintStrNoNl(ctx, useStderr, argValue);
     return;
   }
+  if (varType === "%StringMap*" || varType === "%Map*") {
+    let valueType = "string";
+    if (arg.type === "variable") {
+      const mapMeta = ctx.symbolTable.getMapMetadata((arg as VariableNode).name);
+      if (mapMeta) valueType = mapMeta.valueType || "string";
+    }
+    emitMapPrint(ctx, useStderr, argValue, varType, valueType);
+    return;
+  }
+  if (varType === "%StringSet*" || varType === "%Set*") {
+    emitSetPrint(ctx, useStderr, argValue, varType);
+    return;
+  }
+  if (varType && varType.endsWith("_struct*") && varType.startsWith("%")) {
+    const className = varType.slice(1, -8);
+    emitClassInstancePrint(ctx, useStderr, arg, params, className);
+    return;
+  }
   if (varType && varType.endsWith("*")) {
+    if (arg.type === "variable") {
+      const varName = (arg as VariableNode).name;
+      const cn = ctx.symbolTable.getClassName(varName);
+      if (cn) {
+        emitClassInstancePrint(ctx, useStderr, arg, params, cn);
+        return;
+      }
+    }
     const objStr = ctx.stringGen.doCreateStringConstant("[object Object]");
     emitPrintStrNoNl(ctx, useStderr, objStr);
     return;

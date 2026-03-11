@@ -437,10 +437,7 @@ export class ControlFlowGenerator {
 
     const isStringIterable = this.ctx.isStringExpression(forOfStmt.iterable);
     if (isStringIterable) {
-      return this.ctx.emitError(
-        "for...of on strings is not yet supported — use a for loop with str[i] or str.charCodeAt(i) instead",
-        stmt.loc,
-      );
+      return this.generateStringForOf(stmt as ForOfStatement, params);
     }
 
     const iterableValue = this.ctx.generateExpression(forOfStmt.iterable, params);
@@ -2135,6 +2132,73 @@ export class ControlFlowGenerator {
     }
 
     return { valueType };
+  }
+
+  private generateStringForOf(stmt: ForOfStatement, params: string[]): string {
+    const strValue = this.ctx.generateExpression(stmt.iterable, params);
+
+    const strLen = this.ctx.emitCall("i64", "@strlen", `i8* ${strValue}`);
+    const lenI32 = this.nextTemp();
+    this.emit(`${lenI32} = trunc i64 ${strLen} to i32`);
+
+    const indexAlloca = this.ctx.nextAllocaReg("__forof_idx");
+    this.emit(`${indexAlloca} = alloca i32`);
+    this.ctx.emitStore("i32", "0", indexAlloca);
+
+    const elemAlloca = this.ctx.nextAllocaReg(stmt.variableName);
+    this.emit(`${elemAlloca} = alloca i8*`);
+    this.ctx.emitStore("i8*", "null", elemAlloca);
+
+    this.ctx.defineVariable(stmt.variableName, elemAlloca, "i8*", SymbolKind.String, "local");
+
+    const condLabel = this.nextLabel("forof_str_cond");
+    const bodyLabel = this.nextLabel("forof_str_body");
+    const updateLabel = this.nextLabel("forof_str_update");
+    const endLabel = this.nextLabel("forof_str_end");
+
+    this.ctx.emitBr(condLabel);
+
+    this.ctx.emitLabel(condLabel);
+    const currentIndex = this.ctx.emitLoad("i32", indexAlloca);
+    const condBool = this.ctx.emitIcmp("slt", "i32", currentIndex, lenI32);
+    this.ctx.emitBrCond(condBool, bodyLabel, endLabel);
+
+    this.ctx.emitLabel(bodyLabel);
+    this.ctx.setCurrentLabel(bodyLabel);
+
+    const charBuf = this.ctx.emitCall("i8*", "@GC_malloc_atomic", "i64 2");
+    const idxI64 = this.nextTemp();
+    this.emit(`${idxI64} = sext i32 ${currentIndex} to i64`);
+    const charPtr = this.nextTemp();
+    this.emit(`${charPtr} = getelementptr inbounds i8, i8* ${strValue}, i64 ${idxI64}`);
+    const charVal = this.ctx.emitLoad("i8", charPtr);
+    this.ctx.emitStore("i8", charVal, charBuf);
+    const nullPtr = this.nextTemp();
+    this.emit(`${nullPtr} = getelementptr inbounds i8, i8* ${charBuf}, i64 1`);
+    this.ctx.emitStore("i8", "0", nullPtr);
+    this.ctx.emitStore("i8*", charBuf, elemAlloca);
+
+    this.loopContinueLabels.push(updateLabel);
+    this.loopBreakLabels.push(endLabel);
+    this.ctx.generateBlock(stmt.body, params);
+    this.loopContinueLabels.pop();
+    this.loopBreakLabels.pop();
+
+    const bodyHasTerminator = this.ctx.lastInstructionIsTerminator();
+    if (!bodyHasTerminator) {
+      this.ctx.emitBr(updateLabel);
+    }
+
+    this.ctx.emitLabel(updateLabel);
+    const loadedIndex = this.ctx.emitLoad("i32", indexAlloca);
+    const nextIndex = this.nextTemp();
+    this.emit(`${nextIndex} = add i32 ${loadedIndex}, 1`);
+    this.ctx.emitStore("i32", nextIndex, indexAlloca);
+    this.ctx.emitBr(condLabel);
+
+    this.ctx.emitLabel(endLabel);
+
+    return "0";
   }
 
   private generateMapEntriesForOf(stmt: ForOfStatement, params: string[]): string {
