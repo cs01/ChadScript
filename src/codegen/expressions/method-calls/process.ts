@@ -21,7 +21,7 @@ export function generateProcessExitInline(
     ctx.emit(`call void @exit(i32 0)`);
   }
   ctx.emit("unreachable");
-  return "0";
+  return "0.0";
 }
 
 export function generateProcessCwdInline(ctx: MethodCallGeneratorContext): string {
@@ -46,7 +46,7 @@ export function handleProcessChdir(
   const dirValue = ctx.generateExpression(expr.args[0], params);
   const result = ctx.nextTemp();
   ctx.emit(`${result} = call i32 @chdir(i8* ${dirValue})`);
-  return "0";
+  return "0.0";
 }
 
 export function handleProcessKill(
@@ -73,7 +73,7 @@ export function handleProcessKill(
 
   const result = ctx.nextTemp();
   ctx.emit(`${result} = call i32 @kill(i32 ${pidI32}, i32 ${sigI32})`);
-  return "0";
+  return "0.0";
 }
 
 export function handleProcessUptime(ctx: MethodCallGeneratorContext): string {
@@ -115,7 +115,7 @@ export function handleProcessWrite(
   params: string[],
 ): string {
   if (expr.args.length === 0) {
-    return "0";
+    return "0.0";
   }
 
   const memberAccess = expr.object as MemberAccessNode;

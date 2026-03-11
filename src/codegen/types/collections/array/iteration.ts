@@ -339,7 +339,7 @@ function generateNumericArrayForEach(
   gen.emitBr(checkLabel);
 
   gen.emitLabel(endLabel);
-  return "0";
+  return "0.0";
 }
 
 function generateStringArrayForEach(
@@ -389,7 +389,7 @@ function generateStringArrayForEach(
   gen.emitBr(checkLabel);
 
   gen.emitLabel(endLabel);
-  return "0";
+  return "0.0";
 }
 
 // ============================================

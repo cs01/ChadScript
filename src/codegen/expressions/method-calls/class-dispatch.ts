@@ -728,7 +728,7 @@ export function handleClassMethods(
     className = currentClass.extends;
 
     if (method === "") {
-      return "0";
+      return "0.0";
     }
   } else if (exprObjBase.type === "type_assertion") {
     const assertExpr = expr.object as TypeAssertionNode;
