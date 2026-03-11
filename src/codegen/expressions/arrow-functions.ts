@@ -330,7 +330,9 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
                 const retBin = stmtTyped.value as BinaryNode;
                 if (retBin.op === "+") {
                   const lt = this.inferReturnTypeFromBody(retBin.left as ArrowFunctionNode["body"]);
-                  const rt = this.inferReturnTypeFromBody(retBin.right as ArrowFunctionNode["body"]);
+                  const rt = this.inferReturnTypeFromBody(
+                    retBin.right as ArrowFunctionNode["body"],
+                  );
                   if (lt === "string" || rt === "string") return "string";
                 }
               }
