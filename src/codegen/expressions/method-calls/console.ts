@@ -446,6 +446,18 @@ function emitSingleArg(
     return;
   }
 
+  if (arg.type === "null") {
+    const str = ctx.stringGen.doCreateStringConstant("null");
+    emitPrintStrNoNl(ctx, useStderr, str);
+    return;
+  }
+
+  if (arg.type === "undefined") {
+    const str = ctx.stringGen.doCreateStringConstant("undefined");
+    emitPrintStrNoNl(ctx, useStderr, str);
+    return;
+  }
+
   if (arg.type === "variable") {
     const varName = (arg as VariableNode).name;
     const ifaceType =
