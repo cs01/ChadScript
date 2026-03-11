@@ -215,6 +215,9 @@ export class ExpressionGenerator {
       const hintParamTypes: string[] | undefined = cbParamType ? [cbParamType] : undefined;
       typeHints = { paramTypes: hintParamTypes, returnType: cbReturnType || undefined };
     }
+    if (!typeHints && expr.returnType) {
+      typeHints = { returnType: expr.returnType };
+    }
     const lambdaName = this.arrowFunctionGen.generateArrowFunction(
       expr,
       params,

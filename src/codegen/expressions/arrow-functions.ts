@@ -211,6 +211,14 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
   /**
    * Get closure info for a specific lambda by name.
    */
+  getLiftedFunctionByName(name: string): LiftedFunction | undefined {
+    for (let i = 0; i < this.liftedFunctions.length; i++) {
+      const f = this.liftedFunctions[i] as LiftedFunction;
+      if (f.name === name) return f;
+    }
+    return undefined;
+  }
+
   getClosureInfoForLambda(lambdaName: string): ClosureInfo | undefined {
     let funcResult: LiftedFunction | null = null;
     for (let i = 0; i < this.liftedFunctions.length; i++) {
@@ -317,6 +325,16 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
                 stmtTyped.value.type === "template_literal"
               ) {
                 return "string";
+              }
+              if (stmtTyped.value.type === "binary") {
+                const retBin = stmtTyped.value as BinaryNode;
+                if (retBin.op === "+") {
+                  const lt = this.inferReturnTypeFromBody(retBin.left as ArrowFunctionNode["body"]);
+                  const rt = this.inferReturnTypeFromBody(
+                    retBin.right as ArrowFunctionNode["body"],
+                  );
+                  if (lt === "string" || rt === "string") return "string";
+                }
               }
             }
           }
