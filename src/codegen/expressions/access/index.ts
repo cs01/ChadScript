@@ -349,23 +349,17 @@ export class IndexAccessGenerator {
   ): string {
     const arrayPtr = this.ctx.generateExpression(expr.object, params);
 
+    const indexDouble = this.ctx.generateExpression(expr.index, params);
+    const index = this.toI32Index(indexDouble);
+
+    this.emitBoundsCheck(arrayPtr, "%Uint8Array", index);
+
     const dataFieldPtr = this.ctx.nextTemp();
     this.ctx.emit(
       `${dataFieldPtr} = getelementptr inbounds %Uint8Array, %Uint8Array* ${arrayPtr}, i32 0, i32 0`,
     );
     const dataPtr = this.ctx.nextTemp();
     this.ctx.emit(`${dataPtr} = load i8*, i8** ${dataFieldPtr}`);
-
-    const indexDouble = this.ctx.generateExpression(expr.index, params);
-    const indexType = this.ctx.getVariableType(indexDouble);
-    let index = indexDouble;
-    if (indexType === "double") {
-      index = this.ctx.nextTemp();
-      this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
-    } else if (indexType === "i64") {
-      index = this.ctx.nextTemp();
-      this.ctx.emit(`${index} = trunc i64 ${indexDouble} to i32`);
-    }
 
     const dblValue = this.ctx.ensureDouble(value);
     const intValue = this.ctx.nextTemp();
