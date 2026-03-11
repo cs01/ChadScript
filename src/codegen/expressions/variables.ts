@@ -66,6 +66,16 @@ export class VariableExpressionGenerator {
       return temp;
     }
 
+    if (name === "NaN") {
+      this.ctx.setVariableType("0x7FF8000000000000", "double");
+      return "0x7FF8000000000000";
+    }
+
+    if (name === "Infinity") {
+      this.ctx.setVariableType("0x7FF0000000000000", "double");
+      return "0x7FF0000000000000";
+    }
+
     // Check if it's a class instance variable
     if (this.ctx.symbolTable.isClass(name)) {
       const classMeta = this.ctx.symbolTable.getClassInfo(name)!;
