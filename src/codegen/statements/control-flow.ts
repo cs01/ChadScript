@@ -24,6 +24,7 @@ import {
   ThrowStatement,
   ArrayNode,
   ForStatement,
+  CallNode,
 } from "../../ast/types.js";
 import { IGeneratorContext } from "../infrastructure/generator-context.js";
 import {
@@ -929,7 +930,7 @@ export class ControlFlowGenerator {
     }
 
     if (iterable.type === "call") {
-      const callNode = iterable as { type: string; name: string };
+      const callNode = iterable as CallNode;
       const ast = this.ctx.getAst();
       if (ast && ast.functions) {
         for (let fi = 0; fi < ast.functions.length; fi++) {

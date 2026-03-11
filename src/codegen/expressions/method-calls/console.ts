@@ -4,6 +4,7 @@ import {
   StringNode,
   VariableNode,
   BinaryNode,
+  UnaryNode,
 } from "../../../ast/types.js";
 import type { MethodCallGeneratorContext } from "../method-calls.js";
 
@@ -538,7 +539,7 @@ function emitSingleArg(
   }
 
   if (arg.type === "unary") {
-    const unaryArg = arg as { type: string; op: string };
+    const unaryArg = arg as UnaryNode;
     if (unaryArg.op === "!") {
       emitBooleanPrint(ctx, useStderr, argValue);
       return;
