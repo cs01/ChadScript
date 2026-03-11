@@ -8,6 +8,7 @@ import {
   NumberNode,
   IndexAccessNode,
   MemberAccessNode,
+  SourceLocation,
 } from "../../ast/types.js";
 import { stringifyObjectArrayLiteral, stringifyObjectArrayWithMeta } from "./json-array.js";
 
@@ -589,14 +590,113 @@ export class JsonGenerator {
       ) {
         return this.stringifyNumber(arg, params);
       }
+      if (this.ctx.symbolTable.isMap(varNode.name)) {
+        return this.stringifyMap(arg, params, varNode.name, spaces);
+      }
       return this.ctx.emitError(
-        `JSON.stringify: unsupported type for variable '${varNode.name}' — only string, number, boolean, interface, string[], number[], and object[] are supported`,
+        `JSON.stringify: unsupported type for variable '${varNode.name}' — only string, number, boolean, interface, string[], number[], object[], and Map are supported`,
       );
     }
 
     return this.ctx.emitError(
       "JSON.stringify: unsupported argument type — only string, number, boolean, interface, string[], number[], and object[] are supported",
     );
+  }
+
+  private stringifyMap(
+    arg: Expression,
+    params: string[],
+    varName: string,
+    spaces: number = 0,
+  ): string {
+    const mapMeta = this.ctx.symbolTable.getMapMetadata(varName);
+    if (!mapMeta || mapMeta.keyType !== "string") {
+      return this.ctx.emitError(
+        "JSON.stringify: only Map<string, *> is supported",
+        (arg as { loc?: SourceLocation }).loc,
+      );
+    }
+
+    const mapPtr = this.ctx.generateExpression(arg, params);
+    this.ctx.setUsesJson(true);
+
+    const capPtr = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${capPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 3`,
+    );
+    const capacity = this.ctx.emitLoad("i32", capPtr);
+    const keysFieldPtr = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${keysFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 0`,
+    );
+    const valsFieldPtr = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${valsFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 1`,
+    );
+    const keys = this.ctx.emitLoad("i8**", keysFieldPtr);
+    const vals = this.ctx.emitLoad("i8**", valsFieldPtr);
+
+    const jsonDoc = this.ctx.emitCall("i8*", "@csyyjson_create_obj", "");
+    const jsonObj = this.ctx.emitCall("i8*", "@csyyjson_mut_get_root", `i8* ${jsonDoc}`);
+
+    const counterAlloca = this.ctx.nextTemp();
+    this.ctx.emit(`${counterAlloca} = alloca i32`);
+    this.ctx.emitStore("i32", "0", counterAlloca);
+
+    const loopCond = this.ctx.nextLabel("json_map_cond");
+    const loopCheck = this.ctx.nextLabel("json_map_check");
+    const loopBody = this.ctx.nextLabel("json_map_body");
+    const loopLatch = this.ctx.nextLabel("json_map_latch");
+    const loopEnd = this.ctx.nextLabel("json_map_end");
+
+    this.ctx.emitBr(loopCond);
+    this.ctx.emitLabel(loopCond);
+    const i = this.ctx.emitLoad("i32", counterAlloca);
+    const cond = this.ctx.emitIcmp("slt", "i32", i, capacity);
+    this.ctx.emitBrCond(cond, loopCheck, loopEnd);
+
+    this.ctx.emitLabel(loopCheck);
+    const keyElemPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${keyElemPtr} = getelementptr inbounds i8*, i8** ${keys}, i32 ${i}`);
+    const keyAtSlot = this.ctx.emitLoad("i8*", keyElemPtr);
+    const isNull = this.ctx.emitIcmp("eq", "i8*", keyAtSlot, "null");
+    this.ctx.emitBrCond(isNull, loopLatch, loopBody);
+
+    this.ctx.emitLabel(loopBody);
+    const valElemPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${valElemPtr} = getelementptr inbounds i8*, i8** ${vals}, i32 ${i}`);
+    const valAtSlot = this.ctx.emitLoad("i8*", valElemPtr);
+
+    const isNumValue = mapMeta.valueType === "number";
+    if (isNumValue) {
+      const asI64 = this.ctx.nextTemp();
+      this.ctx.emit(`${asI64} = ptrtoint i8* ${valAtSlot} to i64`);
+      const asDouble = this.ctx.nextTemp();
+      this.ctx.emit(`${asDouble} = bitcast i64 ${asI64} to double`);
+      this.ctx.emitCallVoid(
+        "@csyyjson_obj_add_num",
+        `i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${keyAtSlot}, double ${asDouble}`,
+      );
+    } else {
+      this.ctx.emitCallVoid(
+        "@csyyjson_obj_add_str",
+        `i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${keyAtSlot}, i8* ${valAtSlot}`,
+      );
+    }
+
+    this.ctx.emitBr(loopLatch);
+
+    this.ctx.emitLabel(loopLatch);
+    const iCurrent = this.ctx.emitLoad("i32", counterAlloca);
+    const iNext = this.ctx.nextTemp();
+    this.ctx.emit(`${iNext} = add i32 ${iCurrent}, 1`);
+    this.ctx.emitStore("i32", iNext, counterAlloca);
+    this.ctx.emitBr(loopCond);
+
+    this.ctx.emitLabel(loopEnd);
+    const result = this.emitStringify(jsonDoc, spaces);
+    this.ctx.setVariableType(result, "i8*");
+    return result;
   }
 
   private extractInterfaceFromLlvmType(llvmType: string): string | null {

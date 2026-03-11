@@ -1,4 +1,10 @@
-// @test-compile-error: unsupported type — only string, number, boolean, interface, string[], number[], and object[] are supported
-const m: Map<string, number> = new Map();
-m.set("key", 42);
-JSON.stringify(m);
+// @test-description: json stringify map produces correct json
+function test() {
+  const m = new Map<string, string>();
+  m.set("hello", "world");
+  const result = JSON.stringify(m);
+  if (result === '{"hello":"world"}') {
+    console.log("TEST_PASSED");
+  }
+}
+test();
