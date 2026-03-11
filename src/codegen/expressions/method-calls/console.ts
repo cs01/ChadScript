@@ -168,10 +168,14 @@ function emitMapPrint(
   const structType = isString ? "%StringMap" : "%Map";
 
   const sizePtr = ctx.nextTemp();
-  ctx.emit(`${sizePtr} = getelementptr inbounds ${structType}, ${structType}* ${mapPtr}, i32 0, i32 2`);
+  ctx.emit(
+    `${sizePtr} = getelementptr inbounds ${structType}, ${structType}* ${mapPtr}, i32 0, i32 2`,
+  );
   const size = ctx.emitLoad("i32", sizePtr);
   const capPtr = ctx.nextTemp();
-  ctx.emit(`${capPtr} = getelementptr inbounds ${structType}, ${structType}* ${mapPtr}, i32 0, i32 3`);
+  ctx.emit(
+    `${capPtr} = getelementptr inbounds ${structType}, ${structType}* ${mapPtr}, i32 0, i32 3`,
+  );
   const capacity = ctx.emitLoad("i32", capPtr);
 
   const headerStr = ctx.stringGen.doCreateStringConstant("Map(");
@@ -200,9 +204,13 @@ function emitMapPrint(
   emitPrintStrNoNl(ctx, useStderr, openStr);
 
   const keysFieldPtr = ctx.nextTemp();
-  ctx.emit(`${keysFieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${mapPtr}, i32 0, i32 0`);
+  ctx.emit(
+    `${keysFieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${mapPtr}, i32 0, i32 0`,
+  );
   const valsFieldPtr = ctx.nextTemp();
-  ctx.emit(`${valsFieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${mapPtr}, i32 0, i32 1`);
+  ctx.emit(
+    `${valsFieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${mapPtr}, i32 0, i32 1`,
+  );
   const keys = ctx.emitLoad(isString ? "i8**" : "double*", keysFieldPtr);
   const vals = ctx.emitLoad(isString ? "i8**" : "double*", valsFieldPtr);
 
@@ -312,7 +320,9 @@ function emitSetPrint(
   const structType = isString ? "%StringSet" : "%Set";
 
   const sizePtr = ctx.nextTemp();
-  ctx.emit(`${sizePtr} = getelementptr inbounds ${structType}, ${structType}* ${setPtr}, i32 0, i32 1`);
+  ctx.emit(
+    `${sizePtr} = getelementptr inbounds ${structType}, ${structType}* ${setPtr}, i32 0, i32 1`,
+  );
   const size = ctx.emitLoad("i32", sizePtr);
 
   const headerStr = ctx.stringGen.doCreateStringConstant("Set(");
@@ -340,7 +350,9 @@ function emitSetPrint(
   emitPrintStrNoNl(ctx, useStderr, openStr);
 
   const dataFieldPtr = ctx.nextTemp();
-  ctx.emit(`${dataFieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${setPtr}, i32 0, i32 0`);
+  ctx.emit(
+    `${dataFieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${setPtr}, i32 0, i32 0`,
+  );
   const data = ctx.emitLoad(isString ? "i8**" : "double*", dataFieldPtr);
 
   const iAlloca = ctx.nextTemp();
