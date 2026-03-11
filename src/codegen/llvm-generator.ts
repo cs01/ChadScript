@@ -478,19 +478,11 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
 
   public emitError(message: string, loc?: SourceLocation, suggestion?: string): never {
-    // Print and exit immediately rather than throwing — in the native compiler,
-    // throw doesn't propagate across function boundaries.
-    if (loc) {
-      const file = loc.file || "<unknown>";
-      const line = loc.line || 0;
-      const col = loc.column || 0;
-      console.log(file + ":" + String(line) + ":" + String(col) + ": error: " + message);
-    } else {
-      console.log("error: " + message);
-    }
-    if (suggestion) {
-      console.log("  suggestion: " + suggestion);
-    }
+    this.diagnostics.error(message, loc, suggestion);
+    const output = this.diagnostics.formatDiagnostic(
+      this.diagnostics.getErrors()[this.diagnostics.getErrors().length - 1],
+    );
+    process.stderr.write(output);
     process.exit(1);
   }
 
@@ -2536,10 +2528,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
 
   generateParts(): string[] {
-    checkClosureMutations(this.ast);
-    checkUnionTypes(this.ast);
-    checkTypeAssertions(this.ast);
-    checkUninitializedFields(this.ast);
+    checkClosureMutations(this.ast, this.sourceCode);
+    checkUnionTypes(this.ast, this.sourceCode);
+    checkTypeAssertions(this.ast, this.sourceCode);
+    checkUninitializedFields(this.ast, this.sourceCode);
     this.stackEligibleVars = analyzeEscapes(this.ast);
 
     const irParts: string[] = [];

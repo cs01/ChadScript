@@ -7,6 +7,7 @@ import { LLVMGenerator, LLVMGeneratorOptions, SemaSymbolData } from "./codegen/l
 import { SemanticAnalyzer } from "./analysis/semantic-analyzer.js";
 import { AST, ImportDeclaration, FunctionNode, ClassNode, ClassMethod } from "./ast/types.js";
 import { TargetInfo } from "./target-types.js";
+import { setGlobalDiagnosticColor } from "./diagnostics/engine.js";
 
 const stdlibKeys: string[] = [];
 const stdlibValues: string[] = [];
@@ -95,6 +96,7 @@ export let extraLinkPaths: string[] = [];
 
 export function setDiagnosticColor(value: boolean): void {
   diagnosticColorEnabled = value;
+  setGlobalDiagnosticColor(value);
 }
 
 export function setSkipSemanticAnalysis(value: boolean): void {

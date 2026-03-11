@@ -31,17 +31,20 @@ import type {
   MapEntry,
   MethodCallNode,
 } from "../ast/types.js";
+import { formatCompileError } from "../diagnostics/engine.js";
 
-export function checkTypeAssertions(ast: AST): void {
-  const checker = new TypeAssertionChecker(ast);
+export function checkTypeAssertions(ast: AST, sourceCode: string): void {
+  const checker = new TypeAssertionChecker(ast, sourceCode);
   checker.check();
 }
 
 class TypeAssertionChecker {
   private ast: AST;
+  private sourceCode: string;
 
-  constructor(ast: AST) {
+  constructor(ast: AST, sourceCode: string) {
     this.ast = ast;
+    this.sourceCode = sourceCode;
   }
 
   check(): void {
@@ -441,26 +444,12 @@ class TypeAssertionChecker {
     }
 
     if (anyMismatch && !anyValid) {
-      let msg = "";
-      if (ta.loc) {
-        const file = ta.loc.file || "<input>";
-        msg += file + ":" + ta.loc.line + ":" + (ta.loc.column + 1) + ": error: ";
-      } else {
-        msg += "error: ";
-      }
-      msg +=
-        "named type assertion '" +
-        assertedType +
-        "' has wrong field indices relative to '" +
-        mismatchIfaceName +
-        "': " +
-        mismatchReason +
-        "\n";
       const tNames: string[] = [];
       for (let i = 0; i < tFields.length; i++) {
         tNames.push(this.stripOpt((tFields[i] as InterfaceField).name));
       }
-      msg += "  asserted type '" + assertedType + "': { " + tNames.join("; ") + " }\n";
+      const notes: string[] = [];
+      notes.push("asserted type '" + assertedType + "': { " + tNames.join("; ") + " }");
       const mismatchIface = this.getInterface(mismatchIfaceName);
       if (mismatchIface !== null) {
         const uF = this.getAllFields(mismatchIface);
@@ -468,17 +457,28 @@ class TypeAssertionChecker {
         for (let i = 0; i < uF.length; i++) {
           uNames.push((uF[i] as InterfaceField).name);
         }
-        msg += "  interface '" + mismatchIfaceName + "': { " + uNames.join("; ") + " }\n";
+        notes.push("interface '" + mismatchIfaceName + "': { " + uNames.join("; ") + " }");
       }
-      msg +=
-        "  note: GEP indices in native code are determined by field position in the asserted type\n";
-      msg +=
-        "  hint: '" +
-        assertedType +
-        "' fields must appear at the same positions as in '" +
-        mismatchIfaceName +
-        "'\n";
-      console.error(msg);
+      notes.push(
+        "GEP indices in native code are determined by field position in the asserted type",
+      );
+      const output = formatCompileError(
+        this.sourceCode,
+        "named type assertion '" +
+          assertedType +
+          "' has wrong field indices relative to '" +
+          mismatchIfaceName +
+          "': " +
+          mismatchReason,
+        ta.loc,
+        "'" +
+          assertedType +
+          "' fields must appear at the same positions as in '" +
+          mismatchIfaceName +
+          "'",
+        notes,
+      );
+      process.stderr.write(output);
       process.exit(1);
     }
   }
@@ -519,29 +519,22 @@ class TypeAssertionChecker {
     assertedNames: string[],
     reason: string,
   ): void {
-    let msg = "";
-    if (ta.loc) {
-      const file = ta.loc.file || "<input>";
-      msg += file + ":" + ta.loc.line + ":" + (ta.loc.column + 1) + ": error: ";
-    } else {
-      msg += "error: ";
-    }
-    msg +=
-      "inline type assertion fields do not form a valid prefix of '" +
-      iface.name +
-      "': " +
-      reason +
-      "\n";
-    msg += "  assertion: { " + assertedNames.join("; ") + " }\n";
     const ifaceFieldNames: string[] = [];
     for (let i = 0; i < ifaceFields.length; i++) {
       ifaceFieldNames.push((ifaceFields[i] as InterfaceField).name);
     }
-    msg += "  interface: { " + ifaceFieldNames.join("; ") + " }\n";
-    msg += "  note: inline assertion field positions define GEP indices in native code\n";
-    msg +=
-      "  hint: use 'as " + iface.name + "' or list fields as a prefix in exact interface order\n";
-    console.error(msg);
+    const output = formatCompileError(
+      this.sourceCode,
+      "inline type assertion fields do not form a valid prefix of '" + iface.name + "': " + reason,
+      ta.loc,
+      "use 'as " + iface.name + "' or list fields as a prefix in exact interface order",
+      [
+        "assertion: { " + assertedNames.join("; ") + " }",
+        "interface: { " + ifaceFieldNames.join("; ") + " }",
+        "inline assertion field positions define GEP indices in native code",
+      ],
+    );
+    process.stderr.write(output);
     process.exit(1);
   }
 

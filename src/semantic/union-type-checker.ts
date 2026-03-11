@@ -1,5 +1,6 @@
 import type { AST, SourceLocation } from "../ast/types.js";
 import { tsTypeToLlvm } from "../codegen/infrastructure/type-system.js";
+import { formatCompileError } from "../diagnostics/engine.js";
 
 function buildUnsafeAliases(ast: AST): string[] {
   const unsafeAliases: string[] = [];
@@ -40,43 +41,31 @@ function isUnsafeAlias(unsafeAliases: string[], typeName: string): boolean {
 }
 
 function reportUnionError(
+  sourceCode: string,
   funcName: string,
   aliasName: string,
   loc: SourceLocation | undefined,
 ): void {
-  let msg = "";
-  if (loc !== null && loc !== undefined) {
-    const file = loc.file || "<input>";
-    msg +=
-      file +
-      ":" +
-      loc.line +
-      ":" +
-      (loc.column + 1) +
-      ": error: in function '" +
+  const output = formatCompileError(
+    sourceCode,
+    "in function '" +
       funcName +
       "', parameter type '" +
       aliasName +
-      "' is a union type alias with mixed representations\n";
-  } else {
-    msg +=
-      "error: in function '" +
-      funcName +
-      "', parameter type '" +
-      aliasName +
-      "' is a union type alias with mixed representations\n";
-  }
-  msg +=
-    "  note: '" +
-    aliasName +
-    "' is a type alias for a union whose members have different native types (e.g., i8* vs double)\n";
-  msg +=
-    "  note: this will be miscompiled and segfault at runtime. Use a common base interface or separate the types.\n";
-  console.error(msg);
+      "' is a union type alias with mixed representations",
+    loc,
+    "use a common base interface or separate the types",
+    [
+      "'" +
+        aliasName +
+        "' is a type alias for a union whose members have different native types (e.g., i8* vs double)",
+    ],
+  );
+  process.stderr.write(output);
   process.exit(1);
 }
 
-export function checkUnionTypes(ast: AST): void {
+export function checkUnionTypes(ast: AST, sourceCode: string): void {
   const unsafeAliases = buildUnsafeAliases(ast);
 
   for (let i = 0; i < ast.functions.length; i++) {
@@ -87,7 +76,7 @@ export function checkUnionTypes(ast: AST): void {
     const locHolder = fn as { loc?: SourceLocation };
     for (let j = 0; j < paramTypes.length; j++) {
       if (isUnsafeAlias(unsafeAliases, paramTypes[j])) {
-        reportUnionError(fn.name, paramTypes[j], locHolder.loc);
+        reportUnionError(sourceCode, fn.name, paramTypes[j], locHolder.loc);
       }
     }
   }
@@ -102,7 +91,7 @@ export function checkUnionTypes(ast: AST): void {
       const locHolder = method as { loc?: SourceLocation };
       for (let j = 0; j < paramTypes.length; j++) {
         if (isUnsafeAlias(unsafeAliases, paramTypes[j])) {
-          reportUnionError(qualName, paramTypes[j], locHolder.loc);
+          reportUnionError(sourceCode, qualName, paramTypes[j], locHolder.loc);
         }
       }
     }

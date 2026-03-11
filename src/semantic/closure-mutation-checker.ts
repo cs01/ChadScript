@@ -25,16 +25,19 @@ import type {
   MapEntry,
   SourceLocation,
 } from "../ast/types.js";
+import { formatCompileError } from "../diagnostics/engine.js";
 
-export function checkClosureMutations(ast: AST): void {
-  const checker = new ClosureMutationChecker();
+export function checkClosureMutations(ast: AST, sourceCode: string): void {
+  const checker = new ClosureMutationChecker(sourceCode);
   checker.checkAST(ast);
 }
 
 class ClosureMutationChecker {
   private analyzer: ClosureAnalyzer;
+  private sourceCode: string;
 
-  constructor() {
+  constructor(sourceCode: string) {
+    this.sourceCode = sourceCode;
     this.analyzer = new ClosureAnalyzer();
   }
 
@@ -349,24 +352,14 @@ class ClosureMutationChecker {
   }
 
   private reportError(varName: string, loc?: SourceLocation): void {
-    let msg = "";
-    if (loc !== null && loc !== undefined) {
-      const file = loc.file || "<input>";
-      msg +=
-        file +
-        ":" +
-        loc.line +
-        ":" +
-        (loc.column + 1) +
-        ": error: variable '" +
-        varName +
-        "' is captured by a closure but reassigned after capture\n";
-    } else {
-      msg +=
-        "error: variable '" + varName + "' is captured by a closure but reassigned after capture\n";
-    }
-    msg += "  note: ChadScript closures capture by value; the closure will not see this change\n";
-    console.error(msg);
+    const output = formatCompileError(
+      this.sourceCode,
+      "variable '" + varName + "' is captured by a closure but reassigned after capture",
+      loc,
+      undefined,
+      ["ChadScript closures capture by value; the closure will not see this change"],
+    );
+    process.stderr.write(output);
     process.exit(1);
   }
 }

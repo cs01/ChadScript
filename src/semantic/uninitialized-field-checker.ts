@@ -14,13 +14,20 @@ import type {
   SwitchStatement,
   MemberAccessAssignmentNode,
 } from "../ast/types.js";
+import { formatCompileError } from "../diagnostics/engine.js";
 
-export function checkUninitializedFields(ast: AST): void {
-  const checker = new UninitializedFieldChecker();
+export function checkUninitializedFields(ast: AST, sourceCode: string): void {
+  const checker = new UninitializedFieldChecker(sourceCode);
   checker.check(ast);
 }
 
 class UninitializedFieldChecker {
+  private sourceCode: string;
+
+  constructor(sourceCode: string) {
+    this.sourceCode = sourceCode;
+  }
+
   check(ast: AST): void {
     for (let i = 0; i < ast.classes.length; i++) {
       this.checkClass(ast.classes[i]);
@@ -142,36 +149,50 @@ class UninitializedFieldChecker {
     }
   }
 
-  private emitErrors(cls: ClassNode, fields: ClassField[]): void {
-    for (let i = 0; i < fields.length; i++) {
-      const field = fields[i];
-      const loc = cls.loc;
-      if (loc) {
-        const file = loc.file || "<unknown>";
-        const line = loc.line || 0;
-        const col = loc.column || 0;
-        console.log(
-          file +
-            ":" +
-            String(line) +
-            ":" +
-            String(col) +
-            ": error: class '" +
-            cls.name +
-            "' has uninitialized field '" +
-            field.name +
-            "' — assign a value in the field declaration or constructor",
-        );
-      } else {
-        console.log(
-          "error: class '" +
-            cls.name +
-            "' has uninitialized field '" +
-            field.name +
-            "' — assign a value in the field declaration or constructor",
-        );
+  private findFieldLoc(
+    cls: ClassNode,
+    fieldName: string,
+  ): { line: number; column: number; file: string } | null {
+    if (!cls.loc || !this.sourceCode) return null;
+    const lines = this.sourceCode.split("\n");
+    const startLine = cls.loc.line - 1;
+    for (let i = startLine; i < lines.length; i++) {
+      const line = lines[i];
+      const idx = line.indexOf(fieldName);
+      if (idx !== -1) {
+        const before = line.substring(0, idx).trim();
+        const after = line.substring(idx + fieldName.length).trimStart();
+        if (
+          (before === "" ||
+            before === "public" ||
+            before === "private" ||
+            before === "protected" ||
+            before === "readonly") &&
+          (after.startsWith(":") || after.startsWith(";"))
+        ) {
+          return { line: i + 1, column: idx + 1, file: cls.loc.file || "<unknown>" };
+        }
       }
     }
+    return null;
+  }
+
+  private emitErrors(cls: ClassNode, fields: ClassField[]): void {
+    let output = "";
+    for (let i = 0; i < fields.length; i++) {
+      const field = fields[i];
+      const fieldLoc = this.findFieldLoc(cls, field.name);
+      const loc = fieldLoc
+        ? { file: fieldLoc.file, line: fieldLoc.line, column: fieldLoc.column, offset: 0 }
+        : cls.loc;
+      output += formatCompileError(
+        this.sourceCode,
+        "class '" + cls.name + "' has uninitialized field '" + field.name + "'",
+        loc,
+        "assign a value in the field declaration or constructor",
+      );
+    }
+    process.stderr.write(output);
     process.exit(1);
   }
 }
