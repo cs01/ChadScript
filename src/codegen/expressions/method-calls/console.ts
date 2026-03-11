@@ -1,4 +1,4 @@
-import { Expression, MethodCallNode, StringNode, VariableNode } from "../../../ast/types.js";
+import { Expression, MethodCallNode, StringNode, VariableNode, BinaryNode } from "../../../ast/types.js";
 import type { MethodCallGeneratorContext } from "../method-calls.js";
 
 function emitPrint(
@@ -510,6 +510,33 @@ function emitSingleArg(
   if (ctx.isBooleanExpression(arg)) {
     emitBooleanPrint(ctx, useStderr, argValue);
     return;
+  }
+
+  if (arg.type === "binary") {
+    const binArg = arg as BinaryNode;
+    const binOp = binArg.op;
+    if (
+      binOp === "===" ||
+      binOp === "!==" ||
+      binOp === "==" ||
+      binOp === "!=" ||
+      binOp === "<" ||
+      binOp === ">" ||
+      binOp === "<=" ||
+      binOp === ">=" ||
+      binOp === "instanceof"
+    ) {
+      emitBooleanPrint(ctx, useStderr, argValue);
+      return;
+    }
+  }
+
+  if (arg.type === "unary") {
+    const unaryArg = arg as { type: string; op: string };
+    if (unaryArg.op === "!") {
+      emitBooleanPrint(ctx, useStderr, argValue);
+      return;
+    }
   }
 
   const isString = ctx.isStringExpression(arg);
