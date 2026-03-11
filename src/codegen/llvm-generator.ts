@@ -1914,6 +1914,77 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
                   handled = true;
                   break;
                 }
+                if (this.isKnownClass(rt)) {
+                  const resolvedClassName = this.resolveImportAlias(rt);
+                  const fields = this.classGen
+                    ? this.classGen.getClassFields(resolvedClassName) || []
+                    : [];
+                  const llvmType = fields.length > 0 ? `%${resolvedClassName}_struct*` : "i32*";
+                  ir += `@${name} = global ${llvmType} null` + "\n";
+                  this.globalVariables.set(name, {
+                    llvmType,
+                    kind: SymbolKind.Class,
+                    initialized: false,
+                  });
+                  this.defineVariableWithMetadata(
+                    name,
+                    `@${name}`,
+                    llvmType,
+                    SymbolKind.Class,
+                    "global",
+                    createClassMetadata({ className: resolvedClassName }),
+                  );
+                  handled = true;
+                  break;
+                }
+                if (rt.endsWith("[]")) {
+                  const elementType = rt.substring(0, rt.length - 2);
+                  if (elementType === "string") {
+                    ir += `@${name} = global %StringArray* null` + "\n";
+                    this.globalVariables.set(name, {
+                      llvmType: "%StringArray*",
+                      kind: SymbolKind.StringArray,
+                      initialized: false,
+                    });
+                    this.defineVariable(
+                      name,
+                      `@${name}`,
+                      "%StringArray*",
+                      SymbolKind.StringArray,
+                      "global",
+                    );
+                    handled = true;
+                    break;
+                  }
+                  if (elementType === "number" || elementType === "boolean") {
+                    ir += `@${name} = global %Array* null` + "\n";
+                    this.globalVariables.set(name, {
+                      llvmType: "%Array*",
+                      kind: SymbolKind.Array,
+                      initialized: false,
+                    });
+                    this.defineVariable(name, `@${name}`, "%Array*", SymbolKind.Array, "global");
+                    handled = true;
+                    break;
+                  }
+                  ir += `@${name} = global %ObjectArray* null` + "\n";
+                  this.globalVariables.set(name, {
+                    llvmType: "%ObjectArray*",
+                    kind: SymbolKind.ObjectArray,
+                    initialized: false,
+                  });
+                  this.defineVariableWithMetadata(
+                    name,
+                    `@${name}`,
+                    "%ObjectArray*",
+                    SymbolKind.ObjectArray,
+                    "global",
+                    createInterfaceMetadata(elementType),
+                  );
+                  this.symbolTable.setRawInterfaceType(name, elementType);
+                  handled = true;
+                  break;
+                }
                 if (this.isTypeAlias(rt)) {
                   const commonProps = this.getTypeAliasCommonProperties(rt);
                   if (commonProps) {
@@ -2197,8 +2268,21 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           this.defineVariable(name, `@${name}`, llvmType, kind, "global");
           continue;
         } else if (isClassInstance) {
-          // Resolve import alias for default imports (e.g., import Foo from './bar' → BarClass)
-          const className = this.resolveImportAlias((stmt.value as NewNode).className);
+          let className = "";
+          const stmtValueType = (stmt.value as { type: string }).type;
+          if (stmtValueType === "new") {
+            className = this.resolveImportAlias((stmt.value as NewNode).className);
+          } else if (stmtValueType === "call") {
+            const callExpr = stmt.value as CallNode;
+            const func = callExpr.name
+              ? this.ast.functions.find((f) => f && f.name === callExpr.name && f.returnType)
+              : null;
+            className = func
+              ? this.resolveImportAlias(stripNullable(func.returnType!))
+              : resolved!.base;
+          } else {
+            className = resolved!.base;
+          }
           const fields = this.classGen ? this.classGen.getClassFields(className) || [] : [];
           llvmType = fields.length > 0 ? `%${className}_struct*` : "i32*";
           kind = SymbolKind.Class;
