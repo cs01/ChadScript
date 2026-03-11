@@ -444,7 +444,10 @@ function generateNumericArrayJoin(
   const sepOffset = gen.emitLoad("i64", offsetPtr);
   const sepDest = gen.nextTemp();
   gen.emit(`${sepDest} = getelementptr inbounds i8, i8* ${resultBuffer}, i64 ${sepOffset}`);
-  gen.emitCallVoid("@llvm.memcpy.p0i8.p0i8.i64", `i8* ${sepDest}, i8* ${separator}, i64 ${sepLen}, i1 false`);
+  gen.emitCallVoid(
+    "@llvm.memcpy.p0i8.p0i8.i64",
+    `i8* ${sepDest}, i8* ${separator}, i64 ${sepLen}, i1 false`,
+  );
   const sepNewOff = gen.nextTemp();
   gen.emit(`${sepNewOff} = add i64 ${sepOffset}, ${sepLen}`);
   gen.emitStore("i64", sepNewOff, offsetPtr);
@@ -473,7 +476,9 @@ function generateNumericArrayJoin(
   const remaining = gen.nextTemp();
   gen.emit(`${remaining} = sub i64 ${bufferSize}, ${curOff}`);
   const written = gen.nextTemp();
-  gen.emit(`${written} = call i32 (i8*, i64, i8*, ...) @snprintf(i8* ${dest}, i64 ${remaining}, i8* ${fmt}, double ${elemVal})`);
+  gen.emit(
+    `${written} = call i32 (i8*, i64, i8*, ...) @snprintf(i8* ${dest}, i64 ${remaining}, i8* ${fmt}, double ${elemVal})`,
+  );
   const writtenI64 = gen.nextTemp();
   gen.emit(`${writtenI64} = sext i32 ${written} to i64`);
   const newOff = gen.nextTemp();
