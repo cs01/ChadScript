@@ -149,7 +149,10 @@ class UninitializedFieldChecker {
     }
   }
 
-  private findFieldLoc(cls: ClassNode, fieldName: string): { line: number; column: number; file: string } | null {
+  private findFieldLoc(
+    cls: ClassNode,
+    fieldName: string,
+  ): { line: number; column: number; file: string } | null {
     if (!cls.loc || !this.sourceCode) return null;
     const lines = this.sourceCode.split("\n");
     const startLine = cls.loc.line - 1;
@@ -159,7 +162,14 @@ class UninitializedFieldChecker {
       if (idx !== -1) {
         const before = line.substring(0, idx).trim();
         const after = line.substring(idx + fieldName.length).trimStart();
-        if ((before === "" || before === "public" || before === "private" || before === "protected" || before === "readonly") && (after.startsWith(":") || after.startsWith(";"))) {
+        if (
+          (before === "" ||
+            before === "public" ||
+            before === "private" ||
+            before === "protected" ||
+            before === "readonly") &&
+          (after.startsWith(":") || after.startsWith(";"))
+        ) {
           return { line: i + 1, column: idx + 1, file: cls.loc.file || "<unknown>" };
         }
       }

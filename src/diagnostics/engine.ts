@@ -185,7 +185,14 @@ export class DiagnosticEngine {
 
           output += pad + " " + this.blue("|") + "\n";
           output += this.blue(lineNumStr.padStart(lineNumWidth) + " |") + " " + lineContent + "\n";
-          output += pad + " " + this.blue("|") + " " + " ".repeat(col - 1) + this.applyUnderlineColor(diag.severity, underline) + "\n";
+          output +=
+            pad +
+            " " +
+            this.blue("|") +
+            " " +
+            " ".repeat(col - 1) +
+            this.applyUnderlineColor(diag.severity, underline) +
+            "\n";
         }
       } else {
         output += pad + " " + this.blue("|") + "\n";
@@ -193,11 +200,13 @@ export class DiagnosticEngine {
 
       if (diag.suggestion) {
         output += pad + " " + this.blue("|") + "\n";
-        output += pad + " " + this.blue("=") + " " + this.bold("help:") + " " + diag.suggestion + "\n";
+        output +=
+          pad + " " + this.blue("=") + " " + this.bold("help:") + " " + diag.suggestion + "\n";
       }
       if (diag.notes) {
         for (let i = 0; i < diag.notes.length; i++) {
-          output += pad + " " + this.blue("=") + " " + this.bold("note:") + " " + diag.notes[i] + "\n";
+          output +=
+            pad + " " + this.blue("=") + " " + this.bold("note:") + " " + diag.notes[i] + "\n";
         }
       }
     } else {

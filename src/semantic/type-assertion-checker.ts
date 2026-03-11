@@ -459,12 +459,23 @@ class TypeAssertionChecker {
         }
         notes.push("interface '" + mismatchIfaceName + "': { " + uNames.join("; ") + " }");
       }
-      notes.push("GEP indices in native code are determined by field position in the asserted type");
+      notes.push(
+        "GEP indices in native code are determined by field position in the asserted type",
+      );
       const output = formatCompileError(
         this.sourceCode,
-        "named type assertion '" + assertedType + "' has wrong field indices relative to '" + mismatchIfaceName + "': " + mismatchReason,
+        "named type assertion '" +
+          assertedType +
+          "' has wrong field indices relative to '" +
+          mismatchIfaceName +
+          "': " +
+          mismatchReason,
         ta.loc,
-        "'" + assertedType + "' fields must appear at the same positions as in '" + mismatchIfaceName + "'",
+        "'" +
+          assertedType +
+          "' fields must appear at the same positions as in '" +
+          mismatchIfaceName +
+          "'",
         notes,
       );
       process.stderr.write(output);

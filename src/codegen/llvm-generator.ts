@@ -479,7 +479,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   public emitError(message: string, loc?: SourceLocation, suggestion?: string): never {
     this.diagnostics.error(message, loc, suggestion);
-    const output = this.diagnostics.formatDiagnostic(this.diagnostics.getErrors()[this.diagnostics.getErrors().length - 1]);
+    const output = this.diagnostics.formatDiagnostic(
+      this.diagnostics.getErrors()[this.diagnostics.getErrors().length - 1],
+    );
     process.stderr.write(output);
     process.exit(1);
   }

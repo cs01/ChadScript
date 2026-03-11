@@ -48,10 +48,18 @@ function reportUnionError(
 ): void {
   const output = formatCompileError(
     sourceCode,
-    "in function '" + funcName + "', parameter type '" + aliasName + "' is a union type alias with mixed representations",
+    "in function '" +
+      funcName +
+      "', parameter type '" +
+      aliasName +
+      "' is a union type alias with mixed representations",
     loc,
     "use a common base interface or separate the types",
-    ["'" + aliasName + "' is a type alias for a union whose members have different native types (e.g., i8* vs double)"],
+    [
+      "'" +
+        aliasName +
+        "' is a type alias for a union whose members have different native types (e.g., i8* vs double)",
+    ],
   );
   process.stderr.write(output);
   process.exit(1);
