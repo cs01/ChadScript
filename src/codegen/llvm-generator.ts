@@ -133,6 +133,7 @@ import { checkUnionTypes } from "../semantic/union-type-checker.js";
 import { checkTypeAssertions } from "../semantic/type-assertion-checker.js";
 import { checkUninitializedFields } from "../semantic/uninitialized-field-checker.js";
 import { analyzeEscapes } from "../semantic/escape-analysis.js";
+import { DebugMetadataBuilder } from "./infrastructure/debug-metadata.js";
 
 export interface SemaSymbolData {
   names: string[];
@@ -289,193 +290,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   // Debug info emitter (null when debug info is disabled)
   private debugInfoEmitter: number = 0;
   private currentSubprogramId: number = -1;
-  private dbgNextId: number = 8;
-  private dbgNodeKeys: number[] = [];
-  private dbgNodeValues: string[] = [];
-  private dbgFileId: number = -1;
-  private dbgCompileUnitId: number = -1;
-  private dbgSubroutineTypeId: number = -1;
-  private dbgSubprogramNames: string[] = [];
-  private dbgSubprogramIds: number[] = [];
-  private dbgLocationKeys: string[] = [];
-  private dbgLocationIds: number[] = [];
-  private dbgDwarfVerId: number = -1;
-  private dbgDebugInfoVerId: number = -1;
+  private dbgBuilder!: DebugMetadataBuilder;
 
   public usesGC: number = 0;
   public usesMathRandom: number = 0;
-
-  private dbgAlloc(): number {
-    const id = this.dbgNextId;
-    this.dbgNextId = this.dbgNextId + 1;
-    return id;
-  }
-
-  private dbgSetNode(id: number, value: string): void {
-    this.dbgNodeKeys.push(id);
-    this.dbgNodeValues.push(value);
-  }
-
-  private dbgEscape(s: string): string {
-    let result = "";
-    for (let i = 0; i < s.length; i++) {
-      const c = s[i];
-      if (c === '"') {
-        result = result + '\\"';
-      } else if (c === "\\") {
-        result = result + "\\\\";
-      } else {
-        result = result + c;
-      }
-    }
-    return result;
-  }
-
-  private dbgInit(sourceFilePath: string): void {
-    let lastSlash: number = -1;
-    for (let i = 0; i < sourceFilePath.length; i++) {
-      if (sourceFilePath.charAt(i) === "/") {
-        lastSlash = i;
-      }
-    }
-    let filename = sourceFilePath;
-    let directory = ".";
-    if (lastSlash >= 0) {
-      filename = sourceFilePath.substring(lastSlash + 1);
-      directory = sourceFilePath.substring(0, lastSlash);
-    }
-
-    this.dbgFileId = this.dbgAlloc();
-    this.dbgSetNode(
-      this.dbgFileId,
-      "!" +
-        String(this.dbgFileId) +
-        ' = !DIFile(filename: "' +
-        this.dbgEscape(filename) +
-        '", directory: "' +
-        this.dbgEscape(directory) +
-        '")',
-    );
-
-    this.dbgCompileUnitId = this.dbgAlloc();
-
-    this.dbgSubroutineTypeId = this.dbgAlloc();
-    this.dbgSetNode(
-      this.dbgSubroutineTypeId,
-      "!" + String(this.dbgSubroutineTypeId) + " = !DISubroutineType(types: !{})",
-    );
-  }
-
-  private dbgCreateSubprogram(name: string, line: number): number {
-    if (!this.debugInfoEnabled) return -1;
-    for (let i = 0; i < this.dbgSubprogramNames.length; i++) {
-      if (this.dbgSubprogramNames[i] === name) return this.dbgSubprogramIds[i];
-    }
-    const id = this.dbgAlloc();
-    this.dbgSetNode(
-      id,
-      "!" +
-        String(id) +
-        ' = distinct !DISubprogram(name: "' +
-        this.dbgEscape(name) +
-        '", ' +
-        "scope: !" +
-        String(this.dbgFileId) +
-        ", file: !" +
-        String(this.dbgFileId) +
-        ", line: " +
-        String(line) +
-        ", " +
-        "type: !" +
-        String(this.dbgSubroutineTypeId) +
-        ", isLocal: false, isDefinition: true, " +
-        "scopeLine: " +
-        String(line) +
-        ", unit: !" +
-        String(this.dbgCompileUnitId) +
-        ")",
-    );
-    this.dbgSubprogramNames.push(name);
-    this.dbgSubprogramIds.push(id);
-    return id;
-  }
-
-  private dbgCreateLocation(line: number, column: number, scopeId: number): number {
-    if (!this.debugInfoEnabled) return -1;
-    const key = String(line) + ":" + String(column) + ":" + String(scopeId);
-    for (let i = 0; i < this.dbgLocationKeys.length; i++) {
-      if (this.dbgLocationKeys[i] === key) return this.dbgLocationIds[i];
-    }
-    const id = this.dbgAlloc();
-    this.dbgSetNode(
-      id,
-      "!" +
-        String(id) +
-        " = !DILocation(line: " +
-        String(line) +
-        ", column: " +
-        String(column) +
-        ", scope: !" +
-        String(scopeId) +
-        ")",
-    );
-    this.dbgLocationKeys.push(key);
-    this.dbgLocationIds.push(id);
-    return id;
-  }
-
-  private dbgFinalize(): void {
-    if (!this.debugInfoEnabled) return;
-
-    this.dbgDwarfVerId = this.dbgAlloc();
-    this.dbgSetNode(
-      this.dbgDwarfVerId,
-      "!" + String(this.dbgDwarfVerId) + ' = !{i32 2, !"Dwarf Version", i32 4}',
-    );
-
-    this.dbgDebugInfoVerId = this.dbgAlloc();
-    this.dbgSetNode(
-      this.dbgDebugInfoVerId,
-      "!" + String(this.dbgDebugInfoVerId) + ' = !{i32 2, !"Debug Info Version", i32 3}',
-    );
-
-    this.dbgSetNode(
-      this.dbgCompileUnitId,
-      "!" +
-        String(this.dbgCompileUnitId) +
-        " = distinct !DICompileUnit(language: DW_LANG_C99, " +
-        "file: !" +
-        String(this.dbgFileId) +
-        ', producer: "ChadScript", isOptimized: false, ' +
-        "runtimeVersion: 0, emissionKind: FullDebug)",
-    );
-  }
-
-  private dbgGetNumberedMetadata(): string {
-    let result = "";
-    for (let id = 8; id < this.dbgNextId; id++) {
-      for (let i = 0; i < this.dbgNodeKeys.length; i++) {
-        if (this.dbgNodeKeys[i] === id) {
-          result = result + this.dbgNodeValues[i] + "\n";
-          break;
-        }
-      }
-    }
-    return result;
-  }
-
-  private dbgGetNamedMetadata(): string {
-    let result = "";
-    result = result + "!llvm.dbg.cu = !{!" + String(this.dbgCompileUnitId) + "}\n";
-    result =
-      result +
-      "!llvm.module.flags = !{!" +
-      String(this.dbgDwarfVerId) +
-      ", !" +
-      String(this.dbgDebugInfoVerId) +
-      "}\n";
-    return result;
-  }
 
   public emitError(message: string, loc?: SourceLocation, suggestion?: string): never {
     this.diagnostics.error(message, loc, suggestion);
@@ -1499,6 +1317,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.httpHandlers = [];
     this.wsHandlers = [];
     this.jsonObjectMetadata = new Map();
+    this.dbgBuilder = new DebugMetadataBuilder();
     this.usesTimers = 0;
     this.usesPromises = 0;
     this.usesSqlite = 0;
@@ -1556,7 +1375,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     if (options.debugInfo && this.filename) {
       const dbgFile = options.debugFilename || this.filename;
-      this.dbgInit(dbgFile);
+      this.dbgBuilder.init(dbgFile);
       this.debugInfoEnabled = true;
     }
 
@@ -3064,11 +2883,11 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     finalParts.push("!7 = !{!6, !6, i64 0}\n");
 
     if (this.debugInfoEnabled) {
-      this.dbgFinalize();
+      this.dbgBuilder.finalize();
       finalParts.push("\n; Debug metadata\n");
-      finalParts.push(this.dbgGetNumberedMetadata());
+      finalParts.push(this.dbgBuilder.getNumberedMetadata());
       finalParts.push("\n");
-      finalParts.push(this.dbgGetNamedMetadata());
+      finalParts.push(this.dbgBuilder.getNamedMetadata());
     }
 
     return finalParts;
@@ -3145,7 +2964,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     }
     if (this.debugInfoEnabled && func.name) {
       const line = this.getLocLine(func);
-      this.currentSubprogramId = this.dbgCreateSubprogram(func.name, line);
+      this.currentSubprogramId = this.dbgBuilder.createSubprogram(func.name, line);
     }
     const ir = this.funcGen.generate(func);
     this.currentSubprogramId = -1;
@@ -3459,7 +3278,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         const stmtLine = this.getLocLine(stmtRaw as { loc?: { line: number; column: number } });
         const stmtCol = this.getLocColumn(stmtRaw as { loc?: { line: number; column: number } });
         if (stmtLine > 0) {
-          this.currentDebugLocId = this.dbgCreateLocation(
+          this.currentDebugLocId = this.dbgBuilder.createLocation(
             stmtLine,
             stmtCol,
             this.currentSubprogramId,
@@ -3698,7 +3517,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       const exprLine = this.getLocLine(expr as { loc?: { line: number; column: number } });
       const exprCol = this.getLocColumn(expr as { loc?: { line: number; column: number } });
       if (exprLine > 0) {
-        this.currentDebugLocId = this.dbgCreateLocation(
+        this.currentDebugLocId = this.dbgBuilder.createLocation(
           exprLine,
           exprCol,
           this.currentSubprogramId,
@@ -3941,8 +3760,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   private generateMain(): string {
     if (this.debugInfoEnabled) {
-      this.currentSubprogramId = this.dbgCreateSubprogram("main", 0);
-      this.currentDebugLocId = this.dbgCreateLocation(1, 1, this.currentSubprogramId);
+      this.currentSubprogramId = this.dbgBuilder.createSubprogram("main", 0);
+      this.currentDebugLocId = this.dbgBuilder.createLocation(1, 1, this.currentSubprogramId);
     }
     let hasTry = false;
     for (let i = 0; i < this.ast.topLevelStatements.length; i++) {
