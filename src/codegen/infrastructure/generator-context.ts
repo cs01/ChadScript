@@ -2004,8 +2004,7 @@ export class MockGeneratorContext implements IGeneratorContext {
     generatePointerMapGet: (_mapPtr: string, _keyValue: string, _valueType: string): string =>
       "%mock_pointer_map_get",
     generatePointerMapClear: (_mapPtr: string): string => "%mock_pointer_map_clear",
-    generatePointerMapHas: (_mapPtr: string, _keyToFind: string): string =>
-      "%mock_pointer_map_has",
+    generatePointerMapHas: (_mapPtr: string, _keyToFind: string): string => "%mock_pointer_map_has",
     generatePointerMapDelete: (_mapPtr: string, _keyToFind: string): string =>
       "%mock_pointer_map_delete",
     generatePointerMapSize: (_mapPtr: string): string => "%mock_pointer_map_size",
