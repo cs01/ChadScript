@@ -30,14 +30,47 @@ import {
   handleMatch,
 } from "./string-methods.js";
 
+function rejectNonString(
+  ctx: MethodCallGeneratorContext,
+  method: string,
+  expr: MethodCallNode,
+): string | null {
+  if (
+    ctx.isArrayExpression(expr.object) ||
+    ctx.isStringArrayExpression(expr.object) ||
+    ctx.isObjectArrayExpression(expr.object) ||
+    ctx.isBooleanExpression(expr.object)
+  ) {
+    return ctx.emitError(
+      `.${method}() is only available on strings`,
+      expr.loc,
+    );
+  }
+  if (expr.object.type === "number") {
+    return ctx.emitError(
+      `.${method}() is only available on strings`,
+      expr.loc,
+    );
+  }
+  return null;
+}
+
 function dispatchStringBasicOps(
   ctx: MethodCallGeneratorContext,
   method: string,
   expr: MethodCallNode,
   params: string[],
 ): string | null {
-  if (method === "substr") return handleSubstr(ctx, expr, params);
-  if (method === "substring") return handleSubstring(ctx, expr, params);
+  if (method === "substr") {
+    const err = rejectNonString(ctx, method, expr);
+    if (err) return err;
+    return handleSubstr(ctx, expr, params);
+  }
+  if (method === "substring") {
+    const err = rejectNonString(ctx, method, expr);
+    if (err) return err;
+    return handleSubstring(ctx, expr, params);
+  }
   if (
     method === "concat" &&
     !ctx.isArrayExpression(expr.object) &&
@@ -45,7 +78,11 @@ function dispatchStringBasicOps(
     !ctx.isObjectArrayExpression(expr.object)
   )
     return handleConcat(ctx, expr, params);
-  if (method === "repeat") return handleRepeat(ctx, expr, params);
+  if (method === "repeat") {
+    const err = rejectNonString(ctx, method, expr);
+    if (err) return err;
+    return handleRepeat(ctx, expr, params);
+  }
   return null;
 }
 
@@ -55,10 +92,26 @@ function dispatchStringPadSplit(
   expr: MethodCallNode,
   params: string[],
 ): string | null {
-  if (method === "padStart") return handlePadStart(ctx, expr, params);
-  if (method === "padEnd") return handlePadEnd(ctx, expr, params);
-  if (method === "split") return handleSplit(ctx, expr, params);
-  if (method === "startsWith") return handleStartsWith(ctx, expr, params);
+  if (method === "padStart") {
+    const err = rejectNonString(ctx, method, expr);
+    if (err) return err;
+    return handlePadStart(ctx, expr, params);
+  }
+  if (method === "padEnd") {
+    const err = rejectNonString(ctx, method, expr);
+    if (err) return err;
+    return handlePadEnd(ctx, expr, params);
+  }
+  if (method === "split") {
+    const err = rejectNonString(ctx, method, expr);
+    if (err) return err;
+    return handleSplit(ctx, expr, params);
+  }
+  if (method === "startsWith") {
+    const err = rejectNonString(ctx, method, expr);
+    if (err) return err;
+    return handleStartsWith(ctx, expr, params);
+  }
   return null;
 }
 
@@ -68,10 +121,26 @@ function dispatchStringTrimOps(
   expr: MethodCallNode,
   params: string[],
 ): string | null {
-  if (method === "endsWith") return handleEndsWith(ctx, expr, params);
-  if (method === "trim") return handleTrim(ctx, expr, params);
-  if (method === "trimStart") return handleTrimStart(ctx, expr, params);
-  if (method === "trimEnd") return handleTrimEnd(ctx, expr, params);
+  if (method === "endsWith") {
+    const err = rejectNonString(ctx, method, expr);
+    if (err) return err;
+    return handleEndsWith(ctx, expr, params);
+  }
+  if (method === "trim") {
+    const err = rejectNonString(ctx, method, expr);
+    if (err) return err;
+    return handleTrim(ctx, expr, params);
+  }
+  if (method === "trimStart") {
+    const err = rejectNonString(ctx, method, expr);
+    if (err) return err;
+    return handleTrimStart(ctx, expr, params);
+  }
+  if (method === "trimEnd") {
+    const err = rejectNonString(ctx, method, expr);
+    if (err) return err;
+    return handleTrimEnd(ctx, expr, params);
+  }
   return null;
 }
 
@@ -81,10 +150,26 @@ function dispatchStringReplaceCase(
   expr: MethodCallNode,
   params: string[],
 ): string | null {
-  if (method === "replace") return handleReplace(ctx, expr, params);
-  if (method === "replaceAll") return handleReplaceAll(ctx, expr, params);
-  if (method === "charAt") return handleCharAt(ctx, expr, params);
-  if (method === "charCodeAt") return handleCharCodeAt(ctx, expr, params);
+  if (method === "replace") {
+    const err = rejectNonString(ctx, method, expr);
+    if (err) return err;
+    return handleReplace(ctx, expr, params);
+  }
+  if (method === "replaceAll") {
+    const err = rejectNonString(ctx, method, expr);
+    if (err) return err;
+    return handleReplaceAll(ctx, expr, params);
+  }
+  if (method === "charAt") {
+    const err = rejectNonString(ctx, method, expr);
+    if (err) return err;
+    return handleCharAt(ctx, expr, params);
+  }
+  if (method === "charCodeAt") {
+    const err = rejectNonString(ctx, method, expr);
+    if (err) return err;
+    return handleCharCodeAt(ctx, expr, params);
+  }
   return null;
 }
 
@@ -106,7 +191,11 @@ export function dispatchStringMethod(
     if (ctx.isArrayExpression(expr.object)) return ctx.arrayGen.generateArrayIndexOf(expr, params);
     return handleIndexOf(ctx, expr, params);
   }
-  if (method === "lastIndexOf") return handleLastIndexOf(ctx, expr, params);
+  if (method === "lastIndexOf") {
+    const err = rejectNonString(ctx, method, expr);
+    if (err) return err;
+    return handleLastIndexOf(ctx, expr, params);
+  }
   if (method === "includes") {
     if (ctx.isStringArrayExpression(expr.object))
       return handleStringArrayIncludes(ctx, expr, params);
@@ -122,8 +211,12 @@ export function dispatchStringMethod(
     return handleSlice(ctx, expr, params);
   const replaceCase = dispatchStringReplaceCase(ctx, method, expr, params);
   if (replaceCase) return replaceCase;
-  if (method === "toUpperCase") return handleToUpperCase(ctx, expr, params);
-  if (method === "toLowerCase") return handleToLowerCase(ctx, expr, params);
+  if (method === "toUpperCase" || method === "toLowerCase") {
+    const err = rejectNonString(ctx, method, expr);
+    if (err) return err;
+    if (method === "toUpperCase") return handleToUpperCase(ctx, expr, params);
+    return handleToLowerCase(ctx, expr, params);
+  }
   if (method === "toString") {
     if (
       !ctx.isStringExpression(expr.object) &&
