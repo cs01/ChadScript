@@ -1,4 +1,9 @@
-import type { Expression, MethodCallNode, VariableNode, MemberAccessNode } from "../../../ast/types.js";
+import type {
+  Expression,
+  MethodCallNode,
+  VariableNode,
+  MemberAccessNode,
+} from "../../../ast/types.js";
 import { parseSetTypeString } from "../../infrastructure/type-system.js";
 import type { MethodCallGeneratorContext } from "../method-calls.js";
 
