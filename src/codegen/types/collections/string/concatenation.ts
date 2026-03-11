@@ -1,6 +1,47 @@
-import { Expression } from "../../../../ast/types.js";
+import { Expression, BinaryNode, UnaryNode } from "../../../../ast/types.js";
 import { IGeneratorContext } from "../../../infrastructure/generator-context.js";
-import { convertNumberToString } from "./constants.js";
+import { convertNumberToString, createStringConstant } from "./constants.js";
+
+function isComparisonOp(op: string): boolean {
+  if (op === "===" || op === "!==" || op === "==" || op === "!=") return true;
+  if (op === "<" || op === ">" || op === "<=" || op === ">=") return true;
+  return false;
+}
+
+function isBooleanExpr(expr: Expression, valueType: string | null | undefined): boolean {
+  if (expr.type === "boolean") return true;
+  if (valueType === "i1") return true;
+  if (expr.type === "binary" && isComparisonOp((expr as BinaryNode).op)) return true;
+  if (expr.type === "unary" && (expr as UnaryNode).op === "!") return true;
+  return false;
+}
+
+function convertBooleanToString(ctx: IGeneratorContext, boolValue: string): string {
+  const trueStr = createStringConstant(ctx, "true");
+  const falseStr = createStringConstant(ctx, "false");
+  const varType = ctx.getVariableType(boolValue);
+  const cmp = ctx.nextTemp();
+  if (varType === "i1") {
+    ctx.emit(`${cmp} = select i1 ${boolValue}, i8* ${trueStr}, i8* ${falseStr}`);
+    ctx.setVariableType(cmp, "i8*");
+    return cmp;
+  } else if (varType === "i64") {
+    ctx.emit(`${cmp} = icmp ne i64 ${boolValue}, 0`);
+  } else {
+    ctx.emit(`${cmp} = fcmp one double ${boolValue}, 0.0`);
+  }
+  const selected = ctx.nextTemp();
+  ctx.emit(`${selected} = select i1 ${cmp}, i8* ${trueStr}, i8* ${falseStr}`);
+  ctx.setVariableType(selected, "i8*");
+  return selected;
+}
+
+function toStringValue(ctx: IGeneratorContext, expr: Expression, value: string): string {
+  const varType = ctx.getVariableType(value);
+  if (ctx.isStringExpression(expr) || varType === "i8*") return value;
+  if (isBooleanExpr(expr, varType)) return convertBooleanToString(ctx, value);
+  return convertNumberToString(ctx, value);
+}
 
 // ============================================
 // STRING CONCATENATION - String concatenation operations
@@ -15,11 +56,8 @@ export function generateStringConcat(
   const leftValue = ctx.generateExpression(left, params);
   const rightValue = ctx.generateExpression(right, params);
 
-  const leftIsString = ctx.isStringExpression(left) || ctx.getVariableType(leftValue) === "i8*";
-  const rightIsString = ctx.isStringExpression(right) || ctx.getVariableType(rightValue) === "i8*";
-
-  const leftStr = leftIsString ? leftValue : convertNumberToString(ctx, leftValue);
-  const rightStr = rightIsString ? rightValue : convertNumberToString(ctx, rightValue);
+  const leftStr = toStringValue(ctx, left, leftValue);
+  const rightStr = toStringValue(ctx, right, rightValue);
 
   return generateStringConcatDirect(ctx, leftStr, rightStr);
 }
