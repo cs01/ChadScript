@@ -787,7 +787,7 @@ export class CallExpressionGenerator {
 
     if (returnType === "void") {
       this.ctx.emitCallVoid(`@${mangledName}`, argsList.join(", "));
-      return "0";
+      return "0.0";
     }
 
     const temp = this.ctx.emitCall(returnType, `@${mangledName}`, argsList.join(", "));
@@ -1021,7 +1021,7 @@ export class CallExpressionGenerator {
     this.ctx.emitLabel(mergeLabel);
     this.ctx.setCurrentLabel(mergeLabel);
 
-    return "0";
+    return "0.0";
   }
 
   private generateDescribe(expr: CallNode, params: string[]): string {
@@ -1066,7 +1066,7 @@ export class CallExpressionGenerator {
     this.ctx.emit(`${decDepth} = sub i32 ${restoredDepth}, 1`);
     this.ctx.emitStore("i32", decDepth, "@__describe_depth");
 
-    return "0";
+    return "0.0";
   }
 
   private generateClearTimer(expr: CallNode, params: string[]): string {
@@ -1327,7 +1327,7 @@ export class CallExpressionGenerator {
         this.ctx.emitStore(fieldLlvmType, fieldValue, thisFieldPtr);
       }
     }
-    return "0";
+    return "0.0";
   }
 
   private getFieldLlvmTypeForTsType(tsType: string): string | null {

@@ -1246,7 +1246,7 @@ export class ClassGenerator {
       this.emit(
         `call void @${this.ctx.mangleUserName(methodOwnerClass)}_${methodName}(${argValues})`,
       );
-      return "0";
+      return "0.0";
     } else {
       const result = this.nextTemp();
       this.emit(

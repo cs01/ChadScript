@@ -2411,7 +2411,8 @@ export class VariableAllocator {
           this.ctx.emit(`${converted} = sitofp i64 ${value} to double`);
           this.ctx.emit(`store double ${converted}, double* ${allocaReg}`);
         } else {
-          this.ctx.emit(`store double ${value}, double* ${allocaReg}`);
+          const doubleVal = value === "0" ? "0.0" : value;
+          this.ctx.emit(`store double ${doubleVal}, double* ${allocaReg}`);
         }
       }
     }

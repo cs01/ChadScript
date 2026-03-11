@@ -296,7 +296,7 @@ function handleProcessCoreOps(
   if (method === "chdir") return handleProcessChdir(ctx, expr, params);
   if (method === "abort") {
     ctx.emit(`call void @abort()`);
-    return "0";
+    return "0.0";
   }
   return null;
 }

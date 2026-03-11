@@ -127,7 +127,7 @@ function handleNumberEquality(
   ctx.emitLabel(mergeLabel);
   ctx.setCurrentLabel(mergeLabel);
 
-  return "0";
+  return "0.0";
 }
 
 function handleStringEquality(
@@ -200,7 +200,7 @@ function handleStringEquality(
   ctx.emitLabel(mergeLabel);
   ctx.setCurrentLabel(mergeLabel);
 
-  return "0";
+  return "0.0";
 }
 
 export function handleAssertOk(
@@ -268,7 +268,7 @@ export function handleAssertOk(
   ctx.emitLabel(mergeLabel);
   ctx.setCurrentLabel(mergeLabel);
 
-  return "0";
+  return "0.0";
 }
 
 export function handleAssertDeepEqual(
@@ -378,7 +378,7 @@ function emitArrayDeepEqualNumber(
   ctx.emitLabel(doneLabel);
   ctx.setCurrentLabel(doneLabel);
 
-  return "0";
+  return "0.0";
 }
 
 function emitArrayDeepEqualString(
@@ -470,7 +470,7 @@ function emitArrayDeepEqualString(
   ctx.emitLabel(doneLabel);
   ctx.setCurrentLabel(doneLabel);
 
-  return "0";
+  return "0.0";
 }
 
 export function handleAssertFail(
@@ -489,5 +489,5 @@ export function handleAssertFail(
     );
   }
 
-  return "0";
+  return "0.0";
 }

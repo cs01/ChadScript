@@ -66,7 +66,6 @@ export class ProcessGenerator {
     // Call exit syscall (noreturn)
     this.ctx.emit(`call void @exit(i32 ${exitCode})`);
 
-    // Return a dummy value since exit doesn't return
-    return "0";
+    return "0.0";
   }
 }
