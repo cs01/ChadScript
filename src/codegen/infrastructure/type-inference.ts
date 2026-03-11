@@ -343,6 +343,7 @@ export class TypeInference {
 
   private resolveFromSymbolKind(name: string): ResolvedType | null {
     if (this.ctx.symbolTable.isString(name)) return this.ctx.typeContext.stringType;
+    if (this.ctx.symbolTable.isBoolean(name)) return this.ctx.typeContext.booleanType;
     if (this.ctx.symbolTable.isNumberArray(name))
       return this.ctx.typeContext.getArrayType("number");
     if (this.ctx.symbolTable.isMap(name))

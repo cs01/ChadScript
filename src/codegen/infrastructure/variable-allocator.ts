@@ -567,7 +567,7 @@ export class VariableAllocator {
         this.ctx.emit(`${allocaReg} = alloca i8*`);
         this.ctx.emit(`store i8* null, i8** ${allocaReg}`);
       } else if (baseType === "boolean") {
-        this.ctx.defineVariable(stmt.name, allocaReg, "double", SymbolKind.Number, "local");
+        this.ctx.defineVariable(stmt.name, allocaReg, "double", SymbolKind.Boolean, "local");
         this.ctx.emit(`${allocaReg} = alloca double`);
         this.ctx.emit(`store double 0.0, double* ${allocaReg}`);
       } else if (baseType === "number") {
@@ -2276,7 +2276,7 @@ export class VariableAllocator {
         return;
       }
       if (baseType === "boolean") {
-        this.ctx.defineVariable(stmt.name, allocaReg, "double", SymbolKind.Number, "local");
+        this.ctx.defineVariable(stmt.name, allocaReg, "double", SymbolKind.Boolean, "local");
         this.ctx.emit(`${allocaReg} = alloca double`);
         this.ctx.emit(`store double 0.0, double* ${allocaReg}`);
         return;
@@ -2391,12 +2391,16 @@ export class VariableAllocator {
       this.ctx.emit(`store ${valueType} ${value}, ${valueType}* ${allocaReg}`);
     } else {
       const allocaReg = this.ctx.nextAllocaReg(stmt.name);
+      const isBoolVal =
+        stmt.value!.type === "boolean" ||
+        (stmt.declaredType && stripNullable(stmt.declaredType) === "boolean");
+      const symKind = isBoolVal ? SymbolKind.Boolean : SymbolKind.Number;
       if (valueType === "i64" && this.isI64Eligible(stmt.name)) {
-        this.ctx.defineVariable(stmt.name, allocaReg, "i64", SymbolKind.Number, "local");
+        this.ctx.defineVariable(stmt.name, allocaReg, "i64", symKind, "local");
         this.ctx.emit(`${allocaReg} = alloca i64`);
         this.ctx.emit(`store i64 ${value}, i64* ${allocaReg}`);
       } else {
-        this.ctx.defineVariable(stmt.name, allocaReg, "double", SymbolKind.Number, "local");
+        this.ctx.defineVariable(stmt.name, allocaReg, "double", symKind, "local");
         this.ctx.emit(`${allocaReg} = alloca double`);
         if (valueType === "i32") {
           const converted = this.ctx.nextTemp();

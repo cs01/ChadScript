@@ -277,6 +277,8 @@ export class UnaryExpressionGenerator {
         typeString = "undefined";
       } else if (this.ctx.symbolTable.isString(varName)) {
         typeString = "string";
+      } else if (this.ctx.symbolTable.isBoolean(varName)) {
+        typeString = "boolean";
       } else if (operandType === "double" || operandType === "i64") {
         typeString = "number";
       } else {
