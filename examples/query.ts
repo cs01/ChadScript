@@ -1,4 +1,4 @@
-// SQLite Query - demonstrates embedded SQLite database operations
+// SQLite - embedded database with typed queries
 
 interface User {
   id: string;
@@ -6,33 +6,35 @@ interface User {
   role: string;
 }
 
-console.log("SQLite Demo");
-console.log("  database: :memory:");
-console.log("");
-
-const db = sqlite.open(":memory:");
-sqlite.exec(db, "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT, role TEXT)");
-sqlite.exec(db, "INSERT INTO users (name, role) VALUES (?, ?)", ["Alice", "admin"]);
-sqlite.exec(db, "INSERT INTO users (name, role) VALUES (?, ?)", ["Bob", "developer"]);
-sqlite.exec(db, "INSERT INTO users (name, role) VALUES (?, ?)", ["Charlie", "designer"]);
-
-console.log("Inserted 3 users. Querying...");
-console.log("");
-
-const rows: User[] = sqlite.query<User>(db, "SELECT id, name, role FROM users ORDER BY name");
-console.log("Found " + rows.length + " rows:");
-for (let i = 0; i < rows.length; i++) {
-  console.log("  " + rows[i].id + " | " + rows[i].name + " | " + rows[i].role);
+interface RoleCount {
+  role: string;
+  count: number;
 }
 
-console.log("");
+const db = sqlite.open(":memory:");
+
+sqlite.exec(db, "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, role TEXT)");
+sqlite.exec(db, "INSERT INTO users (name, role) VALUES (?, ?)", ["Alice", "admin"]);
+sqlite.exec(db, "INSERT INTO users (name, role) VALUES (?, ?)", ["Bob", "developer"]);
+sqlite.exec(db, "INSERT INTO users (name, role) VALUES (?, ?)", ["Charlie", "developer"]);
+sqlite.exec(db, "INSERT INTO users (name, role) VALUES (?, ?)", ["Diana", "designer"]);
+
+const users: User[] = sqlite.query<User>(db, "SELECT id, name, role FROM users ORDER BY name");
+for (let i = 0; i < users.length; i++) {
+  console.log("  " + users[i].id + " | " + users[i].name + " | " + users[i].role);
+}
+
 const alice: User = sqlite.getRow<User>(db, "SELECT id, name, role FROM users WHERE name = ?", [
   "Alice",
 ]);
-if (alice !== null) {
-  console.log("Alice's role: " + alice.role);
+console.log("Alice's role: " + alice.role);
+
+const counts: RoleCount[] = sqlite.query<RoleCount>(
+  db,
+  "SELECT role, COUNT(*) as count FROM users GROUP BY role ORDER BY count DESC",
+);
+for (let i = 0; i < counts.length; i++) {
+  console.log("  " + counts[i].role + ": " + counts[i].count);
 }
 
 sqlite.close(db);
-console.log("");
-console.log("Database closed.");

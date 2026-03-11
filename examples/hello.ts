@@ -1,4 +1,2 @@
-// Hello World - the simplest ChadScript program
+// Hello World - compiles to a native binary, no runtime needed
 console.log("Hello from ChadScript!");
-console.log("This is native code - no Node.js, no V8, no runtime.");
-console.log("Compiled from TypeScript to LLVM IR to a native binary.");
