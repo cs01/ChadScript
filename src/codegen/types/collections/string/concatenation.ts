@@ -2,7 +2,7 @@ import { Expression, BinaryNode, UnaryNode } from "../../../../ast/types.js";
 import { IGeneratorContext } from "../../../infrastructure/generator-context.js";
 import { convertNumberToString, createStringConstant } from "./constants.js";
 
-function isComparisonOp(op: string): boolean {
+function isConcatComparisonOp(op: string): boolean {
   if (op === "===" || op === "!==" || op === "==" || op === "!=") return true;
   if (op === "<" || op === ">" || op === "<=" || op === ">=") return true;
   return false;
@@ -11,7 +11,7 @@ function isComparisonOp(op: string): boolean {
 function isBooleanExpr(expr: Expression, valueType: string | null | undefined): boolean {
   if (expr.type === "boolean") return true;
   if (valueType === "i1") return true;
-  if (expr.type === "binary" && isComparisonOp((expr as BinaryNode).op)) return true;
+  if (expr.type === "binary" && isConcatComparisonOp((expr as BinaryNode).op)) return true;
   if (expr.type === "unary" && (expr as UnaryNode).op === "!") return true;
   return false;
 }
@@ -36,9 +36,29 @@ function convertBooleanToString(ctx: IGeneratorContext, boolValue: string): stri
   return selected;
 }
 
+function nullSafeStr(ctx: IGeneratorContext, value: string, expr: Expression): string {
+  if (expr.type === "null") {
+    return createStringConstant(ctx, "null");
+  }
+  if (expr.type === "undefined") {
+    return createStringConstant(ctx, "undefined");
+  }
+  const varType = ctx.getVariableType(value);
+  if (varType === "i8*" || value.startsWith("@.str")) {
+    const nullStr = createStringConstant(ctx, "null");
+    const isNull = ctx.nextTemp();
+    ctx.emit(`${isNull} = icmp eq i8* ${value}, null`);
+    const safe = ctx.nextTemp();
+    ctx.emit(`${safe} = select i1 ${isNull}, i8* ${nullStr}, i8* ${value}`);
+    ctx.setVariableType(safe, "i8*");
+    return safe;
+  }
+  return value;
+}
+
 function toStringValue(ctx: IGeneratorContext, expr: Expression, value: string): string {
   const varType = ctx.getVariableType(value);
-  if (ctx.isStringExpression(expr) || varType === "i8*") return value;
+  if (ctx.isStringExpression(expr) || varType === "i8*") return nullSafeStr(ctx, value, expr);
   if (isBooleanExpr(expr, varType)) return convertBooleanToString(ctx, value);
   return convertNumberToString(ctx, value);
 }
