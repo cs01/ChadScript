@@ -204,6 +204,7 @@ export interface MethodCallGeneratorContext {
   ensureI64(value: string): string;
   getWantsBinaryReturn(): boolean;
   isUint8ArrayExpression(expr: Expression): boolean;
+  isBooleanExpression(expr: Expression): boolean;
   setUsesOs(value: boolean): void;
 }
 

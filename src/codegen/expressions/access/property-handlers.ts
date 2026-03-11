@@ -340,6 +340,13 @@ export function handleLengthProperty(
   }
 
   if (exprObjType === "variable") {
+    const varName = (expr.object as VariableNode).name;
+    if (ctx.symbolTable.isNumber(varName) || ctx.symbolTable.isBoolean(varName)) {
+      return ctx.emitError(
+        `.length is not available on type '${ctx.symbolTable.isNumber(varName) ? "number" : "boolean"}'`,
+        expr.loc,
+      );
+    }
     const objPtr = ctx.generateExpression(expr.object, params);
     const ptrType = ctx.getVariableType(objPtr);
     if (ptrType === "%StringArray*") {
@@ -351,6 +358,10 @@ export function handleLengthProperty(
     if (ptrType === "%ObjectArray*") {
       return getArrayLengthFromPtr(ctx, objPtr, "%ObjectArray");
     }
+  }
+
+  if (exprObjType === "number") {
+    return ctx.emitError(`.length is not available on type 'number'`, expr.loc);
   }
 
   return getStringLength(ctx, expr.object, params);
