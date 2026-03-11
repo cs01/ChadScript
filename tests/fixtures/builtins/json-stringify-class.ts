@@ -13,7 +13,7 @@ class User {
 function test() {
   const u = new User("chad", 30, true);
   const result = JSON.stringify(u);
-  if (result === '{"name":"chad","age":30.0,"active":true}') {
+  if (result === '{"name":"chad","age":30,"active":true}') {
     console.log("TEST_PASSED");
   } else {
     console.log("FAIL: " + result);

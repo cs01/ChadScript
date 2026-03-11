@@ -125,7 +125,11 @@ void csyyjson_arr_add_str(void *doc, void *arr, const char *val) {
 
 void csyyjson_arr_add_num(void *doc, void *arr, double val) {
     if (!doc || !arr) return;
-    yyjson_mut_arr_add_real((yyjson_mut_doc *)doc, (yyjson_mut_val *)arr, val);
+    if (val == (double)(int64_t)val && val >= -9007199254740992.0 && val <= 9007199254740992.0) {
+        yyjson_mut_arr_add_int((yyjson_mut_doc *)doc, (yyjson_mut_val *)arr, (int64_t)val);
+    } else {
+        yyjson_mut_arr_add_real((yyjson_mut_doc *)doc, (yyjson_mut_val *)arr, val);
+    }
 }
 
 void *csyyjson_mut_get_root(void *doc) {
@@ -140,7 +144,11 @@ void csyyjson_obj_add_str(void *doc, void *obj, const char *key, const char *val
 
 void csyyjson_obj_add_num(void *doc, void *obj, const char *key, double val) {
     if (!doc || !obj || !key) return;
-    yyjson_mut_obj_add_real((yyjson_mut_doc *)doc, (yyjson_mut_val *)obj, key, val);
+    if (val == (double)(int64_t)val && val >= -9007199254740992.0 && val <= 9007199254740992.0) {
+        yyjson_mut_obj_add_int((yyjson_mut_doc *)doc, (yyjson_mut_val *)obj, key, (int64_t)val);
+    } else {
+        yyjson_mut_obj_add_real((yyjson_mut_doc *)doc, (yyjson_mut_val *)obj, key, val);
+    }
 }
 
 void csyyjson_obj_add_bool(void *doc, void *obj, const char *key, int val) {

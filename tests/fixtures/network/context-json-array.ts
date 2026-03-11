@@ -22,7 +22,7 @@ function test(): void {
     headers: "",
     bodyLen: 0,
   });
-  if (r1.body !== '[{"name":"Alice","age":30.0}]') {
+  if (r1.body !== '[{"name":"Alice","age":30}]') {
     console.log("FAIL literal: " + r1.body);
     process.exit(1);
   }
@@ -35,7 +35,7 @@ function test(): void {
     headers: "",
     bodyLen: 0,
   });
-  if (r2.body !== '[{"name":"Alice","age":30.0}]') {
+  if (r2.body !== '[{"name":"Alice","age":30}]') {
     console.log("FAIL variable: " + r2.body);
     process.exit(1);
   }
