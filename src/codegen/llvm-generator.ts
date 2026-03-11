@@ -2538,22 +2538,41 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               exprNodeType === "index_access" ||
               exprNodeType === "member_access"
             ) {
-              // Use i64 for integer-eligible globals to avoid double conversion overhead
-              let isI64 = false;
-              for (let ei = 0; ei < i64Eligible.length; ei++) {
-                if (i64Eligible[ei] === name) {
-                  isI64 = true;
-                  break;
+              let isNumber = true;
+              const resolved = stmt.value
+                ? this.typeInference.resolveExpressionType(stmt.value)
+                : null;
+              if (resolved) {
+                const base = resolved.base;
+                if (base === "string") {
+                  llvmType = "i8*";
+                  kind = SymbolKind.String;
+                  defaultValue = "null";
+                  isNumber = false;
+                } else if (base === "boolean") {
+                  llvmType = "i1";
+                  kind = SymbolKind.Boolean;
+                  defaultValue = "0";
+                  isNumber = false;
                 }
               }
-              if (isI64) {
-                llvmType = "i64";
-                kind = SymbolKind.Number;
-                defaultValue = "0";
-              } else {
-                llvmType = "double";
-                kind = SymbolKind.Number;
-                defaultValue = "0.0";
+              if (isNumber) {
+                let isI64 = false;
+                for (let ei = 0; ei < i64Eligible.length; ei++) {
+                  if (i64Eligible[ei] === name) {
+                    isI64 = true;
+                    break;
+                  }
+                }
+                if (isI64) {
+                  llvmType = "i64";
+                  kind = SymbolKind.Number;
+                  defaultValue = "0";
+                } else {
+                  llvmType = "double";
+                  kind = SymbolKind.Number;
+                  defaultValue = "0.0";
+                }
               }
             } else {
               return this.emitError(
