@@ -525,19 +525,13 @@ export class MapGenerator {
     const dataPtr = this.ctx.emitBitcast(dataMem, "i8*", "double*");
 
     const dataPtrField = this.nextTemp();
-    this.emit(
-      `${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`,
-    );
+    this.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
     this.ctx.emitStore("double*", dataPtr, dataPtrField);
     const lenFieldPtr = this.nextTemp();
-    this.emit(
-      `${lenFieldPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`,
-    );
+    this.emit(`${lenFieldPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
     this.ctx.emitStore("i32", mapSize, lenFieldPtr);
     const capFieldPtr = this.nextTemp();
-    this.emit(
-      `${capFieldPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 2`,
-    );
+    this.emit(`${capFieldPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 2`);
     this.ctx.emitStore("i32", mapSize, capFieldPtr);
 
     const loopLabel = this.nextLabel("map_keys_loop");
@@ -556,14 +550,10 @@ export class MapGenerator {
 
     this.ctx.emitLabel(bodyLabel);
     const srcPtr = this.nextTemp();
-    this.emit(
-      `${srcPtr} = getelementptr inbounds double, double* ${keysPtr}, i32 ${currentIndex}`,
-    );
+    this.emit(`${srcPtr} = getelementptr inbounds double, double* ${keysPtr}, i32 ${currentIndex}`);
     const keyVal = this.ctx.emitLoad("double", srcPtr);
     const dstPtr = this.nextTemp();
-    this.emit(
-      `${dstPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${currentIndex}`,
-    );
+    this.emit(`${dstPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${currentIndex}`);
     this.ctx.emitStore("double", keyVal, dstPtr);
     const nextIndex = this.nextTemp();
     this.emit(`${nextIndex} = add i32 ${currentIndex}, 1`);
@@ -595,19 +585,13 @@ export class MapGenerator {
     const dataPtr = this.ctx.emitBitcast(dataMem, "i8*", "double*");
 
     const dataPtrField = this.nextTemp();
-    this.emit(
-      `${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`,
-    );
+    this.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
     this.ctx.emitStore("double*", dataPtr, dataPtrField);
     const lenFieldPtr = this.nextTemp();
-    this.emit(
-      `${lenFieldPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`,
-    );
+    this.emit(`${lenFieldPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
     this.ctx.emitStore("i32", mapSize, lenFieldPtr);
     const capFieldPtr = this.nextTemp();
-    this.emit(
-      `${capFieldPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 2`,
-    );
+    this.emit(`${capFieldPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 2`);
     this.ctx.emitStore("i32", mapSize, capFieldPtr);
 
     const loopLabel = this.nextLabel("map_values_loop");
@@ -631,9 +615,7 @@ export class MapGenerator {
     );
     const val = this.ctx.emitLoad("double", srcPtr);
     const dstPtr = this.nextTemp();
-    this.emit(
-      `${dstPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${currentIndex}`,
-    );
+    this.emit(`${dstPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${currentIndex}`);
     this.ctx.emitStore("double", val, dstPtr);
     const nextIndex = this.nextTemp();
     this.emit(`${nextIndex} = add i32 ${currentIndex}, 1`);
