@@ -579,16 +579,24 @@ export class JsonGenerator {
       return this.stringifyInterface(arg, params, interfaceType, spaces);
     }
 
-    if (arg.type === "number" || arg.type === "boolean") {
+    if (arg.type === "number") {
       return this.stringifyNumber(arg, params);
+    }
+    if (arg.type === "boolean") {
+      return this.stringifyBoolean(arg, params);
+    }
+    if (arg.type === "null") {
+      const result = this.ctx.createStringConstant("null");
+      this.ctx.setVariableType(result, "i8*");
+      return result;
     }
     if (arg.type === "variable") {
       const varNode = arg as VariableNode;
-      if (
-        this.ctx.symbolTable.isNumber(varNode.name) ||
-        this.ctx.symbolTable.isBoolean(varNode.name)
-      ) {
+      if (this.ctx.symbolTable.isNumber(varNode.name)) {
         return this.stringifyNumber(arg, params);
+      }
+      if (this.ctx.symbolTable.isBoolean(varNode.name)) {
+        return this.stringifyBoolean(arg, params);
       }
       if (this.ctx.symbolTable.isMap(varNode.name)) {
         return this.stringifyMap(arg, params, varNode.name, spaces);
@@ -606,12 +614,12 @@ export class JsonGenerator {
         );
       }
       return this.ctx.emitError(
-        `JSON.stringify: unsupported type for variable '${varNode.name}' — only string, number, boolean, interface, class, string[], number[], object[], and Map are supported`,
+        `JSON.stringify: unsupported type for variable '${varNode.name}' — only string, number, boolean, null, interface, class, string[], number[], object[], and Map are supported`,
       );
     }
 
     return this.ctx.emitError(
-      "JSON.stringify: unsupported argument type — only string, number, boolean, interface, string[], number[], and object[] are supported",
+      "JSON.stringify: unsupported argument type — only string, number, boolean, null, interface, string[], number[], and object[] are supported",
     );
   }
 
@@ -1207,8 +1215,7 @@ export class JsonGenerator {
 
     const buffer = this.ctx.emitCall("i8*", "@GC_malloc_atomic", "i64 30");
 
-    const formatStr = this.ctx.createStringConstant("%f");
-    // sprintf has variadic signature — keep as raw emit
+    const formatStr = this.ctx.createStringConstant("%.15g");
     const sprintfResult = this.ctx.nextTemp();
     this.ctx.emit(
       `${sprintfResult} = call i32 (i8*, i8*, ...) @sprintf(i8* ${buffer}, i8* ${formatStr}, double ${dblValue})`,
@@ -1216,5 +1223,26 @@ export class JsonGenerator {
 
     this.ctx.setVariableType(buffer, "i8*");
     return buffer;
+  }
+
+  private stringifyBoolean(arg: Expression, params: string[]): string {
+    const boolValue = this.ctx.generateExpression(arg, params);
+    const trueStr = this.ctx.createStringConstant("true");
+    const falseStr = this.ctx.createStringConstant("false");
+    const varType = this.ctx.getVariableType(boolValue);
+    let boolI1: string;
+    if (varType === "i1") {
+      boolI1 = boolValue;
+    } else if (varType === "double") {
+      boolI1 = this.ctx.nextTemp();
+      this.ctx.emit(`${boolI1} = fcmp one double ${boolValue}, 0.0`);
+    } else {
+      boolI1 = this.ctx.nextTemp();
+      this.ctx.emit(`${boolI1} = trunc i64 ${boolValue} to i1`);
+    }
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = select i1 ${boolI1}, i8* ${trueStr}, i8* ${falseStr}`);
+    this.ctx.setVariableType(result, "i8*");
+    return result;
   }
 }
