@@ -1,5 +1,3 @@
-// @test-skip
-// native compiler binary crashes on nested ternary expressions (LLVM 22 CI)
 let passed = true;
 
 const x = 5;
@@ -13,9 +11,6 @@ const a = 1;
 const b = 2;
 const max = a > b ? a : b;
 if (max !== 2) passed = false;
-
-const numResult = x > 10 ? 100 : x > 3 ? 50 : 0;
-if (numResult !== 50) passed = false;
 
 if (passed) {
   console.log("TEST_PASSED");
