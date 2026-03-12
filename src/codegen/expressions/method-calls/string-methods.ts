@@ -241,11 +241,18 @@ export function handleEndsWith(
 ): string {
   const strPtr = ctx.generateExpression(expr.object, params);
 
-  if (expr.args.length !== 1) {
-    return ctx.emitError(`endsWith() expects 1 argument, got ${expr.args.length}`, expr.loc);
+  if (expr.args.length < 1 || expr.args.length > 2) {
+    return ctx.emitError(`endsWith() expects 1 or 2 arguments, got ${expr.args.length}`, expr.loc);
   }
 
   const suffix = ctx.generateExpression(expr.args[0], params);
+
+  if (expr.args.length === 2) {
+    const endPosDouble = ctx.generateExpression(expr.args[1], params);
+    const endPosition = convertToI32(ctx, endPosDouble);
+    return ctx.stringGen.doGenerateEndsWithPosition(strPtr, suffix, endPosition);
+  }
+
   return ctx.stringGen.doGenerateEndsWith(strPtr, suffix);
 }
 
@@ -492,11 +499,18 @@ export function handleStringIncludes(
     );
   }
 
-  if (expr.args.length !== 1) {
-    return ctx.emitError(`includes() expects 1 argument, got ${expr.args.length}`, expr.loc);
+  if (expr.args.length < 1 || expr.args.length > 2) {
+    return ctx.emitError(`includes() expects 1 or 2 arguments, got ${expr.args.length}`, expr.loc);
   }
 
   const substring = ctx.generateExpression(expr.args[0], params);
+
+  if (expr.args.length === 2) {
+    const fromIndexDouble = ctx.generateExpression(expr.args[1], params);
+    const fromIndex = convertToI32(ctx, fromIndexDouble);
+    return ctx.stringGen.doGenerateIncludesFrom(strPtr, substring, fromIndex);
+  }
+
   return ctx.stringGen.doGenerateIncludes(strPtr, substring);
 }
 

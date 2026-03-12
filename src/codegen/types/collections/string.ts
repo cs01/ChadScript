@@ -31,7 +31,9 @@ import {
   generateLastIndexOf,
   generateLastIndexOfFrom,
   generateIncludes,
+  generateIncludesFrom,
   generateEndsWith,
+  generateEndsWithPosition,
 } from "./string/search.js";
 import { generateSplit } from "./string/split.js";
 
@@ -154,8 +156,16 @@ export class StringGenerator implements IStringGenerator {
     return generateIncludes(this.ctx, strPtr, substring);
   }
 
+  doGenerateIncludesFrom(strPtr: string, substring: string, fromIndex: string): string {
+    return generateIncludesFrom(this.ctx, strPtr, substring, fromIndex);
+  }
+
   doGenerateEndsWith(strPtr: string, suffix: string): string {
     return generateEndsWith(this.ctx, strPtr, suffix);
+  }
+
+  doGenerateEndsWithPosition(strPtr: string, suffix: string, endPosition: string): string {
+    return generateEndsWithPosition(this.ctx, strPtr, suffix, endPosition);
   }
 
   // ============================================

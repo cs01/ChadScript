@@ -426,3 +426,110 @@ export function generateEndsWith(ctx: IGeneratorContext, strPtr: string, suffix:
 
   return result;
 }
+
+export function generateIncludesFrom(
+  ctx: IGeneratorContext,
+  strPtr: string,
+  substring: string,
+  fromIndex: string,
+): string {
+  const strLen = ctx.emitCall("i64", "@strlen", `i8* ${strPtr}`);
+  const strLenI32 = ctx.nextTemp();
+  ctx.emit(`${strLenI32} = trunc i64 ${strLen} to i32`);
+
+  const isNeg = ctx.emitIcmp("slt", "i32", fromIndex, "0");
+  const clamped0 = ctx.nextTemp();
+  ctx.emit(`${clamped0} = select i1 ${isNeg}, i32 0, i32 ${fromIndex}`);
+  const pastEnd = ctx.emitIcmp("sge", "i32", clamped0, strLenI32);
+
+  const searchLabel = ctx.nextLabel("includes_from_search");
+  const pastEndLabel = ctx.nextLabel("includes_from_pastend");
+  const endLabel = ctx.nextLabel("includes_from_end");
+  ctx.emitBrCond(pastEnd, pastEndLabel, searchLabel);
+
+  ctx.emitLabel(pastEndLabel);
+  ctx.emitBr(endLabel);
+
+  ctx.emitLabel(searchLabel);
+  const offsetI64 = ctx.nextTemp();
+  ctx.emit(`${offsetI64} = zext i32 ${clamped0} to i64`);
+  const offsetPtr = ctx.nextTemp();
+  ctx.emit(`${offsetPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${offsetI64}`);
+  const foundPtr = ctx.emitCall("i8*", "@strstr", `i8* ${offsetPtr}, i8* ${substring}`);
+  const isNotNull = ctx.emitIcmp("ne", "i8*", foundPtr, "null");
+  const foundI32 = ctx.nextTemp();
+  ctx.emit(`${foundI32} = zext i1 ${isNotNull} to i32`);
+  ctx.emitBr(endLabel);
+
+  ctx.emitLabel(endLabel);
+  const resultI32 = ctx.nextTemp();
+  ctx.emit(`${resultI32} = phi i32 [ 0, %${pastEndLabel} ], [ ${foundI32}, %${searchLabel} ]`);
+
+  const result = ctx.nextTemp();
+  ctx.emit(`${result} = sitofp i32 ${resultI32} to double`);
+  ctx.setVariableType(result, "double");
+
+  return result;
+}
+
+export function generateEndsWithPosition(
+  ctx: IGeneratorContext,
+  strPtr: string,
+  suffix: string,
+  endPosition: string,
+): string {
+  const strLen = ctx.emitCall("i64", "@strlen", `i8* ${strPtr}`);
+  const strLenI32 = ctx.nextTemp();
+  ctx.emit(`${strLenI32} = trunc i64 ${strLen} to i32`);
+
+  const isNeg = ctx.emitIcmp("slt", "i32", endPosition, "0");
+  const clamped0 = ctx.nextTemp();
+  ctx.emit(`${clamped0} = select i1 ${isNeg}, i32 0, i32 ${endPosition}`);
+  const pastEnd = ctx.emitIcmp("sgt", "i32", clamped0, strLenI32);
+  const clampedEnd = ctx.nextTemp();
+  ctx.emit(`${clampedEnd} = select i1 ${pastEnd}, i32 ${strLenI32}, i32 ${clamped0}`);
+
+  const suffixLen = ctx.emitCall("i64", "@strlen", `i8* ${suffix}`);
+  const suffixLenI32 = ctx.nextTemp();
+  ctx.emit(`${suffixLenI32} = trunc i64 ${suffixLen} to i32`);
+
+  const suffixLonger = ctx.emitIcmp("sgt", "i32", suffixLenI32, clampedEnd);
+
+  const checkLabel = ctx.nextLabel("endswith_pos_check");
+  const falseLabel = ctx.nextLabel("endswith_pos_false");
+  const endLabel = ctx.nextLabel("endswith_pos_end");
+  ctx.emitBrCond(suffixLonger, falseLabel, checkLabel);
+
+  ctx.emitLabel(checkLabel);
+  const startIdx = ctx.nextTemp();
+  ctx.emit(`${startIdx} = sub i32 ${clampedEnd}, ${suffixLenI32}`);
+  const startI64 = ctx.nextTemp();
+  ctx.emit(`${startI64} = zext i32 ${startIdx} to i64`);
+  const startPtr = ctx.nextTemp();
+  ctx.emit(`${startPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${startI64}`);
+  const suffixLenI64 = ctx.nextTemp();
+  ctx.emit(`${suffixLenI64} = zext i32 ${suffixLenI32} to i64`);
+  const cmpResult = ctx.emitCall(
+    "i32",
+    "@strncmp",
+    `i8* ${startPtr}, i8* ${suffix}, i64 ${suffixLenI64}`,
+  );
+  const matches = ctx.emitIcmp("eq", "i32", cmpResult, "0");
+  const matchesI32 = ctx.nextTemp();
+  ctx.emit(`${matchesI32} = zext i1 ${matches} to i32`);
+  const matchesDouble = ctx.nextTemp();
+  ctx.emit(`${matchesDouble} = sitofp i32 ${matchesI32} to double`);
+  ctx.emitBr(endLabel);
+
+  ctx.emitLabel(falseLabel);
+  ctx.emitBr(endLabel);
+
+  ctx.emitLabel(endLabel);
+  const resultEnd = ctx.nextTemp();
+  ctx.emit(
+    `${resultEnd} = phi double [ ${matchesDouble}, %${checkLabel} ], [ 0.0, %${falseLabel} ]`,
+  );
+  ctx.setVariableType(resultEnd, "double");
+
+  return resultEnd;
+}
