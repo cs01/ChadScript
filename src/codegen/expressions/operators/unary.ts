@@ -102,7 +102,10 @@ export class UnaryExpressionGenerator {
 
     const delta = op === "post++" ? "1.0" : "-1.0";
     const newValue = this.ctx.nextTemp();
-    this.ctx.emit(`${newValue} = fadd fast double ${originalValue}, ${delta}`);
+    this.ctx.emit(
+      `${newValue} = fadd nsz arcp contract reassoc afn double ${originalValue}, ${delta}`,
+    );
+    this.ctx.setVariableType(newValue, "double");
 
     this.ctx.emit(`store double ${newValue}, double* ${allocaReg}`);
 
@@ -145,7 +148,9 @@ export class UnaryExpressionGenerator {
 
     const delta = op === "++" ? "1.0" : "-1.0";
     const newValue = this.ctx.nextTemp();
-    this.ctx.emit(`${newValue} = fadd fast double ${originalValue}, ${delta}`);
+    this.ctx.emit(
+      `${newValue} = fadd nsz arcp contract reassoc afn double ${originalValue}, ${delta}`,
+    );
     this.ctx.setVariableType(newValue, "double");
 
     this.ctx.emit(`store double ${newValue}, double* ${allocaReg}`);
@@ -196,6 +201,7 @@ export class UnaryExpressionGenerator {
     const dblOperand = this.ctx.ensureDouble(operand);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = fneg double ${dblOperand}`);
+    this.ctx.setVariableType(result, "double");
     return result;
   }
 
@@ -236,7 +242,9 @@ export class UnaryExpressionGenerator {
     const isIncrement = op === "post++" || op === "++";
     const delta = isIncrement ? "1.0" : "-1.0";
     const newValue = this.ctx.nextTemp();
-    this.ctx.emit(`${newValue} = fadd fast double ${originalValue}, ${delta}`);
+    this.ctx.emit(
+      `${newValue} = fadd nsz arcp contract reassoc afn double ${originalValue}, ${delta}`,
+    );
     this.ctx.setVariableType(newValue, "double");
 
     this.ctx.emit(`store double ${newValue}, double* ${fieldPtr}`);

@@ -83,7 +83,8 @@ export function handleProcessUptime(ctx: MethodCallGeneratorContext): string {
   const nsDouble = ctx.nextTemp();
   ctx.emit(`${nsDouble} = uitofp i64 ${ns} to double`);
   const seconds = ctx.nextTemp();
-  ctx.emit(`${seconds} = fdiv fast double ${nsDouble}, 1000000000.0`);
+  ctx.emit(`${seconds} = fdiv nsz arcp contract reassoc afn double ${nsDouble}, 1000000000.0`);
+  ctx.setVariableType(seconds, "double");
   return seconds;
 }
 
