@@ -352,7 +352,11 @@ if (diagFormat === "json") {
     process.stderr.write = origWrite;
     if (code !== 0 && stderrCapture.length > 0) {
       const msg = stderrCapture.replace(/\x1b\[[0-9;]*m/g, "").trim();
-      process.stdout.write('{"diagnostics":[{"severity":"error","message":' + JSON.stringify(msg) + '}],"success":false}\n');
+      process.stdout.write(
+        '{"diagnostics":[{"severity":"error","message":' +
+          JSON.stringify(msg) +
+          '}],"success":false}\n',
+      );
     }
     origExit(code);
   }) as typeof process.exit;
@@ -363,10 +367,15 @@ if (diagFormat === "json") {
   } catch (error) {
     process.stderr.write = origWrite;
     process.exit = origExit;
-    const msg = stderrCapture.length > 0
-      ? stderrCapture.replace(/\x1b\[[0-9;]*m/g, "").trim()
-      : (error as Error).message;
-    process.stdout.write('{"diagnostics":[{"severity":"error","message":' + JSON.stringify(msg) + '}],"success":false}\n');
+    const msg =
+      stderrCapture.length > 0
+        ? stderrCapture.replace(/\x1b\[[0-9;]*m/g, "").trim()
+        : (error as Error).message;
+    process.stdout.write(
+      '{"diagnostics":[{"severity":"error","message":' +
+        JSON.stringify(msg) +
+        '}],"success":false}\n',
+    );
     process.exit(1);
   }
 } else {
