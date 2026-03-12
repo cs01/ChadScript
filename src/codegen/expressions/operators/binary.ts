@@ -59,10 +59,10 @@ export class BinaryExpressionGenerator {
 
     // Arithmetic operators (floating-point)
     const arithMap: { [key: string]: string } = {
-      "+": "fadd fast",
-      "-": "fsub fast",
-      "*": "fmul fast",
-      "/": "fdiv fast",
+      "+": "fadd nsz arcp contract reassoc afn",
+      "-": "fsub nsz arcp contract reassoc afn",
+      "*": "fmul nsz arcp contract reassoc afn",
+      "/": "fdiv nsz arcp contract reassoc afn",
     };
 
     // Bitwise operators (need to convert double -> i64 -> operate -> double)

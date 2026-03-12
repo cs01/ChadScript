@@ -151,7 +151,10 @@ describe(`ChadScript Compiler (${compilerLabel})`, () => {
         );
         assert.ok(llContent.includes("define i32 @main"), "Should define main function");
         assert.ok(llContent.includes("ret"), "Should have return statements");
-        assert.ok(llContent.includes("fadd fast double"), "Should have add instruction");
+        assert.ok(
+          llContent.includes("fadd") && llContent.includes("double"),
+          "Should have add instruction",
+        );
       } finally {
         // Clean up
         try {
