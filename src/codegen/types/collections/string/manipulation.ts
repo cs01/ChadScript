@@ -852,9 +852,7 @@ export function generateReplaceAll(
 
   ctx.emitLabel(doneLabel);
   const result = ctx.nextTemp();
-  ctx.emit(
-    `${result} = phi i8* [ ${origDup}, %${emptyLabel} ], [ ${loopResult}, %${endLabel} ]`,
-  );
+  ctx.emit(`${result} = phi i8* [ ${origDup}, %${emptyLabel} ], [ ${loopResult}, %${endLabel} ]`);
   ctx.setVariableType(result, "i8*");
 
   return result;
