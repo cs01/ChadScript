@@ -54,18 +54,31 @@ export function handleSubstring(
     return ctx.emitError(`substring() expects 1 or 2 arguments, got ${expr.args.length}`, expr.loc);
   }
 
-  const startIndexDouble = ctx.generateExpression(expr.args[0], params);
-  const startIndex = convertToI32(ctx, startIndexDouble);
+  const startRaw = convertToI32(ctx, ctx.generateExpression(expr.args[0], params));
+
+  const startNeg = ctx.emitIcmp("slt", "i32", startRaw, "0");
+  const startClamped = ctx.nextTemp();
+  ctx.emit(`${startClamped} = select i1 ${startNeg}, i32 0, i32 ${startRaw}`);
 
   let length: string | null = null;
   if (expr.args.length === 2) {
-    const endIndexDouble = ctx.generateExpression(expr.args[1], params);
-    const endIndex = convertToI32(ctx, endIndexDouble);
+    const endRaw = convertToI32(ctx, ctx.generateExpression(expr.args[1], params));
+    const endNeg = ctx.emitIcmp("slt", "i32", endRaw, "0");
+    const endClamped = ctx.nextTemp();
+    ctx.emit(`${endClamped} = select i1 ${endNeg}, i32 0, i32 ${endRaw}`);
+
+    const needSwap = ctx.emitIcmp("sgt", "i32", startClamped, endClamped);
+    const realStart = ctx.nextTemp();
+    ctx.emit(`${realStart} = select i1 ${needSwap}, i32 ${endClamped}, i32 ${startClamped}`);
+    const realEnd = ctx.nextTemp();
+    ctx.emit(`${realEnd} = select i1 ${needSwap}, i32 ${startClamped}, i32 ${endClamped}`);
+
     length = ctx.nextTemp();
-    ctx.emit(`${length} = sub i32 ${endIndex}, ${startIndex}`);
+    ctx.emit(`${length} = sub i32 ${realEnd}, ${realStart}`);
+    return ctx.stringGen.doGenerateSubstr(strPtr, realStart, length);
   }
 
-  return ctx.stringGen.doGenerateSubstr(strPtr, startIndex, length);
+  return ctx.stringGen.doGenerateSubstr(strPtr, startClamped, length);
 }
 
 export function handleConcat(
