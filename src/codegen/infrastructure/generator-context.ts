@@ -91,6 +91,7 @@ export interface IStringGenerator {
   doGenerateIndexOf(strPtr: string, substring: string): string;
   doGenerateIndexOfFrom(strPtr: string, substring: string, fromIndex: string): string;
   doGenerateLastIndexOf(strPtr: string, substring: string): string;
+  doGenerateLastIndexOfFrom(strPtr: string, substring: string, fromIndex: string): string;
   doGenerateIncludes(strPtr: string, substring: string): string;
   doGenerateSlice(strPtr: string, start: string, end: string | null): string;
   doGenerateCharAt(strPtr: string, index: string): string;
@@ -1702,6 +1703,8 @@ export class MockGeneratorContext implements IGeneratorContext {
     doGenerateIndexOfFrom: (_strPtr: string, _substring: string, _fromIndex: string): string =>
       "%0",
     doGenerateLastIndexOf: (_strPtr: string, _substring: string): string => "%0",
+    doGenerateLastIndexOfFrom: (_strPtr: string, _substring: string, _fromIndex: string): string =>
+      "%0",
     doGenerateIncludes: (_strPtr: string, _substring: string): string => "%0",
     doGenerateSlice: (_strPtr: string, _start: string, _end: string | null): string => "%0",
     doGenerateCharAt: (_strPtr: string, _index: string): string => "%0",
