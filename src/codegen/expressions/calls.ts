@@ -512,9 +512,41 @@ export class CallExpressionGenerator {
     let doubleValue: string;
     if (this.ctx.isStringExpression(arg)) {
       const strValue = this.ctx.generateExpression(arg, params);
-      const nullPtr = this.ctx.nextTemp();
-      this.ctx.emit(`${nullPtr} = inttoptr i32 0 to i8**`);
-      doubleValue = this.ctx.emitCall("double", "@strtod", `i8* ${strValue}, i8** ${nullPtr}`);
+      const endPtrPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${endPtrPtr} = alloca i8*`);
+      const rawResult = this.ctx.emitCall(
+        "double",
+        "@strtod",
+        `i8* ${strValue}, i8** ${endPtrPtr}`,
+      );
+
+      const endPtr = this.ctx.emitLoad("i8*", endPtrPtr);
+      const noCharsConsumed = this.ctx.emitIcmp("eq", "i8*", endPtr, strValue);
+
+      const numericLabel = this.ctx.nextLabel("isnan_numeric");
+      const nonNumericLabel = this.ctx.nextLabel("isnan_nonnumeric");
+      const endLabel = this.ctx.nextLabel("isnan_end");
+
+      this.ctx.emitBrCond(noCharsConsumed, nonNumericLabel, numericLabel);
+
+      this.ctx.emitLabel(numericLabel);
+      const cmpNumeric = this.ctx.nextTemp();
+      this.ctx.emit(`${cmpNumeric} = fcmp uno double ${rawResult}, ${rawResult}`);
+      const numericI32 = this.ctx.nextTemp();
+      this.ctx.emit(`${numericI32} = zext i1 ${cmpNumeric} to i32`);
+      const numericDouble = this.ctx.nextTemp();
+      this.ctx.emit(`${numericDouble} = sitofp i32 ${numericI32} to double`);
+      this.ctx.emitBr(endLabel);
+
+      this.ctx.emitLabel(nonNumericLabel);
+      this.ctx.emitBr(endLabel);
+
+      this.ctx.emitLabel(endLabel);
+      const result = this.ctx.nextTemp();
+      this.ctx.emit(
+        `${result} = phi double [${numericDouble}, %${numericLabel}], [1.0, %${nonNumericLabel}]`,
+      );
+      return result;
     } else {
       doubleValue = this.ctx.generateExpression(arg, params);
       doubleValue = this.ctx.ensureDouble(doubleValue);
