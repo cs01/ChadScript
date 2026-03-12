@@ -473,26 +473,22 @@ function generateStringArrayPush(gen: IGeneratorContext, arrayPtr: string, value
 
   const oldDataI8 = gen.emitBitcast(oldDataPtr, "i8**", "i8*");
   const newDataI8 = gen.emitBitcast(newDataPtr, "i8**", "i8*");
-  const copySize = gen.nextTemp();
-  gen.emit(`${copySize} = mul i32 ${currentLen}, 8`); // 8 bytes per pointer
+  const currentLenI64 = gen.nextTemp();
+  gen.emit(`${currentLenI64} = zext i32 ${currentLen} to i64`);
   const copySizeI64 = gen.nextTemp();
-  gen.emit(`${copySizeI64} = zext i32 ${copySize} to i64`);
+  gen.emit(`${copySizeI64} = mul i64 ${currentLenI64}, 8`);
   gen.emit(
     `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newDataI8}, i8* ${oldDataI8}, i64 ${copySizeI64}, i1 false)`,
   );
 
-  // Update pointer (GC will free old data)
   gen.emitStore("i8**", newDataPtr, dataPtrField);
 
-  // Update capacity
   gen.emitStore("i32", newCap, capPtr);
 
   gen.emitBr(continueLabel);
 
-  // Continue block
   gen.emitLabel(continueLabel);
 
-  // Get current data pointer (may have been updated)
   const dataPtrField2 = gen.nextTemp();
   gen.emit(
     `${dataPtrField2} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
@@ -561,10 +557,10 @@ function generatePointerArrayPush(
 
   const oldDataI8 = gen.emitBitcast(oldDataPtr, "i8**", "i8*");
   const newDataI8 = gen.emitBitcast(newDataPtr, "i8**", "i8*");
-  const copySize = gen.nextTemp();
-  gen.emit(`${copySize} = mul i32 ${currentLen}, 8`);
+  const currentLenI64 = gen.nextTemp();
+  gen.emit(`${currentLenI64} = zext i32 ${currentLen} to i64`);
   const copySizeI64 = gen.nextTemp();
-  gen.emit(`${copySizeI64} = zext i32 ${copySize} to i64`);
+  gen.emit(`${copySizeI64} = mul i64 ${currentLenI64}, 8`);
   gen.emit(
     `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newDataI8}, i8* ${oldDataI8}, i64 ${copySizeI64}, i1 false)`,
   );
@@ -649,10 +645,10 @@ function generateObjectArrayPush(
 
   const oldDataI8 = gen.emitBitcast(oldDataPtr, "i8**", "i8*");
   const newDataI8 = gen.emitBitcast(newDataPtr, "i8**", "i8*");
-  const copySize = gen.nextTemp();
-  gen.emit(`${copySize} = mul i32 ${currentLen}, 8`);
+  const currentLenI64 = gen.nextTemp();
+  gen.emit(`${currentLenI64} = zext i32 ${currentLen} to i64`);
   const copySizeI64 = gen.nextTemp();
-  gen.emit(`${copySizeI64} = zext i32 ${copySize} to i64`);
+  gen.emit(`${copySizeI64} = mul i64 ${currentLenI64}, 8`);
   gen.emit(
     `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newDataI8}, i8* ${oldDataI8}, i64 ${copySizeI64}, i1 false)`,
   );
