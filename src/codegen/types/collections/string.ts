@@ -24,6 +24,7 @@ import {
 import {
   generateStartsWith,
   generateCharAt,
+  generateStringAt,
   generateCharCodeAt,
   generateIndexOf,
   generateLastIndexOf,
@@ -121,6 +122,10 @@ export class StringGenerator implements IStringGenerator {
 
   doGenerateCharAt(strPtr: string, index: string): string {
     return generateCharAt(this.ctx, strPtr, index);
+  }
+
+  doGenerateStringAt(strPtr: string, index: string): string {
+    return generateStringAt(this.ctx, strPtr, index);
   }
 
   doGenerateCharCodeAt(strPtr: string, index: string): string {

@@ -93,6 +93,7 @@ export interface IStringGenerator {
   doGenerateIncludes(strPtr: string, substring: string): string;
   doGenerateSlice(strPtr: string, start: string, end: string | null): string;
   doGenerateCharAt(strPtr: string, index: string): string;
+  doGenerateStringAt(strPtr: string, index: string): string;
   doGenerateCharCodeAt(strPtr: string, index: string): string;
   doGenerateReplace(strPtr: string, search: string, replace: string): string;
   doGenerateReplaceAll(strPtr: string, search: string, replace: string): string;
@@ -1700,6 +1701,7 @@ export class MockGeneratorContext implements IGeneratorContext {
     doGenerateIncludes: (_strPtr: string, _substring: string): string => "%0",
     doGenerateSlice: (_strPtr: string, _start: string, _end: string | null): string => "%0",
     doGenerateCharAt: (_strPtr: string, _index: string): string => "%0",
+    doGenerateStringAt: (_strPtr: string, _index: string): string => "%0",
     doGenerateCharCodeAt: (_strPtr: string, _index: string): string => "%0",
     doGenerateReplace: (_strPtr: string, _search: string, _replace: string): string => "%0",
     doGenerateReplaceAll: (_strPtr: string, _search: string, _replace: string): string => "%0",

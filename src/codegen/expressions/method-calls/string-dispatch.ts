@@ -24,6 +24,7 @@ import {
   handleNumberToString,
   handleNumberToFixed,
   handleCharAt,
+  handleStringAt,
   handleCharCodeAt,
   handleToUpperCase,
   handleToLowerCase,
@@ -158,6 +159,11 @@ function dispatchStringReplaceCase(
     const err = rejectNonString(ctx, method, expr);
     if (err) return err;
     return handleCharAt(ctx, expr, params);
+  }
+  if (method === "at") {
+    const err = rejectNonString(ctx, method, expr);
+    if (err) return err;
+    return handleStringAt(ctx, expr, params);
   }
   if (method === "charCodeAt") {
     const err = rejectNonString(ctx, method, expr);
