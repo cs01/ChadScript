@@ -144,7 +144,7 @@ function dispatchStringMapMethod(
   if (method === "set") {
     const keyValue = ctx.generateExpression(expr.args[0], params);
     const valueValue = ctx.generateExpression(expr.args[1], params);
-    return ctx.stringMapGen.generateStringMapSet(mapAlloca, keyValue, valueValue);
+    return ctx.stringMapGen.generateStringMapSet(mapAlloca, keyValue, valueValue, valueType);
   } else if (method === "get") {
     const keyValue = ctx.generateExpression(expr.args[0], params);
     const rawResult = ctx.stringMapGen.generateStringMapGet(mapAlloca, keyValue);

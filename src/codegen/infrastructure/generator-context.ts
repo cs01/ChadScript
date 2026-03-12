@@ -247,7 +247,7 @@ export interface IArrowFunctionGenerator {
 }
 
 export interface IStringMapGenerator {
-  generateStringMapSet(mapPtr: string, keyValue: string, valueValue: string): string;
+  generateStringMapSet(mapPtr: string, keyValue: string, valueValue: string, declaredValueType?: string): string;
   generateStringMapGet(mapPtr: string, keyToFind: string): string;
   generateStringMapHas(mapPtr: string, keyToFind: string): string;
   generateStringMapClear(mapPtr: string): string;
@@ -1846,7 +1846,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
 
   stringMapGen: IStringMapGenerator = {
-    generateStringMapSet: (_mapPtr: string, _keyValue: string, _valueValue: string): string =>
+    generateStringMapSet: (_mapPtr: string, _keyValue: string, _valueValue: string, _declaredValueType?: string): string =>
       "%mock_set_result",
     generateStringMapGet: (_mapPtr: string, _keyToFind: string): string => "%mock_get_result",
     generateStringMapHas: (_mapPtr: string, _keyToFind: string): string => "%mock_has_result",
