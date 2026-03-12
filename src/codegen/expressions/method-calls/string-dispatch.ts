@@ -197,8 +197,8 @@ export function dispatchStringMethod(
     return handleIndexOf(ctx, expr, params);
   }
   if (method === "lastIndexOf") {
-    const err = rejectNonString(ctx, method, expr);
-    if (err) return err;
+    if (ctx.isStringArrayExpression(expr.object) || ctx.isArrayExpression(expr.object))
+      return ctx.arrayGen.generateArrayLastIndexOf(expr, params);
     return handleLastIndexOf(ctx, expr, params);
   }
   if (method === "includes") {

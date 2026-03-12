@@ -319,6 +319,7 @@ export interface IArrayGenerator {
   generateArrayShift(expr: MethodCallNode, params: string[]): string;
   generateArrayUnshift(expr: MethodCallNode, params: string[]): string;
   generateArrayIndexOf(expr: MethodCallNode, params: string[]): string;
+  generateArrayLastIndexOf(expr: MethodCallNode, params: string[]): string;
   generateArrayAt(expr: MethodCallNode, params: string[]): string;
   generateArrayFindIndex(expr: MethodCallNode, params: string[]): string;
   generateArraySort(expr: MethodCallNode, params: string[]): string;
@@ -2078,6 +2079,8 @@ export class MockGeneratorContext implements IGeneratorContext {
       "%mock_array_unshift",
     generateArrayIndexOf: (_expr: MethodCallNode, _params: string[]): string =>
       "%mock_array_indexof",
+    generateArrayLastIndexOf: (_expr: MethodCallNode, _params: string[]): string =>
+      "%mock_array_lastindexof",
     generateArrayAt: (_expr: MethodCallNode, _params: string[]): string => "%mock_array_at",
     generateArrayFindIndex: (_expr: MethodCallNode, _params: string[]): string =>
       "%mock_array_findindex",
