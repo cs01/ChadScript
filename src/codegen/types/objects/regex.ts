@@ -25,6 +25,24 @@ export class RegexGenerator {
     this.ctx.emit(instruction);
   }
 
+  private emitCompileCheck(compileResult: string, patternPtr: string): void {
+    const failed = this.ctx.emitIcmp("ne", "i32", compileResult, "0");
+    const failLabel = this.nextLabel("regex_fail");
+    const okLabel = this.nextLabel("regex_ok");
+    this.ctx.emitBrCond(failed, failLabel, okLabel);
+    this.ctx.emitLabel(failLabel);
+    const stderrPtr = this.nextTemp();
+    this.emit(`${stderrPtr} = load i8*, i8** @stderr`);
+    const fmtStr = this.ctx.createStringConstant("Error: invalid regex pattern: %s\n");
+    const fprintfResult = this.nextTemp();
+    this.emit(
+      `${fprintfResult} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* ${fmtStr}, i8* ${patternPtr})`,
+    );
+    this.emit("call void @exit(i32 1)");
+    this.emit("unreachable");
+    this.ctx.emitLabel(okLabel);
+  }
+
   private byteToHex(b: number): string {
     const hexChars = "0123456789ABCDEF";
     const hi = hexChars.charAt((b >> 4) & 0xf);
@@ -118,8 +136,7 @@ export class RegexGenerator {
       `i8* ${regexPtr}, i8* ${patternPtr}, i32 ${cflags}`,
     );
 
-    // For simplicity, we're not checking the compile result
-    // In production, we should check if regcomp returns 0 (success)
+    this.emitCompileCheck(compileResult, patternPtr);
 
     return regexPtr;
   }
@@ -133,6 +150,8 @@ export class RegexGenerator {
       "@cs_regex_compile",
       `i8* ${regexPtr}, i8* ${patternPtr}, i32 ${cflags}`,
     );
+
+    this.emitCompileCheck(compileResult, patternPtr);
 
     return regexPtr;
   }
