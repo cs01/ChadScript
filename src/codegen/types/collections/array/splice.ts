@@ -76,8 +76,11 @@ function generateNumericArraySplice(
   const startClamped = gen.nextTemp();
   gen.emit(`${startClamped} = select i1 ${startNeg}, i32 ${startFromEnd}, i32 ${startRaw}`);
   const startTooLow = gen.emitIcmp("slt", "i32", startClamped, "0");
+  const startLow = gen.nextTemp();
+  gen.emit(`${startLow} = select i1 ${startTooLow}, i32 0, i32 ${startClamped}`);
+  const startTooHigh = gen.emitIcmp("sgt", "i32", startLow, length);
   const start = gen.nextTemp();
-  gen.emit(`${start} = select i1 ${startTooLow}, i32 0, i32 ${startClamped}`);
+  gen.emit(`${start} = select i1 ${startTooHigh}, i32 ${length}, i32 ${startLow}`);
 
   let deleteCount: string;
   if (expr.args.length >= 2) {
@@ -184,8 +187,11 @@ function generateStringArraySplice(
   const startClamped = gen.nextTemp();
   gen.emit(`${startClamped} = select i1 ${startNeg}, i32 ${startFromEnd}, i32 ${startRaw}`);
   const startTooLow = gen.emitIcmp("slt", "i32", startClamped, "0");
+  const startLow = gen.nextTemp();
+  gen.emit(`${startLow} = select i1 ${startTooLow}, i32 0, i32 ${startClamped}`);
+  const startTooHigh = gen.emitIcmp("sgt", "i32", startLow, length);
   const start = gen.nextTemp();
-  gen.emit(`${start} = select i1 ${startTooLow}, i32 0, i32 ${startClamped}`);
+  gen.emit(`${start} = select i1 ${startTooHigh}, i32 ${length}, i32 ${startLow}`);
 
   let deleteCount: string;
   if (expr.args.length >= 2) {
