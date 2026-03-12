@@ -29,6 +29,7 @@ import {
   generateIndexOf,
   generateIndexOfFrom,
   generateLastIndexOf,
+  generateLastIndexOfFrom,
   generateIncludes,
   generateEndsWith,
 } from "./string/search.js";
@@ -143,6 +144,10 @@ export class StringGenerator implements IStringGenerator {
 
   doGenerateLastIndexOf(strPtr: string, substring: string): string {
     return generateLastIndexOf(this.ctx, strPtr, substring);
+  }
+
+  doGenerateLastIndexOfFrom(strPtr: string, substring: string, fromIndex: string): string {
+    return generateLastIndexOfFrom(this.ctx, strPtr, substring, fromIndex);
   }
 
   doGenerateIncludes(strPtr: string, substring: string): string {

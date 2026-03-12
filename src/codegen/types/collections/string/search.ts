@@ -248,6 +248,79 @@ export function generateIndexOfFrom(
   return result;
 }
 
+export function generateLastIndexOfFrom(
+  ctx: IGeneratorContext,
+  strPtr: string,
+  substring: string,
+  fromIndex: string,
+): string {
+  const isNeg = ctx.emitIcmp("slt", "i32", fromIndex, "0");
+
+  const negLabel = ctx.nextLabel("lastindexof_from_neg");
+  const searchLabel = ctx.nextLabel("lastindexof_from_search");
+  const endAllLabel = ctx.nextLabel("lastindexof_from_endall");
+  ctx.emitBrCond(isNeg, negLabel, searchLabel);
+
+  ctx.emitLabel(negLabel);
+  ctx.emitBr(endAllLabel);
+
+  ctx.emitLabel(searchLabel);
+
+  const lastPosPtr = ctx.nextAllocaReg("lastpos");
+  ctx.emit(`${lastPosPtr} = alloca i32`);
+  ctx.emitStore("i32", "-1", lastPosPtr);
+
+  const curPtrStorage = ctx.nextAllocaReg("curptr");
+  ctx.emit(`${curPtrStorage} = alloca i8*`);
+  ctx.emitStore("i8*", strPtr, curPtrStorage);
+
+  const strPtrInt = ctx.nextTemp();
+  ctx.emit(`${strPtrInt} = ptrtoint i8* ${strPtr} to i64`);
+
+  const loopLabel = ctx.nextLabel("lastindexof_from_loop");
+  const foundLabel = ctx.nextLabel("lastindexof_from_found");
+  const withinLabel = ctx.nextLabel("lastindexof_from_within");
+  const endLabel = ctx.nextLabel("lastindexof_from_end");
+
+  ctx.emitBr(loopLabel);
+
+  ctx.emitLabel(loopLabel);
+  const curPtr = ctx.emitLoad("i8*", curPtrStorage);
+  const foundPtr = ctx.emitCall("i8*", "@strstr", `i8* ${curPtr}, i8* ${substring}`);
+  const isNull = ctx.emitIcmp("eq", "i8*", foundPtr, "null");
+  ctx.emitBrCond(isNull, endLabel, foundLabel);
+
+  ctx.emitLabel(foundLabel);
+  const foundPtrInt = ctx.nextTemp();
+  ctx.emit(`${foundPtrInt} = ptrtoint i8* ${foundPtr} to i64`);
+  const indexI64 = ctx.nextTemp();
+  ctx.emit(`${indexI64} = sub i64 ${foundPtrInt}, ${strPtrInt}`);
+  const indexI32 = ctx.nextTemp();
+  ctx.emit(`${indexI32} = trunc i64 ${indexI64} to i32`);
+  const pastLimit = ctx.emitIcmp("sgt", "i32", indexI32, fromIndex);
+  ctx.emitBrCond(pastLimit, endLabel, withinLabel);
+
+  ctx.emitLabel(withinLabel);
+  ctx.emitStore("i32", indexI32, lastPosPtr);
+  const advancedPtr = ctx.nextTemp();
+  ctx.emit(`${advancedPtr} = getelementptr inbounds i8, i8* ${foundPtr}, i64 1`);
+  ctx.emitStore("i8*", advancedPtr, curPtrStorage);
+  ctx.emitBr(loopLabel);
+
+  ctx.emitLabel(endLabel);
+  const resultI32Search = ctx.emitLoad("i32", lastPosPtr);
+  ctx.emitBr(endAllLabel);
+
+  ctx.emitLabel(endAllLabel);
+  const resultI32 = ctx.nextTemp();
+  ctx.emit(`${resultI32} = phi i32 [ -1, %${negLabel} ], [ ${resultI32Search}, %${endLabel} ]`);
+  const result = ctx.nextTemp();
+  ctx.emit(`${result} = sitofp i32 ${resultI32} to double`);
+  ctx.setVariableType(result, "double");
+
+  return result;
+}
+
 export function generateLastIndexOf(
   ctx: IGeneratorContext,
   strPtr: string,
