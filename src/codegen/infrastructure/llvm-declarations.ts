@@ -66,6 +66,8 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += "declare i64 @time(i8*)\n";
   ir += "declare double @llvm.maxnum.f64(double, double)\n";
   ir += "declare double @llvm.minnum.f64(double, double)\n";
+  ir += "declare double @llvm.maximum.f64(double, double)\n";
+  ir += "declare double @llvm.minimum.f64(double, double)\n";
   ir += "\n";
 
   ir += "declare i8* @cs_regex_alloc()\n";
