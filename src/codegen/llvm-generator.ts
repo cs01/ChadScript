@@ -1658,6 +1658,143 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return meta.interfaceType;
   }
 
+  private tryHandleGlobalCallReturn(name: string, callNode: CallNode): string {
+    for (let fi = 0; fi < this.ast.functions.length; fi++) {
+      const fn = this.ast.functions[fi];
+      if (!fn) continue;
+      if (fn.name === callNode.name && fn.returnType) {
+        let rt = fn.returnType;
+        if (fn.typeParameters && fn.typeParameters.length > 0) {
+          if (callNode.typeArgs && callNode.typeArgs.length > 0) {
+            for (let ti = 0; ti < fn.typeParameters.length; ti++) {
+              const tp = fn.typeParameters[ti] || "";
+              const ta = callNode.typeArgs[ti] || "any";
+              rt = rt.split(tp).join(ta);
+            }
+          } else {
+            for (let ti = 0; ti < fn.typeParameters.length; ti++) {
+              const tp = fn.typeParameters[ti] || "";
+              if (rt === tp) {
+                rt = "string";
+                break;
+              }
+            }
+          }
+        }
+        if (rt === "string" || rt === "i8_ptr" || rt === "ptr") {
+          this.globalVariables.set(name, {
+            llvmType: "i8*",
+            kind: SymbolKind.String,
+            initialized: false,
+          });
+          this.defineVariable(name, `@${name}`, "i8*", SymbolKind.String, "global");
+          return `@${name} = global i8* null\n`;
+        }
+        const iface = this.getInterfaceDeclByName(rt);
+        if (iface) {
+          this.globalVariables.set(name, {
+            llvmType: "i8*",
+            kind: SymbolKind.Object,
+            initialized: false,
+          });
+          this.defineVariableWithMetadata(
+            name,
+            `@${name}`,
+            "i8*",
+            SymbolKind.Object,
+            "global",
+            createInterfaceMetadata(rt),
+          );
+          return `@${name} = global i8* null\n`;
+        }
+        if (this.isKnownClass(rt)) {
+          const resolvedClassName = this.resolveImportAlias(rt);
+          const fields = this.classGen
+            ? this.classGen.getClassFields(resolvedClassName) || []
+            : [];
+          const llvmType = fields.length > 0 ? `%${resolvedClassName}_struct*` : "i32*";
+          this.globalVariables.set(name, {
+            llvmType,
+            kind: SymbolKind.Class,
+            initialized: false,
+          });
+          this.defineVariableWithMetadata(
+            name,
+            `@${name}`,
+            llvmType,
+            SymbolKind.Class,
+            "global",
+            createClassMetadata({ className: resolvedClassName }),
+          );
+          return `@${name} = global ${llvmType} null\n`;
+        }
+        if (rt.endsWith("[]")) {
+          const elementType = rt.substring(0, rt.length - 2);
+          if (elementType === "string") {
+            this.globalVariables.set(name, {
+              llvmType: "%StringArray*",
+              kind: SymbolKind.StringArray,
+              initialized: false,
+            });
+            this.defineVariable(
+              name,
+              `@${name}`,
+              "%StringArray*",
+              SymbolKind.StringArray,
+              "global",
+            );
+            return `@${name} = global %StringArray* null\n`;
+          }
+          if (elementType === "number" || elementType === "boolean") {
+            this.globalVariables.set(name, {
+              llvmType: "%Array*",
+              kind: SymbolKind.Array,
+              initialized: false,
+            });
+            this.defineVariable(name, `@${name}`, "%Array*", SymbolKind.Array, "global");
+            return `@${name} = global %Array* null\n`;
+          }
+          this.globalVariables.set(name, {
+            llvmType: "%ObjectArray*",
+            kind: SymbolKind.ObjectArray,
+            initialized: false,
+          });
+          this.defineVariableWithMetadata(
+            name,
+            `@${name}`,
+            "%ObjectArray*",
+            SymbolKind.ObjectArray,
+            "global",
+            createInterfaceMetadata(elementType),
+          );
+          this.symbolTable.setRawInterfaceType(name, elementType);
+          return `@${name} = global %ObjectArray* null\n`;
+        }
+        if (this.isTypeAlias(rt)) {
+          const commonProps = this.getTypeAliasCommonProperties(rt);
+          if (commonProps) {
+            this.globalVariables.set(name, {
+              llvmType: "i8*",
+              kind: SymbolKind.Object,
+              initialized: false,
+            });
+            this.defineVariableWithMetadata(
+              name,
+              `@${name}`,
+              "i8*",
+              SymbolKind.Object,
+              "global",
+              createObjectMetadataWithInterface(commonProps, rt),
+            );
+            return `@${name} = global i8* null\n`;
+          }
+        }
+        break;
+      }
+    }
+    return "";
+  }
+
   private generateGlobalVariableDeclarations(): string {
     let ir = "";
     const totalCount = this.topLevelStatementsCount;
@@ -1681,155 +1818,11 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         if ((stmt.value as { type: string }).type === "call") {
           const callNode = stmt.value as CallNode;
           if (callNode.name) {
-            let handled = false;
-            for (let fi = 0; fi < this.ast.functions.length; fi++) {
-              const fn = this.ast.functions[fi];
-              if (!fn) continue;
-              if (fn.name === callNode.name && fn.returnType) {
-                let rt = fn.returnType;
-                if (fn.typeParameters && fn.typeParameters.length > 0) {
-                  if (callNode.typeArgs && callNode.typeArgs.length > 0) {
-                    for (let ti = 0; ti < fn.typeParameters.length; ti++) {
-                      const tp = fn.typeParameters[ti] || "";
-                      const ta = callNode.typeArgs[ti] || "any";
-                      rt = rt.split(tp).join(ta);
-                    }
-                  } else {
-                    for (let ti = 0; ti < fn.typeParameters.length; ti++) {
-                      const tp = fn.typeParameters[ti] || "";
-                      if (rt === tp) {
-                        rt = "string";
-                        break;
-                      }
-                    }
-                  }
-                }
-                if (rt === "string" || rt === "i8_ptr" || rt === "ptr") {
-                  ir += `@${name} = global i8* null` + "\n";
-                  this.globalVariables.set(name, {
-                    llvmType: "i8*",
-                    kind: SymbolKind.String,
-                    initialized: false,
-                  });
-                  this.defineVariable(name, `@${name}`, "i8*", SymbolKind.String, "global");
-                  handled = true;
-                  break;
-                }
-                const iface = this.getInterfaceDeclByName(rt);
-                if (iface) {
-                  ir += `@${name} = global i8* null` + "\n";
-                  this.globalVariables.set(name, {
-                    llvmType: "i8*",
-                    kind: SymbolKind.Object,
-                    initialized: false,
-                  });
-                  this.defineVariableWithMetadata(
-                    name,
-                    `@${name}`,
-                    "i8*",
-                    SymbolKind.Object,
-                    "global",
-                    createInterfaceMetadata(rt),
-                  );
-                  handled = true;
-                  break;
-                }
-                if (this.isKnownClass(rt)) {
-                  const resolvedClassName = this.resolveImportAlias(rt);
-                  const fields = this.classGen
-                    ? this.classGen.getClassFields(resolvedClassName) || []
-                    : [];
-                  const llvmType = fields.length > 0 ? `%${resolvedClassName}_struct*` : "i32*";
-                  ir += `@${name} = global ${llvmType} null` + "\n";
-                  this.globalVariables.set(name, {
-                    llvmType,
-                    kind: SymbolKind.Class,
-                    initialized: false,
-                  });
-                  this.defineVariableWithMetadata(
-                    name,
-                    `@${name}`,
-                    llvmType,
-                    SymbolKind.Class,
-                    "global",
-                    createClassMetadata({ className: resolvedClassName }),
-                  );
-                  handled = true;
-                  break;
-                }
-                if (rt.endsWith("[]")) {
-                  const elementType = rt.substring(0, rt.length - 2);
-                  if (elementType === "string") {
-                    ir += `@${name} = global %StringArray* null` + "\n";
-                    this.globalVariables.set(name, {
-                      llvmType: "%StringArray*",
-                      kind: SymbolKind.StringArray,
-                      initialized: false,
-                    });
-                    this.defineVariable(
-                      name,
-                      `@${name}`,
-                      "%StringArray*",
-                      SymbolKind.StringArray,
-                      "global",
-                    );
-                    handled = true;
-                    break;
-                  }
-                  if (elementType === "number" || elementType === "boolean") {
-                    ir += `@${name} = global %Array* null` + "\n";
-                    this.globalVariables.set(name, {
-                      llvmType: "%Array*",
-                      kind: SymbolKind.Array,
-                      initialized: false,
-                    });
-                    this.defineVariable(name, `@${name}`, "%Array*", SymbolKind.Array, "global");
-                    handled = true;
-                    break;
-                  }
-                  ir += `@${name} = global %ObjectArray* null` + "\n";
-                  this.globalVariables.set(name, {
-                    llvmType: "%ObjectArray*",
-                    kind: SymbolKind.ObjectArray,
-                    initialized: false,
-                  });
-                  this.defineVariableWithMetadata(
-                    name,
-                    `@${name}`,
-                    "%ObjectArray*",
-                    SymbolKind.ObjectArray,
-                    "global",
-                    createInterfaceMetadata(elementType),
-                  );
-                  this.symbolTable.setRawInterfaceType(name, elementType);
-                  handled = true;
-                  break;
-                }
-                if (this.isTypeAlias(rt)) {
-                  const commonProps = this.getTypeAliasCommonProperties(rt);
-                  if (commonProps) {
-                    ir += `@${name} = global i8* null` + "\n";
-                    this.globalVariables.set(name, {
-                      llvmType: "i8*",
-                      kind: SymbolKind.Object,
-                      initialized: false,
-                    });
-                    this.defineVariableWithMetadata(
-                      name,
-                      `@${name}`,
-                      "i8*",
-                      SymbolKind.Object,
-                      "global",
-                      createObjectMetadataWithInterface(commonProps, rt),
-                    );
-                    handled = true;
-                    break;
-                  }
-                }
-                break;
-              }
+            const callIr = this.tryHandleGlobalCallReturn(name, callNode);
+            if (callIr) {
+              ir += callIr;
+              continue;
             }
-            if (handled) continue;
           }
         }
 
