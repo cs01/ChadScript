@@ -1,4 +1,4 @@
-import { Expression, SourceLocation, NumberNode } from "../../../ast/types.js";
+import { Expression, SourceLocation, NumberNode, StringNode, MethodCallNode } from "../../../ast/types.js";
 import type { IStringGenerator } from "../../infrastructure/generator-context.js";
 
 interface ControlFlowGeneratorLike {
@@ -26,6 +26,7 @@ export interface BinaryExpressionGeneratorContext {
   readonly stringGen: IStringGenerator;
   generateExpression(expr: Expression, params: string[]): string;
   emitError(message: string, loc?: SourceLocation, suggestion?: string): never;
+  emitLoad(type: string, ptr: string): string;
 }
 
 /**
@@ -44,14 +45,17 @@ export class BinaryExpressionGenerator {
   constructor(private ctx: BinaryExpressionGeneratorContext) {}
 
   generate(op: string, left: Expression, right: Expression, params: string[]): string {
-    // Logical operators need short-circuit evaluation
     if (op === "&&" || op === "||" || op === "??") {
       return this.ctx.controlFlowGen.generateLogicalOp(op, left, right, params);
     }
 
-    // Check for string concatenation (+ with at least one string operand)
     if (op === "+" && (this.ctx.isStringExpression(left) || this.ctx.isStringExpression(right))) {
       return this.ctx.stringGen.doGenerateStringConcat(left, right, params);
+    }
+
+    if (op === "===" || op === "!==" || op === "==" || op === "!=") {
+      const charAtResult = this.tryOptimizeCharAtComparison(op, left, right, params);
+      if (charAtResult !== "") return charAtResult;
     }
 
     const leftValue = this.ctx.generateExpression(left, params);
@@ -379,6 +383,14 @@ export class BinaryExpressionGenerator {
       (leftIsJSONi32 && rightIsJSONi32);
 
     if (isStringOp) {
+      const singleCharResult = this.tryOptimizeSingleCharLiteralComparison(
+        op,
+        leftValue,
+        rightValue,
+        leftExpr,
+        rightExpr,
+      );
+      if (singleCharResult !== "") return singleCharResult;
       return this.generateStringComparison(op, leftValue, rightValue);
     }
 
@@ -583,4 +595,153 @@ export class BinaryExpressionGenerator {
     this.ctx.setVariableType(doubleResult, "double");
     return doubleResult;
   }
+
+  private getSingleCharCode(expr: Expression): number {
+    if (expr.type !== "string") return -1;
+    const s = (expr as StringNode).value;
+    if (s.length !== 1) return -1;
+    return s.charCodeAt(0);
+  }
+
+  private isCharAtCall(expr: Expression): boolean {
+    if (expr.type !== "method_call") return false;
+    const mc = expr as MethodCallNode;
+    return mc.method === "charAt" && mc.args.length === 1;
+  }
+
+  private tryOptimizeCharAtComparison(
+    op: string,
+    left: Expression,
+    right: Expression,
+    params: string[],
+  ): string {
+    let charAtExpr: MethodCallNode;
+    let charCode: number;
+
+    if (this.isCharAtCall(left) && this.getSingleCharCode(right) >= 0) {
+      charAtExpr = left as MethodCallNode;
+      charCode = this.getSingleCharCode(right);
+    } else if (this.isCharAtCall(right) && this.getSingleCharCode(left) >= 0) {
+      charAtExpr = right as MethodCallNode;
+      charCode = this.getSingleCharCode(left);
+    } else {
+      return "";
+    }
+
+    const strPtr = this.ctx.generateExpression(charAtExpr.object, params);
+    const indexValue = this.ctx.generateExpression(charAtExpr.args[0], params);
+
+    const indexType = this.ctx.getVariableType(indexValue);
+    let indexI64: string;
+    if (indexType === "i64") {
+      indexI64 = indexValue;
+    } else if (indexType === "double" || !indexType) {
+      indexI64 = this.ctx.nextTemp();
+      this.ctx.emit(`${indexI64} = fptosi double ${indexValue} to i64`);
+    } else if (indexType === "i32") {
+      indexI64 = this.ctx.nextTemp();
+      this.ctx.emit(`${indexI64} = sext i32 ${indexValue} to i64`);
+    } else {
+      indexI64 = indexValue;
+    }
+
+    const isNeg = this.ctx.emitIcmp("slt", "i64", indexI64, "0");
+
+    const loadLabel = this.ctx.nextLabel("charat_cmp_load");
+    const negLabel = this.ctx.nextLabel("charat_cmp_neg");
+    const endLabel = this.ctx.nextLabel("charat_cmp_end");
+
+    this.ctx.emitBrCond(isNeg, negLabel, loadLabel);
+
+    this.ctx.emitLabel(loadLabel);
+    const strLen = this.ctx.emitCall("i64", "@cs_cached_strlen", `i8* ${strPtr}`);
+    const inBounds = this.ctx.emitIcmp("slt", "i64", indexI64, strLen);
+
+    const cmpLabel = this.ctx.nextLabel("charat_cmp_do");
+    const oobLabel = this.ctx.nextLabel("charat_cmp_oob");
+    this.ctx.emitBrCond(inBounds, cmpLabel, oobLabel);
+
+    this.ctx.emitLabel(cmpLabel);
+    const charPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${charPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${indexI64}`);
+    const charByte = this.ctx.emitLoad("i8", charPtr);
+    const isEq = op === "===" || op === "==";
+    const cmpPred = isEq ? "eq" : "ne";
+    const validCmp = this.ctx.emitIcmp(cmpPred, "i8", charByte, `${charCode}`);
+    const validI32 = this.ctx.nextTemp();
+    this.ctx.emit(`${validI32} = zext i1 ${validCmp} to i32`);
+    this.ctx.emitBr(endLabel);
+
+    this.ctx.emitLabel(oobLabel);
+    const oobVal = isEq ? "0" : "1";
+    this.ctx.emitBr(endLabel);
+
+    this.ctx.emitLabel(negLabel);
+    const negVal = isEq ? "0" : "1";
+    this.ctx.emitBr(endLabel);
+
+    this.ctx.emitLabel(endLabel);
+    const resultI32 = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${resultI32} = phi i32 [${validI32}, %${cmpLabel}], [${oobVal}, %${oobLabel}], [${negVal}, %${negLabel}]`,
+    );
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = sitofp i32 ${resultI32} to double`);
+    this.ctx.setVariableType(result, "double");
+    return result;
+  }
+
+  private tryOptimizeSingleCharLiteralComparison(
+    op: string,
+    leftValue: string,
+    rightValue: string,
+    leftExpr: Expression,
+    rightExpr: Expression,
+  ): string {
+    let strValue: string;
+    let charCode: number;
+
+    const leftCode = this.getSingleCharCode(leftExpr);
+    const rightCode = this.getSingleCharCode(rightExpr);
+
+    if (leftCode >= 0 && rightCode < 0) {
+      charCode = leftCode;
+      strValue = rightValue;
+    } else if (rightCode >= 0 && leftCode < 0) {
+      charCode = rightCode;
+      strValue = leftValue;
+    } else {
+      return "";
+    }
+
+    const strType = this.ctx.getVariableType(strValue);
+    if (strType !== "i8*" && !strValue.startsWith("@.str")) return "";
+
+    const byte = this.ctx.emitLoad("i8", strValue);
+    const secondPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${secondPtr} = getelementptr inbounds i8, i8* ${strValue}, i64 1`);
+    const secondByte = this.ctx.emitLoad("i8", secondPtr);
+
+    const byteMatch = this.ctx.emitIcmp("eq", "i8", byte, `${charCode}`);
+    const isNull = this.ctx.emitIcmp("eq", "i8", secondByte, "0");
+    const isSingleChar = this.ctx.nextTemp();
+    this.ctx.emit(`${isSingleChar} = and i1 ${byteMatch}, ${isNull}`);
+
+    const isEq = op === "===" || op === "==";
+    let cmpBool: string;
+    if (isEq) {
+      cmpBool = isSingleChar;
+    } else {
+      cmpBool = this.ctx.nextTemp();
+      this.ctx.emit(`${cmpBool} = xor i1 ${isSingleChar}, true`);
+    }
+
+    const i32Result = this.ctx.nextTemp();
+    this.ctx.emit(`${i32Result} = zext i1 ${cmpBool} to i32`);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = sitofp i32 ${i32Result} to double`);
+    this.ctx.setVariableType(result, "double");
+    return result;
+  }
+
 }
