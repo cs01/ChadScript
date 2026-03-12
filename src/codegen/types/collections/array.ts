@@ -29,6 +29,7 @@ import {
   generateArrayFilter,
   generateArrayForEach,
   generateArrayReduce,
+  generateArrayReduceRight,
   generateArrayMap,
   generateStringArrayMap,
 } from "./array/iteration.js";
@@ -86,6 +87,10 @@ export class ArrayGenerator {
 
   generateArrayReduce(expr: MethodCallNode, params: string[]): string {
     return generateArrayReduce(this.ctx, expr, params);
+  }
+
+  generateArrayReduceRight(expr: MethodCallNode, params: string[]): string {
+    return generateArrayReduceRight(this.ctx, expr, params);
   }
 
   generateArrayMap(expr: MethodCallNode, params: string[]): string {

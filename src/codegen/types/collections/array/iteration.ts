@@ -859,3 +859,249 @@ function generateStringArrayMapImpl(
   gen.setVariableType(resultArrayPtr, "%StringArray*");
   return resultArrayPtr;
 }
+
+// ============================================
+// reduceRight
+// ============================================
+
+export function generateArrayReduceRight(
+  gen: IGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
+  if (expr.args.length < 1 || expr.args.length > 2) {
+    return gen.emitError(
+      "reduceRight() requires 1-2 arguments (callback, optional initialValue)",
+      expr.loc,
+    );
+  }
+
+  const arrayPtr = gen.generateExpression(expr.object, params);
+
+  let isStringArray = false;
+  const exprObjBase = expr.object as ExprBase;
+  if (exprObjBase.type === "variable") {
+    const varName = (expr.object as VariableNode).name;
+    const varType = gen.getVariableType(varName);
+    isStringArray = varType === "%StringArray*" || varType === "%StringArray";
+  } else {
+    const ptrType = gen.getVariableType(arrayPtr);
+    isStringArray = ptrType === "%StringArray*";
+  }
+
+  const callbackArg = expr.args[0];
+  let callbackFn: string;
+  if (callbackArg.type === "variable") {
+    callbackFn = gen.mangleUserName((callbackArg as VariableNode).name);
+  } else if (callbackArg.type === "arrow_function") {
+    if (isStringArray) {
+      gen.setExpectedCallbackParamType("string");
+    }
+    callbackFn = gen.generateExpression(callbackArg, params);
+    gen.setExpectedCallbackParamType(null);
+  } else {
+    return gen.emitError(
+      "reduceRight() argument must be a function name or inline function",
+      expr.loc,
+    );
+  }
+
+  let initialValue: string | null = null;
+  if (expr.args.length === 2) {
+    initialValue = gen.generateExpression(expr.args[1], params);
+  }
+
+  let result: string;
+  if (isStringArray) {
+    result = generateStringArrayReduceRight(gen, arrayPtr, callbackFn, initialValue);
+  } else {
+    result = generateNumericArrayReduceRight(gen, arrayPtr, callbackFn, initialValue);
+  }
+  gen.setLastInlineLambdaEnvPtr(null);
+  return result;
+}
+
+function generateNumericArrayReduceRight(
+  gen: IGeneratorContext,
+  arrayPtr: string,
+  callbackFn: string,
+  initialValue: string | null,
+): string {
+  const arrayMeta = loadArrayMeta(gen, arrayPtr);
+  const length = arrayMeta.length;
+  const dataPtr = arrayMeta.dataPtr;
+
+  const checkLabel = gen.nextLabel("reduceright_check");
+  const bodyLabel = gen.nextLabel("reduceright_body");
+  const endLabel = gen.nextLabel("reduceright_end");
+
+  const accPtr = gen.nextTemp();
+  gen.emit(`${accPtr} = alloca double`);
+
+  const counterPtr = gen.nextTemp();
+  gen.emit(`${counterPtr} = alloca i32`);
+
+  if (initialValue !== null) {
+    const dblInit = gen.ensureDouble(initialValue);
+    gen.emitStore("double", dblInit, accPtr);
+    const lastIdx = gen.nextTemp();
+    gen.emit(`${lastIdx} = sub i32 ${length}, 1`);
+    gen.emitStore("i32", lastIdx, counterPtr);
+  } else {
+    const isEmpty = gen.emitIcmp("eq", "i32", length, "0");
+    const emptyLabel = gen.nextLabel("reduceright_empty");
+    const okLabel = gen.nextLabel("reduceright_has_elems");
+    gen.emitBrCond(isEmpty, emptyLabel, okLabel);
+    gen.emitLabel(emptyLabel);
+    const stderrPtr = gen.nextTemp();
+    gen.emit(`${stderrPtr} = load i8*, i8** @stderr`);
+    const fmtStr = gen.createStringConstant(
+      "Error: reduceRight of empty array with no initial value\n",
+    );
+    const fprintfResult = gen.nextTemp();
+    gen.emit(
+      `${fprintfResult} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* ${fmtStr})`,
+    );
+    gen.emit("call void @exit(i32 1)");
+    gen.emit("unreachable");
+    gen.emitLabel(okLabel);
+    const lastIdx = gen.nextTemp();
+    gen.emit(`${lastIdx} = sub i32 ${length}, 1`);
+    const lastElemPtr = gen.nextTemp();
+    gen.emit(`${lastElemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${lastIdx}`);
+    const lastElem = gen.emitLoad("double", lastElemPtr);
+    gen.emitStore("double", lastElem, accPtr);
+    const startIdx = gen.nextTemp();
+    gen.emit(`${startIdx} = sub i32 ${length}, 2`);
+    gen.emitStore("i32", startIdx, counterPtr);
+  }
+
+  gen.emitBr(checkLabel);
+
+  gen.emitLabel(checkLabel);
+  const counter = gen.emitLoad("i32", counterPtr);
+  const cond = gen.emitIcmp("sge", "i32", counter, "0");
+  gen.emitBrCond(cond, bodyLabel, endLabel);
+
+  gen.emitLabel(bodyLabel);
+  const elemPtr = gen.nextTemp();
+  gen.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${counter}`);
+  const elem = gen.emitLoad("double", elemPtr);
+
+  const acc = gen.emitLoad("double", accPtr);
+
+  const newAcc = gen.emitCall(
+    "double",
+    `@${callbackFn}`,
+    buildIterCallArgs(gen, `double ${acc}, double ${elem}`),
+  );
+  gen.emitStore("double", newAcc, accPtr);
+
+  const nextCounter = gen.nextTemp();
+  gen.emit(`${nextCounter} = sub i32 ${counter}, 1`);
+  gen.emitStore("i32", nextCounter, counterPtr);
+  gen.emitBr(checkLabel);
+
+  gen.emitLabel(endLabel);
+  const finalAcc = gen.emitLoad("double", accPtr);
+  gen.setVariableType(finalAcc, "double");
+  return finalAcc;
+}
+
+function generateStringArrayReduceRight(
+  gen: IGeneratorContext,
+  arrayPtr: string,
+  callbackFn: string,
+  initialValue: string | null,
+): string {
+  const lenPtr = gen.nextTemp();
+  gen.emit(
+    `${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`,
+  );
+  const length = gen.emitLoad("i32", lenPtr);
+
+  const dataPtrField = gen.nextTemp();
+  gen.emit(
+    `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
+  );
+  const dataPtr = gen.nextTemp();
+  gen.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
+
+  const checkLabel = gen.nextLabel("reduceright_check");
+  const bodyLabel = gen.nextLabel("reduceright_body");
+  const endLabel = gen.nextLabel("reduceright_end");
+
+  const accPtr = gen.nextTemp();
+  gen.emit(`${accPtr} = alloca i8*`);
+
+  const counterPtr = gen.nextTemp();
+  gen.emit(`${counterPtr} = alloca i32`);
+
+  if (initialValue !== null) {
+    gen.emit(`store i8* ${initialValue}, i8** ${accPtr}`);
+    const lastIdx = gen.nextTemp();
+    gen.emit(`${lastIdx} = sub i32 ${length}, 1`);
+    gen.emitStore("i32", lastIdx, counterPtr);
+  } else {
+    const isEmpty = gen.emitIcmp("eq", "i32", length, "0");
+    const emptyLabel = gen.nextLabel("reduceright_empty");
+    const okLabel = gen.nextLabel("reduceright_has_elems");
+    gen.emitBrCond(isEmpty, emptyLabel, okLabel);
+    gen.emitLabel(emptyLabel);
+    const stderrPtr = gen.nextTemp();
+    gen.emit(`${stderrPtr} = load i8*, i8** @stderr`);
+    const fmtStr = gen.createStringConstant(
+      "Error: reduceRight of empty array with no initial value\n",
+    );
+    const fprintfResult = gen.nextTemp();
+    gen.emit(
+      `${fprintfResult} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* ${fmtStr})`,
+    );
+    gen.emit("call void @exit(i32 1)");
+    gen.emit("unreachable");
+    gen.emitLabel(okLabel);
+    const lastIdx = gen.nextTemp();
+    gen.emit(`${lastIdx} = sub i32 ${length}, 1`);
+    const lastElemPtr = gen.nextTemp();
+    gen.emit(`${lastElemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${lastIdx}`);
+    const lastElem = gen.nextTemp();
+    gen.emit(`${lastElem} = load i8*, i8** ${lastElemPtr}`);
+    gen.emit(`store i8* ${lastElem}, i8** ${accPtr}`);
+    const startIdx = gen.nextTemp();
+    gen.emit(`${startIdx} = sub i32 ${length}, 2`);
+    gen.emitStore("i32", startIdx, counterPtr);
+  }
+
+  gen.emitBr(checkLabel);
+
+  gen.emitLabel(checkLabel);
+  const counter = gen.emitLoad("i32", counterPtr);
+  const cond = gen.emitIcmp("sge", "i32", counter, "0");
+  gen.emitBrCond(cond, bodyLabel, endLabel);
+
+  gen.emitLabel(bodyLabel);
+  const elemPtr = gen.nextTemp();
+  gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${counter}`);
+  const elem = gen.nextTemp();
+  gen.emit(`${elem} = load i8*, i8** ${elemPtr}`);
+
+  const acc = gen.nextTemp();
+  gen.emit(`${acc} = load i8*, i8** ${accPtr}`);
+
+  const newAcc = gen.emitCall(
+    "i8*",
+    `@${callbackFn}`,
+    buildIterCallArgs(gen, `i8* ${acc}, i8* ${elem}`),
+  );
+  gen.emit(`store i8* ${newAcc}, i8** ${accPtr}`);
+
+  const nextCounter = gen.nextTemp();
+  gen.emit(`${nextCounter} = sub i32 ${counter}, 1`);
+  gen.emitStore("i32", nextCounter, counterPtr);
+  gen.emitBr(checkLabel);
+
+  gen.emitLabel(endLabel);
+  const finalAcc = gen.emitLoad("i8*", accPtr);
+  gen.setVariableType(finalAcc, "i8*");
+  return finalAcc;
+}

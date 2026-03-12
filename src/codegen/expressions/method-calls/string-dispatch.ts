@@ -279,6 +279,7 @@ function dispatchArrayTransforms(
 ): string | null {
   if (method === "forEach") return ctx.arrayGen.generateArrayForEach(expr, params);
   if (method === "reduce") return ctx.arrayGen.generateArrayReduce(expr, params);
+  if (method === "reduceRight") return ctx.arrayGen.generateArrayReduceRight(expr, params);
   if (method === "reverse") return ctx.arrayGen.generateArrayReverse(expr, params);
   if (method === "shift") return ctx.arrayGen.generateArrayShift(expr, params);
   return null;
