@@ -478,14 +478,31 @@ export class CallExpressionGenerator {
     const arg = expr.args[0];
     if (this.ctx.isStringExpression(arg)) {
       const strValue = this.ctx.generateExpression(arg, params);
-      const nullPtr = this.ctx.nextTemp();
-      this.ctx.emit(`${nullPtr} = inttoptr i32 0 to i8**`);
-      const resultDouble = this.ctx.emitCall(
-        "double",
-        "@strtod",
-        `i8* ${strValue}, i8** ${nullPtr}`,
+      const endPtrPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${endPtrPtr} = alloca i8*`);
+      const rawResult = this.ctx.emitCall("double", "@strtod", `i8* ${strValue}, i8** ${endPtrPtr}`);
+
+      const endPtr = this.ctx.emitLoad("i8*", endPtrPtr);
+      const noCharsConsumed = this.ctx.emitIcmp("eq", "i8*", endPtr, strValue);
+
+      const validLabel = this.ctx.nextLabel("number_valid");
+      const nanLabel = this.ctx.nextLabel("number_nan");
+      const endLabel = this.ctx.nextLabel("number_end");
+
+      this.ctx.emitBrCond(noCharsConsumed, nanLabel, validLabel);
+
+      this.ctx.emitLabel(validLabel);
+      this.ctx.emitBr(endLabel);
+
+      this.ctx.emitLabel(nanLabel);
+      this.ctx.emitBr(endLabel);
+
+      this.ctx.emitLabel(endLabel);
+      const result = this.ctx.nextTemp();
+      this.ctx.emit(
+        `${result} = phi double [${rawResult}, %${validLabel}], [0x7FF8000000000000, %${nanLabel}]`,
       );
-      return resultDouble;
+      return result;
     }
     return this.ctx.generateExpression(arg, params);
   }
