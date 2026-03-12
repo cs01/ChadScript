@@ -28,10 +28,7 @@
     "coverage:report": "c8 report",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "prepare": "husky"
-  },
-  "lint-staged": {
-    "*.{ts,js,json,md,yml,yaml}": "prettier --write"
+    "prepare": "cp scripts/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit"
   },
   "keywords": [
     "compiler",
@@ -46,8 +43,6 @@
     "@types/node": "^20.0.0",
     "date-fns": "^4.1.0",
     "c8": "^11.0.0",
-    "husky": "^9.1.7",
-    "lint-staged": "^16.2.7",
     "prettier": "^3.8.1",
     "ts-node": "^10.9.0",
     "tsx": "^4.20.6",
