@@ -195,7 +195,7 @@ export class MathGenerator {
     const dblA = this.ctx.ensureDouble(a);
     const dblB = this.ctx.ensureDouble(b);
     const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call double @llvm.maxnum.f64(double ${dblA}, double ${dblB})`);
+    this.ctx.emit(`${result} = call double @llvm.maximum.f64(double ${dblA}, double ${dblB})`);
     return result;
   }
 
@@ -276,7 +276,7 @@ export class MathGenerator {
     const dblA = this.ctx.ensureDouble(a);
     const dblB = this.ctx.ensureDouble(b);
     const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call double @llvm.minnum.f64(double ${dblA}, double ${dblB})`);
+    this.ctx.emit(`${result} = call double @llvm.minimum.f64(double ${dblA}, double ${dblB})`);
     return result;
   }
 }
