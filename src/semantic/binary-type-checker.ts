@@ -1,10 +1,4 @@
-import type {
-  AST,
-  Expression,
-  BinaryNode,
-  VariableNode,
-  UnaryNode,
-} from "../ast/types.js";
+import type { AST, Expression, BinaryNode, VariableNode, UnaryNode } from "../ast/types.js";
 import { formatCompileError } from "../diagnostics/engine.js";
 
 function inferBinaryExprType(expr: Expression): string {
@@ -105,7 +99,10 @@ function checkBinaryInExpr(expr: Expression, sourceCode: string): void {
   }
 }
 
-function checkBinaryInStmt(stmt: { type: string; value?: Expression | null }, sourceCode: string): void {
+function checkBinaryInStmt(
+  stmt: { type: string; value?: Expression | null },
+  sourceCode: string,
+): void {
   if (!stmt) return;
   if (stmt.value) {
     checkBinaryInExpr(stmt.value, sourceCode);
@@ -119,7 +116,10 @@ export function checkBinaryTypes(ast: AST, sourceCode: string): void {
     if (stmt) {
       const stype = stmt.type;
       if (stype === "variable_declaration" || stype === "assignment") {
-        checkBinaryInStmt(stmt as unknown as { type: string; value?: Expression | null }, sourceCode);
+        checkBinaryInStmt(
+          stmt as unknown as { type: string; value?: Expression | null },
+          sourceCode,
+        );
       } else if (stype === "binary") {
         checkBinaryInExpr(stmt as unknown as Expression, sourceCode);
       }
