@@ -140,6 +140,7 @@ export class RegexGenerator {
   // Test if a string matches a regex pattern
   // Returns double: 1.0 if match, 0.0 if no match (JavaScript semantics)
   generateRegexTest(regexPtr: string, testStr: string): string {
+    this.ctx.setUsesRegex(true);
     const execResult = this.ctx.emitCall(
       "i32",
       "@cs_regex_exec",
@@ -174,10 +175,12 @@ export class RegexGenerator {
 
   // Clean up regex resources
   generateRegexFree(regexPtr: string): void {
+    this.ctx.setUsesRegex(true);
     this.ctx.emitCallVoid("@cs_regex_free", `i8* ${regexPtr}`);
   }
 
   generateRegexMatch(regexPtr: string, testStr: string, numGroups: number): string {
+    this.ctx.setUsesRegex(true);
     const MAX_GROUPS = numGroups + 1;
 
     const pmatchPtr = this.ctx.emitCall("i8*", "@cs_pmatch_alloc", `i32 ${MAX_GROUPS}`);

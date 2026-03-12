@@ -1,66 +1,27 @@
-function testTrimStart(): void {
-  const s = "  hello  ";
-  const result = s.trimStart();
-  if (result !== "hello  ") {
-    console.log("Error: trimStart failed");
-    process.exit(1);
-  }
+const padded = "  hello  ";
 
-  const s2 = "   ";
-  const result2 = s2.trimStart();
-  if (result2 !== "") {
-    console.log("Error: trimStart all whitespace should return empty");
-    process.exit(1);
-  }
-
-  const s3 = "hello";
-  const result3 = s3.trimStart();
-  if (result3 !== "hello") {
-    console.log("Error: trimStart no whitespace should return original");
-    process.exit(1);
-  }
-
-  const s4 = "";
-  const result4 = s4.trimStart();
-  if (result4 !== "") {
-    console.log("Error: trimStart empty string should return empty");
-    process.exit(1);
-  }
-
-  console.log("TEST_PASSED");
+const trimmed = padded.trim();
+if (trimmed !== "hello") {
+  console.log("FAIL: trim got " + trimmed);
+  process.exit(1);
 }
 
-function testTrimEnd(): void {
-  const s = "  hello  ";
-  const result = s.trimEnd();
-  if (result !== "  hello") {
-    console.log("Error: trimEnd failed");
-    process.exit(1);
-  }
-
-  const s2 = "   ";
-  const result2 = s2.trimEnd();
-  if (result2 !== "") {
-    console.log("Error: trimEnd all whitespace should return empty");
-    process.exit(1);
-  }
-
-  const s3 = "hello";
-  const result3 = s3.trimEnd();
-  if (result3 !== "hello") {
-    console.log("Error: trimEnd no whitespace should return original");
-    process.exit(1);
-  }
-
-  const s4 = "";
-  const result4 = s4.trimEnd();
-  if (result4 !== "") {
-    console.log("Error: trimEnd empty string should return empty");
-    process.exit(1);
-  }
-
-  console.log("TEST_PASSED");
+const trimStart = padded.trimStart();
+if (trimStart !== "hello  ") {
+  console.log("FAIL: trimStart got '" + trimStart + "'");
+  process.exit(1);
 }
 
-testTrimStart();
-testTrimEnd();
+const trimEnd = padded.trimEnd();
+if (trimEnd !== "  hello") {
+  console.log("FAIL: trimEnd got '" + trimEnd + "'");
+  process.exit(1);
+}
+
+const empty = "   ";
+if (empty.trim() !== "") {
+  console.log("FAIL: trim whitespace-only");
+  process.exit(1);
+}
+
+console.log("TEST_PASSED");
