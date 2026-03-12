@@ -476,6 +476,21 @@ function generateNumericArrayReduce(
     gen.emitStore("double", dblInit, accPtr);
     gen.emitStore("i32", "0", counterPtr);
   } else {
+    const isEmpty = gen.emitIcmp("eq", "i32", length, "0");
+    const emptyLabel = gen.nextLabel("reduce_empty");
+    const okLabel = gen.nextLabel("reduce_has_elems");
+    gen.emitBrCond(isEmpty, emptyLabel, okLabel);
+    gen.emitLabel(emptyLabel);
+    const stderrPtr = gen.nextTemp();
+    gen.emit(`${stderrPtr} = load i8*, i8** @stderr`);
+    const fmtStr = gen.createStringConstant("Error: reduce of empty array with no initial value\n");
+    const fprintfResult = gen.nextTemp();
+    gen.emit(
+      `${fprintfResult} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* ${fmtStr})`,
+    );
+    gen.emit("call void @exit(i32 1)");
+    gen.emit("unreachable");
+    gen.emitLabel(okLabel);
     const firstElemPtr = gen.nextTemp();
     gen.emit(`${firstElemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 0`);
     const firstElem = gen.emitLoad("double", firstElemPtr);
@@ -548,6 +563,21 @@ function generateStringArrayReduce(
     gen.emit(`store i8* ${initialValue}, i8** ${accPtr}`);
     gen.emitStore("i32", "0", counterPtr);
   } else {
+    const isEmpty = gen.emitIcmp("eq", "i32", length, "0");
+    const emptyLabel = gen.nextLabel("reduce_empty");
+    const okLabel = gen.nextLabel("reduce_has_elems");
+    gen.emitBrCond(isEmpty, emptyLabel, okLabel);
+    gen.emitLabel(emptyLabel);
+    const stderrPtr = gen.nextTemp();
+    gen.emit(`${stderrPtr} = load i8*, i8** @stderr`);
+    const fmtStr = gen.createStringConstant("Error: reduce of empty array with no initial value\n");
+    const fprintfResult = gen.nextTemp();
+    gen.emit(
+      `${fprintfResult} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* ${fmtStr})`,
+    );
+    gen.emit("call void @exit(i32 1)");
+    gen.emit("unreachable");
+    gen.emitLabel(okLabel);
     const firstElemPtr = gen.nextTemp();
     gen.emit(`${firstElemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 0`);
     const firstElem = gen.nextTemp();
