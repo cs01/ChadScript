@@ -17,6 +17,19 @@ export function generateSplit(ctx: IGeneratorContext, strPtr: string, delimiter:
   const delimLenI32 = ctx.nextTemp();
   ctx.emit(`${delimLenI32} = trunc i64 ${delimLen} to i32`);
 
+  const emptyCounterPtr = ctx.nextTemp();
+  ctx.emit(`${emptyCounterPtr} = alloca i32`);
+  const partCountPtr = ctx.nextTemp();
+  ctx.emit(`${partCountPtr} = alloca i32`);
+  const scanPosPtr = ctx.nextTemp();
+  ctx.emit(`${scanPosPtr} = alloca i32`);
+  const startPosPtr = ctx.nextTemp();
+  ctx.emit(`${startPosPtr} = alloca i32`);
+  const curPosPtr = ctx.nextTemp();
+  ctx.emit(`${curPosPtr} = alloca i32`);
+  const partIndexPtr = ctx.nextTemp();
+  ctx.emit(`${partIndexPtr} = alloca i32`);
+
   const isEmptyDelim = ctx.emitIcmp("eq", "i32", delimLenI32, "0");
 
   const emptyDelimLabel = ctx.nextLabel("split_empty_delim");
@@ -41,8 +54,6 @@ export function generateSplit(ctx: IGeneratorContext, strPtr: string, delimiter:
   const emptyLoopBodyLabel = ctx.nextLabel("split_empty_body");
   const emptyLoopEndLabel = ctx.nextLabel("split_empty_end");
 
-  const emptyCounterPtr = ctx.nextTemp();
-  ctx.emit(`${emptyCounterPtr} = alloca i32`);
   ctx.emitStore("i32", "0", emptyCounterPtr);
   ctx.emitBr(emptyLoopLabel);
 
@@ -109,12 +120,7 @@ export function generateSplit(ctx: IGeneratorContext, strPtr: string, delimiter:
   const countCheckLabel = ctx.nextLabel("split_count_check");
   const countEndLabel = ctx.nextLabel("split_count_end");
 
-  const partCountPtr = ctx.nextTemp();
-  ctx.emit(`${partCountPtr} = alloca i32`);
   ctx.emitStore("i32", "1", partCountPtr);
-
-  const scanPosPtr = ctx.nextTemp();
-  ctx.emit(`${scanPosPtr} = alloca i32`);
   ctx.emitStore("i32", "0", scanPosPtr);
 
   ctx.emitBr(countLabel);
@@ -174,16 +180,8 @@ export function generateSplit(ctx: IGeneratorContext, strPtr: string, delimiter:
   const extractNoMatchLabel = ctx.nextLabel("split_extract_nomatch");
   const extractEndLabel = ctx.nextLabel("split_extract_end");
 
-  const startPosPtr = ctx.nextTemp();
-  ctx.emit(`${startPosPtr} = alloca i32`);
   ctx.emitStore("i32", "0", startPosPtr);
-
-  const curPosPtr = ctx.nextTemp();
-  ctx.emit(`${curPosPtr} = alloca i32`);
   ctx.emitStore("i32", "0", curPosPtr);
-
-  const partIndexPtr = ctx.nextTemp();
-  ctx.emit(`${partIndexPtr} = alloca i32`);
   ctx.emitStore("i32", "0", partIndexPtr);
 
   ctx.emitBr(extractLabel);
