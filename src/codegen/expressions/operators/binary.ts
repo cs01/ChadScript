@@ -82,9 +82,9 @@ export class BinaryExpressionGenerator {
       "<=": "ole", // ordered less or equal
       ">=": "oge", // ordered greater or equal
       "==": "oeq", // ordered equal
-      "!=": "one", // ordered not equal
+      "!=": "une", // unordered not equal (true if NaN or not equal)
       "===": "oeq", // Strict equality (same as == for double)
-      "!==": "one", // Strict inequality (same as != for double)
+      "!==": "une", // unordered not equal (true if NaN or not equal)
     };
 
     if (op === "**") {
@@ -525,7 +525,7 @@ export class BinaryExpressionGenerator {
     }
 
     const cmpResult = this.ctx.nextTemp();
-    this.ctx.emit(`${cmpResult} = fcmp fast ${cond} double ${leftDouble}, ${rightDouble}`);
+    this.ctx.emit(`${cmpResult} = fcmp ${cond} double ${leftDouble}, ${rightDouble}`);
 
     // Convert boolean result to double (JavaScript semantics: comparisons return numbers)
     const i32Result = this.ctx.nextTemp();
