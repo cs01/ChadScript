@@ -25,8 +25,12 @@ export function generateStartsWith(ctx: IGeneratorContext, strPtr: string, prefi
   return result;
 }
 
+function emitCachedStrlen(ctx: IGeneratorContext, strPtr: string): string {
+  return ctx.emitCall("i64", "@cs_cached_strlen", `i8* ${strPtr}`);
+}
+
 export function generateCharAt(ctx: IGeneratorContext, strPtr: string, index: string): string {
-  const strLen = ctx.emitCall("i64", "@strlen", `i8* ${strPtr}`);
+  const strLen = emitCachedStrlen(ctx, strPtr);
   const strLenI32 = ctx.nextTemp();
   ctx.emit(`${strLenI32} = trunc i64 ${strLen} to i32`);
 
@@ -112,7 +116,7 @@ export function generateStringAt(ctx: IGeneratorContext, strPtr: string, index: 
 }
 
 export function generateCharCodeAt(ctx: IGeneratorContext, strPtr: string, index: string): string {
-  const strLen = ctx.emitCall("i64", "@strlen", `i8* ${strPtr}`);
+  const strLen = emitCachedStrlen(ctx, strPtr);
   const strLenI32 = ctx.nextTemp();
   ctx.emit(`${strLenI32} = trunc i64 ${strLen} to i32`);
 

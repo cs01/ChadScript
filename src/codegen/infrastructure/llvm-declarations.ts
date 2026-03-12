@@ -38,6 +38,7 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += "declare i8* @strcat(i8*, i8*)\n";
   ir += "declare i8* @strdup(i8*)\n";
   ir += "declare i64 @strlen(i8*)\n";
+  ir += "declare i64 @cs_cached_strlen(i8*)\n";
   ir += "declare i32 @strcmp(i8*, i8*)\n";
   ir += "declare i32 @strncmp(i8*, i8*, i64)\n";
   ir += "declare i32 @snprintf(i8*, i64, i8*, ...)\n";

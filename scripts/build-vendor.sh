@@ -210,6 +210,17 @@ else
   echo "==> os-bridge already built, skipping"
 fi
 
+# --- strlen-cache (cached strlen for charAt optimization) ---
+STRLEN_CACHE_SRC="$C_BRIDGES_DIR/strlen-cache.c"
+STRLEN_CACHE_OBJ="$C_BRIDGES_DIR/strlen-cache.o"
+if [ ! -f "$STRLEN_CACHE_OBJ" ] || [ "$STRLEN_CACHE_SRC" -nt "$STRLEN_CACHE_OBJ" ]; then
+  echo "==> Building strlen-cache..."
+  cc -c -O2 -fPIC "$STRLEN_CACHE_SRC" -o "$STRLEN_CACHE_OBJ"
+  echo "  -> $STRLEN_CACHE_OBJ"
+else
+  echo "==> strlen-cache already built, skipping"
+fi
+
 # --- base64-bridge ---
 BASE64_BRIDGE_SRC="$C_BRIDGES_DIR/base64-bridge.c"
 BASE64_BRIDGE_OBJ="$C_BRIDGES_DIR/base64-bridge.o"
