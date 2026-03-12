@@ -50,7 +50,14 @@ parser.addScopedFlag("debug", "", "Show internal debugging information", "build,
 parser.addScopedFlag("trace", "", "Show everything (AST, IR, variable tracking)", "build,run,ir");
 parser.addScopedFlag("skip-semantic-analysis", "", "Skip semantic analysis", "build,run,ir");
 parser.addScopedFlag("keep-temps", "", "Keep intermediate files (.ll, .o)", "build,run,ir");
-parser.addScopedOption("diagnostics", "", "Diagnostic output format (json)", "", "build,run,ir");
+parser.addScopedOptionWithChoices(
+  "diagnostics",
+  "",
+  "Diagnostic output format",
+  "",
+  "build,run,ir",
+  ["json", "text"],
+);
 parser.addScopedFlag("sanitize-address", "", "Build with AddressSanitizer", "build,run");
 parser.addScopedFlag("debug-info", "g", "Emit DWARF debug info", "build,run");
 parser.addScopedOption(
