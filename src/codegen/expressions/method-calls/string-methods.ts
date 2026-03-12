@@ -655,6 +655,22 @@ export function handleCharAt(
   return ctx.stringGen.doGenerateCharAt(strPtr, indexI32);
 }
 
+export function handleStringAt(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
+  const strPtr = ctx.generateExpression(expr.object, params);
+
+  if (expr.args.length !== 1) {
+    return ctx.emitError("at() expects 1 argument, got " + expr.args.length, expr.loc);
+  }
+
+  const indexDouble = ctx.generateExpression(expr.args[0], params);
+  const indexI32 = convertToI32(ctx, indexDouble);
+  return ctx.stringGen.doGenerateStringAt(strPtr, indexI32);
+}
+
 export function handleCharCodeAt(
   ctx: MethodCallGeneratorContext,
   expr: MethodCallNode,

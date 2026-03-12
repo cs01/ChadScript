@@ -65,6 +65,52 @@ export function generateCharAt(ctx: IGeneratorContext, strPtr: string, index: st
   return result;
 }
 
+export function generateStringAt(ctx: IGeneratorContext, strPtr: string, index: string): string {
+  const strLen = ctx.emitCall("i64", "@strlen", `i8* ${strPtr}`);
+  const strLenI32 = ctx.nextTemp();
+  ctx.emit(`${strLenI32} = trunc i64 ${strLen} to i32`);
+
+  const isNeg = ctx.emitIcmp("slt", "i32", index, "0");
+  const adjusted = ctx.nextTemp();
+  ctx.emit(`${adjusted} = add i32 ${index}, ${strLenI32}`);
+  const resolved = ctx.nextTemp();
+  ctx.emit(`${resolved} = select i1 ${isNeg}, i32 ${adjusted}, i32 ${index}`);
+
+  const inBoundsLow = ctx.emitIcmp("sge", "i32", resolved, "0");
+  const inBoundsHigh = ctx.emitIcmp("slt", "i32", resolved, strLenI32);
+  const inBounds = ctx.nextTemp();
+  ctx.emit(`${inBounds} = and i1 ${inBoundsLow}, ${inBoundsHigh}`);
+
+  const validLabel = ctx.nextLabel("at_valid");
+  const oobLabel = ctx.nextLabel("at_oob");
+  const endLabel = ctx.nextLabel("at_end");
+
+  ctx.emitBrCond(inBounds, validLabel, oobLabel);
+
+  ctx.emitLabel(validLabel);
+  const indexI64 = ctx.nextTemp();
+  ctx.emit(`${indexI64} = sext i32 ${resolved} to i64`);
+  const charPtr = ctx.nextTemp();
+  ctx.emit(`${charPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${indexI64}`);
+  const charI8 = ctx.emitLoad("i8", charPtr);
+  const resultPtr = ctx.emitCall("i8*", "@GC_malloc_atomic", "i64 2");
+  ctx.emitStore("i8", charI8, resultPtr);
+  const nullPtr = ctx.nextTemp();
+  ctx.emit(`${nullPtr} = getelementptr inbounds i8, i8* ${resultPtr}, i64 1`);
+  ctx.emitStore("i8", "0", nullPtr);
+  ctx.emitBr(endLabel);
+
+  ctx.emitLabel(oobLabel);
+  const emptyStr = ctx.emitCall("i8*", "@GC_malloc_atomic", "i64 1");
+  ctx.emitStore("i8", "0", emptyStr);
+  ctx.emitBr(endLabel);
+
+  ctx.emitLabel(endLabel);
+  const result = ctx.nextTemp();
+  ctx.emit(`${result} = phi i8* [${resultPtr}, %${validLabel}], [${emptyStr}, %${oobLabel}]`);
+  return result;
+}
+
 export function generateCharCodeAt(ctx: IGeneratorContext, strPtr: string, index: string): string {
   const strLen = ctx.emitCall("i64", "@strlen", `i8* ${strPtr}`);
   const strLenI32 = ctx.nextTemp();
