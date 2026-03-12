@@ -293,7 +293,7 @@ export class BinaryExpressionGenerator {
 
     this.ctx.emitLabel(floatModLabel);
     const fremResult = this.ctx.nextTemp();
-    this.ctx.emit(`${fremResult} = frem fast double ${left}, ${right}`);
+    this.ctx.emit(`${fremResult} = frem nsz arcp contract reassoc afn double ${left}, ${right}`);
     const floatBranchEnd = this.ctx.getCurrentLabel();
     this.ctx.emitBr(mergeLabel);
 

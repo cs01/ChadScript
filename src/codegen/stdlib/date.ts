@@ -35,7 +35,7 @@ export class DateGenerator {
 
     // Convert ms → seconds as i64 for localtime_r / gmtime_r
     const secDbl = this.ctx.nextTemp();
-    this.ctx.emit(`${secDbl} = fdiv fast double ${msVal}, 1.000000e+03`);
+    this.ctx.emit(`${secDbl} = fdiv nsz arcp contract reassoc afn double ${msVal}, 1.000000e+03`);
     const secI64 = this.ctx.nextTemp();
     this.ctx.emit(`${secI64} = fptosi double ${secDbl} to i64`);
 
@@ -89,7 +89,7 @@ export class DateGenerator {
 
     if (method === "getFullYear") {
       const result = this.ctx.nextTemp();
-      this.ctx.emit(`${result} = fadd fast double ${fieldDbl}, 1900.0`);
+      this.ctx.emit(`${result} = fadd nsz arcp contract reassoc afn double ${fieldDbl}, 1900.0`);
       this.ctx.setVariableType(result, "double");
       return result;
     }

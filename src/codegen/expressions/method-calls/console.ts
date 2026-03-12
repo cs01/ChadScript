@@ -675,6 +675,7 @@ export function generateConsoleTimeEnd(
   ctx.emit(`${diffDbl} = uitofp i64 ${diffNs} to double`);
   const diffMs = ctx.nextTemp();
   ctx.emit(`${diffMs} = fdiv double ${diffDbl}, 1000000.0`);
+  ctx.setVariableType(diffMs, "double");
 
   const fmtStr = ctx.stringGen.doCreateStringConstant("%s: %.3fms\n");
   const printResult = ctx.nextTemp();
