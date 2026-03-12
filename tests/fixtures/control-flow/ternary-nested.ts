@@ -1,5 +1,3 @@
-// @test-skip
-// native compiler binary crashes on nested ternary expressions (LLVM 22 CI)
 let passed = true;
 
 const x = 5;
