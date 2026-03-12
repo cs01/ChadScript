@@ -8,6 +8,14 @@ const f = a === 3;
 const g = "abc" < "def";
 const h = "count: " + 42;
 
-if (a === 3 && b === "hello world" && c === 7 && d === 20 && f === true && g === true && h === "count: 42") {
+if (
+  a === 3 &&
+  b === "hello world" &&
+  c === 7 &&
+  d === 20 &&
+  f === true &&
+  g === true &&
+  h === "count: 42"
+) {
   console.log("TEST_PASSED");
 }
