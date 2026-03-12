@@ -1795,6 +1795,247 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return "";
   }
 
+  private tryHandleGlobalJSONParse(name: string, methodCall: MethodCallNode): string {
+    const interfaceName = this.typeInference.getJSONParseInterface(methodCall);
+    if (interfaceName === "number[]") {
+      const llvmType = "%Array*";
+      const kind = SymbolKind.Array;
+      this.globalVariables.set(name, { llvmType, kind, initialized: false });
+      this.defineVariableWithMetadata(
+        name,
+        `@${name}`,
+        llvmType,
+        kind,
+        "global",
+        createPointerAllocaMetadata(),
+      );
+      return `@${name} = global ${llvmType} null\n`;
+    }
+    if (interfaceName) {
+      let interfaceDef: InterfaceDeclaration | null = null;
+      for (let i = 0; i < this.ast.interfaces.length; i++) {
+        const iface = this.ast.interfaces[i];
+        if (!iface) continue;
+        if (!iface.name) continue;
+        if (iface.name === interfaceName) {
+          interfaceDef = iface as InterfaceDeclaration;
+          break;
+        }
+      }
+      if (interfaceDef) {
+        const llvmType = `%${interfaceName}*`;
+        const kind = SymbolKind.JSON;
+        const keys: string[] = [];
+        const tsTypes: string[] = [];
+        const types: string[] = [];
+        const allFields = this.getAllInterfaceFields(interfaceDef);
+        for (let i = 0; i < allFields.length; i++) {
+          const field = allFields[i] as { name: string; type: string };
+          keys.push(stripOptional(field.name));
+          tsTypes.push(field.type);
+          types.push(this.tsTypeToLlvmJsonWithEnums(field.type));
+        }
+        this.globalVariables.set(name, { llvmType, kind, initialized: false });
+        this.defineVariableWithMetadata(
+          name,
+          `@${name}`,
+          llvmType,
+          kind,
+          "global",
+          createObjectMetadataWithInterface({ keys, types, tsTypes }, interfaceName),
+        );
+        return `@${name} = global ${llvmType} null\n`;
+      }
+    }
+    return "";
+  }
+
+  private tryHandleGlobalDeclaredType(name: string, declaredType: string | undefined): string {
+    if (!declaredType) return "";
+    const strippedDeclaredType = stripNullable(declaredType);
+    if (strippedDeclaredType === "string") return "";
+    let foundInterface = false;
+    for (let i = 0; i < this.ast.interfaces.length; i++) {
+      const iface = this.ast.interfaces[i];
+      if (!iface) continue;
+      if (!iface.name) continue;
+      if (iface.name === strippedDeclaredType) {
+        foundInterface = true;
+        break;
+      }
+    }
+    if (foundInterface) {
+      this.globalVariables.set(name, {
+        llvmType: "i8*",
+        kind: SymbolKind.Object,
+        initialized: false,
+      });
+      this.defineVariableWithMetadata(
+        name,
+        `@${name}`,
+        "i8*",
+        SymbolKind.Object,
+        "global",
+        createInterfaceMetadata(strippedDeclaredType),
+      );
+      return `@${name} = global i8* null\n`;
+    }
+    if (this.isKnownClass(strippedDeclaredType)) {
+      const fields = this.classGen
+        ? this.classGen.getClassFields(strippedDeclaredType) || []
+        : [];
+      const llvmType = fields.length > 0 ? `%${strippedDeclaredType}_struct*` : "i8*";
+      this.globalVariables.set(name, {
+        llvmType,
+        kind: SymbolKind.Class,
+        initialized: false,
+      });
+      this.defineVariableWithMetadata(
+        name,
+        `@${name}`,
+        llvmType,
+        SymbolKind.Class,
+        "global",
+        createClassMetadata({ className: strippedDeclaredType }),
+      );
+      return `@${name} = global ${llvmType} null\n`;
+    }
+    if (this.ast.typeAliases) {
+      for (let i = 0; i < this.ast.typeAliases.length; i++) {
+        const alias = this.ast.typeAliases[i];
+        if (!alias || alias.name !== strippedDeclaredType) continue;
+        const members = alias.unionMembers;
+        let aliasLlvm = "i8*";
+        if (members && members.length > 0) {
+          aliasLlvm = tsTypeToLlvm(members[0].trim());
+        }
+        const kind = aliasLlvm === "double" ? SymbolKind.Number : SymbolKind.Object;
+        const defaultValue = aliasLlvm === "double" ? "0.0" : "null";
+        this.globalVariables.set(name, {
+          llvmType: aliasLlvm,
+          kind,
+          initialized: false,
+        });
+        this.defineVariable(name, `@${name}`, aliasLlvm, kind, "global");
+        return `@${name} = global ${aliasLlvm} ${defaultValue}\n`;
+      }
+    }
+    return "";
+  }
+
+  private tryHandleGlobalExpressionType(name: string, value: Expression | null): string {
+    if (!value) return "";
+    const funcReturnInterface = this.typeInference.getFunctionCallInterfaceReturn(value);
+    if (funcReturnInterface) {
+      this.globalVariables.set(name, {
+        llvmType: "i8*",
+        kind: SymbolKind.Object,
+        initialized: false,
+      });
+      this.defineVariableWithMetadata(
+        name,
+        `@${name}`,
+        "i8*",
+        SymbolKind.Object,
+        "global",
+        createInterfaceMetadata(funcReturnInterface),
+      );
+      return `@${name} = global i8* null\n`;
+    }
+    const indexAccessInterface = this.typeInference.getIndexAccessElementType(value);
+    if (indexAccessInterface) {
+      this.globalVariables.set(name, {
+        llvmType: "i8*",
+        kind: SymbolKind.Object,
+        initialized: false,
+      });
+      this.defineVariableWithMetadata(
+        name,
+        `@${name}`,
+        "i8*",
+        SymbolKind.Object,
+        "global",
+        createInterfaceMetadata(indexAccessInterface),
+      );
+      return `@${name} = global i8* null\n`;
+    }
+    if ((value as { type: string }).type === "index_access") {
+      const idxNode = value as IndexAccessNode;
+      if (idxNode.object && idxNode.object.type === "variable") {
+        const idxObjVar = idxNode.object as VariableNode;
+        if (idxObjVar.name) {
+          const arrSym = this.symbolTable.lookup(idxObjVar.name);
+          if (arrSym && arrSym.kind === SymbolKind.ObjectArray && arrSym.interfaceType) {
+            this.globalVariables.set(name, {
+              llvmType: "i8*",
+              kind: SymbolKind.Object,
+              initialized: false,
+            });
+            this.defineVariableWithMetadata(
+              name,
+              `@${name}`,
+              "i8*",
+              SymbolKind.Object,
+              "global",
+              createInterfaceMetadata(arrSym.interfaceType),
+            );
+            return `@${name} = global i8* null\n`;
+          }
+        }
+      }
+    }
+    return "";
+  }
+
+  private classifyGlobalCatchAll(
+    name: string,
+    value: Expression | null,
+    declaredType: string | undefined,
+    i64Eligible: string[],
+  ): { llvmType: string; kind: number; defaultValue: string } | null {
+    const exprNodeType = value ? (value as { type: string }).type : "";
+    if (exprNodeType === "method_call" && !declaredType) {
+      const genericErr = this.getGenericMethodReturnError(value as MethodCallNode, name);
+      if (genericErr) {
+        this.emitError(genericErr);
+      }
+    }
+    if (
+      exprNodeType === "number" ||
+      exprNodeType === "boolean" ||
+      exprNodeType === "binary" ||
+      exprNodeType === "unary" ||
+      exprNodeType === "method_call" ||
+      exprNodeType === "call" ||
+      exprNodeType === "variable" ||
+      exprNodeType === "conditional" ||
+      exprNodeType === "index_access" ||
+      exprNodeType === "member_access"
+    ) {
+      const resolved = value ? this.typeInference.resolveExpressionType(value) : null;
+      if (resolved) {
+        if (resolved.base === "string") {
+          return { llvmType: "i8*", kind: SymbolKind.String, defaultValue: "null" };
+        }
+        if (resolved.base === "boolean") {
+          return { llvmType: "i1", kind: SymbolKind.Boolean, defaultValue: "0" };
+        }
+      }
+      let isI64 = false;
+      for (let ei = 0; ei < i64Eligible.length; ei++) {
+        if (i64Eligible[ei] === name) {
+          isI64 = true;
+          break;
+        }
+      }
+      if (isI64) {
+        return { llvmType: "i64", kind: SymbolKind.Number, defaultValue: "0" };
+      }
+      return { llvmType: "double", kind: SymbolKind.Number, defaultValue: "0.0" };
+    }
+    return null;
+  }
+
   private generateGlobalVariableDeclarations(): string {
     let ir = "";
     const totalCount = this.topLevelStatementsCount;
@@ -2152,279 +2393,53 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           kind = SymbolKind.Number;
           defaultValue = "0.0";
         } else if (isJSONParse) {
-          const interfaceName = this.typeInference.getJSONParseInterface(
-            stmt.value as MethodCallNode,
-          );
-          if (interfaceName === "number[]") {
-            llvmType = "%Array*";
-            kind = SymbolKind.Array;
-            defaultValue = "null";
-            ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
-            this.globalVariables.set(name, { llvmType, kind, initialized: false });
-            this.defineVariableWithMetadata(
-              name,
-              `@${name}`,
-              llvmType,
-              kind,
-              "global",
-              createPointerAllocaMetadata(),
-            );
+          const jsonIr = this.tryHandleGlobalJSONParse(name, stmt.value as MethodCallNode);
+          if (jsonIr) {
+            ir += jsonIr;
             continue;
-          } else if (interfaceName) {
-            let interfaceDef: InterfaceDeclaration | null = null;
-            for (let i = 0; i < this.ast.interfaces.length; i++) {
-              const iface = this.ast.interfaces[i];
-              if (!iface) continue;
-              if (!iface.name) continue;
-              if (iface.name === interfaceName) {
-                interfaceDef = iface as InterfaceDeclaration;
-                break;
-              }
-            }
-            if (interfaceDef) {
-              llvmType = `%${interfaceName}*`;
-              kind = SymbolKind.JSON;
-              defaultValue = "null";
-              const keys: string[] = [];
-              const tsTypes: string[] = [];
-              const types: string[] = [];
-              const allFields = this.getAllInterfaceFields(interfaceDef);
-              for (let i = 0; i < allFields.length; i++) {
-                const field = allFields[i] as { name: string; type: string };
-                keys.push(stripOptional(field.name));
-                tsTypes.push(field.type);
-                types.push(this.tsTypeToLlvmJsonWithEnums(field.type));
-              }
-              ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
-              this.globalVariables.set(name, { llvmType, kind, initialized: false });
-              this.defineVariableWithMetadata(
-                name,
-                `@${name}`,
-                llvmType,
-                kind,
-                "global",
-                createObjectMetadataWithInterface({ keys, types, tsTypes }, interfaceName),
-              );
-              continue;
-            }
           }
           llvmType = "i8*";
           kind = SymbolKind.JSON;
           defaultValue = "null";
         } else {
-          // Phase 1: Try to classify from declared type annotation
-          const stmtTyped = stmt as { declaredType?: string };
-          if (stmtTyped.declaredType) {
-            const strippedDeclaredType = stripNullable(stmtTyped.declaredType);
+          const declaredIr = this.tryHandleGlobalDeclaredType(name, stmt.declaredType);
+          if (declaredIr) {
+            ir += declaredIr;
+            continue;
+          }
+          if (stmt.declaredType) {
+            const strippedDeclaredType = stripNullable(stmt.declaredType);
             if (strippedDeclaredType === "string") {
               llvmType = "i8*";
               kind = SymbolKind.String;
               defaultValue = "null";
-            } else {
-              let foundInterface = false;
-              for (let i = 0; i < this.ast.interfaces.length; i++) {
-                const iface = this.ast.interfaces[i];
-                if (!iface) continue;
-                if (!iface.name) continue;
-                if (iface.name === strippedDeclaredType) {
-                  foundInterface = true;
-                  break;
-                }
-              }
-              if (foundInterface) {
-                llvmType = "i8*";
-                kind = SymbolKind.Object;
-                defaultValue = "null";
-                ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
-                this.globalVariables.set(name, { llvmType, kind, initialized: false });
-                this.defineVariableWithMetadata(
-                  name,
-                  `@${name}`,
-                  llvmType,
-                  kind,
-                  "global",
-                  createInterfaceMetadata(strippedDeclaredType),
-                );
-                continue;
-              }
-              if (this.isKnownClass(strippedDeclaredType)) {
-                const fields = this.classGen
-                  ? this.classGen.getClassFields(strippedDeclaredType) || []
-                  : [];
-                llvmType = fields.length > 0 ? `%${strippedDeclaredType}_struct*` : "i8*";
-                kind = SymbolKind.Class;
-                defaultValue = "null";
-                ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
-                this.globalVariables.set(name, { llvmType, kind, initialized: false });
-                this.defineVariableWithMetadata(
-                  name,
-                  `@${name}`,
-                  llvmType,
-                  kind,
-                  "global",
-                  createClassMetadata({ className: strippedDeclaredType }),
-                );
-                continue;
-              }
-              // Check typeAliases — object-shaped aliases (Point, Config, etc.) resolve to i8*
-              if (this.ast.typeAliases) {
-                let foundAlias = false;
-                for (let i = 0; i < this.ast.typeAliases.length; i++) {
-                  const alias = this.ast.typeAliases[i];
-                  if (!alias || alias.name !== strippedDeclaredType) continue;
-                  const members = alias.unionMembers;
-                  let aliasLlvm = "i8*";
-                  if (members && members.length > 0) {
-                    aliasLlvm = tsTypeToLlvm(members[0].trim());
-                  }
-                  llvmType = aliasLlvm;
-                  kind = llvmType === "double" ? SymbolKind.Number : SymbolKind.Object;
-                  defaultValue = llvmType === "double" ? "0.0" : "null";
-                  ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
-                  this.globalVariables.set(name, { llvmType, kind, initialized: false });
-                  this.defineVariable(name, `@${name}`, llvmType, kind, "global");
-                  foundAlias = true;
-                  break;
-                }
-                if (foundAlias) continue;
-              }
-              // Unrecognized declared type — fall through to expression-based detection
             }
           }
 
-          // Phase 2: Try to classify from expression analysis (runs if Phase 1 didn't match)
           if (llvmType === "") {
-            const funcReturnInterface = this.typeInference.getFunctionCallInterfaceReturn(
+            const exprIr = this.tryHandleGlobalExpressionType(name, stmt.value);
+            if (exprIr) {
+              ir += exprIr;
+              continue;
+            }
+          }
+
+          if (llvmType === "") {
+            const catchAllResult = this.classifyGlobalCatchAll(
+              name,
               stmt.value,
+              stmt.declaredType,
+              i64Eligible,
             );
-            if (funcReturnInterface) {
-              llvmType = "i8*";
-              kind = SymbolKind.Object;
-              defaultValue = "null";
-              ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
-              this.globalVariables.set(name, { llvmType, kind, initialized: false });
-              this.defineVariableWithMetadata(
-                name,
-                `@${name}`,
-                llvmType,
-                kind,
-                "global",
-                createInterfaceMetadata(funcReturnInterface),
-              );
-              continue;
-            }
-            const indexAccessInterface = this.typeInference.getIndexAccessElementType(stmt.value);
-            if (indexAccessInterface) {
-              llvmType = "i8*";
-              kind = SymbolKind.Object;
-              defaultValue = "null";
-              ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
-              this.globalVariables.set(name, { llvmType, kind, initialized: false });
-              this.defineVariableWithMetadata(
-                name,
-                `@${name}`,
-                llvmType,
-                kind,
-                "global",
-                createInterfaceMetadata(indexAccessInterface),
-              );
-              continue;
-            }
-            const stmtValBase2 = stmt.value as { type: string };
-            if (stmt.value && stmtValBase2.type === "index_access") {
-              const idxNode = stmt.value as IndexAccessNode;
-              if (idxNode.object && idxNode.object.type === "variable") {
-                const idxObjVar = idxNode.object as VariableNode;
-                if (idxObjVar.name) {
-                  const arrSym = this.symbolTable.lookup(idxObjVar.name);
-                  if (arrSym && arrSym.kind === SymbolKind.ObjectArray && arrSym.interfaceType) {
-                    llvmType = "i8*";
-                    kind = SymbolKind.Object;
-                    defaultValue = "null";
-                    ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
-                    this.globalVariables.set(name, { llvmType, kind, initialized: false });
-                    this.defineVariableWithMetadata(
-                      name,
-                      `@${name}`,
-                      llvmType,
-                      kind,
-                      "global",
-                      createInterfaceMetadata(arrSym.interfaceType),
-                    );
-                    continue;
-                  }
-                }
-              }
-            }
-          }
-
-          // Phase 3: Final catch-all based on expression node type
-          if (llvmType === "") {
-            const exprNodeType = stmt.value ? (stmt.value as { type: string }).type : "";
-            if (exprNodeType === "method_call" && !stmt.declaredType) {
-              const genericErr = this.getGenericMethodReturnError(
-                stmt.value as MethodCallNode,
-                name,
-              );
-              if (genericErr) return this.emitError(genericErr);
-            }
-            // Expression types that can plausibly return a number at module scope.
-            // String/array/map/etc. returning expressions should have been caught
-            // by the specific detectors above — anything that falls through is likely numeric.
-            if (
-              exprNodeType === "number" ||
-              exprNodeType === "boolean" ||
-              exprNodeType === "binary" ||
-              exprNodeType === "unary" ||
-              exprNodeType === "method_call" ||
-              exprNodeType === "call" ||
-              exprNodeType === "variable" ||
-              exprNodeType === "conditional" ||
-              exprNodeType === "index_access" ||
-              exprNodeType === "member_access"
-            ) {
-              let isNumber = true;
-              const resolved = stmt.value
-                ? this.typeInference.resolveExpressionType(stmt.value)
-                : null;
-              if (resolved) {
-                const base = resolved.base;
-                if (base === "string") {
-                  llvmType = "i8*";
-                  kind = SymbolKind.String;
-                  defaultValue = "null";
-                  isNumber = false;
-                } else if (base === "boolean") {
-                  llvmType = "i1";
-                  kind = SymbolKind.Boolean;
-                  defaultValue = "0";
-                  isNumber = false;
-                }
-              }
-              if (isNumber) {
-                let isI64 = false;
-                for (let ei = 0; ei < i64Eligible.length; ei++) {
-                  if (i64Eligible[ei] === name) {
-                    isI64 = true;
-                    break;
-                  }
-                }
-                if (isI64) {
-                  llvmType = "i64";
-                  kind = SymbolKind.Number;
-                  defaultValue = "0";
-                } else {
-                  llvmType = "double";
-                  kind = SymbolKind.Number;
-                  defaultValue = "0.0";
-                }
-              }
-            } else {
+            if (catchAllResult === null) {
               return this.emitError(
-                `cannot determine type of module-scope variable '${name}' (expression type: ${exprNodeType || "unknown"}). ` +
+                `cannot determine type of module-scope variable '${name}' (expression type: ${stmt.value ? (stmt.value as { type: string }).type : "unknown"}). ` +
                   `Move the declaration inside a function, or add a type annotation`,
               );
             }
+            llvmType = catchAllResult.llvmType;
+            kind = catchAllResult.kind;
+            defaultValue = catchAllResult.defaultValue;
           }
         }
 
