@@ -518,7 +518,7 @@ export class MapGenerator {
     const arrayPtr = this.ctx.emitBitcast(arrayMem, "i8*", "%Array*");
 
     const mapSizeI64 = this.nextTemp();
-    this.emit(`${mapSizeI64} = sext i32 ${mapSize} to i64`);
+    this.emit(`${mapSizeI64} = zext i32 ${mapSize} to i64`);
     const dataSize = this.nextTemp();
     this.emit(`${dataSize} = mul i64 ${mapSizeI64}, 8`);
     const dataMem = this.ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${dataSize}`);
@@ -578,7 +578,7 @@ export class MapGenerator {
     const arrayPtr = this.ctx.emitBitcast(arrayMem, "i8*", "%Array*");
 
     const mapSizeI64 = this.nextTemp();
-    this.emit(`${mapSizeI64} = sext i32 ${mapSize} to i64`);
+    this.emit(`${mapSizeI64} = zext i32 ${mapSize} to i64`);
     const dataSize = this.nextTemp();
     this.emit(`${dataSize} = mul i64 ${mapSizeI64}, 8`);
     const dataMem = this.ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${dataSize}`);
@@ -771,7 +771,7 @@ export class StringMapGenerator {
     const newCapacity = this.nextTemp();
     this.emit(`${newCapacity} = shl i32 ${currentCapacity}, 1`);
     const newCapI64 = this.nextTemp();
-    this.emit(`${newCapI64} = sext i32 ${newCapacity} to i64`);
+    this.emit(`${newCapI64} = zext i32 ${newCapacity} to i64`);
     const newArrSize = this.nextTemp();
     this.emit(`${newArrSize} = mul i64 ${newCapI64}, 8`);
     const newKeysMem = this.ctx.emitCall("i8*", "@GC_malloc", `i64 ${newArrSize}`);
@@ -1025,7 +1025,7 @@ export class StringMapGenerator {
     const capacity = this.ctx.emitLoad("i32", capacityFieldPtr);
 
     const capI64 = this.nextTemp();
-    this.emit(`${capI64} = sext i32 ${capacity} to i64`);
+    this.emit(`${capI64} = zext i32 ${capacity} to i64`);
     const arrSize = this.nextTemp();
     this.emit(`${arrSize} = mul i64 ${capI64}, 8`);
 
@@ -1228,7 +1228,7 @@ export class StringMapGenerator {
     const arrayPtr = this.ctx.emitBitcast(arrayMem, "i8*", "%Array*");
 
     const mapSizeI64 = this.nextTemp();
-    this.emit(`${mapSizeI64} = sext i32 ${mapSize} to i64`);
+    this.emit(`${mapSizeI64} = zext i32 ${mapSize} to i64`);
     const dataSize = this.nextTemp();
     this.emit(`${dataSize} = mul i64 ${mapSizeI64}, 8`);
     const dataMem = this.ctx.emitCall("i8*", "@GC_malloc", `i64 ${dataSize}`);
@@ -1339,7 +1339,7 @@ export class StringMapGenerator {
     const arrayPtr = this.ctx.emitBitcast(arrayMem, "i8*", "%Array*");
 
     const mapSizeI64 = this.nextTemp();
-    this.emit(`${mapSizeI64} = sext i32 ${mapSize} to i64`);
+    this.emit(`${mapSizeI64} = zext i32 ${mapSize} to i64`);
     const dataSize = this.nextTemp();
     this.emit(`${dataSize} = mul i64 ${mapSizeI64}, 8`);
     const dataMem = this.ctx.emitCall("i8*", "@GC_malloc", `i64 ${dataSize}`);
@@ -1431,7 +1431,7 @@ export class StringMapGenerator {
     const arrayPtr = this.ctx.emitBitcast(arrayMem, "i8*", "%StringArray*");
 
     const mapSizeI64 = this.nextTemp();
-    this.emit(`${mapSizeI64} = sext i32 ${mapSize} to i64`);
+    this.emit(`${mapSizeI64} = zext i32 ${mapSize} to i64`);
     const dataSize = this.nextTemp();
     this.emit(`${dataSize} = mul i64 ${mapSizeI64}, 8`);
     const dataMem = this.ctx.emitCall("i8*", "@GC_malloc", `i64 ${dataSize}`);
@@ -1887,7 +1887,7 @@ export class PointerMapGenerator {
     const arrayPtr = this.ctx.emitBitcast(arrayMem, "i8*", "%ObjectArray*");
 
     const mapSizeI64 = this.nextTemp();
-    this.emit(`${mapSizeI64} = sext i32 ${mapSize} to i64`);
+    this.emit(`${mapSizeI64} = zext i32 ${mapSize} to i64`);
     const dataSize = this.nextTemp();
     this.emit(`${dataSize} = mul i64 ${mapSizeI64}, 8`);
     const dataMem = this.ctx.emitCall("i8*", "@GC_malloc", `i64 ${dataSize}`);
@@ -1978,7 +1978,7 @@ export class PointerMapGenerator {
     const arrayPtr = this.ctx.emitBitcast(arrayMem, "i8*", "%ObjectArray*");
 
     const mapSizeI64 = this.nextTemp();
-    this.emit(`${mapSizeI64} = sext i32 ${mapSize} to i64`);
+    this.emit(`${mapSizeI64} = zext i32 ${mapSize} to i64`);
     const dataSize = this.nextTemp();
     this.emit(`${dataSize} = mul i64 ${mapSizeI64}, 8`);
     const dataMem = this.ctx.emitCall("i8*", "@GC_malloc", `i64 ${dataSize}`);
@@ -2051,7 +2051,7 @@ export class PointerMapGenerator {
     const arrayPtr = this.ctx.emitBitcast(arrayMem, "i8*", "%ObjectArray*");
 
     const mapSizeI64 = this.nextTemp();
-    this.emit(`${mapSizeI64} = sext i32 ${mapSize} to i64`);
+    this.emit(`${mapSizeI64} = zext i32 ${mapSize} to i64`);
     const dataSize = this.nextTemp();
     this.emit(`${dataSize} = mul i64 ${mapSizeI64}, 8`);
     const dataMem = this.ctx.emitCall("i8*", "@GC_malloc", `i64 ${dataSize}`);
