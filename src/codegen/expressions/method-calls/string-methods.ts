@@ -354,9 +354,17 @@ export function handleStringArrayIndexOf(
   ctx.emitBrCond(dataPtrIsNull, notfoundLabel, `${checkLabel}_start`);
 
   ctx.emitLabel(`${checkLabel}_start`);
+  const isNeg = ctx.emitIcmp("slt", "i32", fromIndex, "0");
+  const adjusted = ctx.nextTemp();
+  ctx.emit(`${adjusted} = add i32 ${fromIndex}, ${length}`);
+  const resolved = ctx.nextTemp();
+  ctx.emit(`${resolved} = select i1 ${isNeg}, i32 ${adjusted}, i32 ${fromIndex}`);
+  const stillNeg = ctx.emitIcmp("slt", "i32", resolved, "0");
+  const clampedFrom = ctx.nextTemp();
+  ctx.emit(`${clampedFrom} = select i1 ${stillNeg}, i32 0, i32 ${resolved}`);
   const counterPtr = ctx.nextTemp();
   ctx.emit(`${counterPtr} = alloca i32`);
-  ctx.emitStore("i32", fromIndex, counterPtr);
+  ctx.emitStore("i32", clampedFrom, counterPtr);
 
   ctx.emitBr(checkLabel);
 

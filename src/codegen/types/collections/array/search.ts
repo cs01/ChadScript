@@ -31,6 +31,7 @@ export function generateArrayIndexOf(
   const searchValue = gen.generateExpression(expr.args[0], params);
 
   // Optional fromIndex (2nd arg) — defaults to 0
+  // Negative fromIndex is resolved as max(0, length + fromIndex) per JS spec
   let fromIndex: string | null = null;
   if (expr.args.length === 2) {
     const fromRaw = gen.generateExpression(expr.args[1], params);
@@ -58,6 +59,18 @@ export function generateArrayIndexOf(
   return generateNumericArrayIndexOf(gen, arrayPtr, searchValue, fromIndex);
 }
 
+function resolveFromIndex(gen: IGeneratorContext, fromIndex: string, length: string): string {
+  const isNeg = gen.emitIcmp("slt", "i32", fromIndex, "0");
+  const adjusted = gen.nextTemp();
+  gen.emit(`${adjusted} = add i32 ${fromIndex}, ${length}`);
+  const resolved = gen.nextTemp();
+  gen.emit(`${resolved} = select i1 ${isNeg}, i32 ${adjusted}, i32 ${fromIndex}`);
+  const stillNeg = gen.emitIcmp("slt", "i32", resolved, "0");
+  const clamped = gen.nextTemp();
+  gen.emit(`${clamped} = select i1 ${stillNeg}, i32 0, i32 ${resolved}`);
+  return clamped;
+}
+
 function generateNumericArrayIndexOf(
   gen: IGeneratorContext,
   arrayPtr: string,
@@ -74,13 +87,15 @@ function generateNumericArrayIndexOf(
   const dataPtr = gen.nextTemp();
   gen.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
 
+  const startIndex = fromIndex ? resolveFromIndex(gen, fromIndex, length) : null;
+
   const resultPtr = gen.nextTemp();
   gen.emit(`${resultPtr} = alloca i32`);
   gen.emitStore("i32", "-1", resultPtr);
 
   const loopPtr = gen.nextTemp();
   gen.emit(`${loopPtr} = alloca i32`);
-  gen.emitStore("i32", fromIndex ?? "0", loopPtr);
+  gen.emitStore("i32", startIndex ?? "0", loopPtr);
 
   const checkLabel = gen.nextLabel("indexof_check");
   const bodyLabel = gen.nextLabel("indexof_body");
@@ -143,13 +158,15 @@ function generateStringArrayIndexOf(
   const dataPtr = gen.nextTemp();
   gen.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
 
+  const startIndex = fromIndex ? resolveFromIndex(gen, fromIndex, length) : null;
+
   const resultPtr = gen.nextTemp();
   gen.emit(`${resultPtr} = alloca i32`);
   gen.emitStore("i32", "-1", resultPtr);
 
   const loopPtr = gen.nextTemp();
   gen.emit(`${loopPtr} = alloca i32`);
-  gen.emitStore("i32", fromIndex ?? "0", loopPtr);
+  gen.emitStore("i32", startIndex ?? "0", loopPtr);
 
   const checkLabel = gen.nextLabel("indexof_check");
   const bodyLabel = gen.nextLabel("indexof_body");
