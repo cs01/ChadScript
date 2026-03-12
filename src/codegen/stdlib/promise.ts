@@ -504,8 +504,8 @@ export class PromiseGenerator {
     ir += "  ; Allocate results array (ObjectArray: {i8*, i32, i32})\n";
     ir += "  %results_arr_mem = call i8* @GC_malloc(i64 16)\n";
     ir += "  %results_arr = bitcast i8* %results_arr_mem to %ObjectArray*\n";
-    ir += "  %results_data_size = mul i32 %len, 8\n";
-    ir += "  %results_data_size_i64 = sext i32 %results_data_size to i64\n";
+    ir += "  %results_len_i64 = zext i32 %len to i64\n";
+    ir += "  %results_data_size_i64 = mul i64 %results_len_i64, 8\n";
     ir += "  %results_data_mem = call i8* @GC_malloc(i64 %results_data_size_i64)\n";
     ir +=
       "  %results_data_field = getelementptr inbounds %ObjectArray, %ObjectArray* %results_arr, i32 0, i32 0\n";
@@ -810,8 +810,8 @@ export class PromiseGenerator {
     ir += "  store i32 0, i32* %rejected\n";
     ir += "  %results_arr_mem = call i8* @GC_malloc(i64 16)\n";
     ir += "  %results_arr = bitcast i8* %results_arr_mem to %ObjectArray*\n";
-    ir += "  %results_data_size = mul i32 %len, 8\n";
-    ir += "  %results_data_size_i64 = sext i32 %results_data_size to i64\n";
+    ir += "  %results_len_i64 = zext i32 %len to i64\n";
+    ir += "  %results_data_size_i64 = mul i64 %results_len_i64, 8\n";
     ir += "  %results_data_mem = call i8* @GC_malloc(i64 %results_data_size_i64)\n";
     ir +=
       "  %results_data_field = getelementptr inbounds %ObjectArray, %ObjectArray* %results_arr, i32 0, i32 0\n";

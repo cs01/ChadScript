@@ -30,10 +30,10 @@ export function generateSplit(ctx: IGeneratorContext, strPtr: string, delimiter:
   const emptyArrMem = ctx.emitCall("i8*", "@GC_malloc", "i64 24");
   const emptyArrPtr = ctx.emitBitcast(emptyArrMem, "i8*", "%StringArray*");
 
-  const emptyDataSize = ctx.nextTemp();
-  ctx.emit(`${emptyDataSize} = mul i32 ${strLenI32}, 8`);
+  const strLenI64 = ctx.nextTemp();
+  ctx.emit(`${strLenI64} = zext i32 ${strLenI32} to i64`);
   const emptyDataSizeI64 = ctx.nextTemp();
-  ctx.emit(`${emptyDataSizeI64} = zext i32 ${emptyDataSize} to i64`);
+  ctx.emit(`${emptyDataSizeI64} = mul i64 ${strLenI64}, 8`);
   const emptyDataMem = ctx.emitCall("i8*", "@GC_malloc", `i64 ${emptyDataSizeI64}`);
   const emptyDataPtr = ctx.emitBitcast(emptyDataMem, "i8*", "i8**");
 
@@ -161,10 +161,10 @@ export function generateSplit(ctx: IGeneratorContext, strPtr: string, delimiter:
   const arrayMem = ctx.emitCall("i8*", "@GC_malloc", "i64 24");
   const arrayPtr = ctx.emitBitcast(arrayMem, "i8*", "%StringArray*");
 
-  const dataSize = ctx.nextTemp();
-  ctx.emit(`${dataSize} = mul i32 ${totalParts}, 8`);
+  const totalPartsI64 = ctx.nextTemp();
+  ctx.emit(`${totalPartsI64} = zext i32 ${totalParts} to i64`);
   const dataSizeI64 = ctx.nextTemp();
-  ctx.emit(`${dataSizeI64} = zext i32 ${dataSize} to i64`);
+  ctx.emit(`${dataSizeI64} = mul i64 ${totalPartsI64}, 8`);
   const dataMem = ctx.emitCall("i8*", "@GC_malloc", `i64 ${dataSizeI64}`);
   const dataPtr = ctx.emitBitcast(dataMem, "i8*", "i8**");
 
