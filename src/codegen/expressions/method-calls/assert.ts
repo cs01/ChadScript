@@ -101,7 +101,7 @@ function handleNumberEquality(
   if (expectEqual) {
     ctx.emit(`${cmp} = fcmp oeq double ${dblActual}, ${dblExpected}`);
   } else {
-    ctx.emit(`${cmp} = fcmp one double ${dblActual}, ${dblExpected}`);
+    ctx.emit(`${cmp} = fcmp une double ${dblActual}, ${dblExpected}`);
   }
 
   const passLabel = ctx.nextLabel("assert_pass");
