@@ -402,22 +402,39 @@ export class CallExpressionGenerator {
       radixValue = "10";
     }
 
-    // Call strtol(str, null, radix)
-    // strtol returns i64, we'll truncate to i32 and then convert to double
-    const nullPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${nullPtr} = inttoptr i32 0 to i8**`);
+    const endPtrPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${endPtrPtr} = alloca i8*`);
 
     const resultI64 = this.ctx.emitCall(
       "i64",
       "@strtol",
-      `i8* ${strValue}, i8** ${nullPtr}, i32 ${radixValue}`,
+      `i8* ${strValue}, i8** ${endPtrPtr}, i32 ${radixValue}`,
     );
 
-    // Convert i64 to double for compatibility with ChadScript's numeric type
+    const endPtr = this.ctx.emitLoad("i8*", endPtrPtr);
+    const noCharsConsumed = this.ctx.emitIcmp("eq", "i8*", endPtr, strValue);
+
+    const validLabel = this.ctx.nextLabel("parseint_valid");
+    const nanLabel = this.ctx.nextLabel("parseint_nan");
+    const endLabel = this.ctx.nextLabel("parseint_end");
+
+    this.ctx.emitBrCond(noCharsConsumed, nanLabel, validLabel);
+
+    this.ctx.emitLabel(validLabel);
     const resultDouble = this.ctx.nextTemp();
     this.ctx.emit(`${resultDouble} = sitofp i64 ${resultI64} to double`);
+    this.ctx.emitBr(endLabel);
 
-    return resultDouble;
+    this.ctx.emitLabel(nanLabel);
+    this.ctx.emitBr(endLabel);
+
+    this.ctx.emitLabel(endLabel);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${result} = phi double [${resultDouble}, %${validLabel}], [0x7FF8000000000000, %${nanLabel}]`,
+    );
+
+    return result;
   }
 
   private generateParseFloat(expr: CallNode, params: string[]): string {
@@ -426,9 +443,30 @@ export class CallExpressionGenerator {
     }
 
     const strValue = this.ctx.generateExpression(expr.args[0], params);
-    const nullPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${nullPtr} = inttoptr i32 0 to i8**`);
-    const result = this.ctx.emitCall("double", "@strtod", `i8* ${strValue}, i8** ${nullPtr}`);
+    const endPtrPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${endPtrPtr} = alloca i8*`);
+    const rawResult = this.ctx.emitCall("double", "@strtod", `i8* ${strValue}, i8** ${endPtrPtr}`);
+
+    const endPtr = this.ctx.emitLoad("i8*", endPtrPtr);
+    const noCharsConsumed = this.ctx.emitIcmp("eq", "i8*", endPtr, strValue);
+
+    const validLabel = this.ctx.nextLabel("parsefloat_valid");
+    const nanLabel = this.ctx.nextLabel("parsefloat_nan");
+    const endLabel = this.ctx.nextLabel("parsefloat_end");
+
+    this.ctx.emitBrCond(noCharsConsumed, nanLabel, validLabel);
+
+    this.ctx.emitLabel(validLabel);
+    this.ctx.emitBr(endLabel);
+
+    this.ctx.emitLabel(nanLabel);
+    this.ctx.emitBr(endLabel);
+
+    this.ctx.emitLabel(endLabel);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${result} = phi double [${rawResult}, %${validLabel}], [0x7FF8000000000000, %${nanLabel}]`,
+    );
     return result;
   }
 
