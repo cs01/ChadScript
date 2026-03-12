@@ -93,6 +93,23 @@ export class JsonGenerator {
   private generateUntypedParse(expr: MethodCallNode, params: string[]): string {
     const jsonStr = this.ctx.generateExpression(expr.args[0], params);
     const jsonRoot = this.ctx.emitCall("i8*", "@csyyjson_parse", `i8* ${jsonStr}`);
+
+    const isNull = this.ctx.emitIcmp("eq", "i8*", jsonRoot, "null");
+    const failLabel = this.ctx.nextLabel("json_parse_fail");
+    const okLabel = this.ctx.nextLabel("json_parse_ok");
+    this.ctx.emitBrCond(isNull, failLabel, okLabel);
+    this.ctx.emitLabel(failLabel);
+    const stderrPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${stderrPtr} = load i8*, i8** @stderr`);
+    const fmtStr = this.ctx.createStringConstant("Error: JSON.parse() failed — invalid JSON input\n");
+    const fprintfResult = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${fprintfResult} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* ${fmtStr})`,
+    );
+    this.ctx.emit("call void @exit(i32 1)");
+    this.ctx.emit("unreachable");
+    this.ctx.emitLabel(okLabel);
+
     return jsonRoot;
   }
 
