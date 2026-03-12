@@ -11,7 +11,7 @@ import { IGeneratorContext } from "../../infrastructure/generator-context.js";
 import { generateArrayLiteral } from "./array/literal.js";
 import { generateArrayPush, generateArrayPop } from "./array/mutators.js";
 import { generateArrayReverse, generateArrayShift, generateArrayUnshift } from "./array/reorder.js";
-import { generateArrayIndexOf, generateArrayFindIndex } from "./array/search.js";
+import { generateArrayIndexOf, generateArrayFindIndex, generateArrayAt } from "./array/search.js";
 import { generateArraySplice } from "./array/splice.js";
 import { generateArraySort } from "./array/sort.js";
 import {
@@ -121,6 +121,10 @@ export class ArrayGenerator {
 
   generateArrayIndexOf(expr: MethodCallNode, params: string[]): string {
     return generateArrayIndexOf(this.ctx, expr, params);
+  }
+
+  generateArrayAt(expr: MethodCallNode, params: string[]): string {
+    return generateArrayAt(this.ctx, expr, params);
   }
 
   generateArrayFindIndex(expr: MethodCallNode, params: string[]): string {

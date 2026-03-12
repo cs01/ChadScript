@@ -376,3 +376,183 @@ function generateStringArrayFindIndex(
   gen.setVariableType(result, "double");
   return result;
 }
+
+export function generateArrayAt(
+  gen: IGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
+  if (expr.args.length !== 1) {
+    return gen.emitError("at() expects 1 argument, got " + expr.args.length, expr.loc);
+  }
+
+  const arrayPtr = gen.generateExpression(expr.object, params);
+  const indexRaw = gen.generateExpression(expr.args[0], params);
+  const indexDouble = gen.ensureDouble(indexRaw);
+
+  let isStringArray = false;
+  let isObjectArray = false;
+  const exprObjBase = expr.object as ExprBase;
+  if (exprObjBase.type === "variable") {
+    const varName = (expr.object as VariableNode).name;
+    const varType = gen.getVariableType(varName);
+    isStringArray = varType === "%StringArray*" || varType === "%StringArray";
+    isObjectArray = varType === "%ObjectArray*" || varType === "%ObjectArray";
+  }
+  if (!isStringArray && !isObjectArray) {
+    const ptrType = gen.getVariableType(arrayPtr);
+    if (ptrType === "%StringArray*" || ptrType === "%StringArray") isStringArray = true;
+    if (ptrType === "%ObjectArray*" || ptrType === "%ObjectArray") isObjectArray = true;
+  }
+
+  if (isStringArray) return generateStringArrayAt(gen, arrayPtr, indexDouble);
+  if (isObjectArray) return generateObjectArrayAt(gen, arrayPtr, indexDouble);
+  return generateNumericArrayAt(gen, arrayPtr, indexDouble);
+}
+
+function resolveNegativeIndex(gen: IGeneratorContext, indexDouble: string, length: string): string {
+  const indexI32 = gen.nextTemp();
+  gen.emit(`${indexI32} = fptosi double ${indexDouble} to i32`);
+  const isNeg = gen.emitIcmp("slt", "i32", indexI32, "0");
+  const adjusted = gen.nextTemp();
+  gen.emit(`${adjusted} = add i32 ${indexI32}, ${length}`);
+  const resolved = gen.nextTemp();
+  gen.emit(`${resolved} = select i1 ${isNeg}, i32 ${adjusted}, i32 ${indexI32}`);
+  return resolved;
+}
+
+function generateNumericArrayAt(
+  gen: IGeneratorContext,
+  arrayPtr: string,
+  indexDouble: string,
+): string {
+  const lenPtr = gen.nextTemp();
+  gen.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
+  const length = gen.emitLoad("i32", lenPtr);
+  const resolved = resolveNegativeIndex(gen, indexDouble, length);
+
+  const inLow = gen.emitIcmp("sge", "i32", resolved, "0");
+  const inHigh = gen.emitIcmp("slt", "i32", resolved, length);
+  const inBounds = gen.nextTemp();
+  gen.emit(`${inBounds} = and i1 ${inLow}, ${inHigh}`);
+
+  const validLabel = gen.nextLabel("at_valid");
+  const oobLabel = gen.nextLabel("at_oob");
+  const endLabel = gen.nextLabel("at_end");
+  gen.emitBrCond(inBounds, validLabel, oobLabel);
+
+  gen.emitLabel(validLabel);
+  const dataPtrField = gen.nextTemp();
+  gen.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
+  const dataPtr = gen.emitLoad("double*", dataPtrField);
+  const indexI64 = gen.nextTemp();
+  gen.emit(`${indexI64} = sext i32 ${resolved} to i64`);
+  const elemPtr = gen.nextTemp();
+  gen.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i64 ${indexI64}`);
+  const validVal = gen.emitLoad("double", elemPtr);
+  gen.emitBr(endLabel);
+
+  gen.emitLabel(oobLabel);
+  gen.emitBr(endLabel);
+
+  gen.emitLabel(endLabel);
+  const resultNum = gen.nextTemp();
+  gen.emit(
+    `${resultNum} = phi double [${validVal}, %${validLabel}], [0x7FF8000000000000, %${oobLabel}]`,
+  );
+  gen.setVariableType(resultNum, "double");
+  return resultNum;
+}
+
+function generateStringArrayAt(
+  gen: IGeneratorContext,
+  arrayPtr: string,
+  indexDouble: string,
+): string {
+  const lenPtr = gen.nextTemp();
+  gen.emit(
+    `${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`,
+  );
+  const length = gen.emitLoad("i32", lenPtr);
+  const resolved = resolveNegativeIndex(gen, indexDouble, length);
+
+  const inLow = gen.emitIcmp("sge", "i32", resolved, "0");
+  const inHigh = gen.emitIcmp("slt", "i32", resolved, length);
+  const inBounds = gen.nextTemp();
+  gen.emit(`${inBounds} = and i1 ${inLow}, ${inHigh}`);
+
+  const validLabel = gen.nextLabel("at_valid");
+  const oobLabel = gen.nextLabel("at_oob");
+  const endLabel = gen.nextLabel("at_end");
+  gen.emitBrCond(inBounds, validLabel, oobLabel);
+
+  gen.emitLabel(validLabel);
+  const dataPtrField = gen.nextTemp();
+  gen.emit(
+    `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
+  );
+  const dataPtr = gen.emitLoad("i8**", dataPtrField);
+  const indexI64 = gen.nextTemp();
+  gen.emit(`${indexI64} = sext i32 ${resolved} to i64`);
+  const elemPtr = gen.nextTemp();
+  gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i64 ${indexI64}`);
+  const validVal = gen.emitLoad("i8*", elemPtr);
+  gen.emitBr(endLabel);
+
+  gen.emitLabel(oobLabel);
+  const emptyStr = gen.emitCall("i8*", "@GC_malloc_atomic", "i64 1");
+  gen.emitStore("i8", "0", emptyStr);
+  gen.emitBr(endLabel);
+
+  gen.emitLabel(endLabel);
+  const resultStr = gen.nextTemp();
+  gen.emit(`${resultStr} = phi i8* [${validVal}, %${validLabel}], [${emptyStr}, %${oobLabel}]`);
+  return resultStr;
+}
+
+function generateObjectArrayAt(
+  gen: IGeneratorContext,
+  arrayPtr: string,
+  indexDouble: string,
+): string {
+  const lenPtr = gen.nextTemp();
+  gen.emit(
+    `${lenPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 1`,
+  );
+  const length = gen.emitLoad("i32", lenPtr);
+  const resolved = resolveNegativeIndex(gen, indexDouble, length);
+
+  const inLow = gen.emitIcmp("sge", "i32", resolved, "0");
+  const inHigh = gen.emitIcmp("slt", "i32", resolved, length);
+  const inBounds = gen.nextTemp();
+  gen.emit(`${inBounds} = and i1 ${inLow}, ${inHigh}`);
+
+  const validLabel = gen.nextLabel("at_valid");
+  const oobLabel = gen.nextLabel("at_oob");
+  const endLabel = gen.nextLabel("at_end");
+  gen.emitBrCond(inBounds, validLabel, oobLabel);
+
+  gen.emitLabel(validLabel);
+  const dataPtrField = gen.nextTemp();
+  gen.emit(
+    `${dataPtrField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`,
+  );
+  const rawDataPtr = gen.emitLoad("i8*", dataPtrField);
+  const dataPtr = gen.emitBitcast(rawDataPtr, "i8*", "i8**");
+  const indexI64 = gen.nextTemp();
+  gen.emit(`${indexI64} = sext i32 ${resolved} to i64`);
+  const elemPtr = gen.nextTemp();
+  gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i64 ${indexI64}`);
+  const validVal = gen.emitLoad("i8*", elemPtr);
+  gen.emitBr(endLabel);
+
+  gen.emitLabel(oobLabel);
+  const nullPtr = gen.nextTemp();
+  gen.emit(`${nullPtr} = inttoptr i64 0 to i8*`);
+  gen.emitBr(endLabel);
+
+  gen.emitLabel(endLabel);
+  const resultObj = gen.nextTemp();
+  gen.emit(`${resultObj} = phi i8* [${validVal}, %${validLabel}], [${nullPtr}, %${oobLabel}]`);
+  return resultObj;
+}
