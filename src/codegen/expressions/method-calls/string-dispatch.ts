@@ -160,7 +160,12 @@ function dispatchStringReplaceCase(
     if (err) return err;
     return handleCharAt(ctx, expr, params);
   }
-  if (method === "at") {
+  if (
+    method === "at" &&
+    !ctx.isArrayExpression(expr.object) &&
+    !ctx.isStringArrayExpression(expr.object) &&
+    !ctx.isObjectArrayExpression(expr.object)
+  ) {
     const err = rejectNonString(ctx, method, expr);
     if (err) return err;
     return handleStringAt(ctx, expr, params);
@@ -328,5 +333,12 @@ export function dispatchArrayMethod(
     return ctx.arrayGen.generateArrayConcat(expr, params);
   const reorder = dispatchArrayReorder(ctx, method, expr, params);
   if (reorder) return reorder;
+  if (
+    method === "at" &&
+    (ctx.isArrayExpression(expr.object) ||
+      ctx.isStringArrayExpression(expr.object) ||
+      ctx.isObjectArrayExpression(expr.object))
+  )
+    return ctx.arrayGen.generateArrayAt(expr, params);
   return null;
 }

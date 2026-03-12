@@ -387,9 +387,14 @@ export class TypeInference {
       method === "trimEnd" ||
       method === "toFixed" ||
       method === "normalize" ||
-      method === "at" ||
       method === "getVariableType"
     ) {
+      return this.ctx.typeContext.stringType;
+    }
+
+    if (method === "at") {
+      if (this.isArrayExpression(expr.object)) return this.ctx.typeContext.numberType;
+      if (this.isStringArrayExpression(expr.object)) return this.ctx.typeContext.stringType;
       return this.ctx.typeContext.stringType;
     }
 
