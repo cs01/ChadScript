@@ -430,7 +430,9 @@ export class CallExpressionGenerator {
 
     this.ctx.emitLabel(endLabel);
     const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = phi double [${resultDouble}, %${validLabel}], [0x7FF8000000000000, %${nanLabel}]`);
+    this.ctx.emit(
+      `${result} = phi double [${resultDouble}, %${validLabel}], [0x7FF8000000000000, %${nanLabel}]`,
+    );
 
     return result;
   }
@@ -462,7 +464,9 @@ export class CallExpressionGenerator {
 
     this.ctx.emitLabel(endLabel);
     const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = phi double [${rawResult}, %${validLabel}], [0x7FF8000000000000, %${nanLabel}]`);
+    this.ctx.emit(
+      `${result} = phi double [${rawResult}, %${validLabel}], [0x7FF8000000000000, %${nanLabel}]`,
+    );
     return result;
   }
 
