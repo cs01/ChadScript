@@ -79,8 +79,12 @@ export function generateSubstr(
 export function generateRepeat(ctx: IGeneratorContext, strPtr: string, count: string): string {
   const strLen = ctx.emitCall("i64", "@strlen", `i8* ${strPtr}`);
 
+  const isNeg = ctx.emitIcmp("slt", "i32", count, "0");
+  const clampedCount = ctx.nextTemp();
+  ctx.emit(`${clampedCount} = select i1 ${isNeg}, i32 0, i32 ${count}`);
+
   const countI64 = ctx.nextTemp();
-  ctx.emit(`${countI64} = sext i32 ${count} to i64`);
+  ctx.emit(`${countI64} = sext i32 ${clampedCount} to i64`);
 
   const totalLen = ctx.nextTemp();
   ctx.emit(`${totalLen} = mul i64 ${strLen}, ${countI64}`);
@@ -104,7 +108,7 @@ export function generateRepeat(ctx: IGeneratorContext, strPtr: string, count: st
 
   ctx.emitLabel(loopLabel);
   const counterVal = ctx.emitLoad("i32", counterPtr);
-  const loopCond = ctx.emitIcmp("slt", "i32", counterVal, count);
+  const loopCond = ctx.emitIcmp("slt", "i32", counterVal, clampedCount);
   ctx.emitBrCond(loopCond, loopBodyLabel, loopEndLabel);
 
   ctx.emitLabel(loopBodyLabel);
