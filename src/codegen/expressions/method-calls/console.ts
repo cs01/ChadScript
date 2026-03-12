@@ -81,6 +81,9 @@ function emitArrayPrint(
 
   const isEmpty = ctx.emitIcmp("eq", "i32", len, "0");
 
+  const iAlloca = ctx.nextTemp();
+  ctx.emit(`${iAlloca} = alloca i32`);
+
   const emptyLabel = ctx.nextLabel("arr_empty");
   const nonEmptyLabel = ctx.nextLabel("arr_nonempty");
   const loopLabel = ctx.nextLabel("arr_loop");
@@ -117,8 +120,6 @@ function emitArrayPrint(
     dataPtr = ctx.emitBitcast(rawData, "i8*", "i8**");
   }
   emitPrintStrNoNl(ctx, useStderr, openBracket);
-  const iAlloca = ctx.nextTemp();
-  ctx.emit(`${iAlloca} = alloca i32`);
   ctx.emitStore("i32", "0", iAlloca);
   ctx.emitBr(loopLabel);
 
@@ -197,6 +198,12 @@ function emitMapPrint(
   const arrow = ctx.stringGen.doCreateStringConstant(" => ");
 
   const isEmpty = ctx.emitIcmp("eq", "i32", size, "0");
+
+  const iAlloca = ctx.nextTemp();
+  ctx.emit(`${iAlloca} = alloca i32`);
+  const printedAlloca = ctx.nextTemp();
+  ctx.emit(`${printedAlloca} = alloca i32`);
+
   const emptyLabel = ctx.nextLabel("map_empty");
   const nonEmptyLabel = ctx.nextLabel("map_nonempty");
   const doneLabel = ctx.nextLabel("map_done");
@@ -221,11 +228,7 @@ function emitMapPrint(
   const keys = ctx.emitLoad(isString ? "i8**" : "double*", keysFieldPtr);
   const vals = ctx.emitLoad(isString ? "i8**" : "double*", valsFieldPtr);
 
-  const iAlloca = ctx.nextTemp();
-  ctx.emit(`${iAlloca} = alloca i32`);
   ctx.emitStore("i32", "0", iAlloca);
-  const printedAlloca = ctx.nextTemp();
-  ctx.emit(`${printedAlloca} = alloca i32`);
   ctx.emitStore("i32", "0", printedAlloca);
 
   const loopLabel = ctx.nextLabel("map_loop");
@@ -343,6 +346,10 @@ function emitSetPrint(
   const separator = ctx.stringGen.doCreateStringConstant(", ");
 
   const isEmpty = ctx.emitIcmp("eq", "i32", size, "0");
+
+  const iAlloca = ctx.nextTemp();
+  ctx.emit(`${iAlloca} = alloca i32`);
+
   const emptyLabel = ctx.nextLabel("set_empty");
   const nonEmptyLabel = ctx.nextLabel("set_nonempty");
   const doneLabel = ctx.nextLabel("set_done");
@@ -362,8 +369,6 @@ function emitSetPrint(
   );
   const data = ctx.emitLoad(isString ? "i8**" : "double*", dataFieldPtr);
 
-  const iAlloca = ctx.nextTemp();
-  ctx.emit(`${iAlloca} = alloca i32`);
   ctx.emitStore("i32", "0", iAlloca);
 
   const loopLabel = ctx.nextLabel("set_loop");
