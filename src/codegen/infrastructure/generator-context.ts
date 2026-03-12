@@ -318,6 +318,7 @@ export interface IArrayGenerator {
   generateArrayFilter(expr: MethodCallNode, params: string[]): string;
   generateArrayForEach(expr: MethodCallNode, params: string[]): string;
   generateArrayReduce(expr: MethodCallNode, params: string[]): string;
+  generateArrayReduceRight(expr: MethodCallNode, params: string[]): string;
   generateArraySlice(expr: MethodCallNode, params: string[]): string;
   generateArrayConcat(expr: MethodCallNode, params: string[]): string;
   generateArrayReverse(expr: MethodCallNode, params: string[]): string;
@@ -2080,6 +2081,8 @@ export class MockGeneratorContext implements IGeneratorContext {
     generateArrayForEach: (_expr: MethodCallNode, _params: string[]): string =>
       "%mock_array_foreach",
     generateArrayReduce: (_expr: MethodCallNode, _params: string[]): string => "%mock_array_reduce",
+    generateArrayReduceRight: (_expr: MethodCallNode, _params: string[]): string =>
+      "%mock_array_reduceright",
     generateArraySlice: (_expr: MethodCallNode, _params: string[]): string => "%mock_array_slice",
     generateArrayConcat: (_expr: MethodCallNode, _params: string[]): string => "%mock_array_concat",
     generateArrayReverse: (_expr: MethodCallNode, _params: string[]): string =>
