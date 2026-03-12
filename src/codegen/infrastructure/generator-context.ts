@@ -83,6 +83,7 @@ export interface IStringGenerator {
   doGenerateSplit(strPtr: string, delimiter: string): string;
   doGenerateStartsWith(strPtr: string, prefix: string): string;
   doGenerateEndsWith(strPtr: string, suffix: string): string;
+  doGenerateEndsWithPosition(strPtr: string, suffix: string, endPosition: string): string;
   doGenerateTrim(strPtr: string): string;
   doGenerateTrimStart(strPtr: string): string;
   doGenerateTrimEnd(strPtr: string): string;
@@ -93,6 +94,7 @@ export interface IStringGenerator {
   doGenerateLastIndexOf(strPtr: string, substring: string): string;
   doGenerateLastIndexOfFrom(strPtr: string, substring: string, fromIndex: string): string;
   doGenerateIncludes(strPtr: string, substring: string): string;
+  doGenerateIncludesFrom(strPtr: string, substring: string, fromIndex: string): string;
   doGenerateSlice(strPtr: string, start: string, end: string | null): string;
   doGenerateCharAt(strPtr: string, index: string): string;
   doGenerateStringAt(strPtr: string, index: string): string;
@@ -1694,6 +1696,8 @@ export class MockGeneratorContext implements IGeneratorContext {
     doGenerateSplit: (_strPtr: string, _delimiter: string): string => "%0",
     doGenerateStartsWith: (_strPtr: string, _prefix: string): string => "%0",
     doGenerateEndsWith: (_strPtr: string, _suffix: string): string => "%0",
+    doGenerateEndsWithPosition: (_strPtr: string, _suffix: string, _endPosition: string): string =>
+      "%0",
     doGenerateTrim: (_strPtr: string): string => "%0",
     doGenerateTrimStart: (_strPtr: string): string => "%0",
     doGenerateTrimEnd: (_strPtr: string): string => "%0",
@@ -1706,6 +1710,8 @@ export class MockGeneratorContext implements IGeneratorContext {
     doGenerateLastIndexOfFrom: (_strPtr: string, _substring: string, _fromIndex: string): string =>
       "%0",
     doGenerateIncludes: (_strPtr: string, _substring: string): string => "%0",
+    doGenerateIncludesFrom: (_strPtr: string, _substring: string, _fromIndex: string): string =>
+      "%0",
     doGenerateSlice: (_strPtr: string, _start: string, _end: string | null): string => "%0",
     doGenerateCharAt: (_strPtr: string, _index: string): string => "%0",
     doGenerateStringAt: (_strPtr: string, _index: string): string => "%0",
