@@ -690,7 +690,12 @@ export class StringMapGenerator {
     return mapPtr;
   }
 
-  generateStringMapSet(mapPtr: string, keyValue: string, valueValue: string, declaredValueType?: string): string {
+  generateStringMapSet(
+    mapPtr: string,
+    keyValue: string,
+    valueValue: string,
+    declaredValueType?: string,
+  ): string {
     let valueType = this.ctx.getVariableType(valueValue);
     if (!valueType && declaredValueType === "number") {
       valueType = "double";
