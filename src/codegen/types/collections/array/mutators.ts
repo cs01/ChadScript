@@ -715,17 +715,26 @@ export function generateArrayFill(
   return generateNumericArrayFillImpl(gen, expr, params, arrayPtr, fillValue);
 }
 
-function clampFillIndex(gen: IGeneratorContext, rawDouble: string, length: string): string {
+function resolveArrayIndex(gen: IGeneratorContext, rawDouble: string, length: string): string {
   const dbl = gen.ensureDouble(rawDouble);
   const i32Val = gen.nextTemp();
   gen.emit(`${i32Val} = fptosi double ${dbl} to i32`);
   const isNeg = gen.emitIcmp("slt", "i32", i32Val, "0");
-  const clamped = gen.nextTemp();
-  gen.emit(`${clamped} = select i1 ${isNeg}, i32 0, i32 ${i32Val}`);
-  const tooHigh = gen.emitIcmp("sgt", "i32", clamped, length);
+  const resolved = gen.nextTemp();
+  gen.emit(`${resolved} = add i32 ${i32Val}, ${length}`);
+  const resolvedNeg = gen.emitIcmp("slt", "i32", resolved, "0");
+  const zeroClamp = gen.nextTemp();
+  gen.emit(`${zeroClamp} = select i1 ${resolvedNeg}, i32 0, i32 ${resolved}`);
+  const fromNeg = gen.nextTemp();
+  gen.emit(`${fromNeg} = select i1 ${isNeg}, i32 ${zeroClamp}, i32 ${i32Val}`);
+  const tooHigh = gen.emitIcmp("sgt", "i32", fromNeg, length);
   const result = gen.nextTemp();
-  gen.emit(`${result} = select i1 ${tooHigh}, i32 ${length}, i32 ${clamped}`);
+  gen.emit(`${result} = select i1 ${tooHigh}, i32 ${length}, i32 ${fromNeg}`);
   return result;
+}
+
+function clampFillIndex(gen: IGeneratorContext, rawDouble: string, length: string): string {
+  return resolveArrayIndex(gen, rawDouble, length);
 }
 
 function generateNumericArrayFillImpl(
@@ -834,6 +843,143 @@ function generateStringArrayFillImpl(
   gen.emitBr(loopLabel);
 
   gen.emitLabel(endLabel);
+  gen.setVariableType(arrayPtr, "%StringArray*");
+  return arrayPtr;
+}
+
+export function generateArrayCopyWithin(
+  gen: IGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
+  if (expr.args.length < 2 || expr.args.length > 3) {
+    return gen.emitError("copyWithin() requires 2-3 arguments (target, start, end?)", expr.loc);
+  }
+
+  const arrayPtr = gen.generateExpression(expr.object, params);
+
+  let isStringArray = false;
+  const exprObjBase = expr.object as ExprBase;
+  if (exprObjBase.type === "variable") {
+    const varName = (expr.object as VariableNode).name;
+    const varType = gen.getVariableType(varName);
+    isStringArray = varType === "%StringArray*" || varType === "%StringArray";
+  }
+  if (!isStringArray) {
+    const ptrType = gen.getVariableType(arrayPtr);
+    if (ptrType === "%StringArray*" || ptrType === "%StringArray") isStringArray = true;
+  }
+
+  if (isStringArray) {
+    return generateStringArrayCopyWithinImpl(gen, expr, params, arrayPtr);
+  }
+  return generateNumericArrayCopyWithinImpl(gen, expr, params, arrayPtr);
+}
+
+function generateNumericArrayCopyWithinImpl(
+  gen: IGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+  arrayPtr: string,
+): string {
+  const lenPtr = gen.nextTemp();
+  gen.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
+  const length = gen.emitLoad("i32", lenPtr);
+
+  const dataPtrField = gen.nextTemp();
+  gen.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
+  const dataPtr = gen.emitLoad("double*", dataPtrField);
+
+  const target = resolveArrayIndex(gen, gen.generateExpression(expr.args[0], params), length);
+  const start = resolveArrayIndex(gen, gen.generateExpression(expr.args[1], params), length);
+  const end =
+    expr.args.length >= 3
+      ? resolveArrayIndex(gen, gen.generateExpression(expr.args[2], params), length)
+      : length;
+
+  const count = gen.nextTemp();
+  gen.emit(`${count} = sub i32 ${end}, ${start}`);
+  const remaining = gen.nextTemp();
+  gen.emit(`${remaining} = sub i32 ${length}, ${target}`);
+  const useCount = gen.emitIcmp("slt", "i32", count, remaining);
+  const actualCount = gen.nextTemp();
+  gen.emit(`${actualCount} = select i1 ${useCount}, i32 ${count}, i32 ${remaining}`);
+  const isPos = gen.emitIcmp("sgt", "i32", actualCount, "0");
+  const finalCount = gen.nextTemp();
+  gen.emit(`${finalCount} = select i1 ${isPos}, i32 ${actualCount}, i32 0`);
+
+  const srcPtr = gen.nextTemp();
+  gen.emit(`${srcPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${start}`);
+  const dstPtr = gen.nextTemp();
+  gen.emit(`${dstPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${target}`);
+
+  const srcI8 = gen.emitBitcast(srcPtr, "double*", "i8*");
+  const dstI8 = gen.emitBitcast(dstPtr, "double*", "i8*");
+
+  const byteCount = gen.nextTemp();
+  gen.emit(`${byteCount} = mul i32 ${finalCount}, 8`);
+  const byteCount64 = gen.nextTemp();
+  gen.emit(`${byteCount64} = zext i32 ${byteCount} to i64`);
+  gen.emit(
+    `call void @llvm.memmove.p0i8.p0i8.i64(i8* ${dstI8}, i8* ${srcI8}, i64 ${byteCount64}, i1 false)`,
+  );
+
+  gen.setVariableType(arrayPtr, "%Array*");
+  return arrayPtr;
+}
+
+function generateStringArrayCopyWithinImpl(
+  gen: IGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+  arrayPtr: string,
+): string {
+  const lenPtr = gen.nextTemp();
+  gen.emit(
+    `${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`,
+  );
+  const length = gen.emitLoad("i32", lenPtr);
+
+  const dataPtrField = gen.nextTemp();
+  gen.emit(
+    `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
+  );
+  const dataPtr = gen.emitLoad("i8**", dataPtrField);
+
+  const target = resolveArrayIndex(gen, gen.generateExpression(expr.args[0], params), length);
+  const start = resolveArrayIndex(gen, gen.generateExpression(expr.args[1], params), length);
+  const end =
+    expr.args.length >= 3
+      ? resolveArrayIndex(gen, gen.generateExpression(expr.args[2], params), length)
+      : length;
+
+  const count = gen.nextTemp();
+  gen.emit(`${count} = sub i32 ${end}, ${start}`);
+  const remaining = gen.nextTemp();
+  gen.emit(`${remaining} = sub i32 ${length}, ${target}`);
+  const useCount = gen.emitIcmp("slt", "i32", count, remaining);
+  const actualCount = gen.nextTemp();
+  gen.emit(`${actualCount} = select i1 ${useCount}, i32 ${count}, i32 ${remaining}`);
+  const isPos = gen.emitIcmp("sgt", "i32", actualCount, "0");
+  const finalCount = gen.nextTemp();
+  gen.emit(`${finalCount} = select i1 ${isPos}, i32 ${actualCount}, i32 0`);
+
+  const srcPtr = gen.nextTemp();
+  gen.emit(`${srcPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${start}`);
+  const dstPtr = gen.nextTemp();
+  gen.emit(`${dstPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${target}`);
+
+  const srcI8 = gen.emitBitcast(srcPtr, "i8**", "i8*");
+  const dstI8 = gen.emitBitcast(dstPtr, "i8**", "i8*");
+
+  const byteCount = gen.nextTemp();
+  gen.emit(`${byteCount} = mul i32 ${finalCount}, 8`);
+  const byteCount64 = gen.nextTemp();
+  gen.emit(`${byteCount64} = zext i32 ${byteCount} to i64`);
+  gen.emit(
+    `call void @llvm.memmove.p0i8.p0i8.i64(i8* ${dstI8}, i8* ${srcI8}, i64 ${byteCount64}, i1 false)`,
+  );
+
   gen.setVariableType(arrayPtr, "%StringArray*");
   return arrayPtr;
 }

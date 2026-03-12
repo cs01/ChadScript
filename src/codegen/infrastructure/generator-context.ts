@@ -332,6 +332,7 @@ export interface IArrayGenerator {
   generateArraySort(expr: MethodCallNode, params: string[]): string;
   generateArraySplice(expr: MethodCallNode, params: string[]): string;
   generateArrayFill(expr: MethodCallNode, params: string[]): string;
+  generateArrayCopyWithin(expr: MethodCallNode, params: string[]): string;
 }
 
 /**
@@ -2102,6 +2103,8 @@ export class MockGeneratorContext implements IGeneratorContext {
     generateArraySort: (_expr: MethodCallNode, _params: string[]): string => "%mock_array_sort",
     generateArraySplice: (_expr: MethodCallNode, _params: string[]): string => "%mock_array_splice",
     generateArrayFill: (_expr: MethodCallNode, _params: string[]): string => "%mock_array_fill",
+    generateArrayCopyWithin: (_expr: MethodCallNode, _params: string[]): string =>
+      "%mock_array_copywithin",
   };
 
   resolveImportAlias(localName: string): string {
