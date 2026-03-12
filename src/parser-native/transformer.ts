@@ -2187,6 +2187,7 @@ function transformSwitchStatement(node: TreeSitterNode): BlockStatement {
   const statements: Statement[] = [];
   let pendingConditions: Expression[] = [];
   let defaultStatements: Statement[] | null = null;
+  const allConditions: Expression[] = [];
 
   if (bodyNode) {
     const bn = bodyNode as NodeBase;
@@ -2246,6 +2247,7 @@ function transformSwitchStatement(node: TreeSitterNode): BlockStatement {
               elseBlock: null,
             };
             statements.push(ifStmt);
+            allConditions.push(finalCondition);
           }
         }
       } else if (cl.type === "switch_default") {
@@ -2270,7 +2272,20 @@ function transformSwitchStatement(node: TreeSitterNode): BlockStatement {
     }
   }
 
-  if (defaultStatements) {
+  if (defaultStatements && allConditions.length > 0) {
+    let combined: Expression = allConditions[0];
+    for (let ac = 1; ac < allConditions.length; ac++) {
+      combined = { type: "binary", op: "||", left: combined, right: allConditions[ac] };
+    }
+    const negated: Expression = { type: "unary", op: "!", operand: combined };
+    const defaultIf: IfStatement = {
+      type: "if",
+      condition: negated,
+      thenBlock: { type: "block", statements: defaultStatements },
+      elseBlock: null,
+    };
+    statements.push(defaultIf);
+  } else if (defaultStatements) {
     for (let ds = 0; ds < defaultStatements.length; ds++) {
       statements.push(defaultStatements[ds]);
     }

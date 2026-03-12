@@ -1,4 +1,3 @@
-// @test-skip
 function testSwitchString(): void {
   const color: string = "green";
   let code: number = 0;

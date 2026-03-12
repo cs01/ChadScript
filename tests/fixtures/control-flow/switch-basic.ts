@@ -1,4 +1,3 @@
-// @test-skip
 function testSwitch(): void {
   const x: number = 2;
   let result: string = "";
