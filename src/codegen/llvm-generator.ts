@@ -3779,6 +3779,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       this.generateBlock({ type: "block", statements: [item as AssignmentStatement] }, []);
     } else if (itemType === "throw") {
       this.controlFlowGen.generateThrowStatement(item as Statement, []);
+    } else if (itemType === "try") {
+      this.controlFlowGen.generateTryStatement(item as Statement, []);
     } else {
       this.generateExpression(item as Expression, []);
     }
