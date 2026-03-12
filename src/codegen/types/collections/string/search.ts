@@ -258,6 +258,12 @@ export function generateLastIndexOfFrom(
   substring: string,
   fromIndex: string,
 ): string {
+  const lastPosPtr = ctx.nextAllocaReg("lastpos");
+  ctx.emit(`${lastPosPtr} = alloca i32`);
+
+  const curPtrStorage = ctx.nextAllocaReg("curptr");
+  ctx.emit(`${curPtrStorage} = alloca i8*`);
+
   const isNeg = ctx.emitIcmp("slt", "i32", fromIndex, "0");
 
   const negLabel = ctx.nextLabel("lastindexof_from_neg");
@@ -269,13 +275,7 @@ export function generateLastIndexOfFrom(
   ctx.emitBr(endAllLabel);
 
   ctx.emitLabel(searchLabel);
-
-  const lastPosPtr = ctx.nextAllocaReg("lastpos");
-  ctx.emit(`${lastPosPtr} = alloca i32`);
   ctx.emitStore("i32", "-1", lastPosPtr);
-
-  const curPtrStorage = ctx.nextAllocaReg("curptr");
-  ctx.emit(`${curPtrStorage} = alloca i8*`);
   ctx.emitStore("i8*", strPtr, curPtrStorage);
 
   const strPtrInt = ctx.nextTemp();
