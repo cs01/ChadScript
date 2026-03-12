@@ -101,7 +101,9 @@ export class JsonGenerator {
     this.ctx.emitLabel(failLabel);
     const stderrPtr = this.ctx.nextTemp();
     this.ctx.emit(`${stderrPtr} = load i8*, i8** @stderr`);
-    const fmtStr = this.ctx.createStringConstant("Error: JSON.parse() failed — invalid JSON input\n");
+    const fmtStr = this.ctx.createStringConstant(
+      "Error: JSON.parse() failed — invalid JSON input\n",
+    );
     const fprintfResult = this.ctx.nextTemp();
     this.ctx.emit(
       `${fprintfResult} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* ${fmtStr})`,
