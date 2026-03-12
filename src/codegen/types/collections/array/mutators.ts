@@ -684,3 +684,156 @@ function generateObjectArrayPush(
   gen.setVariableType(newLenDouble, "double");
   return newLenDouble;
 }
+
+export function generateArrayFill(
+  gen: IGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
+  if (expr.args.length < 1 || expr.args.length > 3) {
+    return gen.emitError("fill() requires 1-3 arguments", expr.loc);
+  }
+
+  const arrayPtr = gen.generateExpression(expr.object, params);
+  const fillValue = gen.generateExpression(expr.args[0], params);
+
+  let isStringArray = false;
+  const exprObjBase = expr.object as ExprBase;
+  if (exprObjBase.type === "variable") {
+    const varName = (expr.object as VariableNode).name;
+    const varType = gen.getVariableType(varName);
+    isStringArray = varType === "%StringArray*" || varType === "%StringArray";
+  }
+  if (!isStringArray) {
+    const ptrType = gen.getVariableType(arrayPtr);
+    if (ptrType === "%StringArray*" || ptrType === "%StringArray") isStringArray = true;
+  }
+
+  if (isStringArray) {
+    return generateStringArrayFillImpl(gen, expr, params, arrayPtr, fillValue);
+  }
+  return generateNumericArrayFillImpl(gen, expr, params, arrayPtr, fillValue);
+}
+
+function clampFillIndex(gen: IGeneratorContext, rawDouble: string, length: string): string {
+  const dbl = gen.ensureDouble(rawDouble);
+  const i32Val = gen.nextTemp();
+  gen.emit(`${i32Val} = fptosi double ${dbl} to i32`);
+  const isNeg = gen.emitIcmp("slt", "i32", i32Val, "0");
+  const clamped = gen.nextTemp();
+  gen.emit(`${clamped} = select i1 ${isNeg}, i32 0, i32 ${i32Val}`);
+  const tooHigh = gen.emitIcmp("sgt", "i32", clamped, length);
+  const result = gen.nextTemp();
+  gen.emit(`${result} = select i1 ${tooHigh}, i32 ${length}, i32 ${clamped}`);
+  return result;
+}
+
+function generateNumericArrayFillImpl(
+  gen: IGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+  arrayPtr: string,
+  fillValue: string,
+): string {
+  const dblValue = gen.ensureDouble(fillValue);
+
+  const lenPtr = gen.nextTemp();
+  gen.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
+  const length = gen.emitLoad("i32", lenPtr);
+
+  const dataPtrField = gen.nextTemp();
+  gen.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
+  const dataPtr = gen.emitLoad("double*", dataPtrField);
+
+  const startVal =
+    expr.args.length >= 2
+      ? clampFillIndex(gen, gen.generateExpression(expr.args[1], params), length)
+      : "0";
+  const endVal =
+    expr.args.length >= 3
+      ? clampFillIndex(gen, gen.generateExpression(expr.args[2], params), length)
+      : length;
+
+  const counterPtr = gen.nextTemp();
+  gen.emit(`${counterPtr} = alloca i32`);
+  gen.emitStore("i32", startVal, counterPtr);
+
+  const loopLabel = gen.nextLabel("fill_loop");
+  const bodyLabel = gen.nextLabel("fill_body");
+  const endLabel = gen.nextLabel("fill_end");
+
+  gen.emitBr(loopLabel);
+  gen.emitLabel(loopLabel);
+  const counter = gen.emitLoad("i32", counterPtr);
+  const cond = gen.emitIcmp("slt", "i32", counter, endVal);
+  gen.emitBrCond(cond, bodyLabel, endLabel);
+
+  gen.emitLabel(bodyLabel);
+  const elemPtr = gen.nextTemp();
+  gen.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${counter}`);
+  gen.emitStore("double", dblValue, elemPtr);
+  const next = gen.nextTemp();
+  gen.emit(`${next} = add i32 ${counter}, 1`);
+  gen.emitStore("i32", next, counterPtr);
+  gen.emitBr(loopLabel);
+
+  gen.emitLabel(endLabel);
+  gen.setVariableType(arrayPtr, "%Array*");
+  return arrayPtr;
+}
+
+function generateStringArrayFillImpl(
+  gen: IGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+  arrayPtr: string,
+  fillValue: string,
+): string {
+  const lenPtr = gen.nextTemp();
+  gen.emit(
+    `${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`,
+  );
+  const length = gen.emitLoad("i32", lenPtr);
+
+  const dataPtrField = gen.nextTemp();
+  gen.emit(
+    `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
+  );
+  const dataPtr = gen.emitLoad("i8**", dataPtrField);
+
+  const startVal =
+    expr.args.length >= 2
+      ? clampFillIndex(gen, gen.generateExpression(expr.args[1], params), length)
+      : "0";
+  const endVal =
+    expr.args.length >= 3
+      ? clampFillIndex(gen, gen.generateExpression(expr.args[2], params), length)
+      : length;
+
+  const counterPtr = gen.nextTemp();
+  gen.emit(`${counterPtr} = alloca i32`);
+  gen.emitStore("i32", startVal, counterPtr);
+
+  const loopLabel = gen.nextLabel("fill_loop");
+  const bodyLabel = gen.nextLabel("fill_body");
+  const endLabel = gen.nextLabel("fill_end");
+
+  gen.emitBr(loopLabel);
+  gen.emitLabel(loopLabel);
+  const counter = gen.emitLoad("i32", counterPtr);
+  const cond = gen.emitIcmp("slt", "i32", counter, endVal);
+  gen.emitBrCond(cond, bodyLabel, endLabel);
+
+  gen.emitLabel(bodyLabel);
+  const elemPtr = gen.nextTemp();
+  gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${counter}`);
+  gen.emitStore("i8*", fillValue, elemPtr);
+  const next = gen.nextTemp();
+  gen.emit(`${next} = add i32 ${counter}, 1`);
+  gen.emitStore("i32", next, counterPtr);
+  gen.emitBr(loopLabel);
+
+  gen.emitLabel(endLabel);
+  gen.setVariableType(arrayPtr, "%StringArray*");
+  return arrayPtr;
+}

@@ -294,6 +294,7 @@ function dispatchArrayReorder(
   if (method === "findIndex") return ctx.arrayGen.generateArrayFindIndex(expr, params);
   if (method === "sort") return ctx.arrayGen.generateArraySort(expr, params);
   if (method === "splice") return ctx.arrayGen.generateArraySplice(expr, params);
+  if (method === "fill") return ctx.arrayGen.generateArrayFill(expr, params);
   return null;
 }
 
