@@ -1,21 +1,21 @@
 # ChadScript
 
-> As fast as C, as ergonomic as TypeScript.
+As fast as C, as ergonomic as TypeScript.
 
 ChadScript is a natively-compiled systems language with TypeScript syntax. Write familiar TypeScript, run `chad build`, get a standalone ELF or Mach-O binary via LLVM — no Node.js, no JVM, no runtime.
 
 The compiler is self-hosting: tens of thousands of lines of TypeScript that compile themselves to a native binary. You install it with curl, not npm.
 
-> Status: **Alpha** — self-hosting and usable for real projects. The compiler catches type mismatches at compile time instead of crashing at runtime.
->
-> | Milestone                           | Status |
-> | ----------------------------------- | ------ |
-> | Proof of concept                    | Done   |
-> | Standard library + external linking | Done   |
-> | Self-hosting (3-stage)              | Done   |
-> | Performance (LLVM -O2)              | Done   |
-> | Testing (470+ tests, CI)            | Done   |
-> | Compile-time error coverage         | Done   |
+**Status: Alpha** — self-hosting and usable for real projects. The compiler catches type mismatches at compile time instead of crashing at runtime.
+
+| Milestone                           | Status |
+| ----------------------------------- | ------ |
+| Proof of concept                    | Done   |
+| Standard library + external linking | Done   |
+| Self-hosting (3-stage)              | Done   |
+| Performance (LLVM -O2)              | Done   |
+| Testing (470+ tests, CI)            | Done   |
+| Compile-time error coverage         | Done   |
 
 ---
 
