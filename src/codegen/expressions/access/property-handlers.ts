@@ -223,6 +223,7 @@ export function handleMemberAccessLength(
       return getArrayLengthFromPtr(ctx, arrayPtr, "%ObjectArray");
     }
     if (ctx.symbolTable.isJSON(varName)) {
+      ctx.setUsesJson(true);
       const arraySize = ctx.nextTemp();
       ctx.emit(`${arraySize} = call i32 @csyyjson_arr_size(i8* ${arrayPtr})`);
       const sizeDouble = ctx.nextTemp();
