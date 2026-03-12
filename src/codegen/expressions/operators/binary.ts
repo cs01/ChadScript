@@ -1,4 +1,10 @@
-import { Expression, SourceLocation, NumberNode, StringNode, MethodCallNode } from "../../../ast/types.js";
+import {
+  Expression,
+  SourceLocation,
+  NumberNode,
+  StringNode,
+  MethodCallNode,
+} from "../../../ast/types.js";
 import type { IStringGenerator } from "../../infrastructure/generator-context.js";
 
 interface ControlFlowGeneratorLike {
@@ -743,5 +749,4 @@ export class BinaryExpressionGenerator {
     this.ctx.setVariableType(result, "double");
     return result;
   }
-
 }
