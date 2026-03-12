@@ -11,6 +11,7 @@ import {
   addLinkLib,
   addLinkPath,
   setDiagnosticColor,
+  setDiagnosticsJson,
   registerStdlib,
 } from "./native-compiler-lib.js";
 // d.ts content is embedded at compile time via ChadScript.embedFile
@@ -78,6 +79,7 @@ parser.addScopedOption("output", "o", "Specify output file", "", "build,run,ir")
 parser.addScopedFlag("verbose", "v", "Show compilation steps", "build,run,ir");
 parser.addScopedFlag("debug-info", "g", "Emit DWARF debug info (skips stripping)", "build,run");
 parser.addScopedFlag("skip-semantic-analysis", "", "Skip semantic analysis", "build,run,ir");
+parser.addScopedOption("diagnostics", "", "Diagnostic output format (json)", "", "build,run,ir");
 parser.addScopedOption(
   "target",
   "",
@@ -296,6 +298,11 @@ if (parser.getFlag("debug-info")) {
 
 if (parser.getFlag("skip-semantic-analysis")) {
   setSkipSemanticAnalysis(true);
+}
+
+const diagFormat = parser.getOption("diagnostics");
+if (diagFormat === "json") {
+  setDiagnosticsJson(true);
 }
 
 // Cross-compilation: only linux-x64 for build/run (needs SDK + linker).

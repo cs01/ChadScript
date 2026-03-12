@@ -12,6 +12,7 @@ import {
   setTarget,
   setTargetCpu,
   setStaticLink,
+  setDiagnosticsJson,
   addLinkObj,
   addLinkLib,
   addLinkPath,
@@ -49,6 +50,7 @@ parser.addScopedFlag("debug", "", "Show internal debugging information", "build,
 parser.addScopedFlag("trace", "", "Show everything (AST, IR, variable tracking)", "build,run,ir");
 parser.addScopedFlag("skip-semantic-analysis", "", "Skip semantic analysis", "build,run,ir");
 parser.addScopedFlag("keep-temps", "", "Keep intermediate files (.ll, .o)", "build,run,ir");
+parser.addScopedOption("diagnostics", "", "Diagnostic output format (json)", "", "build,run,ir");
 parser.addScopedFlag("sanitize-address", "", "Build with AddressSanitizer", "build,run");
 parser.addScopedFlag("debug-info", "g", "Emit DWARF debug info", "build,run");
 parser.addScopedOption(
@@ -289,6 +291,8 @@ if (parser.getFlag("trace")) logLevel = LogLevel.Trace;
 
 if (parser.getFlag("skip-semantic-analysis")) setSkipSemanticAnalysis(true);
 if (parser.getFlag("keep-temps")) setKeepTemps(true);
+const diagFormat = parser.getOption("diagnostics");
+if (diagFormat === "json") setDiagnosticsJson(true);
 if (parser.getFlag("sanitize-address")) setSanitize("address");
 if (parser.getFlag("debug-info")) setDebugInfo(true);
 if (parser.getFlag("static")) setStaticLink(true);
@@ -336,11 +340,51 @@ if (!fs.existsSync(outputDir)) {
   fs.mkdirSync(outputDir, { recursive: true });
 }
 
-try {
-  compile(inputFile, outputFile, logLevel);
-} catch (error) {
-  logger.error((error as Error).message);
-  process.exit(1);
+if (diagFormat === "json") {
+  let stderrCapture = "";
+  const origWrite = process.stderr.write.bind(process.stderr);
+  process.stderr.write = ((chunk: string | Uint8Array) => {
+    stderrCapture += typeof chunk === "string" ? chunk : chunk.toString();
+    return true;
+  }) as typeof process.stderr.write;
+  const origExit = process.exit.bind(process);
+  (process as { exit: (code?: number) => never }).exit = ((code?: number) => {
+    process.stderr.write = origWrite;
+    if (code !== 0 && stderrCapture.length > 0) {
+      const msg = stderrCapture.replace(/\x1b\[[0-9;]*m/g, "").trim();
+      process.stdout.write(
+        '{"diagnostics":[{"severity":"error","message":' +
+          JSON.stringify(msg) +
+          '}],"success":false}\n',
+      );
+    }
+    origExit(code);
+  }) as typeof process.exit;
+  try {
+    compile(inputFile, outputFile, logLevel);
+    process.stderr.write = origWrite;
+    process.exit = origExit;
+  } catch (error) {
+    process.stderr.write = origWrite;
+    process.exit = origExit;
+    const msg =
+      stderrCapture.length > 0
+        ? stderrCapture.replace(/\x1b\[[0-9;]*m/g, "").trim()
+        : (error as Error).message;
+    process.stdout.write(
+      '{"diagnostics":[{"severity":"error","message":' +
+        JSON.stringify(msg) +
+        '}],"success":false}\n',
+    );
+    process.exit(1);
+  }
+} else {
+  try {
+    compile(inputFile, outputFile, logLevel);
+  } catch (error) {
+    logger.error((error as Error).message);
+    process.exit(1);
+  }
 }
 
 if (command === "run") {

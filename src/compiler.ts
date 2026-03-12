@@ -91,6 +91,16 @@ export function setDiagnosticColor(enabled: boolean): void {
   setGlobalDiagnosticColor(enabled);
 }
 
+let diagnosticsJson = false;
+
+export function setDiagnosticsJson(enabled: boolean): void {
+  diagnosticsJson = enabled;
+  if (enabled) {
+    diagnosticColorEnabled = false;
+    setGlobalDiagnosticColor(false);
+  }
+}
+
 export function setTargetCpu(value: string): void {
   targetCpu = value;
 }
@@ -213,8 +223,23 @@ export function compile(
     const analysisSuccess = analyzer.analyze();
 
     if (!analysisSuccess) {
-      const errorOutput = analyzer.formatErrors();
-      console.error(errorOutput);
+      if (diagnosticsJson) {
+        const errors = analyzer.getErrors();
+        let json = '{"diagnostics":[';
+        for (let ei = 0; ei < errors.length; ei++) {
+          if (ei > 0) json += ",";
+          const e = errors[ei];
+          json += '{"severity":"error","message":' + JSON.stringify(e.message);
+          if (e.location) json += ',"location":' + JSON.stringify(e.location);
+          if (e.suggestion) json += ',"suggestion":' + JSON.stringify(e.suggestion);
+          json += "}";
+        }
+        json += '],"success":false}\n';
+        process.stdout.write(json);
+      } else {
+        const errorOutput = analyzer.formatErrors();
+        console.error(errorOutput);
+      }
       throw new Error("Semantic analysis failed. Fix the errors above and try again.");
     } else {
       const diagOutput = analyzer.formatErrors();
@@ -520,7 +545,9 @@ export function compile(
     }
   }
 
-  // Silent on success (like clang)
+  if (diagnosticsJson) {
+    process.stdout.write('{"diagnostics":[],"success":true}\n');
+  }
 }
 
 function compileMultiFile(

@@ -99,6 +99,8 @@ export function setDiagnosticColor(value: boolean): void {
   setGlobalDiagnosticColor(value);
 }
 
+export function setDiagnosticsJson(_value: boolean): void {}
+
 export function setSkipSemanticAnalysis(value: boolean): void {
   skipSemanticAnalysis = value;
 }
