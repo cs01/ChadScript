@@ -9,7 +9,12 @@ import { IGeneratorContext } from "../../infrastructure/generator-context.js";
 // Array sub-modules
 // No alias — ChadScript doesn't resolve import aliases in self-hosting
 import { generateArrayLiteral } from "./array/literal.js";
-import { generateArrayPush, generateArrayPop, generateArrayFill } from "./array/mutators.js";
+import {
+  generateArrayPush,
+  generateArrayPop,
+  generateArrayFill,
+  generateArrayCopyWithin,
+} from "./array/mutators.js";
 import { generateArrayReverse, generateArrayShift, generateArrayUnshift } from "./array/reorder.js";
 import {
   generateArrayIndexOf,
@@ -155,5 +160,9 @@ export class ArrayGenerator {
 
   generateArrayFill(expr: MethodCallNode, params: string[]): string {
     return generateArrayFill(this.ctx, expr, params);
+  }
+
+  generateArrayCopyWithin(expr: MethodCallNode, params: string[]): string {
+    return generateArrayCopyWithin(this.ctx, expr, params);
   }
 }

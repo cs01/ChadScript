@@ -301,6 +301,7 @@ function dispatchArrayReorder(
   if (method === "sort") return ctx.arrayGen.generateArraySort(expr, params);
   if (method === "splice") return ctx.arrayGen.generateArraySplice(expr, params);
   if (method === "fill") return ctx.arrayGen.generateArrayFill(expr, params);
+  if (method === "copyWithin") return ctx.arrayGen.generateArrayCopyWithin(expr, params);
   return null;
 }
 
