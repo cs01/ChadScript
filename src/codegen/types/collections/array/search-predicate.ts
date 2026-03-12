@@ -547,17 +547,42 @@ function generateStringArrayEvery(
 // includes
 // ============================================
 
+function resolveIncludesFromIndex(
+  gen: IGeneratorContext,
+  fromIndex: string,
+  length: string,
+): string {
+  const isNeg = gen.emitIcmp("slt", "i32", fromIndex, "0");
+  const adjusted = gen.nextTemp();
+  gen.emit(`${adjusted} = add i32 ${fromIndex}, ${length}`);
+  const resolved = gen.nextTemp();
+  gen.emit(`${resolved} = select i1 ${isNeg}, i32 ${adjusted}, i32 ${fromIndex}`);
+  const stillNeg = gen.emitIcmp("slt", "i32", resolved, "0");
+  const clamped = gen.nextTemp();
+  gen.emit(`${clamped} = select i1 ${stillNeg}, i32 0, i32 ${resolved}`);
+  return clamped;
+}
+
 export function generateArrayIncludes(
   gen: IGeneratorContext,
   expr: MethodCallNode,
   params: string[],
 ): string {
-  if (expr.args.length !== 1) {
-    return gen.emitError("includes() requires exactly 1 argument", expr.loc);
+  if (expr.args.length < 1 || expr.args.length > 2) {
+    return gen.emitError("includes() requires 1 or 2 arguments", expr.loc);
   }
 
   const arrayPtr = gen.generateExpression(expr.object, params);
   const searchValue = gen.generateExpression(expr.args[0], params);
+
+  let fromIndex: string | null = null;
+  if (expr.args.length === 2) {
+    const fromRaw = gen.generateExpression(expr.args[1], params);
+    const fromDbl = gen.ensureDouble(fromRaw);
+    const tmp = gen.nextTemp();
+    gen.emit(`${tmp} = fptosi double ${fromDbl} to i32`);
+    fromIndex = tmp;
+  }
 
   let isStringArray = false;
   const exprObjBase = expr.object as ExprBase;
@@ -571,9 +596,9 @@ export function generateArrayIncludes(
   }
 
   if (isStringArray) {
-    return generateStringArrayIncludes(gen, arrayPtr, searchValue);
+    return generateStringArrayIncludes(gen, arrayPtr, searchValue, fromIndex);
   } else {
-    return generateIntArrayIncludes(gen, arrayPtr, searchValue);
+    return generateIntArrayIncludes(gen, arrayPtr, searchValue, fromIndex);
   }
 }
 
@@ -581,6 +606,7 @@ function generateIntArrayIncludes(
   gen: IGeneratorContext,
   arrayPtr: string,
   searchValue: string,
+  fromIndex: string | null,
 ): string {
   const lenPtr = gen.nextTemp();
   gen.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
@@ -591,6 +617,8 @@ function generateIntArrayIncludes(
   const dataPtr = gen.nextTemp();
   gen.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
 
+  const startIndex = fromIndex ? resolveIncludesFromIndex(gen, fromIndex, length) : "0";
+
   const loopLabel = gen.nextLabel("includes_loop");
   const checkLabel = gen.nextLabel("includes_check");
   const bodyLabel = gen.nextLabel("includes_body");
@@ -599,7 +627,7 @@ function generateIntArrayIncludes(
 
   const counterPtr = gen.nextTemp();
   gen.emit(`${counterPtr} = alloca i32`);
-  gen.emitStore("i32", "0", counterPtr);
+  gen.emitStore("i32", startIndex, counterPtr);
 
   gen.emitBr(checkLabel);
 
@@ -641,6 +669,7 @@ function generateStringArrayIncludes(
   gen: IGeneratorContext,
   arrayPtr: string,
   searchValue: string,
+  fromIndex: string | null,
 ): string {
   const lenPtr = gen.nextTemp();
   gen.emit(
@@ -655,6 +684,8 @@ function generateStringArrayIncludes(
   const dataPtr = gen.nextTemp();
   gen.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
 
+  const startIndex = fromIndex ? resolveIncludesFromIndex(gen, fromIndex, length) : "0";
+
   const loopLabel = gen.nextLabel("includes_loop");
   const checkLabel = gen.nextLabel("includes_check");
   const bodyLabel = gen.nextLabel("includes_body");
@@ -663,7 +694,7 @@ function generateStringArrayIncludes(
 
   const counterPtr = gen.nextTemp();
   gen.emit(`${counterPtr} = alloca i32`);
-  gen.emitStore("i32", "0", counterPtr);
+  gen.emitStore("i32", startIndex, counterPtr);
 
   gen.emitBr(checkLabel);
 
