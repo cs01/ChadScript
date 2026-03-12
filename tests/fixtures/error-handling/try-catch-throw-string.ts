@@ -1,4 +1,3 @@
-// @test-skip
 let passed = true;
 
 let caught = false;
