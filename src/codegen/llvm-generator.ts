@@ -134,6 +134,7 @@ import { checkUnionTypes } from "../semantic/union-type-checker.js";
 import { checkTypeAssertions } from "../semantic/type-assertion-checker.js";
 import { checkUninitializedFields } from "../semantic/uninitialized-field-checker.js";
 import { analyzeEscapes } from "../semantic/escape-analysis.js";
+import { checkBinaryTypes } from "../semantic/binary-type-checker.js";
 import { DebugMetadataBuilder } from "./infrastructure/debug-metadata.js";
 
 export interface SemaSymbolData {
@@ -2491,6 +2492,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     checkUnionTypes(this.ast, this.sourceCode);
     checkTypeAssertions(this.ast, this.sourceCode);
     checkUninitializedFields(this.ast, this.sourceCode);
+    checkBinaryTypes(this.ast, this.sourceCode);
     this.stackEligibleVars = analyzeEscapes(this.ast);
 
     const irParts: string[] = [];
