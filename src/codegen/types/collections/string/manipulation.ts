@@ -813,6 +813,18 @@ export function generateReplaceAll(
   searchPtr: string,
   replacePtr: string,
 ): string {
+  const searchLen = ctx.emitCall("i64", "@strlen", `i8* ${searchPtr}`);
+  const isEmpty = ctx.emitIcmp("eq", "i64", searchLen, "0");
+  const emptyLabel = ctx.nextLabel("replaceall_empty");
+  const doReplaceLabel = ctx.nextLabel("replaceall_do");
+  const doneLabel = ctx.nextLabel("replaceall_done");
+  ctx.emitBrCond(isEmpty, emptyLabel, doReplaceLabel);
+
+  ctx.emitLabel(emptyLabel);
+  const origDup = ctx.emitCall("i8*", "@strdup", `i8* ${strPtr}`);
+  ctx.emitBr(doneLabel);
+
+  ctx.emitLabel(doReplaceLabel);
   const resultPtr = ctx.nextTemp();
   ctx.emit(`${resultPtr} = alloca i8*`);
   ctx.emitStore("i8*", strPtr, resultPtr);
@@ -835,7 +847,15 @@ export function generateReplaceAll(
   ctx.emitBr(loopLabel);
 
   ctx.emitLabel(endLabel);
-  const result = ctx.emitLoad("i8*", resultPtr);
+  const loopResult = ctx.emitLoad("i8*", resultPtr);
+  ctx.emitBr(doneLabel);
+
+  ctx.emitLabel(doneLabel);
+  const result = ctx.nextTemp();
+  ctx.emit(
+    `${result} = phi i8* [ ${origDup}, %${emptyLabel} ], [ ${loopResult}, %${endLabel} ]`,
+  );
+  ctx.setVariableType(result, "i8*");
 
   return result;
 }
