@@ -463,9 +463,7 @@ export function generateIncludesFrom(
 
   ctx.emitLabel(endLabel);
   const resultI32 = ctx.nextTemp();
-  ctx.emit(
-    `${resultI32} = phi i32 [ 0, %${pastEndLabel} ], [ ${foundI32}, %${searchLabel} ]`,
-  );
+  ctx.emit(`${resultI32} = phi i32 [ 0, %${pastEndLabel} ], [ ${foundI32}, %${searchLabel} ]`);
 
   const result = ctx.nextTemp();
   ctx.emit(`${result} = sitofp i32 ${resultI32} to double`);
@@ -511,7 +509,11 @@ export function generateEndsWithPosition(
   ctx.emit(`${startPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${startI64}`);
   const suffixLenI64 = ctx.nextTemp();
   ctx.emit(`${suffixLenI64} = zext i32 ${suffixLenI32} to i64`);
-  const cmpResult = ctx.emitCall("i32", "@strncmp", `i8* ${startPtr}, i8* ${suffix}, i64 ${suffixLenI64}`);
+  const cmpResult = ctx.emitCall(
+    "i32",
+    "@strncmp",
+    `i8* ${startPtr}, i8* ${suffix}, i64 ${suffixLenI64}`,
+  );
   const matches = ctx.emitIcmp("eq", "i32", cmpResult, "0");
   const matchesI32 = ctx.nextTemp();
   ctx.emit(`${matchesI32} = zext i1 ${matches} to i32`);
@@ -524,7 +526,9 @@ export function generateEndsWithPosition(
 
   ctx.emitLabel(endLabel);
   const resultEnd = ctx.nextTemp();
-  ctx.emit(`${resultEnd} = phi double [ ${matchesDouble}, %${checkLabel} ], [ 0.0, %${falseLabel} ]`);
+  ctx.emit(
+    `${resultEnd} = phi double [ ${matchesDouble}, %${checkLabel} ], [ 0.0, %${falseLabel} ]`,
+  );
   ctx.setVariableType(resultEnd, "double");
 
   return resultEnd;
