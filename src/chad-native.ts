@@ -79,7 +79,14 @@ parser.addScopedOption("output", "o", "Specify output file", "", "build,run,ir")
 parser.addScopedFlag("verbose", "v", "Show compilation steps", "build,run,ir");
 parser.addScopedFlag("debug-info", "g", "Emit DWARF debug info (skips stripping)", "build,run");
 parser.addScopedFlag("skip-semantic-analysis", "", "Skip semantic analysis", "build,run,ir");
-parser.addScopedOption("diagnostics", "", "Diagnostic output format (json)", "", "build,run,ir");
+parser.addScopedOptionWithChoices(
+  "diagnostics",
+  "",
+  "Diagnostic output format",
+  "",
+  "build,run,ir",
+  ["json", "text"],
+);
 parser.addScopedOption(
   "target",
   "",

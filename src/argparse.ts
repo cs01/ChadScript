@@ -10,6 +10,7 @@ interface ArgDef {
   defaultValue: string;
   isPositional: boolean;
   subcommands: string;
+  choices: string[];
 }
 
 interface SubcommandDef {
@@ -82,6 +83,7 @@ export class ArgumentParser {
       defaultValue: "",
       isPositional: false,
       subcommands: "",
+      choices: [],
     });
   }
 
@@ -95,10 +97,10 @@ export class ArgumentParser {
       defaultValue: "",
       isPositional: false,
       subcommands: subcommands,
+      choices: [],
     });
   }
 
-  // Add an option that takes a value (e.g., -o file.txt, --output file.txt)
   addOption(name: string, shortFlag: string, help: string, defaultVal: string): void {
     this.args.push({
       name: name,
@@ -109,6 +111,7 @@ export class ArgumentParser {
       defaultValue: defaultVal,
       isPositional: false,
       subcommands: "",
+      choices: [],
     });
   }
 
@@ -128,10 +131,31 @@ export class ArgumentParser {
       defaultValue: defaultVal,
       isPositional: false,
       subcommands: subcommands,
+      choices: [],
     });
   }
 
-  // Add a positional argument (e.g., filename)
+  addScopedOptionWithChoices(
+    name: string,
+    shortFlag: string,
+    help: string,
+    defaultVal: string,
+    subcommands: string,
+    choices: string[],
+  ): void {
+    this.args.push({
+      name: name,
+      shortFlag: shortFlag,
+      longFlag: name,
+      help: help,
+      isFlag: false,
+      defaultValue: defaultVal,
+      isPositional: false,
+      subcommands: subcommands,
+      choices: choices,
+    });
+  }
+
   addPositional(name: string, help: string): void {
     this.args.push({
       name: name,
@@ -142,6 +166,7 @@ export class ArgumentParser {
       defaultValue: "",
       isPositional: true,
       subcommands: "",
+      choices: [],
     });
   }
 
@@ -226,7 +251,37 @@ export class ArgumentParser {
     }
   }
 
+  isValidChoice(argIndex: number, value: string): boolean {
+    const choices = this.args[argIndex].choices;
+    if (choices.length === 0) return true;
+    let i = 0;
+    while (i < choices.length) {
+      if (choices[i] === value) return true;
+      i = i + 1;
+    }
+    return false;
+  }
+
   setOptionValue(argIndex: number, value: string): void {
+    if (!this.isValidChoice(argIndex, value)) {
+      const choices = this.args[argIndex].choices;
+      let choiceList = "";
+      let ci = 0;
+      while (ci < choices.length) {
+        if (ci > 0) choiceList = choiceList + ", ";
+        choiceList = choiceList + choices[ci];
+        ci = ci + 1;
+      }
+      console.error(
+        "Error: invalid value '" +
+          value +
+          "' for --" +
+          this.args[argIndex].name +
+          ". Valid values: " +
+          choiceList,
+      );
+      process.exit(1);
+    }
     let optIdx = 0;
     while (optIdx < this.parsedOptions.length) {
       if (
