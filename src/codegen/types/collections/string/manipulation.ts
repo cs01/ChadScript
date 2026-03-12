@@ -813,6 +813,9 @@ export function generateReplaceAll(
   searchPtr: string,
   replacePtr: string,
 ): string {
+  const resultPtr = ctx.nextTemp();
+  ctx.emit(`${resultPtr} = alloca i8*`);
+
   const searchLen = ctx.emitCall("i64", "@strlen", `i8* ${searchPtr}`);
   const isEmpty = ctx.emitIcmp("eq", "i64", searchLen, "0");
   const emptyLabel = ctx.nextLabel("replaceall_empty");
@@ -825,8 +828,6 @@ export function generateReplaceAll(
   ctx.emitBr(doneLabel);
 
   ctx.emitLabel(doReplaceLabel);
-  const resultPtr = ctx.nextTemp();
-  ctx.emit(`${resultPtr} = alloca i8*`);
   ctx.emitStore("i8*", strPtr, resultPtr);
 
   const loopLabel = ctx.nextLabel("replaceall_loop");
