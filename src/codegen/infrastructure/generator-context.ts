@@ -126,6 +126,7 @@ export interface IRegexGenerator {
   generateRegexMatch(regexPtr: string, testStr: string, numGroups: number): string;
   generateRegexCompileRuntime(patternPtr: string, cflags: number): string;
   generateRegexExecDyn(regexPtr: string, testStr: string): string;
+  generateRegexSearch(regexPtr: string, testStr: string): string;
 }
 
 export interface IControlFlowGenerator {
@@ -1893,6 +1894,7 @@ export class MockGeneratorContext implements IGeneratorContext {
     generateRegexCompileRuntime: (_patternPtr: string, _cflags: number): string =>
       "%mock_regex_compile_runtime",
     generateRegexExecDyn: (_regexPtr: string, _testStr: string): string => "%mock_regex_exec_dyn",
+    generateRegexSearch: (_regexPtr: string, _testStr: string): string => "%mock_regex_search",
   };
   controlFlowGen: IControlFlowGenerator = {
     generateLogicalOp: (

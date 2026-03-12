@@ -29,6 +29,7 @@ import {
   handleToUpperCase,
   handleToLowerCase,
   handleMatch,
+  handleSearch,
 } from "./string-methods.js";
 
 function rejectNonString(
@@ -234,6 +235,10 @@ export function dispatchStringMethod(
   if (method === "toFixed") return handleNumberToFixed(ctx, expr, params);
   if (method === "match") {
     if (ctx.isStringExpression(expr.object)) return handleMatch(ctx, expr, params);
+    return null;
+  }
+  if (method === "search") {
+    if (ctx.isStringExpression(expr.object)) return handleSearch(ctx, expr, params);
     return null;
   }
   return null;

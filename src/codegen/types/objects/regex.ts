@@ -198,6 +198,36 @@ export class RegexGenerator {
     this.ctx.emitCallVoid("@cs_regex_free", `i8* ${regexPtr}`);
   }
 
+  generateRegexSearch(regexPtr: string, testStr: string): string {
+    this.ctx.setUsesRegex(true);
+    const pmatchPtr = this.ctx.emitCall("i8*", "@cs_pmatch_alloc", "i32 1");
+    const execResult = this.ctx.emitCall(
+      "i32",
+      "@cs_regex_exec",
+      `i8* ${regexPtr}, i8* ${testStr}, i32 1, i8* ${pmatchPtr}, i32 0`,
+    );
+    const isNoMatch = this.ctx.emitIcmp("ne", "i32", execResult, "0");
+    const noMatchLabel = this.nextLabel("search_nomatch");
+    const matchLabel = this.nextLabel("search_found");
+    const endLabel = this.nextLabel("search_end");
+    this.ctx.emitBrCond(isNoMatch, noMatchLabel, matchLabel);
+
+    this.ctx.emitLabel(noMatchLabel);
+    this.ctx.emitBr(endLabel);
+
+    this.ctx.emitLabel(matchLabel);
+    const matchIdx = this.ctx.emitCall("i64", "@cs_pmatch_start", `i8* ${pmatchPtr}, i32 0`);
+    const matchDbl = this.nextTemp();
+    this.emit(`${matchDbl} = sitofp i64 ${matchIdx} to double`);
+    this.ctx.emitBr(endLabel);
+
+    this.ctx.emitLabel(endLabel);
+    const result = this.nextTemp();
+    this.emit(`${result} = phi double [ -1.0, %${noMatchLabel} ], [ ${matchDbl}, %${matchLabel} ]`);
+    this.ctx.setVariableType(result, "double");
+    return result;
+  }
+
   generateRegexMatch(regexPtr: string, testStr: string, numGroups: number): string {
     this.ctx.setUsesRegex(true);
     const MAX_GROUPS = numGroups + 1;

@@ -804,3 +804,29 @@ export function handleMatch(
   const regexPtr = ctx.generateExpression(regexArg, params);
   return ctx.regexGen.generateRegexMatch(regexPtr, strPtr, 9);
 }
+
+export function handleSearch(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
+  const strPtr = ctx.generateExpression(expr.object, params);
+
+  if (expr.args.length !== 1) {
+    return ctx.emitError(
+      "search() expects 1 argument (a regex), got " + expr.args.length,
+      expr.loc,
+    );
+  }
+
+  const regexArg = expr.args[0];
+
+  if (regexArg.type === "regex") {
+    const regexNode = regexArg as RegexNode;
+    const regexPtr = ctx.regexGen.generateRegexCompile(regexNode.pattern, regexNode.flags || "");
+    return ctx.regexGen.generateRegexSearch(regexPtr, strPtr);
+  }
+
+  const regexPtr = ctx.generateExpression(regexArg, params);
+  return ctx.regexGen.generateRegexSearch(regexPtr, strPtr);
+}
