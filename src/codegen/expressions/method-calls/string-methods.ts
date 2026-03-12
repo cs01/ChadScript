@@ -298,11 +298,18 @@ export function handleIndexOf(
 ): string {
   const strPtr = ctx.generateExpression(expr.object, params);
 
-  if (expr.args.length !== 1) {
-    return ctx.emitError(`indexOf() expects 1 argument, got ${expr.args.length}`, expr.loc);
+  if (expr.args.length < 1 || expr.args.length > 2) {
+    return ctx.emitError(`indexOf() expects 1 or 2 arguments, got ${expr.args.length}`, expr.loc);
   }
 
   const substring = ctx.generateExpression(expr.args[0], params);
+
+  if (expr.args.length === 2) {
+    const fromIndexDouble = ctx.generateExpression(expr.args[1], params);
+    const fromIndex = convertToI32(ctx, fromIndexDouble);
+    return ctx.stringGen.doGenerateIndexOfFrom(strPtr, substring, fromIndex);
+  }
+
   return ctx.stringGen.doGenerateIndexOf(strPtr, substring);
 }
 
