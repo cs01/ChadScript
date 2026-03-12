@@ -710,12 +710,12 @@ export function handleCharAt(
 ): string {
   const strPtr = ctx.generateExpression(expr.object, params);
 
-  if (expr.args.length !== 1) {
-    return ctx.emitError("charAt() expects 1 argument, got " + expr.args.length, expr.loc);
+  if (expr.args.length > 1) {
+    return ctx.emitError("charAt() expects 0 or 1 arguments, got " + expr.args.length, expr.loc);
   }
 
-  const indexDouble = ctx.generateExpression(expr.args[0], params);
-  const indexI32 = convertToI32(ctx, indexDouble);
+  const indexI32 =
+    expr.args.length === 1 ? convertToI32(ctx, ctx.generateExpression(expr.args[0], params)) : "0";
   return ctx.stringGen.doGenerateCharAt(strPtr, indexI32);
 }
 
@@ -742,12 +742,15 @@ export function handleCharCodeAt(
 ): string {
   const strPtr = ctx.generateExpression(expr.object, params);
 
-  if (expr.args.length !== 1) {
-    return ctx.emitError("charCodeAt() expects 1 argument, got " + expr.args.length, expr.loc);
+  if (expr.args.length > 1) {
+    return ctx.emitError(
+      "charCodeAt() expects 0 or 1 arguments, got " + expr.args.length,
+      expr.loc,
+    );
   }
 
-  const indexDouble = ctx.generateExpression(expr.args[0], params);
-  const indexI32 = convertToI32(ctx, indexDouble);
+  const indexI32 =
+    expr.args.length === 1 ? convertToI32(ctx, ctx.generateExpression(expr.args[0], params)) : "0";
   return ctx.stringGen.doGenerateCharCodeAt(strPtr, indexI32);
 }
 

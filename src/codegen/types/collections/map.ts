@@ -690,8 +690,16 @@ export class StringMapGenerator {
     return mapPtr;
   }
 
-  generateStringMapSet(mapPtr: string, keyValue: string, valueValue: string): string {
+  generateStringMapSet(
+    mapPtr: string,
+    keyValue: string,
+    valueValue: string,
+    declaredValueType?: string,
+  ): string {
     let valueType = this.ctx.getVariableType(valueValue);
+    if (!valueType && declaredValueType === "number") {
+      valueType = "double";
+    }
     if (!valueType && valueValue !== "null") {
       const fc = valueValue.charAt(0);
       if ((fc >= "0" && fc <= "9") || fc === "-" || fc === ".") {
