@@ -180,6 +180,9 @@ function generateNumericSortWithFn(
   gen.emit(`${iPtr} = alloca i32`);
   gen.emit(`store i32 0, i32* ${iPtr}`);
 
+  const jPtr = gen.nextTemp();
+  gen.emit(`${jPtr} = alloca i32`);
+
   const lenMinus1 = gen.nextTemp();
   gen.emit(`${lenMinus1} = sub i32 ${length}, 1`);
 
@@ -193,8 +196,6 @@ function generateNumericSortWithFn(
   gen.emit(`br i1 ${outerCond}, label %${outerBody}, label %${endLabel}`);
 
   gen.emit(`${outerBody}:`);
-  const jPtr = gen.nextTemp();
-  gen.emit(`${jPtr} = alloca i32`);
   gen.emit(`store i32 0, i32* ${jPtr}`);
 
   const remaining = gen.nextTemp();
