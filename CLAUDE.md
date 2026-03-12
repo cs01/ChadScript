@@ -20,8 +20,12 @@ monitor CI, and merge when green. You have push access to feature branches and m
 3. `git push origin <branch>` — push to remote
 4. `gh pr create` — open a PR
 5. `gh pr checks <number>` — monitor CI
-6. When CI is green: `gh pr merge <number> --squash` — merge to main
-7. Pull main and continue with next task
+6. When CI is green: `gh pr merge <number> --squash --delete-branch` — merge to main
+7. Clean up: `cd /Users/csmith/git/ChadScript && git worktree remove .worktrees/<name>`
+8. Pull main and continue with next task
+
+**Every PR must be seen through to completion** — don't just open and walk away. Monitor CI, fix failures,
+merge when green, delete the remote branch, and remove the local worktree.
 
 **Never push to main directly.** Always go through PRs.
 
