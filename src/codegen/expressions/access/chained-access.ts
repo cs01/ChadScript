@@ -47,6 +47,7 @@ export function extractJsonFieldValue(
   ctx: MemberAccessGeneratorContext,
   fieldItem: string,
 ): string {
+  ctx.setUsesJson(true);
   const fieldExists = ctx.emitIcmp("ne", "i8*", fieldItem, "null");
 
   const hasFieldLabel = ctx.nextLabel("json_has_field");
@@ -90,6 +91,7 @@ export function extractNestedJsonFieldValue(
   ctx: MemberAccessGeneratorContext,
   fieldItem: string,
 ): string {
+  ctx.setUsesJson(true);
   const isNumber = ctx.emitCall("i32", "@csyyjson_is_num", `i8* ${fieldItem}`);
   const isNumBool = ctx.emitIcmp("ne", "i32", isNumber, "0");
 

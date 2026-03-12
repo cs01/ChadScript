@@ -428,7 +428,7 @@ export class IndexAccessGenerator {
   }
 
   private generateJSONArrayIndex(expr: IndexAccessNode, params: string[]): string {
-    // Load JSON array pointer
+    this.ctx.setUsesJson(true);
     const varName = (expr.object as VariableNode).name;
     const jsonPtrPtr = this.ctx.getVariableAlloca(varName)!;
     const jsonPtr = this.ctx.nextTemp();
