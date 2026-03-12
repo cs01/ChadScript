@@ -609,9 +609,21 @@ export function handleNumberIsInteger(
 ): string {
   const value = ctx.generateExpression(expr.args[0], params);
   const dblValue = ctx.ensureDouble(value);
+  const isFinite = ctx.nextTemp();
+  ctx.emit(`${isFinite} = fcmp ord double ${dblValue}, 0.0`);
+  const posInf = ctx.nextTemp();
+  ctx.emit(`${posInf} = fcmp one double ${dblValue}, 0x7FF0000000000000`);
+  const negInf = ctx.nextTemp();
+  ctx.emit(`${negInf} = fcmp one double ${dblValue}, 0xFFF0000000000000`);
+  const notInf = ctx.nextTemp();
+  ctx.emit(`${notInf} = and i1 ${posInf}, ${negInf}`);
+  const finiteCheck = ctx.nextTemp();
+  ctx.emit(`${finiteCheck} = and i1 ${isFinite}, ${notInf}`);
   const truncated = ctx.emitCall("double", "@llvm.trunc.f64", `double ${dblValue}`);
+  const truncEq = ctx.nextTemp();
+  ctx.emit(`${truncEq} = fcmp oeq double ${dblValue}, ${truncated}`);
   const isInt = ctx.nextTemp();
-  ctx.emit(`${isInt} = fcmp oeq double ${dblValue}, ${truncated}`);
+  ctx.emit(`${isInt} = and i1 ${finiteCheck}, ${truncEq}`);
   const result = ctx.nextTemp();
   ctx.emit(`${result} = uitofp i1 ${isInt} to double`);
   return result;
