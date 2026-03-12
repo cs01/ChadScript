@@ -721,6 +721,9 @@ export class SemanticAnalyzer {
       if (varExpr.name === "null" || varExpr.name === "undefined") {
         return { name: varExpr.name, type: "null", llvmType: "i8*" };
       }
+      if (varExpr.name === "NaN" || varExpr.name === "Infinity") {
+        return { name: varExpr.name, type: "number", llvmType: "double" };
+      }
       const symbol = this.symbols.get(varExpr.name);
       if (!symbol) {
         this.errors.push({
