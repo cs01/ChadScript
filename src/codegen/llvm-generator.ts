@@ -1709,9 +1709,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         }
         if (this.isKnownClass(rt)) {
           const resolvedClassName = this.resolveImportAlias(rt);
-          const fields = this.classGen
-            ? this.classGen.getClassFields(resolvedClassName) || []
-            : [];
+          const fields = this.classGen ? this.classGen.getClassFields(resolvedClassName) || [] : [];
           const llvmType = fields.length > 0 ? `%${resolvedClassName}_struct*` : "i32*";
           this.globalVariables.set(name, {
             llvmType,
@@ -1881,9 +1879,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       return `@${name} = global i8* null\n`;
     }
     if (this.isKnownClass(strippedDeclaredType)) {
-      const fields = this.classGen
-        ? this.classGen.getClassFields(strippedDeclaredType) || []
-        : [];
+      const fields = this.classGen ? this.classGen.getClassFields(strippedDeclaredType) || [] : [];
       const llvmType = fields.length > 0 ? `%${strippedDeclaredType}_struct*` : "i8*";
       this.globalVariables.set(name, {
         llvmType,
