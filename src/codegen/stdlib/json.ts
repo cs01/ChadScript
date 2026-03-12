@@ -124,15 +124,21 @@ export class JsonGenerator {
 
     const successLabel = this.ctx.nextLabel("json_arr_success");
     const errorLabel = this.ctx.nextLabel("json_arr_error");
-    const endLabel = this.ctx.nextLabel("json_arr_end");
 
     this.ctx.emitBrCond(isNull, errorLabel, successLabel);
 
     this.ctx.emitLabel(errorLabel);
-    // inttoptr — no builder
-    const nullArray = this.ctx.nextTemp();
-    this.ctx.emit(`${nullArray} = inttoptr i64 0 to %Array*`);
-    this.ctx.emitBr(endLabel);
+    const stderrPtr2 = this.ctx.nextTemp();
+    this.ctx.emit(`${stderrPtr2} = load i8*, i8** @stderr`);
+    const fmtStr2 = this.ctx.createStringConstant(
+      "Error: JSON.parse() failed \u2014 invalid JSON input\n",
+    );
+    const fprintfResult2 = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${fprintfResult2} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr2}, i8* ${fmtStr2})`,
+    );
+    this.ctx.emit("call void @exit(i32 1)");
+    this.ctx.emit("unreachable");
 
     this.ctx.emitLabel(successLabel);
 
@@ -197,16 +203,10 @@ export class JsonGenerator {
     }
 
     this.ctx.emitLabel(loopEnd);
-    this.ctx.emitBr(endLabel);
 
-    this.ctx.emitLabel(endLabel);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(
-      `${result} = phi %Array* [ ${nullArray}, %${errorLabel} ], [ ${arr}, %${loopEnd} ]`,
-    );
-    this.ctx.setVariableType(result, "%Array*");
+    this.ctx.setVariableType(arr, "%Array*");
 
-    return result;
+    return arr;
   }
 
   private hasStructInGlobalStrings(typeName: string): boolean {
