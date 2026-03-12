@@ -223,6 +223,8 @@ export class MathGenerator {
     }
     const arg = this.ctx.generateExpression(expr.args[0], params);
     const dblArg = this.ctx.ensureDouble(arg);
+    const isNaN = this.ctx.nextTemp();
+    this.ctx.emit(`${isNaN} = fcmp uno double ${dblArg}, ${dblArg}`);
     const isPos = this.ctx.nextTemp();
     this.ctx.emit(`${isPos} = fcmp ogt double ${dblArg}, 0.0`);
     const isNeg = this.ctx.nextTemp();
@@ -231,7 +233,9 @@ export class MathGenerator {
     this.ctx.emit(`${posVal} = select i1 ${isPos}, double 1.0, double 0.0`);
     const negVal = this.ctx.nextTemp();
     this.ctx.emit(`${negVal} = select i1 ${isNeg}, double -1.0, double ${posVal}`);
-    return negVal;
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = select i1 ${isNaN}, double 0x7FF8000000000000, double ${negVal}`);
+    return result;
   }
 
   private generateLog(expr: MethodCallNode, params: string[]): string {
