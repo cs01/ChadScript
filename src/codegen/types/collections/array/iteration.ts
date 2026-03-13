@@ -374,7 +374,11 @@ function generateNumericArrayForEach(
   gen.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${counter}`);
   const elem = gen.emitLoad("double", elemPtr);
 
-  gen.emitCall("double", `@${callbackFn}`, buildIterCallArgsWithIndex(gen, `double ${elem}`, counter, paramCount));
+  gen.emitCall(
+    "double",
+    `@${callbackFn}`,
+    buildIterCallArgsWithIndex(gen, `double ${elem}`, counter, paramCount),
+  );
 
   const nextCounter = gen.nextTemp();
   gen.emit(`${nextCounter} = add i32 ${counter}, 1`);
@@ -425,7 +429,11 @@ function generateStringArrayForEach(
   const elem = gen.nextTemp();
   gen.emit(`${elem} = load i8*, i8** ${elemPtr}`);
 
-  gen.emitCall("double", `@${callbackFn}`, buildIterCallArgsWithIndex(gen, `i8* ${elem}`, counter, paramCount));
+  gen.emitCall(
+    "double",
+    `@${callbackFn}`,
+    buildIterCallArgsWithIndex(gen, `i8* ${elem}`, counter, paramCount),
+  );
 
   const nextCounter = gen.nextTemp();
   gen.emit(`${nextCounter} = add i32 ${counter}, 1`);
@@ -818,7 +826,11 @@ function generateNumericArrayMap(
   gen.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${counter}`);
   const elem = gen.emitLoad("double", elemPtr);
 
-  const result = gen.emitCall("double", `@${callbackFn}`, buildIterCallArgsWithIndex(gen, `double ${elem}`, counter, paramCount));
+  const result = gen.emitCall(
+    "double",
+    `@${callbackFn}`,
+    buildIterCallArgsWithIndex(gen, `double ${elem}`, counter, paramCount),
+  );
 
   const resultElemPtr = gen.nextTemp();
   gen.emit(
@@ -905,7 +917,11 @@ function generateStringArrayMapImpl(
   const elem = gen.nextTemp();
   gen.emit(`${elem} = load i8*, i8** ${elemPtr}`);
 
-  const result = gen.emitCall("i8*", `@${callbackFn}`, buildIterCallArgsWithIndex(gen, `i8* ${elem}`, counter, paramCount));
+  const result = gen.emitCall(
+    "i8*",
+    `@${callbackFn}`,
+    buildIterCallArgsWithIndex(gen, `i8* ${elem}`, counter, paramCount),
+  );
 
   const resultElemPtr = gen.nextTemp();
   gen.emit(`${resultElemPtr} = getelementptr inbounds i8*, i8** ${resultDataPtr}, i32 ${counter}`);
