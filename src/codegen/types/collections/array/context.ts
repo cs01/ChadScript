@@ -42,7 +42,7 @@ export function detectArrayType(
     const varName = (expr.object as VariableNode).name;
     const varType = gen.getVariableType(varName);
     isStringArray = varType === "%StringArray*" || varType === "%StringArray";
-    isObjectArray = gen.symbolTable.isObjectArray(varName);
+    isObjectArray = varType === "%ObjectArray*" || varType === "%ObjectArray";
   } else if (exprObjBase.type === "member_access") {
     const ptrType = gen.getVariableType(arrayPtr);
     isStringArray = ptrType === "%StringArray*";

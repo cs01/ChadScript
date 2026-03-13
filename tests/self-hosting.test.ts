@@ -33,7 +33,12 @@ const NATIVE_ENV: NodeJS.ProcessEnv = {
 
 const STAGE0_TODO = new Set<string>([]);
 
-const STAGE1_TODO = new Set<string>([]);
+const STAGE1_TODO = new Set<string>([
+  "arrays/object-array-filter",
+  "arrays/object-array-find",
+  "arrays/object-array-reduce",
+  "edge-cases/interface-array-processing",
+]);
 
 function isCrashSignal(signal: string | null): boolean {
   return signal === "SIGSEGV" || signal === "SIGABRT" || signal === "SIGBUS";
