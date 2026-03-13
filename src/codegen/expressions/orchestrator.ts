@@ -212,8 +212,16 @@ export class ExpressionGenerator {
     const cbParamType = this.ctx.getExpectedCallbackParamType();
     const cbReturnType = this.ctx.getExpectedCallbackReturnType();
     if (cbParamType || cbReturnType) {
-      const hintParamTypes: string[] | undefined = cbParamType ? [cbParamType] : undefined;
-      typeHints = { paramTypes: hintParamTypes, returnType: cbReturnType || undefined };
+      const hintParamTypes: string[] = cbParamType ? [cbParamType] : [];
+      if (cbParamType) {
+        for (let pi = 1; pi < expr.params.length; pi++) {
+          hintParamTypes.push(cbParamType);
+        }
+      }
+      typeHints = {
+        paramTypes: hintParamTypes.length > 0 ? hintParamTypes : undefined,
+        returnType: cbReturnType || undefined,
+      };
     }
     if (!typeHints && expr.returnType) {
       typeHints = { returnType: expr.returnType };
