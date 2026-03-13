@@ -15,6 +15,7 @@ import {
   mapParamTypeToLLVM,
   mapReturnTypeToLLVM,
 } from "../infrastructure/type-system.js";
+import { createStringConstant } from "../types/collections/string/constants.js";
 
 /**
  * CallExpressionGenerator
@@ -520,8 +521,32 @@ export class CallExpressionGenerator {
     if (this.ctx.isStringExpression(arg)) {
       return this.ctx.generateExpression(arg, params);
     }
-    const numValue = this.ctx.generateExpression(arg, params);
-    return this.ctx.stringGen.doConvertNumberToString(numValue);
+    let isBool = arg.type === "boolean";
+    if (!isBool && arg.type === "variable") {
+      const varName = (arg as VariableNode).name;
+      isBool = this.ctx.symbolTable.isBoolean(varName);
+    }
+    const value = this.ctx.generateExpression(arg, params);
+    const varType = this.ctx.getVariableType(value);
+    if (isBool || varType === "i1") {
+      const trueStr = createStringConstant(this.ctx, "true");
+      const falseStr = createStringConstant(this.ctx, "false");
+      let boolI1: string;
+      if (varType === "i1") {
+        boolI1 = value;
+      } else if (varType === "i64") {
+        boolI1 = this.ctx.nextTemp();
+        this.ctx.emit(`${boolI1} = icmp ne i64 ${value}, 0`);
+      } else {
+        boolI1 = this.ctx.nextTemp();
+        this.ctx.emit(`${boolI1} = fcmp one double ${value}, 0.0`);
+      }
+      const result = this.ctx.nextTemp();
+      this.ctx.emit(`${result} = select i1 ${boolI1}, i8* ${trueStr}, i8* ${falseStr}`);
+      this.ctx.setVariableType(result, "i8*");
+      return result;
+    }
+    return this.ctx.stringGen.doConvertNumberToString(value);
   }
 
   private generateIsNaN(expr: CallNode, params: string[]): string {
