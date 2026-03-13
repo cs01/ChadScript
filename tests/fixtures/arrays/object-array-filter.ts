@@ -1,4 +1,4 @@
-// @test-skip
+
 interface Item {
   name: string;
   score: number;
