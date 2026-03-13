@@ -1,5 +1,9 @@
-function add(a: number, b: number): number { return a + b; }
-function mul(a: number, b: number): number { return a * b; }
+function add(a: number, b: number): number {
+  return a + b;
+}
+function mul(a: number, b: number): number {
+  return a * b;
+}
 
 const r1 = add(mul(2, 3), mul(4, 5));
 if (r1 !== 26) process.exit(1);
