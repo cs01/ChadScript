@@ -147,6 +147,9 @@ export function generatePadStart(
   const needsPadding = ctx.nextTemp();
   ctx.emit(`${needsPadding} = and i1 ${needsPaddingRaw}, ${padNonEmpty}`);
 
+  const padCounterPtr = ctx.nextTemp();
+  ctx.emit(`${padCounterPtr} = alloca i32`);
+
   const noPadLabel = ctx.nextLabel("padstart_nopad");
   const doPadLabel = ctx.nextLabel("padstart_dopad");
   const endLabel = ctx.nextLabel("padstart_end");
@@ -181,8 +184,6 @@ export function generatePadStart(
   const padLoopBodyLabel = ctx.nextLabel("padstart_loop_body");
   const padLoopEndLabel = ctx.nextLabel("padstart_loop_end");
 
-  const padCounterPtr = ctx.nextTemp();
-  ctx.emit(`${padCounterPtr} = alloca i32`);
   ctx.emitStore("i32", "0", padCounterPtr);
   ctx.emitBr(padLoopLabel);
 
@@ -253,6 +254,9 @@ export function generatePadEnd(
   const needsPadding = ctx.nextTemp();
   ctx.emit(`${needsPadding} = and i1 ${needsPaddingRaw}, ${padNonEmpty}`);
 
+  const padCounterPtr = ctx.nextTemp();
+  ctx.emit(`${padCounterPtr} = alloca i32`);
+
   const noPadLabel = ctx.nextLabel("padend_nopad");
   const doPadLabel = ctx.nextLabel("padend_dopad");
   const endLabel = ctx.nextLabel("padend_end");
@@ -287,8 +291,6 @@ export function generatePadEnd(
   const padLoopBodyLabel = ctx.nextLabel("padend_loop_body");
   const padLoopEndLabel = ctx.nextLabel("padend_loop_end");
 
-  const padCounterPtr = ctx.nextTemp();
-  ctx.emit(`${padCounterPtr} = alloca i32`);
   ctx.emitStore("i32", "0", padCounterPtr);
   ctx.emitBr(padLoopLabel);
 
@@ -401,6 +403,11 @@ export function generateTrim(ctx: IGeneratorContext, strPtr: string): string {
 
   const isEmpty = ctx.emitIcmp("eq", "i32", strLenI32, "0");
 
+  const startPtr = ctx.nextTemp();
+  ctx.emit(`${startPtr} = alloca i32`);
+  const endPtr = ctx.nextTemp();
+  ctx.emit(`${endPtr} = alloca i32`);
+
   const emptyLabel = ctx.nextLabel("trim_empty");
   const notEmptyLabel = ctx.nextLabel("trim_notempty");
   const endLabel = ctx.nextLabel("trim_end");
@@ -414,8 +421,6 @@ export function generateTrim(ctx: IGeneratorContext, strPtr: string): string {
 
   ctx.emitLabel(notEmptyLabel);
 
-  const startPtr = ctx.nextTemp();
-  ctx.emit(`${startPtr} = alloca i32`);
   ctx.emitStore("i32", "0", startPtr);
 
   const findStartLabel = ctx.nextLabel("trim_find_start");
@@ -474,8 +479,6 @@ export function generateTrim(ctx: IGeneratorContext, strPtr: string): string {
   ctx.emitBr(endLabel);
 
   ctx.emitLabel(findEndLabel);
-  const endPtr = ctx.nextTemp();
-  ctx.emit(`${endPtr} = alloca i32`);
   const initEnd = ctx.nextTemp();
   ctx.emit(`${initEnd} = sub i32 ${strLenI32}, 1`);
   ctx.emitStore("i32", initEnd, endPtr);
@@ -548,6 +551,9 @@ export function generateTrimStart(ctx: IGeneratorContext, strPtr: string): strin
 
   const isEmpty = ctx.emitIcmp("eq", "i32", strLenI32, "0");
 
+  const startPtr = ctx.nextTemp();
+  ctx.emit(`${startPtr} = alloca i32`);
+
   const emptyLabel = ctx.nextLabel("trimstart_empty");
   const notEmptyLabel = ctx.nextLabel("trimstart_notempty");
   const endLabel = ctx.nextLabel("trimstart_end");
@@ -561,8 +567,6 @@ export function generateTrimStart(ctx: IGeneratorContext, strPtr: string): strin
 
   ctx.emitLabel(notEmptyLabel);
 
-  const startPtr = ctx.nextTemp();
-  ctx.emit(`${startPtr} = alloca i32`);
   ctx.emitStore("i32", "0", startPtr);
 
   const findStartLabel = ctx.nextLabel("trimstart_find");
@@ -643,6 +647,9 @@ export function generateTrimEnd(ctx: IGeneratorContext, strPtr: string): string 
 
   const isEmpty = ctx.emitIcmp("eq", "i32", strLenI32, "0");
 
+  const endPtr = ctx.nextTemp();
+  ctx.emit(`${endPtr} = alloca i32`);
+
   const emptyLabel = ctx.nextLabel("trimend_empty");
   const notEmptyLabel = ctx.nextLabel("trimend_notempty");
   const endLabel = ctx.nextLabel("trimend_end");
@@ -656,8 +663,6 @@ export function generateTrimEnd(ctx: IGeneratorContext, strPtr: string): string 
 
   ctx.emitLabel(notEmptyLabel);
 
-  const endPtr = ctx.nextTemp();
-  ctx.emit(`${endPtr} = alloca i32`);
   const initEnd = ctx.nextTemp();
   ctx.emit(`${initEnd} = sub i32 ${strLenI32}, 1`);
   ctx.emitStore("i32", initEnd, endPtr);
