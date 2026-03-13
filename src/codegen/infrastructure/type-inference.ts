@@ -421,6 +421,7 @@ export class TypeInference {
       method === "delete" ||
       method === "every" ||
       method === "some" ||
+      method === "includes" ||
       method === "isFile" ||
       method === "isDirectory"
     ) {

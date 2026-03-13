@@ -655,13 +655,11 @@ function generateIntArrayIncludes(
   gen.emitStore("i32", nextCounter, counterPtr);
   gen.emitBr(checkLabel);
 
-  // phi selects 0 (not found from check) or 1 (found)
   gen.emitLabel(endLabel);
   const resultI32 = gen.nextTemp();
   gen.emit(`${resultI32} = phi i32 [ 0, %${checkLabel} ], [ 1, %${foundLabel} ]`);
   const result = gen.nextTemp();
   gen.emit(`${result} = sitofp i32 ${resultI32} to double`);
-  gen.setVariableType(result, "double");
   return result;
 }
 
@@ -722,12 +720,10 @@ function generateStringArrayIncludes(
   gen.emitStore("i32", nextCounter, counterPtr);
   gen.emitBr(checkLabel);
 
-  // phi selects 0 (not found from check) or 1 (found)
   gen.emitLabel(endLabel);
   const resultI32 = gen.nextTemp();
   gen.emit(`${resultI32} = phi i32 [ 0, %${checkLabel} ], [ 1, %${foundLabel} ]`);
   const result = gen.nextTemp();
   gen.emit(`${result} = sitofp i32 ${resultI32} to double`);
-  gen.setVariableType(result, "double");
   return result;
 }
