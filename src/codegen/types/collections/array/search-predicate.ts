@@ -2,7 +2,12 @@
 // Exported functions accept (gen, expr, params) and handle predicate resolution internally.
 
 import { MethodCallNode, VariableNode } from "../../../../ast/types.js";
-import { IGeneratorContext, loadArrayMeta, detectArrayType } from "./context.js";
+import {
+  IGeneratorContext,
+  loadArrayMeta,
+  isStringArrayType,
+  isObjectArrayType,
+} from "./context.js";
 
 interface ExprBase {
   type: string;
@@ -32,7 +37,8 @@ export function generateArrayFind(
   }
 
   const arrayPtr = gen.generateExpression(expr.object, params);
-  const { isStringArray, isObjectArray } = detectArrayType(gen, expr, arrayPtr);
+  const isStringArray = isStringArrayType(gen, expr, arrayPtr);
+  const isObjectArray = isObjectArrayType(gen, expr, arrayPtr);
 
   let elementType = "";
   if (isObjectArray) {
@@ -214,7 +220,8 @@ export function generateArraySome(
   }
 
   const arrayPtr = gen.generateExpression(expr.object, params);
-  const { isStringArray, isObjectArray } = detectArrayType(gen, expr, arrayPtr);
+  const isStringArray = isStringArrayType(gen, expr, arrayPtr);
+  const isObjectArray = isObjectArrayType(gen, expr, arrayPtr);
 
   let elementType = "";
   if (isObjectArray) {
@@ -399,7 +406,8 @@ export function generateArrayEvery(
   }
 
   const arrayPtr = gen.generateExpression(expr.object, params);
-  const { isStringArray, isObjectArray } = detectArrayType(gen, expr, arrayPtr);
+  const isStringArray = isStringArrayType(gen, expr, arrayPtr);
+  const isObjectArray = isObjectArrayType(gen, expr, arrayPtr);
 
   let elementType = "";
   if (isObjectArray) {
