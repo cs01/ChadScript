@@ -440,6 +440,8 @@ export class MapGenerator {
 
     const indexReg = this.nextTemp();
     this.emit(`${indexReg} = alloca i32`);
+    const shiftIdx = this.nextTemp();
+    this.emit(`${shiftIdx} = alloca i32`);
     this.ctx.emitStore("i32", "0", indexReg);
     this.ctx.emitBr(loopLabel);
 
@@ -464,8 +466,6 @@ export class MapGenerator {
     const newSize = this.nextTemp();
     this.emit(`${newSize} = sub i32 ${mapSize}, 1`);
     this.ctx.emitStore("i32", newSize, sizeFieldPtr);
-    const shiftIdx = this.nextTemp();
-    this.emit(`${shiftIdx} = alloca i32`);
     const currentIndex2 = this.ctx.emitLoad("i32", indexReg);
     this.ctx.emitStore("i32", currentIndex2, shiftIdx);
     this.ctx.emitBr(shiftLabel);
@@ -1088,6 +1088,10 @@ export class StringMapGenerator {
 
     const slotReg = this.nextTemp();
     this.emit(`${slotReg} = alloca i32`);
+    const rehashIdx = this.nextTemp();
+    this.emit(`${rehashIdx} = alloca i32`);
+    const riSlotReg = this.nextTemp();
+    this.emit(`${riSlotReg} = alloca i32`);
     this.ctx.emitStore("i32", startSlot, slotReg);
     this.ctx.emitBr(probeLabel);
 
@@ -1128,8 +1132,6 @@ export class StringMapGenerator {
     this.ctx.emitStore("i32", decSize, sizeFieldPtr);
 
     // Backward-shift rehash: fix up subsequent entries displaced by linear probing
-    const rehashIdx = this.nextTemp();
-    this.emit(`${rehashIdx} = alloca i32`);
     const nextAfterFound = this.nextTemp();
     this.emit(`${nextAfterFound} = add i32 ${foundSlot}, 1`);
     const wrappedNext = this.nextTemp();
@@ -1155,9 +1157,6 @@ export class StringMapGenerator {
     this.emit(`${riValPtr} = getelementptr inbounds i8*, i8** ${valuesPtr}, i32 ${ri}`);
     const riVal = this.ctx.emitLoad("i8*", riValPtr);
     this.ctx.emitStore("i8*", "null", riValPtr);
-    // Re-insert from desired position
-    const riSlotReg = this.nextTemp();
-    this.emit(`${riSlotReg} = alloca i32`);
     this.ctx.emitStore("i32", riDesired, riSlotReg);
     this.ctx.emitBr(rehashProbeLabel);
 
