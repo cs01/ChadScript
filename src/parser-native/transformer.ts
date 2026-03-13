@@ -2184,9 +2184,9 @@ function transformSwitchStatement(node: TreeSitterNode): BlockStatement {
     ? transformExpression(exprNode)
     : { type: "variable" as const, name: "undefined" };
 
-  const statements: Statement[] = [];
   let pendingConditions: Expression[] = [];
   let defaultStatements: Statement[] | null = null;
+  const caseIfNodes: object[] = [];
 
   if (bodyNode) {
     const bn = bodyNode as NodeBase;
@@ -2245,7 +2245,7 @@ function transformSwitchStatement(node: TreeSitterNode): BlockStatement {
               thenBlock: thenBlock,
               elseBlock: null,
             };
-            statements.push(ifStmt);
+            caseIfNodes.push(ifStmt);
           }
         }
       } else if (cl.type === "switch_default") {
@@ -2270,12 +2270,38 @@ function transformSwitchStatement(node: TreeSitterNode): BlockStatement {
     }
   }
 
-  if (defaultStatements) {
-    for (let ds = 0; ds < defaultStatements.length; ds++) {
-      statements.push(defaultStatements[ds]);
+  if (caseIfNodes.length === 0) {
+    const statements: Statement[] = [];
+    if (defaultStatements) {
+      for (let ds = 0; ds < defaultStatements.length; ds++) {
+        statements.push(defaultStatements[ds]);
+      }
     }
+    return { type: "block", statements: statements };
   }
 
+  let chainedIf = caseIfNodes[caseIfNodes.length - 1] as IfStatement;
+  if (defaultStatements) {
+    chainedIf = {
+      type: "if",
+      condition: chainedIf.condition,
+      thenBlock: chainedIf.thenBlock,
+      elseBlock: { type: "block", statements: defaultStatements },
+    };
+  }
+  for (let ci = caseIfNodes.length - 2; ci >= 0; ci--) {
+    const prev = caseIfNodes[ci] as IfStatement;
+    const elseWrapper: BlockStatement = { type: "block", statements: [chainedIf] };
+    chainedIf = {
+      type: "if",
+      condition: prev.condition,
+      thenBlock: prev.thenBlock,
+      elseBlock: elseWrapper,
+    };
+  }
+
+  const statements: Statement[] = [];
+  statements.push(chainedIf);
   return { type: "block", statements: statements };
 }
 
