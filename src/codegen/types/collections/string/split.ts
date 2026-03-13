@@ -282,6 +282,7 @@ export function generateSplit(ctx: IGeneratorContext, strPtr: string, delimiter:
   ctx.emit(
     `${result} = phi %StringArray* [ ${emptyArrPtr}, %${emptyLoopEndLabel} ], [ ${arrayPtr}, %${extractEndLabel} ]`,
   );
+  ctx.setVariableType(result, "%StringArray*");
 
   return result;
 }
