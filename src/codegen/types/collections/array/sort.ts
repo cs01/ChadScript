@@ -342,9 +342,7 @@ function generateStringSortWithFn(
   gen.emit(`${valB} = load i8*, i8** ${ptrB}`);
 
   const cmpResult = gen.nextTemp();
-  const cmpArgs = envPtr
-    ? `i8* ${envPtr}, i8* ${valA}, i8* ${valB}`
-    : `i8* ${valA}, i8* ${valB}`;
+  const cmpArgs = envPtr ? `i8* ${envPtr}, i8* ${valA}, i8* ${valB}` : `i8* ${valA}, i8* ${valB}`;
   gen.emit(`${cmpResult} = call double @${compareFn}(${cmpArgs})`);
   const shouldSwap = gen.nextTemp();
   gen.emit(`${shouldSwap} = fcmp ogt double ${cmpResult}, 0.0`);
