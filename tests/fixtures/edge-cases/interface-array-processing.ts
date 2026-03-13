@@ -1,4 +1,3 @@
-// @test-skip
 interface User {
   name: string;
   age: number;

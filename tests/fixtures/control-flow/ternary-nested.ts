@@ -1,4 +1,3 @@
-// @test-skip
 let passed = true;
 
 const x = 5;
