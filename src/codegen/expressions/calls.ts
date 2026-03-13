@@ -1073,7 +1073,10 @@ export class CallExpressionGenerator {
       );
     }
 
-    const callResult = this.ctx.emitCall("double", `@${callbackFn}`, "");
+    const envPtr = this.ctx.getLastInlineLambdaEnvPtr();
+    const callArgs = envPtr ? `i8* ${envPtr}` : "";
+    this.ctx.emitCallVoid(`@${callbackFn}`, callArgs);
+    if (envPtr) this.ctx.setLastInlineLambdaEnvPtr(null);
 
     const failed = this.ctx.emitLoad("i1", "@__test_current_failed");
 
@@ -1150,7 +1153,10 @@ export class CallExpressionGenerator {
       );
     }
 
-    const callResult = this.ctx.emitCall("double", `@${callbackFn}`, "");
+    const descEnvPtr = this.ctx.getLastInlineLambdaEnvPtr();
+    const descCallArgs = descEnvPtr ? `i8* ${descEnvPtr}` : "";
+    this.ctx.emitCallVoid(`@${callbackFn}`, descCallArgs);
+    if (descEnvPtr) this.ctx.setLastInlineLambdaEnvPtr(null);
 
     const restoredDepth = this.ctx.emitLoad("i32", "@__describe_depth");
     const decDepth = this.ctx.nextTemp();
