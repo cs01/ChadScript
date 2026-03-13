@@ -51,6 +51,8 @@ import {
   TypeAssertionNode,
 } from "../ast/types.js";
 
+let destructureCounter = 0;
+
 interface ExprBase {
   type: string;
 }
@@ -1764,6 +1766,20 @@ function desugarDestructuring(
 
   const results: VariableDeclaration[] = [];
 
+  let objectRef: Expression = rhsExpr;
+  const rhsBase = rhsExpr as ExprBase;
+  if (rhsBase.type !== "variable") {
+    const tempName = "__destructure_" + String(destructureCounter);
+    destructureCounter = destructureCounter + 1;
+    results.push({
+      type: "variable_declaration",
+      kind: "const",
+      name: tempName,
+      value: rhsExpr,
+    });
+    objectRef = { type: "variable", name: tempName } as Expression;
+  }
+
   if (nn.type === "object_pattern") {
     for (let i = 0; i < nameNode.namedChildCount; i++) {
       const prop = getNamedChild(nameNode, i);
@@ -1776,7 +1792,7 @@ function desugarDestructuring(
           type: "variable_declaration",
           kind,
           name: propName,
-          value: { type: "member_access", object: rhsExpr, property: propName } as Expression,
+          value: { type: "member_access", object: objectRef, property: propName } as Expression,
         });
       } else if (p.type === "pair_pattern") {
         const keyNode = getNamedChild(prop, 0);
@@ -1788,7 +1804,7 @@ function desugarDestructuring(
             type: "variable_declaration",
             kind,
             name: aliasName,
-            value: { type: "member_access", object: rhsExpr, property: keyName } as Expression,
+            value: { type: "member_access", object: objectRef, property: keyName } as Expression,
           });
         }
       }
@@ -1809,7 +1825,7 @@ function desugarDestructuring(
           name: e.text,
           value: {
             type: "index_access",
-            object: rhsExpr,
+            object: objectRef,
             index: { type: "number", value: idx },
           } as Expression,
         });
