@@ -6,7 +6,7 @@ ChadScript is a natively-compiled systems language with TypeScript syntax. Write
 
 The compiler is self-hosting: tens of thousands of lines of TypeScript that compile themselves to a native binary. You install it with curl, not npm.
 
-**Status: Alpha** — self-hosting and usable for real projects. The compiler catches type mismatches at compile time instead of crashing at runtime.
+**Status: Beta** — core language features work reliably with clear error messages. Safe for early adopters building real projects. Self-hosting, 621+ tests passing.
 
 | Milestone                           | Status |
 | ----------------------------------- | ------ |
@@ -14,7 +14,7 @@ The compiler is self-hosting: tens of thousands of lines of TypeScript that comp
 | Standard library + external linking | Done   |
 | Self-hosting (3-stage)              | Done   |
 | Performance (LLVM -O2)              | Done   |
-| Testing (470+ tests, CI)            | Done   |
+| Testing (620+ tests, CI)            | Done   |
 | Compile-time error coverage         | Done   |
 
 ---
