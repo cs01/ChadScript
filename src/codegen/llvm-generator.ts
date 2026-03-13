@@ -2252,6 +2252,13 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               mapValueType = mapNode.valueType || "string";
             }
           }
+          if (!isStringMap && resolved && resolved.base.startsWith("Map<")) {
+            const parsed = parseMapTypeString(resolved.base);
+            if (parsed && parsed.keyType === "string") {
+              isStringMap = true;
+              mapValueType = parsed.valueType;
+            }
+          }
           if (isStringMap) {
             llvmType = "%StringMap*";
             kind = SymbolKind.Map;
@@ -2279,6 +2286,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           let pointerMapValueType = "string";
           if (stmt.declaredType) {
             const parsed = parseMapTypeString(stmt.declaredType);
+            if (parsed && parsed.keyType !== "string" && parsed.keyType !== "number") {
+              isPointerMap = true;
+              pointerMapKeyType = parsed.keyType;
+              pointerMapValueType = parsed.valueType;
+            }
+          }
+          if (!isPointerMap && resolved && resolved.base.startsWith("Map<")) {
+            const parsed = parseMapTypeString(resolved.base);
             if (parsed && parsed.keyType !== "string" && parsed.keyType !== "number") {
               isPointerMap = true;
               pointerMapKeyType = parsed.keyType;
