@@ -604,7 +604,17 @@ export class TypeInference {
       if (objResolved && objResolved.arrayDepth > 0) return objResolved;
     }
 
-    if (method === "push" || method === "pop" || method === "unshift" || method === "shift") {
+    if (method === "push" || method === "unshift") {
+      return this.ctx.typeContext.numberType;
+    }
+
+    if (method === "pop" || method === "shift") {
+      if (objBase.type === "variable") {
+        const varName = (expr.object as VariableNode).name;
+        if (this.ctx.symbolTable.isStringArray(varName)) {
+          return this.ctx.typeContext.stringType;
+        }
+      }
       return this.ctx.typeContext.numberType;
     }
 
