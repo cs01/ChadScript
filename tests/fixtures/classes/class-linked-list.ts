@@ -1,4 +1,3 @@
-// @test-skip
 class ListNode {
   value: number;
   next: ListNode | null;

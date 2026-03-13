@@ -1,4 +1,3 @@
-// @test-skip
 class Vec {
   x: number;
   y: number;

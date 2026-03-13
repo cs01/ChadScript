@@ -1,4 +1,3 @@
-// @test-skip
 class Point {
   x: number;
   y: number;
