@@ -1854,10 +1854,7 @@ export class VariableAllocator {
         this.allocatePointerMap(stmt, params, mapTypeInfo);
         return;
       }
-      if (
-        mapTypeInfo.valueType !== "number" &&
-        mapTypeInfo.valueType !== "boolean"
-      ) {
+      if (mapTypeInfo.valueType !== "number" && mapTypeInfo.valueType !== "boolean") {
         this.ctx.emitError(
           `Map<number, ${mapTypeInfo.valueType}> is not supported. Use Map<string, ${mapTypeInfo.valueType}> instead`,
           stmt.loc,

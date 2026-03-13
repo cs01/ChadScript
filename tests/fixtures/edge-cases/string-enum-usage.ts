@@ -2,7 +2,7 @@ enum Direction {
   Up = "UP",
   Down = "DOWN",
   Left = "LEFT",
-  Right = "RIGHT"
+  Right = "RIGHT",
 }
 
 const d = Direction.Up;
