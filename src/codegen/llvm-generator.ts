@@ -2085,6 +2085,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         }
 
         const resolved = this.typeInference.resolveExpressionType(stmt.value);
+        let resolvedBase = "";
+        let resolvedDepth = 0;
+        if (resolved) {
+          resolvedBase = resolved.base;
+          resolvedDepth = resolved.arrayDepth;
+        }
         let isString = false;
         let isStringArray = false;
         let isObjectArray = false;
@@ -2098,8 +2104,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         let isBoolean = false;
         let isNumber = false;
         if (resolved) {
-          const base = resolved.base;
-          const depth = resolved.arrayDepth;
+          const base = resolvedBase;
+          const depth = resolvedDepth;
           isString = base === "string" && depth === 0;
           isStringArray = base === "string" && depth > 0;
           isObjectArray = depth > 0 && base !== "string" && base !== "number" && base !== "boolean";
@@ -2308,8 +2314,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               mapValueType = mapNode.valueType || "string";
             }
           }
-          if (!isStringMap && resolved && resolved.base.startsWith("Map<")) {
-            const parsed = parseMapTypeString(resolved.base);
+          if (!isStringMap && resolvedBase.startsWith("Map<")) {
+            const parsed = parseMapTypeString(resolvedBase);
             if (parsed && parsed.keyType === "string") {
               isStringMap = true;
               mapValueType = parsed.valueType;
@@ -2348,8 +2354,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               pointerMapValueType = parsed.valueType;
             }
           }
-          if (!isPointerMap && resolved && resolved.base.startsWith("Map<")) {
-            const parsed = parseMapTypeString(resolved.base);
+          if (!isPointerMap && resolvedBase.startsWith("Map<")) {
+            const parsed = parseMapTypeString(resolvedBase);
             if (parsed && parsed.keyType !== "string" && parsed.keyType !== "number") {
               isPointerMap = true;
               pointerMapKeyType = parsed.keyType;
@@ -2455,9 +2461,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               : null;
             className = func
               ? this.resolveImportAlias(stripNullable(func.returnType!))
-              : resolved!.base;
+              : resolvedBase;
           } else {
-            className = resolved!.base;
+            className = resolvedBase;
           }
           const fields = this.classGen ? this.classGen.getClassFields(className) || [] : [];
           llvmType = fields.length > 0 ? `%${className}_struct*` : "i32*";
