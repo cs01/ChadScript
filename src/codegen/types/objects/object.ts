@@ -271,11 +271,7 @@ export class ObjectGenerator {
         }
         let valueReg: string;
         if (directNestedInterface.length > 0 && directNestedObj) {
-          valueReg = this.generateInterfaceObject(
-            directNestedObj,
-            params,
-            directNestedInterface,
-          );
+          valueReg = this.generateInterfaceObject(directNestedObj, params, directNestedInterface);
         } else {
           if (tsType && !objectLiteralKeys.has(fieldName)) {
             this.ctx.setCurrentDeclaredInterfaceType(tsType);
