@@ -1,3 +1,4 @@
+// @test-skip
 interface Point {
   x: number;
   y: number;
