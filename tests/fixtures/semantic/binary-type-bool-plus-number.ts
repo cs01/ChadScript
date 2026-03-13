@@ -1,4 +1,3 @@
 // @test-description: reject boolean + number at compile time
-// @test-exit-code: 1
-// @test-skip
+// @test-compile-error: cannot use '+' between 'boolean' and 'number'
 const b = true + 8;
