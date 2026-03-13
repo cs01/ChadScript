@@ -1,4 +1,4 @@
-import { Expression, MethodCallNode } from "../../../ast/types.js";
+import { Expression, MethodCallNode, VariableNode } from "../../../ast/types.js";
 import type { MethodCallGeneratorContext } from "../method-calls.js";
 import {
   handleSubstr,
@@ -225,12 +225,18 @@ export function dispatchStringMethod(
   }
   if (method === "toString") {
     if (
-      !ctx.isStringExpression(expr.object) &&
-      !ctx.isArrayExpression(expr.object) &&
-      !ctx.isStringArrayExpression(expr.object)
+      ctx.isStringExpression(expr.object) ||
+      ctx.isArrayExpression(expr.object) ||
+      ctx.isStringArrayExpression(expr.object)
     )
-      return handleNumberToString(ctx, expr, params);
-    return null;
+      return null;
+    const obj = expr.object as { type: string };
+    if (obj.type === "this" || obj.type === "new") return null;
+    if (obj.type === "variable") {
+      const varName = (expr.object as VariableNode).name;
+      if (ctx.symbolTable.isClass(varName)) return null;
+    }
+    return handleNumberToString(ctx, expr, params);
   }
   if (method === "toFixed") return handleNumberToFixed(ctx, expr, params);
   if (method === "match") {
