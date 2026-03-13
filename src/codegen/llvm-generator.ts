@@ -2136,7 +2136,11 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         ) {
           isObjectArray = true;
         }
-        if (!isObjectArray && stmt.value && this.typeInference.isObjectArrayExpression(stmt.value)) {
+        if (
+          !isObjectArray &&
+          stmt.value &&
+          this.typeInference.isObjectArrayExpression(stmt.value)
+        ) {
           isObjectArray = true;
         }
         // Detect Uint8Array from declared type or expression analysis.
