@@ -1,19 +1,21 @@
-// @test-skip
-// Debug test for spawn
+let gotOutput = false;
+let gotExit = false;
+
 function onOut(data: string): void {
-  console.log("GOT STDOUT: " + data);
+  if (data.indexOf("hello") !== -1) {
+    gotOutput = true;
+  }
 }
 
-function onErr(data: string): void {
-  console.log("GOT STDERR: " + data);
-}
+function onErr(data: string): void {}
 
 function onDone(code: number): void {
-  console.log("GOT EXIT: " + code);
+  gotExit = true;
 }
 
-console.log("Before spawn");
 child_process.spawn("echo hello", onOut, onErr, onDone);
-console.log("After spawn, running event loop");
 runEventLoop();
-console.log("Event loop done");
+
+if (gotOutput && gotExit) {
+  console.log("TEST_PASSED");
+}
