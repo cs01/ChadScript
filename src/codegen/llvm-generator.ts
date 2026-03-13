@@ -2136,6 +2136,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         ) {
           isObjectArray = true;
         }
+        if (!isObjectArray && stmt.value && this.typeInference.isObjectArrayExpression(stmt.value)) {
+          isObjectArray = true;
+        }
         // Detect Uint8Array from declared type or expression analysis.
         // Must clear isString since readFileSync resolves to "string" by default,
         // but the declared type takes precedence.

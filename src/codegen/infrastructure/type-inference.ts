@@ -1422,6 +1422,12 @@ export class TypeInference {
           }
         }
       }
+      if (methodExpr.method === "entries") {
+        if (methodObjBase.type === "variable") {
+          const varName = (methodExpr.object as VariableNode).name;
+          if (this.ctx.symbolTable.isMap(varName)) return true;
+        }
+      }
       if (
         methodExpr.method === "slice" ||
         methodExpr.method === "concat" ||
