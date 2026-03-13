@@ -210,9 +210,14 @@ export class ObjectGenerator {
     }
 
     const propMap = new Map<string, Expression>();
+    const objectLiteralKeys = new Map<string, ObjectNode>();
     for (let i = 0; i < objExpr.properties.length; i++) {
       const prop = objExpr.properties[i] as ObjectProperty;
       propMap.set(prop.key, prop.value);
+      const valType = prop.value.type;
+      if (valType && valType.length > 0 && valType.charCodeAt(0) === 111) {
+        objectLiteralKeys.set(prop.key, prop.value as ObjectNode);
+      }
     }
 
     const orderedFields: { key: string; llvmType: string; value: string }[] = [];
@@ -249,7 +254,9 @@ export class ObjectGenerator {
         } else if (tsType === "string[]") {
           this.ctx.setExpectedArrayElementType("string");
         }
-        if (tsType && valueExpr.type === "object") {
+        let directNestedInterface = "";
+        let directNestedObj: ObjectNode | null = null;
+        if (tsType && objectLiteralKeys.has(fieldName)) {
           let resolvedFieldType = tsType;
           if (resolvedFieldType.endsWith(" | null")) {
             resolvedFieldType = resolvedFieldType.slice(0, resolvedFieldType.length - 7);
@@ -258,10 +265,23 @@ export class ObjectGenerator {
             resolvedFieldType = resolvedFieldType.slice(0, resolvedFieldType.length - 12);
           }
           if (this.ctx.interfaceStructGen?.hasInterface(resolvedFieldType)) {
-            this.ctx.setCurrentDeclaredInterfaceType(resolvedFieldType);
+            directNestedInterface = resolvedFieldType;
+            directNestedObj = objectLiteralKeys.get(fieldName) ?? null;
           }
         }
-        const valueReg = this.ctx.generateExpression(valueExpr, params);
+        let valueReg: string;
+        if (directNestedInterface.length > 0 && directNestedObj) {
+          valueReg = this.generateInterfaceObject(
+            directNestedObj,
+            params,
+            directNestedInterface,
+          );
+        } else {
+          if (tsType && !objectLiteralKeys.has(fieldName)) {
+            this.ctx.setCurrentDeclaredInterfaceType(tsType);
+          }
+          valueReg = this.ctx.generateExpression(valueExpr, params);
+        }
         this.ctx.setExpectedArrayElementType(savedExpectedType);
         this.ctx.setCurrentDeclaredInterfaceType(savedDeclaredInterface);
         finalValue = valueReg;
