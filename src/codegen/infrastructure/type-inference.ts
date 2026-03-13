@@ -166,8 +166,7 @@ export class TypeInference {
       if (firstElem.type === "number") return this.ctx.typeContext.getArrayType("number");
       if (firstElem.type === "variable") {
         const varName = (elements[0] as VariableNode).name;
-        if (this.st.isString(varName))
-          return this.ctx.typeContext.getArrayType("string");
+        if (this.st.isString(varName)) return this.ctx.typeContext.getArrayType("string");
         const varType = this.st.getType(varName);
         if (varType === "i8*") return this.ctx.typeContext.getArrayType("string");
       }
@@ -348,10 +347,8 @@ export class TypeInference {
   private resolveFromSymbolKind(name: string): ResolvedType | null {
     if (this.st.isString(name)) return this.ctx.typeContext.stringType;
     if (this.st.isBoolean(name)) return this.ctx.typeContext.booleanType;
-    if (this.st.isNumberArray(name))
-      return this.ctx.typeContext.getArrayType("number");
-    if (this.st.isMap(name))
-      return this.ctx.typeContext.getMapType("string", "string");
+    if (this.st.isNumberArray(name)) return this.ctx.typeContext.getArrayType("number");
+    if (this.st.isMap(name)) return this.ctx.typeContext.getMapType("string", "string");
     if (this.st.isSet(name)) return this.ctx.typeContext.getSetType("string");
     return this.resolveFromSymbolKindExtended(name);
   }
@@ -364,8 +361,7 @@ export class TypeInference {
       const className = this.st.getClassName(name);
       if (className) return this.ctx.typeContext.getClassType(className);
     }
-    if (this.st.isObjectArray(name))
-      return this.ctx.typeContext.getArrayType("object");
+    if (this.st.isObjectArray(name)) return this.ctx.typeContext.getArrayType("object");
     return null;
   }
 
@@ -1300,9 +1296,7 @@ export class TypeInference {
         methodObjBase.type === "variable" &&
         this.st.isClass((methodExpr.object as VariableNode).name)
       ) {
-        const className = this.st.getClassName(
-          (methodExpr.object as VariableNode).name,
-        );
+        const className = this.st.getClassName((methodExpr.object as VariableNode).name);
         if (className) {
           const method = this.getClassMethod(className, methodExpr.method);
           if (method && method.returnType) {
@@ -1331,9 +1325,7 @@ export class TypeInference {
         objBase.type === "variable" &&
         this.st.isClass((memberExpr.object as VariableNode).name)
       ) {
-        const className = this.st.getClassName(
-          (memberExpr.object as VariableNode).name,
-        );
+        const className = this.st.getClassName((memberExpr.object as VariableNode).name);
         if (className) {
           const fieldType = this.ctx.classGenGetFieldType(className, memberExpr.property);
           if (fieldType === "number[]" || fieldType === "boolean[]") {
@@ -1480,9 +1472,7 @@ export class TypeInference {
         objBase.type === "variable" &&
         this.st.isClass((memberExpr.object as VariableNode).name)
       ) {
-        const className = this.st.getClassName(
-          (memberExpr.object as VariableNode).name,
-        );
+        const className = this.st.getClassName((memberExpr.object as VariableNode).name);
         if (className) {
           const fieldType = this.ctx.classGenGetFieldType(className, memberExpr.property);
           if (
@@ -1807,9 +1797,7 @@ export class TypeInference {
           memberObjBase.type === "variable" &&
           this.st.isClass((memberAccess.object as VariableNode).name)
         ) {
-          const className = this.st.getClassName(
-            (memberAccess.object as VariableNode).name,
-          );
+          const className = this.st.getClassName((memberAccess.object as VariableNode).name);
           if (className) {
             const fieldType = this.ctx.classGenGetFieldType(className, memberAccess.property);
             if (fieldType === "string[]") {
@@ -2391,9 +2379,7 @@ export class TypeInference {
         objBase.type === "variable" &&
         this.st.isClass((methodExpr.object as VariableNode).name)
       ) {
-        const className = this.st.getClassName(
-          (methodExpr.object as VariableNode).name,
-        );
+        const className = this.st.getClassName((methodExpr.object as VariableNode).name);
         if (className) {
           const method = this.getClassMethod(className, methodExpr.method);
           if (method && method.returnType === "string[]") {
@@ -2423,9 +2409,7 @@ export class TypeInference {
         objBase.type === "variable" &&
         this.st.isClass((memberExpr.object as VariableNode).name)
       ) {
-        const className = this.st.getClassName(
-          (memberExpr.object as VariableNode).name,
-        );
+        const className = this.st.getClassName((memberExpr.object as VariableNode).name);
         if (className) {
           const fieldType = this.ctx.classGenGetFieldType(className, memberExpr.property);
           if (fieldType === "string[]") {
