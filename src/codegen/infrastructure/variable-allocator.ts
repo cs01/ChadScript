@@ -1825,6 +1825,13 @@ export class VariableAllocator {
       }
     }
 
+    if (!mapTypeInfoResult && stmt.value && stmt.value.type === "new") {
+      const newNode = stmt.value as NewNode;
+      if (newNode.className === "Map" && newNode.typeArgs && newNode.typeArgs.length === 2) {
+        mapTypeInfoResult = { keyType: newNode.typeArgs[0], valueType: newNode.typeArgs[1] };
+      }
+    }
+
     if (
       !mapTypeInfoResult &&
       stmt.value &&
@@ -1845,6 +1852,16 @@ export class VariableAllocator {
       }
       if (mapTypeInfo.keyType !== "number") {
         this.allocatePointerMap(stmt, params, mapTypeInfo);
+        return;
+      }
+      if (
+        mapTypeInfo.valueType !== "number" &&
+        mapTypeInfo.valueType !== "boolean"
+      ) {
+        this.ctx.emitError(
+          `Map<number, ${mapTypeInfo.valueType}> is not supported. Use Map<string, ${mapTypeInfo.valueType}> instead`,
+          stmt.loc,
+        );
         return;
       }
     }

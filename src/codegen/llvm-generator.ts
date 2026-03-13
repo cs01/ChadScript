@@ -2366,6 +2366,22 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             );
             continue;
           }
+          let numMapValueType = "number";
+          if (stmt.declaredType) {
+            const parsed = parseMapTypeString(stmt.declaredType);
+            if (parsed) numMapValueType = parsed.valueType;
+          }
+          if (numMapValueType === "number" && stmt.value && stmt.value.type === "new") {
+            const newNode = stmt.value as NewNode;
+            if (newNode.className === "Map" && newNode.typeArgs && newNode.typeArgs.length === 2) {
+              numMapValueType = newNode.typeArgs[1];
+            }
+          }
+          if (numMapValueType !== "number" && numMapValueType !== "boolean") {
+            this.emitError(
+              `Map<number, ${numMapValueType}> is not supported. Use Map<string, ${numMapValueType}> instead`,
+            );
+          }
           llvmType = "%Map*";
           kind = SymbolKind.Map;
           defaultValue = "null";
