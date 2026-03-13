@@ -26,32 +26,65 @@ export function loadArrayMeta(
   return { length, dataPtr };
 }
 
+export function isStringArrayType(
+  gen: IGeneratorContext,
+  expr: MethodCallNode,
+  arrayPtr: string,
+): boolean {
+  const exprObjBase = expr.object as ExprBase;
+  if (exprObjBase.type === "variable") {
+    const varName = (expr.object as VariableNode).name;
+    const varType = gen.getVariableType(varName);
+    if (varType === "%StringArray*" || varType === "%StringArray") return true;
+    const ptrType = gen.getVariableType(arrayPtr);
+    if (ptrType === "%StringArray*") return true;
+    return false;
+  } else if (exprObjBase.type === "member_access") {
+    const ptrType = gen.getVariableType(arrayPtr);
+    return ptrType === "%StringArray*";
+  } else {
+    const ptrType = gen.getVariableType(arrayPtr);
+    if (ptrType === "%StringArray*") return true;
+    return false;
+  }
+}
+
+export function isObjectArrayType(
+  gen: IGeneratorContext,
+  expr: MethodCallNode,
+  arrayPtr: string,
+): boolean {
+  const exprObjBase = expr.object as ExprBase;
+  if (exprObjBase.type === "variable") {
+    const varName = (expr.object as VariableNode).name;
+    const varType = gen.getVariableType(varName);
+    if (varType === "%ObjectArray*" || varType === "%ObjectArray") return true;
+    const ptrType = gen.getVariableType(arrayPtr);
+    if (ptrType === "%ObjectArray*") return true;
+    return false;
+  } else if (exprObjBase.type === "member_access") {
+    const ptrType = gen.getVariableType(arrayPtr);
+    if (ptrType === "%StringArray*") return false;
+    if (ptrType && ptrType.indexOf("*") !== -1 && ptrType !== "%Array*") return true;
+    return false;
+  } else {
+    const ptrType = gen.getVariableType(arrayPtr);
+    if (ptrType === "%ObjectArray*") return true;
+    return false;
+  }
+}
+
 /**
- * Detects whether the array expression is a string or object array.
- * Shared by find/some/every/filter/forEach/reduce/map.
+ * @deprecated Use isStringArrayType and isObjectArrayType instead.
+ * Object destructuring of return values is miscompiled by the native compiler:
+ * it calls the function twice and reads field 0 both times, ignoring field 1.
  */
 export function detectArrayType(
   gen: IGeneratorContext,
   expr: MethodCallNode,
   arrayPtr: string,
 ): { isStringArray: boolean; isObjectArray: boolean } {
-  let isStringArray = false;
-  let isObjectArray = false;
-  const exprObjBase = expr.object as ExprBase;
-  if (exprObjBase.type === "variable") {
-    const varName = (expr.object as VariableNode).name;
-    const varType = gen.getVariableType(varName);
-    isStringArray = varType === "%StringArray*" || varType === "%StringArray";
-    isObjectArray = varType === "%ObjectArray*" || varType === "%ObjectArray";
-  } else if (exprObjBase.type === "member_access") {
-    const ptrType = gen.getVariableType(arrayPtr);
-    isStringArray = ptrType === "%StringArray*";
-    if (!isStringArray && ptrType && ptrType.indexOf("*") !== -1 && ptrType !== "%Array*") {
-      isObjectArray = true;
-    }
-  } else {
-    const ptrType = gen.getVariableType(arrayPtr);
-    isStringArray = ptrType === "%StringArray*";
-  }
+  const isStringArray = isStringArrayType(gen, expr, arrayPtr);
+  const isObjectArray = isObjectArrayType(gen, expr, arrayPtr);
   return { isStringArray, isObjectArray };
 }

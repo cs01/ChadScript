@@ -2,7 +2,7 @@
 // Exported functions accept (gen, expr, params) and handle callback resolution internally.
 
 import { MethodCallNode, VariableNode, ArrowFunctionNode } from "../../../../ast/types.js";
-import { IGeneratorContext, loadArrayMeta, detectArrayType } from "./context.js";
+import { IGeneratorContext, loadArrayMeta, isStringArrayType, isObjectArrayType } from "./context.js";
 
 interface ExprBase {
   type: string;
@@ -57,7 +57,8 @@ export function generateArrayFilter(
   }
 
   const arrayPtr = gen.generateExpression(expr.object, params);
-  const { isStringArray, isObjectArray } = detectArrayType(gen, expr, arrayPtr);
+  const isStringArray = isStringArrayType(gen, expr, arrayPtr);
+  const isObjectArray = isObjectArrayType(gen, expr, arrayPtr);
 
   let elementType = "";
   if (isObjectArray) {
@@ -319,7 +320,8 @@ export function generateArrayForEach(
   }
 
   const arrayPtr = gen.generateExpression(expr.object, params);
-  const { isStringArray, isObjectArray } = detectArrayType(gen, expr, arrayPtr);
+  const isStringArray = isStringArrayType(gen, expr, arrayPtr);
+  const isObjectArray = isObjectArrayType(gen, expr, arrayPtr);
 
   let elementType = "";
   if (isObjectArray) {
@@ -479,7 +481,8 @@ export function generateArrayReduce(
   }
 
   const arrayPtr = gen.generateExpression(expr.object, params);
-  const { isStringArray, isObjectArray } = detectArrayType(gen, expr, arrayPtr);
+  const isStringArray = isStringArrayType(gen, expr, arrayPtr);
+  const isObjectArray = isObjectArrayType(gen, expr, arrayPtr);
 
   let elementType = "";
   if (isObjectArray) {
@@ -792,7 +795,8 @@ export function generateArrayMap(
   }
 
   const arrayPtr = gen.generateExpression(expr.object, params);
-  const { isStringArray, isObjectArray } = detectArrayType(gen, expr, arrayPtr);
+  const isStringArray = isStringArrayType(gen, expr, arrayPtr);
+  const isObjectArray = isObjectArrayType(gen, expr, arrayPtr);
 
   let elementType = "";
   if (isObjectArray) {
@@ -1069,7 +1073,8 @@ export function generateArrayReduceRight(
   }
 
   const arrayPtr = gen.generateExpression(expr.object, params);
-  const { isStringArray, isObjectArray } = detectArrayType(gen, expr, arrayPtr);
+  const isStringArray = isStringArrayType(gen, expr, arrayPtr);
+  const isObjectArray = isObjectArrayType(gen, expr, arrayPtr);
 
   const callbackArg = expr.args[0];
   let callbackFn: string;
