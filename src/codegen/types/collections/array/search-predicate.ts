@@ -2,7 +2,12 @@
 // Exported functions accept (gen, expr, params) and handle predicate resolution internally.
 
 import { MethodCallNode, VariableNode } from "../../../../ast/types.js";
-import { IGeneratorContext, loadArrayMeta, isStringArrayType, isObjectArrayType } from "./context.js";
+import {
+  IGeneratorContext,
+  loadArrayMeta,
+  isStringArrayType,
+  isObjectArrayType,
+} from "./context.js";
 
 interface ExprBase {
   type: string;
