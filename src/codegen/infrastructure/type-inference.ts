@@ -392,9 +392,15 @@ export class TypeInference {
       return this.ctx.typeContext.stringType;
     }
 
-    if (method === "at") {
+    if (method === "at" || method === "find") {
       if (this.isArrayExpression(expr.object)) return this.ctx.typeContext.numberType;
       if (this.isStringArrayExpression(expr.object)) return this.ctx.typeContext.stringType;
+      if (this.isObjectArrayExpression(expr.object)) {
+        const objResolved = this.resolveExpressionType(expr.object);
+        if (objResolved && objResolved.base !== "number" && objResolved.base !== "string") {
+          return this.ctx.typeContext.resolve(objResolved.base);
+        }
+      }
       return this.ctx.typeContext.stringType;
     }
 
@@ -408,7 +414,8 @@ export class TypeInference {
       method === "search" ||
       method === "charCodeAt" ||
       method === "codePointAt" ||
-      method === "localeCompare"
+      method === "localeCompare" ||
+      method === "findIndex"
     ) {
       return this.ctx.typeContext.numberType;
     }

@@ -2412,6 +2412,38 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             createClassMetadata({ className }),
           );
           continue;
+        } else if (
+          !isBoolean &&
+          !isNumber &&
+          resolved &&
+          resolved.arrayDepth === 0 &&
+          this.interfaceStructGen &&
+          this.interfaceStructGen.hasInterface(resolved.base)
+        ) {
+          const ifaceName = resolved.base;
+          llvmType = "i8*";
+          kind = SymbolKind.Object;
+          defaultValue = "null";
+          ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
+          this.globalVariables.set(name, { llvmType, kind, initialized: false });
+          const props = this.getInterfaceProperties(ifaceName);
+          if (props) {
+            this.defineVariableWithMetadata(
+              name,
+              `@${name}`,
+              llvmType,
+              kind,
+              "global",
+              createObjectMetadataWithInterface(
+                { keys: props.keys, types: props.types },
+                ifaceName,
+              ),
+            );
+          } else {
+            this.defineVariable(name, `@${name}`, llvmType, kind, "global");
+          }
+          this.symbolTable.setRawInterfaceType(name, ifaceName);
+          continue;
         } else if (isBoolean) {
           llvmType = "double";
           kind = SymbolKind.Boolean;
