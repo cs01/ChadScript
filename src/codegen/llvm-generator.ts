@@ -1699,6 +1699,16 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         }
         const iface = this.getInterfaceDeclByName(rt);
         if (iface) {
+          const keys: string[] = [];
+          const tsTypes: string[] = [];
+          const types: string[] = [];
+          const allFields = this.getAllInterfaceFields(iface);
+          for (let i = 0; i < allFields.length; i++) {
+            const field = allFields[i] as { name: string; type: string };
+            keys.push(stripOptional(field.name));
+            tsTypes.push(field.type);
+            types.push(this.tsTypeToLlvmJsonWithEnums(field.type));
+          }
           this.globalVariables.set(name, {
             llvmType: "i8*",
             kind: SymbolKind.Object,
@@ -1710,7 +1720,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             "i8*",
             SymbolKind.Object,
             "global",
-            createInterfaceMetadata(rt),
+            createObjectMetadataWithInterface({ keys, types, tsTypes }, rt),
           );
           return `@${name} = global i8* null\n`;
         }
