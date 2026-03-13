@@ -762,11 +762,31 @@ export class MemberAccessGenerator {
     }
 
     const propField = interfaceDef.properties[propIndex] as InterfaceProperty;
-    const propType = propField.type;
+    let propType = propField.type;
     const propName = propField.name;
-    const varPtr = this.ctx.getVariableAlloca((expr.object as VariableNode).name);
+    const varPtr = this.ctx.getVariableAlloca(varName);
     const structPtr = this.ctx.nextTemp();
     this.ctx.emit(`${structPtr} = load %${structTypeName}*, %${structTypeName}** ${varPtr}`);
+
+    const concreteClass =
+      this.ctx.getActualClassType(varName) ||
+      this.ctx.symbolTable.getConcreteClass(varName) ||
+      this.resolveConcreteClassForRegister(structPtr, structTypeName);
+    if (concreteClass) {
+      const classFieldInfo = this.ctx.classGenGetFieldInfo(concreteClass, expr.property);
+      if (classFieldInfo) {
+        const castPtr = this.ctx.nextTemp();
+        this.ctx.emit(
+          `${castPtr} = bitcast %${structTypeName}* ${structPtr} to %${concreteClass}_struct*`,
+        );
+        const fieldPtr = this.ctx.nextTemp();
+        this.ctx.emit(
+          `${fieldPtr} = getelementptr inbounds %${concreteClass}_struct, %${concreteClass}_struct* ${castPtr}, i32 0, i32 ${classFieldInfo.index}`,
+        );
+        this.ctx.setActualClassType(structPtr, concreteClass);
+        return this.loadFieldValue(fieldPtr, classFieldInfo, concreteClass, expr.property);
+      }
+    }
 
     const fieldPtr = this.ctx.nextTemp();
     this.ctx.emit(
@@ -1010,7 +1030,21 @@ export class MemberAccessGenerator {
           tsType.indexOf("|") === -1 &&
           tsType.indexOf("[") === -1
         ) {
-          const concreteClass = this.findClassImplementingInterface(tsType);
+          let concreteClass = this.findClassImplementingInterface(tsType);
+          if (!concreteClass) {
+            const ifaceDef = this.ctx.getInterfaceDeclByName(tsType);
+            if (ifaceDef) {
+              const allFields = this.ctx.getAllInterfaceFields(ifaceDef);
+              const fieldNames: string[] = [];
+              for (let fi = 0; fi < allFields.length; fi++) {
+                const f = allFields[fi] as InterfaceField;
+                fieldNames.push(f.name);
+              }
+              if (fieldNames.length > 0) {
+                concreteClass = this.resolveConcreteClassByFields(fieldNames, fieldNames[0]);
+              }
+            }
+          }
           if (concreteClass) {
             this.ctx.setActualClassType(value, concreteClass);
           }
