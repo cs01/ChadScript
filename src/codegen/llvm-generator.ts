@@ -334,6 +334,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return this.ast;
   }
 
+  public getSymbolTable(): SymbolTable {
+    return this.symbolTable;
+  }
+
   public getAstInterfacesLength(): number {
     if (!this.ast || !this.ast.interfaces) return 0;
     return this.ast.interfaces.length;
