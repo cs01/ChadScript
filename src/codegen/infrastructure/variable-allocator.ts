@@ -1427,7 +1427,10 @@ export class VariableAllocator {
       className = this.ctx.resolveImportAlias(newExpr.className);
     } else if (valueBase.type === "method_call") {
       const methodExpr = stmt.value as MethodCallNode;
-      className = this.getMapGetClassName(methodExpr) || "Unknown";
+      className =
+        this.getMapGetClassName(methodExpr) ||
+        this.getMethodCallReturnClassName(methodExpr) ||
+        "Unknown";
     } else if (valueBase.type === "call") {
       const callExpr = stmt.value as CallNode;
       className = this.getCallReturnClassName(callExpr) || "Unknown";
@@ -1488,6 +1491,37 @@ export class VariableAllocator {
           const mapParsed = parseMapTypeString(fieldInfo.tsType);
           if (mapParsed && mapParsed.valueType) {
             return mapParsed.valueType;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  private getMethodCallReturnClassName(methodExpr: MethodCallNode): string | null {
+    const methodObjBase = methodExpr.object as ExprBase;
+    let objClassName: string | null = null;
+    if (methodObjBase.type === "variable") {
+      const varName = (methodExpr.object as VariableNode).name;
+      if (this.ctx.symbolTable.isClass(varName)) {
+        objClassName = this.ctx.symbolTable.getClassName(varName) || null;
+      }
+    } else if (methodObjBase.type === "this") {
+      objClassName = this.ctx.getCurrentClassName() || null;
+    }
+    if (!objClassName) return null;
+    const ast = this.ctx.getAst();
+    if (!ast) return null;
+    for (let i = 0; i < ast.classes.length; i++) {
+      const cls = ast.classes[i];
+      if (cls && cls.name === objClassName) {
+        for (let j = 0; j < cls.methods.length; j++) {
+          const m = cls.methods[j];
+          if (m && m.name === methodExpr.method && m.returnType) {
+            const rt = stripNullable(m.returnType);
+            if (this.isKnownClass(rt)) {
+              return this.ctx.resolveImportAlias(rt);
+            }
           }
         }
       }
