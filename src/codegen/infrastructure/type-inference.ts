@@ -394,13 +394,6 @@ export class TypeInference {
 
     if (method === "at" || method === "find") {
       if (this.isArrayExpression(expr.object)) return this.ctx.typeContext.numberType;
-      if (this.isStringArrayExpression(expr.object)) return this.ctx.typeContext.stringType;
-      if (this.isObjectArrayExpression(expr.object)) {
-        const objResolved = this.resolveExpressionType(expr.object);
-        if (objResolved && objResolved.base !== "number" && objResolved.base !== "string") {
-          return this.ctx.typeContext.resolve(objResolved.base);
-        }
-      }
       return this.ctx.typeContext.stringType;
     }
 
