@@ -216,13 +216,22 @@ export function generateArraySome(
   const arrayPtr = gen.generateExpression(expr.object, params);
   const { isStringArray, isObjectArray } = detectArrayType(gen, expr, arrayPtr);
 
+  let elementType = "";
+  if (isObjectArray) {
+    const exprObjBase = expr.object as ExprBase;
+    if (exprObjBase.type === "variable") {
+      const varName = (expr.object as VariableNode).name;
+      elementType = gen.symbolTable.getObjectArrayElementType(varName) || "";
+    }
+  }
+
   const predicateArg = expr.args[0];
   let predicateFn: string;
   if (predicateArg.type === "variable") {
     predicateFn = gen.mangleUserName((predicateArg as VariableNode).name);
   } else if (predicateArg.type === "arrow_function") {
     if (isStringArray || isObjectArray) {
-      gen.setExpectedCallbackParamType("string");
+      gen.setExpectedCallbackParamType(elementType || "string");
     }
     predicateFn = gen.generateExpression(predicateArg, params);
     gen.setExpectedCallbackParamType(null);
@@ -392,13 +401,22 @@ export function generateArrayEvery(
   const arrayPtr = gen.generateExpression(expr.object, params);
   const { isStringArray, isObjectArray } = detectArrayType(gen, expr, arrayPtr);
 
+  let elementType = "";
+  if (isObjectArray) {
+    const exprObjBase = expr.object as ExprBase;
+    if (exprObjBase.type === "variable") {
+      const varName = (expr.object as VariableNode).name;
+      elementType = gen.symbolTable.getObjectArrayElementType(varName) || "";
+    }
+  }
+
   const predicateArg = expr.args[0];
   let predicateFn: string;
   if (predicateArg.type === "variable") {
     predicateFn = gen.mangleUserName((predicateArg as VariableNode).name);
   } else if (predicateArg.type === "arrow_function") {
     if (isStringArray || isObjectArray) {
-      gen.setExpectedCallbackParamType("string");
+      gen.setExpectedCallbackParamType(elementType || "string");
     }
     predicateFn = gen.generateExpression(predicateArg, params);
     gen.setExpectedCallbackParamType(null);

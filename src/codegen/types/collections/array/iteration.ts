@@ -59,6 +59,15 @@ export function generateArrayFilter(
   const arrayPtr = gen.generateExpression(expr.object, params);
   const { isStringArray, isObjectArray } = detectArrayType(gen, expr, arrayPtr);
 
+  let elementType = "";
+  if (isObjectArray) {
+    const exprObjBase = expr.object as ExprBase;
+    if (exprObjBase.type === "variable") {
+      const varName = (expr.object as VariableNode).name;
+      elementType = gen.symbolTable.getObjectArrayElementType(varName) || "";
+    }
+  }
+
   const callbackArg = expr.args[0];
   const paramCount = getCallbackParamCount(callbackArg as ExprBase);
   let predicateFn: string;
@@ -67,9 +76,9 @@ export function generateArrayFilter(
   } else if (callbackArg.type === "arrow_function") {
     if (isStringArray || isObjectArray) {
       if (paramCount >= 2) {
-        gen.setExpectedCallbackParamTypes(["string", "number"]);
+        gen.setExpectedCallbackParamTypes([elementType || "string", "number"]);
       } else {
-        gen.setExpectedCallbackParamType("string");
+        gen.setExpectedCallbackParamType(elementType || "string");
       }
     } else if (paramCount >= 2) {
       gen.setExpectedCallbackParamTypes(["number", "number"]);
@@ -312,6 +321,15 @@ export function generateArrayForEach(
   const arrayPtr = gen.generateExpression(expr.object, params);
   const { isStringArray, isObjectArray } = detectArrayType(gen, expr, arrayPtr);
 
+  let elementType = "";
+  if (isObjectArray) {
+    const exprObjBase = expr.object as ExprBase;
+    if (exprObjBase.type === "variable") {
+      const varName = (expr.object as VariableNode).name;
+      elementType = gen.symbolTable.getObjectArrayElementType(varName) || "";
+    }
+  }
+
   const callbackArg = expr.args[0];
   const paramCount = getCallbackParamCount(callbackArg as ExprBase);
   let callbackFn: string;
@@ -320,9 +338,9 @@ export function generateArrayForEach(
   } else if (callbackArg.type === "arrow_function") {
     if (isStringArray || isObjectArray) {
       if (paramCount >= 2) {
-        gen.setExpectedCallbackParamTypes(["string", "number"]);
+        gen.setExpectedCallbackParamTypes([elementType || "string", "number"]);
       } else {
-        gen.setExpectedCallbackParamType("string");
+        gen.setExpectedCallbackParamType(elementType || "string");
       }
     } else if (paramCount >= 2) {
       gen.setExpectedCallbackParamTypes(["number", "number"]);
@@ -776,6 +794,15 @@ export function generateArrayMap(
   const arrayPtr = gen.generateExpression(expr.object, params);
   const { isStringArray, isObjectArray } = detectArrayType(gen, expr, arrayPtr);
 
+  let elementType = "";
+  if (isObjectArray) {
+    const exprObjBase = expr.object as ExprBase;
+    if (exprObjBase.type === "variable") {
+      const varName = (expr.object as VariableNode).name;
+      elementType = gen.symbolTable.getObjectArrayElementType(varName) || "";
+    }
+  }
+
   const callbackArg = expr.args[0];
   const paramCount = getCallbackParamCount(callbackArg as ExprBase);
   let callbackFn: string;
@@ -784,9 +811,9 @@ export function generateArrayMap(
   } else if (callbackArg.type === "arrow_function") {
     if (isStringArray || isObjectArray) {
       if (paramCount >= 2) {
-        gen.setExpectedCallbackParamTypes(["string", "number"]);
+        gen.setExpectedCallbackParamTypes([elementType || "string", "number"]);
       } else {
-        gen.setExpectedCallbackParamType("string");
+        gen.setExpectedCallbackParamType(elementType || "string");
       }
       gen.setExpectedCallbackReturnType("string");
     } else {
