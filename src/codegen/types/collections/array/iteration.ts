@@ -461,17 +461,15 @@ export function generateArrayReduce(
   }
 
   const arrayPtr = gen.generateExpression(expr.object, params);
+  const { isStringArray, isObjectArray } = detectArrayType(gen, expr, arrayPtr);
 
-  // reduce uses manual string detection (not detectArrayType) — only checks string, not object
-  let isStringArray = false;
-  const exprObjBase = expr.object as ExprBase;
-  if (exprObjBase.type === "variable") {
-    const varName = (expr.object as VariableNode).name;
-    const varType = gen.getVariableType(varName);
-    isStringArray = varType === "%StringArray*" || varType === "%StringArray";
-  } else {
-    const ptrType = gen.getVariableType(arrayPtr);
-    isStringArray = ptrType === "%StringArray*";
+  let elementType = "";
+  if (isObjectArray) {
+    const exprObjBase = expr.object as ExprBase;
+    if (exprObjBase.type === "variable") {
+      const varName = (expr.object as VariableNode).name;
+      elementType = gen.symbolTable.getObjectArrayElementType(varName) || "";
+    }
   }
 
   const callbackArg = expr.args[0];
@@ -481,9 +479,12 @@ export function generateArrayReduce(
   } else if (callbackArg.type === "arrow_function") {
     if (isStringArray) {
       gen.setExpectedCallbackParamType("string");
+    } else if (isObjectArray) {
+      gen.setExpectedCallbackParamTypes(["number", elementType || "string"]);
     }
     callbackFn = gen.generateExpression(callbackArg, params);
     gen.setExpectedCallbackParamType(null);
+    gen.setExpectedCallbackParamTypes(null);
   } else {
     return gen.emitError("reduce() argument must be a function name or inline function", expr.loc);
   }
@@ -496,6 +497,8 @@ export function generateArrayReduce(
   let result: string;
   if (isStringArray) {
     result = generateStringArrayReduce(gen, arrayPtr, callbackFn, initialValue);
+  } else if (isObjectArray) {
+    result = generateObjectArrayReduce(gen, arrayPtr, callbackFn, initialValue);
   } else {
     result = generateNumericArrayReduce(gen, arrayPtr, callbackFn, initialValue);
   }
@@ -568,6 +571,91 @@ function generateNumericArrayReduce(
     "double",
     `@${callbackFn}`,
     buildIterCallArgs(gen, `double ${acc}, double ${elem}`),
+  );
+  gen.emitStore("double", newAcc, accPtr);
+
+  const nextCounter = gen.nextTemp();
+  gen.emit(`${nextCounter} = add i32 ${counter}, 1`);
+  gen.emitStore("i32", nextCounter, counterPtr);
+  gen.emitBr(checkLabel);
+
+  gen.emitLabel(endLabel);
+  const finalAcc = gen.emitLoad("double", accPtr);
+  gen.setVariableType(finalAcc, "double");
+  return finalAcc;
+}
+
+function generateObjectArrayReduce(
+  gen: IGeneratorContext,
+  arrayPtr: string,
+  callbackFn: string,
+  initialValue: string | null,
+): string {
+  const lenPtr = gen.nextTemp();
+  gen.emit(
+    `${lenPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 1`,
+  );
+  const length = gen.emitLoad("i32", lenPtr);
+  const dataPtrField = gen.nextTemp();
+  gen.emit(
+    `${dataPtrField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`,
+  );
+  const dataPtrRaw = gen.emitLoad("i8*", dataPtrField);
+  const dataPtr = gen.emitBitcast(dataPtrRaw, "i8*", "i8**");
+
+  const checkLabel = gen.nextLabel("reduce_check");
+  const bodyLabel = gen.nextLabel("reduce_body");
+  const endLabel = gen.nextLabel("reduce_end");
+
+  const accPtr = gen.nextTemp();
+  gen.emit(`${accPtr} = alloca double`);
+
+  const counterPtr = gen.nextTemp();
+  gen.emit(`${counterPtr} = alloca i32`);
+
+  if (initialValue !== null) {
+    const dblInit = gen.ensureDouble(initialValue);
+    gen.emitStore("double", dblInit, accPtr);
+    gen.emitStore("i32", "0", counterPtr);
+  } else {
+    const isEmpty = gen.emitIcmp("eq", "i32", length, "0");
+    const emptyLabel = gen.nextLabel("reduce_empty");
+    const okLabel = gen.nextLabel("reduce_has_elems");
+    gen.emitBrCond(isEmpty, emptyLabel, okLabel);
+    gen.emitLabel(emptyLabel);
+    const stderrPtr = gen.nextTemp();
+    gen.emit(`${stderrPtr} = load i8*, i8** @stderr`);
+    const fmtStr = gen.createStringConstant("Error: reduce of empty array with no initial value\n");
+    const fprintfResult = gen.nextTemp();
+    gen.emit(
+      `${fprintfResult} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* ${fmtStr})`,
+    );
+    gen.emit("call void @exit(i32 1)");
+    gen.emit("unreachable");
+    gen.emitLabel(okLabel);
+    gen.emitStore("double", "0.0", accPtr);
+    gen.emitStore("i32", "0", counterPtr);
+  }
+
+  gen.emitBr(checkLabel);
+
+  gen.emitLabel(checkLabel);
+  const counter = gen.emitLoad("i32", counterPtr);
+  const cond = gen.emitIcmp("slt", "i32", counter, length);
+  gen.emitBrCond(cond, bodyLabel, endLabel);
+
+  gen.emitLabel(bodyLabel);
+  const elemPtr = gen.nextTemp();
+  gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${counter}`);
+  const elem = gen.nextTemp();
+  gen.emit(`${elem} = load i8*, i8** ${elemPtr}`);
+
+  const acc = gen.emitLoad("double", accPtr);
+
+  const newAcc = gen.emitCall(
+    "double",
+    `@${callbackFn}`,
+    buildIterCallArgs(gen, `double ${acc}, i8* ${elem}`),
   );
   gen.emitStore("double", newAcc, accPtr);
 
@@ -954,17 +1042,7 @@ export function generateArrayReduceRight(
   }
 
   const arrayPtr = gen.generateExpression(expr.object, params);
-
-  let isStringArray = false;
-  const exprObjBase = expr.object as ExprBase;
-  if (exprObjBase.type === "variable") {
-    const varName = (expr.object as VariableNode).name;
-    const varType = gen.getVariableType(varName);
-    isStringArray = varType === "%StringArray*" || varType === "%StringArray";
-  } else {
-    const ptrType = gen.getVariableType(arrayPtr);
-    isStringArray = ptrType === "%StringArray*";
-  }
+  const { isStringArray, isObjectArray } = detectArrayType(gen, expr, arrayPtr);
 
   const callbackArg = expr.args[0];
   let callbackFn: string;
@@ -973,9 +1051,12 @@ export function generateArrayReduceRight(
   } else if (callbackArg.type === "arrow_function") {
     if (isStringArray) {
       gen.setExpectedCallbackParamType("string");
+    } else if (isObjectArray) {
+      gen.setExpectedCallbackParamTypes(["number", "string"]);
     }
     callbackFn = gen.generateExpression(callbackArg, params);
     gen.setExpectedCallbackParamType(null);
+    gen.setExpectedCallbackParamTypes(null);
   } else {
     return gen.emitError(
       "reduceRight() argument must be a function name or inline function",
@@ -991,6 +1072,8 @@ export function generateArrayReduceRight(
   let result: string;
   if (isStringArray) {
     result = generateStringArrayReduceRight(gen, arrayPtr, callbackFn, initialValue);
+  } else if (isObjectArray) {
+    result = generateObjectArrayReduceRight(gen, arrayPtr, callbackFn, initialValue);
   } else {
     result = generateNumericArrayReduceRight(gen, arrayPtr, callbackFn, initialValue);
   }
@@ -1083,6 +1166,97 @@ function generateNumericArrayReduceRight(
   const finalAcc = gen.emitLoad("double", accPtr);
   gen.setVariableType(finalAcc, "double");
   return finalAcc;
+}
+
+function generateObjectArrayReduceRight(
+  gen: IGeneratorContext,
+  arrayPtr: string,
+  callbackFn: string,
+  initialValue: string | null,
+): string {
+  const lenPtr = gen.nextTemp();
+  gen.emit(
+    `${lenPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 1`,
+  );
+  const length = gen.emitLoad("i32", lenPtr);
+  const dataPtrField = gen.nextTemp();
+  gen.emit(
+    `${dataPtrField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`,
+  );
+  const dataPtrRaw = gen.emitLoad("i8*", dataPtrField);
+  const dataPtr = gen.emitBitcast(dataPtrRaw, "i8*", "i8**");
+
+  const checkLabel = gen.nextLabel("reduceright_check");
+  const bodyLabel = gen.nextLabel("reduceright_body");
+  const endLabel2 = gen.nextLabel("reduceright_end");
+
+  const accPtr = gen.nextTemp();
+  gen.emit(`${accPtr} = alloca double`);
+
+  const counterPtr = gen.nextTemp();
+  gen.emit(`${counterPtr} = alloca i32`);
+
+  if (initialValue !== null) {
+    const dblInit = gen.ensureDouble(initialValue);
+    gen.emitStore("double", dblInit, accPtr);
+    const lastIdx = gen.nextTemp();
+    gen.emit(`${lastIdx} = sub i32 ${length}, 1`);
+    gen.emitStore("i32", lastIdx, counterPtr);
+  } else {
+    const isEmpty = gen.emitIcmp("eq", "i32", length, "0");
+    const emptyLabel = gen.nextLabel("reduceright_empty");
+    const okLabel = gen.nextLabel("reduceright_has_elems");
+    gen.emitBrCond(isEmpty, emptyLabel, okLabel);
+    gen.emitLabel(emptyLabel);
+    const stderrPtr = gen.nextTemp();
+    gen.emit(`${stderrPtr} = load i8*, i8** @stderr`);
+    const fmtStr = gen.createStringConstant(
+      "Error: reduceRight of empty array with no initial value\n",
+    );
+    const fprintfResult = gen.nextTemp();
+    gen.emit(
+      `${fprintfResult} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* ${fmtStr})`,
+    );
+    gen.emit("call void @exit(i32 1)");
+    gen.emit("unreachable");
+    gen.emitLabel(okLabel);
+    gen.emitStore("double", "0.0", accPtr);
+    const startIdx = gen.nextTemp();
+    gen.emit(`${startIdx} = sub i32 ${length}, 1`);
+    gen.emitStore("i32", startIdx, counterPtr);
+  }
+
+  gen.emitBr(checkLabel);
+
+  gen.emitLabel(checkLabel);
+  const counter = gen.emitLoad("i32", counterPtr);
+  const cond = gen.emitIcmp("sge", "i32", counter, "0");
+  gen.emitBrCond(cond, bodyLabel, endLabel2);
+
+  gen.emitLabel(bodyLabel);
+  const elemPtr = gen.nextTemp();
+  gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${counter}`);
+  const elem = gen.nextTemp();
+  gen.emit(`${elem} = load i8*, i8** ${elemPtr}`);
+
+  const acc = gen.emitLoad("double", accPtr);
+
+  const newAcc = gen.emitCall(
+    "double",
+    `@${callbackFn}`,
+    buildIterCallArgs(gen, `double ${acc}, i8* ${elem}`),
+  );
+  gen.emitStore("double", newAcc, accPtr);
+
+  const nextCounter = gen.nextTemp();
+  gen.emit(`${nextCounter} = sub i32 ${counter}, 1`);
+  gen.emitStore("i32", nextCounter, counterPtr);
+  gen.emitBr(checkLabel);
+
+  gen.emitLabel(endLabel2);
+  const finalAcc2 = gen.emitLoad("double", accPtr);
+  gen.setVariableType(finalAcc2, "double");
+  return finalAcc2;
 }
 
 function generateStringArrayReduceRight(
