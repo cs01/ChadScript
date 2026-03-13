@@ -44,6 +44,7 @@ function isStringType(t: string): boolean {
 
 export interface TypeInferenceContext {
   symbolTable: SymbolTable;
+  getSymbolTable(): SymbolTable;
   typeContext: TypeContext;
   getExpectedArrayElementType(): "string" | "number" | "boolean" | "pointer" | null;
   currentClassName: string | null;
@@ -64,7 +65,10 @@ export interface TypeInferenceContext {
 }
 
 export class TypeInference {
-  constructor(private ctx: TypeInferenceContext) {}
+  private st: SymbolTable;
+  constructor(private ctx: TypeInferenceContext) {
+    this.st = ctx.getSymbolTable();
+  }
 
   private resolveSimpleLiteralType(eType: string): ResolvedType | null {
     if (eType === "number") return this.ctx.typeContext.numberType;
@@ -162,9 +166,8 @@ export class TypeInference {
       if (firstElem.type === "number") return this.ctx.typeContext.getArrayType("number");
       if (firstElem.type === "variable") {
         const varName = (elements[0] as VariableNode).name;
-        if (this.ctx.symbolTable.isString(varName))
-          return this.ctx.typeContext.getArrayType("string");
-        const varType = this.ctx.symbolTable.getType(varName);
+        if (this.st.isString(varName)) return this.ctx.typeContext.getArrayType("string");
+        const varType = this.st.getType(varName);
         if (varType === "i8*") return this.ctx.typeContext.getArrayType("string");
       }
       if (this.isStringExpression(elements[0])) return this.ctx.typeContext.getArrayType("string");
@@ -294,9 +297,9 @@ export class TypeInference {
   }
 
   private resolveVariableType(name: string): ResolvedType | null {
-    const cached = this.ctx.symbolTable.getResolvedType(name);
+    const cached = this.st.getResolvedType(name);
     if (cached) return cached;
-    const varType = this.ctx.symbolTable.getType(name);
+    const varType = this.st.getType(name);
     if (varType) {
       const fromVarType = this.resolveFromVarType(varType);
       if (fromVarType) return fromVarType;
@@ -305,7 +308,7 @@ export class TypeInference {
     if (fromSymbol) return fromSymbol;
     if (varType) {
       if (varType === "i8*") {
-        const ifaceType = this.ctx.symbolTable.getInterfaceType(name);
+        const ifaceType = this.st.getInterfaceType(name);
         if (ifaceType && ifaceType.length > 0)
           return this.ctx.typeContext.getInterfaceType(ifaceType);
         return this.ctx.typeContext.stringType;
@@ -342,26 +345,23 @@ export class TypeInference {
   }
 
   private resolveFromSymbolKind(name: string): ResolvedType | null {
-    if (this.ctx.symbolTable.isString(name)) return this.ctx.typeContext.stringType;
-    if (this.ctx.symbolTable.isBoolean(name)) return this.ctx.typeContext.booleanType;
-    if (this.ctx.symbolTable.isNumberArray(name))
-      return this.ctx.typeContext.getArrayType("number");
-    if (this.ctx.symbolTable.isMap(name))
-      return this.ctx.typeContext.getMapType("string", "string");
-    if (this.ctx.symbolTable.isSet(name)) return this.ctx.typeContext.getSetType("string");
+    if (this.st.isString(name)) return this.ctx.typeContext.stringType;
+    if (this.st.isBoolean(name)) return this.ctx.typeContext.booleanType;
+    if (this.st.isNumberArray(name)) return this.ctx.typeContext.getArrayType("number");
+    if (this.st.isMap(name)) return this.ctx.typeContext.getMapType("string", "string");
+    if (this.st.isSet(name)) return this.ctx.typeContext.getSetType("string");
     return this.resolveFromSymbolKindExtended(name);
   }
 
   private resolveFromSymbolKindExtended(name: string): ResolvedType | null {
-    if (this.ctx.symbolTable.isRegex(name)) return this.ctx.typeContext.resolve("RegExp");
-    if (this.ctx.symbolTable.isObject(name)) return this.ctx.typeContext.resolve("object");
-    if (this.ctx.symbolTable.isJSON(name)) return this.ctx.typeContext.resolve("object");
-    if (this.ctx.symbolTable.isClass(name)) {
-      const className = this.ctx.symbolTable.getClassName(name);
+    if (this.st.isRegex(name)) return this.ctx.typeContext.resolve("RegExp");
+    if (this.st.isObject(name)) return this.ctx.typeContext.resolve("object");
+    if (this.st.isJSON(name)) return this.ctx.typeContext.resolve("object");
+    if (this.st.isClass(name)) {
+      const className = this.st.getClassName(name);
       if (className) return this.ctx.typeContext.getClassType(className);
     }
-    if (this.ctx.symbolTable.isObjectArray(name))
-      return this.ctx.typeContext.getArrayType("object");
+    if (this.st.isObjectArray(name)) return this.ctx.typeContext.getArrayType("object");
     return null;
   }
 
@@ -524,8 +524,8 @@ export class TypeInference {
       if (varName === "Array" && method === "from")
         return this.ctx.typeContext.getArrayType("number");
 
-      if (this.ctx.symbolTable.isClass(varName)) {
-        const className = this.ctx.symbolTable.getClassName(varName);
+      if (this.st.isClass(varName)) {
+        const className = this.st.getClassName(varName);
         if (className) {
           const classMethod = this.getClassMethod(className, method);
           if (classMethod && classMethod.returnType) {
@@ -534,7 +534,7 @@ export class TypeInference {
         }
       }
 
-      const ifaceType = this.ctx.symbolTable.getInterfaceType(varName);
+      const ifaceType = this.st.getInterfaceType(varName);
       if (ifaceType && ifaceType.length > 0) {
         const methodReturnType = this.getInterfaceMethodReturnType(ifaceType, method);
         if (methodReturnType) {
@@ -599,8 +599,8 @@ export class TypeInference {
     if (method === "keys" || method === "values") {
       if (objBase.type === "variable") {
         const varName = (expr.object as VariableNode).name;
-        if (this.ctx.symbolTable.isMap(varName)) {
-          const mapMeta = this.ctx.symbolTable.getMapMetadata(varName);
+        if (this.st.isMap(varName)) {
+          const mapMeta = this.st.getMapMetadata(varName);
           if (mapMeta) {
             if (method === "keys" && mapMeta.keyType === "string") {
               return this.ctx.typeContext.getArrayType("string");
@@ -626,7 +626,7 @@ export class TypeInference {
     if (method === "pop" || method === "shift") {
       if (objBase.type === "variable") {
         const varName = (expr.object as VariableNode).name;
-        if (this.ctx.symbolTable.isStringArray(varName)) {
+        if (this.st.isStringArray(varName)) {
           return this.ctx.typeContext.stringType;
         }
       }
@@ -636,8 +636,8 @@ export class TypeInference {
     if (method === "get") {
       if (objBase.type === "variable") {
         const varName = (expr.object as VariableNode).name;
-        if (this.ctx.symbolTable.isMap(varName)) {
-          const mapMeta = this.ctx.symbolTable.getMapMetadata(varName);
+        if (this.st.isMap(varName)) {
+          const mapMeta = this.st.getMapMetadata(varName);
           if (mapMeta && mapMeta.valueType) {
             if (mapMeta.valueType === "string") return this.ctx.typeContext.stringType;
             if (this.getClass(mapMeta.valueType))
@@ -737,10 +737,10 @@ export class TypeInference {
         }
       }
 
-      const propType = this.ctx.symbolTable.getObjectPropertyType(varName, prop);
+      const propType = this.st.getObjectPropertyType(varName, prop);
       if (propType === "i8*") {
-        const keys = this.ctx.symbolTable.getObjectMetadataKeys(varName);
-        const tsTypes = this.ctx.symbolTable.getObjectMetadataTsTypes(varName);
+        const keys = this.st.getObjectMetadataKeys(varName);
+        const tsTypes = this.st.getObjectMetadataTsTypes(varName);
         if (keys && tsTypes) {
           for (let ki = 0; ki < keys.length; ki++) {
             if (keys[ki] === prop && tsTypes[ki]) {
@@ -755,8 +755,8 @@ export class TypeInference {
       if (propType === "%Array*") return this.ctx.typeContext.getArrayType("number");
       if (propType === "%ObjectArray*") return this.ctx.typeContext.getArrayType("object");
 
-      if (this.ctx.symbolTable.isClass(varName)) {
-        const className = this.ctx.symbolTable.getClassName(varName);
+      if (this.st.isClass(varName)) {
+        const className = this.st.getClassName(varName);
         if (className) {
           const fieldType = this.ctx.classGenGetFieldType(className, prop);
           if (fieldType) return this.ctx.typeContext.resolve(fieldType);
@@ -765,7 +765,7 @@ export class TypeInference {
         }
       }
 
-      const varType = this.ctx.symbolTable.getType(varName);
+      const varType = this.st.getType(varName);
       if (
         varType &&
         varType.startsWith("%") &&
@@ -780,7 +780,7 @@ export class TypeInference {
         if (ifaceProp) return this.ctx.typeContext.resolve(stripNullable(ifaceProp.type));
       }
 
-      const ifaceType = this.ctx.symbolTable.getInterfaceType(varName);
+      const ifaceType = this.st.getInterfaceType(varName);
       if (ifaceType && ifaceType.length > 0) {
         const ifaceProp = this.getInterfaceProperty(ifaceType, prop);
         if (ifaceProp) return this.ctx.typeContext.resolve(stripNullable(ifaceProp.type));
@@ -792,7 +792,7 @@ export class TypeInference {
         if (fieldType) return this.ctx.typeContext.resolve(stripNullable(fieldType));
       }
 
-      const objMeta = this.ctx.symbolTable.getObjectMetadata(varName);
+      const objMeta = this.st.getObjectMetadata(varName);
       if (objMeta && objMeta.keys) {
         for (let ki = 0; ki < objMeta.keys.length; ki++) {
           if (objMeta.keys[ki] === prop) {
@@ -1049,8 +1049,8 @@ export class TypeInference {
     }
     if (e.type === "variable") {
       const varName = (expr as VariableNode).name;
-      if (this.ctx.symbolTable.isClass(varName)) {
-        return this.ctx.symbolTable.getClassName(varName) || null;
+      if (this.st.isClass(varName)) {
+        return this.st.getClassName(varName) || null;
       }
       return null;
     }
@@ -1076,10 +1076,10 @@ export class TypeInference {
     }
     if (e.type === "variable") {
       const varName = (expr as VariableNode).name;
-      if (this.ctx.symbolTable.isClass(varName)) {
-        return this.ctx.symbolTable.getClassName(varName) || null;
+      if (this.st.isClass(varName)) {
+        return this.st.getClassName(varName) || null;
       }
-      const interfaceType = this.ctx.symbolTable.getInterfaceType(varName);
+      const interfaceType = this.st.getInterfaceType(varName);
       if (interfaceType) {
         return interfaceType;
       }
@@ -1182,7 +1182,7 @@ export class TypeInference {
     const e = expr as ExprBase;
     if (e.type === "variable") {
       const varName = (expr as VariableNode).name;
-      const varType = this.ctx.symbolTable.getType(varName);
+      const varType = this.st.getType(varName);
       if (varType && varType.startsWith("%") && varType.endsWith("*")) {
         const typeName = varType.substring(1, varType.length - 1);
         if (this.getInterface(typeName)) {
@@ -1272,10 +1272,10 @@ export class TypeInference {
         }
         if (objBase.type === "variable") {
           const varName = (methodExpr.object as VariableNode).name;
-          if (this.ctx.symbolTable.isNumberArray(varName)) {
+          if (this.st.isNumberArray(varName)) {
             return true;
           }
-          const varType = this.ctx.symbolTable.getType(varName);
+          const varType = this.st.getType(varName);
           if (varType === "%Array*" || varType === "%Array") {
             return true;
           }
@@ -1294,11 +1294,9 @@ export class TypeInference {
       }
       if (
         methodObjBase.type === "variable" &&
-        this.ctx.symbolTable.isClass((methodExpr.object as VariableNode).name)
+        this.st.isClass((methodExpr.object as VariableNode).name)
       ) {
-        const className = this.ctx.symbolTable.getClassName(
-          (methodExpr.object as VariableNode).name,
-        );
+        const className = this.st.getClassName((methodExpr.object as VariableNode).name);
         if (className) {
           const method = this.getClassMethod(className, methodExpr.method);
           if (method && method.returnType) {
@@ -1325,11 +1323,9 @@ export class TypeInference {
       }
       if (
         objBase.type === "variable" &&
-        this.ctx.symbolTable.isClass((memberExpr.object as VariableNode).name)
+        this.st.isClass((memberExpr.object as VariableNode).name)
       ) {
-        const className = this.ctx.symbolTable.getClassName(
-          (memberExpr.object as VariableNode).name,
-        );
+        const className = this.st.getClassName((memberExpr.object as VariableNode).name);
         if (className) {
           const fieldType = this.ctx.classGenGetFieldType(className, memberExpr.property);
           if (fieldType === "number[]" || fieldType === "boolean[]") {
@@ -1355,7 +1351,7 @@ export class TypeInference {
             return true;
           }
         }
-        const ifaceType = this.ctx.symbolTable.getInterfaceType(varName);
+        const ifaceType = this.st.getInterfaceType(varName);
         if (ifaceType && ifaceType.length > 0) {
           const fieldType = this.getFieldTypeFromType(ifaceType, memberExpr.property);
           if (fieldType && fieldType.endsWith("[]")) {
@@ -1429,8 +1425,8 @@ export class TypeInference {
       if (methodObjBase.type === "variable") {
         const varName = (methodExpr.object as VariableNode).name;
         let className: string | null = null;
-        if (this.ctx.symbolTable.isClass(varName)) {
-          className = this.ctx.symbolTable.getClassName(varName) || null;
+        if (this.st.isClass(varName)) {
+          className = this.st.getClassName(varName) || null;
         } else {
           const paramType = this.getParameterType(varName);
           if (paramType) {
@@ -1450,7 +1446,7 @@ export class TypeInference {
       if (methodExpr.method === "entries") {
         if (methodObjBase.type === "variable") {
           const varName = (methodExpr.object as VariableNode).name;
-          if (this.ctx.symbolTable.isMap(varName)) return true;
+          if (this.st.isMap(varName)) return true;
         }
       }
       if (
@@ -1474,11 +1470,9 @@ export class TypeInference {
       }
       if (
         objBase.type === "variable" &&
-        this.ctx.symbolTable.isClass((memberExpr.object as VariableNode).name)
+        this.st.isClass((memberExpr.object as VariableNode).name)
       ) {
-        const className = this.ctx.symbolTable.getClassName(
-          (memberExpr.object as VariableNode).name,
-        );
+        const className = this.st.getClassName((memberExpr.object as VariableNode).name);
         if (className) {
           const fieldType = this.ctx.classGenGetFieldType(className, memberExpr.property);
           if (
@@ -1542,7 +1536,7 @@ export class TypeInference {
             return true;
           }
         }
-        const ifaceType2 = this.ctx.symbolTable.getInterfaceType(varName);
+        const ifaceType2 = this.st.getInterfaceType(varName);
         if (ifaceType2 && ifaceType2.length > 0) {
           const fieldType = this.getFieldTypeFromType(ifaceType2, memberExpr.property);
           if (
@@ -1555,7 +1549,7 @@ export class TypeInference {
             return true;
           }
         }
-        const objMeta = this.ctx.symbolTable.getObjectMetadata(varName);
+        const objMeta = this.st.getObjectMetadata(varName);
         if (objMeta && objMeta.keys) {
           for (let ki = 0; ki < objMeta.keys.length; ki++) {
             if (objMeta.keys[ki] === memberExpr.property && objMeta.types[ki]) {
@@ -1652,8 +1646,8 @@ export class TypeInference {
       if (methodObjBase.type === "variable") {
         const varName = (methodExpr.object as VariableNode).name;
         let className: string | null = null;
-        if (this.ctx.symbolTable.isClass(varName)) {
-          className = this.ctx.symbolTable.getClassName(varName) || null;
+        if (this.st.isClass(varName)) {
+          className = this.st.getClassName(varName) || null;
         } else {
           const paramType = this.getParameterType(varName);
           if (paramType) {
@@ -1695,7 +1689,7 @@ export class TypeInference {
             return fieldType.slice(0, -2);
           }
         }
-        const ifaceType3 = this.ctx.symbolTable.getInterfaceType(varName);
+        const ifaceType3 = this.st.getInterfaceType(varName);
         if (ifaceType3 && ifaceType3.length > 0) {
           const fieldType = this.getFieldTypeFromType(ifaceType3, memberExpr.property);
           if (
@@ -1772,15 +1766,15 @@ export class TypeInference {
       }
       if (idxObjBase.type === "variable") {
         const varName = (indexExpr.object as VariableNode).name;
-        const varType = this.ctx.symbolTable.getType(varName);
+        const varType = this.st.getType(varName);
         if (varType === "%StringArray*" || varType === "%StringArray") {
           return true;
         }
         if (varType === "i8*") {
           if (
-            ((this.ctx.symbolTable.isObject(varName) || this.ctx.symbolTable.isJSON(varName)) &&
-              this.ctx.symbolTable.getObjectMetadataKeys(varName) !== undefined) ||
-            this.ctx.symbolTable.getInterfaceType(varName)
+            ((this.st.isObject(varName) || this.st.isJSON(varName)) &&
+              this.st.getObjectMetadataKeys(varName) !== undefined) ||
+            this.st.getInterfaceType(varName)
           ) {
             return false;
           }
@@ -1801,11 +1795,9 @@ export class TypeInference {
         }
         if (
           memberObjBase.type === "variable" &&
-          this.ctx.symbolTable.isClass((memberAccess.object as VariableNode).name)
+          this.st.isClass((memberAccess.object as VariableNode).name)
         ) {
-          const className = this.ctx.symbolTable.getClassName(
-            (memberAccess.object as VariableNode).name,
-          );
+          const className = this.st.getClassName((memberAccess.object as VariableNode).name);
           if (className) {
             const fieldType = this.ctx.classGenGetFieldType(className, memberAccess.property);
             if (fieldType === "string[]") {
@@ -1895,7 +1887,7 @@ export class TypeInference {
     }
     if (e.type === "variable") {
       const varName = (expr as VariableNode).name;
-      if (this.ctx.symbolTable.isUint8Array(varName)) return true;
+      if (this.st.isUint8Array(varName)) return true;
     }
     // ChadScript.getEmbeddedFileAsUint8Array() returns Uint8Array
     if (e.type === "method_call") {
@@ -2016,17 +2008,17 @@ export class TypeInference {
     const objBase = idxNode.object as ExprBase;
     if (objBase.type === "variable") {
       const varName = (idxNode.object as VariableNode).name;
-      const objMeta5 = this.ctx.symbolTable.getObjectMetadata(varName);
+      const objMeta5 = this.st.getObjectMetadata(varName);
       if (objMeta5 && objMeta5.tsTypes) {
         return null;
       }
-      const ifaceType5 = this.ctx.symbolTable.getInterfaceType(varName);
+      const ifaceType5 = this.st.getInterfaceType(varName);
       if (ifaceType5) {
         const baseType = ifaceType5.replace("[]", "");
         const iface = this.getInterface(baseType);
         if (iface) return baseType;
       }
-      const objArrElemType = this.ctx.symbolTable.getRawInterfaceType(varName);
+      const objArrElemType = this.st.getRawInterfaceType(varName);
       if (objArrElemType) {
         const iface = this.getInterface(objArrElemType);
         if (iface) return objArrElemType;
@@ -2230,7 +2222,7 @@ export class TypeInference {
       );
     }
     if (e.type === "variable") {
-      return this.ctx.symbolTable.isJSON((expr as VariableNode).name);
+      return this.st.isJSON((expr as VariableNode).name);
     }
     return false;
   }
@@ -2286,10 +2278,10 @@ export class TypeInference {
         }
         if (elemBase.type === "variable") {
           const varName = (elem as VariableNode).name;
-          if (this.ctx.symbolTable.isString(varName)) {
+          if (this.st.isString(varName)) {
             continue;
           }
-          const varType = this.ctx.symbolTable.getType(varName);
+          const varType = this.st.getType(varName);
           if (varType === "i8*") {
             continue;
           }
@@ -2320,8 +2312,8 @@ export class TypeInference {
         }
         if (objBase.type === "variable") {
           const varName = (methodExpr.object as VariableNode).name;
-          if (this.ctx.symbolTable.isMap(varName)) {
-            const mapMeta = this.ctx.symbolTable.getMapMetadata(varName);
+          if (this.st.isMap(varName)) {
+            const mapMeta = this.st.getMapMetadata(varName);
             if (mapMeta && mapMeta.keyType === "string") {
               return true;
             }
@@ -2338,7 +2330,7 @@ export class TypeInference {
             const argBase = methodExpr.args[0] as ExprBase;
             if (argBase.type === "variable") {
               const argName = (methodExpr.args[0] as VariableNode).name;
-              const objInfo = this.ctx.symbolTable.getObjectInfo(argName);
+              const objInfo = this.st.getObjectInfo(argName);
               if (objInfo) {
                 const allNumbers = objInfo.types.every((t: string) => t === "double");
                 if (!allNumbers) return true;
@@ -2385,11 +2377,9 @@ export class TypeInference {
       }
       if (
         objBase.type === "variable" &&
-        this.ctx.symbolTable.isClass((methodExpr.object as VariableNode).name)
+        this.st.isClass((methodExpr.object as VariableNode).name)
       ) {
-        const className = this.ctx.symbolTable.getClassName(
-          (methodExpr.object as VariableNode).name,
-        );
+        const className = this.st.getClassName((methodExpr.object as VariableNode).name);
         if (className) {
           const method = this.getClassMethod(className, methodExpr.method);
           if (method && method.returnType === "string[]") {
@@ -2417,11 +2407,9 @@ export class TypeInference {
       }
       if (
         objBase.type === "variable" &&
-        this.ctx.symbolTable.isClass((memberExpr.object as VariableNode).name)
+        this.st.isClass((memberExpr.object as VariableNode).name)
       ) {
-        const className = this.ctx.symbolTable.getClassName(
-          (memberExpr.object as VariableNode).name,
-        );
+        const className = this.st.getClassName((memberExpr.object as VariableNode).name);
         if (className) {
           const fieldType = this.ctx.classGenGetFieldType(className, memberExpr.property);
           if (fieldType === "string[]") {
@@ -2431,7 +2419,7 @@ export class TypeInference {
       }
       if (objBase.type === "variable") {
         const varName = (memberExpr.object as VariableNode).name;
-        const ifaceType = this.ctx.symbolTable.getInterfaceType(varName);
+        const ifaceType = this.st.getInterfaceType(varName);
         if (ifaceType) {
           const prop = this.getInterfaceProperty(ifaceType, memberExpr.property);
           if (prop && prop.type === "string[]") {
@@ -2441,10 +2429,10 @@ export class TypeInference {
       }
       if (
         objBase.type === "variable" &&
-        this.ctx.symbolTable.isObject((memberExpr.object as VariableNode).name)
+        this.st.isObject((memberExpr.object as VariableNode).name)
       ) {
         const varName = (memberExpr.object as VariableNode).name;
-        const objInfo = this.ctx.symbolTable.getObjectInfo(varName);
+        const objInfo = this.st.getObjectInfo(varName);
         if (objInfo && objInfo.tsTypes) {
           const propIdx = objInfo.keys.indexOf(memberExpr.property);
           if (propIdx >= 0 && objInfo.tsTypes[propIdx] === "string[]") {
@@ -2526,8 +2514,8 @@ export class TypeInference {
     const objBase = memberExpr.object as ExprBase;
     if (objBase.type === "variable") {
       const varName = (memberExpr.object as VariableNode).name;
-      if (this.ctx.symbolTable.isObject(varName)) {
-        const objInfo = this.ctx.symbolTable.getObjectInfo(varName);
+      if (this.st.isObject(varName)) {
+        const objInfo = this.st.getObjectInfo(varName);
         if (objInfo && objInfo.tsTypes) {
           const propIdx = objInfo.keys.indexOf(memberExpr.property);
           if (propIdx >= 0) {
@@ -2535,13 +2523,13 @@ export class TypeInference {
           }
         }
       }
-      if (this.ctx.symbolTable.isClass(varName)) {
-        const className = this.ctx.symbolTable.getClassName(varName);
+      if (this.st.isClass(varName)) {
+        const className = this.st.getClassName(varName);
         if (className) {
           return this.ctx.classGenGetFieldTsType(className, memberExpr.property);
         }
       }
-      const ifaceType = this.ctx.symbolTable.getInterfaceType(varName);
+      const ifaceType = this.st.getInterfaceType(varName);
       if (ifaceType) {
         const prop = this.getInterfaceProperty(ifaceType, memberExpr.property);
         if (prop) {
