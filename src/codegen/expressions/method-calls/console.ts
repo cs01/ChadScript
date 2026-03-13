@@ -7,6 +7,7 @@ import {
   UnaryNode,
 } from "../../../ast/types.js";
 import type { MethodCallGeneratorContext } from "../method-calls.js";
+import { SymbolKind } from "../../infrastructure/symbol-table.js";
 
 function emitPrint(
   ctx: MethodCallGeneratorContext,
@@ -503,6 +504,12 @@ function emitSingleArg(
 
   if (arg.type === "variable") {
     const varName = (arg as VariableNode).name;
+    const varKind = ctx.symbolTable.getKind(varName);
+    if (varKind === SymbolKind.Boolean) {
+      const argValue = ctx.generateExpression(arg, params);
+      emitBooleanPrint(ctx, useStderr, argValue);
+      return;
+    }
     const ifaceType =
       ctx.symbolTable.getInterfaceType(varName) || ctx.symbolTable.getRawInterfaceType(varName);
     if (ifaceType) {
