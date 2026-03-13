@@ -392,6 +392,17 @@ export class TypeResolver {
     if (!name) {
       return null;
     }
+    const interfacesLen = this.ctx.getAstInterfacesLength();
+    for (let i = 0; i < interfacesLen; i++) {
+      const ifaceName = this.ctx.getAstInterfaceNameAt(i);
+      if (!ifaceName) {
+        continue;
+      }
+      if (ifaceName === name) {
+        const iface = this.ctx.getAstInterfaceAt(i);
+        return iface;
+      }
+    }
     const builtinType = getBuiltinAstTypeByName(name);
     if (builtinType) {
       const fields: InterfaceField[] = [];
@@ -406,38 +417,10 @@ export class TypeResolver {
       };
       return ifaceDecl;
     }
-    const interfacesLen = this.ctx.getAstInterfacesLength();
-    if (interfacesLen === 0) {
-      return null;
-    }
-    for (let i = 0; i < interfacesLen; i++) {
-      const ifaceName = this.ctx.getAstInterfaceNameAt(i);
-      if (!ifaceName) {
-        continue;
-      }
-      if (ifaceName === name) {
-        const iface = this.ctx.getAstInterfaceAt(i);
-        return iface;
-      }
-    }
     return null;
   }
 
   getInterfaceMetadata(name: string): ObjectMetadata | null {
-    const builtinType = getBuiltinAstTypeByName(name);
-    if (builtinType) {
-      const keys: string[] = [];
-      const types: string[] = [];
-      const tsTypes: string[] = [];
-      for (let i = 0; i < builtinType.fields.length; i++) {
-        const f = builtinType.fields[i];
-        keys.push(stripOptional(f.name));
-        types.push(canonicalTypeToLlvm(f.type, "default", this.isEnumType(f.type), false, ""));
-        tsTypes.push(f.type);
-      }
-      return { keys, types, tsTypes };
-    }
-
     const iface = this.getInterface(name);
     if (!iface) return null;
     const keys: string[] = [];

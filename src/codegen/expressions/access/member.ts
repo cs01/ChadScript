@@ -1956,19 +1956,19 @@ export class MemberAccessGenerator {
   private getInterfaceInfo(
     interfaceName: string,
   ): { keys: string[]; types: string[]; tsTypes: string[] } | null {
+    const ifaceProps = this.ctx.getInterfaceProperties(interfaceName);
+    if (ifaceProps) {
+      return {
+        keys: ifaceProps.keys,
+        types: ifaceProps.types,
+        tsTypes: ifaceProps.tsTypes,
+      };
+    }
     const builtinFields = this.getBuiltinAstTypeFields(interfaceName);
     if (builtinFields) {
       return builtinFields;
     }
-    const ifaceProps = this.ctx.getInterfaceProperties(interfaceName);
-    if (!ifaceProps) {
-      return null;
-    }
-    return {
-      keys: ifaceProps.keys,
-      types: ifaceProps.types,
-      tsTypes: ifaceProps.tsTypes,
-    };
+    return null;
   }
 
   private getTypeAliasInfo(
