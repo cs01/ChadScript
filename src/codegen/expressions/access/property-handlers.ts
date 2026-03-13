@@ -365,6 +365,31 @@ export function handleLengthProperty(
     return ctx.emitError(`.length is not available on type 'number'`, expr.loc);
   }
 
+  if (exprObjType === "method_call" || exprObjType === "call") {
+    const resultPtr = ctx.generateExpression(expr.object, params);
+    const resultType = ctx.getVariableType(resultPtr);
+    if (resultType === "%StringArray*") {
+      return getStringArrayLengthFromPtr(ctx, resultPtr);
+    }
+    if (resultType === "%Array*") {
+      return getArrayLengthFromPtr(ctx, resultPtr, "%Array");
+    }
+    if (resultType === "%ObjectArray*") {
+      return getArrayLengthFromPtr(ctx, resultPtr, "%ObjectArray");
+    }
+    if (resultType === "%Uint8Array*") {
+      return getArrayLengthFromPtr(ctx, resultPtr, "%Uint8Array");
+    }
+    const lenI64 = ctx.nextTemp();
+    ctx.emit(`${lenI64} = call i64 @strlen(i8* ${resultPtr})`);
+    const lenI32 = ctx.nextTemp();
+    ctx.emit(`${lenI32} = trunc i64 ${lenI64} to i32`);
+    const len = ctx.nextTemp();
+    ctx.emit(`${len} = sitofp i32 ${lenI32} to double`);
+    ctx.setVariableType(len, "double");
+    return len;
+  }
+
   return getStringLength(ctx, expr.object, params);
 }
 
