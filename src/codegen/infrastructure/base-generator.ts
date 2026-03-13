@@ -39,8 +39,9 @@ export class BaseGenerator {
   public thisPointer: string | null = null; // Current 'this' pointer (i32*)
   public currentClassName: string | null = null; // Current class name (for super resolution)
   public expectedArrayElementType: "string" | "number" | "boolean" | "pointer" | null = null; // Expected array element type for context-aware generation
-  public expectedCallbackParamType: string | null = null; // Expected callback parameter type for lambda generation
-  public expectedCallbackReturnType: string | null = null; // Expected callback return type for lambda generation
+  public expectedCallbackParamType: string | null = null;
+  public expectedCallbackReturnType: string | null = null;
+  public expectedCallbackParamTypes: string[] | null = null;
   public currentFunctionReturnType: string = "double"; // Current function/method return type for return statements
 
   public debugInfoEnabled: boolean = false;

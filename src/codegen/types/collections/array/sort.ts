@@ -88,10 +88,10 @@ export function generateArraySort(
     compareFn = gen.mangleUserName((predicateArg as VariableNode).name);
   } else if (predicateArg.type === "arrow_function") {
     if (isStringArray) {
-      gen.setExpectedCallbackParamType("string");
+      gen.setExpectedCallbackParamTypes(["string", "string"]);
     }
     compareFn = gen.generateExpression(predicateArg, params);
-    gen.setExpectedCallbackParamType(null);
+    gen.setExpectedCallbackParamTypes(null);
   } else {
     return gen.emitError("sort() comparator must be a function name or inline function", expr.loc);
   }

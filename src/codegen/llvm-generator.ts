@@ -956,6 +956,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public getExpectedCallbackReturnType(): string | null {
     return this.expectedCallbackReturnType;
   }
+  public setExpectedCallbackParamTypes(types: string[] | null): void {
+    this.expectedCallbackParamTypes = types;
+  }
+  public getExpectedCallbackParamTypes(): string[] | null {
+    return this.expectedCallbackParamTypes;
+  }
   public getLastInlineLambdaEnvPtr(): string | null {
     return this.lastInlineLambdaEnvPtr;
   }
