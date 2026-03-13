@@ -451,6 +451,7 @@ export class TypeInference {
       const varName = (expr.object as VariableNode).name;
 
       if (varName === "fs" && method === "readFileSync") return this.ctx.typeContext.stringType;
+      if (varName === "fs" && method === "existsSync") return this.ctx.typeContext.booleanType;
       if (varName === "fs" && method === "readdirSync")
         return this.ctx.typeContext.getArrayType("string");
 
@@ -509,6 +510,15 @@ export class TypeInference {
           method === "uptime"
         )
           return this.ctx.typeContext.numberType;
+      }
+
+      if (varName === "process") {
+        if (method === "cwd") return this.ctx.typeContext.stringType;
+        if (method === "uptime") return this.ctx.typeContext.numberType;
+      }
+
+      if (varName === "Date") {
+        if (method === "now") return this.ctx.typeContext.numberType;
       }
 
       if (varName === "Array" && method === "from")
