@@ -1816,7 +1816,13 @@ export class VariableAllocator {
     }
     const allocaReg = this.ctx.nextAllocaReg(stmt.name);
     this.ctx.defineVariable(stmt.name, allocaReg, "%Map*", SymbolKind.Map, "local");
-    this.ctx.emit(`${allocaReg} = alloca %Map`);
+    const mapSizePtr = this.ctx.nextTemp();
+    this.ctx.emit(`${mapSizePtr} = getelementptr %Map, %Map* null, i32 1`);
+    const mapSizeI64 = this.ctx.nextTemp();
+    this.ctx.emit(`${mapSizeI64} = ptrtoint %Map* ${mapSizePtr} to i64`);
+    const mapMem = this.ctx.nextTemp();
+    this.ctx.emit(`${mapMem} = call i8* @GC_malloc(i64 ${mapSizeI64})`);
+    this.ctx.emit(`${allocaReg} = bitcast i8* ${mapMem} to %Map*`);
 
     const value = this.ctx.generateExpression(stmt.value!, params);
     const loadedMap = this.ctx.nextTemp();
@@ -1845,7 +1851,13 @@ export class VariableAllocator {
         llvmValueType,
       }),
     );
-    this.ctx.emit(`${allocaReg} = alloca %StringMap`);
+    const strMapSizePtr = this.ctx.nextTemp();
+    this.ctx.emit(`${strMapSizePtr} = getelementptr %StringMap, %StringMap* null, i32 1`);
+    const strMapSizeI64 = this.ctx.nextTemp();
+    this.ctx.emit(`${strMapSizeI64} = ptrtoint %StringMap* ${strMapSizePtr} to i64`);
+    const strMapMem = this.ctx.nextTemp();
+    this.ctx.emit(`${strMapMem} = call i8* @GC_malloc(i64 ${strMapSizeI64})`);
+    this.ctx.emit(`${allocaReg} = bitcast i8* ${strMapMem} to %StringMap*`);
 
     const declaredMapType =
       stmt.declaredType || `Map<${mapTypeInfo.keyType}, ${mapTypeInfo.valueType}>`;
@@ -1878,7 +1890,13 @@ export class VariableAllocator {
         llvmValueType: "i8*",
       }),
     );
-    this.ctx.emit(`${allocaReg} = alloca %StringMap`);
+    const ptrMapSizePtr = this.ctx.nextTemp();
+    this.ctx.emit(`${ptrMapSizePtr} = getelementptr %StringMap, %StringMap* null, i32 1`);
+    const ptrMapSizeI64 = this.ctx.nextTemp();
+    this.ctx.emit(`${ptrMapSizeI64} = ptrtoint %StringMap* ${ptrMapSizePtr} to i64`);
+    const ptrMapMem = this.ctx.nextTemp();
+    this.ctx.emit(`${ptrMapMem} = call i8* @GC_malloc(i64 ${ptrMapSizeI64})`);
+    this.ctx.emit(`${allocaReg} = bitcast i8* ${ptrMapMem} to %StringMap*`);
 
     const declaredMapType =
       stmt.declaredType || `Map<${mapTypeInfo.keyType}, ${mapTypeInfo.valueType}>`;
@@ -1958,7 +1976,13 @@ export class VariableAllocator {
     }
     const allocaReg = this.ctx.nextAllocaReg(stmt.name);
     this.ctx.defineVariable(stmt.name, allocaReg, "%Set*", SymbolKind.Set, "local");
-    this.ctx.emit(`${allocaReg} = alloca %Set`);
+    const setSizePtr = this.ctx.nextTemp();
+    this.ctx.emit(`${setSizePtr} = getelementptr %Set, %Set* null, i32 1`);
+    const setSizeI64 = this.ctx.nextTemp();
+    this.ctx.emit(`${setSizeI64} = ptrtoint %Set* ${setSizePtr} to i64`);
+    const setMem = this.ctx.nextTemp();
+    this.ctx.emit(`${setMem} = call i8* @GC_malloc(i64 ${setSizeI64})`);
+    this.ctx.emit(`${allocaReg} = bitcast i8* ${setMem} to %Set*`);
 
     const value = this.ctx.generateExpression(stmt.value!, params);
     const loadedSet = this.ctx.nextTemp();
@@ -1985,7 +2009,13 @@ export class VariableAllocator {
         llvmValueType,
       }),
     );
-    this.ctx.emit(`${allocaReg} = alloca %StringSet`);
+    const strSetSizePtr = this.ctx.nextTemp();
+    this.ctx.emit(`${strSetSizePtr} = getelementptr %StringSet, %StringSet* null, i32 1`);
+    const strSetSizeI64 = this.ctx.nextTemp();
+    this.ctx.emit(`${strSetSizeI64} = ptrtoint %StringSet* ${strSetSizePtr} to i64`);
+    const strSetMem = this.ctx.nextTemp();
+    this.ctx.emit(`${strSetMem} = call i8* @GC_malloc(i64 ${strSetSizeI64})`);
+    this.ctx.emit(`${allocaReg} = bitcast i8* ${strSetMem} to %StringSet*`);
 
     this.ctx.setCurrentDeclaredSetType(stmt.declaredType);
     const value = this.ctx.generateExpression(stmt.value!, params);
