@@ -734,6 +734,8 @@ export class BinaryExpressionGenerator {
     this.ctx.emit(`${isSingleChar} = and i1 ${byteMatch}, ${isNull}`);
 
     const isEq = op === "===" || op === "==";
+    const isNe = op === "!==" || op === "!=";
+    if (!isEq && !isNe) return "";
     let cmpBool: string;
     if (isEq) {
       cmpBool = isSingleChar;
