@@ -187,16 +187,17 @@ export class MathGenerator {
   }
 
   private generateMax(expr: MethodCallNode, params: string[]): string {
-    if (expr.args.length !== 2) {
-      return this.ctx.emitError("Math.max() requires 2 arguments", expr.loc);
+    if (expr.args.length < 2) {
+      return this.ctx.emitError("Math.max() requires at least 2 arguments", expr.loc);
     }
-    const a = this.ctx.generateExpression(expr.args[0], params);
-    const b = this.ctx.generateExpression(expr.args[1], params);
-    const dblA = this.ctx.ensureDouble(a);
-    const dblB = this.ctx.ensureDouble(b);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call double @llvm.maximum.f64(double ${dblA}, double ${dblB})`);
-    return result;
+    let current = this.ctx.ensureDouble(this.ctx.generateExpression(expr.args[0], params));
+    for (let i = 1; i < expr.args.length; i++) {
+      const next = this.ctx.ensureDouble(this.ctx.generateExpression(expr.args[i], params));
+      const result = this.ctx.nextTemp();
+      this.ctx.emit(`${result} = call double @llvm.maximum.f64(double ${current}, double ${next})`);
+      current = result;
+    }
+    return current;
   }
 
   private generateTrunc(expr: MethodCallNode, params: string[]): string {
@@ -272,15 +273,16 @@ export class MathGenerator {
   }
 
   private generateMin(expr: MethodCallNode, params: string[]): string {
-    if (expr.args.length !== 2) {
-      return this.ctx.emitError("Math.min() requires 2 arguments", expr.loc);
+    if (expr.args.length < 2) {
+      return this.ctx.emitError("Math.min() requires at least 2 arguments", expr.loc);
     }
-    const a = this.ctx.generateExpression(expr.args[0], params);
-    const b = this.ctx.generateExpression(expr.args[1], params);
-    const dblA = this.ctx.ensureDouble(a);
-    const dblB = this.ctx.ensureDouble(b);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call double @llvm.minimum.f64(double ${dblA}, double ${dblB})`);
-    return result;
+    let current = this.ctx.ensureDouble(this.ctx.generateExpression(expr.args[0], params));
+    for (let i = 1; i < expr.args.length; i++) {
+      const next = this.ctx.ensureDouble(this.ctx.generateExpression(expr.args[i], params));
+      const result = this.ctx.nextTemp();
+      this.ctx.emit(`${result} = call double @llvm.minimum.f64(double ${current}, double ${next})`);
+      current = result;
+    }
+    return current;
   }
 }
