@@ -226,10 +226,14 @@ class ClosureMutationChecker {
           capturedNames.push(capName);
         }
       }
-      // Recurse into the arrow body as a new function scope.
+      const capturedInClosure: string[] = [];
+      for (let i = 0; i < info.captures.length; i++) {
+        const cap = info.captures[i] as { name: string; llvmType: string };
+        capturedInClosure.push(cap.name);
+      }
       const arrowBodyTyped = arrow.body as { type: string };
       if (arrowBodyTyped.type === "block") {
-        this.walkBlock(arrow.body as BlockStatement, arrow.params.slice(), []);
+        this.walkBlock(arrow.body as BlockStatement, arrow.params.slice(), capturedInClosure);
       }
     } else if (etype === "binary") {
       // BinaryNode: { type, op, left, right } — must include op to get correct GEP index for left/right
