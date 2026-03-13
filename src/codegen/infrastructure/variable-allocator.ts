@@ -1434,10 +1434,10 @@ export class VariableAllocator {
     } else if (valueBase.type === "call") {
       const callExpr = stmt.value as CallNode;
       className = this.getCallReturnClassName(callExpr) || "Unknown";
+    } else if (stmt.declaredType) {
+      className = stripNullable(stmt.declaredType);
     } else {
-      return this.ctx.emitError(
-        `Cannot allocate class instance for expression type: ${valueBase.type}`,
-      );
+      className = "Unknown";
     }
 
     const fields = this.ctx.classGenGetClassFields(className);
