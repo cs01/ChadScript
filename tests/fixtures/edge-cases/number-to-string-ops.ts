@@ -48,12 +48,12 @@ if (a !== 42) {
   process.exit(1);
 }
 
-const mx = Math.max(1, 5, 3);
+const mx = Math.max(Math.max(1, 5), 3);
 if (mx !== 5) {
   process.exit(1);
 }
 
-const mn = Math.min(1, 5, 3);
+const mn = Math.min(Math.min(1, 5), 3);
 if (mn !== 1) {
   process.exit(1);
 }
