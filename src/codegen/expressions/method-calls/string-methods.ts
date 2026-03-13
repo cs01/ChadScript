@@ -371,6 +371,9 @@ export function handleStringArrayIndexOf(
   const notfoundLabel = ctx.nextLabel("indexof_notfound");
   const endLabel = ctx.nextLabel("indexof_end");
 
+  const counterPtr = ctx.nextTemp();
+  ctx.emit(`${counterPtr} = alloca i32`);
+
   const arrIsNull = ctx.emitIcmp("eq", "%StringArray*", arrayPtr, "null");
   ctx.emitBrCond(arrIsNull, notfoundLabel, `${checkLabel}_arrvalid`);
 
@@ -399,8 +402,6 @@ export function handleStringArrayIndexOf(
   const stillNeg = ctx.emitIcmp("slt", "i32", resolved, "0");
   const clampedFrom = ctx.nextTemp();
   ctx.emit(`${clampedFrom} = select i1 ${stillNeg}, i32 0, i32 ${resolved}`);
-  const counterPtr = ctx.nextTemp();
-  ctx.emit(`${counterPtr} = alloca i32`);
   ctx.emitStore("i32", clampedFrom, counterPtr);
 
   ctx.emitBr(checkLabel);

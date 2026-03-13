@@ -1603,6 +1603,13 @@ export class ControlFlowGenerator {
     const catchEntryLabel = this.nextLabel("catch_entry");
     const finallyLabel = this.nextLabel("finally_block");
 
+    const paramName = tryStmt.catchParam;
+    let paramAlloca = "";
+    if (paramName) {
+      paramAlloca = this.ctx.nextAllocaReg(paramName);
+      this.emit(`${paramAlloca} = alloca i8*`);
+    }
+
     this.ctx.emitBrCond(isException, catchEntryLabel, tryBodyLabel);
 
     this.ctx.emitLabel(tryBodyLabel);
@@ -1619,11 +1626,8 @@ export class ControlFlowGenerator {
     this.ctx.emitStore("i8*", prevFrame, "@__exception_stack");
 
     if (tryStmt.catchBody) {
-      const paramName = tryStmt.catchParam;
       if (paramName) {
         const excMsg = this.ctx.emitLoad("i8*", "@__exception_message");
-        const paramAlloca = this.ctx.nextAllocaReg(paramName);
-        this.emit(`${paramAlloca} = alloca i8*`);
         this.ctx.emitStore("i8*", excMsg, paramAlloca);
         this.ctx.defineVariable(paramName, paramAlloca, "i8*", SymbolKind.String, "local");
       }
