@@ -596,6 +596,21 @@ export class TypeInference {
       if (objResolved && objResolved.arrayDepth > 0) return objResolved;
     }
 
+    if (method === "keys" || method === "values") {
+      if (objBase.type === "variable") {
+        const varName = (expr.object as VariableNode).name;
+        if (this.ctx.symbolTable.isMap(varName)) {
+          const mapMeta = this.ctx.symbolTable.getMapMetadata(varName);
+          if (mapMeta) {
+            if (method === "keys" && mapMeta.keyType === "string") {
+              return this.ctx.typeContext.getArrayType("string");
+            }
+            return this.ctx.typeContext.getArrayType("number");
+          }
+        }
+      }
+    }
+
     if (method === "values" || method === "entries") {
       if (objBase.type === "variable" && (expr.object as VariableNode).name === "Object") {
         return null;
@@ -2302,6 +2317,15 @@ export class TypeInference {
         const objBase = methodExpr.object as ExprBase;
         if (objBase.type === "variable" && (methodExpr.object as VariableNode).name === "Object") {
           return true;
+        }
+        if (objBase.type === "variable") {
+          const varName = (methodExpr.object as VariableNode).name;
+          if (this.ctx.symbolTable.isMap(varName)) {
+            const mapMeta = this.ctx.symbolTable.getMapMetadata(varName);
+            if (mapMeta && mapMeta.keyType === "string") {
+              return true;
+            }
+          }
         }
       }
       if (methodExpr.method === "values" || methodExpr.method === "entries") {
