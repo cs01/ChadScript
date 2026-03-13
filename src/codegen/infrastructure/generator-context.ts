@@ -586,6 +586,10 @@ export interface IGeneratorContext {
   setExpectedCallbackReturnType(type: string | null): void;
   getExpectedCallbackReturnType(): string | null;
 
+  expectedCallbackParamTypes: string[] | null;
+  setExpectedCallbackParamTypes(types: string[] | null): void;
+  getExpectedCallbackParamTypes(): string[] | null;
+
   /**
    * Current 'this' pointer for class methods
    */
@@ -1012,6 +1016,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   public currentDeclaredMapType: string | undefined = undefined;
   public expectedCallbackParamType: string | null = null;
   public expectedCallbackReturnType: string | null = null;
+  public expectedCallbackParamTypes: string[] | null = null;
   public thisPointer: string | null = null;
   public currentClassName: string | null = null;
   public ast?: AST;
@@ -1296,6 +1301,12 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
   getExpectedCallbackReturnType(): string | null {
     return this.expectedCallbackReturnType;
+  }
+  setExpectedCallbackParamTypes(types: string[] | null): void {
+    this.expectedCallbackParamTypes = types;
+  }
+  getExpectedCallbackParamTypes(): string[] | null {
+    return this.expectedCallbackParamTypes;
   }
   getLastInlineLambdaEnvPtr(): string | null {
     return this.lastInlineLambdaEnvPtr;

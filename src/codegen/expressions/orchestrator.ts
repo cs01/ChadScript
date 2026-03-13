@@ -35,6 +35,7 @@ interface ExpressionOrchestratorContext {
   setUsesPromises(value: boolean): void;
   getExpectedCallbackParamType(): string | null;
   getExpectedCallbackReturnType(): string | null;
+  getExpectedCallbackParamTypes(): string[] | null;
   setLastInlineLambdaEnvPtr(ptr: string | null): void;
   setLastTypeAssertionSourceVar(name: string | null): void;
   emitWarning(message: string, loc?: { line: number; column: number }, suggestion?: string): void;
@@ -209,10 +210,15 @@ export class ExpressionGenerator {
       interfaceTypes: string[];
     };
     let typeHints: { paramTypes?: string[]; returnType?: string } | undefined = undefined;
+    const cbParamTypes = this.ctx.getExpectedCallbackParamTypes();
     const cbParamType = this.ctx.getExpectedCallbackParamType();
     const cbReturnType = this.ctx.getExpectedCallbackReturnType();
-    if (cbParamType || cbReturnType) {
-      const hintParamTypes: string[] | undefined = cbParamType ? [cbParamType] : undefined;
+    if (cbParamTypes || cbParamType || cbReturnType) {
+      const hintParamTypes: string[] | undefined = cbParamTypes
+        ? cbParamTypes
+        : cbParamType
+          ? [cbParamType]
+          : undefined;
       typeHints = { paramTypes: hintParamTypes, returnType: cbReturnType || undefined };
     }
     if (!typeHints && expr.returnType) {
