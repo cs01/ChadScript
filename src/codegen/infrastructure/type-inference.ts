@@ -392,9 +392,8 @@ export class TypeInference {
       return this.ctx.typeContext.stringType;
     }
 
-    if (method === "at") {
+    if (method === "at" || method === "find") {
       if (this.isArrayExpression(expr.object)) return this.ctx.typeContext.numberType;
-      if (this.isStringArrayExpression(expr.object)) return this.ctx.typeContext.stringType;
       return this.ctx.typeContext.stringType;
     }
 
@@ -408,7 +407,8 @@ export class TypeInference {
       method === "search" ||
       method === "charCodeAt" ||
       method === "codePointAt" ||
-      method === "localeCompare"
+      method === "localeCompare" ||
+      method === "findIndex"
     ) {
       return this.ctx.typeContext.numberType;
     }

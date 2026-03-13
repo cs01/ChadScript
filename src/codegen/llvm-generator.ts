@@ -2183,6 +2183,41 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           llvmType = "i8*";
           kind = SymbolKind.String;
           defaultValue = "null";
+          if (stmtValueBase.type === "method_call") {
+            const mc = stmt.value as MethodCallNode;
+            if (mc.method === "find" || mc.method === "at") {
+              const mcObj = mc.object as { type: string };
+              if (mcObj.type === "variable") {
+                const arrName = (mc.object as VariableNode).name;
+                const elemType =
+                  this.symbolTable.getObjectArrayElementType(arrName) ||
+                  this.symbolTable.getRawInterfaceType(arrName);
+                if (elemType) {
+                  kind = SymbolKind.Object;
+                  ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
+                  this.globalVariables.set(name, { llvmType, kind, initialized: false });
+                  const props = this.getInterfaceProperties(elemType);
+                  if (props) {
+                    this.defineVariableWithMetadata(
+                      name,
+                      `@${name}`,
+                      llvmType,
+                      kind,
+                      "global",
+                      createObjectMetadataWithInterface(
+                        { keys: props.keys, types: props.types },
+                        elemType,
+                      ),
+                    );
+                  } else {
+                    this.defineVariable(name, `@${name}`, llvmType, kind, "global");
+                  }
+                  this.symbolTable.setRawInterfaceType(name, elemType);
+                  continue;
+                }
+              }
+            }
+          }
         } else if (isStringArray) {
           llvmType = "%StringArray*";
           kind = SymbolKind.StringArray;
