@@ -1,4 +1,9 @@
-import { ResolvedType, createResolvedType, createIntegerType } from "./type-system.js";
+import {
+  ResolvedType,
+  createResolvedType,
+  createIntegerType,
+  parseTypeString,
+} from "./type-system.js";
 
 export class TypeContext {
   private nextId: number = 1;
@@ -132,6 +137,8 @@ export class TypeContext {
     if (special) return special;
     if (typeStr === "boolean[]") return this.getArrayType("boolean");
     if (typeStr.endsWith("[]")) {
+      const parsed = parseTypeString(typeStr);
+      if (parsed.arrayDepth > 1) return parsed;
       const elem = typeStr.substring(0, typeStr.length - 2);
       return this.getArrayType(elem);
     }

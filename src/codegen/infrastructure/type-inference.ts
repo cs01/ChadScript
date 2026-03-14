@@ -26,7 +26,7 @@ import type { TypeChecker } from "../../typescript/type-checker.js";
 import type { ClassGenerator } from "../types/objects/class.js";
 import type { TypeResolver } from "./type-resolver/index.js";
 import type { FieldInfo } from "./type-resolver/types.js";
-import { stripNullable, parseMapTypeString } from "./type-system.js";
+import { stripNullable, parseMapTypeString, createResolvedType } from "./type-system.js";
 import type { ResolvedType } from "./type-system.js";
 import type { TypeContext } from "./type-context.js";
 
@@ -287,6 +287,9 @@ export class TypeInference {
           objResolved.base === "number" ||
           objResolved.base === "boolean"
         ) {
+          if (objResolved.arrayDepth > 1) {
+            return createResolvedType(objResolved.base, objResolved.qualifiers, objResolved.arrayDepth - 1);
+          }
           return this.ctx.typeContext.resolve(objResolved.base);
         }
       }
@@ -807,9 +810,12 @@ export class TypeInference {
       if (this.st.isClass(varName)) {
         const className = this.st.getClassName(varName);
         if (className) {
+          const tsType = this.ctx.classGenGetFieldTsType(className, prop);
+          if (tsType && tsType.indexOf("[]") !== -1) {
+            return this.ctx.typeContext.resolve(stripNullable(tsType));
+          }
           const fieldType = this.ctx.classGenGetFieldType(className, prop);
           if (fieldType) return this.ctx.typeContext.resolve(fieldType);
-          const tsType = this.ctx.classGenGetFieldTsType(className, prop);
           if (tsType) return this.ctx.typeContext.resolve(stripNullable(tsType));
         }
       }
@@ -1284,7 +1290,7 @@ export class TypeInference {
         }
       }
     }
-    if (e.type === "variable") {
+    if (e.type === "variable" || e.type === "index_access") {
       const resolved = this.resolveExpressionType(expr);
       if (
         resolved &&
@@ -1293,8 +1299,9 @@ export class TypeInference {
       ) {
         return true;
       }
-      return false;
+      if (e.type === "index_access") return false;
     }
+    if (e.type === "variable") return false;
     return this.isArrayExpressionByType(e, expr);
   }
 
@@ -1445,6 +1452,20 @@ export class TypeInference {
         if (resolved.arrayDepth > 1) {
           return true;
         }
+        if (
+          resolved.base !== "string" &&
+          resolved.base !== "number" &&
+          resolved.base !== "boolean"
+        ) {
+          return true;
+        }
+      }
+      return false;
+    }
+    if (e.type === "index_access") {
+      const resolved = this.resolveExpressionType(expr);
+      if (resolved && resolved.arrayDepth > 0) {
+        if (resolved.arrayDepth > 1) return true;
         if (
           resolved.base !== "string" &&
           resolved.base !== "number" &&
@@ -2306,7 +2327,7 @@ export class TypeInference {
       if (rt === "string[]") return true;
       return false;
     }
-    if (e.type === "variable") {
+    if (e.type === "variable" || e.type === "index_access") {
       const resolved = this.resolveExpressionType(expr);
       if (resolved && resolved.arrayDepth === 1 && resolved.base === "string") {
         return true;

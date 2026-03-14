@@ -192,9 +192,16 @@ export class IndexAccessGenerator {
   }
 
   private generateStringArrayIndex(expr: IndexAccessNode, params: string[]): string {
-    const stringArrayPtr = this.ctx.generateExpression(expr.object, params);
+    let stringArrayPtr = this.ctx.generateExpression(expr.object, params);
     const indexDouble = this.ctx.generateExpression(expr.index, params);
     const index = this.toI32Index(indexDouble);
+
+    const ptrType = this.ctx.getVariableType(stringArrayPtr);
+    if (ptrType === "i8*") {
+      const cast = this.ctx.nextTemp();
+      this.ctx.emit(`${cast} = bitcast i8* ${stringArrayPtr} to %StringArray*`);
+      stringArrayPtr = cast;
+    }
 
     this.emitBoundsCheck(stringArrayPtr, "%StringArray", index);
 
@@ -216,9 +223,16 @@ export class IndexAccessGenerator {
   }
 
   private generateNumericArrayIndex(expr: IndexAccessNode, params: string[]): string {
-    const arrayPtr = this.ctx.generateExpression(expr.object, params);
+    let arrayPtr = this.ctx.generateExpression(expr.object, params);
     const indexDouble = this.ctx.generateExpression(expr.index, params);
     const index = this.toI32Index(indexDouble);
+
+    const ptrType = this.ctx.getVariableType(arrayPtr);
+    if (ptrType === "i8*") {
+      const cast = this.ctx.nextTemp();
+      this.ctx.emit(`${cast} = bitcast i8* ${arrayPtr} to %Array*`);
+      arrayPtr = cast;
+    }
 
     this.emitBoundsCheck(arrayPtr, "%Array", index);
 
