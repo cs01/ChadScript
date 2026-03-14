@@ -288,7 +288,11 @@ export class TypeInference {
           objResolved.base === "boolean"
         ) {
           if (objResolved.arrayDepth > 1) {
-            return createResolvedType(objResolved.base, objResolved.qualifiers, objResolved.arrayDepth - 1);
+            return createResolvedType(
+              objResolved.base,
+              objResolved.qualifiers,
+              objResolved.arrayDepth - 1,
+            );
           }
           return this.ctx.typeContext.resolve(objResolved.base);
         }
