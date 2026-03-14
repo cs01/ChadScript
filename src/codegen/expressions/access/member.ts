@@ -1863,6 +1863,40 @@ export class MemberAccessGenerator {
           return elemType;
         }
       }
+    } else if (arrayExpr.type === "member_access") {
+      const memberAccess = arrayExpr as MemberAccessNode;
+      const memberObjBase = memberAccess.object as { type: string };
+      let ownerClassName: string | null = null;
+      if (memberObjBase.type === "this") {
+        ownerClassName = this.ctx.getCurrentClassName();
+      } else if (memberObjBase.type === "variable") {
+        const vn = (memberAccess.object as VariableNode).name;
+        if (this.ctx.symbolTable.isClass(vn)) {
+          const cm = this.ctx.symbolTable.getClassInfo(vn);
+          if (cm) ownerClassName = cm.className;
+        }
+      }
+      if (ownerClassName) {
+        const fieldInfo = this.ctx.classGenGetFieldInfo(ownerClassName, memberAccess.property);
+        if (fieldInfo) {
+          const fi = fieldInfo as FieldInfo;
+          if (fi.tsType) {
+            let tsType = fi.tsType;
+            if (tsType.indexOf(" | ") !== -1) {
+              tsType = tsType
+                .replace(/ \| undefined/g, "")
+                .replace(/ \| null/g, "")
+                .trim();
+            }
+            if (tsType.endsWith("[]")) {
+              const elemType = tsType.substring(0, tsType.length - 2);
+              if (this.ctx.classGenGetClassFields(elemType).length > 0) {
+                return elemType;
+              }
+            }
+          }
+        }
+      }
     }
     return null;
   }
