@@ -546,8 +546,9 @@ export class TypeInference {
         if (method === "now") return this.ctx.typeContext.numberType;
       }
 
-      if (varName === "Array" && method === "from")
-        return this.ctx.typeContext.getArrayType("number");
+      if (varName === "Array" && method === "from") {
+        return null;
+      }
 
       if (this.st.isClass(varName)) {
         const className = this.st.getClassName(varName);
@@ -622,6 +623,16 @@ export class TypeInference {
     method: string,
     objBase: ExprBase,
   ): ResolvedType | null {
+    if (method === "from" && objBase.type === "variable") {
+      const objName = (expr.object as VariableNode).name;
+      if (objName === "Array") {
+        if (expr.args.length > 0 && this.isStringExpression(expr.args[0])) {
+          return this.ctx.typeContext.getArrayType("string");
+        }
+        return this.ctx.typeContext.getArrayType("number");
+      }
+    }
+
     if (method === "slice" || method === "splice" || method === "concat") {
       const objResolved = this.resolveExpressionType(expr.object);
       if (objResolved) return objResolved;
@@ -2390,6 +2401,17 @@ export class TypeInference {
       const methodExpr = expr as MethodCallNode;
       if (methodExpr.method === "split") {
         return true;
+      }
+      if (methodExpr.method === "from") {
+        const objBase = methodExpr.object as ExprBase;
+        if (
+          objBase.type === "variable" &&
+          (methodExpr.object as VariableNode).name === "Array" &&
+          methodExpr.args.length > 0 &&
+          this.isStringExpression(methodExpr.args[0])
+        ) {
+          return true;
+        }
       }
       if (methodExpr.method === "all") {
         const objBase = methodExpr.object as ExprBase;
