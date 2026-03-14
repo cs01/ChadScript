@@ -227,6 +227,20 @@ function transformMethodDeclaration(
     : { type: "block", statements: [] };
 
   const isStatic = node.modifiers?.some((m) => m.kind === ts.SyntaxKind.StaticKeyword) ?? false;
+
+  const parameters: FunctionParameter[] = node.parameters.map((p) => {
+    const paramName = ts.isIdentifier(p.name) ? p.name.text : "";
+    const paramType = p.type ? extractTypeString(p.type) : undefined;
+    const optional = !!p.questionToken;
+    let defaultValue = undefined;
+    if (p.initializer) {
+      defaultValue = transformExpression(p.initializer, checker);
+    }
+    return { name: paramName, type: paramType, optional, defaultValue };
+  });
+
+  const hasOptionalParams = parameters.some((p) => p.optional || p.defaultValue);
+
   const result: ClassMethod = {
     type: "method",
     name,
@@ -239,6 +253,9 @@ function transformMethodDeclaration(
   };
   if (isStatic) {
     result.isStatic = true;
+  }
+  if (hasOptionalParams) {
+    result.parameters = parameters;
   }
   return result;
 }

@@ -2901,6 +2901,17 @@ function transformClassMethod(node: TreeSitterNode): ClassMethod | null {
   const parameterProperties =
     isConstructor && paramsNode ? extractParameterProperties(paramsNode) : undefined;
 
+  let methodParameters: FunctionParameter[] | undefined;
+  if (paramsNode) {
+    const fpList = extractFunctionParameters(paramsNode);
+    const hasOptional = fpList.some(
+      (fp: FunctionParameter) => fp.optional === true || fp.defaultValue !== undefined,
+    );
+    if (hasOptional) {
+      methodParameters = fpList;
+    }
+  }
+
   const result: ClassMethod = {
     type: "method",
     name,
@@ -2912,6 +2923,7 @@ function transformClassMethod(node: TreeSitterNode): ClassMethod | null {
     isConstructor,
   };
   if (isStatic) result.isStatic = true;
+  if (methodParameters) result.parameters = methodParameters;
   return result;
 }
 

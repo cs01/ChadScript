@@ -426,6 +426,7 @@ export interface ClassMethod {
   body: BlockStatement;
   isConstructor: boolean;
   isStatic?: boolean;
+  parameters?: FunctionParameter[];
 }
 
 export interface ClassField {
