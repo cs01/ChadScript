@@ -81,7 +81,8 @@ export class TypeContext {
 
   getSetType(valueType: string): ResolvedType {
     const base = "Set<" + valueType + ">";
-    return this.intern(base, "%StringSet*");
+    const llvmType = valueType === "string" ? "%StringSet*" : "%Set*";
+    return this.intern(base, llvmType);
   }
 
   getInterfaceType(name: string): ResolvedType {

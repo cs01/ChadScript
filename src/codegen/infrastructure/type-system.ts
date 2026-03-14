@@ -141,7 +141,8 @@ function resolvedSpecialToLlvm(rt: ResolvedType): string | null {
   if (rt.base === "void") return "void";
   if (rt.base === "null" || rt.base === "undefined") return "i8*";
   if (rt.base.startsWith("Map")) return "%StringMap*";
-  if (rt.base.startsWith("Set")) return "%StringSet*";
+  if (rt.base === "Set<string>") return "%StringSet*";
+  if (rt.base.startsWith("Set")) return "%Set*";
   return null;
 }
 
@@ -196,7 +197,8 @@ function collectionTypeToLlvm(tsType: string): string | null {
   if (tsType === "number[]" || tsType === "boolean[]") return "%Array*";
   if (tsType === "Uint8Array") return "%Uint8Array*";
   if (tsType.endsWith("[]")) return "%ObjectArray*";
-  if (tsType.startsWith("Set<")) return "%StringSet*";
+  if (tsType === "Set<string>") return "%StringSet*";
+  if (tsType.startsWith("Set<")) return "%Set*";
   return null;
 }
 

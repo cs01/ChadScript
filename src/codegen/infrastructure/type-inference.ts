@@ -338,6 +338,7 @@ export class TypeInference {
 
   private resolveFromVarTypeExtended(varType: string): ResolvedType | null {
     if (varType === "%StringSet*") return this.ctx.typeContext.getSetType("string");
+    if (varType === "%Set*") return this.ctx.typeContext.getSetType("number");
     if (varType === "%Promise*") return this.ctx.typeContext.resolve("Promise");
     if (varType === "%__FetchResponse*") return this.ctx.typeContext.resolve("Response");
     if (varType === "double") return this.ctx.typeContext.numberType;
