@@ -754,9 +754,10 @@ export class VariableAllocator {
       const base = resolved.base;
       const depth = resolved.arrayDepth;
       isString = base === "string" && depth === 0;
-      isStringArray = base === "string" && depth > 0;
-      isObjectArray = depth > 0 && base !== "string" && base !== "number" && base !== "boolean";
-      isArray = depth > 0 && (base === "number" || base === "boolean");
+      isStringArray = base === "string" && depth === 1;
+      isObjectArray =
+        depth > 1 || (depth > 0 && base !== "string" && base !== "number" && base !== "boolean");
+      isArray = depth === 1 && (base === "number" || base === "boolean");
       isMap = base === "Map" || base.startsWith("Map<");
       isSet = base === "Set" || base.startsWith("Set<");
       isRegex = base === "RegExp";
