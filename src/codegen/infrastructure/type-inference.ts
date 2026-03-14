@@ -173,6 +173,22 @@ export class TypeInference {
       }
       if (this.isStringExpression(elements[0])) return this.ctx.typeContext.getArrayType("string");
       if (firstElem.type === "object") return this.ctx.typeContext.getArrayType("object");
+      if (firstElem.type === "new") {
+        const newExpr = elements[0] as NewNode;
+        const resolvedClassName = this.resolveClassAlias(newExpr.className);
+        const cls = this.getClass(resolvedClassName);
+        if (cls) return this.ctx.typeContext.getArrayType(resolvedClassName);
+      }
+      const elemResolved = this.resolveExpressionType(elements[0]);
+      if (
+        elemResolved &&
+        elemResolved.arrayDepth === 0 &&
+        elemResolved.base !== "number" &&
+        elemResolved.base !== "boolean" &&
+        elemResolved.base !== "string"
+      ) {
+        return this.ctx.typeContext.getArrayType(elemResolved.base);
+      }
       return this.ctx.typeContext.getArrayType("number");
     }
     if (e.type === "unary") {
