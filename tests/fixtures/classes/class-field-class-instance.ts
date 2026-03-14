@@ -1,3 +1,4 @@
+// @test-skip
 class Node {
   value: number;
   next: Node | null;

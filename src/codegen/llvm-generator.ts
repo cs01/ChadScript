@@ -2175,6 +2175,17 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             resolvedBase = idxClassName;
           }
         }
+        if (
+          !isClassInstance &&
+          stmt.value &&
+          (stmt.value as { type: string }).type === "member_access"
+        ) {
+          const memberClassName = this.getMemberAccessClassName(stmt.value);
+          if (memberClassName) {
+            isClassInstance = true;
+            resolvedBase = memberClassName;
+          }
+        }
 
         const isJSONParse = this.typeInference.isJSONParseExpression(stmt.value);
 
@@ -3765,6 +3776,33 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       const varName = (indexExpr.object as VariableNode).name;
       const rawType = this.symbolTable.getRawInterfaceType(varName);
       if (rawType && this.isKnownClass(rawType)) return rawType;
+    }
+    return null;
+  }
+
+  private getMemberAccessClassName(expr: Expression): string | null {
+    if (!expr || (expr as { type: string }).type !== "member_access") return null;
+    const memberExpr = expr as MemberAccessNode;
+    const objBase = memberExpr.object as { type: string };
+    if (objBase.type !== "variable") return null;
+    const varName = (memberExpr.object as VariableNode).name;
+    const classMeta = this.symbolTable.getClassMetadata(varName);
+    if (!classMeta) return null;
+    const className = classMeta.className;
+    if (!className) return null;
+    if (this.ast && this.ast.classes) {
+      for (let j = 0; j < this.ast.classes.length; j++) {
+        const cls = this.ast.classes[j];
+        if (!cls || !cls.fields) continue;
+        if (cls.name !== className) continue;
+        for (let k = 0; k < cls.fields.length; k++) {
+          const field = cls.fields[k] as { name: string; fieldType: string };
+          if (field.name === memberExpr.property) {
+            const tsType = stripNullable(field.fieldType);
+            if (this.isKnownClass(tsType)) return tsType;
+          }
+        }
+      }
     }
     return null;
   }
