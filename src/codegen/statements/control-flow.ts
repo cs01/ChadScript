@@ -29,6 +29,12 @@ import {
 import { IGeneratorContext } from "../infrastructure/generator-context.js";
 import {
   SymbolKind,
+  SymbolKind_Number,
+  SymbolKind_String,
+  SymbolKind_Object,
+  SymbolKind_StringArray,
+  SymbolKind_Array,
+  SymbolKind_Class,
   ObjectArrayMetadata,
   ObjectMetadata,
   createObjectMetadata,
@@ -323,7 +329,7 @@ export class ControlFlowGenerator {
         const value = this.ctx.generateExpression(initVarDecl.value, params);
         const dblValue = this.ctx.ensureDouble(value);
         const allocaReg = this.ctx.nextAllocaReg(initVarDecl.name);
-        this.ctx.defineVariable(initVarDecl.name, allocaReg, "double", SymbolKind.Number, "local");
+        this.ctx.defineVariable(initVarDecl.name, allocaReg, "double", SymbolKind_Number, "local");
         this.emit(`${allocaReg} = alloca double`);
         this.ctx.emitStore("double", dblValue, allocaReg);
       } else if (initBase.type === "assignment") {
@@ -462,40 +468,40 @@ export class ControlFlowGenerator {
     const isStringSet = this.isStringSetExpression(forOfStmt.iterable);
     let arrayType: string = "";
     let elementType: string = "";
-    let elementKind: number = SymbolKind.Number;
+    let elementKind: number = SymbolKind_Number;
 
     if (isStringSet) {
       arrayType = "%StringSet";
       elementType = "i8*";
-      elementKind = SymbolKind.String;
+      elementKind = SymbolKind_String;
     } else if (isStringArray) {
       arrayType = "%StringArray";
       elementType = "i8*";
-      elementKind = SymbolKind.String;
+      elementKind = SymbolKind_String;
     } else if (isObjectArray) {
       arrayType = "%ObjectArray";
       elementType = "i8*";
-      elementKind = SymbolKind.Object;
+      elementKind = SymbolKind_Object;
       const iterableBase = forOfStmt.iterable as ExprBase;
       if (iterableBase.type === "variable") {
         const varName = (forOfStmt.iterable as VariableNode).name;
         const sym = this.ctx.symbolTable.lookup(varName);
         if (sym && sym.resolvedType && sym.resolvedType.arrayDepth > 1) {
           if (sym.resolvedType.base === "string") {
-            elementKind = SymbolKind.StringArray;
+            elementKind = SymbolKind_StringArray;
           } else if (sym.resolvedType.base === "number") {
-            elementKind = SymbolKind.Array;
+            elementKind = SymbolKind_Array;
           }
         }
       }
       const classElemType = this.getIterableClassElementType(forOfStmt.iterable);
       if (classElemType) {
-        elementKind = SymbolKind.Class;
+        elementKind = SymbolKind_Class;
       }
     } else {
       arrayType = "%Array";
       elementType = "double";
-      elementKind = SymbolKind.Number;
+      elementKind = SymbolKind_Number;
     }
 
     const lenPtr = this.nextTemp();
@@ -511,11 +517,11 @@ export class ControlFlowGenerator {
 
     let actualElementType = elementType;
     let forOfClassName = "";
-    if (elementKind === SymbolKind.StringArray) {
+    if (elementKind === SymbolKind_StringArray) {
       actualElementType = "%StringArray*";
-    } else if (elementKind === SymbolKind.Array && isObjectArray) {
+    } else if (elementKind === SymbolKind_Array && isObjectArray) {
       actualElementType = "%Array*";
-    } else if (elementKind === SymbolKind.Class && isObjectArray) {
+    } else if (elementKind === SymbolKind_Class && isObjectArray) {
       forOfClassName = this.getIterableClassElementType(forOfStmt.iterable) || "";
       if (forOfClassName) {
         actualElementType = `%${forOfClassName}_struct*`;
@@ -525,12 +531,12 @@ export class ControlFlowGenerator {
     const elemAlloca = this.ctx.nextAllocaReg(forOfStmt.variableName);
     this.emit(`${elemAlloca} = alloca ${actualElementType}`);
 
-    if (elementKind === SymbolKind.Class && forOfClassName) {
+    if (elementKind === SymbolKind_Class && forOfClassName) {
       this.ctx.defineVariableWithMetadata(
         forOfStmt.variableName,
         elemAlloca,
         actualElementType,
-        SymbolKind.Class,
+        SymbolKind_Class,
         "local",
         createClassMetadata({ className: forOfClassName }),
       );
@@ -544,12 +550,12 @@ export class ControlFlowGenerator {
       );
     }
 
-    if (elementKind === SymbolKind.StringArray) {
+    if (elementKind === SymbolKind_StringArray) {
       this.ctx.symbolTable.setResolvedType(
         forOfStmt.variableName,
         createResolvedType("string", {}, 1),
       );
-    } else if (elementKind === SymbolKind.Array && isObjectArray) {
+    } else if (elementKind === SymbolKind_Array && isObjectArray) {
       this.ctx.symbolTable.setResolvedType(
         forOfStmt.variableName,
         createResolvedType("number", {}, 1),
@@ -1561,7 +1567,7 @@ export class ControlFlowGenerator {
       forOfStmt.variableName,
       elemAlloca,
       "i8*",
-      SymbolKind.Object,
+      SymbolKind_Object,
       "local",
       metadata,
     );
@@ -1750,7 +1756,7 @@ export class ControlFlowGenerator {
       if (paramName) {
         const excMsg = this.ctx.emitLoad("i8*", "@__exception_message");
         this.ctx.emitStore("i8*", excMsg, paramAlloca);
-        this.ctx.defineVariable(paramName, paramAlloca, "i8*", SymbolKind.String, "local");
+        this.ctx.defineVariable(paramName, paramAlloca, "i8*", SymbolKind_String, "local");
       }
       this.ctx.generateBlock(tryStmt.catchBody, params);
     }
@@ -2277,7 +2283,7 @@ export class ControlFlowGenerator {
     this.emit(`${elemAlloca} = alloca i8*`);
     this.ctx.emitStore("i8*", "null", elemAlloca);
 
-    this.ctx.defineVariable(stmt.variableName, elemAlloca, "i8*", SymbolKind.String, "local");
+    this.ctx.defineVariable(stmt.variableName, elemAlloca, "i8*", SymbolKind_String, "local");
 
     const condLabel = this.nextLabel("forof_str_cond");
     const bodyLabel = this.nextLabel("forof_str_body");
@@ -2397,7 +2403,7 @@ export class ControlFlowGenerator {
     const valueAlloca = this.ctx.nextAllocaReg(valueName);
     this.emit(`${valueAlloca} = alloca i8*`);
 
-    this.ctx.defineVariable(keyName, keyAlloca, "i8*", SymbolKind.String, "local");
+    this.ctx.defineVariable(keyName, keyAlloca, "i8*", SymbolKind_String, "local");
 
     if (valueTypeInfo) {
       const vti = valueTypeInfo as {
@@ -2409,7 +2415,7 @@ export class ControlFlowGenerator {
           valueName,
           valueAlloca,
           "i8*",
-          SymbolKind.Object,
+          SymbolKind_Object,
           "local",
           createObjectMetadata(vti.objectMetadata),
         );
@@ -2423,15 +2429,15 @@ export class ControlFlowGenerator {
           valueName,
           valueAlloca,
           "i8*",
-          SymbolKind.Class,
+          SymbolKind_Class,
           "local",
           createClassMetadata({ className: vti.valueType }),
         );
       } else {
-        this.ctx.defineVariable(valueName, valueAlloca, "i8*", SymbolKind.String, "local");
+        this.ctx.defineVariable(valueName, valueAlloca, "i8*", SymbolKind_String, "local");
       }
     } else {
-      this.ctx.defineVariable(valueName, valueAlloca, "i8*", SymbolKind.String, "local");
+      this.ctx.defineVariable(valueName, valueAlloca, "i8*", SymbolKind_String, "local");
     }
 
     const condLabel = this.nextLabel("mapof_cond");

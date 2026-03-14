@@ -8,7 +8,7 @@ import { LLVMGenerator, LLVMGeneratorOptions, SemaSymbolData } from "./codegen/l
 import { TypeChecker } from "./typescript/type-checker.js";
 import { SemanticAnalyzer, TypedSymbol } from "./analysis/semantic-analyzer.js";
 import { AST, ImportDeclaration, ClassNode, FunctionNode } from "./ast/types.js";
-import { LogLevel, logger } from "./utils/logger.js";
+import { type LogLevel, LogLevel_Normal, LogLevel_Verbose, logger } from "./utils/logger.js";
 import { TargetInfo, resolveTarget, getHostTarget, isCrossCompiling } from "./target.js";
 import { loadTargetSDK, ensureTargetSDK, TargetSDK } from "./cross-compile.js";
 import { VERSION } from "./version.js";
@@ -164,7 +164,7 @@ const TREESITTER_TS_PATH = "node_modules/tree-sitter-typescript/tsx/src";
 export function compile(
   inputFile: string,
   outputFile: string,
-  logLevel: LogLevel = LogLevel.Normal,
+  logLevel: LogLevel = LogLevel_Normal,
 ): void {
   // Set the global logger level
   logger.setLevel(logLevel);
@@ -330,7 +330,7 @@ export function compile(
   // Compile IR to object file
   const objFile = outputFile + ".o";
   const sanitizeFlags = sanitize ? ` -fsanitize=${sanitize}` : "";
-  const llcStdio = logger.getLevel() >= LogLevel.Verbose ? "inherit" : "pipe";
+  const llcStdio = logger.getLevel() >= LogLevel_Verbose ? "inherit" : "pipe";
   const cpuFlag = crossCompiling ? `-mcpu=${target.cpu}` : `-mcpu=${targetCpu}`;
   const tripleFlag = crossCompiling ? ` -mtriple=${target.triple}` : "";
   let compileCmd: string;
@@ -519,7 +519,7 @@ export function compile(
   const userLibs = extraLinkLibs.map((l) => ` -l${l}`).join("");
   const linkCmd = `${linker} ${objFile} ${lwsBridgeObj} ${regexBridgeObj} ${cpBridgeObj} ${osBridgeObj} ${strlenCacheObj} ${timeBridgeObj} ${base64BridgeObj} ${urlBridgeObj} ${uriBridgeObj} ${dotenvBridgeObj} ${watchBridgeObj} ${cpSpawnObj}${extraObjs}${userObjs} -o ${outputFile}${noPie}${debugFlag}${stripFlag}${staticFlag}${crossTarget}${crossLinker}${suppressLdWarnings}${sanitizeFlags} ${linkLibs}${userPaths}${userLibs}`;
   logger.info(` ${linkCmd}`);
-  const linkStdio = logger.getLevel() >= LogLevel.Verbose ? "inherit" : "pipe";
+  const linkStdio = logger.getLevel() >= LogLevel_Verbose ? "inherit" : "pipe";
   execSync(linkCmd, { stdio: linkStdio });
 
   // Clean up intermediate files (unless --keep-temps is set)

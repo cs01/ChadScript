@@ -20,6 +20,17 @@ import {
 } from "../../ast/types.js";
 import {
   SymbolKind,
+  SymbolKind_Number,
+  SymbolKind_String,
+  SymbolKind_Boolean,
+  SymbolKind_Array,
+  SymbolKind_StringArray,
+  SymbolKind_ObjectArray,
+  SymbolKind_Object,
+  SymbolKind_Map,
+  SymbolKind_Set,
+  SymbolKind_Class,
+  SymbolKind_Pointer,
   SymbolTable,
   createPointerAllocaMetadata,
   createInterfacePointerAllocaMetadata,
@@ -304,9 +315,9 @@ export class FunctionGenerator {
 
       if (llvmType === "i8*") {
         if (paramTypes[i] === "string") {
-          this.ctx.defineVariable(paramName, allocaReg, "i8*", SymbolKind.String, "local");
+          this.ctx.defineVariable(paramName, allocaReg, "i8*", SymbolKind_String, "local");
         } else if (paramName === "nodePtr" || paramName === "treePtr") {
-          this.ctx.defineVariable(paramName, allocaReg, "i8*", SymbolKind.Pointer, "local");
+          this.ctx.defineVariable(paramName, allocaReg, "i8*", SymbolKind_Pointer, "local");
         } else {
           const ast = this.ctx.getAst();
           let strippedParamType = paramTypes[i];
@@ -371,7 +382,7 @@ export class FunctionGenerator {
                 paramName,
                 allocaReg,
                 "i8*",
-                SymbolKind.Object,
+                SymbolKind_Object,
                 "local",
                 createObjectMetadataWithInterface({ keys: biKeys, types: biTypes }, ptype),
               );
@@ -392,7 +403,7 @@ export class FunctionGenerator {
               paramName,
               allocaReg,
               "i8*",
-              SymbolKind.Class,
+              SymbolKind_Class,
               "local",
               createClassMetadata({ className: classDefName }),
             );
@@ -418,7 +429,7 @@ export class FunctionGenerator {
               paramName,
               allocaReg,
               "i8*",
-              SymbolKind.Object,
+              SymbolKind_Object,
               "local",
               createObjectMetadataWithInterface({ keys, types }, paramTypes[i]),
             );
@@ -427,12 +438,12 @@ export class FunctionGenerator {
               paramName,
               allocaReg,
               "i8*",
-              SymbolKind.Object,
+              SymbolKind_Object,
               "local",
               createObjectMetadataWithInterface(typeAliasCommonProps, paramTypes[i]),
             );
           } else {
-            this.ctx.defineVariable(paramName, allocaReg, "i8*", SymbolKind.Object, "local");
+            this.ctx.defineVariable(paramName, allocaReg, "i8*", SymbolKind_Object, "local");
           }
         }
         this.ctx.emit(`${allocaReg} = alloca i8*`);
@@ -446,7 +457,7 @@ export class FunctionGenerator {
           paramName,
           allocaReg,
           "%StringArray*",
-          SymbolKind.StringArray,
+          SymbolKind_StringArray,
           "local",
           createPointerAllocaMetadata(),
         );
@@ -461,7 +472,7 @@ export class FunctionGenerator {
           paramName,
           allocaReg,
           "%Array*",
-          SymbolKind.Array,
+          SymbolKind_Array,
           "local",
           createPointerAllocaMetadata(),
         );
@@ -482,7 +493,7 @@ export class FunctionGenerator {
             paramName,
             allocaReg,
             "%ObjectArray*",
-            SymbolKind.ObjectArray,
+            SymbolKind_ObjectArray,
             "local",
             createInterfacePointerAllocaMetadata(elementType),
           );
@@ -491,7 +502,7 @@ export class FunctionGenerator {
             paramName,
             allocaReg,
             "%ObjectArray*",
-            SymbolKind.ObjectArray,
+            SymbolKind_ObjectArray,
             "local",
             createPointerAllocaMetadata(),
           );
@@ -507,7 +518,7 @@ export class FunctionGenerator {
           paramName,
           allocaReg,
           "%Set*",
-          SymbolKind.Set,
+          SymbolKind_Set,
           "local",
           createPointerAllocaMetadata(),
         );
@@ -522,7 +533,7 @@ export class FunctionGenerator {
           paramName,
           allocaReg,
           "%StringSet*",
-          SymbolKind.Set,
+          SymbolKind_Set,
           "local",
           createPointerAllocaMetadata(),
         );
@@ -544,7 +555,7 @@ export class FunctionGenerator {
           paramName,
           allocaReg,
           "%StringMap*",
-          SymbolKind.Map,
+          SymbolKind_Map,
           "local",
           mapMeta,
         );
@@ -564,7 +575,7 @@ export class FunctionGenerator {
           paramName,
           allocaReg,
           llvmType,
-          SymbolKind.Object,
+          SymbolKind_Object,
           "local",
           createInterfacePointerAllocaMetadata(interfaceName),
         );
@@ -575,7 +586,7 @@ export class FunctionGenerator {
           this.ctx.emit(`store ${llvmType} %arg${i}, ${llvmType}* ${allocaReg}`);
         }
       } else {
-        this.ctx.defineVariable(paramName, allocaReg, "double", SymbolKind.Number, "local");
+        this.ctx.defineVariable(paramName, allocaReg, "double", SymbolKind_Number, "local");
         this.ctx.emit(`${allocaReg} = alloca double`);
         if (isOptional && hasOptionalParams) {
           this.generateOptionalParamInit(i, allocaReg, llvmType, paramInfo!, funcParams);
@@ -814,18 +825,18 @@ export class FunctionGenerator {
   }
 
   private llvmTypeToSymbolKindPrimitive(llvmType: string): number | null {
-    if (llvmType === "double") return SymbolKind.Number;
-    if (llvmType === "i8*") return SymbolKind.String;
-    if (llvmType === "%Array*") return SymbolKind.Array;
-    if (llvmType === "%ObjectArray*") return SymbolKind.ObjectArray;
+    if (llvmType === "double") return SymbolKind_Number;
+    if (llvmType === "i8*") return SymbolKind_String;
+    if (llvmType === "%Array*") return SymbolKind_Array;
+    if (llvmType === "%ObjectArray*") return SymbolKind_ObjectArray;
     return null;
   }
 
   private llvmTypeToSymbolKindCollection(llvmType: string): number | null {
-    if (llvmType === "%StringArray*") return SymbolKind.StringArray;
-    if (llvmType === "%Map*") return SymbolKind.Map;
-    if (llvmType === "%StringMap*") return SymbolKind.Map;
-    if (llvmType === "%Set*") return SymbolKind.Set;
+    if (llvmType === "%StringArray*") return SymbolKind_StringArray;
+    if (llvmType === "%Map*") return SymbolKind_Map;
+    if (llvmType === "%StringMap*") return SymbolKind_Map;
+    if (llvmType === "%Set*") return SymbolKind_Set;
     return null;
   }
 
@@ -834,8 +845,8 @@ export class FunctionGenerator {
     if (prim !== null) return prim;
     const coll = this.llvmTypeToSymbolKindCollection(llvmType);
     if (coll !== null) return coll;
-    if (llvmType === "%StringSet*") return SymbolKind.Set;
-    return SymbolKind.Object;
+    if (llvmType === "%StringSet*") return SymbolKind_Set;
+    return SymbolKind_Object;
   }
 
   private getUnionCommonFields(memberNames: string[]): { keys: string[]; types: string[] } {

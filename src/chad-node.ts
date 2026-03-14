@@ -17,7 +17,13 @@ import {
   addLinkLib,
   addLinkPath,
 } from "./compiler.js";
-import { LogLevel, logger } from "./utils/logger.js";
+import {
+  LogLevel_Normal,
+  LogLevel_Verbose,
+  LogLevel_Debug,
+  LogLevel_Trace,
+  logger,
+} from "./utils/logger.js";
 import { runInit } from "./codegen/stdlib/init-templates.js";
 import { ArgumentParser } from "./argparse.js";
 import { parseWithTSAPI } from "./parser-ts/index.js";
@@ -291,10 +297,10 @@ if (
 }
 
 // Configure compiler options from parsed flags
-let logLevel = LogLevel.Normal;
-if (parser.getFlag("verbose")) logLevel = LogLevel.Verbose;
-if (parser.getFlag("debug")) logLevel = LogLevel.Debug;
-if (parser.getFlag("trace")) logLevel = LogLevel.Trace;
+let logLevel = LogLevel_Normal;
+if (parser.getFlag("verbose")) logLevel = LogLevel_Verbose;
+if (parser.getFlag("debug")) logLevel = LogLevel_Debug;
+if (parser.getFlag("trace")) logLevel = LogLevel_Trace;
 
 if (parser.getFlag("skip-semantic-analysis")) setSkipSemanticAnalysis(true);
 if (parser.getFlag("keep-temps")) setKeepTemps(true);
