@@ -818,6 +818,12 @@ export class VariableAllocator {
     if (!isClassInstance && strippedDeclType && this.isKnownClass(strippedDeclType)) {
       isClassInstance = true;
     }
+    if (!isClassInstance && nodeType === "index_access") {
+      const indexClassName = this.getIndexAccessClassName(stmtValue);
+      if (indexClassName) {
+        isClassInstance = true;
+      }
+    }
     // Detect Uint8Array from expression analysis (e.g. getEmbeddedFileAsUint8Array)
     if (!isUint8Array && this.ctx.isUint8ArrayExpression(stmtValue)) {
       isUint8Array = true;
@@ -1434,6 +1440,8 @@ export class VariableAllocator {
     } else if (valueBase.type === "call") {
       const callExpr = stmt.value as CallNode;
       className = this.getCallReturnClassName(callExpr) || "Unknown";
+    } else if (valueBase.type === "index_access") {
+      className = this.getIndexAccessClassName(stmt.value) || "Unknown";
     } else if (stmt.declaredType) {
       className = stripNullable(stmt.declaredType);
     } else {
@@ -2174,6 +2182,20 @@ export class VariableAllocator {
         this.ctx.emit(`store %ObjectArray* ${value}, %ObjectArray** ${allocaReg}`);
         return;
       }
+      if (this.isKnownClass(elementType)) {
+        this.ctx.defineVariable(
+          stmt.name,
+          allocaReg,
+          "%ObjectArray*",
+          SymbolKind.ObjectArray,
+          "local",
+        );
+        this.ctx.symbolTable.setRawInterfaceType(stmt.name, elementType);
+        this.ctx.emit(`${allocaReg} = alloca %ObjectArray*`);
+        const value = this.ctx.generateExpression(stmt.value!, params);
+        this.ctx.emit(`store %ObjectArray* ${value}, %ObjectArray** ${allocaReg}`);
+        return;
+      }
     }
 
     const inlineMeta = this.extractInlineObjectArrayMeta(stmt.value!);
@@ -2586,6 +2608,29 @@ export class VariableAllocator {
         }),
       );
     }
+  }
+
+  private getIndexAccessClassName(expr: Expression | null): string | null {
+    if (!expr) return null;
+    const e = expr as ExprBase;
+    if (e.type !== "index_access") return null;
+    const indexExpr = expr as IndexAccessNode;
+    if (!indexExpr.object) return null;
+    const objBase = indexExpr.object as ExprBase;
+    if (objBase.type === "variable") {
+      const varName = (indexExpr.object as VariableNode).name;
+      const rawType = this.ctx.symbolTable.getRawInterfaceType(varName);
+      if (rawType && this.isKnownClass(rawType)) return rawType;
+      const objArrayMeta = this.ctx.symbolTable.getObjectArrayMetadata(varName);
+      if (
+        objArrayMeta &&
+        objArrayMeta.elementInterfaceName &&
+        this.isKnownClass(objArrayMeta.elementInterfaceName)
+      ) {
+        return objArrayMeta.elementInterfaceName;
+      }
+    }
+    return null;
   }
 
   private getIndexedObjectArrayType(

@@ -2164,6 +2164,17 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           isUint8Array = true;
           isString = false;
         }
+        if (
+          !isClassInstance &&
+          stmt.value &&
+          (stmt.value as { type: string }).type === "index_access"
+        ) {
+          const idxClassName = this.getIndexAccessClassName(stmt.value);
+          if (idxClassName) {
+            isClassInstance = true;
+            resolvedBase = idxClassName;
+          }
+        }
 
         const isJSONParse = this.typeInference.isJSONParseExpression(stmt.value);
 
@@ -3741,6 +3752,19 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           }
         }
       }
+    }
+    return null;
+  }
+
+  private getIndexAccessClassName(expr: Expression): string | null {
+    if (!expr || (expr as { type: string }).type !== "index_access") return null;
+    const indexExpr = expr as IndexAccessNode;
+    if (!indexExpr.object) return null;
+    const objBase = indexExpr.object as { type: string };
+    if (objBase.type === "variable") {
+      const varName = (indexExpr.object as VariableNode).name;
+      const rawType = this.symbolTable.getRawInterfaceType(varName);
+      if (rawType && this.isKnownClass(rawType)) return rawType;
     }
     return null;
   }
