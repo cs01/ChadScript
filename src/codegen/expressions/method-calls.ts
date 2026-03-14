@@ -319,6 +319,14 @@ export class MethodCallGenerator {
         if (method === "from") {
           if (expr.args.length === 0)
             return this.ctx.emitError("Array.from() requires at least 1 argument", expr.loc);
+          if (this.ctx.isStringExpression(expr.args[0])) {
+            const strPtr = this.ctx.generateExpression(expr.args[0], params);
+            const emptyDelim = this.ctx.nextTemp();
+            this.ctx.emit(
+              `${emptyDelim} = getelementptr inbounds [1 x i8], [1 x i8]* @.str.empty_str, i64 0, i64 0`,
+            );
+            return this.ctx.stringGen.doGenerateSplit(strPtr, emptyDelim);
+          }
           return this.ctx.generateExpression(expr.args[0], params);
         }
         if (method === "isArray") {

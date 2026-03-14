@@ -149,6 +149,7 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += '@.str.strfmt_no_nl = private unnamed_addr constant [3 x i8] c"%s\\00", align 1\n';
   ir += '@.str.numfmt_no_nl = private unnamed_addr constant [6 x i8] c"%.15g\\00", align 1\n';
   ir += '@.str.space = private unnamed_addr constant [2 x i8] c" \\00", align 1\n';
+  ir += '@.str.empty_str = private unnamed_addr constant [1 x i8] c"\\00", align 1\n';
   ir += '@.str.hello = private unnamed_addr constant [7 x i8] c"Hello\\0A\\00", align 1\n';
   ir += '@.str.throw_fmt = private constant [11 x i8] c"Error: %s\\0A\\00"\n';
   ir += '@.str.popen_mode = private unnamed_addr constant [2 x i8] c"r\\00", align 1\n';
