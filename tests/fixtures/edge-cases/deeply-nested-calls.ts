@@ -32,7 +32,9 @@ if (result3 !== -12) {
 
 const maxResult = Math.max(Math.min(10, 20), Math.abs(-5));
 if (maxResult !== 10) {
-  console.log("FAIL: Math.max(Math.min(10,20), Math.abs(-5)) should be 10, got " + String(maxResult));
+  console.log(
+    "FAIL: Math.max(Math.min(10,20), Math.abs(-5)) should be 10, got " + String(maxResult),
+  );
   process.exit(1);
 }
 
