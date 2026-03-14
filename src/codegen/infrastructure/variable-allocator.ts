@@ -1450,6 +1450,17 @@ export class VariableAllocator {
       className = this.getIndexAccessClassName(stmt.value) || "Unknown";
     } else if (valueBase.type === "member_access") {
       className = this.getMemberAccessClassName(stmt.value) || "Unknown";
+    } else if (valueBase.type === "variable") {
+      const srcName = (stmt.value as VariableNode).name;
+      const srcMeta = this.ctx.symbolTable.getClassMetadata(srcName);
+      className = srcMeta ? srcMeta.className : "Unknown";
+    } else if (valueBase.type === "ternary") {
+      const resolved = stmt.value ? this.ctx.resolveExpressionType(stmt.value) : null;
+      if (resolved && this.isKnownClass(resolved.base)) {
+        className = resolved.base;
+      } else {
+        className = "Unknown";
+      }
     } else if (stmt.declaredType) {
       className = stripNullable(stmt.declaredType);
     } else {
@@ -1471,9 +1482,14 @@ export class VariableAllocator {
 
     const instancePtr = this.ctx.generateExpression(stmt.value!, params);
     if (fields.length > 0) {
-      const typedPtr = this.ctx.nextTemp();
-      this.ctx.emit(`${typedPtr} = bitcast i8* ${instancePtr} to ${ptrType}`);
-      this.ctx.emit(`store ${ptrType} ${typedPtr}, ${ptrType}* ${allocaReg}`);
+      const valueType = this.ctx.getVariableType(instancePtr);
+      if (valueType === ptrType) {
+        this.ctx.emit(`store ${ptrType} ${instancePtr}, ${ptrType}* ${allocaReg}`);
+      } else {
+        const typedPtr = this.ctx.nextTemp();
+        this.ctx.emit(`${typedPtr} = bitcast i8* ${instancePtr} to ${ptrType}`);
+        this.ctx.emit(`store ${ptrType} ${typedPtr}, ${ptrType}* ${allocaReg}`);
+      }
     } else {
       this.ctx.emit(`store ${ptrType} ${instancePtr}, ${ptrType}* ${allocaReg}`);
     }
