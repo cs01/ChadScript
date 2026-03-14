@@ -824,6 +824,12 @@ export class VariableAllocator {
         isClassInstance = true;
       }
     }
+    if (!isClassInstance && nodeType === "member_access") {
+      const memberClassName = this.getMemberAccessClassName(stmtValue);
+      if (memberClassName) {
+        isClassInstance = true;
+      }
+    }
     // Detect Uint8Array from expression analysis (e.g. getEmbeddedFileAsUint8Array)
     if (!isUint8Array && this.ctx.isUint8ArrayExpression(stmtValue)) {
       isUint8Array = true;
@@ -1442,6 +1448,8 @@ export class VariableAllocator {
       className = this.getCallReturnClassName(callExpr) || "Unknown";
     } else if (valueBase.type === "index_access") {
       className = this.getIndexAccessClassName(stmt.value) || "Unknown";
+    } else if (valueBase.type === "member_access") {
+      className = this.getMemberAccessClassName(stmt.value) || "Unknown";
     } else if (stmt.declaredType) {
       className = stripNullable(stmt.declaredType);
     } else {
@@ -2608,6 +2616,25 @@ export class VariableAllocator {
         }),
       );
     }
+  }
+
+  private getMemberAccessClassName(expr: Expression | null): string | null {
+    if (!expr) return null;
+    const e = expr as ExprBase;
+    if (e.type !== "member_access") return null;
+    const memberExpr = expr as MemberAccessNode;
+    const objBase = memberExpr.object as ExprBase;
+    if (objBase.type !== "variable") return null;
+    const varName = (memberExpr.object as VariableNode).name;
+    const classMeta = this.ctx.symbolTable.getClassMetadata(varName);
+    if (!classMeta) return null;
+    const className = classMeta.className;
+    if (!className) return null;
+    const fieldInfo = this.ctx.classGenGetFieldInfo(className, memberExpr.property);
+    if (!fieldInfo || !fieldInfo.tsType) return null;
+    const fieldTsType = stripNullable(fieldInfo.tsType);
+    if (this.isKnownClass(fieldTsType)) return fieldTsType;
+    return null;
   }
 
   private getIndexAccessClassName(expr: Expression | null): string | null {
