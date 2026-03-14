@@ -1070,6 +1070,16 @@ export class ControlFlowGenerator {
     }
     if (iterBase.type === "method_call") {
       const mcNode = iterable as MethodCallNode;
+      const mcMethod = mcNode.method;
+      if (
+        mcMethod === "filter" ||
+        mcMethod === "sort" ||
+        mcMethod === "reverse" ||
+        mcMethod === "slice"
+      ) {
+        const sourceElemType = this.getIterableClassElementType(mcNode.object);
+        if (sourceElemType) return sourceElemType;
+      }
       const objBase = mcNode.object as ExprBase;
       if (objBase.type === "variable") {
         const objName = (mcNode.object as VariableNode).name;

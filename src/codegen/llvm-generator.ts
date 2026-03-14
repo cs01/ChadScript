@@ -2290,6 +2290,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           if (!elementType && resolvedBase && this.isKnownClass(resolvedBase)) {
             elementType = resolvedBase;
           }
+          if (!elementType && stmt.value) {
+            const objArrElemType = this.typeInference.getObjectArrayElementType(stmt.value);
+            if (objArrElemType) elementType = objArrElemType;
+          }
           llvmType = "%ObjectArray*";
           kind = SymbolKind.ObjectArray;
           defaultValue = "null";
