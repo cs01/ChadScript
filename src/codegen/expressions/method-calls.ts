@@ -433,6 +433,13 @@ export class MethodCallGenerator {
     const objBase = expr.object as { type: string };
     const method = expr.method;
 
+    if (method === "") {
+      return this.ctx.emitError(
+        "Immediately invoked function expressions (IIFE) are not supported.",
+        expr.loc,
+      );
+    }
+
     // Named-object dispatch: console, process, fs, path, crypto, sqlite, JSON, etc.
     const varName = this.getVariableName(expr.object);
     if (varName !== null) {
