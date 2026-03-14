@@ -699,6 +699,26 @@ export function handleClassMethods(
           }
         }
       }
+    } else if (baseExprBase.type === "variable") {
+      const varName = (baseExpr as VariableNode).name;
+      const rawType = ctx.symbolTable.getRawInterfaceType(varName);
+      if (rawType) {
+        const resolvedClass = findClassWithMethod(ctx, rawType, method);
+        if (resolvedClass) {
+          instancePtr = ctx.generateExpression(expr.object, params);
+          className = resolvedClass;
+        }
+      }
+      if (!className) {
+        const objArrayMeta = ctx.symbolTable.getObjectArrayMetadata(varName);
+        if (objArrayMeta && objArrayMeta.elementInterfaceName) {
+          const resolvedClass = findClassWithMethod(ctx, objArrayMeta.elementInterfaceName, method);
+          if (resolvedClass) {
+            instancePtr = ctx.generateExpression(expr.object, params);
+            className = resolvedClass;
+          }
+        }
+      }
     }
   } else if (exprObjBase.type === "super") {
     const thisPtr = ctx.getThisPointer();
