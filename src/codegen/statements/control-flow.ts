@@ -439,6 +439,16 @@ export class ControlFlowGenerator {
       return this.generateMapEntriesForOf(stmt, params);
     }
 
+    const isNonDestructuredEntries =
+      !forOfStmt.destructuredNames && this.isMapEntriesCall(forOfStmt.iterable);
+    if (isNonDestructuredEntries) {
+      return this.ctx.emitError(
+        "Map entries() requires destructured iteration: for (const [key, value] of map.entries())",
+        stmt.loc,
+        "Use destructuring: for (const [key, value] of map.entries()) { ... }",
+      );
+    }
+
     const isStringIterable = this.ctx.isStringExpression(forOfStmt.iterable);
     if (isStringIterable) {
       return this.generateStringForOf(stmt as ForOfStatement, params);
