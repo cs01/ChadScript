@@ -309,12 +309,20 @@ export class FunctionGenerator {
           this.ctx.defineVariable(paramName, allocaReg, "i8*", SymbolKind.Pointer, "local");
         } else {
           const ast = this.ctx.getAst();
+          let strippedParamType = paramTypes[i];
+          if (strippedParamType.indexOf(" | ") !== -1) {
+            strippedParamType = strippedParamType
+              .split(" | ")
+              .filter((p: string) => p.trim() !== "null" && p.trim() !== "undefined")
+              .join(" | ")
+              .trim();
+          }
           let classDefName: string = "";
           const classes = ast ? ast.classes || [] : [];
           for (let jc = 0; jc < classes.length; jc++) {
             const cls = classes[jc] as ClassNode;
             if (!cls || !cls.name) continue;
-            if (cls.name === paramTypes[i]) {
+            if (cls.name === strippedParamType) {
               classDefName = cls.name;
               break;
             }
@@ -326,7 +334,7 @@ export class FunctionGenerator {
           for (let ji = 0; ji < interfaces.length; ji++) {
             const iface = interfaces[ji] as InterfaceDeclaration;
             if (!iface || !iface.name) continue;
-            if (iface.name === paramTypes[i]) {
+            if (iface.name === strippedParamType) {
               interfaceDefName = iface.name;
               interfaceDefFields = this.ctx.getAllInterfaceFields(iface);
               break;
