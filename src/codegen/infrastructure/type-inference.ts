@@ -622,7 +622,7 @@ export class TypeInference {
     method: string,
     objBase: ExprBase,
   ): ResolvedType | null {
-    if (method === "slice" || method === "concat") {
+    if (method === "slice" || method === "splice" || method === "concat") {
       const objResolved = this.resolveExpressionType(expr.object);
       if (objResolved) return objResolved;
     }
@@ -1329,7 +1329,11 @@ export class TypeInference {
           return true;
         }
       }
-      if (methodExpr.method === "slice" || methodExpr.method === "concat") {
+      if (
+        methodExpr.method === "slice" ||
+        methodExpr.method === "splice" ||
+        methodExpr.method === "concat"
+      ) {
         const objBase = methodExpr.object as ExprBase;
         if (objBase.type === "array") {
           return true;
@@ -1532,6 +1536,7 @@ export class TypeInference {
       }
       if (
         methodExpr.method === "slice" ||
+        methodExpr.method === "splice" ||
         methodExpr.method === "concat" ||
         methodExpr.method === "filter"
       ) {
@@ -2447,6 +2452,7 @@ export class TypeInference {
       if (
         methodExpr.method === "map" ||
         methodExpr.method === "filter" ||
+        methodExpr.method === "splice" ||
         methodExpr.method === "slice" ||
         methodExpr.method === "concat"
       ) {
