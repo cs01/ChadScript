@@ -340,6 +340,12 @@ function transformTopLevelStatement(
       break;
     }
 
+    case ts.SyntaxKind.SwitchStatement:
+      const switchAsIf = transformStatement(node, checker) as IfStatement;
+      ast.topLevelExpressions.push(switchAsIf);
+      ast.topLevelItems!.push(switchAsIf);
+      break;
+
     default:
       break;
   }

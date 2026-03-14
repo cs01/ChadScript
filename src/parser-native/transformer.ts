@@ -249,6 +249,16 @@ function transformTopLevelNode(node: TreeSitterNode, ast: AST): void {
       }
       break;
 
+    case "switch_statement":
+      const switchBlock = transformSwitchStatement(node);
+      for (let si = 0; si < switchBlock.statements.length; si++) {
+        const s = switchBlock.statements[si];
+        ast.topLevelExpressions.push(s as IfStatement);
+        ast.topLevelItems!.push(s as TopLevelItem);
+        ast.topLevelItemTypes!.push(s.type);
+      }
+      break;
+
     case "export_statement":
       handleExportStatement(node, ast);
       break;
