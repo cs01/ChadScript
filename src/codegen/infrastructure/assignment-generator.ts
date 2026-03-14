@@ -145,9 +145,22 @@ export class AssignmentGenerator {
           className = classWithField.name;
         }
       }
-    } else if (objType === "member_access" && property === "length") {
-      this.handleArrayLengthAssignment(object as MemberAccessNode, memberAccessValue, params);
-      return;
+    } else if (objType === "member_access") {
+      if (property === "length") {
+        this.handleArrayLengthAssignment(object as MemberAccessNode, memberAccessValue, params);
+        return;
+      }
+      const resolvedClass = this.resolveClassFromMemberAccess(object as MemberAccessNode);
+      if (resolvedClass) {
+        this.handleChainedMemberAccessAssignment(
+          object as MemberAccessNode,
+          resolvedClass,
+          property,
+          memberAccessValue,
+          params,
+        );
+        return;
+      }
     } else if (objType === "index_access") {
       this.handleIndexAccessPropertyAssignment(
         object as IndexAccessNode,
@@ -308,6 +321,77 @@ export class AssignmentGenerator {
           ". Did you forget to declare it with a type annotation?",
       );
     }
+  }
+
+  private resolveClassFromMemberAccess(expr: MemberAccessNode): string | null {
+    const innerObj = expr.object as { type: string };
+    let ownerClass: string | null = null;
+
+    if (innerObj.type === "variable") {
+      const varName = (expr.object as VariableNode).name;
+      if (this.ctx.symbolTable.isClass(varName)) {
+        const classMeta = this.ctx.symbolTable.getClassInfo(varName)!;
+        ownerClass = classMeta.className;
+      }
+    } else if (innerObj.type === "this") {
+      ownerClass = this.ctx.getCurrentClassName();
+    } else if (innerObj.type === "member_access") {
+      ownerClass = this.resolveClassFromMemberAccess(expr.object as MemberAccessNode);
+    }
+
+    if (!ownerClass) return null;
+
+    const fieldInfo = this.ctx.classGenGetFieldInfo(ownerClass, expr.property);
+    if (!fieldInfo) return null;
+    const fi = fieldInfo as FieldInfo;
+    if (!fi.tsType) return null;
+
+    const strippedType = stripNullable(fi.tsType);
+    const classFields = this.ctx.classGenGetClassFields(strippedType);
+    if (classFields.length > 0) return strippedType;
+
+    return null;
+  }
+
+  private handleChainedMemberAccessAssignment(
+    object: MemberAccessNode,
+    targetClassName: string,
+    property: string,
+    memberAccessValue: MemberAccessAssignmentNode,
+    params: string[],
+  ): void {
+    const fieldInfoResult = this.ctx.classGenGetFieldInfo(targetClassName, property);
+    if (!fieldInfoResult) {
+      return this.ctx.emitError(`Field '${property}' not found in class ${targetClassName}`);
+    }
+    const fi = fieldInfoResult as FieldInfo;
+
+    if (fi.tsType && fi.tsType.startsWith("Map<string,")) {
+      this.ctx.setCurrentDeclaredMapType(fi.tsType);
+    }
+    if (fi.tsType && fi.tsType.startsWith("Set<")) {
+      this.ctx.setCurrentDeclaredSetType(fi.tsType);
+    }
+
+    const value = this.ctx.generateExpression(memberAccessValue.value, params);
+    this.ctx.setCurrentDeclaredMapType(undefined);
+    this.ctx.setCurrentDeclaredSetType(undefined);
+
+    const objPtr = this.ctx.generateExpression(object, params);
+    const structType = `%${targetClassName}_struct`;
+    const varType = this.ctx.getVariableType(objPtr);
+    let typedPtr: string;
+    if (varType === `${structType}*`) {
+      typedPtr = objPtr;
+    } else {
+      typedPtr = this.ctx.emitBitcast(objPtr, "i8*", `${structType}*`);
+    }
+
+    const fieldPtr = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${typedPtr}, i32 0, i32 ${fi.index}`,
+    );
+    this.storeFieldValueDirect(fi.type, fi.tsType || null, fieldPtr, value, memberAccessValue);
   }
 
   private storeFieldValueDirect(
