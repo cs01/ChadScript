@@ -1766,6 +1766,10 @@ export class MemberAccessGenerator {
 
   private handleIndexAccessPropertyAccess(expr: MemberAccessNode, params: string[]): string | null {
     const indexAccess = expr.object as IndexAccessNode;
+    const classElementType = this.getIndexAccessClassElementType(indexAccess.object);
+    if (classElementType) {
+      return this.handleClassArrayIndexPropertyAccess(expr, indexAccess, classElementType, params);
+    }
     const elementInfoRaw = this.getObjectArrayElementInfo(indexAccess.object);
     if (!elementInfoRaw) return null;
     const elementInfo = elementInfoRaw as { keys: string[]; types: string[]; tsTypes: string[] };
@@ -1843,6 +1847,97 @@ export class MemberAccessGenerator {
     }
 
     return value;
+  }
+
+  private getIndexAccessClassElementType(arrayExpr: Expression): string | null {
+    if (arrayExpr.type === "variable") {
+      const varName = (arrayExpr as VariableNode).name;
+      const elementType = this.ctx.symbolTable.getObjectArrayElementType(varName);
+      if (elementType && this.ctx.classGenGetClassFields(elementType).length > 0) {
+        return elementType;
+      }
+      const paramType = this.getParameterTypeFromAST(varName);
+      if (paramType && paramType.endsWith("[]")) {
+        const elemType = paramType.slice(0, -2);
+        if (this.ctx.classGenGetClassFields(elemType).length > 0) {
+          return elemType;
+        }
+      }
+    }
+    return null;
+  }
+
+  private handleClassArrayIndexPropertyAccess(
+    expr: MemberAccessNode,
+    indexAccess: IndexAccessNode,
+    className: string,
+    params: string[],
+  ): string | null {
+    const fieldInfo = this.ctx.classGenGetFieldInfo(className, expr.property);
+    if (!fieldInfo) return null;
+    const fi = fieldInfo as FieldInfo;
+    const structType = `%${className}_struct`;
+
+    const arrayPtr = this.ctx.generateExpression(indexAccess.object, params);
+    const indexDouble = this.ctx.generateExpression(indexAccess.index, params);
+
+    const indexType = this.ctx.getVariableType(indexDouble);
+    let index = indexDouble;
+    if (indexType === "double" || indexType === undefined) {
+      index = this.ctx.nextTemp();
+      this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
+    } else if (indexType === "i64") {
+      index = this.ctx.nextTemp();
+      this.ctx.emit(`${index} = trunc i64 ${indexDouble} to i32`);
+    }
+
+    const dataPtr = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${dataPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`,
+    );
+    const data = this.ctx.nextTemp();
+    this.ctx.emit(`${data} = load i8*, i8** ${dataPtr}`);
+    const dataAsPtrs = this.ctx.emitBitcast(data, "i8*", "i8**");
+    const elemPtrPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${elemPtrPtr} = getelementptr inbounds i8*, i8** ${dataAsPtrs}, i32 ${index}`);
+    const elemPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${elemPtr} = load i8*, i8** ${elemPtrPtr}`);
+    const elemTyped = this.ctx.emitBitcast(elemPtr, "i8*", `${structType}*`);
+
+    const fieldLlvmType = this.classFieldToLlvm(fi);
+    const fieldPtr = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${elemTyped}, i32 0, i32 ${fi.index}`,
+    );
+    const value = this.ctx.nextTemp();
+    this.ctx.emit(`${value} = load ${fieldLlvmType}, ${fieldLlvmType}* ${fieldPtr}`);
+    this.ctx.setVariableType(value, fieldLlvmType);
+
+    return value;
+  }
+
+  private classFieldToLlvm(fi: FieldInfo): string {
+    const ft = fi.type;
+    if (ft === "string") return "i8*";
+    if (ft === "boolean") return "i1";
+    if (ft === "string[]") return "%StringArray*";
+    if (ft === "number[]") return "%Array*";
+    if (ft === "boolean[]") return "%Array*";
+    if (ft === "double" && fi.tsType) {
+      let ts = fi.tsType;
+      if (ts.indexOf(" | ") !== -1) {
+        ts = ts
+          .replace(/ \| undefined/g, "")
+          .replace(/ \| null/g, "")
+          .trim();
+      }
+      if (ts.endsWith("[]")) return "%ObjectArray*";
+      if (ts.startsWith("Map<")) return ts.startsWith("Map<string,") ? "%StringMap*" : "%Map*";
+      if (ts.startsWith("Set<")) return ts === "Set<string>" ? "%StringSet*" : "%Set*";
+      const classFields = this.ctx.classGenGetClassFields(ts);
+      if (classFields.length > 0) return `%${ts}_struct*`;
+    }
+    return "double";
   }
 
   private getKnownTypeProperties(
@@ -2179,6 +2274,14 @@ export class MemberAccessGenerator {
       const elementType = this.ctx.symbolTable.getObjectArrayElementType(varName);
       if (elementType) {
         const interfaceInfo = this.getInterfaceInfo(elementType);
+        if (interfaceInfo) {
+          return interfaceInfo;
+        }
+      }
+      const paramType = this.getParameterTypeFromAST(varName);
+      if (paramType && paramType.endsWith("[]")) {
+        const elemType = paramType.slice(0, -2);
+        const interfaceInfo = this.getInterfaceInfo(elemType);
         if (interfaceInfo) {
           return interfaceInfo;
         }
