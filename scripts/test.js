@@ -76,6 +76,9 @@ const testFiles = [
   "tests/unit/type-system.test.ts",
   "tests/network.test.ts",
   "tests/http-routes.test.ts",
+  "tests/http-headers.test.ts",
+  "tests/http-query-string.test.ts",
+  "tests/multipart.test.ts",
 ];
 
 const env =
