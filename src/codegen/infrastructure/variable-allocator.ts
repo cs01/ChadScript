@@ -2688,6 +2688,35 @@ export class VariableAllocator {
       ) {
         return objArrayMeta.elementInterfaceName;
       }
+    } else if (objBase.type === "member_access") {
+      const memberAccess = indexExpr.object as MemberAccessNode;
+      const memberObjBase = memberAccess.object as ExprBase;
+      let ownerClassName: string | null = null;
+      if (memberObjBase.type === "this") {
+        ownerClassName = this.ctx.getCurrentClassName();
+      } else if (memberObjBase.type === "variable") {
+        const vn = (memberAccess.object as VariableNode).name;
+        if (this.ctx.symbolTable.isClass(vn)) {
+          const cm = this.ctx.symbolTable.getClassInfo(vn);
+          if (cm) ownerClassName = cm.className;
+        }
+      }
+      if (ownerClassName) {
+        const fieldInfo = this.ctx.classGenGetFieldInfo(ownerClassName, memberAccess.property);
+        if (fieldInfo && fieldInfo.tsType) {
+          let tsType = fieldInfo.tsType;
+          if (tsType.indexOf(" | ") !== -1) {
+            tsType = tsType
+              .replace(/ \| undefined/g, "")
+              .replace(/ \| null/g, "")
+              .trim();
+          }
+          if (tsType.endsWith("[]")) {
+            const elemType = tsType.substring(0, tsType.length - 2);
+            if (this.isKnownClass(elemType)) return elemType;
+          }
+        }
+      }
     }
     return null;
   }
