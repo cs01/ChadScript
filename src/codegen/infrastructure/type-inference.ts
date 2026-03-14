@@ -548,6 +548,13 @@ export class TypeInference {
         }
       }
 
+      if (this.getClass(varName)) {
+        const classMethod = this.getClassMethod(varName, method);
+        if (classMethod && classMethod.returnType) {
+          return this.ctx.typeContext.resolve(stripNullable(classMethod.returnType));
+        }
+      }
+
       const ifaceType = this.st.getInterfaceType(varName);
       if (ifaceType && ifaceType.length > 0) {
         const methodReturnType = this.getInterfaceMethodReturnType(ifaceType, method);
