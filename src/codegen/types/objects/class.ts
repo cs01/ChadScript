@@ -708,6 +708,10 @@ export class ClassGenerator {
           const conv2 = this.nextTemp();
           this.emit(`${conv2} = sitofp i32 ${conv} to double`);
           this.ctx.emitStore("double", conv2, fieldPtr);
+        } else if (resultType !== llvmType && llvmType === "double" && resultType === "i64") {
+          const conv = this.nextTemp();
+          this.emit(`${conv} = sitofp i64 ${initResult} to double`);
+          this.ctx.emitStore("double", conv, fieldPtr);
         } else if (resultType !== llvmType) {
           const cast = this.ctx.emitBitcast(initResult, resultType, llvmType);
           this.ctx.emitStore(llvmType, cast, fieldPtr);
@@ -827,6 +831,10 @@ export class ClassGenerator {
             const conv2 = this.nextTemp();
             this.emit(`${conv2} = sitofp i32 ${conv} to double`);
             this.ctx.emitStore("double", conv2, fieldPtr);
+          } else if (resultType !== llvmType && llvmType === "double" && resultType === "i64") {
+            const conv = this.nextTemp();
+            this.emit(`${conv} = sitofp i64 ${initResult} to double`);
+            this.ctx.emitStore("double", conv, fieldPtr);
           } else if (resultType !== llvmType) {
             const cast = this.ctx.emitBitcast(initResult, resultType, llvmType);
             this.ctx.emitStore(llvmType, cast, fieldPtr);
