@@ -3,6 +3,7 @@ import {
   ClassNode,
   ClassMethod,
   ClassField,
+  FunctionParameter,
   VariableNode,
   InterfaceDeclaration,
   CommonField,
@@ -770,6 +771,18 @@ export class ClassGenerator {
     }
 
     const thisType = `%${className}_struct*`;
+
+    let hasOptionalParams = false;
+    if (method.parameters) {
+      for (let pi = 0; pi < method.parameters.length; pi++) {
+        const p = method.parameters[pi] as FunctionParameter;
+        if (p.optional || p.defaultValue) {
+          hasOptionalParams = true;
+          break;
+        }
+      }
+    }
+
     let ir = `define ${returnLLVMType} @${this.ctx.mangleUserName(className)}_${method.name}(${thisType} %this`;
 
     const paramLLVMTypes: string[] = [];
@@ -782,13 +795,15 @@ export class ClassGenerator {
       }
     }
 
-    if (method.params.length > 0) {
-      ir += ", ";
-      const paramParts: string[] = [];
-      for (let pidx = 0; pidx < paramLLVMTypes.length; pidx++) {
-        paramParts.push(paramLLVMTypes[pidx] + " %arg" + pidx);
-      }
-      ir += paramParts.join(", ");
+    const paramParts: string[] = [];
+    if (hasOptionalParams) {
+      paramParts.push("i32 %__argc");
+    }
+    for (let pidx = 0; pidx < paramLLVMTypes.length; pidx++) {
+      paramParts.push(paramLLVMTypes[pidx] + " %arg" + pidx);
+    }
+    if (paramParts.length > 0) {
+      ir += ", " + paramParts.join(", ");
     }
     ir += ") {\n";
     ir += "entry:\n";
@@ -815,6 +830,14 @@ export class ClassGenerator {
 
       this.defineParameterWithType(paramName, allocaReg, llvmType, tsType);
       this.emit(`${allocaReg} = alloca ${llvmType}`);
+
+      if (hasOptionalParams && method.parameters && method.parameters[i]) {
+        const paramInfo = method.parameters[i] as FunctionParameter;
+        if (paramInfo.optional || paramInfo.defaultValue) {
+          this.generateOptionalParamInit(i, allocaReg, llvmType, paramInfo, method.params);
+          continue;
+        }
+      }
       this.ctx.emitStore(llvmType, `%arg${i}`, allocaReg);
     }
 
@@ -1080,7 +1103,21 @@ export class ClassGenerator {
       paramLLVMTypes.push(this.tsTypeToLlvm(pType));
     }
 
+    let methodHasOptionalParams = false;
+    if (method.parameters) {
+      for (let pi = 0; pi < method.parameters.length; pi++) {
+        const p = method.parameters[pi] as FunctionParameter;
+        if (p.optional || p.defaultValue) {
+          methodHasOptionalParams = true;
+          break;
+        }
+      }
+    }
+
     const argParts: string[] = [];
+    if (methodHasOptionalParams) {
+      argParts.push(`i32 ${args.length}`);
+    }
     const loopLimit = method.params.length > args.length ? method.params.length : args.length;
     for (let ai = 0; ai < loopLimit; ai++) {
       if (ai < args.length) {
@@ -1381,6 +1418,43 @@ export class ClassGenerator {
       }
     }
     return "i8*";
+  }
+
+  private optionalParamCounter = 0;
+
+  private generateOptionalParamInit(
+    paramIndex: number,
+    allocaReg: string,
+    llvmType: string,
+    paramInfo: FunctionParameter,
+    params: string[],
+  ): void {
+    const labelId = this.optionalParamCounter++;
+    const hasArgLabel = `has_arg_${labelId}`;
+    const noArgLabel = `no_arg_${labelId}`;
+    const doneLabel = `done_arg_${labelId}`;
+
+    const cmpReg = this.nextTemp();
+    this.emit(`${cmpReg} = icmp sgt i32 %__argc, ${paramIndex}`);
+    this.emit(`br i1 ${cmpReg}, label %${hasArgLabel}, label %${noArgLabel}`);
+
+    this.emit(`${hasArgLabel}:`);
+    const ptrType = llvmType === "double" ? "double*" : llvmType + "*";
+    this.emit(`store ${llvmType} %arg${paramIndex}, ${ptrType} ${allocaReg}`);
+    this.emit(`br label %${doneLabel}`);
+
+    this.emit(`${noArgLabel}:`);
+    if (paramInfo.defaultValue) {
+      const defaultReg = this.ctx.generateExpression(paramInfo.defaultValue, params);
+      const coerced = llvmType === "double" ? this.ctx.ensureDouble(defaultReg) : defaultReg;
+      this.emit(`store ${llvmType} ${coerced}, ${ptrType} ${allocaReg}`);
+    } else {
+      const defaultVal = llvmType === "double" ? "0.0" : "null";
+      this.emit(`store ${llvmType} ${defaultVal}, ${ptrType} ${allocaReg}`);
+    }
+    this.emit(`br label %${doneLabel}`);
+
+    this.emit(`${doneLabel}:`);
   }
 
   private defineParameterWithType(
