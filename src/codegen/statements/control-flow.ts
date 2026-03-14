@@ -33,6 +33,7 @@ import {
   ObjectMetadata,
   createObjectMetadata,
   createObjectMetadataWithInterface,
+  createClassMetadata,
 } from "../infrastructure/symbol-table.js";
 import type { UnionCommonFields } from "../infrastructure/type-resolver/index.js";
 import type { FieldInfo } from "../infrastructure/type-resolver/types.js";
@@ -486,6 +487,10 @@ export class ControlFlowGenerator {
             elementKind = SymbolKind.Array;
           }
         }
+        const rawElemType = this.ctx.symbolTable.getRawInterfaceType(varName);
+        if (rawElemType && this.ctx.classGenGetClassFields(rawElemType).length > 0) {
+          elementKind = SymbolKind.Class;
+        }
       }
     } else {
       arrayType = "%Array";
@@ -505,22 +510,43 @@ export class ControlFlowGenerator {
     this.ctx.emitStore("i32", "0", indexAlloca);
 
     let actualElementType = elementType;
+    let forOfClassName = "";
     if (elementKind === SymbolKind.StringArray) {
       actualElementType = "%StringArray*";
     } else if (elementKind === SymbolKind.Array && isObjectArray) {
       actualElementType = "%Array*";
+    } else if (elementKind === SymbolKind.Class && isObjectArray) {
+      const iterBase = forOfStmt.iterable as ExprBase;
+      if (iterBase.type === "variable") {
+        const vn = (forOfStmt.iterable as VariableNode).name;
+        forOfClassName = this.ctx.symbolTable.getRawInterfaceType(vn) || "";
+      }
+      if (forOfClassName) {
+        actualElementType = `%${forOfClassName}_struct*`;
+      }
     }
 
     const elemAlloca = this.ctx.nextAllocaReg(forOfStmt.variableName);
     this.emit(`${elemAlloca} = alloca ${actualElementType}`);
 
-    this.ctx.defineVariable(
-      forOfStmt.variableName,
-      elemAlloca,
-      actualElementType,
-      elementKind,
-      "local",
-    );
+    if (elementKind === SymbolKind.Class && forOfClassName) {
+      this.ctx.defineVariableWithMetadata(
+        forOfStmt.variableName,
+        elemAlloca,
+        actualElementType,
+        SymbolKind.Class,
+        "local",
+        createClassMetadata({ className: forOfClassName }),
+      );
+    } else {
+      this.ctx.defineVariable(
+        forOfStmt.variableName,
+        elemAlloca,
+        actualElementType,
+        elementKind,
+        "local",
+      );
+    }
 
     if (elementKind === SymbolKind.StringArray) {
       this.ctx.symbolTable.setResolvedType(
