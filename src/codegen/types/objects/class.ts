@@ -46,6 +46,19 @@ export class ClassGenerator {
     return null;
   }
 
+  private findInheritedConstructor(parentClassName: string): ClassMethod | null {
+    const parentNode = this.findClassNode(parentClassName);
+    if (!parentNode) return null;
+    for (let mi = 0; mi < parentNode.methods.length; mi++) {
+      const m = parentNode.methods[mi] as ClassMethod;
+      if (m && m.isConstructor) return m;
+    }
+    if (parentNode.extends) {
+      return this.findInheritedConstructor(parentNode.extends as string);
+    }
+    return null;
+  }
+
   private getAllFieldsIncludingInherited(classNode: ClassNode): ClassField[] {
     const allFields: ClassField[] = [];
     if (classNode.extends) {
@@ -418,14 +431,26 @@ export class ClassGenerator {
         console.log("WARNING: constructor for " + className + " returned falsy");
       }
     } else {
-      const defaultCtorIr = this.generateDefaultConstructorFromTypes(
-        className,
-        fieldLlvmTypes,
-        allFields,
-      );
-      if (defaultCtorIr) {
-        parts.push(defaultCtorIr);
-        parts.push("\n");
+      const inheritedCtor = classNode.extends
+        ? this.findInheritedConstructor(classNode.extends as string)
+        : null;
+      if (inheritedCtor) {
+        this.ctx.clearOutput();
+        const constructorIr = this.generateConstructor(className, inheritedCtor, allFields);
+        if (constructorIr) {
+          parts.push(constructorIr);
+          parts.push("\n");
+        }
+      } else {
+        const defaultCtorIr = this.generateDefaultConstructorFromTypes(
+          className,
+          fieldLlvmTypes,
+          allFields,
+        );
+        if (defaultCtorIr) {
+          parts.push(defaultCtorIr);
+          parts.push("\n");
+        }
       }
     }
 
@@ -1038,6 +1063,9 @@ export class ClassGenerator {
         constructorResult2 = m;
         break;
       }
+    }
+    if (!constructorResult2 && classNode.extends) {
+      constructorResult2 = this.findInheritedConstructor(classNode.extends as string);
     }
     const constructor2 = constructorResult2 as ClassMethod;
     const paramTypes = constructor2 ? constructor2.paramTypes || [] : [];
