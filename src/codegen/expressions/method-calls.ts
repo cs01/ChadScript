@@ -584,8 +584,10 @@ export class MethodCallGenerator {
       }
     }
 
-    const stringResult = dispatchStringMethod(this.ctx, method, expr, params);
-    if (stringResult !== null) return stringResult;
+    if (!this.isClassInstanceExpression(expr.object)) {
+      const stringResult = dispatchStringMethod(this.ctx, method, expr, params);
+      if (stringResult !== null) return stringResult;
+    }
 
     if (
       method === "set" ||
