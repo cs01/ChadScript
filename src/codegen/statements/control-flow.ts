@@ -487,10 +487,10 @@ export class ControlFlowGenerator {
             elementKind = SymbolKind.Array;
           }
         }
-        const rawElemType = this.ctx.symbolTable.getRawInterfaceType(varName);
-        if (rawElemType && this.ctx.classGenGetClassFields(rawElemType).length > 0) {
-          elementKind = SymbolKind.Class;
-        }
+      }
+      const classElemType = this.getIterableClassElementType(forOfStmt.iterable);
+      if (classElemType) {
+        elementKind = SymbolKind.Class;
       }
     } else {
       arrayType = "%Array";
@@ -516,11 +516,7 @@ export class ControlFlowGenerator {
     } else if (elementKind === SymbolKind.Array && isObjectArray) {
       actualElementType = "%Array*";
     } else if (elementKind === SymbolKind.Class && isObjectArray) {
-      const iterBase = forOfStmt.iterable as ExprBase;
-      if (iterBase.type === "variable") {
-        const vn = (forOfStmt.iterable as VariableNode).name;
-        forOfClassName = this.ctx.symbolTable.getRawInterfaceType(vn) || "";
-      }
+      forOfClassName = this.getIterableClassElementType(forOfStmt.iterable) || "";
       if (forOfClassName) {
         actualElementType = `%${forOfClassName}_struct*`;
       }
@@ -1022,6 +1018,64 @@ export class ControlFlowGenerator {
       }
     }
 
+    return null;
+  }
+
+  private getIterableClassElementType(iterable: Expression): string | null {
+    const iterBase = iterable as ExprBase;
+    if (iterBase.type === "variable") {
+      const varName = (iterable as VariableNode).name;
+      const rawElemType = this.ctx.symbolTable.getRawInterfaceType(varName);
+      if (rawElemType && this.ctx.classGenGetClassFields(rawElemType).length > 0) {
+        return rawElemType;
+      }
+    }
+    if (iterBase.type === "call") {
+      const callNode = iterable as CallNode;
+      const ast = this.ctx.getAst();
+      if (ast && ast.functions) {
+        for (let i = 0; i < ast.functions.length; i++) {
+          const func = ast.functions[i];
+          if (!func || func.name !== callNode.name) continue;
+          const retType = func.returnType;
+          if (retType && retType.endsWith("[]")) {
+            const elemName = retType.slice(0, -2).trim();
+            if (this.ctx.classGenGetClassFields(elemName).length > 0) {
+              return elemName;
+            }
+          }
+        }
+      }
+    }
+    if (iterBase.type === "method_call") {
+      const mcNode = iterable as MethodCallNode;
+      const objBase = mcNode.object as ExprBase;
+      if (objBase.type === "variable") {
+        const objName = (mcNode.object as VariableNode).name;
+        const classMeta = this.ctx.symbolTable.getClassMetadata(objName);
+        if (classMeta) {
+          const className = classMeta.className;
+          const ast = this.ctx.getAst();
+          if (ast && ast.classes) {
+            for (let i = 0; i < ast.classes.length; i++) {
+              const cls = ast.classes[i];
+              if (!cls || cls.name !== className) continue;
+              for (let j = 0; j < cls.methods.length; j++) {
+                const method = cls.methods[j];
+                if (!method || method.name !== mcNode.method) continue;
+                const retType = method.returnType;
+                if (retType && retType.endsWith("[]")) {
+                  const elemName = retType.slice(0, -2).trim();
+                  if (this.ctx.classGenGetClassFields(elemName).length > 0) {
+                    return elemName;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
     return null;
   }
 
