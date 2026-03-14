@@ -1150,12 +1150,19 @@ function transformObjectExpression(node: TreeSitterNode): ObjectNode {
       const params = paramsNode ? extractFunctionParams(paramsNode) : [];
       const body = bodyNode ? transformStatementBlock(bodyNode) : createEmptyBlock();
 
+      const retTypeNode = getChildByFieldName(child, "return_type");
+      let retType: string | undefined = undefined;
+      if (retTypeNode) {
+        retType = extractTypeString(retTypeNode);
+      }
+
       const arrowFn: ArrowFunctionNode = {
         type: "arrow_function",
         params,
         body,
         async: undefined,
         captures: undefined,
+        returnType: retType,
       };
       properties.push({ key, value: arrowFn });
     }
@@ -1356,12 +1363,19 @@ function transformArrowFunction(node: TreeSitterNode): ArrowFunctionNode {
     }
   }
 
+  const returnTypeNode = getChildByFieldName(node, "return_type");
+  let returnType: string | undefined = undefined;
+  if (returnTypeNode) {
+    returnType = extractTypeString(returnTypeNode);
+  }
+
   return {
     type: "arrow_function",
     params,
     body,
     async: isAsync || undefined,
     captures: undefined,
+    returnType,
   };
 }
 
@@ -1383,12 +1397,19 @@ function transformFunctionExpression(node: TreeSitterNode): ArrowFunctionNode {
     }
   }
 
+  const returnTypeNode = getChildByFieldName(node, "return_type");
+  let returnType: string | undefined = undefined;
+  if (returnTypeNode) {
+    returnType = extractTypeString(returnTypeNode);
+  }
+
   return {
     type: "arrow_function",
     params,
     body,
     async: isAsync || undefined,
     captures: undefined,
+    returnType,
   };
 }
 
