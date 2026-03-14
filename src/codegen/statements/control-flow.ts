@@ -1047,6 +1047,27 @@ export class ControlFlowGenerator {
         }
       }
     }
+    if (iterBase.type === "member_access") {
+      const ma = iterable as MemberAccessNode;
+      const objBase = ma.object as ExprBase;
+      let ownerClassName: string | null = null;
+      if (objBase.type === "this") {
+        ownerClassName = this.ctx.getCurrentClassName() || null;
+      } else if (objBase.type === "variable") {
+        const objName = (ma.object as VariableNode).name;
+        const cm = this.ctx.symbolTable.getClassMetadata(objName);
+        if (cm) ownerClassName = cm.className;
+      }
+      if (ownerClassName) {
+        const fieldTsType = this.ctx.classGenGetFieldTsType(ownerClassName, ma.property);
+        if (fieldTsType && fieldTsType.endsWith("[]")) {
+          const elemName = fieldTsType.slice(0, -2).trim();
+          if (this.ctx.classGenGetClassFields(elemName).length > 0) {
+            return elemName;
+          }
+        }
+      }
+    }
     if (iterBase.type === "method_call") {
       const mcNode = iterable as MethodCallNode;
       const objBase = mcNode.object as ExprBase;
