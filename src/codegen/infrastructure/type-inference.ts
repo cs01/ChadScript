@@ -282,11 +282,15 @@ export class TypeInference {
       const indexExpr = expr as IndexAccessNode;
       const objResolved = this.resolveExpressionType(indexExpr.object);
       if (objResolved && objResolved.arrayDepth > 0) {
-        if (
+        const isPrimitive =
           objResolved.base === "string" ||
           objResolved.base === "number" ||
-          objResolved.base === "boolean"
-        ) {
+          objResolved.base === "boolean";
+        const isClass =
+          !isPrimitive &&
+          this.ctx.classGen !== null &&
+          this.ctx.classGen.getClassFields(objResolved.base).length > 0;
+        if (isPrimitive || isClass) {
           if (objResolved.arrayDepth > 1) {
             return createResolvedType(
               objResolved.base,
@@ -1740,6 +1744,12 @@ export class TypeInference {
             }
           }
         }
+      }
+    }
+    if (e.type === "index_access") {
+      const resolved = this.resolveExpressionType(expr);
+      if (resolved && resolved.arrayDepth > 0) {
+        return resolved.base;
       }
     }
     if (e.type === "member_access") {

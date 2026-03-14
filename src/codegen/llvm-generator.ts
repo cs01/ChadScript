@@ -2287,6 +2287,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               elementType = declType.substr(0, typeLen - 2);
             }
           }
+          if (!elementType && resolvedBase && this.isKnownClass(resolvedBase)) {
+            elementType = resolvedBase;
+          }
           llvmType = "%ObjectArray*";
           kind = SymbolKind.ObjectArray;
           defaultValue = "null";
