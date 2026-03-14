@@ -93,7 +93,7 @@ export class VariableExpressionGenerator {
       let allocaReg = this.ctx.getVariableAlloca(name)!;
       const mapMeta = this.ctx.symbolTable.getMapMetadata(name);
       const mapType = mapMeta && mapMeta.keyType !== "number" ? "%StringMap*" : "%Map*";
-      if (allocaReg.startsWith("@")) {
+      if (allocaReg.startsWith("@") || this.ctx.symbolTable.isPointerAlloca(name)) {
         const loaded = this.ctx.nextTemp();
         this.ctx.emit(`${loaded} = load ${mapType}, ${mapType}* ${allocaReg}`);
         this.ctx.setVariableType(loaded, mapType);
@@ -108,7 +108,7 @@ export class VariableExpressionGenerator {
       let allocaReg = this.ctx.getVariableAlloca(name)!;
       const setValueType = this.ctx.symbolTable.getSetValueType(name);
       const setType = setValueType === "string" ? "%StringSet*" : "%Set*";
-      if (allocaReg.startsWith("@")) {
+      if (allocaReg.startsWith("@") || this.ctx.symbolTable.isPointerAlloca(name)) {
         const loaded = this.ctx.nextTemp();
         this.ctx.emit(`${loaded} = load ${setType}, ${setType}* ${allocaReg}`);
         this.ctx.setVariableType(loaded, setType);

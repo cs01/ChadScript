@@ -494,6 +494,21 @@ export class FunctionGenerator {
         } else {
           this.ctx.emit(`store %ObjectArray* %arg${i}, %ObjectArray** ${allocaReg}`);
         }
+      } else if (llvmType === "%Set*") {
+        this.ctx.defineVariableWithMetadata(
+          paramName,
+          allocaReg,
+          "%Set*",
+          SymbolKind.Set,
+          "local",
+          createPointerAllocaMetadata(),
+        );
+        this.ctx.emit(`${allocaReg} = alloca %Set*`);
+        if (isOptional && hasOptionalParams) {
+          this.generateOptionalParamInit(i, allocaReg, llvmType, paramInfo!, funcParams);
+        } else {
+          this.ctx.emit(`store %Set* %arg${i}, %Set** ${allocaReg}`);
+        }
       } else if (llvmType === "%StringSet*") {
         this.ctx.defineVariableWithMetadata(
           paramName,
@@ -510,18 +525,20 @@ export class FunctionGenerator {
           this.ctx.emit(`store %StringSet* %arg${i}, %StringSet** ${allocaReg}`);
         }
       } else if (llvmType === "%StringMap*") {
+        const mapMeta = createMapMetadataSymbol({
+          keyType: "string",
+          valueType: "string",
+          llvmKeyType: "i8*",
+          llvmValueType: "i8*",
+        });
+        mapMeta.isPointerAlloca = true;
         this.ctx.defineVariableWithMetadata(
           paramName,
           allocaReg,
           "%StringMap*",
           SymbolKind.Map,
           "local",
-          createMapMetadataSymbol({
-            keyType: "string",
-            valueType: "string",
-            llvmKeyType: "i8*",
-            llvmValueType: "i8*",
-          }),
+          mapMeta,
         );
         this.ctx.emit(`${allocaReg} = alloca %StringMap*`);
         if (isOptional && hasOptionalParams) {
