@@ -2630,33 +2630,20 @@ export class VariableAllocator {
     if (!classMeta) return null;
     const className = classMeta.className;
     if (!className) return null;
-    const classFields = this.ctx.classGenGetClassFields(className);
-    for (let i = 0; i < classFields.length; i++) {
-      const cf = classFields[i]!;
-      if (cf.name === memberExpr.property) {
-        const fieldLlvmType = cf.fieldType;
-        if (fieldLlvmType.startsWith("%") && fieldLlvmType.endsWith("_struct*")) {
-          const candidateClass = fieldLlvmType.slice(1, -8);
-          if (this.isKnownClass(candidateClass)) return candidateClass;
-        }
-        if (fieldLlvmType === "i8*") {
-          const ast = this.ctx.getAst();
-          if (ast && ast.classes) {
-            for (let j = 0; j < ast.classes.length; j++) {
-              const cls = ast.classes[j];
-              if (!cls || !cls.fields) continue;
-              if (cls.name !== className) continue;
-              for (let k = 0; k < cls.fields.length; k++) {
-                const field = cls.fields[k] as { name: string; fieldType: string };
-                if (field.name === memberExpr.property) {
-                  const tsType = stripNullable(field.fieldType);
-                  if (this.isKnownClass(tsType)) return tsType;
-                }
-              }
-            }
+    const ast = this.ctx.getAst();
+    if (ast && ast.classes) {
+      for (let j = 0; j < ast.classes.length; j++) {
+        const cls = ast.classes[j];
+        if (!cls || !cls.fields) continue;
+        if (cls.name !== className) continue;
+        for (let k = 0; k < cls.fields.length; k++) {
+          const field = cls.fields[k] as { name: string; fieldType: string; tsType?: string };
+          if (field.name === memberExpr.property) {
+            const rawType = field.tsType || field.fieldType;
+            const tsType = stripNullable(rawType);
+            if (this.isKnownClass(tsType)) return tsType;
           }
         }
-        break;
       }
     }
     return null;
