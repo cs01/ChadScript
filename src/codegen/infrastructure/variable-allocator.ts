@@ -2624,11 +2624,15 @@ export class VariableAllocator {
     if (e.type !== "member_access") return null;
     const memberExpr = expr as MemberAccessNode;
     const objBase = memberExpr.object as ExprBase;
-    if (objBase.type !== "variable") return null;
-    const varName = (memberExpr.object as VariableNode).name;
-    const classMeta = this.ctx.symbolTable.getClassMetadata(varName);
-    if (!classMeta) return null;
-    const className = classMeta.className;
+    let className: string | null = null;
+    if (objBase.type === "variable") {
+      const varName = (memberExpr.object as VariableNode).name;
+      const classMeta = this.ctx.symbolTable.getClassMetadata(varName);
+      if (!classMeta) return null;
+      className = classMeta.className;
+    } else if (objBase.type === "this") {
+      className = this.ctx.getCurrentClassName();
+    }
     if (!className) return null;
     const ast = this.ctx.getAst();
     if (ast && ast.classes) {
