@@ -296,9 +296,11 @@ Self-hosting limitations:
 
 ChadScript merges all imported files into one flat AST. `export default` maps the local import name to the exported name via `importAliases` (resolved in `resolveImportAlias()`). Re-exports synthesize `ImportDeclaration` entries — semantically equivalent to imports.
 
-## String Enums
+## Enums — Not Supported
 
-Parser preserves string values in `EnumMember.stringValue` and marks `EnumDeclaration.isString = true`. Codegen handles string enums in a separate `handleStringEnumMemberAccess` method in `member.ts` (not in `handleEnumMemberAccess` — adding locals there causes native compiler issues). Type inference in `resolveMemberAccessType` detects enum member access and returns `stringType` for string enums. Type assertions on `EnumMember` must include all fields in order: `{ name, value, stringValue }`.
+Enum declarations emit a compile error with a suggestion to use `as const` objects instead. The semantic
+pass `enum-checker.ts` rejects all enums before codegen. The compiler's own internal "enums" (SymbolKind,
+VarKind, LogLevel) were converted to plain `const` number values (e.g., `const SymbolKind_Number = 0`).
 
 ## Optional Method Calls (`?.()`)
 
