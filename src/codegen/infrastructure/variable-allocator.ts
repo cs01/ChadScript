@@ -27,6 +27,7 @@ import {
   MapNode,
   SetNode,
   AwaitExpressionNode,
+  ArrowFunctionNode,
   SourceLocation,
 } from "../../ast/types.js";
 import {
@@ -858,6 +859,23 @@ export class VariableAllocator {
       if (genericReturn === "string") isString = true;
       else if (genericReturn === "string[]") isStringArray = true;
       else if (genericReturn && genericReturn.endsWith("[]")) isObjectArray = true;
+    }
+
+    if (
+      (isObjectArray || isStringArray) &&
+      nodeType === "method_call" &&
+      (stmtValue as MethodCallNode).method === "map" &&
+      (stmtValue as MethodCallNode).args.length === 1
+    ) {
+      const mapArg = (stmtValue as MethodCallNode).args[0];
+      if (mapArg.type === "arrow_function") {
+        const arrowRet = (mapArg as ArrowFunctionNode).returnType;
+        if (arrowRet === "number" || arrowRet === "boolean") {
+          isObjectArray = false;
+          isStringArray = false;
+          isArray = true;
+        }
+      }
     }
 
     const classification = this.classifyVariable(

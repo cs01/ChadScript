@@ -19,6 +19,7 @@ import {
   UnaryNode,
   MapNode,
   SetNode,
+  ArrowFunctionNode,
 } from "../../ast/types.js";
 import { SymbolTable, SymbolKind } from "./symbol-table.js";
 import type { TypeChecker } from "../../typescript/type-checker.js";
@@ -585,9 +586,26 @@ export class TypeInference {
       if (objResolved) return objResolved;
     }
 
+    if (method === "map") {
+      if (expr.args.length === 1) {
+        const cb = expr.args[0] as Expression;
+        const cbBase = cb as { type: string };
+        if (cbBase.type === "arrow_function") {
+          const arrow = cb as ArrowFunctionNode;
+          if (arrow.returnType === "number" || arrow.returnType === "boolean") {
+            return this.ctx.typeContext.getArrayType(arrow.returnType);
+          }
+          if (arrow.returnType === "string") {
+            return this.ctx.typeContext.getArrayType("string");
+          }
+        }
+      }
+      const objResolved = this.resolveExpressionType(expr.object);
+      if (objResolved && objResolved.arrayDepth > 0) return objResolved;
+    }
+
     if (
       method === "filter" ||
-      method === "map" ||
       method === "sort" ||
       method === "reverse" ||
       method === "flat" ||
@@ -1389,6 +1407,9 @@ export class TypeInference {
       return false;
     }
     if (e.type === "variable") {
+      const varName = (expr as VariableNode).name;
+      const kind = this.ctx.symbolTable.getKind(varName);
+      if (kind === SymbolKind.Array) return false;
       const resolved = this.resolveExpressionType(expr);
       if (resolved && resolved.arrayDepth > 0) {
         if (resolved.arrayDepth > 1) {

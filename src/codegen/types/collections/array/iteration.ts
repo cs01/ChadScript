@@ -815,16 +815,22 @@ export function generateArrayMap(
   const callbackArg = expr.args[0];
   const paramCount = getCallbackParamCount(callbackArg as ExprBase);
   let callbackFn: string;
+  let arrowReturnType = "";
   if (callbackArg.type === "variable") {
     callbackFn = gen.mangleUserName((callbackArg as VariableNode).name);
   } else if (callbackArg.type === "arrow_function") {
+    arrowReturnType = (callbackArg as ArrowFunctionNode).returnType || "";
     if (isStringArray || isObjectArray) {
       if (paramCount >= 2) {
         gen.setExpectedCallbackParamTypes([elementType || "string", "number"]);
       } else {
         gen.setExpectedCallbackParamType(elementType || "string");
       }
-      gen.setExpectedCallbackReturnType("string");
+      if (arrowReturnType === "number" || arrowReturnType === "boolean") {
+        gen.setExpectedCallbackReturnType("number");
+      } else {
+        gen.setExpectedCallbackReturnType("string");
+      }
     } else {
       if (paramCount >= 2) {
         gen.setExpectedCallbackParamTypes(["number", "number"]);
@@ -840,7 +846,10 @@ export function generateArrayMap(
   }
 
   let result: string;
-  if (isStringArray || isObjectArray) {
+  const callbackReturnsNumber = arrowReturnType === "number" || arrowReturnType === "boolean";
+  if (isObjectArray && callbackReturnsNumber) {
+    result = generateObjectArrayToNumericMap(gen, arrayPtr, callbackFn, paramCount);
+  } else if (isStringArray || isObjectArray) {
     result = generateStringArrayMapImpl(gen, arrayPtr, callbackFn, paramCount);
   } else {
     result = generateNumericArrayMap(gen, arrayPtr, callbackFn, paramCount);
@@ -954,6 +963,98 @@ function generateNumericArrayMap(
     "double",
     `@${callbackFn}`,
     buildIterCallArgsWithIndex(gen, `double ${elem}`, counter, paramCount),
+  );
+
+  const resultElemPtr = gen.nextTemp();
+  gen.emit(
+    `${resultElemPtr} = getelementptr inbounds double, double* ${resultDataPtr}, i32 ${counter}`,
+  );
+  gen.emitStore("double", result, resultElemPtr);
+
+  const nextCounter = gen.nextTemp();
+  gen.emit(`${nextCounter} = add i32 ${counter}, 1`);
+  gen.emitStore("i32", nextCounter, counterPtr);
+  gen.emitBr(checkLabel);
+
+  gen.emitLabel(endLabel);
+  gen.setVariableType(resultArrayPtr, "%Array*");
+  return resultArrayPtr;
+}
+
+function generateObjectArrayToNumericMap(
+  gen: IGeneratorContext,
+  arrayPtr: string,
+  callbackFn: string,
+  paramCount: number = 1,
+): string {
+  const lenPtr = gen.nextTemp();
+  gen.emit(
+    `${lenPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 1`,
+  );
+  const length = gen.emitLoad("i32", lenPtr);
+
+  const dataPtrField = gen.nextTemp();
+  gen.emit(
+    `${dataPtrField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`,
+  );
+  const dataPtr = gen.nextTemp();
+  gen.emit(`${dataPtr} = load i8*, i8** ${dataPtrField}`);
+  const dataPtrAsI8pp = gen.emitBitcast(dataPtr, "i8*", "i8**");
+
+  const resultArrayMem = gen.emitCall("i8*", "@GC_malloc", "i64 24");
+  const resultArrayPtr = gen.emitBitcast(resultArrayMem, "i8*", "%Array*");
+
+  const doubleSize = 8;
+  const lengthI64 = gen.nextTemp();
+  gen.emit(`${lengthI64} = zext i32 ${length} to i64`);
+  const resultSizeI64 = gen.nextTemp();
+  gen.emit(`${resultSizeI64} = mul i64 ${lengthI64}, ${doubleSize}`);
+  const resultMem = gen.emitCall("i8*", "@GC_malloc_atomic", `i64 ${resultSizeI64}`);
+  const resultDataPtr = gen.emitBitcast(resultMem, "i8*", "double*");
+
+  const resultDataPtrField = gen.nextTemp();
+  gen.emit(
+    `${resultDataPtrField} = getelementptr inbounds %Array, %Array* ${resultArrayPtr}, i32 0, i32 0`,
+  );
+  gen.emit(`store double* ${resultDataPtr}, double** ${resultDataPtrField}`);
+
+  const resultLenField = gen.nextTemp();
+  gen.emit(
+    `${resultLenField} = getelementptr inbounds %Array, %Array* ${resultArrayPtr}, i32 0, i32 1`,
+  );
+  gen.emitStore("i32", length, resultLenField);
+
+  const resultCapField = gen.nextTemp();
+  gen.emit(
+    `${resultCapField} = getelementptr inbounds %Array, %Array* ${resultArrayPtr}, i32 0, i32 2`,
+  );
+  gen.emitStore("i32", length, resultCapField);
+
+  const counterPtr = gen.nextTemp();
+  gen.emit(`${counterPtr} = alloca i32`);
+  gen.emitStore("i32", "0", counterPtr);
+
+  const checkLabel = gen.nextLabel("objnummap_check");
+  const bodyLabel = gen.nextLabel("objnummap_body");
+  const endLabel = gen.nextLabel("objnummap_end");
+
+  gen.emitBr(checkLabel);
+
+  gen.emitLabel(checkLabel);
+  const counter = gen.emitLoad("i32", counterPtr);
+  const cond = gen.emitIcmp("slt", "i32", counter, length);
+  gen.emitBrCond(cond, bodyLabel, endLabel);
+
+  gen.emitLabel(bodyLabel);
+  const elemPtr = gen.nextTemp();
+  gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtrAsI8pp}, i32 ${counter}`);
+  const elem = gen.nextTemp();
+  gen.emit(`${elem} = load i8*, i8** ${elemPtr}`);
+
+  const result = gen.emitCall(
+    "double",
+    `@${callbackFn}`,
+    buildIterCallArgsWithIndex(gen, `i8* ${elem}`, counter, paramCount),
   );
 
   const resultElemPtr = gen.nextTemp();
