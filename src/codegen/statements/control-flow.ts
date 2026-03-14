@@ -2373,7 +2373,9 @@ export class ControlFlowGenerator {
     }
 
     const lenPtr = this.nextTemp();
-    this.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${iterableValue}, i32 0, i32 0`);
+    this.emit(
+      `${lenPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${iterableValue}, i32 0, i32 1`,
+    );
     const lengthI32 = this.ctx.emitLoad("i32", lenPtr);
 
     const indexAlloca = this.ctx.nextAllocaReg("__forof_idx");
@@ -2401,6 +2403,20 @@ export class ControlFlowGenerator {
           "local",
           createObjectMetadata(vti.objectMetadata),
         );
+      } else if (
+        vti.valueType &&
+        vti.valueType !== "string" &&
+        vti.valueType !== "number" &&
+        this.ctx.classGenGetClassFields(vti.valueType).length > 0
+      ) {
+        this.ctx.defineVariableWithMetadata(
+          valueName,
+          valueAlloca,
+          "i8*",
+          SymbolKind.Class,
+          "local",
+          createClassMetadata({ className: vti.valueType }),
+        );
       } else {
         this.ctx.defineVariable(valueName, valueAlloca, "i8*", SymbolKind.String, "local");
       }
@@ -2423,14 +2439,12 @@ export class ControlFlowGenerator {
     this.ctx.emitLabel(bodyLabel);
     this.ctx.setCurrentLabel(bodyLabel);
 
-    // inbounds GEP loads stay raw
     const dataFieldPtr = this.nextTemp();
     this.emit(
-      `${dataFieldPtr} = getelementptr inbounds %Array, %Array* ${iterableValue}, i32 0, i32 2`,
+      `${dataFieldPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${iterableValue}, i32 0, i32 0`,
     );
-    const dataPtr = this.nextTemp();
-    this.emit(`${dataPtr} = load double*, double** ${dataFieldPtr}`);
-    const dataCast = this.ctx.emitBitcast(dataPtr, "double*", "i8**");
+    const dataRaw = this.ctx.emitLoad("i8*", dataFieldPtr);
+    const dataCast = this.ctx.emitBitcast(dataRaw, "i8*", "i8**");
 
     const indexI64 = this.nextTemp();
     this.emit(`${indexI64} = sext i32 ${currentIndex} to i64`);

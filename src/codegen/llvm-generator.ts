@@ -2232,26 +2232,43 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
                   this.symbolTable.getObjectArrayElementType(arrName) ||
                   this.symbolTable.getRawInterfaceType(arrName);
                 if (elemType) {
-                  kind = SymbolKind.Object;
-                  ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
-                  this.globalVariables.set(name, { llvmType, kind, initialized: false });
-                  const props = this.getInterfaceProperties(elemType);
-                  if (props) {
+                  const classFields = this.classGen
+                    ? this.classGen.getClassFields(elemType) || []
+                    : [];
+                  if (classFields.length > 0) {
+                    kind = SymbolKind.Class;
+                    ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
+                    this.globalVariables.set(name, { llvmType, kind, initialized: false });
                     this.defineVariableWithMetadata(
                       name,
                       `@${name}`,
                       llvmType,
                       kind,
                       "global",
-                      createObjectMetadataWithInterface(
-                        { keys: props.keys, types: props.types },
-                        elemType,
-                      ),
+                      createClassMetadata({ className: elemType }),
                     );
                   } else {
-                    this.defineVariable(name, `@${name}`, llvmType, kind, "global");
+                    kind = SymbolKind.Object;
+                    ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
+                    this.globalVariables.set(name, { llvmType, kind, initialized: false });
+                    const props = this.getInterfaceProperties(elemType);
+                    if (props) {
+                      this.defineVariableWithMetadata(
+                        name,
+                        `@${name}`,
+                        llvmType,
+                        kind,
+                        "global",
+                        createObjectMetadataWithInterface(
+                          { keys: props.keys, types: props.types },
+                          elemType,
+                        ),
+                      );
+                    } else {
+                      this.defineVariable(name, `@${name}`, llvmType, kind, "global");
+                    }
+                    this.symbolTable.setRawInterfaceType(name, elemType);
                   }
-                  this.symbolTable.setRawInterfaceType(name, elemType);
                   continue;
                 }
               }

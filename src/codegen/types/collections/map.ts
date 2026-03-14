@@ -1224,7 +1224,7 @@ export class StringMapGenerator {
     const mapCapacity = this.ctx.emitLoad("i32", capacityFieldPtr);
 
     const arrayMem = this.ctx.emitCall("i8*", "@GC_malloc", "i64 24");
-    const arrayPtr = this.ctx.emitBitcast(arrayMem, "i8*", "%Array*");
+    const arrayPtr = this.ctx.emitBitcast(arrayMem, "i8*", "%ObjectArray*");
 
     const mapSizeI64 = this.nextTemp();
     this.emit(`${mapSizeI64} = zext i32 ${mapSize} to i64`);
@@ -1233,16 +1233,22 @@ export class StringMapGenerator {
     const dataMem = this.ctx.emitCall("i8*", "@GC_malloc", `i64 ${dataSize}`);
     const dataPtr = this.ctx.emitBitcast(dataMem, "i8*", "i8**");
 
+    const dataFieldPtr = this.nextTemp();
+    this.emit(
+      `${dataFieldPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`,
+    );
+    const dataCast = this.ctx.emitBitcast(dataPtr, "i8**", "i8*");
+    this.ctx.emitStore("i8*", dataCast, dataFieldPtr);
     const lenFieldPtr = this.nextTemp();
-    this.emit(`${lenFieldPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${lenFieldPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 1`,
+    );
     this.ctx.emitStore("i32", mapSize, lenFieldPtr);
     const capFieldPtr = this.nextTemp();
-    this.emit(`${capFieldPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
+    this.emit(
+      `${capFieldPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 2`,
+    );
     this.ctx.emitStore("i32", mapSize, capFieldPtr);
-    const dataFieldPtr = this.nextTemp();
-    this.emit(`${dataFieldPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 2`);
-    const dataCast = this.ctx.emitBitcast(dataPtr, "i8**", "double*");
-    this.ctx.emitStore("double*", dataCast, dataFieldPtr);
 
     const loopLabel = this.nextLabel("strmap_entries_loop");
     const bodyLabel = this.nextLabel("strmap_entries_body");
