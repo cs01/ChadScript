@@ -557,6 +557,17 @@ export class TypeInference {
       }
     }
 
+    if (objBase.type === "new") {
+      const newExpr = expr.object as NewNode;
+      const className = newExpr.className;
+      if (className) {
+        const classMethod = this.getClassMethod(className, method);
+        if (classMethod && classMethod.returnType) {
+          return this.ctx.typeContext.resolve(stripNullable(classMethod.returnType));
+        }
+      }
+    }
+
     if (objBase.type === "this") {
       const className = this.ctx.getCurrentClassName();
       if (className) {
