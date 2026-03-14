@@ -1735,6 +1735,33 @@ export class TypeInference {
 
   getObjectArrayElementType(expr: Expression): string | null {
     const e = expr as ExprBase;
+    if (e.type === "variable") {
+      const varName = (expr as VariableNode).name;
+      const rawType = this.st.getRawInterfaceType(varName);
+      if (rawType && this.getClass(rawType)) return rawType;
+      const resolved = this.resolveExpressionType(expr);
+      if (resolved && resolved.arrayDepth > 0 && this.getClass(resolved.base)) {
+        return resolved.base;
+      }
+      return null;
+    }
+    if (e.type === "array") {
+      const arrayExpr = expr as ArrayNode;
+      const elements = arrayExpr.elements || [];
+      if (elements.length > 0) {
+        const firstElem = elements[0] as ExprBase;
+        if (firstElem.type === "new") {
+          const newExpr = elements[0] as NewNode;
+          const resolvedClassName = this.resolveClassAlias(newExpr.className);
+          if (this.getClass(resolvedClassName)) return resolvedClassName;
+        }
+        const elemResolved = this.resolveExpressionType(elements[0]);
+        if (elemResolved && elemResolved.arrayDepth === 0 && this.getClass(elemResolved.base)) {
+          return elemResolved.base;
+        }
+      }
+      return null;
+    }
     if (e.type === "binary") {
       const binExpr = expr as BinaryNode;
       if (binExpr.op === "||" || binExpr.op === "??") {
@@ -1744,6 +1771,11 @@ export class TypeInference {
     if (e.type === "method_call") {
       const methodExpr = expr as MethodCallNode;
       const methodObjBase = methodExpr.object as ExprBase;
+      const m = methodExpr.method;
+      if (m === "filter" || m === "sort" || m === "reverse" || m === "slice") {
+        const sourceElemType = this.getObjectArrayElementType(methodExpr.object);
+        if (sourceElemType) return sourceElemType;
+      }
       if (methodObjBase.type === "this") {
         const className = this.ctx.getCurrentClassName();
         if (className) {
