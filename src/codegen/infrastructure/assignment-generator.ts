@@ -15,6 +15,7 @@ import type { SymbolTable, ClassInfo, ObjectArrayMetadata } from "./symbol-table
 import type { InterfaceStructGenerator } from "../types/interface-struct-generator.js";
 
 import type { FieldInfo } from "./type-resolver/types.js";
+import { stripNullable } from "./type-system.js";
 
 interface ObjectInfo {
   ptr: string;
@@ -368,14 +369,24 @@ export class AssignmentGenerator {
       this.ctx.emit(`store %StringSet* ${value}, %StringSet** ${fieldPtr}`);
     } else if (hasTsType && fiTsType && fiTsType.startsWith("Set<")) {
       this.ctx.emit(`store %Set* ${value}, %Set** ${fieldPtr}`);
-    } else if (
-      hasTsType &&
-      fiTsType &&
-      fiTsType !== "number" &&
-      fiTsType !== "boolean" &&
-      !this.isEnumType(fiTsType)
-    ) {
-      this.ctx.emit(`store i8* ${value}, i8** ${fieldPtr}`);
+    } else if (hasTsType && fiTsType) {
+      const strippedTsType = stripNullable(fiTsType);
+      const classFields = this.ctx.classGenGetClassFields(strippedTsType);
+      if (classFields.length > 0) {
+        const structType = `%${strippedTsType}_struct*`;
+        const valueType = this.ctx.getVariableType(value);
+        if (valueType === structType) {
+          this.ctx.emit(`store ${structType} ${value}, ${structType}* ${fieldPtr}`);
+        } else {
+          const cast = this.ctx.nextTemp();
+          this.ctx.emit(`${cast} = bitcast i8* ${value} to ${structType}`);
+          this.ctx.emit(`store ${structType} ${cast}, ${structType}* ${fieldPtr}`);
+        }
+      } else if (fiTsType !== "number" && fiTsType !== "boolean" && !this.isEnumType(fiTsType)) {
+        this.ctx.emit(`store i8* ${value}, i8** ${fieldPtr}`);
+      } else {
+        this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}`);
+      }
     } else {
       this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}`);
     }

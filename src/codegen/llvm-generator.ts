@@ -3796,9 +3796,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         if (!cls || !cls.fields) continue;
         if (cls.name !== className) continue;
         for (let k = 0; k < cls.fields.length; k++) {
-          const field = cls.fields[k] as { name: string; fieldType: string };
+          const field = cls.fields[k] as { name: string; fieldType: string; tsType?: string };
           if (field.name === memberExpr.property) {
-            const tsType = stripNullable(field.fieldType);
+            const rawType = field.tsType || field.fieldType;
+            const tsType = stripNullable(rawType);
             if (this.isKnownClass(tsType)) return tsType;
           }
         }
