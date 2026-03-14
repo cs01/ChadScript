@@ -2373,7 +2373,9 @@ export class ControlFlowGenerator {
     }
 
     const lenPtr = this.nextTemp();
-    this.emit(`${lenPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${iterableValue}, i32 0, i32 1`);
+    this.emit(
+      `${lenPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${iterableValue}, i32 0, i32 1`,
+    );
     const lengthI32 = this.ctx.emitLoad("i32", lenPtr);
 
     const indexAlloca = this.ctx.nextAllocaReg("__forof_idx");

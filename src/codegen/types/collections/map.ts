@@ -1234,14 +1234,20 @@ export class StringMapGenerator {
     const dataPtr = this.ctx.emitBitcast(dataMem, "i8*", "i8**");
 
     const dataFieldPtr = this.nextTemp();
-    this.emit(`${dataFieldPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${dataFieldPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`,
+    );
     const dataCast = this.ctx.emitBitcast(dataPtr, "i8**", "i8*");
     this.ctx.emitStore("i8*", dataCast, dataFieldPtr);
     const lenFieldPtr = this.nextTemp();
-    this.emit(`${lenFieldPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 1`);
+    this.emit(
+      `${lenFieldPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 1`,
+    );
     this.ctx.emitStore("i32", mapSize, lenFieldPtr);
     const capFieldPtr = this.nextTemp();
-    this.emit(`${capFieldPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 2`);
+    this.emit(
+      `${capFieldPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 2`,
+    );
     this.ctx.emitStore("i32", mapSize, capFieldPtr);
 
     const loopLabel = this.nextLabel("strmap_entries_loop");
