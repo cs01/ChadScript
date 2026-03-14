@@ -1926,7 +1926,10 @@ export class MemberAccessGenerator {
     if (ft === "double" && fi.tsType) {
       let ts = fi.tsType;
       if (ts.indexOf(" | ") !== -1) {
-        ts = ts.replace(/ \| undefined/g, "").replace(/ \| null/g, "").trim();
+        ts = ts
+          .replace(/ \| undefined/g, "")
+          .replace(/ \| null/g, "")
+          .trim();
       }
       if (ts.endsWith("[]")) return "%ObjectArray*";
       if (ts.startsWith("Map<")) return ts.startsWith("Map<string,") ? "%StringMap*" : "%Map*";
