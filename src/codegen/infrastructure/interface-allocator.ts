@@ -12,6 +12,7 @@ import {
 } from "../../ast/types.js";
 import {
   SymbolKind,
+  SymbolKind_Object,
   SymbolTable,
   ObjectMetadata,
   SymbolMetadata,
@@ -194,7 +195,7 @@ export class InterfaceAllocator {
       stmt.name,
       allocaReg,
       "i8*",
-      SymbolKind.Object,
+      SymbolKind_Object,
       "local",
       createObjectMetadataWithInterface({ keys, types, tsTypes }, interfaceName),
     );
@@ -252,7 +253,7 @@ export class InterfaceAllocator {
               stmt.name,
               allocaReg,
               "i8*",
-              SymbolKind.Object,
+              SymbolKind_Object,
               "local",
               createObjectMetadataWithInterface(
                 { keys: reorderedKeys, types: reorderedTypes, tsTypes: reorderedTsTypes },
@@ -289,7 +290,7 @@ export class InterfaceAllocator {
       stmt.name,
       allocaReg,
       "i8*",
-      SymbolKind.Object,
+      SymbolKind_Object,
       "local",
       createObjectMetadataWithInterface({ keys, types, tsTypes }, interfaceName),
     );

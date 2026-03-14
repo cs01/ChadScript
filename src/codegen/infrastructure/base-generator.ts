@@ -1,9 +1,53 @@
 import { Expression } from "../../ast/types.js";
-import { SymbolTable, SymbolKind, SymbolMetadata } from "./symbol-table.js";
+import {
+  SymbolTable,
+  SymbolKind,
+  SymbolMetadata,
+  SymbolKind_Number,
+  SymbolKind_String,
+  SymbolKind_Boolean,
+  SymbolKind_Array,
+  SymbolKind_StringArray,
+  SymbolKind_BooleanArray,
+  SymbolKind_ObjectArray,
+  SymbolKind_Object,
+  SymbolKind_Map,
+  SymbolKind_Set,
+  SymbolKind_Class,
+  SymbolKind_Regex,
+  SymbolKind_JSON,
+  SymbolKind_ProcessArgv,
+  SymbolKind_Closure,
+  SymbolKind_Pointer,
+  SymbolKind_Uint8Array,
+  SymbolKind_Url,
+  SymbolKind_UrlSearchParams,
+} from "./symbol-table.js";
 import type { ResolvedType } from "./type-system.js";
 
-// Re-export for convenience
-export { SymbolTable, SymbolKind };
+export {
+  SymbolTable,
+  SymbolKind,
+  SymbolKind_Number,
+  SymbolKind_String,
+  SymbolKind_Boolean,
+  SymbolKind_Array,
+  SymbolKind_StringArray,
+  SymbolKind_BooleanArray,
+  SymbolKind_ObjectArray,
+  SymbolKind_Object,
+  SymbolKind_Map,
+  SymbolKind_Set,
+  SymbolKind_Class,
+  SymbolKind_Regex,
+  SymbolKind_JSON,
+  SymbolKind_ProcessArgv,
+  SymbolKind_Closure,
+  SymbolKind_Pointer,
+  SymbolKind_Uint8Array,
+  SymbolKind_Url,
+  SymbolKind_UrlSearchParams,
+};
 
 // ============================================
 // BASE GENERATOR - Shared state and utilities

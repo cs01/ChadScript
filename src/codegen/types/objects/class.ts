@@ -14,6 +14,12 @@ import {
 import { IGeneratorContext } from "../../infrastructure/generator-context.js";
 import {
   SymbolKind,
+  SymbolKind_Number,
+  SymbolKind_String,
+  SymbolKind_Array,
+  SymbolKind_StringArray,
+  SymbolKind_Object,
+  SymbolKind_Class,
   createObjectMetadata,
   createObjectMetadataWithInterface,
   createObjectMetadataWithInterfaceAndPointerAlloca,
@@ -1564,17 +1570,17 @@ export class ClassGenerator {
     tsType: string | undefined,
   ): void {
     if (!tsType || tsType.length === 0 || tsType === "string") {
-      let kind = SymbolKind.Object;
-      if (llvmType === "i8*") kind = SymbolKind.String;
-      else if (llvmType === "%StringArray*") kind = SymbolKind.StringArray;
-      else if (llvmType === "%Array*") kind = SymbolKind.Array;
-      else if (llvmType === "double") kind = SymbolKind.Number;
+      let kind = SymbolKind_Object;
+      if (llvmType === "i8*") kind = SymbolKind_String;
+      else if (llvmType === "%StringArray*") kind = SymbolKind_StringArray;
+      else if (llvmType === "%Array*") kind = SymbolKind_Array;
+      else if (llvmType === "double") kind = SymbolKind_Number;
       this.ctx.defineVariable(paramName, allocaReg, llvmType, kind, "local");
       return;
     }
 
     if (tsType === "number" || tsType === "boolean") {
-      this.ctx.defineVariable(paramName, allocaReg, "double", SymbolKind.Number, "local");
+      this.ctx.defineVariable(paramName, allocaReg, "double", SymbolKind_Number, "local");
       return;
     }
 
@@ -1583,14 +1589,14 @@ export class ClassGenerator {
         paramName,
         allocaReg,
         "%StringArray*",
-        SymbolKind.StringArray,
+        SymbolKind_StringArray,
         "local",
       );
       return;
     }
 
     if (tsType === "number[]" || tsType === "boolean[]") {
-      this.ctx.defineVariable(paramName, allocaReg, "%Array*", SymbolKind.Array, "local");
+      this.ctx.defineVariable(paramName, allocaReg, "%Array*", SymbolKind_Array, "local");
       return;
     }
 
@@ -1624,7 +1630,7 @@ export class ClassGenerator {
         paramName,
         allocaReg,
         "i8*",
-        SymbolKind.Object,
+        SymbolKind_Object,
         "local",
         createObjectMetadataWithInterfaceAndPointerAlloca(
           { keys, types, tsTypes },
@@ -1653,7 +1659,7 @@ export class ClassGenerator {
           paramName,
           allocaReg,
           "i8*",
-          SymbolKind.Object,
+          SymbolKind_Object,
           "local",
           createObjectMetadata(commonFields),
         );
@@ -1678,7 +1684,7 @@ export class ClassGenerator {
         paramName,
         allocaReg,
         "i8*",
-        SymbolKind.Class,
+        SymbolKind_Class,
         "local",
         createClassMetadata({ className: classDef.name }),
       );
@@ -1701,7 +1707,7 @@ export class ClassGenerator {
           paramName,
           allocaReg,
           "i8*",
-          SymbolKind.Object,
+          SymbolKind_Object,
           "local",
           createObjectMetadata({ keys, types, tsTypes }),
         );
@@ -1742,7 +1748,7 @@ export class ClassGenerator {
         paramName,
         allocaReg,
         "i8*",
-        SymbolKind.Object,
+        SymbolKind_Object,
         "local",
         createObjectMetadataWithInterface(
           { keys: builtinIfaceKeys, types: builtinIfaceTypes, tsTypes: builtinIfaceTsTypes },
@@ -1752,7 +1758,7 @@ export class ClassGenerator {
       return;
     }
 
-    this.ctx.defineVariable(paramName, allocaReg, llvmType, SymbolKind.Object, "local");
+    this.ctx.defineVariable(paramName, allocaReg, llvmType, SymbolKind_Object, "local");
   }
 
   private fieldTypeToLlvmPrimitive(fieldType: string): string | null {

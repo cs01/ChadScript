@@ -21,7 +21,7 @@ import {
   SetNode,
   ArrowFunctionNode,
 } from "../../ast/types.js";
-import { SymbolTable, SymbolKind } from "./symbol-table.js";
+import { SymbolTable, SymbolKind, SymbolKind_Array } from "./symbol-table.js";
 import type { TypeChecker } from "../../typescript/type-checker.js";
 import type { ClassGenerator } from "../types/objects/class.js";
 import type { TypeResolver } from "./type-resolver/index.js";
@@ -1485,7 +1485,7 @@ export class TypeInference {
     if (e.type === "variable") {
       const varName = (expr as VariableNode).name;
       const kind = this.ctx.symbolTable.getKind(varName);
-      if (kind === SymbolKind.Array) return false;
+      if (kind === SymbolKind_Array) return false;
       const resolved = this.resolveExpressionType(expr);
       if (resolved && resolved.arrayDepth > 0) {
         if (resolved.arrayDepth > 1) {

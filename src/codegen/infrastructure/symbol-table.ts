@@ -17,27 +17,26 @@ import type { TypeContext } from "./type-context.js";
 /**
  * Symbol kind for different variable types
  */
-export enum SymbolKind {
-  Number,
-  String,
-  Boolean,
-  Array,
-  StringArray,
-  BooleanArray,
-  ObjectArray,
-  Object,
-  Map,
-  Set,
-  Class,
-  Regex,
-  JSON,
-  ProcessArgv,
-  Closure,
-  Pointer,
-  Uint8Array,
-  Url,
-  UrlSearchParams,
-}
+export const SymbolKind_Number = 0;
+export const SymbolKind_String = 1;
+export const SymbolKind_Boolean = 2;
+export const SymbolKind_Array = 3;
+export const SymbolKind_StringArray = 4;
+export const SymbolKind_BooleanArray = 5;
+export const SymbolKind_ObjectArray = 6;
+export const SymbolKind_Object = 7;
+export const SymbolKind_Map = 8;
+export const SymbolKind_Set = 9;
+export const SymbolKind_Class = 10;
+export const SymbolKind_Regex = 11;
+export const SymbolKind_JSON = 12;
+export const SymbolKind_ProcessArgv = 13;
+export const SymbolKind_Closure = 14;
+export const SymbolKind_Pointer = 15;
+export const SymbolKind_Uint8Array = 16;
+export const SymbolKind_Url = 17;
+export const SymbolKind_UrlSearchParams = 18;
+export type SymbolKind = number;
 
 /**
  * Object-specific metadata
@@ -411,13 +410,13 @@ export interface Symbol {
  * const symbolTable = new SymbolTable();
  *
  * // Define a number variable
- * symbolTable.define('x', SymbolKind.Number, 'double', '%1', 'local');
+ * symbolTable.define('x', SymbolKind_Number, 'double', '%1', 'local');
  *
  * // Define a string variable
- * symbolTable.define('name', SymbolKind.String, 'i8*', '%2', 'local');
+ * symbolTable.define('name', SymbolKind_String, 'i8*', '%2', 'local');
  *
  * // Define an object with metadata
- * symbolTable.define('user', SymbolKind.Object, '%User*', '%3', 'local', {
+ * symbolTable.define('user', SymbolKind_Object, '%User*', '%3', 'local', {
  *   objectMetadata: {
  *     keys: ['name', 'age'],
  *     types: ['i8*', 'double']
@@ -530,7 +529,7 @@ export class SymbolTable {
     stack.push(symbol.objectMetadata || { keys: [], types: [] });
 
     symbol.objectMetadata = narrowedMetadata;
-    symbol.kind = SymbolKind.Object;
+    symbol.kind = SymbolKind_Object;
   }
 
   /**
@@ -729,10 +728,10 @@ export class SymbolTable {
     if (symbol) {
       const k = symbol.kind;
       if (
-        k === SymbolKind.Array ||
-        k === SymbolKind.StringArray ||
-        k === SymbolKind.BooleanArray ||
-        k === SymbolKind.ObjectArray
+        k === SymbolKind_Array ||
+        k === SymbolKind_StringArray ||
+        k === SymbolKind_BooleanArray ||
+        k === SymbolKind_ObjectArray
       ) {
         return undefined;
       }
@@ -743,7 +742,7 @@ export class SymbolTable {
   getObjectArrayElementType(name: string): string | undefined {
     if (!name) return undefined;
     const symbol = this.symbols.get(name);
-    if (symbol && symbol.kind === SymbolKind.ObjectArray) {
+    if (symbol && symbol.kind === SymbolKind_ObjectArray) {
       return this.interfaceTypes.get(name);
     }
     return undefined;
@@ -954,7 +953,7 @@ export class SymbolTable {
       return false;
     }
     const k = symbol.kind;
-    const m = SymbolKind.Number;
+    const m = SymbolKind_Number;
     if (k === m) {
       return true;
     }
@@ -967,7 +966,7 @@ export class SymbolTable {
       return false;
     }
     const k = symbol.kind;
-    const m = SymbolKind.String;
+    const m = SymbolKind_String;
     if (k === m) {
       return true;
     }
@@ -980,7 +979,7 @@ export class SymbolTable {
       return false;
     }
     const k = symbol.kind;
-    const m = SymbolKind.Boolean;
+    const m = SymbolKind_Boolean;
     if (k === m) {
       return true;
     }
@@ -993,13 +992,13 @@ export class SymbolTable {
       return false;
     }
     const k = symbol.kind;
-    if (k === SymbolKind.Array) {
+    if (k === SymbolKind_Array) {
       return true;
     }
-    if (k === SymbolKind.StringArray) {
+    if (k === SymbolKind_StringArray) {
       return true;
     }
-    if (k === SymbolKind.BooleanArray) {
+    if (k === SymbolKind_BooleanArray) {
       return true;
     }
     return false;
@@ -1011,7 +1010,7 @@ export class SymbolTable {
       return false;
     }
     const k = symbol.kind;
-    const m = SymbolKind.Array;
+    const m = SymbolKind_Array;
     if (k === m) {
       return true;
     }
@@ -1024,7 +1023,7 @@ export class SymbolTable {
       return false;
     }
     const k = symbol.kind;
-    const m = SymbolKind.StringArray;
+    const m = SymbolKind_StringArray;
     if (k === m) {
       return true;
     }
@@ -1037,7 +1036,7 @@ export class SymbolTable {
       return false;
     }
     const k = symbol.kind;
-    const m = SymbolKind.BooleanArray;
+    const m = SymbolKind_BooleanArray;
     if (k === m) {
       return true;
     }
@@ -1050,7 +1049,7 @@ export class SymbolTable {
       return false;
     }
     const k = symbol.kind;
-    const m = SymbolKind.Object;
+    const m = SymbolKind_Object;
     if (k === m) {
       return true;
     }
@@ -1063,7 +1062,7 @@ export class SymbolTable {
       return false;
     }
     const k = symbol.kind;
-    const m = SymbolKind.Map;
+    const m = SymbolKind_Map;
     if (k === m) {
       return true;
     }
@@ -1076,7 +1075,7 @@ export class SymbolTable {
       return false;
     }
     const k = symbol.kind;
-    const m = SymbolKind.Set;
+    const m = SymbolKind_Set;
     if (k === m) {
       return true;
     }
@@ -1089,7 +1088,7 @@ export class SymbolTable {
       return false;
     }
     const k = symbol.kind;
-    const m = SymbolKind.Class;
+    const m = SymbolKind_Class;
     if (k === m) {
       return true;
     }
@@ -1102,7 +1101,7 @@ export class SymbolTable {
       return false;
     }
     const k = symbol.kind;
-    const m = SymbolKind.Regex;
+    const m = SymbolKind_Regex;
     if (k === m) {
       return true;
     }
@@ -1115,7 +1114,7 @@ export class SymbolTable {
       return false;
     }
     const k = symbol.kind;
-    const m = SymbolKind.JSON;
+    const m = SymbolKind_JSON;
     if (k === m) {
       return true;
     }
@@ -1128,7 +1127,7 @@ export class SymbolTable {
       return false;
     }
     const k = symbol.kind;
-    const m = SymbolKind.ProcessArgv;
+    const m = SymbolKind_ProcessArgv;
     if (k === m) {
       return true;
     }
@@ -1141,7 +1140,7 @@ export class SymbolTable {
       return false;
     }
     const k = symbol.kind;
-    const m = SymbolKind.Closure;
+    const m = SymbolKind_Closure;
     if (k === m) {
       return true;
     }
@@ -1154,7 +1153,7 @@ export class SymbolTable {
       return false;
     }
     const k = symbol.kind;
-    const m = SymbolKind.ObjectArray;
+    const m = SymbolKind_ObjectArray;
     if (k === m) {
       return true;
     }
@@ -1167,7 +1166,7 @@ export class SymbolTable {
       return false;
     }
     const k = symbol.kind;
-    const m = SymbolKind.Uint8Array;
+    const m = SymbolKind_Uint8Array;
     if (k === m) {
       return true;
     }
@@ -1176,18 +1175,18 @@ export class SymbolTable {
 
   isUrl(name: string): boolean {
     const symbol = this.symbols.get(name);
-    return !!(symbol && symbol.kind === SymbolKind.Url);
+    return !!(symbol && symbol.kind === SymbolKind_Url);
   }
 
   isUrlSearchParams(name: string): boolean {
     const symbol = this.symbols.get(name);
-    return !!(symbol && symbol.kind === SymbolKind.UrlSearchParams);
+    return !!(symbol && symbol.kind === SymbolKind_UrlSearchParams);
   }
 
   defineUrl(name: string, allocaRegister: string, scope: string): void {
     const symbol: Symbol = {
       name,
-      kind: SymbolKind.Url,
+      kind: SymbolKind_Url,
       llvmType: "i8*",
       allocaRegister,
       scope,
@@ -1217,7 +1216,7 @@ export class SymbolTable {
   defineUrlSearchParams(name: string, allocaRegister: string, scope: string): void {
     const symbol: Symbol = {
       name,
-      kind: SymbolKind.UrlSearchParams,
+      kind: SymbolKind_UrlSearchParams,
       llvmType: "i8*",
       allocaRegister,
       scope,
@@ -1253,7 +1252,7 @@ export class SymbolTable {
    */
   getClosureMetadata(name: string): ClosureMetadata | undefined {
     const symbol = this.symbols.get(name);
-    if (symbol && symbol.kind === SymbolKind.Closure) {
+    if (symbol && symbol.kind === SymbolKind_Closure) {
       return symbol.closureMetadata;
     }
     return undefined;
@@ -1264,7 +1263,7 @@ export class SymbolTable {
    */
   getObjectMetadata(name: string): ObjectMetadata | undefined {
     const symbol = this.symbols.get(name);
-    if (symbol && symbol.kind === SymbolKind.Object) {
+    if (symbol && symbol.kind === SymbolKind_Object) {
       return symbol.objectMetadata;
     }
     return undefined;
@@ -1275,7 +1274,7 @@ export class SymbolTable {
    */
   getClassMetadata(name: string): ClassMetadata | undefined {
     const symbol = this.symbols.get(name);
-    if (symbol && symbol.kind === SymbolKind.Class) {
+    if (symbol && symbol.kind === SymbolKind_Class) {
       return symbol.classMetadata;
     }
     return undefined;
@@ -1297,7 +1296,7 @@ export class SymbolTable {
    */
   getMapMetadata(name: string): MapMetadata | undefined {
     const symbol = this.symbols.get(name);
-    if (symbol && symbol.kind === SymbolKind.Map) {
+    if (symbol && symbol.kind === SymbolKind_Map) {
       return symbol.mapMetadata;
     }
     return undefined;
@@ -1308,7 +1307,7 @@ export class SymbolTable {
    */
   getSetMetadata(name: string): SetMetadata | undefined {
     const symbol = this.symbols.get(name);
-    if (symbol && symbol.kind === SymbolKind.Set) {
+    if (symbol && symbol.kind === SymbolKind_Set) {
       return symbol.setMetadata;
     }
     return undefined;
@@ -1316,7 +1315,7 @@ export class SymbolTable {
 
   getSetValueType(name: string): string | undefined {
     const symbol = this.symbols.get(name);
-    if (symbol && symbol.kind === SymbolKind.Set && symbol.setMetadata) {
+    if (symbol && symbol.kind === SymbolKind_Set && symbol.setMetadata) {
       return symbol.setMetadata.valueType;
     }
     return undefined;
@@ -1324,7 +1323,7 @@ export class SymbolTable {
 
   getObjectArrayMetadata(name: string): ObjectArrayMetadata | undefined {
     const symbol = this.symbols.get(name);
-    if (symbol && symbol.kind === SymbolKind.ObjectArray) {
+    if (symbol && symbol.kind === SymbolKind_ObjectArray) {
       return symbol.objectArrayMetadata;
     }
     return undefined;
@@ -1334,7 +1333,7 @@ export class SymbolTable {
     const symbol = this.symbols.get(name);
     if (symbol) {
       symbol.objectArrayMetadata = metadata;
-      symbol.kind = SymbolKind.ObjectArray;
+      symbol.kind = SymbolKind_ObjectArray;
     }
   }
 
@@ -1347,7 +1346,7 @@ export class SymbolTable {
    */
   getStringAlloca(name: string): string | undefined {
     const symbol = this.symbols.get(name);
-    if (symbol && symbol.kind === SymbolKind.String) {
+    if (symbol && symbol.kind === SymbolKind_String) {
       return symbol.allocaRegister;
     }
     return undefined;
@@ -1373,7 +1372,7 @@ export class SymbolTable {
     const symbol = this.symbols.get(name);
     if (
       symbol &&
-      (symbol.kind === SymbolKind.Object || symbol.kind === SymbolKind.JSON) &&
+      (symbol.kind === SymbolKind_Object || symbol.kind === SymbolKind_JSON) &&
       symbol.objectMetadata
     ) {
       const objMeta = symbol.objectMetadata;
@@ -1437,7 +1436,7 @@ export class SymbolTable {
     const symbol = this.symbols.get(varName);
     if (
       symbol &&
-      (symbol.kind === SymbolKind.Object || symbol.kind === SymbolKind.JSON) &&
+      (symbol.kind === SymbolKind_Object || symbol.kind === SymbolKind_JSON) &&
       symbol.objectMetadata
     ) {
       const objMeta = symbol.objectMetadata;
@@ -1455,7 +1454,7 @@ export class SymbolTable {
    */
   getClassInfo(name: string): ClassInfo | undefined {
     const symbol = this.symbols.get(name);
-    if (symbol && symbol.kind === SymbolKind.Class && symbol.classMetadata) {
+    if (symbol && symbol.kind === SymbolKind_Class && symbol.classMetadata) {
       const classMeta = symbol.classMetadata;
       return {
         ptr: symbol.allocaRegister,
@@ -1470,7 +1469,7 @@ export class SymbolTable {
    */
   getClassName(name: string): string | undefined {
     const symbol = this.symbols.get(name);
-    if (symbol && symbol.kind === SymbolKind.Class && symbol.classMetadata) {
+    if (symbol && symbol.kind === SymbolKind_Class && symbol.classMetadata) {
       const classMeta = symbol.classMetadata;
       return classMeta.className;
     }

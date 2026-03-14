@@ -39,7 +39,28 @@ import {
   MemberAccessNode,
   EnumDeclaration,
 } from "../ast/types.js";
-import { BaseGenerator, SymbolKind, SymbolTable } from "./infrastructure/base-generator.js";
+import {
+  BaseGenerator,
+  SymbolKind,
+  SymbolKind_Number,
+  SymbolKind_String,
+  SymbolKind_Boolean,
+  SymbolKind_Array,
+  SymbolKind_StringArray,
+  SymbolKind_ObjectArray,
+  SymbolKind_Object,
+  SymbolKind_Map,
+  SymbolKind_Set,
+  SymbolKind_Class,
+  SymbolKind_Regex,
+  SymbolKind_JSON,
+  SymbolKind_Closure,
+  SymbolKind_Pointer,
+  SymbolKind_Uint8Array,
+  SymbolKind_Url,
+  SymbolKind_UrlSearchParams,
+  SymbolTable,
+} from "./infrastructure/base-generator.js";
 import {
   MapMetadata,
   SymbolMetadata,
@@ -135,6 +156,7 @@ import { checkTypeAssertions } from "../semantic/type-assertion-checker.js";
 import { checkUninitializedFields } from "../semantic/uninitialized-field-checker.js";
 import { analyzeEscapes } from "../semantic/escape-analysis.js";
 import { checkBinaryTypes } from "../semantic/binary-type-checker.js";
+import { checkEnumDeclarations } from "../semantic/enum-checker.js";
 import { DebugMetadataBuilder } from "./infrastructure/debug-metadata.js";
 
 export interface SemaSymbolData {
@@ -1526,25 +1548,25 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       let llvmType = "";
 
       if (stype === "number") {
-        kind = SymbolKind.Number;
+        kind = SymbolKind_Number;
         llvmType = "double";
       } else if (stype === "string") {
-        kind = SymbolKind.String;
+        kind = SymbolKind_String;
         llvmType = "i8*";
       } else if (stype === "boolean") {
-        kind = SymbolKind.Boolean;
+        kind = SymbolKind_Boolean;
         llvmType = "double";
       } else if (stype === "array<number>") {
-        kind = SymbolKind.Array;
+        kind = SymbolKind_Array;
         llvmType = "%Array*";
       } else if (stype === "array<string>") {
-        kind = SymbolKind.StringArray;
+        kind = SymbolKind_StringArray;
         llvmType = "%StringArray*";
       } else if (stype === "object") {
-        kind = SymbolKind.Object;
+        kind = SymbolKind_Object;
         llvmType = "i8*";
       } else if (stype === "class") {
-        kind = SymbolKind.Class;
+        kind = SymbolKind_Class;
         llvmType = "i8*";
       }
 
@@ -1695,10 +1717,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         if (rt === "string" || rt === "i8_ptr" || rt === "ptr") {
           this.globalVariables.set(name, {
             llvmType: "i8*",
-            kind: SymbolKind.String,
+            kind: SymbolKind_String,
             initialized: false,
           });
-          this.defineVariable(name, `@${name}`, "i8*", SymbolKind.String, "global");
+          this.defineVariable(name, `@${name}`, "i8*", SymbolKind_String, "global");
           return `@${name} = global i8* null\n`;
         }
         const iface = this.getInterfaceDeclByName(rt);
@@ -1715,14 +1737,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           }
           this.globalVariables.set(name, {
             llvmType: "i8*",
-            kind: SymbolKind.Object,
+            kind: SymbolKind_Object,
             initialized: false,
           });
           this.defineVariableWithMetadata(
             name,
             `@${name}`,
             "i8*",
-            SymbolKind.Object,
+            SymbolKind_Object,
             "global",
             createObjectMetadataWithInterface({ keys, types, tsTypes }, rt),
           );
@@ -1734,14 +1756,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           const llvmType = fields.length > 0 ? `%${resolvedClassName}_struct*` : "i32*";
           this.globalVariables.set(name, {
             llvmType,
-            kind: SymbolKind.Class,
+            kind: SymbolKind_Class,
             initialized: false,
           });
           this.defineVariableWithMetadata(
             name,
             `@${name}`,
             llvmType,
-            SymbolKind.Class,
+            SymbolKind_Class,
             "global",
             createClassMetadata({ className: resolvedClassName }),
           );
@@ -1752,14 +1774,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           if (elementType === "string") {
             this.globalVariables.set(name, {
               llvmType: "%StringArray*",
-              kind: SymbolKind.StringArray,
+              kind: SymbolKind_StringArray,
               initialized: false,
             });
             this.defineVariable(
               name,
               `@${name}`,
               "%StringArray*",
-              SymbolKind.StringArray,
+              SymbolKind_StringArray,
               "global",
             );
             return `@${name} = global %StringArray* null\n`;
@@ -1767,22 +1789,22 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           if (elementType === "number" || elementType === "boolean") {
             this.globalVariables.set(name, {
               llvmType: "%Array*",
-              kind: SymbolKind.Array,
+              kind: SymbolKind_Array,
               initialized: false,
             });
-            this.defineVariable(name, `@${name}`, "%Array*", SymbolKind.Array, "global");
+            this.defineVariable(name, `@${name}`, "%Array*", SymbolKind_Array, "global");
             return `@${name} = global %Array* null\n`;
           }
           this.globalVariables.set(name, {
             llvmType: "%ObjectArray*",
-            kind: SymbolKind.ObjectArray,
+            kind: SymbolKind_ObjectArray,
             initialized: false,
           });
           this.defineVariableWithMetadata(
             name,
             `@${name}`,
             "%ObjectArray*",
-            SymbolKind.ObjectArray,
+            SymbolKind_ObjectArray,
             "global",
             createInterfaceMetadata(elementType),
           );
@@ -1794,14 +1816,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           if (commonProps) {
             this.globalVariables.set(name, {
               llvmType: "i8*",
-              kind: SymbolKind.Object,
+              kind: SymbolKind_Object,
               initialized: false,
             });
             this.defineVariableWithMetadata(
               name,
               `@${name}`,
               "i8*",
-              SymbolKind.Object,
+              SymbolKind_Object,
               "global",
               createObjectMetadataWithInterface(commonProps, rt),
             );
@@ -1818,7 +1840,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     const interfaceName = this.typeInference.getJSONParseInterface(methodCall);
     if (interfaceName === "number[]") {
       const llvmType = "%Array*";
-      const kind = SymbolKind.Array;
+      const kind = SymbolKind_Array;
       this.globalVariables.set(name, { llvmType, kind, initialized: false });
       this.defineVariableWithMetadata(
         name,
@@ -1843,7 +1865,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       }
       if (interfaceDef) {
         const llvmType = `%${interfaceName}*`;
-        const kind = SymbolKind.JSON;
+        const kind = SymbolKind_JSON;
         const keys: string[] = [];
         const tsTypes: string[] = [];
         const types: string[] = [];
@@ -1886,14 +1908,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (foundInterface) {
       this.globalVariables.set(name, {
         llvmType: "i8*",
-        kind: SymbolKind.Object,
+        kind: SymbolKind_Object,
         initialized: false,
       });
       this.defineVariableWithMetadata(
         name,
         `@${name}`,
         "i8*",
-        SymbolKind.Object,
+        SymbolKind_Object,
         "global",
         createInterfaceMetadata(strippedDeclaredType),
       );
@@ -1904,14 +1926,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       const llvmType = fields.length > 0 ? `%${strippedDeclaredType}_struct*` : "i8*";
       this.globalVariables.set(name, {
         llvmType,
-        kind: SymbolKind.Class,
+        kind: SymbolKind_Class,
         initialized: false,
       });
       this.defineVariableWithMetadata(
         name,
         `@${name}`,
         llvmType,
-        SymbolKind.Class,
+        SymbolKind_Class,
         "global",
         createClassMetadata({ className: strippedDeclaredType }),
       );
@@ -1926,7 +1948,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         if (members && members.length > 0) {
           aliasLlvm = tsTypeToLlvm(members[0].trim());
         }
-        const kind = aliasLlvm === "double" ? SymbolKind.Number : SymbolKind.Object;
+        const kind = aliasLlvm === "double" ? SymbolKind_Number : SymbolKind_Object;
         const defaultValue = aliasLlvm === "double" ? "0.0" : "null";
         this.globalVariables.set(name, {
           llvmType: aliasLlvm,
@@ -1946,14 +1968,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (funcReturnInterface) {
       this.globalVariables.set(name, {
         llvmType: "i8*",
-        kind: SymbolKind.Object,
+        kind: SymbolKind_Object,
         initialized: false,
       });
       this.defineVariableWithMetadata(
         name,
         `@${name}`,
         "i8*",
-        SymbolKind.Object,
+        SymbolKind_Object,
         "global",
         createInterfaceMetadata(funcReturnInterface),
       );
@@ -1963,14 +1985,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (indexAccessInterface) {
       this.globalVariables.set(name, {
         llvmType: "i8*",
-        kind: SymbolKind.Object,
+        kind: SymbolKind_Object,
         initialized: false,
       });
       this.defineVariableWithMetadata(
         name,
         `@${name}`,
         "i8*",
-        SymbolKind.Object,
+        SymbolKind_Object,
         "global",
         createInterfaceMetadata(indexAccessInterface),
       );
@@ -1982,17 +2004,17 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         const idxObjVar = idxNode.object as VariableNode;
         if (idxObjVar.name) {
           const arrSym = this.symbolTable.lookup(idxObjVar.name);
-          if (arrSym && arrSym.kind === SymbolKind.ObjectArray && arrSym.interfaceType) {
+          if (arrSym && arrSym.kind === SymbolKind_ObjectArray && arrSym.interfaceType) {
             this.globalVariables.set(name, {
               llvmType: "i8*",
-              kind: SymbolKind.Object,
+              kind: SymbolKind_Object,
               initialized: false,
             });
             this.defineVariableWithMetadata(
               name,
               `@${name}`,
               "i8*",
-              SymbolKind.Object,
+              SymbolKind_Object,
               "global",
               createInterfaceMetadata(arrSym.interfaceType),
             );
@@ -2032,10 +2054,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       const resolved = value ? this.typeInference.resolveExpressionType(value) : null;
       if (resolved) {
         if (resolved.base === "string") {
-          return { llvmType: "i8*", kind: SymbolKind.String, defaultValue: "null" };
+          return { llvmType: "i8*", kind: SymbolKind_String, defaultValue: "null" };
         }
         if (resolved.base === "boolean") {
-          return { llvmType: "i1", kind: SymbolKind.Boolean, defaultValue: "0" };
+          return { llvmType: "i1", kind: SymbolKind_Boolean, defaultValue: "0" };
         }
       }
       let isI64 = false;
@@ -2046,9 +2068,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         }
       }
       if (isI64) {
-        return { llvmType: "i64", kind: SymbolKind.Number, defaultValue: "0" };
+        return { llvmType: "i64", kind: SymbolKind_Number, defaultValue: "0" };
       }
-      return { llvmType: "double", kind: SymbolKind.Number, defaultValue: "0.0" };
+      return { llvmType: "double", kind: SymbolKind_Number, defaultValue: "0.0" };
     }
     return null;
   }
@@ -2190,7 +2212,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         const isJSONParse = this.typeInference.isJSONParseExpression(stmt.value);
 
         let llvmType: string = "";
-        let kind: number = SymbolKind.Number;
+        let kind: number = SymbolKind_Number;
         let defaultValue: string = "0.0";
 
         const stmtValueBase = stmt.value as { type: string };
@@ -2200,7 +2222,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             ir += `@${name} = global i8* null` + "\n";
             this.globalVariables.set(name, {
               llvmType: "i8*",
-              kind: SymbolKind.Url,
+              kind: SymbolKind_Url,
               initialized: false,
             });
             this.symbolTable.defineUrl(name, `@${name}`, "global");
@@ -2210,7 +2232,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             ir += `@${name} = global i8* null` + "\n";
             this.globalVariables.set(name, {
               llvmType: "i8*",
-              kind: SymbolKind.UrlSearchParams,
+              kind: SymbolKind_UrlSearchParams,
               initialized: false,
             });
             this.symbolTable.defineUrlSearchParams(name, `@${name}`, "global");
@@ -2220,7 +2242,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
         if (isString) {
           llvmType = "i8*";
-          kind = SymbolKind.String;
+          kind = SymbolKind_String;
           defaultValue = "null";
           if (stmtValueBase.type === "method_call") {
             const mc = stmt.value as MethodCallNode;
@@ -2236,7 +2258,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
                     ? this.classGen.getClassFields(elemType) || []
                     : [];
                   if (classFields.length > 0) {
-                    kind = SymbolKind.Class;
+                    kind = SymbolKind_Class;
                     ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
                     this.globalVariables.set(name, { llvmType, kind, initialized: false });
                     this.defineVariableWithMetadata(
@@ -2248,7 +2270,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
                       createClassMetadata({ className: elemType }),
                     );
                   } else {
-                    kind = SymbolKind.Object;
+                    kind = SymbolKind_Object;
                     ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
                     this.globalVariables.set(name, { llvmType, kind, initialized: false });
                     const props = this.getInterfaceProperties(elemType);
@@ -2276,7 +2298,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           }
         } else if (isStringArray) {
           llvmType = "%StringArray*";
-          kind = SymbolKind.StringArray;
+          kind = SymbolKind_StringArray;
           defaultValue = "null";
         } else if (isObjectArray) {
           let elementType = "";
@@ -2295,7 +2317,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             if (objArrElemType) elementType = objArrElemType;
           }
           llvmType = "%ObjectArray*";
-          kind = SymbolKind.ObjectArray;
+          kind = SymbolKind_ObjectArray;
           defaultValue = "null";
           ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
           this.globalVariables.set(name, { llvmType, kind, initialized: false });
@@ -2318,11 +2340,11 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           continue;
         } else if (isArray) {
           llvmType = "%Array*";
-          kind = SymbolKind.Array;
+          kind = SymbolKind_Array;
           defaultValue = "null";
         } else if (isObject) {
           llvmType = "i8*";
-          kind = SymbolKind.Object;
+          kind = SymbolKind_Object;
           defaultValue = "null";
           const objMeta = this.getObjectMetadata(stmt.value as ObjectNode);
           if (objMeta && objMeta.keys.length > 0) {
@@ -2369,7 +2391,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           }
           if (isStringMap) {
             llvmType = "%StringMap*";
-            kind = SymbolKind.Map;
+            kind = SymbolKind_Map;
             defaultValue = "null";
             const llvmValueType = mapValueType === "number" ? "double" : "i8*";
             ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
@@ -2410,7 +2432,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           }
           if (isPointerMap) {
             llvmType = "%StringMap*";
-            kind = SymbolKind.Map;
+            kind = SymbolKind_Map;
             defaultValue = "null";
             ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
             this.globalVariables.set(name, { llvmType, kind, initialized: false });
@@ -2446,7 +2468,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             );
           }
           llvmType = "%Map*";
-          kind = SymbolKind.Map;
+          kind = SymbolKind_Map;
           defaultValue = "null";
         } else if (isSet) {
           let isStringSet = false;
@@ -2463,7 +2485,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           }
           if (isStringSet) {
             llvmType = "%StringSet*";
-            kind = SymbolKind.Set;
+            kind = SymbolKind_Set;
             defaultValue = "null";
             ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
             this.globalVariables.set(name, { llvmType, kind, initialized: false });
@@ -2481,15 +2503,15 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             continue;
           }
           llvmType = "%Set*";
-          kind = SymbolKind.Set;
+          kind = SymbolKind_Set;
           defaultValue = "null";
         } else if (isRegex) {
           llvmType = "i8*";
-          kind = SymbolKind.Regex;
+          kind = SymbolKind_Regex;
           defaultValue = "null";
         } else if (isUint8Array) {
           llvmType = "%Uint8Array*";
-          kind = SymbolKind.Uint8Array;
+          kind = SymbolKind_Uint8Array;
           defaultValue = "null";
           ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
           this.globalVariables.set(name, { llvmType, kind, initialized: false });
@@ -2513,7 +2535,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           }
           const fields = this.classGen ? this.classGen.getClassFields(className) || [] : [];
           llvmType = fields.length > 0 ? `%${className}_struct*` : "i32*";
-          kind = SymbolKind.Class;
+          kind = SymbolKind_Class;
           defaultValue = "null";
           ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
           this.globalVariables.set(name, { llvmType, kind, initialized: false });
@@ -2528,11 +2550,11 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           continue;
         } else if (isBoolean) {
           llvmType = "double";
-          kind = SymbolKind.Boolean;
+          kind = SymbolKind_Boolean;
           defaultValue = "0.0";
         } else if (isNumber) {
           llvmType = "double";
-          kind = SymbolKind.Number;
+          kind = SymbolKind_Number;
           defaultValue = "0.0";
         } else if (isJSONParse) {
           const jsonIr = this.tryHandleGlobalJSONParse(name, stmt.value as MethodCallNode);
@@ -2541,7 +2563,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             continue;
           }
           llvmType = "i8*";
-          kind = SymbolKind.JSON;
+          kind = SymbolKind_JSON;
           defaultValue = "null";
         } else {
           const declaredIr = this.tryHandleGlobalDeclaredType(name, stmt.declaredType);
@@ -2553,7 +2575,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             const strippedDeclaredType = stripNullable(stmt.declaredType);
             if (strippedDeclaredType === "string") {
               llvmType = "i8*";
-              kind = SymbolKind.String;
+              kind = SymbolKind_String;
               defaultValue = "null";
             }
           }
@@ -2633,6 +2655,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
 
   generateParts(): string[] {
+    checkEnumDeclarations(this.ast, this.sourceCode);
     checkClosureMutations(this.ast, this.sourceCode);
     checkUnionTypes(this.ast, this.sourceCode);
     checkTypeAssertions(this.ast, this.sourceCode);
