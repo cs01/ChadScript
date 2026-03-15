@@ -126,6 +126,16 @@ function transformProgram(node: TreeSitterNode): AST {
 }
 
 function transformTopLevelNode(node: TreeSitterNode, ast: AST): void {
+  if ((node as NodeBase).type === "labeled_statement") {
+    const line = getLineFromIndex((node as NodeBase).source, (node as NodeBase).startIndex);
+    console.error(
+      currentFile +
+        ":" +
+        line +
+        ": error: labeled statements (e.g., 'outer: for') are not supported; use a flag variable with regular break instead",
+    );
+    process.exit(1);
+  }
   switch (node.type) {
     case "import_statement":
       const importDecl = transformImportStatement(node);
@@ -270,6 +280,7 @@ function transformTopLevelNode(node: TreeSitterNode, ast: AST): void {
     case "ambient_declaration":
       handleAmbientDeclaration(node, ast);
       break;
+
   }
 }
 
@@ -1579,6 +1590,16 @@ function transformTypeofExpression(node: TreeSitterNode): UnaryNode {
 }
 
 function transformStatement(node: TreeSitterNode): Statement | null {
+  if ((node as NodeBase).type === "labeled_statement") {
+    const line = getLineFromIndex((node as NodeBase).source, (node as NodeBase).startIndex);
+    console.error(
+      currentFile +
+        ":" +
+        line +
+        ": error: labeled statements (e.g., 'outer: for') are not supported; use a flag variable with regular break instead",
+    );
+    process.exit(1);
+  }
   switch (node.type) {
     case "lexical_declaration":
     case "variable_declaration":
