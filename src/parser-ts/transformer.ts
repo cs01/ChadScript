@@ -359,6 +359,20 @@ function transformTopLevelStatement(
       break;
     }
 
+    case ts.SyntaxKind.LabeledStatement: {
+      const loc = getLoc(node);
+      console.error(
+        loc.file +
+          ":" +
+          loc.line +
+          ":" +
+          loc.column +
+          ": error: labeled statements (e.g., 'outer: for') are not supported; use a flag variable with regular break instead",
+      );
+      process.exit(1);
+      break;
+    }
+
     default:
       break;
   }
