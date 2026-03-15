@@ -250,11 +250,13 @@ function transformTopLevelStatement(
             if (stmt.type === "variable_declaration") {
               ast.topLevelStatements.push(stmt);
               ast.topLevelItems!.push(stmt);
+              ast.topLevelItemTypes!.push("variable_declaration");
             }
           }
         } else {
           ast.topLevelStatements.push(result);
           ast.topLevelItems!.push(result);
+          ast.topLevelItemTypes!.push(result.type);
         }
       }
       break;
@@ -275,6 +277,7 @@ function transformTopLevelStatement(
         };
         ast.topLevelStatements.push(assignment);
         ast.topLevelItems!.push(assignment);
+        ast.topLevelItemTypes!.push("assignment");
       } else if (
         expr.type === "call" ||
         expr.type === "new" ||
@@ -283,6 +286,7 @@ function transformTopLevelStatement(
       ) {
         ast.topLevelExpressions.push(expr as CallNode | NewNode | MethodCallNode);
         ast.topLevelItems!.push(expr as TopLevelItem);
+        ast.topLevelItemTypes!.push(expr.type);
       } else if (expr.type === "unary") {
         throw new Error(
           "Increment/decrement (++/--) at global scope is not supported. Use x = x + 1 instead, or wrap in a function.",
@@ -293,6 +297,7 @@ function transformTopLevelStatement(
         if (assignment) {
           ast.topLevelStatements.push(assignment);
           ast.topLevelItems!.push(assignment);
+          ast.topLevelItemTypes!.push("assignment");
         }
       }
       break;
@@ -302,6 +307,7 @@ function transformTopLevelStatement(
       const forStmt = transformStatement(node, checker) as ForStatement;
       ast.topLevelExpressions.push(forStmt);
       ast.topLevelItems!.push(forStmt);
+      ast.topLevelItemTypes!.push("for");
       break;
     }
 
@@ -309,6 +315,7 @@ function transformTopLevelStatement(
       const forOfStmt = transformStatement(node, checker) as ForOfStatement;
       ast.topLevelExpressions.push(forOfStmt);
       ast.topLevelItems!.push(forOfStmt);
+      ast.topLevelItemTypes!.push("for_of");
       break;
     }
 
@@ -316,6 +323,7 @@ function transformTopLevelStatement(
       const whileStmt = transformStatement(node, checker) as WhileStatement;
       ast.topLevelExpressions.push(whileStmt);
       ast.topLevelItems!.push(whileStmt);
+      ast.topLevelItemTypes!.push("while");
       break;
     }
 
@@ -323,6 +331,7 @@ function transformTopLevelStatement(
       const doWhileStmt = transformStatement(node, checker) as DoWhileStatement;
       ast.topLevelExpressions.push(doWhileStmt);
       ast.topLevelItems!.push(doWhileStmt);
+      ast.topLevelItemTypes!.push("do_while");
       break;
     }
 
@@ -330,6 +339,7 @@ function transformTopLevelStatement(
       const ifStmt = transformStatement(node, checker) as IfStatement;
       ast.topLevelExpressions.push(ifStmt);
       ast.topLevelItems!.push(ifStmt);
+      ast.topLevelItemTypes!.push("if");
       break;
     }
 
@@ -337,14 +347,17 @@ function transformTopLevelStatement(
       const tryStmt = transformStatement(node, checker) as TryStatement;
       ast.topLevelExpressions.push(tryStmt);
       ast.topLevelItems!.push(tryStmt);
+      ast.topLevelItemTypes!.push("try");
       break;
     }
 
-    case ts.SyntaxKind.SwitchStatement:
+    case ts.SyntaxKind.SwitchStatement: {
       const switchAsIf = transformStatement(node, checker) as IfStatement;
       ast.topLevelExpressions.push(switchAsIf);
       ast.topLevelItems!.push(switchAsIf);
+      ast.topLevelItemTypes!.push(switchAsIf.type);
       break;
+    }
 
     default:
       break;
