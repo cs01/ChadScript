@@ -280,7 +280,6 @@ function transformTopLevelNode(node: TreeSitterNode, ast: AST): void {
     case "ambient_declaration":
       handleAmbientDeclaration(node, ast);
       break;
-
   }
 }
 
