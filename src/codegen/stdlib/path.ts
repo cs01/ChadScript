@@ -52,7 +52,7 @@ export class PathGenerator {
 
     const bufferSize = this.ctx.nextTemp();
     this.ctx.emit(`${bufferSize} = add i64 0, 4096`);
-    const buffer = this.ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${bufferSize}`);
+    const buffer = this.ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${bufferSize}`);
 
     const resolvedPtr = this.ctx.emitCall("i8*", "@realpath", `i8* ${pathPtr}, i8* ${buffer}`);
 
@@ -95,7 +95,7 @@ export class PathGenerator {
     const pathLen = this.ctx.emitCall("i64", "@strlen", `i8* ${pathPtr}`);
     const copySize = this.ctx.nextTemp();
     this.ctx.emit(`${copySize} = add i64 ${pathLen}, 1`);
-    const pathCopy = this.ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${copySize}`);
+    const pathCopy = this.ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${copySize}`);
     const copyResult = this.ctx.emitCall("i8*", "@strcpy", `i8* ${pathCopy}, i8* ${pathPtr}`);
 
     // Call dirname: dirname(pathCopy)
@@ -114,7 +114,7 @@ export class PathGenerator {
     const pathLen = this.ctx.emitCall("i64", "@strlen", `i8* ${pathPtr}`);
     const copySize = this.ctx.nextTemp();
     this.ctx.emit(`${copySize} = add i64 ${pathLen}, 1`);
-    const pathCopy = this.ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${copySize}`);
+    const pathCopy = this.ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${copySize}`);
     const copyResult = this.ctx.emitCall("i8*", "@strcpy", `i8* ${pathCopy}, i8* ${pathPtr}`);
 
     const basenamePtr = this.ctx.emitCall("i8*", "@basename", `i8* ${pathCopy}`);
@@ -122,7 +122,7 @@ export class PathGenerator {
     const resultLen = this.ctx.emitCall("i64", "@strlen", `i8* ${basenamePtr}`);
     const resultSize = this.ctx.nextTemp();
     this.ctx.emit(`${resultSize} = add i64 ${resultLen}, 1`);
-    const result = this.ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${resultSize}`);
+    const result = this.ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${resultSize}`);
     const strdupResult = this.ctx.emitCall("i8*", "@strcpy", `i8* ${result}, i8* ${basenamePtr}`);
     this.ctx.setVariableType(result, "i8*");
 
@@ -250,7 +250,7 @@ export class PathGenerator {
     ir += "  br i1 %is_same, label %return_dot, label %find_common\n\n";
 
     ir += "return_dot:\n";
-    ir += "  %dot = call i8* @GC_malloc_atomic(i64 2)\n";
+    ir += "  %dot = call i8* @cs_arena_alloc(i64 2)\n";
     ir += "  store i8 46, i8* %dot\n";
     ir += "  %dot1 = getelementptr inbounds i8, i8* %dot, i64 1\n";
     ir += "  store i8 0, i8* %dot1\n";
@@ -403,7 +403,7 @@ export class PathGenerator {
     ir += "  br i1 %has_either, label %calc_size, label %return_dot2\n\n";
 
     ir += "return_dot2:\n";
-    ir += "  %dot2 = call i8* @GC_malloc_atomic(i64 2)\n";
+    ir += "  %dot2 = call i8* @cs_arena_alloc(i64 2)\n";
     ir += "  store i8 46, i8* %dot2\n";
     ir += "  %dot2_end = getelementptr inbounds i8, i8* %dot2, i64 1\n";
     ir += "  store i8 0, i8* %dot2_end\n";
@@ -420,7 +420,7 @@ export class PathGenerator {
     ir += "  %total_no_null = add i64 %ups_bytes, %mid_sep\n";
     ir += "  %total_no_null2 = add i64 %total_no_null, %to_rest_len\n";
     ir += "  %total = add i64 %total_no_null2, 1\n";
-    ir += "  %result_buf = call i8* @GC_malloc_atomic(i64 %total)\n";
+    ir += "  %result_buf = call i8* @cs_arena_alloc(i64 %total)\n";
 
     // Write the "../.." part
     ir += "  br i1 %has_ups, label %write_ups, label %write_rest_check\n\n";
@@ -500,7 +500,7 @@ export class PathGenerator {
     ir += "  br i1 %is_empty, label %return_dot, label %start\n\n";
 
     ir += "return_dot:\n";
-    ir += "  %dot = call i8* @GC_malloc_atomic(i64 2)\n";
+    ir += "  %dot = call i8* @cs_arena_alloc(i64 2)\n";
     ir += "  store i8 46, i8* %dot\n";
     ir += "  %dot1 = getelementptr inbounds i8, i8* %dot, i64 1\n";
     ir += "  store i8 0, i8* %dot1\n";
@@ -508,7 +508,7 @@ export class PathGenerator {
 
     ir += "start:\n";
     ir += "  %buf_size = add i64 %len, 2\n";
-    ir += "  %buf = call i8* @GC_malloc_atomic(i64 %buf_size)\n";
+    ir += "  %buf = call i8* @cs_arena_alloc(i64 %buf_size)\n";
     ir += "  %first_char = load i8, i8* %path\n";
     ir += "  %is_abs = icmp eq i8 %first_char, 47\n";
     ir += "  %init_dst = select i1 %is_abs, i64 1, i64 0\n";
@@ -656,7 +656,7 @@ export class PathGenerator {
     ir += "  br i1 %is_zero, label %return_dot2, label %null_term\n\n";
 
     ir += "return_dot2:\n";
-    ir += "  %dot2 = call i8* @GC_malloc_atomic(i64 2)\n";
+    ir += "  %dot2 = call i8* @cs_arena_alloc(i64 2)\n";
     ir += "  store i8 46, i8* %dot2\n";
     ir += "  %dot2_1 = getelementptr inbounds i8, i8* %dot2, i64 1\n";
     ir += "  store i8 0, i8* %dot2_1\n";
@@ -687,7 +687,7 @@ export class PathGenerator {
 
     // --- No slash: root="", dir="", base=path, name/ext from dot ---
     ir += "no_slash:\n";
-    ir += "  %empty0 = call i8* @GC_malloc_atomic(i64 1)\n";
+    ir += "  %empty0 = call i8* @cs_arena_alloc(i64 1)\n";
     ir += "  store i8 0, i8* %empty0\n";
     ir +=
       "  %root0 = getelementptr inbounds %PathParseResult, %PathParseResult* %result, i32 0, i32 0\n";
@@ -710,14 +710,14 @@ export class PathGenerator {
     ir += "  br i1 %is_abs, label %set_root_slash, label %set_root_empty\n\n";
 
     ir += "set_root_slash:\n";
-    ir += "  %root_buf = call i8* @GC_malloc_atomic(i64 2)\n";
+    ir += "  %root_buf = call i8* @cs_arena_alloc(i64 2)\n";
     ir += "  store i8 47, i8* %root_buf\n";
     ir += "  %root_buf1 = getelementptr inbounds i8, i8* %root_buf, i64 1\n";
     ir += "  store i8 0, i8* %root_buf1\n";
     ir += "  br label %store_root\n\n";
 
     ir += "set_root_empty:\n";
-    ir += "  %root_empty = call i8* @GC_malloc_atomic(i64 1)\n";
+    ir += "  %root_empty = call i8* @cs_arena_alloc(i64 1)\n";
     ir += "  store i8 0, i8* %root_empty\n";
     ir += "  br label %store_root\n\n";
 
@@ -734,7 +734,7 @@ export class PathGenerator {
     ir += "  br i1 %slash_is_root, label %dir_is_root, label %dir_substr\n\n";
 
     ir += "dir_is_root:\n";
-    ir += "  %dir_root = call i8* @GC_malloc_atomic(i64 2)\n";
+    ir += "  %dir_root = call i8* @cs_arena_alloc(i64 2)\n";
     ir += "  store i8 47, i8* %dir_root\n";
     ir += "  %dir_root1 = getelementptr inbounds i8, i8* %dir_root, i64 1\n";
     ir += "  store i8 0, i8* %dir_root1\n";
@@ -745,7 +745,7 @@ export class PathGenerator {
     ir += "  %path_off_raw = ptrtoint i8* %path to i64\n";
     ir += "  %dir_len = sub i64 %slash_off_raw, %path_off_raw\n";
     ir += "  %dir_size = add i64 %dir_len, 1\n";
-    ir += "  %dir_buf = call i8* @GC_malloc_atomic(i64 %dir_size)\n";
+    ir += "  %dir_buf = call i8* @cs_arena_alloc(i64 %dir_size)\n";
     ir +=
       "  call void @llvm.memcpy.p0i8.p0i8.i64(i8* %dir_buf, i8* %path, i64 %dir_len, i1 false)\n";
     ir += "  %dir_term = getelementptr inbounds i8, i8* %dir_buf, i64 %dir_len\n";
@@ -789,7 +789,7 @@ export class PathGenerator {
     ir += "  %base_off_raw = ptrtoint i8* %base_ptr to i64\n";
     ir += "  %name_len = sub i64 %dot_off_raw, %base_off_raw\n";
     ir += "  %name_size = add i64 %name_len, 1\n";
-    ir += "  %name_buf = call i8* @GC_malloc_atomic(i64 %name_size)\n";
+    ir += "  %name_buf = call i8* @cs_arena_alloc(i64 %name_size)\n";
     ir +=
       "  call void @llvm.memcpy.p0i8.p0i8.i64(i8* %name_buf, i8* %base_ptr, i64 %name_len, i1 false)\n";
     ir += "  %name_term = getelementptr inbounds i8, i8* %name_buf, i64 %name_len\n";
@@ -801,7 +801,7 @@ export class PathGenerator {
 
     // --- No extension ---
     ir += "no_ext:\n";
-    ir += "  %empty_ext = call i8* @GC_malloc_atomic(i64 1)\n";
+    ir += "  %empty_ext = call i8* @cs_arena_alloc(i64 1)\n";
     ir += "  store i8 0, i8* %empty_ext\n";
     ir +=
       "  %ext_f2 = getelementptr inbounds %PathParseResult, %PathParseResult* %result, i32 0, i32 4\n";

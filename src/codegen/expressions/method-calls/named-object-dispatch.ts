@@ -198,7 +198,7 @@ export function handleStringFromCharCode(
   ctx.emit(`${intVal} = fptosi double ${dblVal} to i32`);
   const byteVal = ctx.nextTemp();
   ctx.emit(`${byteVal} = trunc i32 ${intVal} to i8`);
-  const buf = ctx.emitCall("i8*", "@GC_malloc_atomic", "i64 2");
+  const buf = ctx.emitCall("i8*", "@cs_arena_alloc", "i64 2");
   ctx.emitStore("i8", byteVal, buf);
   const nullPtr = ctx.emitGep("i8", buf, "i64 1");
   ctx.emitStore("i8", "0", nullPtr);

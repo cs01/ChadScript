@@ -28,7 +28,7 @@ export function generateProcessCwdInline(ctx: MethodCallGeneratorContext): strin
   const bufSize = ctx.nextTemp();
   ctx.emit(`${bufSize} = add i64 0, 4096`);
   const buf = ctx.nextTemp();
-  ctx.emit(`${buf} = call i8* @GC_malloc_atomic(i64 ${bufSize})`);
+  ctx.emit(`${buf} = call i8* @cs_arena_alloc(i64 ${bufSize})`);
   const result = ctx.nextTemp();
   ctx.emit(`${result} = call i8* @getcwd(i8* ${buf}, i64 4096)`);
   ctx.setVariableType(result, "i8*");

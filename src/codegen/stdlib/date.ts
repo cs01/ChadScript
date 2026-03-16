@@ -48,7 +48,7 @@ export class DateGenerator {
     if (method === "toISOString") {
       this.ctx.emitCall("%struct.tm*", "@gmtime_r", `i64* ${timePtr}, %struct.tm* ${tmAlloca}`);
       const buf = this.ctx.nextTemp();
-      this.ctx.emit(`${buf} = call i8* @GC_malloc_atomic(i64 32)`);
+      this.ctx.emit(`${buf} = call i8* @cs_arena_alloc(i64 32)`);
       const fmt = this.ctx.stringGen.doCreateStringConstant("%Y-%m-%dT%H:%M:%SZ");
       this.ctx.emitCall(
         "i64",

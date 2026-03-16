@@ -289,7 +289,7 @@ export class RegexGenerator {
       const matchLenPlus1 = this.nextTemp();
       this.emit(`${matchLenPlus1} = add i64 ${matchLen}, 1`);
 
-      const substrPtr = this.ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${matchLenPlus1}`);
+      const substrPtr = this.ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${matchLenPlus1}`);
 
       const srcPtr = this.nextTemp();
       this.emit(`${srcPtr} = getelementptr inbounds i8, i8* ${testStr}, i64 ${rmSo}`);

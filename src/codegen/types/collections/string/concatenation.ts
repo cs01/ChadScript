@@ -98,7 +98,7 @@ export function generateStringConcatDirect(
   ctx.emit(`${totalLenPlus1} = add i64 ${totalLen}, 1`);
 
   const resultPtr = ctx.nextTemp();
-  ctx.emit(`${resultPtr} = call i8* @GC_malloc_atomic(i64 ${totalLenPlus1})`);
+  ctx.emit(`${resultPtr} = call i8* @cs_arena_alloc(i64 ${totalLenPlus1})`);
   ctx.setVariableType(resultPtr, "i8*");
 
   ctx.emit(

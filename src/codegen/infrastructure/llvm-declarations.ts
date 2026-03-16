@@ -32,6 +32,9 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += "declare i8* @GC_realloc(i8*, i64)\n";
   ir += "declare void @GC_disable()\n";
   ir += "declare void @GC_enable()\n";
+  ir += "; Arena allocator for short-lived strings\n";
+  ir += "declare noalias i8* @cs_arena_alloc(i64)\n";
+  ir += "declare void @cs_arena_reset()\n";
   ir += "declare i8* @strcpy(i8*, i8*)\n";
   ir += "declare i8* @strncpy(i8*, i8*, i64)\n";
   ir += "declare i8* @strcat(i8*, i8*)\n";
@@ -444,7 +447,7 @@ export function getDoubleToStringHelper(): string {
   ir += "\n";
   ir += "define i8* @__double_to_string(double %val) {\n";
   ir += "entry:\n";
-  ir += "  %buffer = call i8* @GC_malloc_atomic(i64 48)\n";
+  ir += "  %buffer = call i8* @cs_arena_alloc(i64 48)\n";
   ir += "  %fmt = getelementptr inbounds [6 x i8], [6 x i8]* @.double_fmt, i64 0, i64 0\n";
   ir += "  call i32 (i8*, i64, i8*, ...) @snprintf(i8* %buffer, i64 48, i8* %fmt, double %val)\n";
   ir += "  ret i8* %buffer\n";

@@ -57,7 +57,7 @@ export function generateSubstr(
   const allocLen = ctx.nextTemp();
   ctx.emit(`${allocLen} = add i64 ${finalLenI64}, 1`);
 
-  const resultPtr = ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${allocLen}`);
+  const resultPtr = ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${allocLen}`);
 
   const startI64 = ctx.nextTemp();
   ctx.emit(`${startI64} = sext i32 ${startI32} to i64`);
@@ -92,7 +92,7 @@ export function generateRepeat(ctx: IGeneratorContext, strPtr: string, count: st
   const allocLen = ctx.nextTemp();
   ctx.emit(`${allocLen} = add i64 ${totalLen}, 1`);
 
-  const resultPtr = ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${allocLen}`);
+  const resultPtr = ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${allocLen}`);
 
   ctx.emitStore("i8", "0", resultPtr);
 
@@ -161,7 +161,7 @@ export function generatePadStart(
   ctx.emit(`${targetLenI64NoPad} = sext i32 ${targetLength} to i64`);
   const allocLen1 = ctx.nextTemp();
   ctx.emit(`${allocLen1} = add i64 ${targetLenI64NoPad}, 1`);
-  const noPadResult = ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${allocLen1}`);
+  const noPadResult = ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${allocLen1}`);
   const strcpyResult1 = ctx.emitCall("i8*", "@strcpy", `i8* ${noPadResult}, i8* ${strPtr}`);
   ctx.emitBr(endLabel);
 
@@ -170,7 +170,7 @@ export function generatePadStart(
   ctx.emit(`${targetLenI64Pad} = sext i32 ${targetLength} to i64`);
   const allocLen2 = ctx.nextTemp();
   ctx.emit(`${allocLen2} = add i64 ${targetLenI64Pad}, 1`);
-  const padResult = ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${allocLen2}`);
+  const padResult = ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${allocLen2}`);
 
   ctx.emitStore("i8", "0", padResult);
 
@@ -268,7 +268,7 @@ export function generatePadEnd(
   ctx.emit(`${strLenI64NoPad} = sext i32 ${strLenI32} to i64`);
   const allocLen1 = ctx.nextTemp();
   ctx.emit(`${allocLen1} = add i64 ${strLenI64NoPad}, 1`);
-  const noPadResult = ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${allocLen1}`);
+  const noPadResult = ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${allocLen1}`);
   const strcpyResult1 = ctx.emitCall("i8*", "@strcpy", `i8* ${noPadResult}, i8* ${strPtr}`);
   ctx.emitBr(endLabel);
 
@@ -277,7 +277,7 @@ export function generatePadEnd(
   ctx.emit(`${targetLenI64Pad} = sext i32 ${targetLength} to i64`);
   const allocLen2 = ctx.nextTemp();
   ctx.emit(`${allocLen2} = add i64 ${targetLenI64Pad}, 1`);
-  const padResult = ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${allocLen2}`);
+  const padResult = ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${allocLen2}`);
 
   const strcpyOrig = ctx.emitCall("i8*", "@strcpy", `i8* ${padResult}, i8* ${strPtr}`);
 
@@ -415,7 +415,7 @@ export function generateTrim(ctx: IGeneratorContext, strPtr: string): string {
   ctx.emitBrCond(isEmpty, emptyLabel, notEmptyLabel);
 
   ctx.emitLabel(emptyLabel);
-  const emptyResult = ctx.emitCall("i8*", "@GC_malloc_atomic", "i64 1");
+  const emptyResult = ctx.emitCall("i8*", "@cs_arena_alloc", "i64 1");
   ctx.emitStore("i8", "0", emptyResult);
   ctx.emitBr(endLabel);
 
@@ -474,7 +474,7 @@ export function generateTrim(ctx: IGeneratorContext, strPtr: string): string {
   ctx.emitBrCond(allWhitespace, allWSLabel, findEndLabel);
 
   ctx.emitLabel(allWSLabel);
-  const allWSResult = ctx.emitCall("i8*", "@GC_malloc_atomic", "i64 1");
+  const allWSResult = ctx.emitCall("i8*", "@cs_arena_alloc", "i64 1");
   ctx.emitStore("i8", "0", allWSResult);
   ctx.emitBr(endLabel);
 
@@ -561,7 +561,7 @@ export function generateTrimStart(ctx: IGeneratorContext, strPtr: string): strin
   ctx.emitBrCond(isEmpty, emptyLabel, notEmptyLabel);
 
   ctx.emitLabel(emptyLabel);
-  const emptyResult = ctx.emitCall("i8*", "@GC_malloc_atomic", "i64 1");
+  const emptyResult = ctx.emitCall("i8*", "@cs_arena_alloc", "i64 1");
   ctx.emitStore("i8", "0", emptyResult);
   ctx.emitBr(endLabel);
 
@@ -620,7 +620,7 @@ export function generateTrimStart(ctx: IGeneratorContext, strPtr: string): strin
   ctx.emitBrCond(allWhitespace, allWSLabel, substrLabel);
 
   ctx.emitLabel(allWSLabel);
-  const allWSResult = ctx.emitCall("i8*", "@GC_malloc_atomic", "i64 1");
+  const allWSResult = ctx.emitCall("i8*", "@cs_arena_alloc", "i64 1");
   ctx.emitStore("i8", "0", allWSResult);
   ctx.emitBr(endLabel);
 
@@ -657,7 +657,7 @@ export function generateTrimEnd(ctx: IGeneratorContext, strPtr: string): string 
   ctx.emitBrCond(isEmpty, emptyLabel, notEmptyLabel);
 
   ctx.emitLabel(emptyLabel);
-  const emptyResult = ctx.emitCall("i8*", "@GC_malloc_atomic", "i64 1");
+  const emptyResult = ctx.emitCall("i8*", "@cs_arena_alloc", "i64 1");
   ctx.emitStore("i8", "0", emptyResult);
   ctx.emitBr(endLabel);
 
@@ -718,7 +718,7 @@ export function generateTrimEnd(ctx: IGeneratorContext, strPtr: string): string 
   ctx.emitBrCond(allWhitespace, allWSLabel, substrLabel);
 
   ctx.emitLabel(allWSLabel);
-  const allWSResult = ctx.emitCall("i8*", "@GC_malloc_atomic", "i64 1");
+  const allWSResult = ctx.emitCall("i8*", "@cs_arena_alloc", "i64 1");
   ctx.emitStore("i8", "0", allWSResult);
   ctx.emitBr(endLabel);
 
@@ -771,7 +771,7 @@ export function generateReplace(
   const allocLen = ctx.nextTemp();
   ctx.emit(`${allocLen} = add i64 ${newLen2}, 1`);
 
-  const resultPtr = ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${allocLen}`);
+  const resultPtr = ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${allocLen}`);
 
   const prefixLen = ctx.nextTemp();
   ctx.emit(`${prefixLen} = ptrtoint i8* ${foundPtr} to i64`);
@@ -870,7 +870,7 @@ export function generateToUpperCase(ctx: IGeneratorContext, strPtr: string): str
   const allocLen = ctx.nextTemp();
   ctx.emit(`${allocLen} = add i64 ${strLen}, 1`);
 
-  const resultPtr = ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${allocLen}`);
+  const resultPtr = ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${allocLen}`);
 
   const idxPtr = ctx.nextTemp();
   ctx.emit(`${idxPtr} = alloca i64, align 8`);
@@ -930,7 +930,7 @@ export function generateToLowerCase(ctx: IGeneratorContext, strPtr: string): str
   const allocLen = ctx.nextTemp();
   ctx.emit(`${allocLen} = add i64 ${strLen}, 1`);
 
-  const resultPtr = ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${allocLen}`);
+  const resultPtr = ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${allocLen}`);
 
   const idxPtr = ctx.nextTemp();
   ctx.emit(`${idxPtr} = alloca i64, align 8`);

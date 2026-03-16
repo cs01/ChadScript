@@ -8,7 +8,7 @@ import type { MethodCallGeneratorContext } from "../method-calls.js";
 // os.hostname() — gethostname into a GC buffer
 export function handleOsHostname(ctx: MethodCallGeneratorContext): string {
   const buf = ctx.nextTemp();
-  ctx.emit(`${buf} = call i8* @GC_malloc_atomic(i64 256)`);
+  ctx.emit(`${buf} = call i8* @cs_arena_alloc(i64 256)`);
   const rc = ctx.nextTemp();
   ctx.emit(`${rc} = call i32 @gethostname(i8* ${buf}, i64 256)`);
   ctx.setVariableType(buf, "i8*");

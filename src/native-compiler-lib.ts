@@ -516,6 +516,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const dotenvBridgePath = effectiveBridgePath + "/dotenv-bridge.o";
   const dotenvBridgeObj = fs.existsSync(dotenvBridgePath) ? dotenvBridgePath : "";
   const watchBridgeObj = effectiveBridgePath + "/watch-bridge.o";
+  const arenaBridgeObj = effectiveBridgePath + "/arena-bridge.o";
   const cpSpawnObj = generator.getUsesSpawn() ? effectiveBridgePath + "/child-process-spawn.o" : "";
 
   // Sysroot and target flags for cross-compilation
@@ -601,6 +602,8 @@ export function compileNative(inputFile: string, outputFile: string): void {
     dotenvBridgeObj +
     " " +
     watchBridgeObj +
+    " " +
+    arenaBridgeObj +
     " " +
     cpSpawnObj +
     " " +

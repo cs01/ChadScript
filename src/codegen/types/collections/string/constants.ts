@@ -112,7 +112,7 @@ export function convertNumberToString(ctx: IGeneratorContext, numValue: string):
   ctx.emit(`${heapSize} = add i64 ${strLen}, 1`);
 
   const heapPtr = ctx.nextTemp();
-  ctx.emit(`${heapPtr} = call i8* @GC_malloc_atomic(i64 ${heapSize})`);
+  ctx.emit(`${heapPtr} = call i8* @cs_arena_alloc(i64 ${heapSize})`);
 
   const copyResult = ctx.nextTemp();
   ctx.emit(`${copyResult} = call i8* @strcpy(i8* ${heapPtr}, i8* ${bufferPtr})`);
@@ -146,7 +146,7 @@ export function convertNumberToFixed(
   const heapSize = ctx.nextTemp();
   ctx.emit(`${heapSize} = add i64 ${strLen}, 1`);
   const heapPtr = ctx.nextTemp();
-  ctx.emit(`${heapPtr} = call i8* @GC_malloc_atomic(i64 ${heapSize})`);
+  ctx.emit(`${heapPtr} = call i8* @cs_arena_alloc(i64 ${heapSize})`);
   const copyResult2 = ctx.nextTemp();
   ctx.emit(`${copyResult2} = call i8* @strcpy(i8* ${heapPtr}, i8* ${bufferPtr})`);
   ctx.setVariableType(heapPtr, "i8*");

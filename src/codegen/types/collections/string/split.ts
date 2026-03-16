@@ -63,7 +63,7 @@ export function generateSplit(ctx: IGeneratorContext, strPtr: string, delimiter:
   ctx.emitBrCond(emptyLoopCond, emptyLoopBodyLabel, emptyLoopEndLabel);
 
   ctx.emitLabel(emptyLoopBodyLabel);
-  const charStr = ctx.emitCall("i8*", "@GC_malloc_atomic", "i64 2");
+  const charStr = ctx.emitCall("i8*", "@cs_arena_alloc", "i64 2");
 
   const charIdx = ctx.nextTemp();
   ctx.emit(`${charIdx} = sext i32 ${emptyCounterVal} to i64`);
@@ -219,7 +219,7 @@ export function generateSplit(ctx: IGeneratorContext, strPtr: string, delimiter:
   ctx.emit(`${partLenI64} = sext i32 ${partLen} to i64`);
   const allocLen = ctx.nextTemp();
   ctx.emit(`${allocLen} = add i64 ${partLenI64}, 1`);
-  const partStr = ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${allocLen}`);
+  const partStr = ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${allocLen}`);
   const startI64 = ctx.nextTemp();
   ctx.emit(`${startI64} = sext i32 ${startPos} to i64`);
   const srcPtr = ctx.nextTemp();
