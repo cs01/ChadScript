@@ -396,7 +396,14 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const tripleFlag = crossCompiling ? " --target=" + targetTriple : "";
 
   const compileCmd =
-    clangTool + " -c -Wno-override-module -O2 " + cpuFlag + tripleFlag + " " + irFile + " -o " + objFile;
+    clangTool +
+    " -c -Wno-override-module -O2 " +
+    cpuFlag +
+    tripleFlag +
+    " " +
+    irFile +
+    " -o " +
+    objFile;
   if (verbose) {
     console.log("Running: " + compileCmd);
   }
