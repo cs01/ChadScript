@@ -59,12 +59,12 @@ prompt_yn() {
 }
 
 check_llvm() {
-  command -v llc >/dev/null 2>&1 || [ -x /opt/homebrew/opt/llvm/bin/llc ] || [ -x /usr/local/opt/llvm/bin/llc ]
+  command -v clang >/dev/null 2>&1 || [ -x /opt/homebrew/opt/llvm/bin/clang ] || [ -x /usr/local/opt/llvm/bin/clang ]
 }
 
 show_llvm_install_help() {
   printf "\n"
-  printf "  ${YELLOW}${BOLD}LLVM is required${RESET} — ChadScript needs ${BOLD}llc${RESET} and ${BOLD}clang${RESET} to compile.\n"
+  printf "  ${YELLOW}${BOLD}LLVM is required${RESET} — ChadScript needs ${BOLD}clang${RESET} to compile.\n"
   printf "\n"
   case "$1" in
     macos)
