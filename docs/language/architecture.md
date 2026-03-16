@@ -9,9 +9,8 @@ When you run `chad build app.ts -o app`, the compiler:
 1. Parses your TypeScript into an AST
 2. Resolves every type (all types must be known at compile time)
 3. Lowers the AST to [LLVM IR](https://llvm.org/docs/LangRef.html) — the same intermediate format used by Clang, Rust, and Swift
-4. Runs LLVM's optimizer (`opt`)
-5. Assembles to object code (`llc`)
-6. Links to a native binary (`clang`)
+4. Compiles and optimizes to object code (`clang -O2`)
+5. Links to a native binary (`clang`)
 
 The output is a standard ELF binary (Linux) or Mach-O binary (macOS) that runs with no runtime.
 

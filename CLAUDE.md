@@ -249,7 +249,7 @@ Existing bridges: `regex-bridge.c`, `yyjson-bridge.c`, `os-bridge.c`, `child-pro
 6. **`ret void` not `unreachable`** at end of void functions
 7. **Class structs: boolean is `i1`; Interface structs: boolean is `double`**
 8. **Propagate declared type before generating RHS for collection fields** — when a class field is typed `Set<string>`, `Map<K,V>`, etc., call `setCurrentDeclaredSetType` / `setCurrentDeclaredMapType` before `generateExpression` on the RHS so that `new Set()` / `new Map()` without explicit type args picks the right generator. See `handleClassFieldAssignment` in `assignment-generator.ts`.
-9. **Set feature flags when emitting gated extern calls** — runtime declarations for C bridges (yyjson, curl, etc.) are conditionally emitted behind flags like `usesJson`, `usesCurl`. Any code path that emits `call @csyyjson_*` must call `ctx.setUsesJson(true)`, etc. Missing this causes "undefined value" errors from `opt` because the `declare` is never emitted.
+9. **Set feature flags when emitting gated extern calls** — runtime declarations for C bridges (yyjson, curl, etc.) are conditionally emitted behind flags like `usesJson`, `usesCurl`. Any code path that emits `call @csyyjson_*` must call `ctx.setUsesJson(true)`, etc. Missing this causes "undefined value" errors from `clang` because the `declare` is never emitted.
 
 ## Interface Field Iteration
 

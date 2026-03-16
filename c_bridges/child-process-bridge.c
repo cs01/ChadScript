@@ -1,6 +1,6 @@
 // child-process-bridge.c — C bridge for child_process sync operations.
 // cs_execSync (popen-based) and cs_spawnSync (fork/execvp with pipes).
-// Always linked: the native compiler itself uses cs_execSync for running clang/llc.
+// Always linked: the native compiler itself uses cs_execSync for running clang.
 // Async spawn lives in child-process-spawn.c (linked only when libuv is available).
 
 #include <stdio.h>

@@ -63,7 +63,7 @@ httpServe(3000, (req: HttpRequest) => app.handle(req));
 ## How it works
 
 ```
-your-app.ts  →  ChadScript parser  →  AST  →  LLVM IR  →  opt  →  llc  →  clang  →  ./your-app
+your-app.ts  →  ChadScript parser  →  AST  →  LLVM IR  →  clang  →  ./your-app
 ```
 
 The same LLVM backend used by Clang, Rust, and Swift. Direct calls into C libraries — SQLite, libcurl, openssl — with zero FFI overhead. The output is a standard native binary: run it, ship it, containerize it.
