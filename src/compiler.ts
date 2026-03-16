@@ -180,8 +180,6 @@ export function compile(
   logger.info(`InstalledDir: ${process.cwd()}`);
 
   // Check for required build tools
-  const llcPath = findLLVMTool("llc");
-  const optPath = findLLVMTool("opt");
   let linkerPath: string;
   let useClang = true;
 
@@ -327,27 +325,23 @@ export function compile(
     return;
   }
 
-  // Compile IR to object file
+  // Compile IR to object file via clang (single pass: optimize + assemble)
   const objFile = outputFile + ".o";
   const sanitizeFlags = sanitize ? ` -fsanitize=${sanitize}` : "";
-  const llcStdio = logger.getLevel() >= LogLevel_Verbose ? "inherit" : "pipe";
+  const compileStdio = logger.getLevel() >= LogLevel_Verbose ? "inherit" : "pipe";
   const cpuFlag = crossCompiling ? `-mcpu=${target.cpu}` : `-mcpu=${targetCpu}`;
-  const tripleFlag = crossCompiling ? ` -mtriple=${target.triple}` : "";
+  const tripleFlag = crossCompiling ? ` --target=${target.triple}` : "";
+  const clangPath = useClang ? linkerPath : findLLVMTool("clang");
   let compileCmd: string;
-  let optFile: string | null = null;
   if (sanitize) {
-    compileCmd = `${linkerPath} -c${sanitizeFlags} ${irFile} -o ${objFile}`;
+    compileCmd = `${clangPath} -c -Wno-override-module${sanitizeFlags} ${irFile} -o ${objFile}`;
   } else if (debugInfo) {
-    compileCmd = `${llcPath} -O0${tripleFlag} -filetype=obj ${irFile} -o ${objFile}`;
+    compileCmd = `${clangPath} -c -Wno-override-module -O0${tripleFlag} ${irFile} -o ${objFile}`;
   } else {
-    optFile = irFile.replace(".ll", ".opt.bc");
-    const optCmd = `${optPath} -O2 ${cpuFlag}${tripleFlag} ${irFile} -o ${optFile}`;
-    logger.info(` ${optCmd}`);
-    execSync(optCmd, { stdio: llcStdio });
-    compileCmd = `${llcPath} -O2 ${cpuFlag}${tripleFlag} -filetype=obj ${optFile} -o ${objFile}`;
+    compileCmd = `${clangPath} -c -Wno-override-module -O2 ${cpuFlag}${tripleFlag} ${irFile} -o ${objFile}`;
   }
   logger.info(` ${compileCmd}`);
-  execSync(compileCmd, { stdio: llcStdio });
+  execSync(compileCmd, { stdio: compileStdio });
 
   // Link to executable - only link libraries that the program actually uses.
   // When cross-compiling, we use pre-built libraries from the target SDK
@@ -532,13 +526,6 @@ export function compile(
     if (!debugInfo) {
       try {
         fs.unlinkSync(irFile);
-      } catch (e) {
-        // File may already be deleted, ignore
-      }
-    }
-    if (optFile) {
-      try {
-        fs.unlinkSync(optFile);
       } catch (e) {
         // File may already be deleted, ignore
       }

@@ -390,28 +390,19 @@ export function compileNative(inputFile: string, outputFile: string): void {
   }
 
   const objFile = outputFile + ".o";
-  const optFile = irFile.replace(".ll", ".opt.bc");
-  const optTool = findLLVMTool("opt");
-  const llcTool = findLLVMTool("llc");
   const clangTool = findLLVMTool("clang");
 
-  // Cross-compilation: add triple flags to opt/llc
   const cpuFlag = crossCompiling ? "-mcpu=generic" : "-mcpu=" + targetCpu;
-  const tripleFlag = crossCompiling ? " -mtriple=" + targetTriple : "";
+  const tripleFlag = crossCompiling ? " --target=" + targetTriple : "";
 
-  const optCmd = optTool + " -O2 " + cpuFlag + tripleFlag + " " + irFile + " -o " + optFile;
+  const compileCmd =
+    clangTool + " -c -Wno-override-module -O2 " + cpuFlag + tripleFlag + " " + irFile + " -o " + objFile;
   if (verbose) {
-    console.log("Running: " + optCmd);
+    console.log("Running: " + compileCmd);
   }
-  child_process.execSync(optCmd);
-  const llcCmd =
-    llcTool + " -O2 " + cpuFlag + tripleFlag + " -filetype=obj " + optFile + " -o " + objFile;
-  if (verbose) {
-    console.log("Running: " + llcCmd);
-  }
-  child_process.execSync(llcCmd);
+  child_process.execSync(compileCmd);
   if (!fs.existsSync(objFile)) {
-    console.log("Error: llc failed to produce " + objFile);
+    console.log("Error: clang failed to produce " + objFile);
     process.exit(1);
   }
 
@@ -630,7 +621,6 @@ export function compileNative(inputFile: string, outputFile: string): void {
   }
 
   fs.unlinkSync(objFile);
-  fs.unlinkSync(optFile);
   if (verbose) {
     console.log("Compiled: " + outputFile);
   }
