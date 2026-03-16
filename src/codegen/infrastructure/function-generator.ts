@@ -1046,7 +1046,6 @@ export class FunctionGenerator {
       " {\n";
     ir += "entry:\n";
 
-    ir += "  call void @GC_init()\n";
     if (this.ctx.getUsesMathRandom()) {
       ir += "  %__seed_time = call i64 @time(i8* null)\n";
       ir += "  call void @srand48(i64 %__seed_time)\n";

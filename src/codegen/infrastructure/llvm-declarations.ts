@@ -25,8 +25,7 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += "declare i8* @calloc(i64, i64)\n";
   ir += "declare void @free(i8*)\n";
 
-  ir += "; Boehm GC - automatic garbage collection\n";
-  ir += "declare void @GC_init()\n";
+  ir += "; Boehm GC - automatic garbage collection (lazy init on first GC_malloc)\n";
   ir += "declare noalias i8* @GC_malloc(i64)\n";
   ir += "declare noalias i8* @GC_malloc_atomic(i64)\n";
   ir += "declare noalias i8* @GC_malloc_uncollectable(i64)\n";
