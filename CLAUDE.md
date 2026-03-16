@@ -92,7 +92,7 @@ bash scripts/build-vendor.sh
 
 ## What It Is
 
-TypeScript-to-native compiler using LLVM IR. Compiles .ts/.js files to native binaries via: Parser → AST → Semantic Analysis → LLVM IR Codegen → llc (assembler) → clang (linker) → native binary.
+TypeScript-to-native compiler using LLVM IR. Compiles .ts/.js files to native binaries via: Parser → AST → Semantic Analysis → LLVM IR Codegen → clang (compile + link) → native binary.
 
 ## Key Directories
 

@@ -28,7 +28,7 @@
     "coverage:report": "c8 report",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "prepare": "git config core.hooksPath .git/hooks && cp scripts/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit"
+    "prepare": "HOOKS=$(git rev-parse --git-common-dir)/hooks && git config core.hooksPath \"$HOOKS\" && cp scripts/pre-commit \"$HOOKS/pre-commit\" && chmod +x \"$HOOKS/pre-commit\""
   },
   "keywords": [
     "compiler",
