@@ -392,7 +392,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const objFile = outputFile + ".o";
   const clangTool = findLLVMTool("clang");
 
-  const cpuFlag = crossCompiling ? "-mcpu=generic" : "-mcpu=" + targetCpu;
+  const cpuFlag = crossCompiling ? "" : "-march=" + targetCpu;
   const tripleFlag = crossCompiling ? " --target=" + targetTriple : "";
 
   const compileCmd =

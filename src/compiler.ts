@@ -329,7 +329,7 @@ export function compile(
   const objFile = outputFile + ".o";
   const sanitizeFlags = sanitize ? ` -fsanitize=${sanitize}` : "";
   const compileStdio = logger.getLevel() >= LogLevel_Verbose ? "inherit" : "pipe";
-  const cpuFlag = crossCompiling ? `-mcpu=${target.cpu}` : `-mcpu=${targetCpu}`;
+  const cpuFlag = crossCompiling ? "" : `-march=${targetCpu}`;
   const tripleFlag = crossCompiling ? ` --target=${target.triple}` : "";
   const clangPath = useClang ? linkerPath : findLLVMTool("clang");
   let compileCmd: string;
