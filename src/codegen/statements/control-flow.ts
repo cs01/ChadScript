@@ -2300,7 +2300,7 @@ export class ControlFlowGenerator {
     this.ctx.emitLabel(bodyLabel);
     this.ctx.setCurrentLabel(bodyLabel);
 
-    const charBuf = this.ctx.emitCall("i8*", "@GC_malloc_atomic", "i64 2");
+    const charBuf = this.ctx.emitCall("i8*", "@cs_arena_alloc", "i64 2");
     const idxI64 = this.nextTemp();
     this.emit(`${idxI64} = sext i32 ${currentIndex} to i64`);
     const charPtr = this.nextTemp();

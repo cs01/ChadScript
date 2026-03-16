@@ -221,6 +221,17 @@ else
   echo "==> strlen-cache already built, skipping"
 fi
 
+# --- arena-bridge (bump-pointer arena allocator for strings) ---
+ARENA_BRIDGE_SRC="$C_BRIDGES_DIR/arena-bridge.c"
+ARENA_BRIDGE_OBJ="$C_BRIDGES_DIR/arena-bridge.o"
+if [ ! -f "$ARENA_BRIDGE_OBJ" ] || [ "$ARENA_BRIDGE_SRC" -nt "$ARENA_BRIDGE_OBJ" ]; then
+  echo "==> Building arena-bridge..."
+  cc -c -O2 -fPIC "$ARENA_BRIDGE_SRC" -o "$ARENA_BRIDGE_OBJ"
+  echo "  -> $ARENA_BRIDGE_OBJ"
+else
+  echo "==> arena-bridge already built, skipping"
+fi
+
 # --- base64-bridge ---
 BASE64_BRIDGE_SRC="$C_BRIDGES_DIR/base64-bridge.c"
 BASE64_BRIDGE_OBJ="$C_BRIDGES_DIR/base64-bridge.o"

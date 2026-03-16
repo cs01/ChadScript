@@ -1148,7 +1148,7 @@ export class JsonGenerator {
     const strLen = this.ctx.emitCall("i64", "@strlen", `i8* ${strPtr}`);
     const bufferSize = this.ctx.nextTemp();
     this.ctx.emit(`${bufferSize} = add i64 ${strLen}, 3`);
-    const buffer = this.ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${bufferSize}`);
+    const buffer = this.ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${bufferSize}`);
 
     const formatStr = this.ctx.createStringConstant('"%s"');
     // sprintf has variadic signature — keep as raw emit
@@ -1232,7 +1232,7 @@ export class JsonGenerator {
     const numValue = this.ctx.generateExpression(arg, params);
     const dblValue = this.ctx.ensureDouble(numValue);
 
-    const buffer = this.ctx.emitCall("i8*", "@GC_malloc_atomic", "i64 30");
+    const buffer = this.ctx.emitCall("i8*", "@cs_arena_alloc", "i64 30");
 
     const formatStr = this.ctx.createStringConstant("%.15g");
     const sprintfResult = this.ctx.nextTemp();

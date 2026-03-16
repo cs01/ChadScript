@@ -51,7 +51,7 @@ export function generateCharAt(ctx: IGeneratorContext, strPtr: string, index: st
   const charPtr = ctx.nextTemp();
   ctx.emit(`${charPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${indexI64}`);
   const charI8 = ctx.emitLoad("i8", charPtr);
-  const resultPtr = ctx.emitCall("i8*", "@GC_malloc_atomic", "i64 2");
+  const resultPtr = ctx.emitCall("i8*", "@cs_arena_alloc", "i64 2");
   ctx.emitStore("i8", charI8, resultPtr);
   const nullPtr = ctx.nextTemp();
   ctx.emit(`${nullPtr} = getelementptr inbounds i8, i8* ${resultPtr}, i64 1`);
@@ -59,7 +59,7 @@ export function generateCharAt(ctx: IGeneratorContext, strPtr: string, index: st
   ctx.emitBr(endLabel);
 
   ctx.emitLabel(oobLabel);
-  const emptyStr = ctx.emitCall("i8*", "@GC_malloc_atomic", "i64 1");
+  const emptyStr = ctx.emitCall("i8*", "@cs_arena_alloc", "i64 1");
   ctx.emitStore("i8", "0", emptyStr);
   ctx.emitBr(endLabel);
 
@@ -97,7 +97,7 @@ export function generateStringAt(ctx: IGeneratorContext, strPtr: string, index: 
   const charPtr = ctx.nextTemp();
   ctx.emit(`${charPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${indexI64}`);
   const charI8 = ctx.emitLoad("i8", charPtr);
-  const resultPtr = ctx.emitCall("i8*", "@GC_malloc_atomic", "i64 2");
+  const resultPtr = ctx.emitCall("i8*", "@cs_arena_alloc", "i64 2");
   ctx.emitStore("i8", charI8, resultPtr);
   const nullPtr = ctx.nextTemp();
   ctx.emit(`${nullPtr} = getelementptr inbounds i8, i8* ${resultPtr}, i64 1`);
@@ -105,7 +105,7 @@ export function generateStringAt(ctx: IGeneratorContext, strPtr: string, index: 
   ctx.emitBr(endLabel);
 
   ctx.emitLabel(oobLabel);
-  const emptyStr = ctx.emitCall("i8*", "@GC_malloc_atomic", "i64 1");
+  const emptyStr = ctx.emitCall("i8*", "@cs_arena_alloc", "i64 1");
   ctx.emitStore("i8", "0", emptyStr);
   ctx.emitBr(endLabel);
 

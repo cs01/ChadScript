@@ -431,6 +431,7 @@ export function compile(
     ? `${bridgePath}/dotenv-bridge.o`
     : "";
   const watchBridgeObj = `${bridgePath}/watch-bridge.o`;
+  const arenaBridgeObj = `${bridgePath}/arena-bridge.o`;
   const cpSpawnObj = generator.getUsesSpawn() ? `${bridgePath}/child-process-spawn.o` : "";
   let extraObjs = "";
 
@@ -511,7 +512,7 @@ export function compile(
   const userObjs = extraLinkObjs.length > 0 ? " " + extraLinkObjs.join(" ") : "";
   const userPaths = extraLinkPaths.map((p) => ` -L${p}`).join("");
   const userLibs = extraLinkLibs.map((l) => ` -l${l}`).join("");
-  const linkCmd = `${linker} ${objFile} ${lwsBridgeObj} ${regexBridgeObj} ${cpBridgeObj} ${osBridgeObj} ${strlenCacheObj} ${timeBridgeObj} ${base64BridgeObj} ${urlBridgeObj} ${uriBridgeObj} ${dotenvBridgeObj} ${watchBridgeObj} ${cpSpawnObj}${extraObjs}${userObjs} -o ${outputFile}${noPie}${debugFlag}${stripFlag}${staticFlag}${crossTarget}${crossLinker}${suppressLdWarnings}${sanitizeFlags} ${linkLibs}${userPaths}${userLibs}`;
+  const linkCmd = `${linker} ${objFile} ${lwsBridgeObj} ${regexBridgeObj} ${cpBridgeObj} ${osBridgeObj} ${strlenCacheObj} ${timeBridgeObj} ${base64BridgeObj} ${urlBridgeObj} ${uriBridgeObj} ${dotenvBridgeObj} ${watchBridgeObj} ${arenaBridgeObj} ${cpSpawnObj}${extraObjs}${userObjs} -o ${outputFile}${noPie}${debugFlag}${stripFlag}${staticFlag}${crossTarget}${crossLinker}${suppressLdWarnings}${sanitizeFlags} ${linkLibs}${userPaths}${userLibs}`;
   logger.info(` ${linkCmd}`);
   const linkStdio = logger.getLevel() >= LogLevel_Verbose ? "inherit" : "pipe";
   execSync(linkCmd, { stdio: linkStdio });

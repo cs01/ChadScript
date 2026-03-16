@@ -426,7 +426,7 @@ export class IndexAccessGenerator {
     // TypeScript str[i] returns a single-character string, not a number
     // Allocate 2 bytes for the character + null terminator
     const strBuf = this.ctx.nextTemp();
-    this.ctx.emit(`${strBuf} = call i8* @GC_malloc_atomic(i64 2)`);
+    this.ctx.emit(`${strBuf} = call i8* @cs_arena_alloc(i64 2)`);
 
     // Store the character at position 0
     this.ctx.emit(`store i8 ${charI8}, i8* ${strBuf}`);
