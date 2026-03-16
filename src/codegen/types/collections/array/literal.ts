@@ -209,7 +209,7 @@ export function generateArrayLiteral(
     const dataCount = length === 0 ? 1 : length; // Allocate at least 1 element
     const dataSize = gen.nextTemp();
     gen.emit(`${dataSize} = mul i64 ${dataCount}, 8`);
-    const dataMem = gen.emitCall("i8*", "@GC_malloc_atomic", `i64 ${dataSize}`);
+    const dataMem = gen.emitCall("i8*", "@cs_arena_alloc", `i64 ${dataSize}`);
     const dataPtr = gen.emitBitcast(dataMem, "i8*", "double*");
 
     // Store each element

@@ -130,7 +130,7 @@ function generateNumericArrayFilter(
   gen.emit(`${lengthI64} = zext i32 ${length} to i64`);
   const dataSizeI64 = gen.nextTemp();
   gen.emit(`${dataSizeI64} = mul i64 ${lengthI64}, ${doubleSize}`);
-  const dataMem = gen.emitCall("i8*", "@GC_malloc_atomic", `i64 ${dataSizeI64}`);
+  const dataMem = gen.emitCall("i8*", "@cs_arena_alloc", `i64 ${dataSizeI64}`);
   const resultDataPtr = gen.emitBitcast(dataMem, "i8*", "double*");
 
   const resultDataPtrField = gen.nextTemp();
@@ -918,7 +918,7 @@ function generateNumericArrayMap(
   gen.emit(`${lengthI64} = zext i32 ${length} to i64`);
   const resultSizeI64 = gen.nextTemp();
   gen.emit(`${resultSizeI64} = mul i64 ${lengthI64}, ${doubleSize}`);
-  const resultMem = gen.emitCall("i8*", "@GC_malloc_atomic", `i64 ${resultSizeI64}`);
+  const resultMem = gen.emitCall("i8*", "@cs_arena_alloc", `i64 ${resultSizeI64}`);
   const resultDataPtr = gen.emitBitcast(resultMem, "i8*", "double*");
 
   const resultDataPtrField = gen.nextTemp();
@@ -1009,7 +1009,7 @@ function generateObjectArrayToNumericMap(
   gen.emit(`${lengthI64} = zext i32 ${length} to i64`);
   const resultSizeI64 = gen.nextTemp();
   gen.emit(`${resultSizeI64} = mul i64 ${lengthI64}, ${doubleSize}`);
-  const resultMem = gen.emitCall("i8*", "@GC_malloc_atomic", `i64 ${resultSizeI64}`);
+  const resultMem = gen.emitCall("i8*", "@cs_arena_alloc", `i64 ${resultSizeI64}`);
   const resultDataPtr = gen.emitBitcast(resultMem, "i8*", "double*");
 
   const resultDataPtrField = gen.nextTemp();

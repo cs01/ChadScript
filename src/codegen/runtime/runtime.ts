@@ -467,7 +467,7 @@ export class RuntimeGenerator {
     ir += "  %was_zero = icmp eq i64 %cur_cap, 0\n";
     ir += "  br i1 %was_zero, label %fresh_alloc, label %realloc\n";
     ir += "fresh_alloc:\n";
-    ir += "  %fresh = call i8* @GC_malloc_atomic(i64 %new_cap)\n";
+    ir += "  %fresh = call i8* @cs_arena_alloc(i64 %new_cap)\n";
     ir += "  %has_old = icmp ne i64 %cur_len, 0\n";
     ir += "  br i1 %has_old, label %copy_old, label %store_fresh\n";
     ir += "copy_old:\n";
@@ -479,7 +479,9 @@ export class RuntimeGenerator {
     ir += "  store i64 %new_cap, i64* %cap\n";
     ir += "  br label %do_copy\n";
     ir += "realloc:\n";
-    ir += "  %grown = call i8* @GC_realloc(i8* %cur_ptr, i64 %new_cap)\n";
+    ir += "  %grown = call i8* @cs_arena_alloc(i64 %new_cap)\n";
+    ir +=
+      "  call void @llvm.memcpy.p0i8.p0i8.i64(i8* %grown, i8* %cur_ptr, i64 %cur_len, i1 false)\n";
     ir += "  store i8* %grown, i8** %ptr\n";
     ir += "  store i64 %new_cap, i64* %cap\n";
     ir += "  br label %do_copy\n";

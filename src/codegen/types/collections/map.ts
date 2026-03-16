@@ -58,7 +58,7 @@ export class MapGenerator {
     this.emit(`${keysCapI64} = zext i32 ${initialCapacity} to i64`);
     const keysSize = this.nextTemp();
     this.emit(`${keysSize} = mul i64 ${keysCapI64}, ${doubleSize}`);
-    const keysMem = this.ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${keysSize}`);
+    const keysMem = this.ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${keysSize}`);
     const keysPtr = this.ctx.emitBitcast(keysMem, "i8*", "double*");
 
     // Allocate values array - use double* for JavaScript semantics
@@ -66,7 +66,7 @@ export class MapGenerator {
     this.emit(`${valuesCapI64} = zext i32 ${initialCapacity} to i64`);
     const valuesSize = this.nextTemp();
     this.emit(`${valuesSize} = mul i64 ${valuesCapI64}, ${doubleSize}`);
-    const valuesMem = this.ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${valuesSize}`);
+    const valuesMem = this.ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${valuesSize}`);
     const valuesPtr = this.ctx.emitBitcast(valuesMem, "i8*", "double*");
 
     // Store keys pointer in Map struct
@@ -194,7 +194,7 @@ export class MapGenerator {
     const doubleSize = this.getDoubleSize();
     const newKeysSize = this.nextTemp();
     this.emit(`${newKeysSize} = mul i64 ${newCapI64}, ${doubleSize}`);
-    const newKeysMem = this.ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${newKeysSize}`);
+    const newKeysMem = this.ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${newKeysSize}`);
     const newKeysPtr = this.ctx.emitBitcast(newKeysMem, "i8*", "double*");
     const oldKeysI8 = this.ctx.emitBitcast(keysPtr, "double*", "i8*");
     const oldCapI64 = this.nextTemp();
@@ -207,7 +207,7 @@ export class MapGenerator {
     this.ctx.emitStore("double*", newKeysPtr, keysFieldPtr);
     const newValuesSize = this.nextTemp();
     this.emit(`${newValuesSize} = mul i64 ${newCapI64}, ${doubleSize}`);
-    const newValuesMem = this.ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${newValuesSize}`);
+    const newValuesMem = this.ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${newValuesSize}`);
     const newValuesPtr = this.ctx.emitBitcast(newValuesMem, "i8*", "double*");
     const oldValuesI8 = this.ctx.emitBitcast(valuesPtr, "double*", "i8*");
     this.emit(
@@ -521,7 +521,7 @@ export class MapGenerator {
     this.emit(`${mapSizeI64} = zext i32 ${mapSize} to i64`);
     const dataSize = this.nextTemp();
     this.emit(`${dataSize} = mul i64 ${mapSizeI64}, 8`);
-    const dataMem = this.ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${dataSize}`);
+    const dataMem = this.ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${dataSize}`);
     const dataPtr = this.ctx.emitBitcast(dataMem, "i8*", "double*");
 
     const dataPtrField = this.nextTemp();
@@ -581,7 +581,7 @@ export class MapGenerator {
     this.emit(`${mapSizeI64} = zext i32 ${mapSize} to i64`);
     const dataSize = this.nextTemp();
     this.emit(`${dataSize} = mul i64 ${mapSizeI64}, 8`);
-    const dataMem = this.ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${dataSize}`);
+    const dataMem = this.ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${dataSize}`);
     const dataPtr = this.ctx.emitBitcast(dataMem, "i8*", "double*");
 
     const dataPtrField = this.nextTemp();

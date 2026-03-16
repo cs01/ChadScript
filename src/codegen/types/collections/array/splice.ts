@@ -108,7 +108,7 @@ function generateNumericArraySplice(
   gen.emit(`${dcI64} = zext i32 ${deleteCount} to i64`);
   const resultDataSize = gen.nextTemp();
   gen.emit(`${resultDataSize} = mul i64 ${dcI64}, 8`);
-  const resultDataMem = gen.emitCall("i8*", "@GC_malloc_atomic", `i64 ${resultDataSize}`);
+  const resultDataMem = gen.emitCall("i8*", "@cs_arena_alloc", `i64 ${resultDataSize}`);
   const resultDataPtr = gen.emitBitcast(resultDataMem, "i8*", "double*");
 
   const srcOffset = gen.nextTemp();

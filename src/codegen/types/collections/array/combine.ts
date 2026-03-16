@@ -81,7 +81,7 @@ export function generateArrayLiteralWithSpread(
   gen.emit(`${totalLenI64} = zext i32 ${totalLen} to i64`);
   const dataSize = gen.nextTemp();
   gen.emit(`${dataSize} = mul i64 ${totalLenI64}, 8`);
-  const dataMem = gen.emitCall("i8*", "@GC_malloc_atomic", `i64 ${dataSize}`);
+  const dataMem = gen.emitCall("i8*", "@cs_arena_alloc", `i64 ${dataSize}`);
   const dataPtr = gen.emitBitcast(dataMem, "i8*", "double*");
 
   const offsetPtr = gen.nextTemp();
@@ -404,7 +404,7 @@ function generateNumericArrayJoin(
   const dataPtr = gen.emitLoad("double*", dataPtrField);
 
   const bufferSize = 8192;
-  const resultBuffer = gen.emitCall("i8*", "@GC_malloc_atomic", `i64 ${bufferSize}`);
+  const resultBuffer = gen.emitCall("i8*", "@cs_arena_alloc", `i64 ${bufferSize}`);
   gen.emitStore("i8", "0", resultBuffer);
 
   const offsetPtr = gen.nextAllocaReg("join_off");
@@ -573,7 +573,7 @@ function generateStringArrayJoin(
   gen.emit(`${totalWithSep} = add i64 ${elemTotal}, ${totalSepLen}`);
   const finalSize = gen.nextTemp();
   gen.emit(`${finalSize} = add i64 ${totalWithSep}, 1`);
-  const resultBuffer = gen.emitCall("i8*", "@GC_malloc_atomic", `i64 ${finalSize}`);
+  const resultBuffer = gen.emitCall("i8*", "@cs_arena_alloc", `i64 ${finalSize}`);
 
   // Second pass: copy elements with separators
   const offsetPtr = gen.nextAllocaReg("join_offset");
@@ -743,7 +743,7 @@ export function generateArraySlice(
   gen.emit(`${sliceLenI64} = zext i32 ${finalSliceLen} to i64`);
   const dataSize = gen.nextTemp();
   gen.emit(`${dataSize} = mul i64 ${sliceLenI64}, 8`);
-  const dataMem = gen.emitCall("i8*", "@GC_malloc_atomic", `i64 ${dataSize}`);
+  const dataMem = gen.emitCall("i8*", "@cs_arena_alloc", `i64 ${dataSize}`);
   const newDataPtr = gen.emitBitcast(dataMem, "i8*", "double*");
 
   const srcStartPtr = gen.nextTemp();
@@ -928,7 +928,7 @@ export function generateArrayConcat(
   gen.emit(`${totalLenI64} = zext i32 ${totalLen} to i64`);
   const dataSize = gen.nextTemp();
   gen.emit(`${dataSize} = mul i64 ${totalLenI64}, 8`);
-  const dataMem = gen.emitCall("i8*", "@GC_malloc_atomic", `i64 ${dataSize}`);
+  const dataMem = gen.emitCall("i8*", "@cs_arena_alloc", `i64 ${dataSize}`);
   const newDataPtr = gen.emitBitcast(dataMem, "i8*", "double*");
 
   // Copy first array
