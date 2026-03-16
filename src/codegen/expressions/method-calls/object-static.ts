@@ -214,7 +214,7 @@ export function generateObjectValues(
 
     const dataSize = ctx.nextTemp();
     ctx.emit(`${dataSize} = mul i64 ${length}, 8`);
-    const dataMem = ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${dataSize}`);
+    const dataMem = ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${dataSize}`);
     const dataPtr = ctx.emitBitcast(dataMem, "i8*", "double*");
 
     for (let i = 0; i < length; i++) {

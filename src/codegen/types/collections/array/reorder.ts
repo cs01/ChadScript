@@ -257,7 +257,7 @@ function generateStringArrayShift(gen: IGeneratorContext, arrayPtr: string): str
   gen.emitBrCond(isEmpty, emptyLabel, notEmptyLabel);
 
   gen.emitLabel(emptyLabel);
-  const emptyStr = gen.emitCall("i8*", "@GC_malloc_atomic", "i64 1");
+  const emptyStr = gen.emitCall("i8*", "@cs_arena_alloc", "i64 1");
   gen.emitStore("i8", "0", emptyStr);
   gen.emitBr(endLabel);
 
@@ -420,7 +420,7 @@ function generateNumericArrayUnshift(
   gen.emit(`${newCapI64} = zext i32 ${newCap} to i64`);
   const newMemSize = gen.nextTemp();
   gen.emit(`${newMemSize} = mul i64 ${newCapI64}, 8`);
-  const newMem = gen.emitCall("i8*", "@GC_malloc_atomic", `i64 ${newMemSize}`);
+  const newMem = gen.emitCall("i8*", "@cs_arena_alloc", `i64 ${newMemSize}`);
   const newDataPtr = gen.emitBitcast(newMem, "i8*", "double*");
 
   const dataPtrField = gen.nextTemp();

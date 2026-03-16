@@ -47,7 +47,7 @@ export class SetGenerator {
     this.emit(`${valuesCapI64} = zext i32 ${initialCapacity} to i64`);
     const valuesSize = this.nextTemp();
     this.emit(`${valuesSize} = mul i64 ${valuesCapI64}, ${doubleSize}`);
-    const valuesMem = this.ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${valuesSize}`);
+    const valuesMem = this.ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${valuesSize}`);
     const valuesPtr = this.ctx.emitBitcast(valuesMem, "i8*", "double*");
 
     // Store values pointer in Set struct
@@ -169,7 +169,7 @@ export class SetGenerator {
     this.emit(`${newCapI64} = zext i32 ${newCap} to i64`);
     const newMemSize = this.nextTemp();
     this.emit(`${newMemSize} = mul i64 ${newCapI64}, ${this.getDoubleSize()}`);
-    const newMem = this.ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${newMemSize}`);
+    const newMem = this.ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${newMemSize}`);
     const newDataPtr = this.ctx.emitBitcast(newMem, "i8*", "double*");
     const oldDataI8 = this.ctx.emitBitcast(valuesPtr, "double*", "i8*");
     const newDataI8 = this.ctx.emitBitcast(newDataPtr, "double*", "i8*");

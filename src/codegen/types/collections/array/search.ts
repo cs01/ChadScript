@@ -718,7 +718,7 @@ function generateStringArrayAt(
   gen.emitBr(endLabel);
 
   gen.emitLabel(oobLabel);
-  const emptyStr = gen.emitCall("i8*", "@GC_malloc_atomic", "i64 1");
+  const emptyStr = gen.emitCall("i8*", "@cs_arena_alloc", "i64 1");
   gen.emitStore("i8", "0", emptyStr);
   gen.emitBr(endLabel);
 
