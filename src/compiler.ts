@@ -42,6 +42,26 @@ function findLLVMTool(name: string): string {
   );
 }
 
+function findLLVMConfig(): string | null {
+  const candidates = [
+    "/opt/homebrew/opt/llvm/bin/llvm-config",
+    "/usr/local/opt/llvm/bin/llvm-config",
+    "/usr/lib/llvm-21/bin/llvm-config",
+    "/usr/lib/llvm-18/bin/llvm-config",
+  ];
+  try {
+    return execSync("which llvm-config", { stdio: "pipe", encoding: "utf8" }).trim();
+  } catch (e) {
+    // not in PATH
+  }
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
 // Find lld for cross-linking ELF binaries. Homebrew LLVM on macOS may only
 // install ld64.lld (Mach-O). Since lld is a multicall binary that uses argv[0]
 // to pick its flavor, we can symlink ld64.lld as ld.lld to get ELF mode.
@@ -483,6 +503,39 @@ export function compile(
 
       extraObjs = ` ${tsParserObj} ${tsScannerObj} ${bridgeObj}`;
       linkLibs += ` ${TREESITTER_LIB_PATH}/libtree-sitter.a`;
+    }
+  }
+
+  if (generator.getUsesLLVM()) {
+    const llvmBridgeObj = `${bridgePath}/llvm-bridge.o`;
+    if (fs.existsSync(llvmBridgeObj)) {
+      extraObjs += ` ${llvmBridgeObj}`;
+    }
+    const llvmConfigPath = findLLVMConfig();
+    if (llvmConfigPath) {
+      const llvmLibFlags = execSync(
+        `${llvmConfigPath} --ldflags --libs x86 aarch64 passes core irreader --link-static`,
+        { stdio: "pipe", encoding: "utf8" },
+      )
+        .trim()
+        .replace(/\n/g, " ");
+      const llvmSysFlags = execSync(`${llvmConfigPath} --system-libs --link-static`, {
+        stdio: "pipe",
+        encoding: "utf8",
+      })
+        .trim()
+        .replace(/\n/g, " ");
+      linkLibs += ` ${llvmLibFlags} ${llvmSysFlags}`;
+      if (hostIsMac) {
+        linkLibs += " -lc++";
+        const brewZstd =
+          process.arch === "arm64" ? "/opt/homebrew/opt/zstd/lib" : "/usr/local/opt/zstd/lib";
+        if (fs.existsSync(brewZstd)) {
+          linkLibs += ` -L${brewZstd}`;
+        }
+      } else {
+        linkLibs += " -lstdc++";
+      }
     }
   }
 
