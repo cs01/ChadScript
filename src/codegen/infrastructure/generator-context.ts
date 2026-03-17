@@ -48,6 +48,7 @@ import type { TypeGuardInfo, FieldInfo } from "./type-resolver/types.js";
 import type { JsonObjectMeta } from "../expressions/access/member.js";
 import type { DiagnosticEngine } from "../../diagnostics/engine.js";
 import { TypeContext } from "./type-context.js";
+import { classifyTerminator } from "./terminator-classifier.js";
 
 interface ExprBase {
   type: string;
@@ -1543,18 +1544,11 @@ export class MockGeneratorContext implements IGeneratorContext {
       }
     }
     this.output.push(instruction);
-    this.outputIsTerminator.push(this.classifyTerminator(instruction));
+    this.outputIsTerminator.push(this.classifyTerminatorImpl(instruction));
   }
 
-  private classifyTerminator(instruction: string): boolean {
-    const trimmed = instruction.trim();
-    return (
-      trimmed.startsWith("ret ") ||
-      trimmed === "ret void" ||
-      trimmed.startsWith("br ") ||
-      trimmed.startsWith("unreachable") ||
-      trimmed.startsWith("switch ")
-    );
+  private classifyTerminatorImpl(instruction: string): boolean {
+    return classifyTerminator(instruction);
   }
 
   lastInstructionIsTerminator(): boolean {
@@ -1640,7 +1634,7 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   pushOutput(line: string): void {
     this.output.push(line);
-    this.outputIsTerminator.push(this.classifyTerminator(line));
+    this.outputIsTerminator.push(this.classifyTerminatorImpl(line));
   }
 
   getOutputLength(): number {
@@ -1659,7 +1653,7 @@ export class MockGeneratorContext implements IGeneratorContext {
     for (let i = 0; i < this.output.length; i++) {
       if (i === index) {
         newOutput.push(line);
-        newIsTerminator.push(this.classifyTerminator(line));
+        newIsTerminator.push(this.classifyTerminatorImpl(line));
       } else {
         newOutput.push(this.output[i]);
         newIsTerminator.push(this.outputIsTerminator[i]);

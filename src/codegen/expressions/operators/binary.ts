@@ -4,6 +4,7 @@ import {
   NumberNode,
   StringNode,
   MethodCallNode,
+  IndexAccessNode,
 } from "../../../ast/types.js";
 import type { IStringGenerator } from "../../infrastructure/generator-context.js";
 
@@ -33,6 +34,7 @@ export interface BinaryExpressionGeneratorContext {
   generateExpression(expr: Expression, params: string[]): string;
   emitError(message: string, loc?: SourceLocation, suggestion?: string): never;
   emitLoad(type: string, ptr: string): string;
+  isUint8ArrayExpression(expr: Expression): boolean;
 }
 
 /**
@@ -62,6 +64,20 @@ export class BinaryExpressionGenerator {
     if (op === "===" || op === "!==" || op === "==" || op === "!=") {
       const charAtResult = this.tryOptimizeCharAtComparison(op, left, right, params);
       if (charAtResult !== "") return charAtResult;
+    }
+
+    if (
+      op === "===" ||
+      op === "!==" ||
+      op === "==" ||
+      op === "!=" ||
+      op === "<" ||
+      op === ">" ||
+      op === "<=" ||
+      op === ">="
+    ) {
+      const u8Result = this.tryOptimizeUint8ArrayComparison(op, left, right, params);
+      if (u8Result !== "") return u8Result;
     }
 
     const leftValue = this.ctx.generateExpression(left, params);
@@ -693,6 +709,85 @@ export class BinaryExpressionGenerator {
     );
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = sitofp i32 ${resultI32} to double`);
+    this.ctx.setVariableType(result, "double");
+    return result;
+  }
+
+  private isUint8ArrayIndexAccess(expr: Expression): boolean {
+    if (expr.type !== "index_access") return false;
+    const ia = expr as IndexAccessNode;
+    return this.ctx.isUint8ArrayExpression(ia.object);
+  }
+
+  private getSmallIntLiteral(expr: Expression): number {
+    if (expr.type !== "number") return -1;
+    const val = (expr as NumberNode).value;
+    if (val < 0 || val > 255 || Math.floor(val) !== val) return -1;
+    return val;
+  }
+
+  private tryOptimizeUint8ArrayComparison(
+    op: string,
+    left: Expression,
+    right: Expression,
+    params: string[],
+  ): string {
+    let u8Expr: IndexAccessNode;
+    let literalVal: number;
+
+    if (this.isUint8ArrayIndexAccess(left) && this.getSmallIntLiteral(right) >= 0) {
+      u8Expr = left as IndexAccessNode;
+      literalVal = this.getSmallIntLiteral(right);
+    } else if (this.isUint8ArrayIndexAccess(right) && this.getSmallIntLiteral(left) >= 0) {
+      u8Expr = right as IndexAccessNode;
+      literalVal = this.getSmallIntLiteral(left);
+    } else {
+      return "";
+    }
+
+    const arrayPtr = this.ctx.generateExpression(u8Expr.object, params);
+    const indexDouble = this.ctx.generateExpression(u8Expr.index, params);
+    const indexType = this.ctx.getVariableType(indexDouble);
+    let index = indexDouble;
+    if (indexType === "double" || !indexType) {
+      index = this.ctx.nextTemp();
+      this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
+    } else if (indexType === "i64") {
+      index = this.ctx.nextTemp();
+      this.ctx.emit(`${index} = trunc i64 ${indexDouble} to i32`);
+    }
+
+    const dataFieldPtr = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${dataFieldPtr} = getelementptr inbounds %Uint8Array, %Uint8Array* ${arrayPtr}, i32 0, i32 0`,
+    );
+    const dataPtr = this.ctx.emitLoad("i8*", dataFieldPtr);
+    const elemPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${elemPtr} = getelementptr inbounds i8, i8* ${dataPtr}, i32 ${index}`);
+    const byteVal = this.ctx.emitLoad("i8", elemPtr);
+
+    const icmpPred =
+      op === "===" || op === "=="
+        ? "eq"
+        : op === "!==" || op === "!="
+          ? "ne"
+          : op === "<"
+            ? "ult"
+            : op === ">"
+              ? "ugt"
+              : op === "<="
+                ? "ule"
+                : "uge";
+
+    const swapped = this.isUint8ArrayIndexAccess(right) && this.getSmallIntLiteral(left) >= 0;
+    const lhs = swapped ? `${literalVal}` : byteVal;
+    const rhs = swapped ? byteVal : `${literalVal}`;
+    const cmpResult = this.ctx.emitIcmp(icmpPred, "i8", lhs, rhs);
+
+    const i32Result = this.ctx.nextTemp();
+    this.ctx.emit(`${i32Result} = zext i1 ${cmpResult} to i32`);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = sitofp i32 ${i32Result} to double`);
     this.ctx.setVariableType(result, "double");
     return result;
   }
