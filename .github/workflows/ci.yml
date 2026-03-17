@@ -298,7 +298,7 @@ jobs:
       - name: Install system dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install llvm zstd
+          brew install llvm lld zstd
           echo "/opt/homebrew/opt/llvm/bin" >> $GITHUB_PATH
 
       - name: Download artifact
