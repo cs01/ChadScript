@@ -611,11 +611,16 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const arenaBridgeObj = effectiveBridgePath + "/arena-bridge.o";
   const cpSpawnObj = generator.getUsesSpawn() ? effectiveBridgePath + "/child-process-spawn.o" : "";
   let llvmBridgeObj = "";
+  let llvmBuilderObj = "";
   let lldBridgeObj = "";
   if (generator.getUsesLLVM()) {
     const llvmBridgePath = effectiveBridgePath + "/llvm-bridge.o";
     if (fs.existsSync(llvmBridgePath)) {
       llvmBridgeObj = llvmBridgePath;
+    }
+    const llvmBuilderPath = effectiveBridgePath + "/llvm-builder-bridge.o";
+    if (fs.existsSync(llvmBuilderPath)) {
+      llvmBuilderObj = llvmBuilderPath;
     }
     const llvmLibResult = getLLVMLibFlags();
     if (llvmLibResult.length > 0) {
@@ -663,6 +668,8 @@ export function compileNative(inputFile: string, outputFile: string): void {
     cpSpawnObj +
     " " +
     llvmBridgeObj +
+    " " +
+    llvmBuilderObj +
     " " +
     lldBridgeObj +
     " " +

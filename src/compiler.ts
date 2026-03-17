@@ -511,6 +511,10 @@ export function compile(
     if (fs.existsSync(llvmBridgeObj)) {
       extraObjs += ` ${llvmBridgeObj}`;
     }
+    const llvmBuilderObj = `${bridgePath}/llvm-builder-bridge.o`;
+    if (fs.existsSync(llvmBuilderObj)) {
+      extraObjs += ` ${llvmBuilderObj}`;
+    }
     const llvmConfigPath = findLLVMConfig();
     if (llvmConfigPath) {
       const llvmComponents = "x86 aarch64 passes core irreader";

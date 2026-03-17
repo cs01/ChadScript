@@ -293,6 +293,15 @@ if [ -n "$LLVM_CONFIG" ]; then
   else
     echo "==> llvm-bridge already built, skipping"
   fi
+  LLVM_BUILDER_SRC="$C_BRIDGES_DIR/llvm-builder-bridge.c"
+  LLVM_BUILDER_OBJ="$C_BRIDGES_DIR/llvm-builder-bridge.o"
+  if [ ! -f "$LLVM_BUILDER_OBJ" ] || [ "$LLVM_BUILDER_SRC" -nt "$LLVM_BUILDER_OBJ" ]; then
+    echo "==> Building llvm-builder-bridge..."
+    $LLVM_CC -c -O2 -fPIC $LLVM_CFLAGS "$LLVM_BUILDER_SRC" -o "$LLVM_BUILDER_OBJ"
+    echo "  -> $LLVM_BUILDER_OBJ"
+  else
+    echo "==> llvm-builder-bridge already built, skipping"
+  fi
 else
   echo "==> llvm-bridge skipped (no llvm-config found)"
 fi
