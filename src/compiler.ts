@@ -559,7 +559,7 @@ export function compile(
         fs.existsSync(`${lldDir}/liblldCommon.so`) ||
         fs.existsSync(`${lldDir}/liblldCommon.a`)
       ) {
-        linkLibs += ` -L${lldDir} -llldMachO -llldELF -llldCommon`;
+        linkLibs = `-L${lldDir} -llldMachO -llldELF -llldCommon ${linkLibs}`;
         if (!generator.getUsesLLVM()) {
           const llvmConfigPath = findLLVMConfig();
           if (llvmConfigPath) {

@@ -629,7 +629,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
     }
     const lldLibResult = getLLDLibFlags();
     if (lldLibResult.length > 0) {
-      linkLibs = linkLibs + " " + lldLibResult;
+      linkLibs = lldLibResult + " " + linkLibs;
     }
   }
 
