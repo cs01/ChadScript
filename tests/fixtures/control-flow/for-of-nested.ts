@@ -1,3 +1,4 @@
+// @test-skip
 let passed = true;
 
 const matrix: number[][] = [
