@@ -264,6 +264,39 @@ if [ ! -f "$URI_BRIDGE_OBJ" ] || [ "$URI_BRIDGE_SRC" -nt "$URI_BRIDGE_OBJ" ]; th
 else
   echo "==> uri-bridge already built, skipping"
 fi
+# --- llvm-bridge (requires LLVM dev libraries) ---
+LLVM_BRIDGE_SRC="$C_BRIDGES_DIR/llvm-bridge.c"
+LLVM_BRIDGE_OBJ="$C_BRIDGES_DIR/llvm-bridge.o"
+LLVM_CONFIG=""
+if command -v llvm-config >/dev/null 2>&1; then
+  LLVM_CONFIG="llvm-config"
+elif [ -f "/opt/homebrew/opt/llvm/bin/llvm-config" ]; then
+  LLVM_CONFIG="/opt/homebrew/opt/llvm/bin/llvm-config"
+elif [ -f "/usr/local/opt/llvm/bin/llvm-config" ]; then
+  LLVM_CONFIG="/usr/local/opt/llvm/bin/llvm-config"
+elif [ -f "/usr/lib/llvm-21/bin/llvm-config" ]; then
+  LLVM_CONFIG="/usr/lib/llvm-21/bin/llvm-config"
+elif [ -f "/usr/lib/llvm-18/bin/llvm-config" ]; then
+  LLVM_CONFIG="/usr/lib/llvm-18/bin/llvm-config"
+fi
+if [ -n "$LLVM_CONFIG" ]; then
+  if [ ! -f "$LLVM_BRIDGE_OBJ" ] || [ "$LLVM_BRIDGE_SRC" -nt "$LLVM_BRIDGE_OBJ" ]; then
+    echo "==> Building llvm-bridge (using $LLVM_CONFIG)..."
+    LLVM_CFLAGS=$($LLVM_CONFIG --cflags)
+    LLVM_BINDIR=$(dirname "$LLVM_CONFIG")
+    LLVM_CC="$LLVM_BINDIR/clang"
+    if [ ! -f "$LLVM_CC" ]; then
+      LLVM_CC="cc"
+    fi
+    $LLVM_CC -c -O2 -fPIC $LLVM_CFLAGS "$LLVM_BRIDGE_SRC" -o "$LLVM_BRIDGE_OBJ"
+    echo "  -> $LLVM_BRIDGE_OBJ"
+  else
+    echo "==> llvm-bridge already built, skipping"
+  fi
+else
+  echo "==> llvm-bridge skipped (no llvm-config found)"
+fi
+
 # --- child-process-spawn (async, requires libuv) ---
 CP_SPAWN_SRC="$C_BRIDGES_DIR/child-process-spawn.c"
 CP_SPAWN_OBJ="$C_BRIDGES_DIR/child-process-spawn.o"

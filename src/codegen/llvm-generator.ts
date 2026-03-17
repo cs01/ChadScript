@@ -256,6 +256,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public usesChildProcess: number = 0;
   public usesSpawn: number = 0;
   public usesStringBuilder: number = 0;
+  public usesLLVM: number = 0;
   private stringBuilderSlen: Map<string, string> = new Map();
   private stringBuilderScap: Map<string, string> = new Map();
 
@@ -963,6 +964,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
   public setUsesMathRandom(value: boolean): void {
     this.usesMathRandom = value ? 1 : 0;
+  }
+  public getUsesLLVM(): boolean {
+    return this.usesLLVM !== 0;
   }
   public setCurrentDeclaredInterfaceType(type: string | undefined): void {
     this.currentDeclaredInterfaceType = type;
@@ -3172,6 +3176,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     }
 
     this.declaredExternFunctions.push(func.name);
+    if (func.name.startsWith("cs_llvm_")) this.usesLLVM = 1;
     return `declare ${retType} @${func.name}(${paramLlvmTypes.join(", ")})\n`;
   }
 

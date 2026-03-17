@@ -46,6 +46,16 @@ declare const process: {
 
 declare function __gc_disable(): void;
 
+declare function cs_llvm_compile_ir_file(
+  ir_file: string,
+  output_path: string,
+  opt_level: number,
+  triple: string,
+  cpu: string,
+  features: string,
+): string;
+declare function cs_llvm_dispose(): void;
+
 function findLLVMTool(name: string): string {
   const candidates = [
     "/opt/homebrew/opt/llvm/bin/" + name,
@@ -80,6 +90,45 @@ function findLLD(): string {
     return lldLink;
   }
   return "lld";
+}
+
+function findLLVMConfig(): string {
+  const candidates = [
+    "/opt/homebrew/opt/llvm/bin/llvm-config",
+    "/usr/local/opt/llvm/bin/llvm-config",
+    "/usr/lib/llvm-21/bin/llvm-config",
+    "/usr/lib/llvm-18/bin/llvm-config",
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return "";
+}
+
+function getLLVMLibFlags(): string {
+  const cfg = findLLVMConfig();
+  if (cfg.length === 0) return "";
+  const tmpFile = "/tmp/cs_llvm_lib_flags.txt";
+  const cmd =
+    "(" +
+    cfg +
+    " --ldflags --libs x86 aarch64 passes core irreader --link-static && " +
+    cfg +
+    " --system-libs --link-static) 2>/dev/null | tr '\\n' ' ' > " +
+    tmpFile;
+  child_process.execSync(cmd);
+  if (!fs.existsSync(tmpFile)) return "";
+  const flags = fs.readFileSync(tmpFile);
+  fs.unlinkSync(tmpFile);
+  const isMacForLLVM = process.platform === "darwin";
+  if (isMacForLLVM) {
+    let result = flags + " -lc++";
+    if (fs.existsSync("/opt/homebrew/opt/zstd/lib"))
+      result = result + " -L/opt/homebrew/opt/zstd/lib";
+    if (fs.existsSync("/usr/local/opt/zstd/lib")) result = result + " -L/usr/local/opt/zstd/lib";
+    return result;
+  }
+  return flags + " -lstdc++";
 }
 
 export let skipSemanticAnalysis = false;
@@ -392,24 +441,19 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const objFile = outputFile + ".o";
   const clangTool = findLLVMTool("clang");
 
-  const cpuFlag = crossCompiling ? "" : "-march=" + targetCpu;
-  const tripleFlag = crossCompiling ? " --target=" + targetTriple : "";
-
-  const compileCmd =
-    clangTool +
-    " -c -Wno-override-module -O2 " +
-    cpuFlag +
-    tripleFlag +
-    " " +
-    irFile +
-    " -o " +
-    objFile;
+  const effectiveTriple = crossCompiling ? targetTriple : "";
+  const effectiveCpu = crossCompiling ? "" : targetCpu;
   if (verbose) {
-    console.log("Running: " + compileCmd);
+    console.log("Compiling IR via LLVM C API: " + irFile + " -> " + objFile);
   }
-  child_process.execSync(compileCmd);
+  const llvmErr = cs_llvm_compile_ir_file(irFile, objFile, 2, effectiveTriple, effectiveCpu, "");
+  if (llvmErr.length > 0) {
+    console.log("Error: LLVM compilation failed: " + llvmErr);
+    process.exit(1);
+  }
+  cs_llvm_dispose();
   if (!fs.existsSync(objFile)) {
-    console.log("Error: clang failed to produce " + objFile);
+    console.log("Error: LLVM failed to produce " + objFile);
     process.exit(1);
   }
 
@@ -518,6 +562,17 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const watchBridgeObj = effectiveBridgePath + "/watch-bridge.o";
   const arenaBridgeObj = effectiveBridgePath + "/arena-bridge.o";
   const cpSpawnObj = generator.getUsesSpawn() ? effectiveBridgePath + "/child-process-spawn.o" : "";
+  let llvmBridgeObj = "";
+  if (generator.getUsesLLVM()) {
+    const llvmBridgePath = effectiveBridgePath + "/llvm-bridge.o";
+    if (fs.existsSync(llvmBridgePath)) {
+      llvmBridgeObj = llvmBridgePath;
+    }
+    const llvmLibResult = getLLVMLibFlags();
+    if (llvmLibResult.length > 0) {
+      linkLibs = linkLibs + " " + llvmLibResult;
+    }
+  }
 
   // Sysroot and target flags for cross-compilation
   if (hasSDK && sdkSysroot.length > 0) {
@@ -606,6 +661,8 @@ export function compileNative(inputFile: string, outputFile: string): void {
     arenaBridgeObj +
     " " +
     cpSpawnObj +
+    " " +
+    llvmBridgeObj +
     " " +
     treeSitterObjs +
     userLinkObjs +
