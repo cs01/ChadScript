@@ -279,33 +279,46 @@ export class TypeResolver {
       if (mapMeta) {
         const keyType = parseTypeString(mapMeta.keyType);
         const valueType = parseTypeString(mapMeta.valueType);
-        resolved = createResolvedType("Map", {}, 0, [keyType, valueType]);
+        resolved = createResolvedType("Map", { isNullable: false, isOptional: false }, 0, [
+          keyType,
+          valueType,
+        ]);
       }
     }
     if (!resolved) {
       const setValueType = this.ctx.symbolTable.getSetValueType(name);
       if (setValueType) {
         const valueType = parseTypeString(setValueType);
-        resolved = createResolvedType("Set", {}, 0, [valueType]);
+        resolved = createResolvedType("Set", { isNullable: false, isOptional: false }, 0, [
+          valueType,
+        ]);
       }
     }
     if (!resolved) {
       const objArrayMeta = this.ctx.symbolTable.getObjectArrayMetadata(name);
       if (objArrayMeta) {
-        resolved = createResolvedType(objArrayMeta.elementInterfaceName, {}, 1);
+        resolved = createResolvedType(
+          objArrayMeta.elementInterfaceName,
+          { isNullable: false, isOptional: false },
+          1,
+        );
       }
     }
     if (!resolved) {
       const arrMetaElementType = this.ctx.symbolTable.getArrayMetadataElementType(name);
       if (arrMetaElementType) {
-        resolved = createResolvedType(arrMetaElementType, {}, 1);
+        resolved = createResolvedType(
+          arrMetaElementType,
+          { isNullable: false, isOptional: false },
+          1,
+        );
       }
     }
     if (!resolved && this.ctx.symbolTable.isStringArray(name)) {
-      resolved = createResolvedType("string", {}, 1);
+      resolved = createResolvedType("string", { isNullable: false, isOptional: false }, 1);
     }
     if (!resolved && this.ctx.symbolTable.isBooleanArray(name)) {
-      resolved = createResolvedType("boolean", {}, 1);
+      resolved = createResolvedType("boolean", { isNullable: false, isOptional: false }, 1);
     }
     if (!resolved) {
       const className = this.ctx.symbolTable.getClassName(name);
@@ -327,16 +340,16 @@ export class TypeResolver {
             resolved = createResolvedType("boolean");
             break;
           case "%Array*":
-            resolved = createResolvedType("number", {}, 1);
+            resolved = createResolvedType("number", { isNullable: false, isOptional: false }, 1);
             break;
           case "%StringArray*":
-            resolved = createResolvedType("string", {}, 1);
+            resolved = createResolvedType("string", { isNullable: false, isOptional: false }, 1);
             break;
           case "%Map*":
             resolved = createResolvedType("Map");
             break;
           case "%StringMap*":
-            resolved = createResolvedType("Map", {}, 0, [
+            resolved = createResolvedType("Map", { isNullable: false, isOptional: false }, 0, [
               createResolvedType("string"),
               createResolvedType("unknown"),
             ]);
@@ -345,7 +358,9 @@ export class TypeResolver {
             resolved = createResolvedType("Set");
             break;
           case "%StringSet*":
-            resolved = createResolvedType("Set", {}, 0, [createResolvedType("string")]);
+            resolved = createResolvedType("Set", { isNullable: false, isOptional: false }, 0, [
+              createResolvedType("string"),
+            ]);
             break;
           default:
             if (llvmType.startsWith("%") && llvmType.endsWith("*")) {

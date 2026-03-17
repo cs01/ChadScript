@@ -34,7 +34,7 @@ const DEFAULT_QUALIFIERS: TypeQualifiers = { isNullable: false, isOptional: fals
 
 export function createResolvedType(
   base: string,
-  qualifiers: Partial<TypeQualifiers> = {},
+  qualifiers: Partial<TypeQualifiers> = { isNullable: false, isOptional: false },
   arrayDepth: number = 0,
   typeParams?: ResolvedType[],
 ): ResolvedType {
