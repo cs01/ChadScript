@@ -513,8 +513,9 @@ export function compile(
     }
     const llvmConfigPath = findLLVMConfig();
     if (llvmConfigPath) {
+      const llvmComponents = "x86 aarch64 passes core irreader";
       const llvmLibFlags = execSync(
-        `${llvmConfigPath} --ldflags --libs x86 aarch64 passes core irreader --link-static`,
+        `${llvmConfigPath} --ldflags --libs ${llvmComponents} --link-static`,
         { stdio: "pipe", encoding: "utf8" },
       )
         .trim()
@@ -535,6 +536,52 @@ export function compile(
         }
       } else {
         linkLibs += " -lstdc++";
+      }
+    }
+  }
+
+  if (generator.getUsesLLD()) {
+    const lldBridgeObj = `${bridgePath}/lld-bridge.o`;
+    if (fs.existsSync(lldBridgeObj)) {
+      extraObjs += ` ${lldBridgeObj}`;
+    }
+    const lldLibDirs = [
+      "/opt/homebrew/opt/lld/lib",
+      "/usr/local/opt/lld/lib",
+      "/usr/lib/llvm-21/lib",
+      "/usr/lib/llvm-18/lib",
+    ];
+    for (const lldDir of lldLibDirs) {
+      if (
+        fs.existsSync(`${lldDir}/liblldCommon.dylib`) ||
+        fs.existsSync(`${lldDir}/liblldCommon.so`) ||
+        fs.existsSync(`${lldDir}/liblldCommon.a`)
+      ) {
+        linkLibs = `-L${lldDir} -llldMachO -llldELF -llldCommon ${linkLibs}`;
+        if (!generator.getUsesLLVM()) {
+          const llvmConfigPath = findLLVMConfig();
+          if (llvmConfigPath) {
+            const llvmLdFlags = execSync(
+              `${llvmConfigPath} --ldflags --libs core support option binaryformat targetparser demangle mc object --link-static`,
+              { stdio: "pipe", encoding: "utf8" },
+            )
+              .trim()
+              .replace(/\n/g, " ");
+            const llvmSysLibs = execSync(`${llvmConfigPath} --system-libs --link-static`, {
+              stdio: "pipe",
+              encoding: "utf8",
+            })
+              .trim()
+              .replace(/\n/g, " ");
+            linkLibs += ` ${llvmLdFlags} ${llvmSysLibs}`;
+            if (hostIsMac) {
+              linkLibs += " -lc++";
+            } else {
+              linkLibs += " -lstdc++";
+            }
+          }
+        }
+        break;
       }
     }
   }

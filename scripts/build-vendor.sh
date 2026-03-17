@@ -297,6 +297,50 @@ else
   echo "==> llvm-bridge skipped (no llvm-config found)"
 fi
 
+# --- lld-bridge (macOS only — requires LLD dynamic libs; Linux uses stub) ---
+LLD_BRIDGE_SRC="$C_BRIDGES_DIR/lld-bridge.cpp"
+LLD_BRIDGE_OBJ="$C_BRIDGES_DIR/lld-bridge.o"
+LLD_STUB_SRC="$C_BRIDGES_DIR/lld-stub.c"
+if [ "$(uname)" = "Darwin" ]; then
+  LLD_INCLUDE=""
+  if [ -d "/opt/homebrew/opt/lld/include" ]; then
+    LLD_INCLUDE="/opt/homebrew/opt/lld/include"
+  elif [ -d "/usr/local/opt/lld/include" ]; then
+    LLD_INCLUDE="/usr/local/opt/lld/include"
+  fi
+  if [ -n "$LLVM_CONFIG" ] && [ -n "$LLD_INCLUDE" ]; then
+    if [ ! -f "$LLD_BRIDGE_OBJ" ] || [ "$LLD_BRIDGE_SRC" -nt "$LLD_BRIDGE_OBJ" ]; then
+      echo "==> Building lld-bridge (using $LLVM_CONFIG)..."
+      LLVM_CXXFLAGS=$($LLVM_CONFIG --cxxflags | sed 's/-fno-exceptions//g')
+      LLVM_BINDIR=$(dirname "$LLVM_CONFIG")
+      LLVM_CXX="$LLVM_BINDIR/clang++"
+      if [ ! -f "$LLVM_CXX" ]; then
+        LLVM_CXX="c++"
+      fi
+      $LLVM_CXX -c -O2 -fPIC $LLVM_CXXFLAGS -I"$LLD_INCLUDE" "$LLD_BRIDGE_SRC" -o "$LLD_BRIDGE_OBJ"
+      echo "  -> $LLD_BRIDGE_OBJ"
+    else
+      echo "==> lld-bridge already built, skipping"
+    fi
+  else
+    if [ ! -f "$LLD_BRIDGE_OBJ" ] || [ "$LLD_STUB_SRC" -nt "$LLD_BRIDGE_OBJ" ]; then
+      echo "==> Building lld-stub (no lld headers found)..."
+      cc -c -O2 -fPIC "$LLD_STUB_SRC" -o "$LLD_BRIDGE_OBJ"
+      echo "  -> $LLD_BRIDGE_OBJ (stub)"
+    else
+      echo "==> lld-bridge already built, skipping"
+    fi
+  fi
+else
+  if [ ! -f "$LLD_BRIDGE_OBJ" ] || [ "$LLD_STUB_SRC" -nt "$LLD_BRIDGE_OBJ" ]; then
+    echo "==> Building lld-stub (Linux uses clang for linking)..."
+    cc -c -O2 -fPIC "$LLD_STUB_SRC" -o "$LLD_BRIDGE_OBJ"
+    echo "  -> $LLD_BRIDGE_OBJ (stub)"
+  else
+    echo "==> lld-bridge already built, skipping"
+  fi
+fi
+
 # --- child-process-spawn (async, requires libuv) ---
 CP_SPAWN_SRC="$C_BRIDGES_DIR/child-process-spawn.c"
 CP_SPAWN_OBJ="$C_BRIDGES_DIR/child-process-spawn.o"
