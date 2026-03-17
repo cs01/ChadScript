@@ -1005,6 +1005,9 @@ export class FunctionGenerator {
     if (topLevelItemsCount > 0) {
       for (let itemIdx = 0; itemIdx < topLevelItemsCount; itemIdx++) {
         this.ctx.processTopLevelItem(itemIdx);
+        if (!this.ctx.lastInstructionIsTerminator()) {
+          this.ctx.emit("call void @cs_arena_reset()");
+        }
       }
     } else {
       for (let i = 0; i < topLevelStatementsCount; i++) {
