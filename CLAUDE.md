@@ -202,10 +202,9 @@ LLVM basic blocks must end with exactly one terminator instruction (`ret`, `br`,
 Rather than parsing emitted strings to detect terminators, we use a parallel `outputIsTerminator: boolean[]`
 that auto-classifies every instruction at `emit()` time. Use `ctx.lastInstructionIsTerminator()` to check.
 
-**Three-way sync requirement**: The classification logic (`classifyTerminator`) exists in three places
-that must stay identical: `BaseGenerator` (protected), `MockGeneratorContext` (private), and
-`LLVMGenerator` inherits from `BaseGenerator`. If you add a new terminator (e.g., `invoke`, `indirectbr`),
-update all three.
+**Single source of truth**: The classification logic lives in `terminator-classifier.ts` as a standalone
+function. Both `BaseGenerator` and `MockGeneratorContext` delegate to it. To add a new terminator
+(e.g., `invoke`, `indirectbr`), update `classifyTerminator()` in that one file.
 
 Builder methods (`emitRet`, `emitRetVoid`, `emitBr`, `emitBrCond`, `emitUnreachable`, `emitLabel`) are
 available on `BaseGenerator`, `LLVMGenerator`, and `MockGeneratorContext` for type-safe terminator emission.
