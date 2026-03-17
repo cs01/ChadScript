@@ -539,6 +539,52 @@ export function compile(
     }
   }
 
+  if (generator.getUsesLLD()) {
+    const lldBridgeObj = `${bridgePath}/lld-bridge.o`;
+    if (fs.existsSync(lldBridgeObj)) {
+      extraObjs += ` ${lldBridgeObj}`;
+    }
+    const lldLibDirs = [
+      "/opt/homebrew/opt/lld/lib",
+      "/usr/local/opt/lld/lib",
+      "/usr/lib/llvm-21/lib",
+      "/usr/lib/llvm-18/lib",
+    ];
+    for (const lldDir of lldLibDirs) {
+      if (
+        fs.existsSync(`${lldDir}/liblldCommon.dylib`) ||
+        fs.existsSync(`${lldDir}/liblldCommon.so`) ||
+        fs.existsSync(`${lldDir}/liblldCommon.a`)
+      ) {
+        linkLibs += ` -L${lldDir} -llldMachO -llldELF -llldCommon`;
+        if (!generator.getUsesLLVM()) {
+          const llvmConfigPath = findLLVMConfig();
+          if (llvmConfigPath) {
+            const llvmLdFlags = execSync(
+              `${llvmConfigPath} --ldflags --libs core support --link-static`,
+              { stdio: "pipe", encoding: "utf8" },
+            )
+              .trim()
+              .replace(/\n/g, " ");
+            const llvmSysLibs = execSync(`${llvmConfigPath} --system-libs --link-static`, {
+              stdio: "pipe",
+              encoding: "utf8",
+            })
+              .trim()
+              .replace(/\n/g, " ");
+            linkLibs += ` ${llvmLdFlags} ${llvmSysLibs}`;
+            if (hostIsMac) {
+              linkLibs += " -lc++";
+            } else {
+              linkLibs += " -lstdc++";
+            }
+          }
+        }
+        break;
+      }
+    }
+  }
+
   let linker = useClang ? linkerPath : "gcc";
   if (sanitize) {
     linker = "gcc";

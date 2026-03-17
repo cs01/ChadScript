@@ -56,6 +56,10 @@ declare function cs_llvm_compile_ir_file(
 ): string;
 declare function cs_llvm_dispose(): void;
 
+declare function cs_lld_available(): number;
+declare function cs_lld_link_macho(cmd: string): string;
+declare function cs_lld_link_elf(cmd: string): string;
+
 function findLLVMTool(name: string): string {
   const candidates = [
     "/opt/homebrew/opt/llvm/bin/" + name,
@@ -103,6 +107,50 @@ function findLLVMConfig(): string {
     if (fs.existsSync(c)) return c;
   }
   return "";
+}
+
+let cachedMacSDKPath = "";
+function getMacSDKPath(): string {
+  if (cachedMacSDKPath.length > 0) return cachedMacSDKPath;
+  const candidates = [
+    "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+    "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk",
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c + "/usr/lib/libSystem.tbd")) {
+      cachedMacSDKPath = c;
+      return c;
+    }
+  }
+  const tmpFile = "/tmp/cs_sdk_path.txt";
+  child_process.execSync("xcrun --show-sdk-path > " + tmpFile);
+  if (fs.existsSync(tmpFile)) {
+    cachedMacSDKPath = fs.readFileSync(tmpFile).trim();
+    fs.unlinkSync(tmpFile);
+  }
+  return cachedMacSDKPath;
+}
+
+function getLLDLibFlags(): string {
+  const lldLibCandidates = [
+    "/opt/homebrew/opt/lld/lib",
+    "/usr/local/opt/lld/lib",
+    "/usr/lib/llvm-21/lib",
+    "/usr/lib/llvm-18/lib",
+  ];
+  let lldLibDir = "";
+  for (const c of lldLibCandidates) {
+    if (
+      fs.existsSync(c + "/liblldCommon.dylib") ||
+      fs.existsSync(c + "/liblldCommon.so") ||
+      fs.existsSync(c + "/liblldCommon.a")
+    ) {
+      lldLibDir = c;
+      break;
+    }
+  }
+  if (lldLibDir.length === 0) return "";
+  return "-L" + lldLibDir + " -llldMachO -llldELF -llldCommon";
 }
 
 function getLLVMLibFlags(): string {
@@ -563,6 +611,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const arenaBridgeObj = effectiveBridgePath + "/arena-bridge.o";
   const cpSpawnObj = generator.getUsesSpawn() ? effectiveBridgePath + "/child-process-spawn.o" : "";
   let llvmBridgeObj = "";
+  let lldBridgeObj = "";
   if (generator.getUsesLLVM()) {
     const llvmBridgePath = effectiveBridgePath + "/llvm-bridge.o";
     if (fs.existsSync(llvmBridgePath)) {
@@ -573,67 +622,18 @@ export function compileNative(inputFile: string, outputFile: string): void {
       linkLibs = linkLibs + " " + llvmLibResult;
     }
   }
-
-  // Sysroot and target flags for cross-compilation
-  if (hasSDK && sdkSysroot.length > 0) {
-    linkLibs = "--sysroot=" + sdkSysroot + " " + linkLibs;
-  } else if (!crossCompiling && isMac) {
-    // Only add -L flags for paths that actually exist to avoid ld warnings.
-    // Both prefixes are checked because we can't detect arch at runtime in native code.
-    if (generator.getUsesCrypto()) {
-      if (fs.existsSync("/opt/homebrew/opt/openssl/lib"))
-        linkLibs = "-L/opt/homebrew/opt/openssl/lib " + linkLibs;
-      if (fs.existsSync("/usr/local/opt/openssl/lib"))
-        linkLibs = "-L/usr/local/opt/openssl/lib " + linkLibs;
+  if (generator.getUsesLLD()) {
+    const lldBridgePath = effectiveBridgePath + "/lld-bridge.o";
+    if (fs.existsSync(lldBridgePath)) {
+      lldBridgeObj = lldBridgePath;
     }
-    if (generator.getUsesSqlite()) {
-      if (fs.existsSync("/opt/homebrew/opt/sqlite/lib"))
-        linkLibs = "-L/opt/homebrew/opt/sqlite/lib " + linkLibs;
-      if (fs.existsSync("/usr/local/opt/sqlite/lib"))
-        linkLibs = "-L/usr/local/opt/sqlite/lib " + linkLibs;
+    const lldLibResult = getLLDLibFlags();
+    if (lldLibResult.length > 0) {
+      linkLibs = linkLibs + " " + lldLibResult;
     }
-    if (generator.getUsesHttpServer()) {
-      if (fs.existsSync("/opt/homebrew/opt/zstd/lib"))
-        linkLibs = "-L/opt/homebrew/opt/zstd/lib " + linkLibs;
-      if (fs.existsSync("/usr/local/opt/zstd/lib"))
-        linkLibs = "-L/usr/local/opt/zstd/lib " + linkLibs;
-    }
-    let macLinkPrefix = "-Wl,-syslibroot,$(xcrun --show-sdk-path)";
-    if (fs.existsSync("/usr/local/lib")) macLinkPrefix = macLinkPrefix + " -L/usr/local/lib";
-    linkLibs = macLinkPrefix + " " + linkLibs;
   }
 
-  // Cross-compiled Linux binaries must link statically — the SDK sysroot only
-  // has .a archives (Ubuntu's .so files are linker scripts with hardcoded paths).
-  const shouldStatic = !targetIsDarwin && crossCompiling;
-  const staticFlag = shouldStatic ? " -static" : "";
-  const crossTargetFlag = crossCompiling ? " --target=" + targetTriple : "";
-  const debugFlag = debugInfo ? " -g" : "";
-  // Strip symbol table from release builds. Skipped on macOS (linker handles it
-  // differently) and when -g is set (stripping debug info defeats the purpose).
-  const stripFlag = !debugInfo && !isMac ? " -s" : "";
-  // Cross-compiling requires lld — the host linker can't produce foreign binaries.
-  // Use full path because Homebrew clang can't find lld by short name.
-  // Try ld.lld first (ELF-specific), fall back to lld (multicall binary, auto-detects format).
-  const crossLinker = crossCompiling ? " -fuse-ld=" + findLLD() : "";
-  const suppressLdWarnings = isMac ? " -Wl,-w" : "";
-
-  // User-provided linker flags (--link-obj, --link-lib, --link-path)
-  let userLinkObjs = "";
-  for (let _oi = 0; _oi < extraLinkObjs.length; _oi++) {
-    userLinkObjs = userLinkObjs + " " + extraLinkObjs[_oi];
-  }
-  let userLinkFlags = "";
-  for (let _pi = 0; _pi < extraLinkPaths.length; _pi++) {
-    userLinkFlags = userLinkFlags + " -L" + extraLinkPaths[_pi];
-  }
-  for (let _li = 0; _li < extraLinkLibs.length; _li++) {
-    userLinkFlags = userLinkFlags + " -l" + extraLinkLibs[_li];
-  }
-
-  const linkCmd =
-    clangTool +
-    " " +
+  let allObjs =
     objFile +
     " " +
     lwsBridgeObj +
@@ -664,26 +664,173 @@ export function compileNative(inputFile: string, outputFile: string): void {
     " " +
     llvmBridgeObj +
     " " +
-    treeSitterObjs +
-    userLinkObjs +
-    " -o " +
-    outputFile +
-    noPie +
-    debugFlag +
-    stripFlag +
-    staticFlag +
-    crossTargetFlag +
-    crossLinker +
-    suppressLdWarnings +
+    lldBridgeObj +
     " " +
-    linkLibs +
-    userLinkFlags;
-  if (verbose) {
-    console.log("Running: " + linkCmd);
+    treeSitterObjs;
+
+  let userLinkObjs = "";
+  for (let _oi = 0; _oi < extraLinkObjs.length; _oi++) {
+    userLinkObjs = userLinkObjs + " " + extraLinkObjs[_oi];
   }
-  child_process.execSync(linkCmd);
+  let userLinkFlags = "";
+  for (let _pi = 0; _pi < extraLinkPaths.length; _pi++) {
+    userLinkFlags = userLinkFlags + " -L" + extraLinkPaths[_pi];
+  }
+  for (let _li = 0; _li < extraLinkLibs.length; _li++) {
+    userLinkFlags = userLinkFlags + " -l" + extraLinkLibs[_li];
+  }
+  allObjs = allObjs + userLinkObjs;
+  linkLibs = linkLibs + userLinkFlags;
+
+  const useLLD = cs_lld_available() > 0 && !crossCompiling;
+
+  if (useLLD) {
+    let filtered = "";
+    let idx = 0;
+    while (idx < linkLibs.length) {
+      while (idx < linkLibs.length && linkLibs.charAt(idx) === " ") idx = idx + 1;
+      let end = idx;
+      while (end < linkLibs.length && linkLibs.charAt(end) !== " ") end = end + 1;
+      const tok = linkLibs.substr(idx, end - idx);
+      if (tok.length > 0 && tok.substr(0, 4) !== "-Wl,") {
+        if (filtered.length > 0) filtered = filtered + " ";
+        filtered = filtered + tok;
+      }
+      idx = end;
+    }
+    linkLibs = filtered;
+  }
+
+  if (useLLD && targetIsDarwin) {
+    if (!crossCompiling && isMac) {
+      if (generator.getUsesCrypto()) {
+        if (fs.existsSync("/opt/homebrew/opt/openssl/lib"))
+          linkLibs = "-L/opt/homebrew/opt/openssl/lib " + linkLibs;
+        if (fs.existsSync("/usr/local/opt/openssl/lib"))
+          linkLibs = "-L/usr/local/opt/openssl/lib " + linkLibs;
+      }
+      if (generator.getUsesSqlite()) {
+        if (fs.existsSync("/opt/homebrew/opt/sqlite/lib"))
+          linkLibs = "-L/opt/homebrew/opt/sqlite/lib " + linkLibs;
+        if (fs.existsSync("/usr/local/opt/sqlite/lib"))
+          linkLibs = "-L/usr/local/opt/sqlite/lib " + linkLibs;
+      }
+      if (generator.getUsesHttpServer()) {
+        if (fs.existsSync("/opt/homebrew/opt/zstd/lib"))
+          linkLibs = "-L/opt/homebrew/opt/zstd/lib " + linkLibs;
+        if (fs.existsSync("/usr/local/opt/zstd/lib"))
+          linkLibs = "-L/usr/local/opt/zstd/lib " + linkLibs;
+      }
+      if (fs.existsSync("/usr/local/lib")) linkLibs = "-L/usr/local/lib " + linkLibs;
+    }
+    const sdkPath = getMacSDKPath();
+
+    const lldCmd =
+      allObjs +
+      " -o " +
+      outputFile +
+      " -arch arm64" +
+      " -platform_version macos 11.0.0 0" +
+      " -syslibroot " +
+      sdkPath +
+      " -lSystem " +
+      linkLibs;
+    if (verbose) {
+      console.log("LLD macho: " + lldCmd);
+    }
+    const lldErr = cs_lld_link_macho(lldCmd);
+    if (lldErr.length > 0) {
+      console.log("Error: LLD linking failed: " + lldErr);
+      process.exit(1);
+    }
+  } else if (useLLD && !targetIsDarwin) {
+    const shouldStatic = crossCompiling;
+    let lldCmd = allObjs + " -o " + outputFile + " --no-pie";
+    if (shouldStatic) lldCmd = lldCmd + " -static";
+    if (!debugInfo) lldCmd = lldCmd + " --strip-all";
+    if (hasSDK && sdkSysroot.length > 0) {
+      lldCmd = lldCmd + " --sysroot=" + sdkSysroot;
+    }
+    const crtPaths = ["/usr/lib/x86_64-linux-gnu", "/usr/lib64", "/usr/lib"];
+    let crtDir = "";
+    for (const cp of crtPaths) {
+      if (fs.existsSync(cp + "/crt1.o")) {
+        crtDir = cp;
+        break;
+      }
+    }
+    if (crtDir.length > 0) {
+      lldCmd = crtDir + "/crt1.o " + crtDir + "/crti.o " + lldCmd + " " + crtDir + "/crtn.o";
+    }
+    lldCmd = lldCmd + " -lc " + linkLibs;
+    if (!shouldStatic) {
+      lldCmd = lldCmd + " --dynamic-linker /lib64/ld-linux-x86-64.so.2";
+    }
+    if (verbose) {
+      console.log("LLD elf: " + lldCmd);
+    }
+    const lldErr = cs_lld_link_elf(lldCmd);
+    if (lldErr.length > 0) {
+      console.log("Error: LLD linking failed: " + lldErr);
+      process.exit(1);
+    }
+  } else {
+    if (hasSDK && sdkSysroot.length > 0) {
+      linkLibs = "--sysroot=" + sdkSysroot + " " + linkLibs;
+    } else if (!crossCompiling && isMac) {
+      if (generator.getUsesCrypto()) {
+        if (fs.existsSync("/opt/homebrew/opt/openssl/lib"))
+          linkLibs = "-L/opt/homebrew/opt/openssl/lib " + linkLibs;
+        if (fs.existsSync("/usr/local/opt/openssl/lib"))
+          linkLibs = "-L/usr/local/opt/openssl/lib " + linkLibs;
+      }
+      if (generator.getUsesSqlite()) {
+        if (fs.existsSync("/opt/homebrew/opt/sqlite/lib"))
+          linkLibs = "-L/opt/homebrew/opt/sqlite/lib " + linkLibs;
+        if (fs.existsSync("/usr/local/opt/sqlite/lib"))
+          linkLibs = "-L/usr/local/opt/sqlite/lib " + linkLibs;
+      }
+      if (generator.getUsesHttpServer()) {
+        if (fs.existsSync("/opt/homebrew/opt/zstd/lib"))
+          linkLibs = "-L/opt/homebrew/opt/zstd/lib " + linkLibs;
+        if (fs.existsSync("/usr/local/opt/zstd/lib"))
+          linkLibs = "-L/usr/local/opt/zstd/lib " + linkLibs;
+      }
+      let macLinkPrefix = "-Wl,-syslibroot,$(xcrun --show-sdk-path)";
+      if (fs.existsSync("/usr/local/lib")) macLinkPrefix = macLinkPrefix + " -L/usr/local/lib";
+      linkLibs = macLinkPrefix + " " + linkLibs;
+    }
+    const shouldStatic = !targetIsDarwin && crossCompiling;
+    const staticFlag = shouldStatic ? " -static" : "";
+    const crossTargetFlag = crossCompiling ? " --target=" + targetTriple : "";
+    const debugFlag = debugInfo ? " -g" : "";
+    const stripFlag = !debugInfo && !isMac ? " -s" : "";
+    const crossLinker = crossCompiling ? " -fuse-ld=" + findLLD() : "";
+    const suppressLdWarnings = isMac ? " -Wl,-w" : "";
+    const noPieFlag = !targetIsDarwin && !crossCompiling ? " -no-pie" : "";
+    const linkCmd =
+      clangTool +
+      " " +
+      allObjs +
+      " -o " +
+      outputFile +
+      noPieFlag +
+      debugFlag +
+      stripFlag +
+      staticFlag +
+      crossTargetFlag +
+      crossLinker +
+      suppressLdWarnings +
+      " " +
+      linkLibs;
+    if (verbose) {
+      console.log("Running: " + linkCmd);
+    }
+    child_process.execSync(linkCmd);
+  }
+
   if (!fs.existsSync(outputFile)) {
-    console.log("Error: clang failed to produce " + outputFile);
+    console.log("Error: linker failed to produce " + outputFile);
     process.exit(1);
   }
 
