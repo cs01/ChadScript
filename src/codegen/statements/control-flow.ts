@@ -553,12 +553,12 @@ export class ControlFlowGenerator {
     if (elementKind === SymbolKind_StringArray) {
       this.ctx.symbolTable.setResolvedType(
         forOfStmt.variableName,
-        createResolvedType("string", {}, 1),
+        createResolvedType("string", { isNullable: false, isOptional: false }, 1),
       );
     } else if (elementKind === SymbolKind_Array && isObjectArray) {
       this.ctx.symbolTable.setResolvedType(
         forOfStmt.variableName,
-        createResolvedType("number", {}, 1),
+        createResolvedType("number", { isNullable: false, isOptional: false }, 1),
       );
     }
 
