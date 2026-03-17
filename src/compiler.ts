@@ -513,8 +513,11 @@ export function compile(
     }
     const llvmConfigPath = findLLVMConfig();
     if (llvmConfigPath) {
+      const llvmComponents = generator.getUsesLLD()
+        ? "x86 aarch64 passes core irreader option"
+        : "x86 aarch64 passes core irreader";
       const llvmLibFlags = execSync(
-        `${llvmConfigPath} --ldflags --libs x86 aarch64 passes core irreader --link-static`,
+        `${llvmConfigPath} --ldflags --libs ${llvmComponents} --link-static`,
         { stdio: "pipe", encoding: "utf8" },
       )
         .trim()
@@ -561,7 +564,7 @@ export function compile(
           const llvmConfigPath = findLLVMConfig();
           if (llvmConfigPath) {
             const llvmLdFlags = execSync(
-              `${llvmConfigPath} --ldflags --libs core support --link-static`,
+              `${llvmConfigPath} --ldflags --libs core support option binaryformat targetparser demangle mc object --link-static`,
               { stdio: "pipe", encoding: "utf8" },
             )
               .trim()
