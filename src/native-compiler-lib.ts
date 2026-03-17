@@ -160,7 +160,7 @@ function getLLVMLibFlags(): string {
   const cmd =
     "(" +
     cfg +
-    " --ldflags --libs x86 aarch64 passes core irreader option --link-static && " +
+    " --ldflags --libs x86 aarch64 passes core irreader --link-static && " +
     cfg +
     " --system-libs --link-static) 2>/dev/null | tr '\\n' ' ' > " +
     tmpFile;

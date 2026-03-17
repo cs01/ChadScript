@@ -513,9 +513,7 @@ export function compile(
     }
     const llvmConfigPath = findLLVMConfig();
     if (llvmConfigPath) {
-      const llvmComponents = generator.getUsesLLD()
-        ? "x86 aarch64 passes core irreader option"
-        : "x86 aarch64 passes core irreader";
+      const llvmComponents = "x86 aarch64 passes core irreader";
       const llvmLibFlags = execSync(
         `${llvmConfigPath} --ldflags --libs ${llvmComponents} --link-static`,
         { stdio: "pipe", encoding: "utf8" },
