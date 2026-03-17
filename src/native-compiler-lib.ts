@@ -60,6 +60,82 @@ declare function cs_lld_available(): number;
 declare function cs_lld_link_macho(cmd: string): string;
 declare function cs_lld_link_elf(cmd: string): string;
 
+declare function cs_llvm_builder_init(
+  name: string,
+  triple: string,
+  cpu: string,
+  features: string,
+): string;
+declare function cs_llvm_builder_dispose(): void;
+declare function cs_llvm_add_struct_type(name: string, field_types: string, count: number): void;
+declare function cs_llvm_add_global_string(name: string, value: string, len: number): string;
+declare function cs_llvm_add_function(
+  name: string,
+  ret_type: string,
+  param_types: string,
+  count: number,
+): void;
+declare function cs_llvm_add_extern(
+  name: string,
+  ret_type: string,
+  param_types: string,
+  count: number,
+): void;
+declare function cs_llvm_fn_begin(name: string): void;
+declare function cs_llvm_fn_end(): void;
+declare function cs_llvm_fn_set_param_name(idx: number, name: string): void;
+declare function cs_llvm_bb_create(name: string): void;
+declare function cs_llvm_bb_position(name: string): void;
+declare function cs_llvm_build_store(type: string, value: string, ptr: string): string;
+declare function cs_llvm_build_load(type: string, ptr: string): string;
+declare function cs_llvm_build_gep(
+  base_type: string,
+  ptr: string,
+  indices: string,
+  count: number,
+): string;
+declare function cs_llvm_build_call(
+  ret_type: string,
+  func: string,
+  args: string,
+  count: number,
+): string;
+declare function cs_llvm_build_call_void(func: string, args: string, count: number): void;
+declare function cs_llvm_build_bitcast(val: string, from_type: string, to_type: string): string;
+declare function cs_llvm_build_icmp(pred: string, type: string, lhs: string, rhs: string): string;
+declare function cs_llvm_build_ret(type: string, val: string): void;
+declare function cs_llvm_build_ret_void(): void;
+declare function cs_llvm_build_br(label: string): void;
+declare function cs_llvm_build_br_cond(cond: string, then_label: string, else_label: string): void;
+declare function cs_llvm_build_unreachable(): void;
+declare function cs_llvm_build_alloca(type: string, name: string): string;
+declare function cs_llvm_build_add(lhs: string, rhs: string): string;
+declare function cs_llvm_build_sub(lhs: string, rhs: string): string;
+declare function cs_llvm_build_mul(lhs: string, rhs: string): string;
+declare function cs_llvm_build_fadd(lhs: string, rhs: string): string;
+declare function cs_llvm_build_fsub(lhs: string, rhs: string): string;
+declare function cs_llvm_build_fmul(lhs: string, rhs: string): string;
+declare function cs_llvm_build_fdiv(lhs: string, rhs: string): string;
+declare function cs_llvm_build_srem(lhs: string, rhs: string): string;
+declare function cs_llvm_build_zext(val: string, to_type: string): string;
+declare function cs_llvm_build_sext(val: string, to_type: string): string;
+declare function cs_llvm_build_trunc(val: string, to_type: string): string;
+declare function cs_llvm_build_sitofp(val: string, to_type: string): string;
+declare function cs_llvm_build_fptosi(val: string, to_type: string): string;
+declare function cs_llvm_build_ptrtoint(val: string, to_type: string): string;
+declare function cs_llvm_build_inttoptr(val: string, to_type: string): string;
+declare function cs_llvm_build_fcmp(pred: string, lhs: string, rhs: string): string;
+declare function cs_llvm_build_phi(
+  type: string,
+  vals: string,
+  blocks: string,
+  count: number,
+): string;
+declare function cs_llvm_build_select(cond: string, then_val: string, else_val: string): string;
+declare function cs_llvm_builder_optimize(level: number): string;
+declare function cs_llvm_builder_emit_object(path: string): string;
+declare function cs_llvm_builder_print(path: string): string;
+
 function findLLVMTool(name: string): string {
   const candidates = [
     "/opt/homebrew/opt/llvm/bin/" + name,

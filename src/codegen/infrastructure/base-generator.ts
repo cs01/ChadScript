@@ -96,6 +96,7 @@ export class BaseGenerator {
   // shifting GEP indices for existing fields in the native compiler.
   public lastInlineLambdaEnvPtr: string | null = null;
   public lastTypeAssertionSourceVar: string | null = null;
+  public useBuilderAPI: boolean = false;
 
   constructor() {
     this.output = [];
@@ -543,6 +544,10 @@ export class BaseGenerator {
     this.setVariableType(temp, toType);
     return temp;
   }
+
+  // Builder API mode: these mirror the text builders above but call C bridge functions.
+  // Enabled via useBuilderAPI flag. Currently unused — will be wired in when
+  // the native compiler's compilation pipeline switches from text IR to in-memory IR.
 
   // ============================================
   // Symbol table convenience methods
