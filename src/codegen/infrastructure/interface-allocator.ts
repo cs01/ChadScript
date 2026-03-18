@@ -76,14 +76,18 @@ export class InterfaceAllocator {
     return null;
   }
 
-  getAllInterfaceFields(iface: InterfaceDeclaration): InterfaceField[] {
+  getAllInterfaceFields(iface: InterfaceDeclaration, visited?: Set<string>): InterfaceField[] {
+    const seen = visited || new Set<string>();
+    const name = iface.name || "";
+    if (seen.has(name)) return [];
+    seen.add(name);
     const result: InterfaceField[] = [];
     if (iface.extends && iface.extends.length > 0) {
       for (let i = 0; i < iface.extends.length; i++) {
         const parentName = iface.extends[i];
         const parent = this.getInterface(parentName);
         if (parent) {
-          const parentFields = this.getAllInterfaceFields(parent);
+          const parentFields = this.getAllInterfaceFields(parent, seen);
           for (let j = 0; j < parentFields.length; j++) {
             result.push(parentFields[j]);
           }
