@@ -360,63 +360,126 @@ function render(city, forecast, hourlyData, grid) {
   var sunDetail = isBeforeSunset
     ? "Sunrise: " + fmtTime(sunTimes.sunrise)
     : "Sunset: " + fmtTime(sunTimes.sunset);
-  // Sun arc — full sinusoidal curve, above horizon = day, below = night
+  // Sun arc — semicircle above horizon (day), dip below (night)
+  // Layout: x 10-90, horizon at y=50, arc peaks at y=15, dips to y=65
   var dayLen = sunTimes.sunset - sunTimes.sunrise;
   var midnightToday = new Date(nowTime);
   midnightToday.setHours(0, 0, 0, 0);
   var fullDay = 24 * 60 * 60 * 1000;
-  var dayProgress = (nowTime - midnightToday) / fullDay;
+  var dayFrac = (nowTime - midnightToday) / fullDay;
   var riseFrac = (sunTimes.sunrise - midnightToday) / fullDay;
   var setFrac = (sunTimes.sunset - midnightToday) / fullDay;
-  var hY = 40;
-  var amp = 28;
-  var sinPoints = [];
-  for (var si = 0; si <= 60; si++) {
-    var frac = si / 60;
-    var px = 5 + frac * 90;
-    var phase = ((frac - riseFrac) / (setFrac - riseFrac)) * Math.PI;
-    var py = hY - Math.sin(phase) * amp;
-    sinPoints.push(px.toFixed(1) + "," + py.toFixed(1));
+  // Map sunrise→x=20, sunset→x=80, centered
+  var riseX = 20;
+  var setX = 80;
+  var horizY = 50;
+  var dayAmp = 35;
+  var nightAmp = 12;
+  // Day arc: semicircle from riseX to setX above horizon
+  var dayArc =
+    "M " +
+    riseX +
+    " " +
+    horizY +
+    " C " +
+    riseX +
+    " " +
+    (horizY - dayAmp * 1.3) +
+    " " +
+    setX +
+    " " +
+    (horizY - dayAmp * 1.3) +
+    " " +
+    setX +
+    " " +
+    horizY;
+  // Night arc: dip below from setX back to riseX
+  var nightArc =
+    "M " +
+    setX +
+    " " +
+    horizY +
+    " C " +
+    setX +
+    " " +
+    (horizY + nightAmp * 1.5) +
+    " " +
+    riseX +
+    " " +
+    (horizY + nightAmp * 1.5) +
+    " " +
+    riseX +
+    " " +
+    horizY;
+  // Sun position on curve
+  var sunX, sunY, aboveHorizon;
+  if (dayFrac >= riseFrac && dayFrac <= setFrac) {
+    var t = (dayFrac - riseFrac) / (setFrac - riseFrac);
+    sunX = riseX + t * (setX - riseX);
+    sunY = horizY - Math.sin(t * Math.PI) * dayAmp;
+    aboveHorizon = true;
+  } else {
+    var nt;
+    if (dayFrac > setFrac) {
+      nt = (dayFrac - setFrac) / (1 - setFrac + riseFrac);
+    } else {
+      nt = (1 - setFrac + dayFrac) / (1 - setFrac + riseFrac);
+    }
+    sunX = setX + nt * (riseX + 100 - setX);
+    if (sunX > 100) sunX = sunX - 100 + riseX;
+    sunX = setX - nt * (setX - riseX);
+    sunY = horizY + Math.sin(nt * Math.PI) * nightAmp;
+    aboveHorizon = false;
   }
-  var pathD = "M " + sinPoints.join(" L ");
-  var sunPhase = ((dayProgress - riseFrac) / (setFrac - riseFrac)) * Math.PI;
-  var sunX = 5 + dayProgress * 90;
-  var sunY = hY - Math.sin(sunPhase) * amp;
-  var aboveHorizon = sunY < hY;
-  var progPts = [];
-  for (var pi = 0; pi <= 60; pi++) {
-    var pf = pi / 60;
-    if (pf > dayProgress) break;
-    var ppx = 5 + pf * 90;
-    var pp = ((pf - riseFrac) / (setFrac - riseFrac)) * Math.PI;
-    var ppy = hY - Math.sin(pp) * amp;
-    progPts.push(ppx.toFixed(1) + "," + ppy.toFixed(1));
+  // Gold trace: build day arc path up to current sun position
+  var traceD = "";
+  if (dayFrac >= riseFrac && dayFrac <= setFrac) {
+    var ct = (dayFrac - riseFrac) / (setFrac - riseFrac);
+    var cx1 = riseX + (riseX + (riseX - riseX)) * 0;
+    traceD =
+      "M " +
+      riseX +
+      " " +
+      horizY +
+      " C " +
+      riseX +
+      " " +
+      (horizY - dayAmp * 1.3 * ct) +
+      " " +
+      (riseX + ct * (setX - riseX) * 0.5) +
+      " " +
+      (horizY - dayAmp * 1.3 * ct) +
+      " " +
+      sunX.toFixed(1) +
+      " " +
+      sunY.toFixed(1);
   }
-  var progD = progPts.length > 1 ? "M " + progPts.join(" L ") : "";
   var arcSvg =
-    '<svg viewBox="0 0 100 80" class="sun-arc">' +
+    '<svg viewBox="0 0 100 70" class="sun-arc">' +
     '<path d="' +
-    pathD +
-    '" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1.5"/>' +
-    (progD ? '<path d="' + progD + '" fill="none" stroke="#ffcc00" stroke-width="2"/>' : "") +
-    '<line x1="5" y1="' +
-    hY +
-    '" x2="95" y2="' +
-    hY +
-    '" stroke="rgba(255,255,255,0.2)" stroke-width="0.5" stroke-dasharray="2,2"/>' +
+    dayArc +
+    '" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/>' +
+    '<path d="' +
+    nightArc +
+    '" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1" stroke-dasharray="2,2"/>' +
+    '<line x1="10" y1="' +
+    horizY +
+    '" x2="90" y2="' +
+    horizY +
+    '" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>' +
     '<circle cx="' +
     sunX.toFixed(1) +
     '" cy="' +
     sunY.toFixed(1) +
-    '" r="3.5" fill="' +
-    (aboveHorizon ? "#ffcc00" : "rgba(255,255,255,0.4)") +
+    '" r="4" fill="' +
+    (aboveHorizon ? "#ffcc00" : "rgba(200,200,220,0.5)") +
     '"/>' +
     (aboveHorizon
       ? '<circle cx="' +
         sunX.toFixed(1) +
         '" cy="' +
         sunY.toFixed(1) +
-        '" r="6" fill="rgba(255,204,0,0.15)"/>'
+        '" r="7" fill="rgba(255,204,0,0.12)"/>'
       : "") +
     "</svg>";
   cards +=
