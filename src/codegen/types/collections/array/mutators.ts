@@ -240,8 +240,6 @@ function generateObjectArrayPop(gen: IGeneratorContext, arrayPtr: string): strin
   gen.emitBrCond(isEmpty, emptyLabel, notEmptyLabel);
 
   gen.emitLabel(emptyLabel);
-  const nullPtr = gen.nextTemp();
-  gen.emit(`${nullPtr} = inttoptr i64 0 to i8*`);
   gen.emitBr(endLabel);
 
   gen.emitLabel(notEmptyLabel);
@@ -267,9 +265,7 @@ function generateObjectArrayPop(gen: IGeneratorContext, arrayPtr: string): strin
 
   gen.emitLabel(endLabel);
   const result = gen.nextTemp();
-  gen.emit(
-    `${result} = phi i8* [ ${nullPtr}, %${emptyLabel} ], [ ${lastElem}, %${notEmptyLabel} ]`,
-  );
+  gen.emit(`${result} = phi i8* [ null, %${emptyLabel} ], [ ${lastElem}, %${notEmptyLabel} ]`);
   gen.setVariableType(result, "i8*");
 
   return result;
@@ -292,8 +288,6 @@ function generatePointerArrayPop(gen: IGeneratorContext, arrayPtr: string): stri
   gen.emitBrCond(isEmpty, emptyLabel, notEmptyLabel);
 
   gen.emitLabel(emptyLabel);
-  const nullPtr = gen.nextTemp();
-  gen.emit(`${nullPtr} = inttoptr i64 0 to i8*`);
   gen.emitBr(endLabel);
 
   gen.emitLabel(notEmptyLabel);
@@ -318,9 +312,7 @@ function generatePointerArrayPop(gen: IGeneratorContext, arrayPtr: string): stri
 
   gen.emitLabel(endLabel);
   const result = gen.nextTemp();
-  gen.emit(
-    `${result} = phi i8* [ ${nullPtr}, %${emptyLabel} ], [ ${lastElem}, %${notEmptyLabel} ]`,
-  );
+  gen.emit(`${result} = phi i8* [ null, %${emptyLabel} ], [ ${lastElem}, %${notEmptyLabel} ]`);
   gen.setVariableType(result, "i8*");
 
   return result;

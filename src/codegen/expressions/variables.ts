@@ -52,18 +52,9 @@ export class VariableExpressionGenerator {
    * Checks SymbolTable and loads with correct LLVM type
    */
   generate(name: string): string {
-    if (name === "null") {
-      const temp = this.ctx.nextTemp();
-      this.ctx.emit(`${temp} = inttoptr i64 0 to i8*`);
-      this.ctx.setVariableType(temp, "i8*");
-      return temp;
-    }
-
-    if (name === "undefined") {
-      const temp = this.ctx.nextTemp();
-      this.ctx.emit(`${temp} = inttoptr i64 0 to i8*`);
-      this.ctx.setVariableType(temp, "i8*");
-      return temp;
+    if (name === "null" || name === "undefined") {
+      this.ctx.setVariableType("null", "i8*");
+      return "null";
     }
 
     if (name === "NaN") {
