@@ -242,7 +242,10 @@ function fetchWeather(lat, lon, city) {
     })
     .then(function (points) {
       var p = points.properties;
-      if (!city) city = p.relativeLocation.properties.city;
+      if (!city) {
+        var rl = p.relativeLocation.properties;
+        city = rl.city + ", " + rl.state;
+      }
       gridUrl = "https://api.weather.gov/gridpoints/" + p.gridId + "/" + p.gridX + "," + p.gridY;
       return Promise.all([
         fetch(p.forecast).then(function (r) {
@@ -278,10 +281,10 @@ function geocodeAndFetch(query) {
   var url = isZip
     ? "https://nominatim.openstreetmap.org/search?postalcode=" +
       encodeURIComponent(query) +
-      "&country=US&format=json&limit=1"
+      "&country=US&format=json&limit=1&addressdetails=1"
     : "https://nominatim.openstreetmap.org/search?q=" +
       encodeURIComponent(query) +
-      "&countrycodes=us&format=json&limit=1";
+      "&countrycodes=us&format=json&limit=1&addressdetails=1";
 
   fetch(url)
     .then(function (res) {
@@ -290,10 +293,14 @@ function geocodeAndFetch(query) {
     })
     .then(function (results) {
       if (!results || results.length === 0) throw new Error("No match");
-      var parts = results[0].display_name.split(",");
-      var city = parts.length > 2 ? parts[1].trim() : parts[0].trim();
+      var r = results[0];
+      var ad = r.address || {};
+      var cityName = ad.city || ad.town || ad.village || r.display_name.split(",")[0].trim();
+      var state = ad.state || "";
+      var stateAbbr = state.length > 2 ? state.substring(0, 2).toUpperCase() : state;
+      var label = stateAbbr ? cityName + ", " + stateAbbr : cityName;
       history.replaceState(null, "", "?zip=" + encodeURIComponent(query));
-      fetchWeather(results[0].lat, results[0].lon, city);
+      fetchWeather(r.lat, r.lon, label);
     })
     .catch(function () {
       searchBtn.disabled = false;

@@ -16,17 +16,17 @@ body {
 
 .sun-flare {
   position: fixed;
-  top: -120px;
-  left: -120px;
-  width: 400px;
-  height: 400px;
+  top: -100px;
+  left: -100px;
+  width: 500px;
+  height: 500px;
   border-radius: 50%;
   background: radial-gradient(
     circle,
-    rgba(255, 255, 255, 0.35) 0%,
-    rgba(255, 255, 255, 0.12) 20%,
-    rgba(200, 220, 255, 0.06) 40%,
-    transparent 70%
+    rgba(255, 255, 240, 0.45) 0%,
+    rgba(255, 250, 230, 0.2) 15%,
+    rgba(200, 220, 255, 0.08) 35%,
+    transparent 65%
   );
   pointer-events: none;
   z-index: 0;
@@ -37,21 +37,40 @@ body {
   display: block;
 }
 
-.sun-flare::after {
+.sun-flare::before {
   content: "";
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 150px;
-  height: 150px;
+  width: 200px;
+  height: 200px;
   transform: translate(-50%, -50%);
   border-radius: 50%;
   background: radial-gradient(
     circle,
-    rgba(255, 255, 255, 0.5) 0%,
-    rgba(255, 255, 255, 0.15) 40%,
-    transparent 70%
+    rgba(255, 255, 255, 0.7) 0%,
+    rgba(255, 255, 240, 0.3) 30%,
+    transparent 65%
   );
+}
+
+.sun-flare::after {
+  content: "";
+  position: absolute;
+  top: 35%;
+  left: 55%;
+  width: 300px;
+  height: 200px;
+  transform: rotate(-25deg);
+  background: linear-gradient(
+    135deg,
+    transparent 20%,
+    rgba(180, 200, 255, 0.08) 30%,
+    rgba(150, 220, 255, 0.06) 40%,
+    rgba(200, 180, 255, 0.04) 50%,
+    transparent 60%
+  );
+  filter: blur(8px);
 }
 
 .container {
