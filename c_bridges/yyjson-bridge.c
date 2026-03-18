@@ -29,7 +29,7 @@ void *csyyjson_parse(const char *str) {
     if (!doc) return NULL;
     yyjson_val *root = yyjson_doc_get_root(doc);
     if (!root) { yyjson_doc_free(doc); return NULL; }
-    store_doc(doc, root);
+    if (store_doc(doc, root) < 0) { yyjson_doc_free(doc); return NULL; }
     return (void *)root;
 }
 

@@ -120,9 +120,16 @@ class UninitializedFieldChecker {
       }
     } else if (s.type === "if") {
       const ifStmt = stmt as IfStatement;
-      this.walkStatements(ifStmt.thenBlock.statements, assigned);
+      const thenAssigned: string[] = [];
+      this.walkStatements(ifStmt.thenBlock.statements, thenAssigned);
       if (ifStmt.elseBlock) {
-        this.walkStatements(ifStmt.elseBlock.statements, assigned);
+        const elseAssigned: string[] = [];
+        this.walkStatements(ifStmt.elseBlock.statements, elseAssigned);
+        for (let j = 0; j < thenAssigned.length; j++) {
+          if (this.arrayContains(elseAssigned, thenAssigned[j])) {
+            assigned.push(thenAssigned[j]);
+          }
+        }
       }
     } else if (s.type === "while") {
       const w = stmt as WhileStatement;

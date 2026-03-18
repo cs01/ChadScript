@@ -83,8 +83,13 @@ export function generateRepeat(ctx: IGeneratorContext, strPtr: string, count: st
   const clampedCount = ctx.nextTemp();
   ctx.emit(`${clampedCount} = select i1 ${isNeg}, i32 0, i32 ${count}`);
 
+  const maxCount = 1048576;
+  const tooBig = ctx.emitIcmp("sgt", "i32", clampedCount, `${maxCount}`);
+  const safeCount = ctx.nextTemp();
+  ctx.emit(`${safeCount} = select i1 ${tooBig}, i32 ${maxCount}, i32 ${clampedCount}`);
+
   const countI64 = ctx.nextTemp();
-  ctx.emit(`${countI64} = sext i32 ${clampedCount} to i64`);
+  ctx.emit(`${countI64} = sext i32 ${safeCount} to i64`);
 
   const totalLen = ctx.nextTemp();
   ctx.emit(`${totalLen} = mul i64 ${strLen}, ${countI64}`);
@@ -108,7 +113,7 @@ export function generateRepeat(ctx: IGeneratorContext, strPtr: string, count: st
 
   ctx.emitLabel(loopLabel);
   const counterVal = ctx.emitLoad("i32", counterPtr);
-  const loopCond = ctx.emitIcmp("slt", "i32", counterVal, clampedCount);
+  const loopCond = ctx.emitIcmp("slt", "i32", counterVal, safeCount);
   ctx.emitBrCond(loopCond, loopBodyLabel, loopEndLabel);
 
   ctx.emitLabel(loopBodyLabel);
@@ -131,6 +136,11 @@ export function generatePadStart(
   targetLength: string,
   padString: string,
 ): string {
+  const maxPadLen = 1048576;
+  const padTooBig = ctx.emitIcmp("sgt", "i32", targetLength, `${maxPadLen}`);
+  const safePadTarget = ctx.nextTemp();
+  ctx.emit(`${safePadTarget} = select i1 ${padTooBig}, i32 ${maxPadLen}, i32 ${targetLength}`);
+
   const strLen = ctx.emitCall("i64", "@strlen", `i8* ${strPtr}`);
   const strLenI32 = ctx.nextTemp();
   ctx.emit(`${strLenI32} = trunc i64 ${strLen} to i32`);
@@ -140,7 +150,7 @@ export function generatePadStart(
   ctx.emit(`${padLenI32} = trunc i64 ${padLen} to i32`);
 
   const paddingNeeded = ctx.nextTemp();
-  ctx.emit(`${paddingNeeded} = sub i32 ${targetLength}, ${strLenI32}`);
+  ctx.emit(`${paddingNeeded} = sub i32 ${safePadTarget}, ${strLenI32}`);
 
   const needsPaddingRaw = ctx.emitIcmp("sgt", "i32", paddingNeeded, "0");
   const padNonEmpty = ctx.emitIcmp("sgt", "i32", padLenI32, "0");
@@ -158,7 +168,7 @@ export function generatePadStart(
 
   ctx.emitLabel(noPadLabel);
   const targetLenI64NoPad = ctx.nextTemp();
-  ctx.emit(`${targetLenI64NoPad} = sext i32 ${targetLength} to i64`);
+  ctx.emit(`${targetLenI64NoPad} = sext i32 ${safePadTarget} to i64`);
   const allocLen1 = ctx.nextTemp();
   ctx.emit(`${allocLen1} = add i64 ${targetLenI64NoPad}, 1`);
   const noPadResult = ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${allocLen1}`);
@@ -167,7 +177,7 @@ export function generatePadStart(
 
   ctx.emitLabel(doPadLabel);
   const targetLenI64Pad = ctx.nextTemp();
-  ctx.emit(`${targetLenI64Pad} = sext i32 ${targetLength} to i64`);
+  ctx.emit(`${targetLenI64Pad} = sext i32 ${safePadTarget} to i64`);
   const allocLen2 = ctx.nextTemp();
   ctx.emit(`${allocLen2} = add i64 ${targetLenI64Pad}, 1`);
   const padResult = ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${allocLen2}`);
@@ -238,6 +248,11 @@ export function generatePadEnd(
   targetLength: string,
   padString: string,
 ): string {
+  const maxPadLen = 1048576;
+  const padTooBig = ctx.emitIcmp("sgt", "i32", targetLength, `${maxPadLen}`);
+  const safePadTarget = ctx.nextTemp();
+  ctx.emit(`${safePadTarget} = select i1 ${padTooBig}, i32 ${maxPadLen}, i32 ${targetLength}`);
+
   const strLen = ctx.emitCall("i64", "@strlen", `i8* ${strPtr}`);
   const strLenI32 = ctx.nextTemp();
   ctx.emit(`${strLenI32} = trunc i64 ${strLen} to i32`);
@@ -247,7 +262,7 @@ export function generatePadEnd(
   ctx.emit(`${padLenI32} = trunc i64 ${padLen} to i32`);
 
   const paddingNeeded = ctx.nextTemp();
-  ctx.emit(`${paddingNeeded} = sub i32 ${targetLength}, ${strLenI32}`);
+  ctx.emit(`${paddingNeeded} = sub i32 ${safePadTarget}, ${strLenI32}`);
 
   const needsPaddingRaw = ctx.emitIcmp("sgt", "i32", paddingNeeded, "0");
   const padNonEmpty = ctx.emitIcmp("sgt", "i32", padLenI32, "0");
@@ -274,7 +289,7 @@ export function generatePadEnd(
 
   ctx.emitLabel(doPadLabel);
   const targetLenI64Pad = ctx.nextTemp();
-  ctx.emit(`${targetLenI64Pad} = sext i32 ${targetLength} to i64`);
+  ctx.emit(`${targetLenI64Pad} = sext i32 ${safePadTarget} to i64`);
   const allocLen2 = ctx.nextTemp();
   ctx.emit(`${allocLen2} = add i64 ${targetLenI64Pad}, 1`);
   const padResult = ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${allocLen2}`);
