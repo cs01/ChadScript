@@ -1,21 +1,23 @@
-var locationEl = document.getElementById("location");
-var currentEl = document.getElementById("current");
-var forecastEl = document.getElementById("forecast");
+var heroEl = document.getElementById("hero");
+var hourlyEl = document.getElementById("hourly");
+var dailyEl = document.getElementById("daily");
+var dashEl = document.getElementById("dashboard");
 var zipInput = document.getElementById("zip");
 var searchBtn = document.getElementById("search");
 var errorEl = document.getElementById("error");
 
 var defaultLat = "37.7849";
 var defaultLon = "-122.4094";
+var defaultCity = "San Francisco";
 
-var weatherIcons = {
+var icons = {
   Sunny: "\u2600\uFE0F",
   Clear: "\u2600\uFE0F",
-  "Mostly Sunny": "\u26C5",
-  "Mostly Clear": "\u2600\uFE0F",
+  "Mostly Sunny": "\uD83C\uDF24\uFE0F",
+  "Mostly Clear": "\uD83C\uDF19",
   "Partly Sunny": "\u26C5",
   "Partly Cloudy": "\u26C5",
-  "Mostly Cloudy": "\u2601\uFE0F",
+  "Mostly Cloudy": "\uD83C\uDF25\uFE0F",
   Cloudy: "\u2601\uFE0F",
   "Slight Chance Rain Showers": "\uD83C\uDF26\uFE0F",
   "Chance Rain Showers": "\uD83C\uDF26\uFE0F",
@@ -29,23 +31,42 @@ var weatherIcons = {
   "Light Snow": "\uD83C\uDF28\uFE0F",
   "Heavy Snow": "\uD83C\uDF28\uFE0F",
   Fog: "\uD83C\uDF2B\uFE0F",
-  Haze: "\uD83C\uDF2B\uFE0F",
   Windy: "\uD83D\uDCA8",
-  Hot: "\uD83E\uDD75",
-  Cold: "\uD83E\uDD76",
 };
 
-function getIcon(shortForecast, isDaytime) {
-  for (var key in weatherIcons) {
-    if (shortForecast.indexOf(key) !== -1) return weatherIcons[key];
+function icon(forecast, daytime) {
+  for (var k in icons) {
+    if (forecast.indexOf(k) !== -1) return icons[k];
   }
-  return isDaytime ? "\u2600\uFE0F" : "\uD83C\uDF19";
+  return daytime ? "\u2600\uFE0F" : "\uD83C\uDF19";
 }
 
-function fetchWeather(lat, lon, displayName) {
-  locationEl.textContent = "";
-  currentEl.innerHTML = '<div class="loading">Loading forecast...</div>';
-  forecastEl.innerHTML = "";
+function cToF(c) {
+  return Math.round((c * 9) / 5 + 32);
+}
+
+function fmtHour(iso) {
+  var d = new Date(iso);
+  var h = d.getHours();
+  if (h === 0) return "12AM";
+  if (h < 12) return h + "AM";
+  if (h === 12) return "12PM";
+  return h - 12 + "PM";
+}
+
+function showError(msg) {
+  heroEl.innerHTML = "";
+  hourlyEl.innerHTML = "";
+  dailyEl.innerHTML = "";
+  dashEl.innerHTML = "";
+  errorEl.innerHTML = '<div class="error-msg">' + msg + "</div>";
+}
+
+function fetchWeather(lat, lon, city) {
+  heroEl.innerHTML = '<div class="loading">Loading...</div>';
+  hourlyEl.innerHTML = "";
+  dailyEl.innerHTML = "";
+  dashEl.innerHTML = "";
   errorEl.textContent = "";
   searchBtn.disabled = true;
 
@@ -57,52 +78,37 @@ function fetchWeather(lat, lon, displayName) {
       return res.json();
     })
     .then(function (points) {
-      var props = points.properties;
-      if (displayName) {
-        locationEl.innerHTML = "<strong>" + displayName + "</strong>";
-      } else {
-        var loc = props.relativeLocation.properties;
-        locationEl.innerHTML = "<strong>" + loc.city + "</strong>, " + loc.state;
-      }
-      gridUrl =
-        "https://api.weather.gov/gridpoints/" +
-        props.gridId +
-        "/" +
-        props.gridX +
-        "," +
-        props.gridY;
-      return fetch(props.forecast);
+      var p = points.properties;
+      if (!city) city = p.relativeLocation.properties.city;
+      gridUrl = "https://api.weather.gov/gridpoints/" + p.gridId + "/" + p.gridX + "," + p.gridY;
+      return Promise.all([
+        fetch(p.forecast).then(function (r) {
+          return r.json();
+        }),
+        fetch(p.forecast + "/hourly").then(function (r) {
+          return r.json();
+        }),
+        fetch(gridUrl).then(function (r) {
+          return r.ok ? r.json() : null;
+        }),
+      ]);
     })
-    .then(function (res) {
-      if (!res.ok) throw new Error("Forecast unavailable");
-      return res.json();
-    })
-    .then(function (forecast) {
-      var periods = forecast.properties.periods;
-      return fetch(gridUrl).then(function (gridRes) {
-        var gridData = null;
-        if (gridRes.ok) {
-          return gridRes.json().then(function (gd) {
-            gridData = gd;
-            searchBtn.disabled = false;
-            renderWeather(periods, gridData);
-          });
-        } else {
-          searchBtn.disabled = false;
-          renderWeather(periods, null);
-        }
-      });
+    .then(function (results) {
+      searchBtn.disabled = false;
+      render(city, results[0], results[1], results[2]);
     })
     .catch(function () {
       searchBtn.disabled = false;
-      showError("Could not load weather data for this location");
+      showError("Could not load weather data");
     });
 }
 
 function geocodeAndFetch(zip) {
   errorEl.textContent = "";
-  currentEl.innerHTML = '<div class="loading">Looking up location...</div>';
-  forecastEl.innerHTML = "";
+  heroEl.innerHTML = '<div class="loading">Looking up location...</div>';
+  hourlyEl.innerHTML = "";
+  dailyEl.innerHTML = "";
+  dashEl.innerHTML = "";
   searchBtn.disabled = true;
 
   var url =
@@ -112,160 +118,223 @@ function geocodeAndFetch(zip) {
 
   fetch(url)
     .then(function (res) {
-      if (!res.ok) throw new Error("Geocoding failed");
+      if (!res.ok) throw new Error("fail");
       return res.json();
     })
     .then(function (results) {
       if (!results || results.length === 0) throw new Error("No match");
-      var name = results[0].display_name.split(",")[0];
-      fetchWeather(results[0].lat, results[0].lon, name);
+      var parts = results[0].display_name.split(",");
+      var city = parts.length > 2 ? parts[1].trim() : parts[0].trim();
+      history.replaceState(null, "", "?zip=" + encodeURIComponent(zip));
+      fetchWeather(results[0].lat, results[0].lon, city);
     })
     .catch(function () {
       searchBtn.disabled = false;
-      showError('Could not find ZIP code "' + zip + '". Try a US ZIP like 94102 or 10001.');
+      showError('Could not find "' + zip + '". Try a US ZIP like 94102 or 10001.');
     });
 }
 
-function showError(msg) {
-  currentEl.innerHTML = "";
-  forecastEl.innerHTML = "";
-  errorEl.innerHTML = '<div class="error-msg">' + msg + "</div>";
+function getGridVal(grid, field) {
+  if (!grid || !grid.properties || !grid.properties[field]) return null;
+  var v = grid.properties[field].values;
+  if (!v || v.length === 0) return null;
+  return v[0].value;
 }
 
-function getGridValue(gridData, field) {
-  if (!gridData || !gridData.properties || !gridData.properties[field]) return null;
-  var vals = gridData.properties[field].values;
-  if (!vals || vals.length === 0) return null;
-  return vals[0].value;
-}
-
-function cToF(c) {
-  return Math.round((c * 9) / 5 + 32);
-}
-
-function renderWeather(periods, gridData) {
+function render(city, forecast, hourlyData, grid) {
+  var periods = forecast.properties.periods;
   if (!periods || periods.length === 0) {
-    showError("No forecast data available");
+    showError("No forecast data");
     return;
   }
 
   var now = periods[0];
-  var tonight = periods.length > 1 ? periods[1] : null;
-  var icon = getIcon(now.shortForecast, now.isDaytime);
-  var tempClass = now.temperature >= 70 ? "warm" : "cool";
+  var tonight = periods.length > 1 && !periods[1].isDaytime ? periods[1] : null;
+  var hi = now.isDaytime ? now.temperature : tonight ? periods[2].temperature : now.temperature;
+  var lo = tonight ? tonight.temperature : now.temperature;
 
-  var humidity = getGridValue(gridData, "relativeHumidity");
-  var dewpoint = getGridValue(gridData, "dewpoint");
-  var feelsLike = getGridValue(gridData, "apparentTemperature");
-  var precip = now.probabilityOfPrecipitation ? now.probabilityOfPrecipitation.value : null;
-
-  var hiLo = "";
-  if (now.isDaytime && tonight) {
-    hiLo = "High " + now.temperature + "\u00B0 \u00B7 Low " + tonight.temperature + "\u00B0";
-  } else if (!now.isDaytime && periods.length > 2) {
-    hiLo = "Low " + now.temperature + "\u00B0 \u00B7 High " + periods[2].temperature + "\u00B0";
-  }
-
-  var heroHtml =
-    '<div class="hero">' +
-    '<div class="hero-left">' +
-    '<div class="hero-icon">' +
-    icon +
+  heroEl.innerHTML =
+    '<div class="hero-section">' +
+    '<div class="hero-city">' +
+    city +
     "</div>" +
-    '<div class="hero-temp ' +
-    tempClass +
-    '">' +
+    '<div class="hero-temp">' +
     now.temperature +
-    '<span class="degree">\u00B0' +
-    now.temperatureUnit +
-    "</span></div>" +
-    "</div>" +
-    '<div class="hero-right">' +
+    "\u00B0</div>" +
     '<div class="hero-condition">' +
     now.shortForecast +
     "</div>" +
-    (hiLo ? '<div class="hero-hilo">' + hiLo + "</div>" : "") +
-    (feelsLike !== null
-      ? '<div class="hero-feels">Feels like ' + cToF(feelsLike) + "\u00B0</div>"
-      : "") +
-    "</div>" +
+    '<div class="hero-hilo">H:' +
+    hi +
+    "\u00B0  L:" +
+    lo +
+    "\u00B0</div>" +
     "</div>";
 
-  var detailHtml = '<div class="detail-grid">';
-  detailHtml +=
-    '<div class="detail-item"><span class="detail-label">\u{1F4A8} Wind</span><span class="detail-value">' +
-    now.windSpeed +
-    " " +
-    now.windDirection +
-    "</span></div>";
-  if (humidity !== null) {
-    detailHtml +=
-      '<div class="detail-item"><span class="detail-label">\u{1F4A7} Humidity</span><span class="detail-value">' +
-      Math.round(humidity) +
-      "%</span></div>";
+  // Hourly
+  var hrs = hourlyData.properties.periods;
+  var hHtml =
+    '<div class="hourly-card glass"><div class="hourly-label">' +
+    now.detailedForecast.substring(0, 80) +
+    '</div><div class="hourly-scroll">';
+  var hCount = Math.min(hrs.length, 24);
+  for (var i = 0; i < hCount; i++) {
+    var h = hrs[i];
+    var label = i === 0 ? "Now" : fmtHour(h.startTime);
+    hHtml +=
+      '<div class="hourly-item">' +
+      '<div class="hourly-time">' +
+      label +
+      "</div>" +
+      '<div class="hourly-icon">' +
+      icon(h.shortForecast, h.isDaytime) +
+      "</div>" +
+      '<div class="hourly-temp">' +
+      h.temperature +
+      "\u00B0</div></div>";
   }
-  if (dewpoint !== null) {
-    detailHtml +=
-      '<div class="detail-item"><span class="detail-label">\u{1F321}\uFE0F Dew Point</span><span class="detail-value">' +
-      cToF(dewpoint) +
-      "\u00B0F</span></div>";
-  }
-  if (precip !== null && precip !== undefined) {
-    detailHtml +=
-      '<div class="detail-item"><span class="detail-label">\u2614 Precipitation</span><span class="detail-value">' +
-      (precip || 0) +
-      "%</span></div>";
-  }
-  detailHtml += "</div>";
+  hHtml += "</div></div>";
+  hourlyEl.innerHTML = hHtml;
 
-  currentEl.innerHTML = heroHtml + detailHtml;
-
-  var forecastHtml = "";
-  var dayIndex = now.isDaytime ? 2 : 1;
-  var dayCount = 0;
-  while (dayIndex < periods.length && dayCount < 7) {
-    var day = periods[dayIndex];
-    if (!day.isDaytime) {
-      dayIndex++;
-      continue;
+  // Daily
+  var days = [];
+  var allLo = 999;
+  var allHi = -999;
+  for (var di = 0; di < periods.length; di++) {
+    var dp = periods[di];
+    if (dp.isDaytime) {
+      var nightP = di + 1 < periods.length && !periods[di + 1].isDaytime ? periods[di + 1] : null;
+      var dayLo = nightP ? nightP.temperature : dp.temperature - 15;
+      days.push({
+        name: dp.name.substring(0, 3),
+        hi: dp.temperature,
+        lo: dayLo,
+        forecast: dp.shortForecast,
+      });
+      if (dp.temperature > allHi) allHi = dp.temperature;
+      if (dayLo < allLo) allLo = dayLo;
     }
-    var night = dayIndex + 1 < periods.length ? periods[dayIndex + 1] : null;
-    var dayIcon = getIcon(day.shortForecast, true);
-    var tc = day.temperature >= 70 ? "warm" : "cool";
-    forecastHtml +=
-      '<div class="forecast-card">' +
-      '<div class="fc-name">' +
-      day.name +
-      "</div>" +
-      '<div class="fc-icon">' +
-      dayIcon +
-      "</div>" +
-      '<div class="fc-temp ' +
-      tc +
-      '">' +
-      day.temperature +
-      "\u00B0</div>" +
-      (night ? '<div class="fc-low">' + night.temperature + "\u00B0</div>" : "") +
-      '<div class="fc-desc">' +
-      day.shortForecast +
-      "</div>" +
-      "</div>";
-    dayIndex += 2;
-    dayCount++;
   }
-  forecastEl.innerHTML = forecastHtml;
+
+  var range = allHi - allLo || 1;
+  var dHtml =
+    '<div class="daily-card glass"><div class="daily-label">\uD83D\uDCC5 ' +
+    days.length +
+    "-Day Forecast</div>";
+  for (var j = 0; j < days.length; j++) {
+    var d = days[j];
+    var barLeft = ((d.lo - allLo) / range) * 100;
+    var barWidth = ((d.hi - d.lo) / range) * 100;
+    if (barWidth < 8) barWidth = 8;
+    dHtml +=
+      '<div class="daily-row">' +
+      '<div class="daily-name">' +
+      d.name +
+      "</div>" +
+      '<div class="daily-icon">' +
+      icon(d.forecast, true) +
+      "</div>" +
+      '<div class="daily-low">' +
+      d.lo +
+      "\u00B0</div>" +
+      '<div class="daily-bar-wrap"><div class="daily-bar" style="left:' +
+      barLeft +
+      "%;width:" +
+      barWidth +
+      '%"></div></div>' +
+      '<div class="daily-high">' +
+      d.hi +
+      "\u00B0</div></div>";
+  }
+  dHtml += "</div>";
+  dailyEl.innerHTML = dHtml;
+
+  // Dashboard cards
+  var feelsLike = getGridVal(grid, "apparentTemperature");
+  var humidity = getGridVal(grid, "relativeHumidity");
+  var dewpoint = getGridVal(grid, "dewpoint");
+  var visibility = getGridVal(grid, "visibility");
+  var precip = now.probabilityOfPrecipitation ? now.probabilityOfPrecipitation.value : null;
+
+  var cards = "";
+  cards +=
+    '<div class="dash-card glass"><div class="dash-title">\uD83D\uDCA8 Wind</div>' +
+    '<div class="dash-value">' +
+    now.windSpeed +
+    "</div>" +
+    '<div class="dash-detail">' +
+    now.windDirection +
+    "</div></div>";
+
+  if (feelsLike !== null) {
+    cards +=
+      '<div class="dash-card glass"><div class="dash-title">\uD83C\uDF21\uFE0F Feels Like</div>' +
+      '<div class="dash-value">' +
+      cToF(feelsLike) +
+      "\u00B0</div>" +
+      '<div class="dash-detail">Based on humidity and wind</div></div>';
+  }
+
+  if (humidity !== null) {
+    cards +=
+      '<div class="dash-card glass"><div class="dash-title">\uD83D\uDCA7 Humidity</div>' +
+      '<div class="dash-value">' +
+      Math.round(humidity) +
+      '<span class="dash-unit">%</span></div>';
+    if (dewpoint !== null) {
+      cards += '<div class="dash-detail">Dew point is ' + cToF(dewpoint) + "\u00B0F</div>";
+    }
+    cards += "</div>";
+  }
+
+  cards +=
+    '<div class="dash-card glass"><div class="dash-title">\u2614 Precipitation</div>' +
+    '<div class="dash-value">' +
+    (precip || 0) +
+    '<span class="dash-unit">%</span></div>' +
+    '<div class="dash-detail">Chance today</div></div>';
+
+  if (visibility !== null) {
+    var visMi = Math.round(visibility / 1609);
+    cards +=
+      '<div class="dash-card glass"><div class="dash-title">\uD83D\uDC41\uFE0F Visibility</div>' +
+      '<div class="dash-value">' +
+      visMi +
+      '<span class="dash-unit"> mi</span></div>' +
+      '<div class="dash-detail">' +
+      (visMi >= 10 ? "Clear view" : visMi >= 5 ? "Moderate" : "Low visibility") +
+      "</div></div>";
+  }
+
+  if (dewpoint !== null && feelsLike === null) {
+    cards +=
+      '<div class="dash-card glass"><div class="dash-title">\uD83C\uDF21\uFE0F Dew Point</div>' +
+      '<div class="dash-value">' +
+      cToF(dewpoint) +
+      "\u00B0</div></div>";
+  }
+
+  dashEl.innerHTML = cards;
 }
 
 searchBtn.addEventListener("click", function () {
-  var zip = zipInput.value.trim();
-  if (zip) geocodeAndFetch(zip);
+  var z = zipInput.value.trim();
+  if (z) geocodeAndFetch(z);
 });
 
 zipInput.addEventListener("keydown", function (e) {
   if (e.key === "Enter") {
-    var zip = zipInput.value.trim();
-    if (zip) geocodeAndFetch(zip);
+    var z = zipInput.value.trim();
+    if (z) geocodeAndFetch(z);
   }
 });
 
-fetchWeather(defaultLat, defaultLon, "San Francisco, CA");
+// Check URL for ?zip= parameter
+var params = new URLSearchParams(window.location.search);
+var urlZip = params.get("zip");
+if (urlZip) {
+  zipInput.value = urlZip;
+  geocodeAndFetch(urlZip);
+} else {
+  fetchWeather(defaultLat, defaultLon, defaultCity);
+}
