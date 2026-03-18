@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Weather by ChadScript</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="sun-flare" id="flare">
+      <div class="flare-rays"></div>
+      <div class="flare-glow"></div>
+      <div class="flare-core"></div>
+      <div class="flare-streak"></div>
+      <div class="flare-streak2"></div>
+      <div class="flare-orb"></div>
+      <div class="flare-orb2"></div>
+    </div>
+    <div class="container">
+      <div class="search-bar">
+        <button class="locate-btn" id="locate" title="Use my location">&#x1F4CD;</button>
+        <div class="search-wrap">
+          <input type="text" id="zip" placeholder="City or ZIP code" autocomplete="off" />
+          <div class="suggestions" id="suggestions"></div>
+        </div>
+        <button id="search">Search</button>
+      </div>
+      <div id="error"></div>
+      <div id="hero"></div>
+      <div id="hourly"></div>
+      <div id="daily"></div>
+      <div class="dashboard" id="dashboard"></div>
+      <div class="powered-by">
+        Built with
+        <a href="https://github.com/cs01/ChadScript" target="_blank">ChadScript</a> &mdash; data
+        from <a href="https://www.weather.gov" target="_blank">weather.gov</a>
+      </div>
+    </div>
+    <script src="app.js"></script>
+  </body>
+</html>

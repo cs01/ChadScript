@@ -6,7 +6,7 @@ ChadScript compiles TypeScript to native binaries. No Node.js, no V8, no runtime
 
 The compiler is self-hosting and the only dependency is itself. Install with curl, not npm.
 
-**Status: Beta** — self-hosting, 621+ tests, used in [production](https://chadsmith.dev/hn). Safe for early adopters.
+**Status: Beta** — self-hosting, 621+ tests, used in [production](https://chadsmith.dev/weather).
 
 ---
 
@@ -20,34 +20,35 @@ No dependencies — everything is bundled in the compiler.
 
 ---
 
-## Example: HTTP server in a single binary
+## Example: Web app in a single binary
 
 ```typescript
 import { httpServe, Router, Context } from "chadscript/http";
 
-type Post = {
-  id: number;
-  title: string;
-};
+ChadScript.embedDir("./public"); // HTML/CSS/JS baked into the binary at compile time
 
-const posts: Post[] = [
-  { id: 1, title: "ChadScript ships v1" },
-  { id: 2, title: "Native speed, TypeScript syntax" },
-];
+const db = sqlite.open("app.db");
+sqlite.exec(db, "CREATE TABLE IF NOT EXISTS visits (path TEXT, ts INTEGER)");
 
 const app: Router = new Router();
 
-app.get("/api/posts", (c: Context) => {
-  return c.json(posts);
+app.get("/api/stats", (c: Context) => {
+  const rows = sqlite.query(db, "SELECT path, COUNT(*) as n FROM visits GROUP BY path");
+  return c.json(rows);
 });
 
-app.get("/api/posts/:id", (c: Context) => {
-  const id = c.req.param("id");
-  return c.json({ id });
-});
+function handleRequest(req: HttpRequest): HttpResponse {
+  sqlite.exec(db, "INSERT INTO visits VALUES (?, ?)", [req.path, "" + Date.now()]);
+  if (req.path === "/") return ChadScript.serveEmbedded("index.html");
+  const res = app.handle(req);
+  if (res.status !== 404) return res;
+  return ChadScript.serveEmbedded(req.path);
+}
 
-httpServe(3000, (req: HttpRequest) => app.handle(req));
+httpServe(3000, handleRequest);
 ```
+
+One binary. No node_modules. Starts in under 2ms. See [`examples/`](examples/) for more: [weather app](examples/weather/), [WebSocket chat](examples/websocket/), SQLite, and more.
 
 ---
 
@@ -103,7 +104,8 @@ chad run examples/hello.ts
 chad run examples/parallel.ts          # async/await + Promise.all
 chad run examples/query.ts             # SQLite
 chad run examples/http-server.ts       # http://localhost:3000
-chad run examples/hackernews/app.ts    # Hacker News clone — live at https://chadsmith.dev/hn
+chad run examples/weather/app.ts       # weather app — live at https://chadsmith.dev/weather
+chad run examples/hackernews/app.ts    # Hacker News clone
 ```
 
 See [`examples/`](examples/) for the full list: grep tool, word counter, WebSocket chat, TUI apps, and more.
