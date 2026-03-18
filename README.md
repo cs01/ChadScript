@@ -2,9 +2,9 @@
 
 As fast as C, as ergonomic as TypeScript.
 
-ChadScript compiles TypeScript to native binaries via LLVM — the same backend behind Clang, Rust, and Swift. No Node.js, no JVM, no runtime, no cold start. Sub-2ms startup, ~250KB binaries.
+ChadScript compiles TypeScript to native binaries. No Node.js, no V8, no runtime. Sub-2ms startup, ~250KB binaries.
 
-The compiler is self-hosting: written in ChadScript, compiled by ChadScript, verified in a 3-stage bootstrap. Install with curl, not npm.
+The compiler is self-hosting and the only dependency is itself. Install with curl, not npm.
 
 **Status: Beta** — self-hosting, 621+ tests, used in [production](https://chadsmith.dev/hn). Safe for early adopters.
 
@@ -16,7 +16,7 @@ The compiler is self-hosting: written in ChadScript, compiled by ChadScript, ver
 curl -fsSL https://raw.githubusercontent.com/cs01/ChadScript/main/install.sh | sh
 ```
 
-Requires LLVM (`brew install llvm` / `apt install llvm clang`).
+No dependencies — everything is bundled in the compiler.
 
 ---
 
@@ -54,10 +54,10 @@ httpServe(3000, (req: HttpRequest) => app.handle(req));
 ## How it works
 
 ```
-your-app.ts  →  ChadScript parser  →  AST  →  LLVM IR  →  clang  →  ./your-app
+your-app.ts  →  chad build  →  ./your-app
 ```
 
-Every type is resolved at compile time. LLVM optimizes your code with the same passes used by C and Rust compilers — loop vectorization, inlining, dead code elimination. Direct calls into C libraries (SQLite, libcurl, openssl) with zero FFI overhead. The output is a standard native binary: run it, ship it, `scp` it, containerize it.
+Every type is resolved at compile time. The compiler optimizes your code the same way C and Rust compilers do. The output is a single native binary — run it, ship it, `scp` it, containerize it.
 
 ---
 
@@ -66,9 +66,9 @@ Every type is resolved at compile time. LLVM optimizes your code with the same p
 TypeScript is familiar to millions of developers, and LLMs generate it fluently. ChadScript uses a statically-typed subset where every type is resolved at compile time — no `any`, no runtime type checks, no surprises:
 
 - **Null safety** — `string` is never null. Use `string | null` and `?.` for optional values.
-- **No manual memory management** — Boehm GC handles allocation. No use-after-free, no double-frees, no `malloc`/`free`.
+- **No manual memory management** — automatic garbage collection. No use-after-free, no double-frees.
 - **Compile-time error catching** — type mismatches, invalid method calls, and unsafe patterns are caught before your code runs.
-- **Zero-cost C interop** — `declare function` binds any C library directly. No wrappers, no marshalling.
+- **C interop** — call any C library directly with `declare function`. No wrappers, no overhead.
 - **IDE support** — `chad init` generates `tsconfig.json` with ChadScript types. VS Code works out of the box.
 
 ---
@@ -77,20 +77,20 @@ TypeScript is familiar to millions of developers, and LLMs generate it fluently.
 
 No `npm install`. Everything ships with the compiler:
 
-| Module                | What it does               |
-| --------------------- | -------------------------- |
-| `fetch`               | HTTP client (libcurl)      |
-| `Router`, `httpServe` | HTTP server with routing   |
-| `fs`                  | File system                |
-| `sqlite`              | Embedded SQLite database   |
-| `crypto`              | Hashing, random bytes      |
-| `JSON`                | Typed JSON parse/stringify |
-| `child_process`       | Spawn subprocesses         |
-| `WebSocket`           | WebSocket server           |
-| `Map`, `Set`          | Hash map and set           |
-| `RegExp`              | Regular expressions        |
-| `console`             | Prints any type correctly  |
-| `ArgumentParser`      | CLI argument parsing       |
+| Module                | What it does             |
+| --------------------- | ------------------------ |
+| `fetch`               | HTTP client              |
+| `Router`, `httpServe` | HTTP server with routing |
+| `fs`                  | File system              |
+| `sqlite`              | Embedded database        |
+| `crypto`              | Hashing, random bytes    |
+| `JSON`                | Typed parse/stringify    |
+| `child_process`       | Spawn subprocesses       |
+| `WebSocket`           | WebSocket server         |
+| `Map`, `Set`          | Hash map and set         |
+| `RegExp`              | Regular expressions      |
+| `console`             | Prints any type          |
+| `ArgumentParser`      | CLI argument parsing     |
 
 ---
 
