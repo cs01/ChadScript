@@ -26,6 +26,62 @@ class IntegerAnalyzer {
     return (val as NumberNode).value % 1 === 0;
   }
 
+  private isIntegerExpressionForCandidacy(val: Expression): boolean {
+    if (this.isIntegerLiteral(val)) return true;
+    if (val.type === "member_access") {
+      const ma = val as MemberAccessNode;
+      if (ma.property === "length") return true;
+    }
+    if (val.type === "method_call") {
+      const mc = val as MethodCallNode;
+      const method = mc.method;
+      if (
+        method === "indexOf" ||
+        method === "lastIndexOf" ||
+        method === "findIndex" ||
+        method === "charCodeAt"
+      )
+        return true;
+      const obj = mc.object as VariableNode;
+      if (obj.type === "variable" && obj.name === "Math") {
+        if (method === "floor" || method === "ceil" || method === "round" || method === "trunc")
+          return true;
+      }
+    }
+    if (val.type === "call") {
+      const call = val as CallNode;
+      if (call.name === "parseInt") return true;
+    }
+    if (val.type === "binary") {
+      const bin = val as BinaryNode;
+      const op = bin.op;
+      if (
+        op === "+" ||
+        op === "-" ||
+        op === "*" ||
+        op === "%" ||
+        op === "&" ||
+        op === "|" ||
+        op === "^" ||
+        op === "<<" ||
+        op === ">>" ||
+        op === ">>>"
+      ) {
+        return (
+          this.isIntegerExpressionForCandidacy(bin.left) &&
+          this.isIntegerExpressionForCandidacy(bin.right)
+        );
+      }
+    }
+    if (val.type === "unary") {
+      const un = val as UnaryNode;
+      if (un.op === "-" || un.op === "~" || un.op === "+") {
+        return this.isIntegerExpressionForCandidacy(un.operand);
+      }
+    }
+    return false;
+  }
+
   private isIntegerExpression(val: Expression): boolean {
     if (this.isIntegerLiteral(val)) return true;
 
@@ -152,7 +208,7 @@ class IntegerAnalyzer {
 
     for (const varDecl of allDecls) {
       if (!varDecl.value) continue;
-      if (this.isIntegerLiteral(varDecl.value)) {
+      if (this.isIntegerExpressionForCandidacy(varDecl.value)) {
         candidates.push(varDecl.name);
         isConst.push(varDecl.kind === "const");
       }
