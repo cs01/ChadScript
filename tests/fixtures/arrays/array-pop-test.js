@@ -1,5 +1,5 @@
 // Test array.pop() - verifies pop removes and returns last element
-function testArrayPop(): void {
+function testArrayPop(): number {
   const arr = [10, 20, 30, 40, 50];
 
   // Pop should return the last element (50)

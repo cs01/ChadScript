@@ -1,5 +1,5 @@
 // Test array.includes() - verifies includes method works correctly
-function testArrayIncludes(): void {
+function testArrayIncludes(): number {
   const arr = [10, 20, 30, 40, 50];
 
   // Test that includes returns 1 for existing element

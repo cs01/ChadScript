@@ -1,5 +1,5 @@
 // Test basic string array - verifies string array creation and access
-function testStringArray(): void {
+function testStringArray(): number {
   const arr = ["hello", "world", "test"];
 
   if (arr.length !== 3) {
