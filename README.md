@@ -20,35 +20,50 @@ No dependencies — everything is bundled in the compiler.
 
 ---
 
-## Example: Web app in a single binary
+## Example: API server
 
 ```typescript
 import { httpServe, Router, Context } from "chadscript/http";
 
-ChadScript.embedDir("./public"); // HTML/CSS/JS baked into the binary at compile time
-
-const db = sqlite.open("app.db");
-sqlite.exec(db, "CREATE TABLE IF NOT EXISTS visits (path TEXT, ts INTEGER)");
-
 const app: Router = new Router();
 
-app.get("/api/stats", (c: Context) => {
-  const rows = sqlite.query(db, "SELECT path, COUNT(*) as n FROM visits GROUP BY path");
-  return c.json(rows);
+app.get("/", (c: Context) => {
+  return c.html(`<html><body style="font-family:system-ui;max-width:600px;margin:40px auto">
+    <h1>ChadScript API</h1>
+    <p>A native binary serving this page. Try the endpoints:</p>
+    <ul>
+      <li><a href="/users/42">/users/42</a> — get user by ID</li>
+      <li><a href="/users/alice/posts/7">/users/alice/posts/7</a> — nested params</li>
+      <li><a href="/json">/json</a> — JSON response</li>
+    </ul>
+    <p><code>curl -X POST -d 'hello' localhost:3000/echo</code></p>
+  </body></html>`);
 });
 
-function handleRequest(req: HttpRequest): HttpResponse {
-  sqlite.exec(db, "INSERT INTO visits VALUES (?, ?)", [req.path, "" + Date.now()]);
-  if (req.path === "/") return ChadScript.serveEmbedded("index.html");
-  const res = app.handle(req);
-  if (res.status !== 404) return res;
-  return ChadScript.serveEmbedded(req.path);
-}
+app.get("/json", (c: Context) => {
+  return c.json({ name: "ChadScript", compiled: true });
+});
 
-httpServe(3000, handleRequest);
+app.get("/users/:id", (c: Context) => {
+  return c.json({ id: c.req.param("id") });
+});
+
+app.get("/users/:name/posts/:pid", (c: Context) => {
+  return c.json({ user: c.req.param("name"), post: c.req.param("pid") });
+});
+
+app.post("/echo", (c: Context) => {
+  return c.text(c.req.body);
+});
+
+httpServe(3000, (req: HttpRequest) => app.handle(req));
 ```
 
-One binary. No node_modules. Starts in under 2ms. See [`examples/`](examples/) for more: [weather app](examples/weather/), [WebSocket chat](examples/websocket/), SQLite, and more.
+```bash
+chad build app.ts && ./app   # compiles in ~0.3s, starts in <2ms
+```
+
+Hono-style API, C-level performance. One binary, no node_modules. See [`examples/`](examples/) for more: [weather app](examples/weather/) (in production at [chadsmith.dev/weather](https://chadsmith.dev/weather)), [Hacker News clone](examples/hackernews/), [WebSocket chat](examples/websocket/), SQLite, and more.
 
 ---
 
