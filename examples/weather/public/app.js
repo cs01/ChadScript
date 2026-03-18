@@ -64,46 +64,43 @@ function fmtTime(date) {
   return h + ":" + (m < 10 ? "0" : "") + m + " " + ampm;
 }
 
-// Sunrise/sunset calculation (NOAA algorithm)
+// Sunrise/sunset calculation (simplified NOAA solar calculator)
 function calcSunTimes(lat, lon, date) {
   var rad = Math.PI / 180;
-  var dayOfYear = Math.floor((date - new Date(date.getFullYear(), 0, 0)) / 86400000);
-  var tzOffset = -date.getTimezoneOffset() / 60;
-
-  var fracYear = ((2 * Math.PI) / 365) * (dayOfYear - 1);
+  var JD = Math.floor(date.getTime() / 86400000) + 2440587.5;
+  var n = JD - 2451545.0;
+  var L = (280.46 + 0.9856474 * n) % 360;
+  var g = ((357.528 + 0.9856003 * n) % 360) * rad;
+  var lambda = (L + 1.915 * Math.sin(g) + 0.02 * Math.sin(2 * g)) * rad;
+  var eps = 23.439 * rad - 0.0000004 * rad * n;
+  var sinDec = Math.sin(eps) * Math.sin(lambda);
+  var decl = Math.asin(sinDec);
+  var cosHA =
+    (Math.cos(90.833 * rad) - Math.sin(lat * rad) * sinDec) /
+    (Math.cos(lat * rad) * Math.cos(decl));
+  if (cosHA > 1 || cosHA < -1) return { sunrise: new Date(date), sunset: new Date(date) };
+  var HA = Math.acos(cosHA) / rad;
+  // Equation of time
+  var y = Math.tan(eps / 2);
+  y = y * y;
+  var Lrad = L * rad;
   var eqTime =
-    229.18 *
-    (0.000075 +
-      0.001868 * Math.cos(fracYear) -
-      0.032077 * Math.sin(fracYear) -
-      0.014615 * Math.cos(2 * fracYear) -
-      0.040849 * Math.sin(2 * fracYear));
-  var decl =
-    0.006918 -
-    0.399912 * Math.cos(fracYear) +
-    0.070257 * Math.sin(fracYear) -
-    0.006758 * Math.cos(2 * fracYear) +
-    0.000907 * Math.sin(2 * fracYear) -
-    0.002697 * Math.cos(3 * fracYear) +
-    0.00148 * Math.sin(3 * fracYear);
-
-  var ha =
-    Math.acos(
-      Math.cos(90.833 * rad) / (Math.cos(lat * rad) * Math.cos(decl)) -
-        Math.tan(lat * rad) * Math.tan(decl),
-    ) / rad;
-
-  var sunrise = 720 - 4 * (lon + ha) - eqTime + tzOffset * 60;
-  var sunset = 720 - 4 * (lon - ha) - eqTime + tzOffset * 60;
-
+    (4 *
+      (y * Math.sin(2 * Lrad) -
+        2 * 0.01671 * Math.sin(g) +
+        4 * 0.01671 * y * Math.sin(g) * Math.cos(2 * Lrad))) /
+    rad;
+  var solarNoon = 720 - 4 * lon - eqTime;
+  var tzOff = -date.getTimezoneOffset();
+  var riseMin = solarNoon - 4 * HA + tzOff;
+  var setMin = solarNoon + 4 * HA + tzOff;
   function minsToDate(mins) {
     var d = new Date(date);
     d.setHours(0, 0, 0, 0);
     d.setMinutes(Math.round(mins));
     return d;
   }
-
-  return { sunrise: minsToDate(sunrise), sunset: minsToDate(sunset) };
+  return { sunrise: minsToDate(riseMin), sunset: minsToDate(setMin) };
 }
 
 function setWeatherBg(forecast, isDaytime) {
@@ -369,116 +366,57 @@ function render(city, forecast, hourlyData, grid) {
   var dayFrac = (nowTime - midnightToday) / fullDay;
   var riseFrac = (sunTimes.sunrise - midnightToday) / fullDay;
   var setFrac = (sunTimes.sunset - midnightToday) / fullDay;
-  // Map sunrise→x=20, sunset→x=80, centered
-  var riseX = 20;
-  var setX = 80;
-  var horizY = 50;
-  var dayAmp = 35;
-  var nightAmp = 12;
-  // Day arc: semicircle from riseX to setX above horizon
-  var dayArc =
-    "M " +
-    riseX +
-    " " +
-    horizY +
-    " C " +
-    riseX +
-    " " +
-    (horizY - dayAmp * 1.3) +
-    " " +
-    setX +
-    " " +
-    (horizY - dayAmp * 1.3) +
-    " " +
-    setX +
-    " " +
-    horizY;
-  // Night arc: dip below from setX back to riseX
-  var nightArc =
-    "M " +
-    setX +
-    " " +
-    horizY +
-    " C " +
-    setX +
-    " " +
-    (horizY + nightAmp * 1.5) +
-    " " +
-    riseX +
-    " " +
-    (horizY + nightAmp * 1.5) +
-    " " +
-    riseX +
-    " " +
-    horizY;
-  // Sun position on curve
-  var sunX, sunY, aboveHorizon;
-  if (dayFrac >= riseFrac && dayFrac <= setFrac) {
-    var t = (dayFrac - riseFrac) / (setFrac - riseFrac);
-    sunX = riseX + t * (setX - riseX);
-    sunY = horizY - Math.sin(t * Math.PI) * dayAmp;
-    aboveHorizon = true;
-  } else {
-    var nt;
-    if (dayFrac > setFrac) {
-      nt = (dayFrac - setFrac) / (1 - setFrac + riseFrac);
-    } else {
-      nt = (1 - setFrac + dayFrac) / (1 - setFrac + riseFrac);
-    }
-    sunX = setX + nt * (riseX + 100 - setX);
-    if (sunX > 100) sunX = sunX - 100 + riseX;
-    sunX = setX - nt * (setX - riseX);
-    sunY = horizY + Math.sin(nt * Math.PI) * nightAmp;
-    aboveHorizon = false;
+  // Smooth sine wave: one full cycle mapped across the SVG
+  // Sunrise at phase=0 (crossing up), noon at phase=PI/2 (peak),
+  // sunset at phase=PI (crossing down), midnight at phase=3PI/2 (trough)
+  var horizY = 40;
+  var amp = 22;
+  var riseX = 15;
+  var setX = 85;
+  var midX = (riseX + setX) / 2;
+  // Point on sine at a given fraction of full day
+  function sunPoint(frac) {
+    // Map so sunrise=0, sunset=PI, next sunrise=2PI
+    var phase = ((frac - riseFrac) / (setFrac - riseFrac)) * Math.PI;
+    var x = riseX + ((frac - riseFrac) / 1.0) * ((setX - riseX) / (setFrac - riseFrac));
+    // Simpler: just linearly map frac across the x axis
+    x = 5 + frac * 90;
+    var y = horizY - Math.sin(phase) * amp;
+    return { x: x, y: y };
   }
-  // Gold trace: build day arc path up to current sun position
-  var traceD = "";
-  if (dayFrac >= riseFrac && dayFrac <= setFrac) {
-    var ct = (dayFrac - riseFrac) / (setFrac - riseFrac);
-    var cx1 = riseX + (riseX + (riseX - riseX)) * 0;
-    traceD =
-      "M " +
-      riseX +
-      " " +
-      horizY +
-      " C " +
-      riseX +
-      " " +
-      (horizY - dayAmp * 1.3 * ct) +
-      " " +
-      (riseX + ct * (setX - riseX) * 0.5) +
-      " " +
-      (horizY - dayAmp * 1.3 * ct) +
-      " " +
-      sunX.toFixed(1) +
-      " " +
-      sunY.toFixed(1);
+  // Build full curve path
+  var curvePts = [];
+  for (var ci = 0; ci <= 80; ci++) {
+    var cf = ci / 80;
+    var cp = sunPoint(cf);
+    curvePts.push(cp.x.toFixed(1) + "," + cp.y.toFixed(1));
   }
+  var curveD = "M " + curvePts.join(" L ");
+  // Sun position
+  var sp = sunPoint(dayFrac);
+  var aboveHorizon = sp.y < horizY;
   var arcSvg =
     '<svg viewBox="0 0 100 70" class="sun-arc">' +
     '<path d="' +
-    dayArc +
+    curveD +
     '" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/>' +
-    '<path d="' +
-    nightArc +
-    '" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1" stroke-dasharray="2,2"/>' +
-    '<line x1="10" y1="' +
+    '<line x1="5" y1="' +
     horizY +
-    '" x2="90" y2="' +
+    '" x2="95" y2="' +
     horizY +
     '" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>' +
     '<circle cx="' +
-    sunX.toFixed(1) +
+    sp.x.toFixed(1) +
     '" cy="' +
-    sunY.toFixed(1) +
+    sp.y.toFixed(1) +
     '" r="4" fill="' +
     (aboveHorizon ? "#ffcc00" : "rgba(200,200,220,0.5)") +
     '"/>' +
     (aboveHorizon
       ? '<circle cx="' +
-        sunX.toFixed(1) +
+        sp.x.toFixed(1) +
         '" cy="' +
-        sunY.toFixed(1) +
+        sp.y.toFixed(1) +
         '" r="7" fill="rgba(255,204,0,0.12)"/>'
       : "") +
     "</svg>";
