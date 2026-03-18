@@ -46,6 +46,14 @@ declare const process: {
 
 declare function __gc_disable(): void;
 
+declare function cs_llvm_compile_ir(
+  ir_text: string,
+  output_path: string,
+  opt_level: number,
+  triple: string,
+  cpu: string,
+  features: string,
+): string;
 declare function cs_llvm_compile_ir_file(
   ir_file: string,
   output_path: string,
@@ -542,20 +550,14 @@ export function compileNative(inputFile: string, outputFile: string): void {
     console.log("Generated IR parts: " + irParts.length);
   }
 
-  const irFile = outputFile + ".ll";
-  fs.writeFileSync(irFile, "");
+  let irText = "";
   for (let pi = 0; pi < irParts.length; pi++) {
-    const part = irParts[pi];
-    if (verbose && part.indexOf("ts_parser_language") !== -1) {
-      const preview = part.substr(0, 80);
-      console.log(
-        "Part " + pi + " contains ts_parser_language, len=" + part.length + " preview=" + preview,
-      );
-    }
-    fs.appendFileSync(irFile, part);
+    irText = irText + irParts[pi];
   }
 
   if (emitLLVMOnly) {
+    const irFile = outputFile + ".ll";
+    fs.writeFileSync(irFile, irText);
     if (verbose) {
       console.log("LLVM IR written to " + irFile);
     }
@@ -568,9 +570,9 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const effectiveTriple = crossCompiling ? targetTriple : "";
   const effectiveCpu = crossCompiling ? "" : targetCpu;
   if (verbose) {
-    console.log("Compiling IR via LLVM C API: " + irFile + " -> " + objFile);
+    console.log("Compiling IR in-memory via LLVM C API -> " + objFile);
   }
-  const llvmErr = cs_llvm_compile_ir_file(irFile, objFile, 2, effectiveTriple, effectiveCpu, "");
+  const llvmErr = cs_llvm_compile_ir(irText, objFile, 2, effectiveTriple, effectiveCpu, "");
   if (llvmErr.length > 0) {
     console.log("Error: LLVM compilation failed: " + llvmErr);
     process.exit(1);

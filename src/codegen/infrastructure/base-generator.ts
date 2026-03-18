@@ -545,10 +545,6 @@ export class BaseGenerator {
     return temp;
   }
 
-  // Builder API mode: these mirror the text builders above but call C bridge functions.
-  // Enabled via useBuilderAPI flag. Currently unused — will be wired in when
-  // the native compiler's compilation pipeline switches from text IR to in-memory IR.
-
   // ============================================
   // Symbol table convenience methods
   // ============================================
