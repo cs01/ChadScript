@@ -155,11 +155,10 @@ import { checkUnionTypes } from "../semantic/union-type-checker.js";
 import { checkTypeAssertions } from "../semantic/type-assertion-checker.js";
 import { checkUninitializedFields } from "../semantic/uninitialized-field-checker.js";
 import { analyzeEscapes } from "../semantic/escape-analysis.js";
-import { checkBinaryTypes } from "../semantic/binary-type-checker.js";
+// binary-type-checker.ts: original top-level-only checker kept for reference; deep version is in safety-checks.ts
 import { checkEnumDeclarations } from "../semantic/enum-checker.js";
 import { checkAsyncAwait } from "../semantic/async-await-checker.js";
-import { checkArgumentCounts } from "../semantic/argument-count-checker.js";
-import { checkMissingReturns } from "../semantic/missing-return-checker.js";
+import { checkBinaryTypesDeep, checkMissingReturns } from "../semantic/safety-checks.js";
 import { DebugMetadataBuilder } from "./infrastructure/debug-metadata.js";
 
 export interface SemaSymbolData {
@@ -2671,9 +2670,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     checkUnionTypes(this.ast, this.sourceCode);
     checkTypeAssertions(this.ast, this.sourceCode);
     checkUninitializedFields(this.ast, this.sourceCode);
-    checkBinaryTypes(this.ast, this.sourceCode);
+    checkBinaryTypesDeep(this.ast, this.sourceCode);
     checkAsyncAwait(this.ast, this.sourceCode);
-    checkArgumentCounts(this.ast, this.sourceCode);
     checkMissingReturns(this.ast, this.sourceCode);
     this.stackEligibleVars = analyzeEscapes(this.ast);
 
