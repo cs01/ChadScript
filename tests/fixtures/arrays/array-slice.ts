@@ -1,4 +1,4 @@
-function testArraySlice(): number {
+function testArraySlice(): void {
   const arr: number[] = [1, 2, 3, 4, 5];
 
   const sliced = arr.slice(1, 3);

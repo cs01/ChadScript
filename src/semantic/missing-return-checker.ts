@@ -163,6 +163,8 @@ export function checkMissingReturns(ast: AST, sourceCode: string): void {
     const fn = ast.functions[i];
     if (fn.declare) continue;
     if (!fn.returnType || fn.returnType === "void" || fn.returnType === "never") continue;
+    if (fn.async) continue;
+    if (fn.returnType.indexOf("Promise") === 0) continue;
     if (!allPathsReturn(fn.body.statements, neverNames)) {
       const output = formatCompileError(
         sourceCode,
