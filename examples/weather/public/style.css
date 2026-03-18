@@ -1,4 +1,8 @@
-* { margin: 0; padding: 0; box-sizing: border-box; }
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
 
 :root {
   --bg: #0f172a;
@@ -14,7 +18,7 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
@@ -40,7 +44,9 @@ header h1 {
   letter-spacing: -0.02em;
 }
 
-header h1 span { color: var(--accent); }
+header h1 span {
+  color: var(--accent);
+}
 
 header p {
   color: var(--text-dim);
@@ -66,7 +72,9 @@ header p {
   transition: border-color 0.2s;
 }
 
-.search-bar input:focus { border-color: var(--accent); }
+.search-bar input:focus {
+  border-color: var(--accent);
+}
 
 .search-bar button {
   padding: 0.75rem 1.5rem;
@@ -80,8 +88,13 @@ header p {
   transition: opacity 0.2s;
 }
 
-.search-bar button:hover { opacity: 0.85; }
-.search-bar button:disabled { opacity: 0.5; cursor: wait; }
+.search-bar button:hover {
+  opacity: 0.85;
+}
+.search-bar button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
 
 .location-name {
   font-size: 1.25rem;
@@ -90,7 +103,9 @@ header p {
   color: var(--text-dim);
 }
 
-.location-name strong { color: var(--text); }
+.location-name strong {
+  color: var(--text);
+}
 
 .current {
   background: var(--surface);
@@ -109,8 +124,12 @@ header p {
   line-height: 1;
 }
 
-.current-temp.warm { color: var(--warm); }
-.current-temp.cool { color: var(--cool); }
+.current-temp.warm {
+  color: var(--warm);
+}
+.current-temp.cool {
+  color: var(--cool);
+}
 
 .current-detail {
   text-align: right;
@@ -150,15 +169,42 @@ header p {
   transition: border-color 0.2s;
 }
 
-.forecast-card:hover { border-color: var(--accent); }
-.forecast-card .period-name { font-size: 0.8rem; color: var(--text-dim); margin-bottom: 0.5rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; }
-.forecast-card .temp { font-size: 1.75rem; font-weight: 700; margin-bottom: 0.25rem; }
-.forecast-card .temp.warm { color: var(--warm); }
-.forecast-card .temp.cool { color: var(--cool); }
-.forecast-card .wind { font-size: 0.75rem; color: var(--text-dim); margin-bottom: 0.25rem; }
-.forecast-card .short { font-size: 0.8rem; color: var(--text-dim); line-height: 1.3; }
+.forecast-card:hover {
+  border-color: var(--accent);
+}
+.forecast-card .period-name {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.forecast-card .temp {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+.forecast-card .temp.warm {
+  color: var(--warm);
+}
+.forecast-card .temp.cool {
+  color: var(--cool);
+}
+.forecast-card .wind {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin-bottom: 0.25rem;
+}
+.forecast-card .short {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  line-height: 1.3;
+}
 
-.night { opacity: 0.7; }
+.night {
+  opacity: 0.7;
+}
 
 .error-msg {
   background: rgba(239, 68, 68, 0.1);
@@ -183,10 +229,22 @@ header p {
   color: var(--text-dim);
 }
 
-.powered-by a { color: var(--accent); text-decoration: none; }
+.powered-by a {
+  color: var(--accent);
+  text-decoration: none;
+}
 
 @media (max-width: 480px) {
-  .current { flex-direction: column; text-align: center; gap: 1rem; }
-  .current-detail { text-align: center; max-width: 100%; }
-  .forecast-grid { grid-template-columns: repeat(2, 1fr); }
+  .current {
+    flex-direction: column;
+    text-align: center;
+    gap: 1rem;
+  }
+  .current-detail {
+    text-align: center;
+    max-width: 100%;
+  }
+  .forecast-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }

@@ -25,7 +25,7 @@ No dependencies — everything is bundled in the compiler.
 ```typescript
 import { httpServe, Router, Context } from "chadscript/http";
 
-ChadScript.embedDir("./public");  // HTML/CSS/JS baked into the binary at compile time
+ChadScript.embedDir("./public"); // HTML/CSS/JS baked into the binary at compile time
 
 const app: Router = new Router();
 
