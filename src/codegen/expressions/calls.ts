@@ -67,7 +67,7 @@ export class CallExpressionGenerator {
       }
       const callResult = this.ctx.nextTemp();
       this.ctx.emit(`${callResult} = call double ${typedFn}(${callArgsList.join(", ")})`);
-      return fnPtr;
+      return callResult;
     }
 
     const runtimeResult = this.dispatchRuntimeCalls(expr, params);
