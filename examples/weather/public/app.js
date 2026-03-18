@@ -9,6 +9,8 @@ var errorEl = document.getElementById("error");
 var defaultLat = "37.7849";
 var defaultLon = "-122.4094";
 var defaultCity = "San Francisco";
+var currentLat = defaultLat;
+var currentLon = defaultLon;
 
 var icons = {
   Sunny: "\u2600\uFE0F",
@@ -54,6 +56,75 @@ function fmtHour(iso) {
   return h - 12 + "PM";
 }
 
+function fmtTime(date) {
+  var h = date.getHours();
+  var m = date.getMinutes();
+  var ampm = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  return h + ":" + (m < 10 ? "0" : "") + m + " " + ampm;
+}
+
+// Sunrise/sunset calculation (NOAA algorithm)
+function calcSunTimes(lat, lon, date) {
+  var rad = Math.PI / 180;
+  var dayOfYear = Math.floor((date - new Date(date.getFullYear(), 0, 0)) / 86400000);
+  var tzOffset = -date.getTimezoneOffset() / 60;
+
+  var fracYear = ((2 * Math.PI) / 365) * (dayOfYear - 1);
+  var eqTime =
+    229.18 *
+    (0.000075 +
+      0.001868 * Math.cos(fracYear) -
+      0.032077 * Math.sin(fracYear) -
+      0.014615 * Math.cos(2 * fracYear) -
+      0.040849 * Math.sin(2 * fracYear));
+  var decl =
+    0.006918 -
+    0.399912 * Math.cos(fracYear) +
+    0.070257 * Math.sin(fracYear) -
+    0.006758 * Math.cos(2 * fracYear) +
+    0.000907 * Math.sin(2 * fracYear) -
+    0.002697 * Math.cos(3 * fracYear) +
+    0.00148 * Math.sin(3 * fracYear);
+
+  var ha =
+    Math.acos(
+      Math.cos(90.833 * rad) / (Math.cos(lat * rad) * Math.cos(decl)) -
+        Math.tan(lat * rad) * Math.tan(decl),
+    ) / rad;
+
+  var sunrise = 720 - 4 * (lon + ha) - eqTime + tzOffset * 60;
+  var sunset = 720 - 4 * (lon - ha) - eqTime + tzOffset * 60;
+
+  function minsToDate(mins) {
+    var d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    d.setMinutes(Math.round(mins));
+    return d;
+  }
+
+  return { sunrise: minsToDate(sunrise), sunset: minsToDate(sunset) };
+}
+
+function setWeatherBg(forecast, isDaytime) {
+  var f = forecast.toLowerCase();
+  var bg;
+  if (!isDaytime) {
+    bg = "linear-gradient(180deg, #0a1628 0%, #1a1a3e 40%, #0d0d1f 100%)";
+  } else if (f.indexOf("rain") !== -1 || f.indexOf("shower") !== -1) {
+    bg = "linear-gradient(180deg, #374151 0%, #1f2937 40%, #111827 100%)";
+  } else if (f.indexOf("snow") !== -1) {
+    bg = "linear-gradient(180deg, #64748b 0%, #475569 40%, #334155 100%)";
+  } else if (f.indexOf("cloud") !== -1 || f.indexOf("overcast") !== -1) {
+    bg = "linear-gradient(180deg, #3b5e8a 0%, #2d4a6f 40%, #1a3050 100%)";
+  } else if (f.indexOf("fog") !== -1 || f.indexOf("haze") !== -1) {
+    bg = "linear-gradient(180deg, #6b7b8d 0%, #4a5568 40%, #2d3748 100%)";
+  } else {
+    bg = "linear-gradient(180deg, #3a7bd5 0%, #1a5276 40%, #0f2b44 100%)";
+  }
+  document.body.style.background = bg;
+}
+
 function showError(msg) {
   heroEl.innerHTML = "";
   hourlyEl.innerHTML = "";
@@ -63,6 +134,8 @@ function showError(msg) {
 }
 
 function fetchWeather(lat, lon, city) {
+  currentLat = lat;
+  currentLon = lon;
   heroEl.innerHTML = '<div class="loading">Loading...</div>';
   hourlyEl.innerHTML = "";
   dailyEl.innerHTML = "";
@@ -138,7 +211,13 @@ function getGridVal(grid, field) {
   if (!grid || !grid.properties || !grid.properties[field]) return null;
   var v = grid.properties[field].values;
   if (!v || v.length === 0) return null;
-  return v[0].value;
+  var now = new Date();
+  for (var i = 0; i < v.length; i++) {
+    var parts = v[i].validTime.split("/");
+    var start = new Date(parts[0]);
+    if (start > now) return i > 0 ? v[i - 1].value : v[0].value;
+  }
+  return v[v.length - 1].value;
 }
 
 function render(city, forecast, hourlyData, grid) {
@@ -150,11 +229,17 @@ function render(city, forecast, hourlyData, grid) {
 
   var now = periods[0];
   var tonight = periods.length > 1 && !periods[1].isDaytime ? periods[1] : null;
-  var hi = now.isDaytime ? now.temperature : tonight ? periods[2].temperature : now.temperature;
+  var hi = now.isDaytime
+    ? now.temperature
+    : tonight && periods.length > 2
+      ? periods[2].temperature
+      : now.temperature;
   var lo = tonight ? tonight.temperature : now.temperature;
 
   var hrs = hourlyData.properties.periods;
   var currentTemp = hrs.length > 0 ? hrs[0].temperature : now.temperature;
+
+  setWeatherBg(now.shortForecast, now.isDaytime);
 
   var feelsLike = getGridVal(grid, "apparentTemperature");
   var feelsHtml =
@@ -265,6 +350,47 @@ function render(city, forecast, hourlyData, grid) {
   var precip = now.probabilityOfPrecipitation ? now.probabilityOfPrecipitation.value : null;
 
   var cards = "";
+
+  // Sunrise/Sunset card
+  var sunTimes = calcSunTimes(parseFloat(currentLat), parseFloat(currentLon), new Date());
+  var nowTime = new Date();
+  var isBeforeSunset = nowTime < sunTimes.sunset;
+  var sunLabel = isBeforeSunset ? "Sunset" : "Sunrise";
+  var sunValue = isBeforeSunset ? fmtTime(sunTimes.sunset) : fmtTime(sunTimes.sunrise);
+  var sunDetail = isBeforeSunset
+    ? "Sunrise: " + fmtTime(sunTimes.sunrise)
+    : "Sunset: " + fmtTime(sunTimes.sunset);
+  // Sun arc progress
+  var dayLen = sunTimes.sunset - sunTimes.sunrise;
+  var sunProgress = isBeforeSunset
+    ? Math.max(0, Math.min(1, (nowTime - sunTimes.sunrise) / dayLen))
+    : 1;
+  var arcSvg =
+    '<svg viewBox="0 0 100 50" class="sun-arc">' +
+    '<path d="M 10 45 Q 50 -5 90 45" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="2"/>' +
+    '<path d="M 10 45 Q 50 -5 90 45" fill="none" stroke="#ffcc00" stroke-width="2" stroke-dasharray="120" stroke-dashoffset="' +
+    (120 - sunProgress * 120) +
+    '"/>' +
+    '<circle cx="' +
+    (10 + sunProgress * 80) +
+    '" cy="' +
+    (45 - Math.sin(sunProgress * Math.PI) * 50) +
+    '" r="4" fill="#ffcc00"/>' +
+    '<line x1="10" y1="45" x2="90" y2="45" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>' +
+    "</svg>";
+  cards +=
+    '<div class="dash-card glass"><div class="dash-title">\uD83C\uDF05 ' +
+    sunLabel +
+    "</div>" +
+    '<div class="dash-value sun-time">' +
+    sunValue +
+    "</div>" +
+    arcSvg +
+    '<div class="dash-detail">' +
+    sunDetail +
+    "</div></div>";
+
+  // Wind
   cards +=
     '<div class="dash-card glass"><div class="dash-title">\uD83D\uDCA8 Wind</div>' +
     '<div class="dash-value">' +
@@ -274,6 +400,7 @@ function render(city, forecast, hourlyData, grid) {
     now.windDirection +
     "</div></div>";
 
+  // Humidity
   if (humidity !== null) {
     cards +=
       '<div class="dash-card glass"><div class="dash-title">\uD83D\uDCA7 Humidity</div>' +
@@ -286,6 +413,7 @@ function render(city, forecast, hourlyData, grid) {
     cards += "</div>";
   }
 
+  // Precipitation
   cards +=
     '<div class="dash-card glass"><div class="dash-title">\u2614 Precipitation</div>' +
     '<div class="dash-value">' +
@@ -293,6 +421,7 @@ function render(city, forecast, hourlyData, grid) {
     '<span class="dash-unit">%</span></div>' +
     '<div class="dash-detail">Chance today</div></div>';
 
+  // Visibility
   if (visibility !== null) {
     var visMi = Math.round(visibility / 1609);
     cards +=
@@ -305,11 +434,15 @@ function render(city, forecast, hourlyData, grid) {
       "</div></div>";
   }
 
-  if (dewpoint !== null && feelsLike === null) {
+  // Feels Like (as card if not in hero for some reason)
+  if (feelsLike !== null) {
     cards +=
-      '<div class="dash-card glass"><div class="dash-title">\uD83C\uDF21\uFE0F Dew Point</div>' +
+      '<div class="dash-card glass"><div class="dash-title">\uD83C\uDF21\uFE0F Feels Like</div>' +
       '<div class="dash-value">' +
-      cToF(dewpoint) +
+      cToF(feelsLike) +
+      "\u00B0</div>" +
+      '<div class="dash-detail">Actual: ' +
+      currentTemp +
       "\u00B0</div></div>";
   }
 
@@ -328,7 +461,6 @@ zipInput.addEventListener("keydown", function (e) {
   }
 });
 
-// Check URL for ?zip= parameter
 var params = new URLSearchParams(window.location.search);
 var urlZip = params.get("zip");
 if (urlZip) {
