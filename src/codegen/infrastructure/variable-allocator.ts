@@ -1779,10 +1779,23 @@ export class VariableAllocator {
         stmt.value!.type === "boolean" ||
         (stmt.declaredType && stripNullable(stmt.declaredType) === "boolean");
       const symKind = isBoolVal ? SymbolKind_Boolean : SymbolKind_Number;
-      if (valueType === "i64" && this.isI64Eligible(stmt.name)) {
+      if (
+        this.isI64Eligible(stmt.name) &&
+        (valueType === "i64" || valueType === "double" || valueType === "i32")
+      ) {
         this.ctx.defineVariable(stmt.name, allocaReg, "i64", symKind, "local");
         this.ctx.emit(`${allocaReg} = alloca i64`);
-        this.ctx.emit(`store i64 ${value}, i64* ${allocaReg}`);
+        if (valueType === "double") {
+          const converted = this.ctx.nextTemp();
+          this.ctx.emit(`${converted} = fptosi double ${value} to i64`);
+          this.ctx.emit(`store i64 ${converted}, i64* ${allocaReg}`);
+        } else if (valueType === "i32") {
+          const converted = this.ctx.nextTemp();
+          this.ctx.emit(`${converted} = sext i32 ${value} to i64`);
+          this.ctx.emit(`store i64 ${converted}, i64* ${allocaReg}`);
+        } else {
+          this.ctx.emit(`store i64 ${value}, i64* ${allocaReg}`);
+        }
       } else {
         this.ctx.defineVariable(stmt.name, allocaReg, "double", symKind, "local");
         this.ctx.emit(`${allocaReg} = alloca double`);
