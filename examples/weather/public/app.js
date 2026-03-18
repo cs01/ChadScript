@@ -611,12 +611,21 @@ function showSuggestions(results) {
   }
   for (var i = 0; i < Math.min(results.length, 5); i++) {
     var r = results[i];
+    var ad = r.address || {};
+    var sCity = ad.city || ad.town || ad.village || r.display_name.split(",")[0].trim();
+    var sState = ad.state || "";
+    var sLabel = sState ? sCity + ", " + sState : sCity;
     var div = document.createElement("div");
     div.className = "suggestion-item";
-    div.textContent = r.display_name.split(",").slice(0, 3).join(",");
+    div.innerHTML =
+      '<span class="sug-city">' +
+      sCity +
+      '</span><span class="sug-region">' +
+      (sState || "") +
+      "</span>";
     div.setAttribute("data-lat", r.lat);
     div.setAttribute("data-lon", r.lon);
-    div.setAttribute("data-name", r.display_name.split(",")[0].trim());
+    div.setAttribute("data-name", sLabel);
     div.addEventListener("click", function () {
       var lat = this.getAttribute("data-lat");
       var lon = this.getAttribute("data-lon");

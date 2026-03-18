@@ -128,12 +128,13 @@ body {
 }
 
 .suggestion-item {
-  padding: 0.6rem 1rem;
-  font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.8);
+  padding: 0.65rem 1rem;
   cursor: pointer;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   text-align: left;
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
 }
 
 .suggestion-item:last-child {
@@ -141,7 +142,18 @@ body {
 }
 
 .suggestion-item:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.sug-city {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.sug-region {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.45);
 }
 
 .locate-btn {
