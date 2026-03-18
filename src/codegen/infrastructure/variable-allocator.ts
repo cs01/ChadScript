@@ -13,8 +13,6 @@ import {
   InterfaceDeclaration,
   InterfaceField,
   ObjectNode,
-  ArrayNode,
-  IndexAccessNode,
   MemberAccessNode,
   VariableNode,
   TypeAliasDeclaration,
@@ -24,14 +22,11 @@ import {
   FunctionNode,
   CommonField,
   BinaryNode,
-  MapNode,
-  SetNode,
   AwaitExpressionNode,
   ArrowFunctionNode,
   SourceLocation,
 } from "../../ast/types.js";
 import {
-  SymbolKind,
   SymbolKind_Number,
   SymbolKind_String,
   SymbolKind_Boolean,
@@ -39,52 +34,26 @@ import {
   SymbolKind_StringArray,
   SymbolKind_ObjectArray,
   SymbolKind_Object,
-  SymbolKind_Map,
-  SymbolKind_Set,
-  SymbolKind_Class,
   SymbolKind_Regex,
   SymbolKind_JSON,
   SymbolKind_Closure,
-  SymbolKind_Pointer,
   SymbolKind_Uint8Array,
-  SymbolKind_Url,
-  SymbolKind_UrlSearchParams,
   SymbolTable,
   ObjectMetadata,
-  MapMetadata,
-  ClassMetadata,
-  ClosureMetadata,
-  SetMetadata,
-  Symbol as SymbolEntry,
-  ObjectArrayMetadata,
   createPointerAllocaMetadata,
-  createInterfacePointerAllocaMetadata,
   createObjectMetadata,
   createObjectMetadataWithInterface,
-  createObjectMetadataWithPointerAlloca,
-  createObjectMetadataWithInterfaceAndPointerAlloca,
-  createClassMetadata,
   createClosureMetadataSymbol,
-  createMapMetadataSymbol,
-  createSetMetadataSymbol,
-  createObjectArrayMetadataSymbol,
-  createUnionMetadata,
   SymbolMetadata,
 } from "./symbol-table.js";
-import type { TypeChecker } from "../../typescript/type-checker.js";
 import { TypeResolver, UnionCommonFields } from "./type-resolver/index.js";
 import type { FieldInfo } from "./type-resolver/types.js";
-import {
-  stripOptional,
-  stripNullable,
-  tsTypeToLlvm,
-  tsTypeToLlvmJson,
-  parseMapTypeString,
-  parseSetTypeString,
-  parseArrayTypeString,
-} from "./type-system.js";
+import { stripOptional, stripNullable, tsTypeToLlvmJson } from "./type-system.js";
 import { parseTypeString, type ResolvedType } from "./type-system.js";
 import { InterfaceAllocator } from "./interface-allocator.js";
+import { MapAllocator } from "./map-allocator.js";
+import { ClassAllocator } from "./class-allocator.js";
+import { ArrayAllocator } from "./array-allocator.js";
 
 interface ExprBase {
   type: string;
@@ -153,32 +122,9 @@ interface CaptureInfo {
   llvmType: string;
 }
 
-interface ExpressionGeneratorLike {
-  arrowFunctionGen: ArrowFunctionGeneratorLike;
-}
-
 interface ObjectMetadataResult {
   keys: string[];
   types: string[];
-}
-
-interface MapTypeInfo {
-  keyType: string;
-  valueType: string;
-}
-
-interface SetTypeInfo {
-  valueType: string;
-}
-
-interface MethodArrayFieldInfo {
-  name: string;
-  type: string;
-}
-
-interface MethodArrayReturnInfo {
-  elementType: string;
-  fields: MethodArrayFieldInfo[];
 }
 
 export interface VariableAllocatorContext {
@@ -253,12 +199,22 @@ export interface VariableAllocatorContext {
 
 export class VariableAllocator {
   private interfaceAlloc: InterfaceAllocator;
+  private mapAlloc: MapAllocator;
+  private classAlloc: ClassAllocator;
+  private arrayAlloc: ArrayAllocator;
 
   constructor(private ctx: VariableAllocatorContext) {
     this.interfaceAlloc = new InterfaceAllocator(ctx as any);
+    this.mapAlloc = new MapAllocator(ctx as any, this);
+    this.classAlloc = new ClassAllocator(ctx as any, this);
+    this.arrayAlloc = new ArrayAllocator(ctx as any, this);
   }
 
-  private isKnownClass(name: string): boolean {
+  getMapGetClassName(m: MethodCallNode): string | null {
+    return this.mapAlloc.getMapGetClassName(m);
+  }
+
+  isKnownClass(name: string): boolean {
     if (!name) return false;
     // Also check resolved alias (e.g., import MyGreeter from './greeter' → Greeter)
     const resolved = this.ctx.resolveImportAlias(name);
@@ -279,7 +235,7 @@ export class VariableAllocator {
     return false;
   }
 
-  private getInterface(name: string): InterfaceDeclaration | null {
+  getInterface(name: string): InterfaceDeclaration | null {
     return this.interfaceAlloc.getInterface(name);
   }
 
@@ -1193,56 +1149,14 @@ export class VariableAllocator {
     params: string[],
     elementType: string,
   ): void {
-    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
-    const elementKeys: string[] = [];
-    const elementTypes: string[] = [];
-    const elementTsTypes: string[] = [];
-
-    if (elementType.startsWith("{") && elementType.endsWith("}")) {
-      const inlineFields = this.parseInlineObjectType(elementType);
-      if (inlineFields) {
-        for (let i = 0; i < inlineFields.length; i++) {
-          const field = inlineFields[i] as { name: string; type: string };
-          elementKeys.push(stripOptional(field.name));
-          elementTypes.push(this.convertTsType(field.type));
-          elementTsTypes.push(field.type);
-        }
-      }
-    } else {
-      const interfaceDefResult = this.getInterface(elementType);
-      if (interfaceDefResult) {
-        const interfaceDef = interfaceDefResult as InterfaceDeclaration;
-        const allFields = this.getAllInterfaceFields(interfaceDef);
-        for (let i = 0; i < allFields.length; i++) {
-          const field = allFields[i] as { name: string; type: string };
-          elementKeys.push(stripOptional(field.name));
-          elementTypes.push(this.convertTsType(field.type));
-          elementTsTypes.push(field.type);
-        }
-      }
-    }
-
-    this.ctx.defineVariable(stmt.name, allocaReg, "%ObjectArray*", SymbolKind_ObjectArray, "local");
-    this.ctx.symbolTable.setRawInterfaceType(
-      stmt.name,
-      elementType.startsWith("{") ? "inline" : elementType,
-    );
-    this.ctx.symbolTable.setObjectArrayMetadata(stmt.name, {
-      elementInterfaceName: elementType.startsWith("{") ? "inline" : elementType,
-      elementKeys,
-      elementTypes,
-      elementTsTypes,
-    });
-    this.ctx.emit(`${allocaReg} = alloca %ObjectArray*`);
-    const arrPtr = this.ctx.generateExpression(stmt.value!, params);
-    this.ctx.emit(`store %ObjectArray* ${arrPtr}, %ObjectArray** ${allocaReg}`);
+    this.arrayAlloc.allocateMethodArrayReturn(stmt, params, elementType);
   }
 
   private getDeclaredInterfaceType(stmt: VariableDeclaration): string | null {
     return this.interfaceAlloc.getDeclaredInterfaceType(stmt);
   }
 
-  private parseInlineObjectType(typeStr: string): InterfaceField[] | null {
+  parseInlineObjectType(typeStr: string): InterfaceField[] | null {
     return this.interfaceAlloc.parseInlineObjectType(typeStr);
   }
 
@@ -1259,54 +1173,7 @@ export class VariableAllocator {
     if (result) {
       return result;
     }
-    if (!expr || expr.type !== "method_call") return null;
-    const methodExpr = expr as MethodCallNode;
-    if (methodExpr.method !== "get") return null;
-
-    let valueType: string | null = null;
-
-    if (methodExpr.object && methodExpr.object.type === "variable") {
-      const varObj = methodExpr.object as VariableNode;
-      const mapName = varObj.name;
-      if (!this.ctx.symbolTable.isMap(mapName)) return null;
-
-      const mapMeta = this.ctx.symbolTable.getMapMetadata(mapName);
-      if (!mapMeta) return null;
-      if (mapMeta.keyType !== "string") return null;
-
-      valueType = mapMeta.valueType;
-    } else if (methodExpr.object && methodExpr.object.type === "member_access") {
-      const memberExpr = methodExpr.object as MemberAccessNode;
-      const memberExprObjBase = memberExpr.object as ExprBase;
-      if (memberExprObjBase.type !== "this") return null;
-      if (!this.ctx.getCurrentClassName()) return null;
-
-      const fieldInfoResult = this.ctx.classGenGetFieldInfo(
-        this.ctx.getCurrentClassName()!,
-        memberExpr.property,
-      );
-      if (!fieldInfoResult) return null;
-      const fieldInfo = fieldInfoResult as FieldInfo;
-      if (!fieldInfo.tsType) return null;
-
-      const mapParsed = parseMapTypeString(fieldInfo.tsType);
-      if (!mapParsed) return null;
-      if (mapParsed.keyType !== "string") return null;
-
-      valueType = mapParsed.valueType;
-    }
-
-    if (!valueType) return null;
-    if (valueType === "string" || valueType === "number" || valueType === "boolean") return null;
-
-    if (valueType.endsWith("[]")) {
-      return valueType;
-    }
-
-    const interfaceDefResult = this.getInterface(valueType);
-    if (!interfaceDefResult) return null;
-
-    return valueType;
+    return this.mapAlloc.getMapGetInterfaceType(expr);
   }
 
   private allocateMapGetInterface(
@@ -1314,83 +1181,7 @@ export class VariableAllocator {
     params: string[],
     interfaceName: string,
   ): void {
-    if (interfaceName.endsWith("[]")) {
-      this.allocateMapGetArray(stmt, params, interfaceName);
-      return;
-    }
-    const interfaceDefResult = this.getInterface(interfaceName);
-    if (!interfaceDefResult) {
-      return this.ctx.emitError(
-        `interface '${interfaceName}' not found when allocating Map.get() return variable '${stmt.name}'`,
-      );
-    }
-    const interfaceDef = interfaceDefResult as InterfaceDeclaration;
-    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
-    const keys: string[] = [];
-    const types: string[] = [];
-    const tsTypes: string[] = [];
-    const allFields = this.getAllInterfaceFields(interfaceDef);
-    for (let i = 0; i < allFields.length; i++) {
-      const field = allFields[i] as { name: string; type: string };
-      keys.push(stripOptional(field.name));
-      types.push(this.convertTsType(field.type));
-      tsTypes.push(field.type);
-    }
-    const llvmType = `%${interfaceName}*`;
-    this.ctx.defineVariableWithMetadata(
-      stmt.name,
-      allocaReg,
-      llvmType,
-      SymbolKind_Object,
-      "local",
-      createObjectMetadataWithInterface({ keys, types, tsTypes }, interfaceName),
-    );
-    this.ctx.emit(`${allocaReg} = alloca ${llvmType}`);
-    const objPtr = this.ctx.generateExpression(stmt.value!, params);
-    const typedPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${typedPtr} = bitcast i8* ${objPtr} to ${llvmType}`);
-    this.ctx.emit(`store ${llvmType} ${typedPtr}, ${llvmType}* ${allocaReg}`);
-  }
-
-  private allocateMapGetArray(
-    stmt: VariableDeclaration,
-    params: string[],
-    arrayType: string,
-  ): void {
-    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
-    const elementType = arrayType.slice(0, -2);
-    if (elementType === "string") {
-      this.ctx.defineVariable(stmt.name, allocaReg, "i8*", SymbolKind_StringArray, "local");
-    } else if (elementType === "number" || elementType === "boolean") {
-      this.ctx.defineVariable(stmt.name, allocaReg, "i8*", SymbolKind_Array, "local");
-    } else {
-      const typeInfo = this.getTypeInfoForElementType(elementType);
-      if (typeInfo) {
-        this.ctx.defineVariableWithMetadata(
-          stmt.name,
-          allocaReg,
-          "i8*",
-          SymbolKind_ObjectArray,
-          "local",
-          createObjectMetadataWithInterface(
-            { keys: typeInfo.keys, types: typeInfo.types, tsTypes: typeInfo.tsTypes },
-            elementType,
-          ),
-        );
-      } else {
-        this.ctx.defineVariableWithMetadata(
-          stmt.name,
-          allocaReg,
-          "i8*",
-          SymbolKind_ObjectArray,
-          "local",
-          createInterfacePointerAllocaMetadata(elementType),
-        );
-      }
-    }
-    this.ctx.emit(`${allocaReg} = alloca i8*`);
-    const objPtr = this.ctx.generateExpression(stmt.value!, params);
-    this.ctx.emit(`store i8* ${objPtr}, i8** ${allocaReg}`);
+    this.mapAlloc.allocateMapGetInterface(stmt, params, interfaceName);
   }
 
   private getMemberAccessInterfaceType(expr: Expression | null): string | null {
@@ -1464,163 +1255,7 @@ export class VariableAllocator {
   }
 
   private allocateClassInstance(stmt: VariableDeclaration, params: string[]): void {
-    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
-    let className: string;
-
-    const valueBase = stmt.value as ExprBase;
-    if (valueBase.type === "new") {
-      const newExpr = stmt.value as NewNode;
-      className = this.ctx.resolveImportAlias(newExpr.className);
-    } else if (valueBase.type === "method_call") {
-      const methodExpr = stmt.value as MethodCallNode;
-      className =
-        this.getMapGetClassName(methodExpr) ||
-        this.getMethodCallReturnClassName(methodExpr) ||
-        "Unknown";
-    } else if (valueBase.type === "call") {
-      const callExpr = stmt.value as CallNode;
-      className = this.getCallReturnClassName(callExpr) || "Unknown";
-    } else if (valueBase.type === "index_access") {
-      className = this.getIndexAccessClassName(stmt.value) || "Unknown";
-    } else if (valueBase.type === "member_access") {
-      className = this.getMemberAccessClassName(stmt.value) || "Unknown";
-    } else if (valueBase.type === "variable") {
-      const srcName = (stmt.value as VariableNode).name;
-      const srcMeta = this.ctx.symbolTable.getClassMetadata(srcName);
-      className = srcMeta ? srcMeta.className : "Unknown";
-    } else if (valueBase.type === "ternary") {
-      const resolved = stmt.value ? this.ctx.resolveExpressionType(stmt.value) : null;
-      if (resolved && this.isKnownClass(resolved.base)) {
-        className = resolved.base;
-      } else {
-        className = "Unknown";
-      }
-    } else if (stmt.declaredType) {
-      className = stripNullable(stmt.declaredType);
-    } else {
-      className = "Unknown";
-    }
-
-    const fields = this.ctx.classGenGetClassFields(className);
-    const ptrType = fields.length > 0 ? `%${className}_struct*` : "i8*";
-
-    this.ctx.defineVariableWithMetadata(
-      stmt.name,
-      allocaReg,
-      ptrType,
-      SymbolKind_Class,
-      "local",
-      createClassMetadata({ className }),
-    );
-    this.ctx.emit(`${allocaReg} = alloca ${ptrType}`);
-
-    const instancePtr = this.ctx.generateExpression(stmt.value!, params);
-    if (fields.length > 0) {
-      const valueType = this.ctx.getVariableType(instancePtr);
-      if (valueType === ptrType) {
-        this.ctx.emit(`store ${ptrType} ${instancePtr}, ${ptrType}* ${allocaReg}`);
-      } else {
-        const typedPtr = this.ctx.nextTemp();
-        this.ctx.emit(`${typedPtr} = bitcast i8* ${instancePtr} to ${ptrType}`);
-        this.ctx.emit(`store ${ptrType} ${typedPtr}, ${ptrType}* ${allocaReg}`);
-      }
-    } else {
-      this.ctx.emit(`store ${ptrType} ${instancePtr}, ${ptrType}* ${allocaReg}`);
-    }
-  }
-
-  private getMapGetClassName(methodExpr: MethodCallNode): string | null {
-    if (methodExpr.method !== "get") return null;
-    const methodObjBase = methodExpr.object as ExprBase;
-    if (methodObjBase.type === "variable") {
-      const varName = (methodExpr.object as VariableNode).name;
-      if (this.ctx.symbolTable.isMap(varName)) {
-        const mapMeta = this.ctx.symbolTable.getMapMetadata(varName);
-        if (mapMeta && mapMeta.valueType) {
-          return mapMeta.valueType;
-        }
-      }
-    } else if (methodObjBase.type === "member_access") {
-      const memberExpr = methodExpr.object as MemberAccessNode;
-      const memberExprObjBase = memberExpr.object as ExprBase;
-      if (
-        memberExprObjBase.type === "this" &&
-        this.ctx.getCurrentClassName() &&
-        this.ctx.hasClassGen()
-      ) {
-        const fieldInfoResult = this.ctx.classGenGetFieldInfo(
-          this.ctx.getCurrentClassName()!,
-          memberExpr.property,
-        );
-        const fieldInfo = fieldInfoResult as FieldInfo;
-        if (fieldInfoResult && fieldInfo.tsType) {
-          const mapParsed = parseMapTypeString(fieldInfo.tsType);
-          if (mapParsed && mapParsed.valueType) {
-            return mapParsed.valueType;
-          }
-        }
-      }
-    }
-    return null;
-  }
-
-  private getMethodCallReturnClassName(methodExpr: MethodCallNode): string | null {
-    const methodObjBase = methodExpr.object as ExprBase;
-    let objClassName: string | null = null;
-    if (methodObjBase.type === "variable") {
-      const varName = (methodExpr.object as VariableNode).name;
-      if (this.ctx.symbolTable.isClass(varName)) {
-        objClassName = this.ctx.symbolTable.getClassName(varName) || null;
-      }
-    } else if (methodObjBase.type === "this") {
-      objClassName = this.ctx.getCurrentClassName() || null;
-    }
-    if (!objClassName) return null;
-    const ast = this.ctx.getAst();
-    if (!ast) return null;
-    for (let i = 0; i < ast.classes.length; i++) {
-      const cls = ast.classes[i];
-      if (cls && cls.name === objClassName) {
-        for (let j = 0; j < cls.methods.length; j++) {
-          const m = cls.methods[j];
-          if (m && m.name === methodExpr.method && m.returnType) {
-            const rt = stripNullable(m.returnType);
-            if (this.isKnownClass(rt)) {
-              return this.ctx.resolveImportAlias(rt);
-            }
-          }
-        }
-      }
-    }
-    return null;
-  }
-
-  private getCallReturnClassName(callExpr: CallNode): string | null {
-    if (!callExpr.name) return null;
-    const ast = this.ctx.getAst();
-    if (!ast) return null;
-    for (let i = 0; i < ast.functions.length; i++) {
-      const fn = ast.functions[i];
-      if (fn && fn.name === callExpr.name && fn.returnType) {
-        const rt = stripNullable(fn.returnType);
-        if (this.isKnownClass(rt)) {
-          return this.ctx.resolveImportAlias(rt);
-        }
-      }
-    }
-    if (callExpr.name) {
-      const resolved = this.ctx.resolveImportAlias(callExpr.name);
-      for (let i = 0; i < ast.functions.length; i++) {
-        const fn = ast.functions[i];
-        if (fn && fn.name === resolved && fn.returnType) {
-          const rt = stripNullable(fn.returnType);
-          if (this.isKnownClass(rt)) {
-            return this.ctx.resolveImportAlias(rt);
-          }
-        }
-      }
-    }
-    return null;
+    this.classAlloc.allocateClassInstance(stmt, params);
   }
 
   private allocatePromise(stmt: VariableDeclaration, params: string[]): void {
@@ -1882,436 +1517,27 @@ export class VariableAllocator {
   }
 
   private allocateMap(stmt: VariableDeclaration, params: string[]): void {
-    let mapTypeInfoResult = this.parseMapType(stmt.declaredType);
-
-    if (!mapTypeInfoResult && stmt.value && stmt.value.type === "map") {
-      const mapNode = stmt.value as MapNode;
-      if (mapNode.keyType && mapNode.valueType) {
-        mapTypeInfoResult = { keyType: mapNode.keyType, valueType: mapNode.valueType };
-      }
-    }
-
-    if (!mapTypeInfoResult && stmt.value && stmt.value.type === "new") {
-      const newNode = stmt.value as NewNode;
-      if (newNode.className === "Map" && newNode.typeArgs && newNode.typeArgs.length === 2) {
-        mapTypeInfoResult = { keyType: newNode.typeArgs[0], valueType: newNode.typeArgs[1] };
-      }
-    }
-
-    if (
-      !mapTypeInfoResult &&
-      stmt.value &&
-      stmt.value.type !== "new" &&
-      stmt.value.type !== "map"
-    ) {
-      const resolved = this.ctx.resolveExpressionType(stmt.value);
-      if (resolved && resolved.base.startsWith("Map<")) {
-        mapTypeInfoResult = this.parseMapType(resolved.base);
-      }
-    }
-
-    if (mapTypeInfoResult) {
-      const mapTypeInfo = mapTypeInfoResult as MapTypeInfo;
-      if (mapTypeInfo.keyType === "string") {
-        this.allocateStringMap(stmt, params, mapTypeInfo);
-        return;
-      }
-      if (mapTypeInfo.keyType !== "number") {
-        this.allocatePointerMap(stmt, params, mapTypeInfo);
-        return;
-      }
-      if (mapTypeInfo.valueType !== "number" && mapTypeInfo.valueType !== "boolean") {
-        this.ctx.emitError(
-          `Map<number, ${mapTypeInfo.valueType}> is not supported. Use Map<string, ${mapTypeInfo.valueType}> instead`,
-          stmt.loc,
-        );
-        return;
-      }
-    }
-    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
-    this.ctx.defineVariable(stmt.name, allocaReg, "%Map*", SymbolKind_Map, "local");
-    const mapSizePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${mapSizePtr} = getelementptr %Map, %Map* null, i32 1`);
-    const mapSizeI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${mapSizeI64} = ptrtoint %Map* ${mapSizePtr} to i64`);
-    const mapMem = this.ctx.nextTemp();
-    this.ctx.emit(`${mapMem} = call i8* @GC_malloc(i64 ${mapSizeI64})`);
-    this.ctx.emit(`${allocaReg} = bitcast i8* ${mapMem} to %Map*`);
-
-    const value = this.ctx.generateExpression(stmt.value!, params);
-    const loadedMap = this.ctx.nextTemp();
-    this.ctx.emit(`${loadedMap} = load %Map, %Map* ${value}`);
-    this.ctx.emit(`store %Map ${loadedMap}, %Map* ${allocaReg}`);
-  }
-
-  private allocateStringMap(
-    stmt: VariableDeclaration,
-    params: string[],
-    mapTypeInfo: MapTypeInfo,
-  ): void {
-    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
-    const llvmValueType = this.convertTsType(mapTypeInfo.valueType);
-
-    this.ctx.defineVariableWithMetadata(
-      stmt.name,
-      allocaReg,
-      "%StringMap*",
-      SymbolKind_Map,
-      "local",
-      createMapMetadataSymbol({
-        keyType: "string",
-        valueType: mapTypeInfo.valueType,
-        llvmKeyType: "i8*",
-        llvmValueType,
-      }),
-    );
-    const strMapSizePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${strMapSizePtr} = getelementptr %StringMap, %StringMap* null, i32 1`);
-    const strMapSizeI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${strMapSizeI64} = ptrtoint %StringMap* ${strMapSizePtr} to i64`);
-    const strMapMem = this.ctx.nextTemp();
-    this.ctx.emit(`${strMapMem} = call i8* @GC_malloc(i64 ${strMapSizeI64})`);
-    this.ctx.emit(`${allocaReg} = bitcast i8* ${strMapMem} to %StringMap*`);
-
-    const declaredMapType =
-      stmt.declaredType || `Map<${mapTypeInfo.keyType}, ${mapTypeInfo.valueType}>`;
-    this.ctx.setCurrentDeclaredMapType(declaredMapType);
-    const value = this.ctx.generateExpression(stmt.value!, params);
-    this.ctx.setCurrentDeclaredMapType(undefined);
-
-    const loadedMap = this.ctx.nextTemp();
-    this.ctx.emit(`${loadedMap} = load %StringMap, %StringMap* ${value}`);
-    this.ctx.emit(`store %StringMap ${loadedMap}, %StringMap* ${allocaReg}`);
-  }
-
-  private allocatePointerMap(
-    stmt: VariableDeclaration,
-    params: string[],
-    mapTypeInfo: MapTypeInfo,
-  ): void {
-    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
-
-    this.ctx.defineVariableWithMetadata(
-      stmt.name,
-      allocaReg,
-      "%StringMap*",
-      SymbolKind_Map,
-      "local",
-      createMapMetadataSymbol({
-        keyType: mapTypeInfo.keyType,
-        valueType: mapTypeInfo.valueType,
-        llvmKeyType: "i8*",
-        llvmValueType: "i8*",
-      }),
-    );
-    const ptrMapSizePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${ptrMapSizePtr} = getelementptr %StringMap, %StringMap* null, i32 1`);
-    const ptrMapSizeI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${ptrMapSizeI64} = ptrtoint %StringMap* ${ptrMapSizePtr} to i64`);
-    const ptrMapMem = this.ctx.nextTemp();
-    this.ctx.emit(`${ptrMapMem} = call i8* @GC_malloc(i64 ${ptrMapSizeI64})`);
-    this.ctx.emit(`${allocaReg} = bitcast i8* ${ptrMapMem} to %StringMap*`);
-
-    const declaredMapType =
-      stmt.declaredType || `Map<${mapTypeInfo.keyType}, ${mapTypeInfo.valueType}>`;
-    this.ctx.setCurrentDeclaredMapType(declaredMapType);
-    const value = this.ctx.generateExpression(stmt.value!, params);
-    this.ctx.setCurrentDeclaredMapType(undefined);
-
-    const loadedMap = this.ctx.nextTemp();
-    this.ctx.emit(`${loadedMap} = load %StringMap, %StringMap* ${value}`);
-    this.ctx.emit(`store %StringMap ${loadedMap}, %StringMap* ${allocaReg}`);
-  }
-
-  private parseMapType(declaredType: string | undefined): MapTypeInfo | null {
-    if (!declaredType) return null;
-
-    const parsed = parseMapTypeString(declaredType);
-    if (!parsed) return null;
-
-    return {
-      keyType: parsed.keyType,
-      valueType: parsed.valueType,
-    };
-  }
-
-  private parseSetType(declaredType: string | undefined): SetTypeInfo | null {
-    if (!declaredType) return null;
-
-    const parsed = parseSetTypeString(declaredType);
-    if (!parsed) return null;
-
-    return {
-      valueType: parsed.valueType,
-    };
+    this.mapAlloc.allocateMap(stmt, params);
   }
 
   private allocateSet(stmt: VariableDeclaration, params: string[]): void {
-    let setTypeInfoResult = this.parseSetType(stmt.declaredType);
-
-    if (!setTypeInfoResult && stmt.value) {
-      const valueBase = stmt.value as { type: string };
-      if (valueBase.type === "new") {
-        const newExpr = stmt.value as {
-          type: string;
-          className: string;
-          args: Expression[];
-          typeArgs?: string[];
-        };
-        if (newExpr.className === "Set" && newExpr.typeArgs && newExpr.typeArgs.length > 0) {
-          setTypeInfoResult = { valueType: newExpr.typeArgs[0] };
-        }
-      } else if (valueBase.type === "set") {
-        const setExpr = stmt.value as SetNode;
-        if (setExpr.valueType) {
-          setTypeInfoResult = { valueType: setExpr.valueType };
-        }
-      }
-    }
-
-    if (
-      !setTypeInfoResult &&
-      stmt.value &&
-      stmt.value.type !== "new" &&
-      stmt.value.type !== "set"
-    ) {
-      const resolved = this.ctx.resolveExpressionType(stmt.value);
-      if (resolved && resolved.base.startsWith("Set<")) {
-        setTypeInfoResult = this.parseSetType(resolved.base);
-      }
-    }
-
-    if (setTypeInfoResult) {
-      const setTypeInfo = setTypeInfoResult as SetTypeInfo;
-      if (setTypeInfo.valueType === "string") {
-        this.allocateStringSet(stmt, params, setTypeInfo);
-        return;
-      }
-    }
-    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
-    this.ctx.defineVariable(stmt.name, allocaReg, "%Set*", SymbolKind_Set, "local");
-    const setSizePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${setSizePtr} = getelementptr %Set, %Set* null, i32 1`);
-    const setSizeI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${setSizeI64} = ptrtoint %Set* ${setSizePtr} to i64`);
-    const setMem = this.ctx.nextTemp();
-    this.ctx.emit(`${setMem} = call i8* @GC_malloc(i64 ${setSizeI64})`);
-    this.ctx.emit(`${allocaReg} = bitcast i8* ${setMem} to %Set*`);
-
-    const value = this.ctx.generateExpression(stmt.value!, params);
-    const loadedSet = this.ctx.nextTemp();
-    this.ctx.emit(`${loadedSet} = load %Set, %Set* ${value}`);
-    this.ctx.emit(`store %Set ${loadedSet}, %Set* ${allocaReg}`);
-  }
-
-  private allocateStringSet(
-    stmt: VariableDeclaration,
-    params: string[],
-    setTypeInfo: SetTypeInfo,
-  ): void {
-    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
-    const llvmValueType = this.convertTsType(setTypeInfo.valueType);
-
-    this.ctx.defineVariableWithMetadata(
-      stmt.name,
-      allocaReg,
-      "%StringSet*",
-      SymbolKind_Set,
-      "local",
-      createSetMetadataSymbol({
-        valueType: "string",
-        llvmValueType,
-      }),
-    );
-    const strSetSizePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${strSetSizePtr} = getelementptr %StringSet, %StringSet* null, i32 1`);
-    const strSetSizeI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${strSetSizeI64} = ptrtoint %StringSet* ${strSetSizePtr} to i64`);
-    const strSetMem = this.ctx.nextTemp();
-    this.ctx.emit(`${strSetMem} = call i8* @GC_malloc(i64 ${strSetSizeI64})`);
-    this.ctx.emit(`${allocaReg} = bitcast i8* ${strSetMem} to %StringSet*`);
-
-    this.ctx.setCurrentDeclaredSetType(stmt.declaredType);
-    const value = this.ctx.generateExpression(stmt.value!, params);
-    this.ctx.setCurrentDeclaredSetType(undefined);
-
-    const loadedSet = this.ctx.nextTemp();
-    this.ctx.emit(`${loadedSet} = load %StringSet, %StringSet* ${value}`);
-    this.ctx.emit(`store %StringSet ${loadedSet}, %StringSet* ${allocaReg}`);
+    this.mapAlloc.allocateSet(stmt, params);
   }
 
   private allocateStringArray(stmt: VariableDeclaration, params: string[]): void {
-    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
-    this.ctx.defineVariableWithMetadata(
-      stmt.name,
-      allocaReg,
-      "%StringArray*",
-      SymbolKind_StringArray,
-      "local",
-      createPointerAllocaMetadata(),
-    );
-    this.ctx.emit(`${allocaReg} = alloca %StringArray*`);
-
-    const value = this.ctx.generateExpression(stmt.value!, params);
-    const valueType = this.ctx.getVariableType(value);
-    let pointerValue = value;
-    if (valueType === "i32") {
-      const ptrValue = this.ctx.nextTemp();
-      this.ctx.emit(`${ptrValue} = inttoptr i32 ${value} to %StringArray*`);
-      pointerValue = ptrValue;
-    } else if (valueType !== "%StringArray*") {
-      const typedPtr = this.ctx.nextTemp();
-      this.ctx.emit(`${typedPtr} = bitcast i8* ${pointerValue} to %StringArray*`);
-      pointerValue = typedPtr;
-    }
-    this.ctx.emit(`store %StringArray* ${pointerValue}, %StringArray** ${allocaReg}`);
+    this.arrayAlloc.allocateStringArray(stmt, params);
   }
 
   private allocateArray(stmt: VariableDeclaration, params: string[]): void {
-    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
-    this.ctx.defineVariableWithMetadata(
-      stmt.name,
-      allocaReg,
-      "%Array*",
-      SymbolKind_Array,
-      "local",
-      createPointerAllocaMetadata(),
-    );
-    this.ctx.emit(`${allocaReg} = alloca %Array*`);
-
-    const value = this.ctx.generateExpression(stmt.value!, params);
-    const valueType = this.ctx.getVariableType(value);
-    let pointerValue = value;
-    if (valueType !== "%Array*") {
-      const typedPtr = this.ctx.nextTemp();
-      this.ctx.emit(`${typedPtr} = bitcast i8* ${pointerValue} to %Array*`);
-      pointerValue = typedPtr;
-    }
-    this.ctx.emit(`store %Array* ${pointerValue}, %Array** ${allocaReg}`);
+    this.arrayAlloc.allocateArray(stmt, params);
   }
 
   private allocateUint8Array(stmt: VariableDeclaration, params: string[]): void {
-    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
-    this.ctx.defineVariable(stmt.name, allocaReg, "%Uint8Array*", SymbolKind_Uint8Array, "local");
-    this.ctx.emit(`${allocaReg} = alloca %Uint8Array*`);
-
-    // Signal to readFileSync/etc. that we want binary return (%Uint8Array*)
-    this.ctx.setWantsBinaryReturn(true);
-    const value = this.ctx.generateExpression(stmt.value!, params);
-    this.ctx.setWantsBinaryReturn(false);
-    this.ctx.emit(`store %Uint8Array* ${value}, %Uint8Array** ${allocaReg}`);
+    this.arrayAlloc.allocateUint8Array(stmt, params);
   }
 
   private allocateObjectArray(stmt: VariableDeclaration, params: string[]): void {
-    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
-
-    let elementType = this.ctx.getObjectArrayElementType(stmt.value!);
-    if (!elementType && stmt.declaredType && stmt.declaredType.endsWith("[]")) {
-      elementType = stmt.declaredType.slice(0, -2);
-    }
-
-    if (elementType) {
-      const typeInfo = this.getTypeInfoForElementType(elementType);
-      if (typeInfo) {
-        this.ctx.defineVariableWithMetadata(
-          stmt.name,
-          allocaReg,
-          "%ObjectArray*",
-          SymbolKind_ObjectArray,
-          "local",
-          createObjectMetadataWithInterface(
-            {
-              keys: typeInfo.keys,
-              types: typeInfo.types,
-              tsTypes: typeInfo.tsTypes,
-            },
-            elementType,
-          ),
-        );
-        this.ctx.symbolTable.setRawInterfaceType(stmt.name, elementType);
-        this.ctx.symbolTable.setObjectArrayMetadata(stmt.name, {
-          elementInterfaceName: elementType,
-          elementKeys: typeInfo.keys,
-          elementTypes: typeInfo.types,
-          elementTsTypes: typeInfo.tsTypes,
-        });
-        this.ctx.emit(`${allocaReg} = alloca %ObjectArray*`);
-        const value = this.ctx.generateExpression(stmt.value!, params);
-        this.ctx.emit(`store %ObjectArray* ${value}, %ObjectArray** ${allocaReg}`);
-        return;
-      }
-      if (this.isKnownClass(elementType)) {
-        this.ctx.defineVariable(
-          stmt.name,
-          allocaReg,
-          "%ObjectArray*",
-          SymbolKind_ObjectArray,
-          "local",
-        );
-        this.ctx.symbolTable.setRawInterfaceType(stmt.name, elementType);
-        this.ctx.emit(`${allocaReg} = alloca %ObjectArray*`);
-        const value = this.ctx.generateExpression(stmt.value!, params);
-        this.ctx.emit(`store %ObjectArray* ${value}, %ObjectArray** ${allocaReg}`);
-        return;
-      }
-    }
-
-    const inlineMeta = this.extractInlineObjectArrayMeta(stmt.value!);
-    if (inlineMeta) {
-      this.ctx.defineVariable(
-        stmt.name,
-        allocaReg,
-        "%ObjectArray*",
-        SymbolKind_ObjectArray,
-        "local",
-      );
-      this.ctx.symbolTable.setRawInterfaceType(stmt.name, "object");
-      this.ctx.symbolTable.setObjectArrayMetadata(stmt.name, {
-        elementInterfaceName: "object",
-        elementKeys: inlineMeta.keys,
-        elementTypes: inlineMeta.types,
-        elementTsTypes: inlineMeta.tsTypes,
-      });
-      this.ctx.emit(`${allocaReg} = alloca %ObjectArray*`);
-      const value = this.ctx.generateExpression(stmt.value!, params);
-      this.ctx.emit(`store %ObjectArray* ${value}, %ObjectArray** ${allocaReg}`);
-      return;
-    }
-
-    this.ctx.defineVariable(stmt.name, allocaReg, "%ObjectArray*", SymbolKind_ObjectArray, "local");
-    this.ctx.emit(`${allocaReg} = alloca %ObjectArray*`);
-    const value = this.ctx.generateExpression(stmt.value!, params);
-    this.ctx.emit(`store %ObjectArray* ${value}, %ObjectArray** ${allocaReg}`);
-  }
-
-  private extractInlineObjectArrayMeta(
-    expr: Expression,
-  ): { keys: string[]; types: string[]; tsTypes: string[] } | null {
-    const e = expr as ExprBase;
-    if (e.type !== "array") return null;
-    const arrayExpr = expr as ArrayNode;
-    const elements = arrayExpr.elements || [];
-    if (elements.length === 0) return null;
-    const firstElem = elements[0] as ExprBase;
-    if (firstElem.type !== "object") return null;
-
-    const objNode = elements[0] as ObjectNode;
-    const keys: string[] = [];
-    const types: string[] = [];
-    const tsTypes: string[] = [];
-
-    for (let i = 0; i < objNode.properties.length; i++) {
-      const prop = objNode.properties[i];
-      keys.push(prop.key);
-      const valType = (prop.value as ExprBase).type;
-      let tsType = "string";
-      if (valType === "number") tsType = "number";
-      else if (valType === "boolean") tsType = "boolean";
-      types.push(this.convertTsType(tsType));
-      tsTypes.push(tsType);
-    }
-
-    return { keys, types, tsTypes };
+    this.arrayAlloc.allocateObjectArray(stmt, params);
   }
 
   private allocateRegex(stmt: VariableDeclaration, params: string[]): void {
@@ -2669,298 +1895,20 @@ export class VariableAllocator {
   }
 
   private getMemberAccessClassName(expr: Expression | null): string | null {
-    if (!expr) return null;
-    const e = expr as ExprBase;
-    if (e.type !== "member_access") return null;
-    const memberExpr = expr as MemberAccessNode;
-    const objBase = memberExpr.object as ExprBase;
-    let className: string | null = null;
-    if (objBase.type === "variable") {
-      const varName = (memberExpr.object as VariableNode).name;
-      const classMeta = this.ctx.symbolTable.getClassMetadata(varName);
-      if (!classMeta) return null;
-      className = classMeta.className;
-    } else if (objBase.type === "this") {
-      className = this.ctx.getCurrentClassName();
-    }
-    if (!className) return null;
-    const ast = this.ctx.getAst();
-    if (ast && ast.classes) {
-      for (let j = 0; j < ast.classes.length; j++) {
-        const cls = ast.classes[j];
-        if (!cls || !cls.fields) continue;
-        if (cls.name !== className) continue;
-        for (let k = 0; k < cls.fields.length; k++) {
-          const field = cls.fields[k] as { name: string; fieldType: string; tsType?: string };
-          if (field.name === memberExpr.property) {
-            const rawType = field.tsType || field.fieldType;
-            const tsType = stripNullable(rawType);
-            if (this.isKnownClass(tsType)) return tsType;
-          }
-        }
-      }
-    }
-    return null;
+    return this.classAlloc.getMemberAccessClassName(expr);
   }
 
   private getIndexAccessClassName(expr: Expression | null): string | null {
-    if (!expr) return null;
-    const e = expr as ExprBase;
-    if (e.type !== "index_access") return null;
-    const indexExpr = expr as IndexAccessNode;
-    if (!indexExpr.object) return null;
-    const objBase = indexExpr.object as ExprBase;
-    if (objBase.type === "variable") {
-      const varName = (indexExpr.object as VariableNode).name;
-      const rawType = this.ctx.symbolTable.getRawInterfaceType(varName);
-      if (rawType && this.isKnownClass(rawType)) return rawType;
-      const objArrayMeta = this.ctx.symbolTable.getObjectArrayMetadata(varName);
-      if (
-        objArrayMeta &&
-        objArrayMeta.elementInterfaceName &&
-        this.isKnownClass(objArrayMeta.elementInterfaceName)
-      ) {
-        return objArrayMeta.elementInterfaceName;
-      }
-    } else if (objBase.type === "member_access") {
-      const memberAccess = indexExpr.object as MemberAccessNode;
-      const memberObjBase = memberAccess.object as ExprBase;
-      let ownerClassName: string | null = null;
-      if (memberObjBase.type === "this") {
-        ownerClassName = this.ctx.getCurrentClassName();
-      } else if (memberObjBase.type === "variable") {
-        const vn = (memberAccess.object as VariableNode).name;
-        if (this.ctx.symbolTable.isClass(vn)) {
-          const cm = this.ctx.symbolTable.getClassInfo(vn);
-          if (cm) ownerClassName = cm.className;
-        }
-      }
-      if (ownerClassName) {
-        const fieldInfo = this.ctx.classGenGetFieldInfo(ownerClassName, memberAccess.property);
-        if (fieldInfo && fieldInfo.tsType) {
-          let tsType = fieldInfo.tsType;
-          if (tsType.indexOf(" | ") !== -1) {
-            tsType = tsType
-              .replace(/ \| undefined/g, "")
-              .replace(/ \| null/g, "")
-              .trim();
-          }
-          if (tsType.endsWith("[]")) {
-            const elemType = tsType.substring(0, tsType.length - 2);
-            if (this.isKnownClass(elemType)) return elemType;
-          }
-        }
-      }
-    }
-    return null;
+    return this.classAlloc.getIndexAccessClassName(expr);
   }
 
   private getIndexedObjectArrayType(
     expr: Expression | null,
   ): { keys: string[]; types: string[]; tsTypes: string[] } | null {
-    if (!expr) return null;
-    const e = expr as ExprBase;
-    if (e.type !== "index_access") return null;
-
-    const indexExpr = expr as IndexAccessNode;
-    if (!indexExpr.object) return null;
-    const idxObjBase = indexExpr.object as ExprBase;
-    if (!idxObjBase || !idxObjBase.type) return null;
-
-    if (idxObjBase.type === "variable") {
-      const varName = (indexExpr.object as VariableNode).name;
-      if (!varName) return null;
-      const ifaceType = this.ctx.symbolTable.getInterfaceType(varName);
-      if (ifaceType) {
-        return this.getTypeInfoForElementType(ifaceType);
-      }
-      const objArrayMeta = this.ctx.symbolTable.getObjectArrayMetadata(varName);
-      if (objArrayMeta) {
-        return {
-          keys: objArrayMeta.elementKeys,
-          types: objArrayMeta.elementTypes,
-          tsTypes: objArrayMeta.elementTsTypes || [],
-        };
-      }
-      const objArrElemType = this.ctx.symbolTable.getRawInterfaceType(varName);
-      if (objArrElemType) {
-        return this.getTypeInfoForElementType(objArrElemType);
-      }
-      const objMeta = this.ctx.symbolTable.getObjectMetadata(varName);
-      if (objMeta && objMeta.tsTypes) {
-        const tsTypes = objMeta.tsTypes as string[];
-        if (tsTypes.length > 0) {
-          const firstType = tsTypes[0];
-          if (firstType && firstType.endsWith("[]")) {
-            const elementType = firstType.slice(0, -2);
-            return this.getTypeInfoForElementType(elementType);
-          }
-          return {
-            keys: objMeta.keys as string[],
-            types: objMeta.types as string[],
-            tsTypes: tsTypes,
-          };
-        }
-      }
-      const objectMeta2 = this.ctx.symbolTable.getObjectMetadata(varName);
-      if (objectMeta2 && objectMeta2.keys && objectMeta2.types && objectMeta2.tsTypes) {
-        return {
-          keys: objectMeta2.keys as string[],
-          types: objectMeta2.types as string[],
-          tsTypes: objectMeta2.tsTypes as string[],
-        };
-      }
-      return null;
-    }
-
-    if (idxObjBase.type === "method_call") {
-      const methodCall = indexExpr.object as MethodCallNode;
-      const returnType = this.getMethodCallReturnType(methodCall);
-      if (returnType && returnType.endsWith("[]")) {
-        const elementType = returnType.slice(0, -2).trim();
-        return this.getTypeInfoForElementType(elementType);
-      }
-      return null;
-    }
-
-    if (idxObjBase.type !== "member_access") return null;
-
-    const memberAccess = indexExpr.object as MemberAccessNode;
-    if (!memberAccess || !memberAccess.object || !memberAccess.property) return null;
-    const propertyName = memberAccess.property;
-
-    const memberObjBase = memberAccess.object as ExprBase;
-    if (!memberObjBase || !memberObjBase.type) return null;
-    if (memberObjBase.type === "variable") {
-      const varName = (memberAccess.object as VariableNode).name;
-      if (!varName) return null;
-      const objMeta = this.ctx.symbolTable.getObjectMetadata(varName);
-      if (objMeta && objMeta.keys) {
-        const propIndex = objMeta.keys.indexOf(propertyName);
-        if (propIndex !== -1) {
-          const objMetaTsTypes = objMeta.tsTypes as string[];
-          if (objMetaTsTypes) {
-            const propTsType = objMetaTsTypes[propIndex];
-            if (propTsType) {
-              const arrayParsed = parseArrayTypeString(propTsType);
-              if (arrayParsed) {
-                return this.getTypeInfoForElementType(arrayParsed.elementType);
-              }
-            }
-          }
-        }
-      }
-
-      // Fallback: resolve via parameter type annotation (e.g. container: Container)
-      const paramType = this.ctx.getParameterTypeFromAST(varName);
-      if (paramType) {
-        const fieldType = this.getInterfaceFieldTypeByName(paramType, propertyName);
-        if (fieldType) {
-          const arrayParsed = parseArrayTypeString(fieldType);
-          if (arrayParsed) {
-            return this.getTypeInfoForElementType(arrayParsed.elementType);
-          }
-        }
-      }
-
-      return null;
-    }
-
-    if (memberObjBase.type === "member_access" || memberObjBase.type === "this") {
-      const memberAccessTyped = memberAccess as {
-        type: string;
-        object: Expression;
-        property: string;
-      };
-      const elementType = this.resolveNestedMemberArrayType(memberAccessTyped as MemberAccessNode);
-      if (elementType) {
-        return this.getTypeInfoForElementType(elementType);
-      }
-    }
-
-    return null;
+    return this.arrayAlloc.getIndexedObjectArrayType(expr);
   }
 
-  private resolveNestedMemberArrayType(memberAccess: MemberAccessNode): string | null {
-    const objectType = this.resolveMemberAccessObjectType(memberAccess.object);
-    if (!objectType) return null;
-
-    const classFieldInfo = this.ctx.classGenGetFieldInfo(objectType, memberAccess.property);
-    const classFieldTsType = classFieldInfo ? (classFieldInfo as FieldInfo).tsType : null;
-    const fieldType =
-      this.getInterfaceFieldTypeByName(objectType, memberAccess.property) || classFieldTsType;
-    if (!fieldType) return null;
-
-    const arrayParsed = parseArrayTypeString(fieldType);
-    if (!arrayParsed) return null;
-
-    return arrayParsed.elementType;
-  }
-
-  private resolveMemberAccessObjectType(expr: Expression): string | null {
-    if (!expr) return null;
-    const e = expr as ExprBase;
-    if (!e.type) return null;
-    if (e.type === "this") {
-      return this.ctx.getCurrentClassName() || null;
-    }
-    if (e.type === "variable") {
-      const varName = (expr as VariableNode).name;
-      const objMeta = this.ctx.symbolTable.getObjectMetadata(varName);
-      if (objMeta && objMeta.tsTypes) {
-        return this.ctx.symbolTable.getType(varName) || null;
-      }
-      // Fallback: resolve via parameter type annotation (e.g. container: Container)
-      const paramType = this.ctx.getParameterTypeFromAST(varName);
-      if (paramType) {
-        return paramType;
-      }
-      return null;
-    }
-    if (e.type === "member_access") {
-      const member = expr as MemberAccessNode;
-      if (!member || !member.object || !member.property) return null;
-      const memberObjBase = member.object as ExprBase;
-      if (!memberObjBase || !memberObjBase.type) return null;
-      if (memberObjBase.type === "this") {
-        const fieldInfoResult = this.getThisFieldInfo(member.property);
-        const fieldInfo = fieldInfoResult as FieldInfo;
-        if (fieldInfoResult && fieldInfo.tsType) {
-          return fieldInfo.tsType;
-        }
-        return null;
-      }
-      const objectType = this.resolveMemberAccessObjectType(member.object);
-      if (objectType) {
-        const fieldType = this.getInterfaceFieldTypeByName(objectType, member.property);
-        return fieldType;
-      }
-    }
-    return null;
-  }
-
-  private getMethodCallReturnType(methodCall: MethodCallNode): string | null {
-    const objectType = this.resolveMemberAccessObjectType(methodCall.object);
-    if (!objectType) return null;
-
-    const ast = this.ctx.getAst();
-    const classes = ast ? ast.classes || [] : [];
-    for (let i = 0; i < classes.length; i++) {
-      const cls = classes[i];
-      if (cls.name === objectType) {
-        for (let j = 0; j < cls.methods.length; j++) {
-          const method = cls.methods[j];
-          if (method.name === methodCall.method && method.returnType) {
-            return method.returnType;
-          }
-        }
-      }
-    }
-
-    return null;
-  }
-
-  private getInterfaceFieldTypeByName(interfaceName: string, fieldName: string): string | null {
+  getInterfaceFieldTypeByName(interfaceName: string, fieldName: string): string | null {
     const ifaceResult = this.getInterface(interfaceName);
     if (!ifaceResult) return null;
     const iface = ifaceResult as InterfaceDeclaration;
@@ -2974,12 +1922,7 @@ export class VariableAllocator {
     return null;
   }
 
-  private getThisFieldInfo(fieldName: string): { tsType?: string } | null {
-    if (!this.ctx.getCurrentClassName()) return null;
-    return this.ctx.classGenGetFieldInfo(this.ctx.getCurrentClassName()!, fieldName);
-  }
-
-  private getTypeInfoForElementType(
+  getTypeInfoForElementType(
     elementType: string,
   ): { keys: string[]; types: string[]; tsTypes: string[] } | null {
     if (elementType.startsWith("{")) {
@@ -3118,25 +2061,10 @@ export class VariableAllocator {
     params: string[],
     typeInfo: UnionCommonFields,
   ): void {
-    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
-    this.ctx.defineVariableWithMetadata(
-      stmt.name,
-      allocaReg,
-      "i8*",
-      SymbolKind_Object,
-      "local",
-      createObjectMetadata({
-        keys: typeInfo.keys,
-        types: typeInfo.types,
-        tsTypes: typeInfo.tsTypes,
-      }),
-    );
-    this.ctx.emit(`${allocaReg} = alloca i8*`);
-    const objPtr = this.ctx.generateExpression(stmt.value!, params);
-    this.ctx.emit(`store i8* ${objPtr}, i8** ${allocaReg}`);
+    this.arrayAlloc.allocateIndexedObjectArray(stmt, params, typeInfo);
   }
 
-  private convertTsType(tsType: string): string {
+  convertTsType(tsType: string): string {
     return this.interfaceAlloc.convertTsType(tsType);
   }
 
@@ -3147,12 +2075,7 @@ export class VariableAllocator {
   private getArrayMethodReturnType(
     expr: Expression | null,
   ): { keys: string[]; types: string[]; tsTypes: string[] } | null {
-    if (!expr) return null;
-    const result = this.ctx.typeResolverResolveArrayMethodReturnType(expr);
-    if (result) {
-      return { keys: result.keys, types: result.types, tsTypes: result.tsTypes || result.types };
-    }
-    return null;
+    return this.arrayAlloc.getArrayMethodReturnType(expr);
   }
 
   private allocateArrayMethodReturn(
@@ -3160,21 +2083,6 @@ export class VariableAllocator {
     params: string[],
     typeInfo: UnionCommonFields,
   ): void {
-    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
-    this.ctx.defineVariableWithMetadata(
-      stmt.name,
-      allocaReg,
-      "i8*",
-      SymbolKind_Object,
-      "local",
-      createObjectMetadata({
-        keys: typeInfo.keys,
-        types: typeInfo.types,
-        tsTypes: typeInfo.tsTypes,
-      }),
-    );
-    this.ctx.emit(`${allocaReg} = alloca i8*`);
-    const objPtr = this.ctx.generateExpression(stmt.value!, params);
-    this.ctx.emit(`store i8* ${objPtr}, i8** ${allocaReg}`);
+    this.arrayAlloc.allocateArrayMethodReturn(stmt, params, typeInfo);
   }
 }
