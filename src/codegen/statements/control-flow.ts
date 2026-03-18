@@ -610,6 +610,10 @@ export class ControlFlowGenerator {
       this.ctx.emitBr(finallyLabel);
     }
 
+    if (tryHasTerminator && catchHasTerminator && !tryStmt.finallyBlock) {
+      return "0";
+    }
+
     this.ctx.emitLabel(finallyLabel);
     this.ctx.setCurrentLabel(finallyLabel);
 
