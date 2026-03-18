@@ -2105,11 +2105,11 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       if (stmt.value !== null) {
         const name = stmt.name;
 
-        const stmtValNode = stmt.value as VariableNode;
+        const stmtValType = (stmt.value as VariableNode).type as string;
         const isUndefinedValue =
-          stmtValNode.type === "undefined" ||
-          (stmtValNode.type === "variable" && stmtValNode.name === "undefined") ||
-          stmtValNode.type === "null";
+          stmtValType === "undefined" ||
+          (stmtValType === "variable" && (stmt.value as VariableNode).name === "undefined") ||
+          stmtValType === "null";
         if (isUndefinedValue && stmt.declaredType) {
           const globalIr = this.handleUninitializedGlobalVar(name, stmt.declaredType);
           if (globalIr) {
