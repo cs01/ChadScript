@@ -11,6 +11,7 @@ import {
   MapNode,
   SourceLocation,
 } from "../../ast/types.js";
+import { InterfaceAllocator } from "./interface-allocator.js";
 import {
   SymbolKind_Map,
   SymbolKind_Set,
@@ -72,22 +73,13 @@ export interface MapAllocatorContext {
   emitError(message: string, loc?: SourceLocation, suggestion?: string): never;
 }
 
-export interface MapAllocatorDelegate {
-  convertTsType(tsType: string): string;
-  getInterface(name: string): InterfaceDeclaration | null;
-  getAllInterfaceFields(iface: InterfaceDeclaration): InterfaceField[];
-  getTypeInfoForElementType(
-    elementType: string,
-  ): { keys: string[]; types: string[]; tsTypes: string[] } | null;
-}
-
 export class MapAllocator {
   private ctx: MapAllocatorContext;
-  private delegate: MapAllocatorDelegate;
+  private interfaceAlloc: InterfaceAllocator;
 
-  constructor(ctx: MapAllocatorContext, delegate: MapAllocatorDelegate) {
+  constructor(ctx: MapAllocatorContext, interfaceAlloc: InterfaceAllocator) {
     this.ctx = ctx;
-    this.delegate = delegate;
+    this.interfaceAlloc = interfaceAlloc;
   }
 
   allocateMap(stmt: VariableDeclaration, params: string[]): void {
@@ -159,7 +151,7 @@ export class MapAllocator {
     mapTypeInfo: MapTypeInfo,
   ): void {
     const allocaReg = this.ctx.nextAllocaReg(stmt.name);
-    const llvmValueType = this.delegate.convertTsType(mapTypeInfo.valueType);
+    const llvmValueType = this.interfaceAlloc.convertTsType(mapTypeInfo.valueType);
 
     this.ctx.defineVariableWithMetadata(
       stmt.name,
@@ -319,7 +311,7 @@ export class MapAllocator {
     setTypeInfo: SetTypeInfo,
   ): void {
     const allocaReg = this.ctx.nextAllocaReg(stmt.name);
-    const llvmValueType = this.delegate.convertTsType(setTypeInfo.valueType);
+    const llvmValueType = this.interfaceAlloc.convertTsType(setTypeInfo.valueType);
 
     this.ctx.defineVariableWithMetadata(
       stmt.name,
@@ -394,7 +386,7 @@ export class MapAllocator {
       return valueType;
     }
 
-    const interfaceDefResult = this.delegate.getInterface(valueType);
+    const interfaceDefResult = this.interfaceAlloc.getInterface(valueType);
     if (!interfaceDefResult) return null;
 
     return valueType;
@@ -409,7 +401,7 @@ export class MapAllocator {
       this.allocateMapGetArray(stmt, params, interfaceName);
       return;
     }
-    const interfaceDefResult = this.delegate.getInterface(interfaceName);
+    const interfaceDefResult = this.interfaceAlloc.getInterface(interfaceName);
     if (!interfaceDefResult) {
       return this.ctx.emitError(
         `interface '${interfaceName}' not found when allocating Map.get() return variable '${stmt.name}'`,
@@ -420,11 +412,11 @@ export class MapAllocator {
     const keys: string[] = [];
     const types: string[] = [];
     const tsTypes: string[] = [];
-    const allFields = this.delegate.getAllInterfaceFields(interfaceDef);
+    const allFields = this.interfaceAlloc.getAllInterfaceFields(interfaceDef);
     for (let i = 0; i < allFields.length; i++) {
       const field = allFields[i] as { name: string; type: string };
       keys.push(stripOptional(field.name));
-      types.push(this.delegate.convertTsType(field.type));
+      types.push(this.interfaceAlloc.convertTsType(field.type));
       tsTypes.push(field.type);
     }
     const llvmType = `%${interfaceName}*`;
@@ -455,7 +447,7 @@ export class MapAllocator {
     } else if (elementType === "number" || elementType === "boolean") {
       this.ctx.defineVariable(stmt.name, allocaReg, "i8*", SymbolKind_Array, "local");
     } else {
-      const typeInfo = this.delegate.getTypeInfoForElementType(elementType);
+      const typeInfo = this.interfaceAlloc.getTypeInfoForElementType(elementType);
       if (typeInfo) {
         this.ctx.defineVariableWithMetadata(
           stmt.name,
