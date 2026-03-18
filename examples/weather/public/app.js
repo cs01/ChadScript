@@ -366,58 +366,63 @@ function render(city, forecast, hourlyData, grid) {
   var dayFrac = (nowTime - midnightToday) / fullDay;
   var riseFrac = (sunTimes.sunrise - midnightToday) / fullDay;
   var setFrac = (sunTimes.sunset - midnightToday) / fullDay;
-  // Smooth sine wave: one full cycle mapped across the SVG
-  // Sunrise at phase=0 (crossing up), noon at phase=PI/2 (peak),
-  // sunset at phase=PI (crossing down), midnight at phase=3PI/2 (trough)
-  var horizY = 40;
-  var amp = 22;
-  var riseX = 15;
-  var setX = 85;
-  var midX = (riseX + setX) / 2;
-  // Point on sine at a given fraction of full day
+  // Sine wave: sunrise=phase 0, sunset=phase PI
+  // Cropped view centered on horizon, like Apple Weather
+  var horizY = 25;
+  var amp = 18;
   function sunPoint(frac) {
-    // Map so sunrise=0, sunset=PI, next sunrise=2PI
     var phase = ((frac - riseFrac) / (setFrac - riseFrac)) * Math.PI;
-    var x = riseX + ((frac - riseFrac) / 1.0) * ((setX - riseX) / (setFrac - riseFrac));
-    // Simpler: just linearly map frac across the x axis
-    x = 5 + frac * 90;
-    var y = horizY - Math.sin(phase) * amp;
-    return { x: x, y: y };
+    return { x: 5 + frac * 90, y: horizY - Math.sin(phase) * amp };
   }
-  // Build full curve path
-  var curvePts = [];
+  // Split into above-horizon (bold) and below-horizon (dim) segments
+  var abovePts = [];
+  var belowPts = [];
   for (var ci = 0; ci <= 80; ci++) {
     var cf = ci / 80;
     var cp = sunPoint(cf);
-    curvePts.push(cp.x.toFixed(1) + "," + cp.y.toFixed(1));
+    if (cp.y <= horizY) {
+      if (belowPts.length > 0) {
+        belowPts.push(cp.x.toFixed(1) + "," + cp.y.toFixed(1));
+        belowPts = [];
+      }
+      abovePts.push(cp.x.toFixed(1) + "," + cp.y.toFixed(1));
+    } else {
+      if (abovePts.length > 0 && belowPts.length === 0) {
+        belowPts.push(abovePts[abovePts.length - 1]);
+      }
+      belowPts.push(cp.x.toFixed(1) + "," + cp.y.toFixed(1));
+    }
   }
-  var curveD = "M " + curvePts.join(" L ");
-  // Sun position
+  var aboveD = abovePts.length > 1 ? "M " + abovePts.join(" L ") : "";
+  var belowD = belowPts.length > 1 ? "M " + belowPts.join(" L ") : "";
   var sp = sunPoint(dayFrac);
   var aboveHorizon = sp.y < horizY;
   var arcSvg =
-    '<svg viewBox="0 0 100 70" class="sun-arc">' +
-    '<path d="' +
-    curveD +
-    '" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/>' +
+    '<svg viewBox="0 0 100 45" class="sun-arc">' +
+    (aboveD
+      ? '<path d="' + aboveD + '" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="2"/>'
+      : "") +
+    (belowD
+      ? '<path d="' + belowD + '" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="1.5"/>'
+      : "") +
     '<line x1="5" y1="' +
     horizY +
     '" x2="95" y2="' +
     horizY +
-    '" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>' +
+    '" stroke="rgba(255,255,255,0.2)" stroke-width="0.5"/>' +
     '<circle cx="' +
     sp.x.toFixed(1) +
     '" cy="' +
     sp.y.toFixed(1) +
-    '" r="4" fill="' +
-    (aboveHorizon ? "#ffcc00" : "rgba(200,200,220,0.5)") +
+    '" r="3.5" fill="' +
+    (aboveHorizon ? "#fff" : "rgba(200,200,220,0.5)") +
     '"/>' +
     (aboveHorizon
       ? '<circle cx="' +
         sp.x.toFixed(1) +
         '" cy="' +
         sp.y.toFixed(1) +
-        '" r="7" fill="rgba(255,204,0,0.12)"/>'
+        '" r="6" fill="rgba(255,255,255,0.15)"/>'
       : "") +
     "</svg>";
   cards +=
