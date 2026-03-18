@@ -2105,6 +2105,19 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       if (stmt.value !== null) {
         const name = stmt.name;
 
+        const stmtValNode = stmt.value as { type: string; name?: string };
+        const isUndefinedValue =
+          stmtValNode.type === "undefined" ||
+          (stmtValNode.type === "variable" && stmtValNode.name === "undefined") ||
+          stmtValNode.type === "null";
+        if (isUndefinedValue && stmt.declaredType) {
+          const globalIr = this.handleUninitializedGlobalVar(name, stmt.declaredType);
+          if (globalIr) {
+            ir += globalIr;
+            continue;
+          }
+        }
+
         if ((stmt.value as { type: string }).type === "call") {
           const callNode = stmt.value as CallNode;
           if (callNode.name) {
@@ -2587,6 +2600,23 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               llvmType = "i8*";
               kind = SymbolKind_String;
               defaultValue = "null";
+            } else if (strippedDeclaredType === "number") {
+              llvmType = "double";
+              kind = SymbolKind_Number;
+              defaultValue = "0.0";
+            } else if (strippedDeclaredType === "boolean") {
+              llvmType = "double";
+              kind = SymbolKind_Boolean;
+              defaultValue = "0.0";
+            } else if (strippedDeclaredType === "string[]") {
+              isStringArray = true;
+            } else if (
+              strippedDeclaredType === "number[]" ||
+              strippedDeclaredType === "boolean[]"
+            ) {
+              isArray = true;
+            } else if (strippedDeclaredType.endsWith("[]")) {
+              isObjectArray = true;
             }
           }
 
@@ -2628,12 +2658,79 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             this.symbolTable.setResolvedType(name, resolved);
           }
         }
+      } else if (stmt.declaredType) {
+        const name = stmt.name;
+        const globalIr = this.handleUninitializedGlobalVar(name, stmt.declaredType);
+        if (globalIr) {
+          ir += globalIr;
+        }
       }
     }
     if (ir.length > 0) {
       ir += "\n";
     }
     return ir;
+  }
+
+  private handleUninitializedGlobalVar(name: string, declaredType: string): string {
+    const baseType = stripNullable(declaredType);
+    if (baseType === "string") {
+      this.globalVariables.set(name, {
+        llvmType: "i8*",
+        kind: SymbolKind_String,
+        initialized: false,
+      });
+      this.defineVariable(name, `@${name}`, "i8*", SymbolKind_String, "global");
+      return `@${name} = global i8* null\n`;
+    }
+    if (baseType === "number") {
+      this.globalVariables.set(name, {
+        llvmType: "double",
+        kind: SymbolKind_Number,
+        initialized: false,
+      });
+      this.defineVariable(name, `@${name}`, "double", SymbolKind_Number, "global");
+      return `@${name} = global double 0.0\n`;
+    }
+    if (baseType === "boolean") {
+      this.globalVariables.set(name, {
+        llvmType: "double",
+        kind: SymbolKind_Boolean,
+        initialized: false,
+      });
+      this.defineVariable(name, `@${name}`, "double", SymbolKind_Boolean, "global");
+      return `@${name} = global double 0.0\n`;
+    }
+    if (baseType === "string[]") {
+      this.globalVariables.set(name, {
+        llvmType: "%StringArray*",
+        kind: SymbolKind_StringArray,
+        initialized: false,
+      });
+      this.defineVariable(name, `@${name}`, "%StringArray*", SymbolKind_StringArray, "global");
+      return `@${name} = global %StringArray* null\n`;
+    }
+    if (baseType === "number[]" || baseType === "boolean[]") {
+      this.globalVariables.set(name, {
+        llvmType: "%Array*",
+        kind: SymbolKind_Array,
+        initialized: false,
+      });
+      this.defineVariable(name, `@${name}`, "%Array*", SymbolKind_Array, "global");
+      return `@${name} = global %Array* null\n`;
+    }
+    if (baseType.endsWith("[]")) {
+      this.globalVariables.set(name, {
+        llvmType: "%ObjectArray*",
+        kind: SymbolKind_ObjectArray,
+        initialized: false,
+      });
+      this.defineVariable(name, `@${name}`, "%ObjectArray*", SymbolKind_ObjectArray, "global");
+      return `@${name} = global %ObjectArray* null\n`;
+    }
+    const declaredIr = this.tryHandleGlobalDeclaredType(name, declaredType);
+    if (declaredIr) return declaredIr;
+    return "";
   }
 
   /**

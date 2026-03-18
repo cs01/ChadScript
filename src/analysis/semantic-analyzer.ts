@@ -223,6 +223,16 @@ export class SemanticAnalyzer {
     return sym.schemaTypes;
   }
 
+  private isNullishExpression(expr: Expression): boolean {
+    const e = expr as ExpressionBase;
+    if (e.type === "null" || e.type === "undefined") return true;
+    if (e.type === "variable") {
+      const v = expr as VariableNode;
+      if (v.name === "undefined" || v.name === "null") return true;
+    }
+    return false;
+  }
+
   private inferDeclaredType(declaredType: string | undefined): {
     type: SymbolType;
     llvmType: string;
@@ -253,7 +263,7 @@ export class SemanticAnalyzer {
       }
     }
 
-    if (!stmt.value) {
+    if (!stmt.value || this.isNullishExpression(stmt.value)) {
       const inferred = this.inferDeclaredType(stmt.declaredType);
       this.symbols.set(stmt.name, {
         name: stmt.name,
@@ -265,7 +275,7 @@ export class SemanticAnalyzer {
 
     this.checkUntypedGenericConstructor(stmt);
 
-    const inferredType = this.inferExpressionType(stmt.value, stmt.declaredType);
+    const inferredType = this.inferExpressionType(stmt.value!, stmt.declaredType);
     if (!inferredType) return;
     const symbolEntry = {
       name: stmt.name,
