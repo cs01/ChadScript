@@ -2105,7 +2105,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       if (stmt.value !== null) {
         const name = stmt.name;
 
-        const stmtValNode = stmt.value as { type: string; name?: string };
+        const stmtValNode = stmt.value as VariableNode;
         const isUndefinedValue =
           stmtValNode.type === "undefined" ||
           (stmtValNode.type === "variable" && stmtValNode.name === "undefined") ||

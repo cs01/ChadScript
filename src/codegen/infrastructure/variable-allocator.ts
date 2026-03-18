@@ -491,7 +491,7 @@ export class VariableAllocator {
 
   private isNullishValue(value: Expression | null): boolean {
     if (value === null) return true;
-    const v = value as { type: string; name?: string };
+    const v = value as VariableNode;
     if (v.type === "null" || v.type === "undefined") return true;
     if (v.type === "variable" && (v.name === "undefined" || v.name === "null")) return true;
     return false;
