@@ -9,6 +9,8 @@ import {
   MemberAccessNode,
   IndexAccessNode,
 } from "../../ast/types.js";
+import { InterfaceAllocator } from "./interface-allocator.js";
+import type { MapAllocator } from "./map-allocator.js";
 import {
   SymbolKind_Class,
   SymbolTable,
@@ -46,18 +48,19 @@ export interface ClassAllocatorContext {
   readonly symbolTable: SymbolTable;
 }
 
-export interface ClassAllocatorDelegate {
-  isKnownClass(name: string): boolean;
-  getMapGetClassName(methodExpr: MethodCallNode): string | null;
-}
-
 export class ClassAllocator {
   private ctx: ClassAllocatorContext;
-  private delegate: ClassAllocatorDelegate;
+  private interfaceAlloc: InterfaceAllocator;
+  private mapAlloc: MapAllocator;
 
-  constructor(ctx: ClassAllocatorContext, delegate: ClassAllocatorDelegate) {
+  constructor(
+    ctx: ClassAllocatorContext,
+    interfaceAlloc: InterfaceAllocator,
+    mapAlloc: MapAllocator,
+  ) {
     this.ctx = ctx;
-    this.delegate = delegate;
+    this.interfaceAlloc = interfaceAlloc;
+    this.mapAlloc = mapAlloc;
   }
 
   allocateClassInstance(stmt: VariableDeclaration, params: string[]): void {
@@ -71,7 +74,7 @@ export class ClassAllocator {
     } else if (valueBase.type === "method_call") {
       const methodExpr = stmt.value as MethodCallNode;
       className =
-        this.delegate.getMapGetClassName(methodExpr) ||
+        this.mapAlloc.getMapGetClassName(methodExpr) ||
         this.getMethodCallReturnClassName(methodExpr) ||
         "Unknown";
     } else if (valueBase.type === "call") {
@@ -87,7 +90,7 @@ export class ClassAllocator {
       className = srcMeta ? srcMeta.className : "Unknown";
     } else if (valueBase.type === "ternary") {
       const resolved = stmt.value ? this.ctx.resolveExpressionType(stmt.value) : null;
-      if (resolved && this.delegate.isKnownClass(resolved.base)) {
+      if (resolved && this.interfaceAlloc.isKnownClass(resolved.base)) {
         className = resolved.base;
       } else {
         className = "Unknown";
@@ -147,7 +150,7 @@ export class ClassAllocator {
           const m = cls.methods[j];
           if (m && m.name === methodExpr.method && m.returnType) {
             const rt = stripNullable(m.returnType);
-            if (this.delegate.isKnownClass(rt)) {
+            if (this.interfaceAlloc.isKnownClass(rt)) {
               return this.ctx.resolveImportAlias(rt);
             }
           }
@@ -165,7 +168,7 @@ export class ClassAllocator {
       const fn = ast.functions[i];
       if (fn && fn.name === callExpr.name && fn.returnType) {
         const rt = stripNullable(fn.returnType);
-        if (this.delegate.isKnownClass(rt)) {
+        if (this.interfaceAlloc.isKnownClass(rt)) {
           return this.ctx.resolveImportAlias(rt);
         }
       }
@@ -176,7 +179,7 @@ export class ClassAllocator {
         const fn = ast.functions[i];
         if (fn && fn.name === resolved && fn.returnType) {
           const rt = stripNullable(fn.returnType);
-          if (this.delegate.isKnownClass(rt)) {
+          if (this.interfaceAlloc.isKnownClass(rt)) {
             return this.ctx.resolveImportAlias(rt);
           }
         }
@@ -195,12 +198,12 @@ export class ClassAllocator {
     if (objBase.type === "variable") {
       const varName = (indexExpr.object as VariableNode).name;
       const rawType = this.ctx.symbolTable.getRawInterfaceType(varName);
-      if (rawType && this.delegate.isKnownClass(rawType)) return rawType;
+      if (rawType && this.interfaceAlloc.isKnownClass(rawType)) return rawType;
       const objArrayMeta = this.ctx.symbolTable.getObjectArrayMetadata(varName);
       if (
         objArrayMeta &&
         objArrayMeta.elementInterfaceName &&
-        this.delegate.isKnownClass(objArrayMeta.elementInterfaceName)
+        this.interfaceAlloc.isKnownClass(objArrayMeta.elementInterfaceName)
       ) {
         return objArrayMeta.elementInterfaceName;
       }
@@ -229,7 +232,7 @@ export class ClassAllocator {
           }
           if (tsType.endsWith("[]")) {
             const elemType = tsType.substring(0, tsType.length - 2);
-            if (this.delegate.isKnownClass(elemType)) return elemType;
+            if (this.interfaceAlloc.isKnownClass(elemType)) return elemType;
           }
         }
       }
@@ -264,7 +267,7 @@ export class ClassAllocator {
           if (field.name === memberExpr.property) {
             const rawType = field.tsType || field.fieldType;
             const tsType = stripNullable(rawType);
-            if (this.delegate.isKnownClass(tsType)) return tsType;
+            if (this.interfaceAlloc.isKnownClass(tsType)) return tsType;
           }
         }
       }

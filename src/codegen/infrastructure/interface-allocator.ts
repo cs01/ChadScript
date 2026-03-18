@@ -8,7 +8,9 @@ import {
   VariableDeclaration,
   InterfaceDeclaration,
   InterfaceField,
+  TypeAliasDeclaration,
   TypeAssertionNode,
+  CommonField,
 } from "../../ast/types.js";
 import {
   SymbolKind,
@@ -41,6 +43,9 @@ export interface InterfaceAllocatorContext {
   setCurrentDeclaredInterfaceType(type: string | undefined): void;
   setLastTypeAssertionSourceVar(name: string | null): void;
   getLastTypeAssertionSourceVar(): string | null;
+  resolveImportAlias(localName: string): string;
+  typeResolverAreTypesCompatible(type1: string, type2: string): boolean | null;
+  typeResolverNormalizeType(type: string): string | null;
 }
 
 export class InterfaceAllocator {
@@ -270,6 +275,182 @@ export class InterfaceAllocator {
     }
 
     this.ctx.emit(`store i8* ${objPtr}, i8** ${allocaReg}`);
+  }
+
+  isKnownClass(name: string): boolean {
+    if (!name) return false;
+    const resolved = this.ctx.resolveImportAlias(name);
+    const ast = this.ctx.getAst();
+    if (!ast || !ast.classes) return false;
+    for (let i = 0; i < ast.classes.length; i++) {
+      const cls = ast.classes[i];
+      if (cls && (cls.name === name || cls.name === resolved)) return true;
+    }
+    return false;
+  }
+
+  getInterfaceFieldTypeByName(interfaceName: string, fieldName: string): string | null {
+    const ifaceResult = this.getInterface(interfaceName);
+    if (!ifaceResult) return null;
+    const iface = ifaceResult as InterfaceDeclaration;
+    const allFields = this.getAllInterfaceFields(iface);
+    for (let i = 0; i < allFields.length; i++) {
+      const f = allFields[i] as { name: string; type: string };
+      if (f.name === fieldName) {
+        return f.type;
+      }
+    }
+    return null;
+  }
+
+  getTypeInfoForElementType(
+    elementType: string,
+  ): { keys: string[]; types: string[]; tsTypes: string[] } | null {
+    if (elementType.startsWith("{")) {
+      const inlineFields = this.parseInlineObjectType(elementType + "[]");
+      if (inlineFields) {
+        const keys: string[] = [];
+        const types: string[] = [];
+        const tsTypes: string[] = [];
+        for (let i = 0; i < inlineFields.length; i++) {
+          const field = inlineFields[i] as { name: string; type: string };
+          keys.push(stripOptional(field.name));
+          types.push(this.convertTsType(field.type));
+          tsTypes.push(field.type);
+        }
+        return { keys, types, tsTypes };
+      }
+    }
+
+    const interfaceDefResult = this.getInterface(elementType);
+    if (interfaceDefResult) {
+      const interfaceDef = interfaceDefResult as InterfaceDeclaration;
+      const keys: string[] = [];
+      const types: string[] = [];
+      const tsTypes: string[] = [];
+      const allFields = this.getAllInterfaceFields(interfaceDef);
+      for (let i = 0; i < allFields.length; i++) {
+        const field = allFields[i] as { name: string; type: string };
+        keys.push(stripOptional(field.name));
+        types.push(this.convertTsType(field.type));
+        tsTypes.push(field.type);
+      }
+      return { keys, types, tsTypes };
+    }
+
+    const typeAliasRaw = this.getTypeAlias(elementType);
+    if (typeAliasRaw) {
+      const typeAlias = typeAliasRaw as TypeAliasDeclaration;
+      if (typeAlias.unionMembers) {
+        const commonFields = this.getUnionCommonFields(typeAlias.unionMembers);
+        if (commonFields.keys.length > 0) {
+          return commonFields;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  private getTypeAlias(name: string): TypeAliasDeclaration | null {
+    if (!name) return null;
+    const result = this.ctx.typeResolver?.getTypeAlias(name);
+    if (result) {
+      return result;
+    }
+    const ast = this.ctx.getAst();
+    if (!ast || !ast.typeAliases) return null;
+    for (let i = 0; i < ast.typeAliases.length; i++) {
+      const ta = ast.typeAliases[i] as TypeAliasDeclaration;
+      if (!ta || !ta.name) continue;
+      if (ta.name === name) {
+        return ta;
+      }
+    }
+    return null;
+  }
+
+  private getUnionCommonFields(memberNames: string[]): {
+    keys: string[];
+    types: string[];
+    tsTypes: string[];
+  } {
+    const result = this.ctx.typeResolver?.getUnionCommonFields(memberNames);
+    if (result && result.keys.length > 0) {
+      return { keys: result.keys, types: result.types, tsTypes: result.tsTypes };
+    }
+    const interfaces: InterfaceDeclaration[] = [];
+    for (let i = 0; i < memberNames.length; i++) {
+      const ifaceResult = this.getInterface(memberNames[i]);
+      if (ifaceResult) {
+        interfaces.push(ifaceResult as InterfaceDeclaration);
+      }
+    }
+
+    if (interfaces.length === 0) {
+      return { keys: [], types: [], tsTypes: [] };
+    }
+
+    const firstInterface = interfaces[0] as InterfaceDeclaration;
+    const firstFields = this.getAllInterfaceFields(firstInterface);
+    const commonFields: CommonField[] = [];
+
+    for (let fi = 0; fi < firstFields.length; fi++) {
+      const field = firstFields[fi] as { name: string; type: string };
+      let isCommon = true;
+      for (let ii = 0; ii < interfaces.length; ii++) {
+        const ifaceTyped = interfaces[ii] as InterfaceDeclaration;
+        const ifaceFields = this.getAllInterfaceFields(ifaceTyped);
+        let found = false;
+        for (let fj = 0; fj < ifaceFields.length; fj++) {
+          const f = ifaceFields[fj] as { name: string; type: string };
+          if (f.name === field.name && this.areTypesCompatible(f.type, field.type)) {
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          isCommon = false;
+          break;
+        }
+      }
+      if (isCommon) {
+        commonFields.push({ name: field.name, type: this.normalizeType(field.type) });
+      }
+    }
+
+    const keys: string[] = [];
+    const types: string[] = [];
+    const tsTypes: string[] = [];
+    for (let i = 0; i < commonFields.length; i++) {
+      const cf = commonFields[i] as CommonField;
+      keys.push(stripOptional(cf.name));
+      types.push(this.convertTsType(cf.type));
+      tsTypes.push(cf.type);
+    }
+
+    return { keys, types, tsTypes };
+  }
+
+  private areTypesCompatible(type1: string, type2: string): boolean {
+    const result = this.ctx.typeResolverAreTypesCompatible(type1, type2);
+    if (result) {
+      return result;
+    }
+    if (type1 === type2) return true;
+    const norm1 = this.normalizeType(type1);
+    const norm2 = this.normalizeType(type2);
+    return norm1 === norm2;
+  }
+
+  private normalizeType(type: string): string {
+    const result = this.ctx.typeResolverNormalizeType(type);
+    if (result && result !== type) {
+      return result;
+    }
+    if (type.startsWith("'") && type.endsWith("'")) return "string";
+    if (type.startsWith('"') && type.endsWith('"')) return "string";
+    return type;
   }
 
   allocateMemberAccessInterface(

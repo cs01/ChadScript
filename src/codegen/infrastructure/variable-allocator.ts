@@ -205,9 +205,9 @@ export class VariableAllocator {
 
   constructor(private ctx: VariableAllocatorContext) {
     this.interfaceAlloc = new InterfaceAllocator(ctx as any);
-    this.mapAlloc = new MapAllocator(ctx as any, this);
-    this.classAlloc = new ClassAllocator(ctx as any, this);
-    this.arrayAlloc = new ArrayAllocator(ctx as any, this);
+    this.mapAlloc = new MapAllocator(ctx as any, this.interfaceAlloc);
+    this.classAlloc = new ClassAllocator(ctx as any, this.interfaceAlloc, this.mapAlloc);
+    this.arrayAlloc = new ArrayAllocator(ctx as any, this.interfaceAlloc);
   }
 
   getMapGetClassName(m: MethodCallNode): string | null {

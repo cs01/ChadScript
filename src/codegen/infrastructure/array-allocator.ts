@@ -12,6 +12,7 @@ import {
   MethodCallNode,
   SourceLocation,
 } from "../../ast/types.js";
+import { InterfaceAllocator } from "./interface-allocator.js";
 import {
   SymbolKind_Array,
   SymbolKind_StringArray,
@@ -66,25 +67,13 @@ export interface ArrayAllocatorContext {
   getAst(): AST | undefined;
 }
 
-export interface ArrayAllocatorDelegate {
-  isKnownClass(name: string): boolean;
-  convertTsType(tsType: string): string;
-  getInterface(name: string): InterfaceDeclaration | null;
-  getAllInterfaceFields(iface: InterfaceDeclaration): InterfaceField[];
-  getTypeInfoForElementType(
-    elementType: string,
-  ): { keys: string[]; types: string[]; tsTypes: string[] } | null;
-  getInterfaceFieldTypeByName(interfaceName: string, fieldName: string): string | null;
-  parseInlineObjectType(typeStr: string): InterfaceField[] | null;
-}
-
 export class ArrayAllocator {
   private ctx: ArrayAllocatorContext;
-  private delegate: ArrayAllocatorDelegate;
+  private interfaceAlloc: InterfaceAllocator;
 
-  constructor(ctx: ArrayAllocatorContext, delegate: ArrayAllocatorDelegate) {
+  constructor(ctx: ArrayAllocatorContext, interfaceAlloc: InterfaceAllocator) {
     this.ctx = ctx;
-    this.delegate = delegate;
+    this.interfaceAlloc = interfaceAlloc;
   }
 
   allocateStringArray(stmt: VariableDeclaration, params: string[]): void {
@@ -157,7 +146,7 @@ export class ArrayAllocator {
     }
 
     if (elementType) {
-      const typeInfo = this.delegate.getTypeInfoForElementType(elementType);
+      const typeInfo = this.interfaceAlloc.getTypeInfoForElementType(elementType);
       if (typeInfo) {
         this.ctx.defineVariableWithMetadata(
           stmt.name,
@@ -186,7 +175,7 @@ export class ArrayAllocator {
         this.ctx.emit(`store %ObjectArray* ${value}, %ObjectArray** ${allocaReg}`);
         return;
       }
-      if (this.delegate.isKnownClass(elementType)) {
+      if (this.interfaceAlloc.isKnownClass(elementType)) {
         this.ctx.defineVariable(
           stmt.name,
           allocaReg,
@@ -253,7 +242,7 @@ export class ArrayAllocator {
       let tsType = "string";
       if (valType === "number") tsType = "number";
       else if (valType === "boolean") tsType = "boolean";
-      types.push(this.delegate.convertTsType(tsType));
+      types.push(this.interfaceAlloc.convertTsType(tsType));
       tsTypes.push(tsType);
     }
 
@@ -271,24 +260,24 @@ export class ArrayAllocator {
     const elementTsTypes: string[] = [];
 
     if (elementType.startsWith("{") && elementType.endsWith("}")) {
-      const inlineFields = this.delegate.parseInlineObjectType(elementType);
+      const inlineFields = this.interfaceAlloc.parseInlineObjectType(elementType);
       if (inlineFields) {
         for (let i = 0; i < inlineFields.length; i++) {
           const field = inlineFields[i] as { name: string; type: string };
           elementKeys.push(stripOptional(field.name));
-          elementTypes.push(this.delegate.convertTsType(field.type));
+          elementTypes.push(this.interfaceAlloc.convertTsType(field.type));
           elementTsTypes.push(field.type);
         }
       }
     } else {
-      const interfaceDefResult = this.delegate.getInterface(elementType);
+      const interfaceDefResult = this.interfaceAlloc.getInterface(elementType);
       if (interfaceDefResult) {
         const interfaceDef = interfaceDefResult as InterfaceDeclaration;
-        const allFields = this.delegate.getAllInterfaceFields(interfaceDef);
+        const allFields = this.interfaceAlloc.getAllInterfaceFields(interfaceDef);
         for (let i = 0; i < allFields.length; i++) {
           const field = allFields[i] as { name: string; type: string };
           elementKeys.push(stripOptional(field.name));
-          elementTypes.push(this.delegate.convertTsType(field.type));
+          elementTypes.push(this.interfaceAlloc.convertTsType(field.type));
           elementTsTypes.push(field.type);
         }
       }
@@ -384,7 +373,7 @@ export class ArrayAllocator {
       if (!varName) return null;
       const ifaceType = this.ctx.symbolTable.getInterfaceType(varName);
       if (ifaceType) {
-        return this.delegate.getTypeInfoForElementType(ifaceType);
+        return this.interfaceAlloc.getTypeInfoForElementType(ifaceType);
       }
       const objArrayMeta = this.ctx.symbolTable.getObjectArrayMetadata(varName);
       if (objArrayMeta) {
@@ -396,7 +385,7 @@ export class ArrayAllocator {
       }
       const objArrElemType = this.ctx.symbolTable.getRawInterfaceType(varName);
       if (objArrElemType) {
-        return this.delegate.getTypeInfoForElementType(objArrElemType);
+        return this.interfaceAlloc.getTypeInfoForElementType(objArrElemType);
       }
       const objMeta = this.ctx.symbolTable.getObjectMetadata(varName);
       if (objMeta && objMeta.tsTypes) {
@@ -405,7 +394,7 @@ export class ArrayAllocator {
           const firstType = tsTypes[0];
           if (firstType && firstType.endsWith("[]")) {
             const elementType = firstType.slice(0, -2);
-            return this.delegate.getTypeInfoForElementType(elementType);
+            return this.interfaceAlloc.getTypeInfoForElementType(elementType);
           }
           return {
             keys: objMeta.keys as string[],
@@ -430,7 +419,7 @@ export class ArrayAllocator {
       const returnType = this.getMethodCallReturnType(methodCall);
       if (returnType && returnType.endsWith("[]")) {
         const elementType = returnType.slice(0, -2).trim();
-        return this.delegate.getTypeInfoForElementType(elementType);
+        return this.interfaceAlloc.getTypeInfoForElementType(elementType);
       }
       return null;
     }
@@ -456,7 +445,7 @@ export class ArrayAllocator {
             if (propTsType) {
               const arrayParsed = parseArrayTypeString(propTsType);
               if (arrayParsed) {
-                return this.delegate.getTypeInfoForElementType(arrayParsed.elementType);
+                return this.interfaceAlloc.getTypeInfoForElementType(arrayParsed.elementType);
               }
             }
           }
@@ -465,11 +454,11 @@ export class ArrayAllocator {
 
       const paramType = this.ctx.getParameterTypeFromAST(varName);
       if (paramType) {
-        const fieldType = this.delegate.getInterfaceFieldTypeByName(paramType, propertyName);
+        const fieldType = this.interfaceAlloc.getInterfaceFieldTypeByName(paramType, propertyName);
         if (fieldType) {
           const arrayParsed = parseArrayTypeString(fieldType);
           if (arrayParsed) {
-            return this.delegate.getTypeInfoForElementType(arrayParsed.elementType);
+            return this.interfaceAlloc.getTypeInfoForElementType(arrayParsed.elementType);
           }
         }
       }
@@ -485,7 +474,7 @@ export class ArrayAllocator {
       };
       const elementType = this.resolveNestedMemberArrayType(memberAccessTyped as MemberAccessNode);
       if (elementType) {
-        return this.delegate.getTypeInfoForElementType(elementType);
+        return this.interfaceAlloc.getTypeInfoForElementType(elementType);
       }
     }
 
@@ -499,7 +488,7 @@ export class ArrayAllocator {
     const classFieldInfo = this.ctx.classGenGetFieldInfo(objectType, memberAccess.property);
     const classFieldTsType = classFieldInfo ? (classFieldInfo as FieldInfo).tsType : null;
     const fieldType =
-      this.delegate.getInterfaceFieldTypeByName(objectType, memberAccess.property) ||
+      this.interfaceAlloc.getInterfaceFieldTypeByName(objectType, memberAccess.property) ||
       classFieldTsType;
     if (!fieldType) return null;
 
@@ -543,7 +532,10 @@ export class ArrayAllocator {
       }
       const objectType = this.resolveMemberAccessObjectType(member.object);
       if (objectType) {
-        const fieldType = this.delegate.getInterfaceFieldTypeByName(objectType, member.property);
+        const fieldType = this.interfaceAlloc.getInterfaceFieldTypeByName(
+          objectType,
+          member.property,
+        );
         return fieldType;
       }
     }
