@@ -149,16 +149,14 @@ export function generateSplit(ctx: IGeneratorContext, strPtr: string, delimiter:
   );
   const isMatch = ctx.emitIcmp("eq", "i32", cmpResult, "0");
 
-  ctx.emitBrCond(isMatch, countCheckLabel, countCheckLabel);
+  ctx.emitBr(countCheckLabel);
 
   ctx.emitLabel(countCheckLabel);
   const partCount = ctx.emitLoad("i32", partCountPtr);
-  const newPartCount = ctx.nextTemp();
-  ctx.emit(`${newPartCount} = select i1 ${isMatch}, i32 ${partCount}, i32 ${partCount}`);
   const incPartCount = ctx.nextTemp();
-  ctx.emit(`${incPartCount} = add i32 ${newPartCount}, 1`);
+  ctx.emit(`${incPartCount} = add i32 ${partCount}, 1`);
   const finalPartCount = ctx.nextTemp();
-  ctx.emit(`${finalPartCount} = select i1 ${isMatch}, i32 ${incPartCount}, i32 ${newPartCount}`);
+  ctx.emit(`${finalPartCount} = select i1 ${isMatch}, i32 ${incPartCount}, i32 ${partCount}`);
   ctx.emitStore("i32", finalPartCount, partCountPtr);
 
   const skipAmount = ctx.nextTemp();

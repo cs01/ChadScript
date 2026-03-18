@@ -479,8 +479,12 @@ function generateNumericArrayJoin(
   gen.emit(
     `${written} = call i32 (i8*, i64, i8*, ...) @snprintf(i8* ${dest}, i64 ${remaining}, i8* ${fmt}, double ${elemVal})`,
   );
+  const writtenNeg = gen.nextTemp();
+  gen.emit(`${writtenNeg} = icmp slt i32 ${written}, 0`);
+  const writtenClamped = gen.nextTemp();
+  gen.emit(`${writtenClamped} = select i1 ${writtenNeg}, i32 0, i32 ${written}`);
   const writtenI64 = gen.nextTemp();
-  gen.emit(`${writtenI64} = sext i32 ${written} to i64`);
+  gen.emit(`${writtenI64} = sext i32 ${writtenClamped} to i64`);
   const newOff = gen.nextTemp();
   gen.emit(`${newOff} = add i64 ${curOff}, ${writtenI64}`);
   gen.emitStore("i64", newOff, offsetPtr);
