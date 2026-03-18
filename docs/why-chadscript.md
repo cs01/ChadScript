@@ -5,11 +5,11 @@ ChadScript compiles TypeScript to native binaries. Write TypeScript, run `chad b
 ## Key characteristics
 
 - **TypeScript syntax** — classes, interfaces, generics, async/await, closures, destructuring, JSX. If you write TypeScript, you already know ChadScript.
-- **Native compilation via LLVM** — the same backend behind Clang, Rust, and Swift. Produces ELF binaries on Linux and Mach-O binaries on macOS. Sub-2ms startup, ~250KB binaries.
-- **Batteries included** — HTTP server, SQLite, fetch, crypto, WebSocket, JSON, filesystem — all built in, backed by proven C libraries. No `npm install`.
-- **Zero-cost C interop** — `declare function` binds any C library directly. No wrappers, no marshalling, no FFI overhead.
-- **Single-binary deploy** — `chad build app.ts -o app` produces one self-contained file. `scp` it to a server, drop it in a container, run it.
-- **Self-hosting** — the compiler is written in ChadScript and compiles itself to a native binary, verified in a 3-stage bootstrap.
+- **Native compilation** — compiles to optimized machine code with the same optimization passes used by C and Rust compilers. Sub-2ms startup, ~250KB binaries.
+- **No dependencies** — install with `curl`, not `npm`. Everything is bundled in the compiler.
+- **Batteries included** — HTTP server, SQLite, fetch, crypto, WebSocket, JSON, filesystem — all built in. No packages to install.
+- **Single-binary deploy** — `chad build app.ts -o app` produces one self-contained file. Copy it to a server, drop it in a container, run it.
+- **Self-hosting** — the compiler is written in ChadScript and compiles itself.
 
 ## What ChadScript is not
 

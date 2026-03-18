@@ -6,18 +6,17 @@ ChadScript is an ahead-of-time compiler that produces standalone native binaries
 
 When you run `chad build app.ts -o app`, the compiler:
 
-1. Parses your TypeScript into an AST (Tree-sitter grammar)
+1. Parses your TypeScript into an AST
 2. Resolves every type — all types must be known at compile time
 3. Runs semantic checks (null safety, closure safety, type validation)
-4. Lowers the AST to [LLVM IR](https://llvm.org/docs/LangRef.html) — the same intermediate format used by Clang, Rust, and Swift
-5. Optimizes with LLVM `-O2` — loop vectorization, inlining, constant folding, dead code elimination
-6. Links to a native binary via the embedded LLD linker
+4. Generates optimized machine code (using [LLVM](https://llvm.org/docs/LangRef.html) internally — the same optimization engine behind C and Rust compilers)
+5. Links everything into a single native binary
 
-The output is a standard ELF binary (Linux) or Mach-O binary (macOS). No runtime, no interpreter, no JIT. Types map directly to machine types — `number` is a 64-bit double, `string` is a pointer, structs are contiguous memory.
+The output is a standard native binary for your platform. No runtime, no interpreter, no JIT. Types map directly to machine types — `number` is a 64-bit double, `string` is a pointer, structs are contiguous memory.
 
 ## Memory Management
 
-ChadScript programs use the [Boehm GC](https://www.hboehm.info/gc/) (`libgc`), a conservative garbage collector used in production by Mono, GCJ, and Guile. All heap allocations go through `GC_malloc`. No manual memory management, no use-after-free, no double-frees.
+Memory is managed automatically by a garbage collector. You allocate freely — no `malloc`/`free`, no ownership annotations, no use-after-free. Under the hood, ChadScript uses the [Boehm GC](https://www.hboehm.info/gc/), a proven collector also used by Mono and GCJ.
 
 ## Platform Support
 

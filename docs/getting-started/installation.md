@@ -8,16 +8,9 @@ This downloads a pre-built binary for your platform and installs it to `~/.chads
 
 ## Prerequisites
 
-No external dependencies. LLVM and LLD are embedded in the compiler binary. All vendor libraries (libgc, libuv, etc.) and pre-compiled C bridge objects are bundled in the release.
+None. Everything is bundled in the compiler — just install and go.
 
-Programs that use certain features need the corresponding system library present at compile time:
-
-| Feature | Package |
-|---------|---------|
-| `fetch()` / HTTP client | libcurl |
-| `crypto` | openssl |
-| `sqlite` | sqlite3 |
-| `httpServe()` | zlib, libzstd |
+On some Linux systems, programs that use networking or crypto may need common system libraries (libcurl, openssl) which are typically pre-installed. macOS includes them by default.
 
 **macOS Gatekeeper**: If you get a quarantine warning on the downloaded binary:
 

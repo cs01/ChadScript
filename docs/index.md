@@ -3,7 +3,7 @@ layout: home
 hero:
   name: ChadScript
   text: TypeScript that compiles to native binaries.
-  tagline: "LLVM-compiled. Sub-2ms startup. ~250KB binaries. No runtime."
+  tagline: "Sub-2ms startup. ~250KB binaries. No runtime. No dependencies."
   actions:
     - theme: brand
       text: Get Started
@@ -13,14 +13,14 @@ hero:
       link: /why-chadscript
 
 features:
-  - title: LLVM-Compiled
-    details: Same backend as Clang, Rust, and Swift. Full -O2 optimization — loop vectorization, inlining, dead code elimination.
+  - title: Native Speed
+    details: Compiles to optimized machine code. Same optimization passes used by C and Rust compilers.
   - title: TypeScript Syntax
     details: Classes, generics, interfaces, async/await, closures, JSX. If you write TypeScript, you already know ChadScript.
   - title: Batteries Included
     details: HTTP server, SQLite, fetch, crypto, WebSocket, JSON — all built in. No npm install, no node_modules.
-  - title: Zero-Cost C Interop
-    details: Bind any C library with declare function. No wrappers, no marshalling. SQLite, libcurl, and openssl ship built in.
+  - title: Single-Binary Deploy
+    details: One file, no dependencies. Copy it to a server, drop it in a Docker scratch image, run it anywhere.
 ---
 
 <HeroRotator />
