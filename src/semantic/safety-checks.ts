@@ -291,206 +291,247 @@ export function checkBinaryTypesDeep(ast: AST, sourceCode: string): void {
 }
 
 // --- Argument count checker ---
-// Module-level vars to avoid 5+ param functions (native compiler infinite loop workaround)
 
-let argNames: string[] = [];
-let argMins: number[] = [];
-let argMaxes: number[] = [];
-let argAliasNames: string[] = [];
-let argAliasOriginals: string[] = [];
-let argSrc: string = "";
+class ArgCheckState {
+  names: string[] = [];
+  mins: number[] = [];
+  maxes: number[] = [];
+  aliasNames: string[] = [];
+  aliasOriginals: string[] = [];
+  src: string = "";
+  dupNames: string[] = [];
 
-function argResolveName(name: string): string {
-  for (let i = 0; i < argAliasNames.length; i++) {
-    if (argAliasNames[i] === name) return argAliasOriginals[i];
-  }
-  return name;
-}
-
-function argLookup(name: string): number {
-  for (let i = 0; i < argNames.length; i++) {
-    if (argNames[i] === name) return i;
-  }
-  return -1;
-}
-
-function argCheckCall(name: string, argCount: number, loc: SourceLocation | undefined): void {
-  const resolved = argResolveName(name);
-  const idx = argLookup(resolved);
-  if (idx < 0) return;
-  const min = argMins[idx];
-  const max = argMaxes[idx];
-  if (argCount < min) {
-    process.stderr.write(
-      formatCompileError(
-        argSrc,
-        "function '" + name + "' expects at least " + min + " argument(s) but got " + argCount,
-        loc as SourceLocation | undefined,
-        "check the function signature",
-        [],
-      ),
-    );
-    process.exit(1);
-  }
-  if (argCount > max) {
-    process.stderr.write(
-      formatCompileError(
-        argSrc,
-        "function '" + name + "' expects at most " + max + " argument(s) but got " + argCount,
-        loc as SourceLocation | undefined,
-        "check the function signature",
-        [],
-      ),
-    );
-    process.exit(1);
-  }
-}
-
-function argCheckExpr(expr: Expression): void {
-  if (!expr) return;
-  if (expr.type === "call") {
-    const c = expr as CallNode;
-    argCheckCall(c.name, c.args.length, c.loc);
-    for (let i = 0; i < c.args.length; i++) argCheckExpr(c.args[i]);
-  } else if (expr.type === "binary") {
-    const b = expr as BinaryNode;
-    argCheckExpr(b.left);
-    argCheckExpr(b.right);
-  } else if (expr.type === "unary") {
-    argCheckExpr((expr as UnaryNode).operand);
-  } else if (expr.type === "conditional") {
-    const c = expr as ConditionalExpressionNode;
-    argCheckExpr(c.condition);
-    argCheckExpr(c.consequent);
-    argCheckExpr(c.alternate);
-  } else if (expr.type === "method_call") {
-    const mc = expr as MethodCallNode;
-    if (mc.object) argCheckExpr(mc.object);
-    for (let i = 0; i < mc.args.length; i++) argCheckExpr(mc.args[i]);
-  }
-}
-
-function argWalkStmt(stmt: Statement): void {
-  const stype = (stmt as { type: string }).type;
-  if (stype === "variable_declaration") {
-    const d = stmt as VariableDeclaration;
-    if (d.value) argCheckExpr(d.value as Expression);
-  } else if (stype === "assignment") {
-    argCheckExpr((stmt as AssignmentStatement).value);
-  } else if (stype === "if") {
-    const i = stmt as IfStatement;
-    argCheckExpr(i.condition);
-    argWalkBlk(i.thenBlock);
-    if (i.elseBlock) argWalkBlk(i.elseBlock);
-  } else if (stype === "while") {
-    const w = stmt as WhileStatement;
-    argCheckExpr(w.condition);
-    argWalkBlk(w.body);
-  } else if (stype === "do_while") {
-    const d = stmt as DoWhileStatement;
-    argWalkBlk(d.body);
-    argCheckExpr(d.condition);
-  } else if (stype === "for") {
-    const f = stmt as ForStatement;
-    if (f.init) argWalkStmt(f.init as Statement);
-    if (f.condition) argCheckExpr(f.condition);
-    if (f.update) {
-      if ((f.update as { type: string }).type === "assignment") argWalkStmt(f.update as Statement);
-      else argCheckExpr(f.update as Expression);
+  resolveName(name: string): string {
+    for (let i = 0; i < this.aliasNames.length; i++) {
+      if (this.aliasNames[i] === name) return this.aliasOriginals[i];
     }
-    argWalkBlk(f.body);
-  } else if (stype === "for_of") {
-    const fo = stmt as ForOfStatement;
-    argCheckExpr(fo.iterable);
-    argWalkBlk(fo.body);
-  } else if (stype === "try") {
-    const t = stmt as TryStatement;
-    argWalkBlk(t.tryBlock);
-    if (t.catchBody) argWalkBlk(t.catchBody);
-    if (t.finallyBlock) argWalkBlk(t.finallyBlock);
-  } else if (stype === "switch") {
-    const sw = stmt as SwitchStatement;
-    argCheckExpr(sw.discriminant);
-    for (let ci = 0; ci < sw.cases.length; ci++) {
-      const c = sw.cases[ci];
-      if (c.test) argCheckExpr(c.test as Expression);
-      argWalkStmts(c.consequent);
+    return name;
+  }
+
+  lookup(name: string): number {
+    for (let i = 0; i < this.names.length; i++) {
+      if (this.names[i] === name) return i;
     }
-  } else if (stype === "return") {
-    const r = stmt as ReturnStatement;
-    if (r.value) argCheckExpr(r.value as Expression);
-  } else if (stype === "throw") {
-    argCheckExpr((stmt as ThrowStatement).argument);
-  } else if (stype === "block") {
-    argWalkBlk(stmt as BlockStatement);
-  } else if (stype === "call") {
-    const c = stmt as unknown as CallNode;
-    argCheckCall(c.name, c.args.length, c.loc);
-    for (let i = 0; i < c.args.length; i++) argCheckExpr(c.args[i]);
-  } else if (stype === "method_call") {
-    const mc = stmt as unknown as MethodCallNode;
-    if (mc.object) argCheckExpr(mc.object);
-    for (let i = 0; i < mc.args.length; i++) argCheckExpr(mc.args[i]);
-  } else if (stype !== "break" && stype !== "continue") {
-    argCheckExpr(stmt as Expression);
+    return -1;
+  }
+
+  isDuplicate(name: string): boolean {
+    for (let i = 0; i < this.dupNames.length; i++) {
+      if (this.dupNames[i] === name) return true;
+    }
+    return false;
+  }
+
+  checkCall(name: string, argCount: number, loc: SourceLocation | undefined): void {
+    const resolved = this.resolveName(name);
+    if (this.isDuplicate(resolved)) return;
+    const idx = this.lookup(resolved);
+    if (idx < 0) return;
+    const min = this.mins[idx];
+    const max = this.maxes[idx];
+    if (argCount < min) {
+      process.stderr.write(
+        formatCompileError(
+          this.src,
+          "function '" + name + "' expects at least " + min + " argument(s) but got " + argCount,
+          loc,
+          "check the function signature",
+          [],
+        ),
+      );
+      process.exit(1);
+    }
+    if (argCount > max) {
+      process.stderr.write(
+        formatCompileError(
+          this.src,
+          "function '" + name + "' expects at most " + max + " argument(s) but got " + argCount,
+          loc,
+          "check the function signature",
+          [],
+        ),
+      );
+      process.exit(1);
+    }
+  }
+
+  hasSpread(args: Expression[]): boolean {
+    for (let i = 0; i < args.length; i++) {
+      if (args[i] && args[i].type === "spread_element") return true;
+    }
+    return false;
+  }
+
+  checkExpr(expr: Expression): void {
+    if (!expr) return;
+    if (expr.type === "call") {
+      const c = expr as CallNode;
+      if (!this.hasSpread(c.args)) this.checkCall(c.name, c.args.length, c.loc);
+      for (let i = 0; i < c.args.length; i++) this.checkExpr(c.args[i]);
+    } else if (expr.type === "binary") {
+      const b = expr as BinaryNode;
+      this.checkExpr(b.left);
+      this.checkExpr(b.right);
+    } else if (expr.type === "unary") {
+      this.checkExpr((expr as UnaryNode).operand);
+    } else if (expr.type === "conditional") {
+      const c = expr as ConditionalExpressionNode;
+      this.checkExpr(c.condition);
+      this.checkExpr(c.consequent);
+      this.checkExpr(c.alternate);
+    } else if (expr.type === "method_call") {
+      const mc = expr as MethodCallNode;
+      if (mc.object) this.checkExpr(mc.object);
+      for (let i = 0; i < mc.args.length; i++) this.checkExpr(mc.args[i]);
+    }
+  }
+
+  walkStmt(stmt: Statement): void {
+    const stype = (stmt as { type: string }).type;
+    if (stype === "variable_declaration") {
+      const d = stmt as VariableDeclaration;
+      if (d.value) this.checkExpr(d.value as Expression);
+    } else if (stype === "assignment") {
+      this.checkExpr((stmt as AssignmentStatement).value);
+    } else if (stype === "if") {
+      const i = stmt as IfStatement;
+      this.checkExpr(i.condition);
+      this.walkBlk(i.thenBlock);
+      if (i.elseBlock) this.walkBlk(i.elseBlock);
+    } else if (stype === "while") {
+      const w = stmt as WhileStatement;
+      this.checkExpr(w.condition);
+      this.walkBlk(w.body);
+    } else if (stype === "do_while") {
+      const d = stmt as DoWhileStatement;
+      this.walkBlk(d.body);
+      this.checkExpr(d.condition);
+    } else if (stype === "for") {
+      const f = stmt as ForStatement;
+      if (f.init) this.walkStmt(f.init as Statement);
+      if (f.condition) this.checkExpr(f.condition);
+      if (f.update) {
+        if ((f.update as { type: string }).type === "assignment")
+          this.walkStmt(f.update as Statement);
+        else this.checkExpr(f.update as Expression);
+      }
+      this.walkBlk(f.body);
+    } else if (stype === "for_of") {
+      const fo = stmt as ForOfStatement;
+      this.checkExpr(fo.iterable);
+      this.walkBlk(fo.body);
+    } else if (stype === "try") {
+      const t = stmt as TryStatement;
+      this.walkBlk(t.tryBlock);
+      if (t.catchBody) this.walkBlk(t.catchBody);
+      if (t.finallyBlock) this.walkBlk(t.finallyBlock);
+    } else if (stype === "switch") {
+      const sw = stmt as SwitchStatement;
+      this.checkExpr(sw.discriminant);
+      for (let ci = 0; ci < sw.cases.length; ci++) {
+        const c = sw.cases[ci];
+        if (c.test) this.checkExpr(c.test as Expression);
+        this.walkStmts(c.consequent);
+      }
+    } else if (stype === "return") {
+      const r = stmt as ReturnStatement;
+      if (r.value) this.checkExpr(r.value as Expression);
+    } else if (stype === "throw") {
+      this.checkExpr((stmt as ThrowStatement).argument);
+    } else if (stype === "block") {
+      this.walkBlk(stmt as BlockStatement);
+    } else if (stype === "call") {
+      const c = stmt as unknown as CallNode;
+      if (!this.hasSpread(c.args)) this.checkCall(c.name, c.args.length, c.loc);
+      for (let i = 0; i < c.args.length; i++) this.checkExpr(c.args[i]);
+    } else if (stype === "method_call") {
+      const mc = stmt as unknown as MethodCallNode;
+      if (mc.object) this.checkExpr(mc.object);
+      for (let i = 0; i < mc.args.length; i++) this.checkExpr(mc.args[i]);
+    } else if (stype !== "break" && stype !== "continue") {
+      this.checkExpr(stmt as Expression);
+    }
+  }
+
+  walkStmts(stmts: Statement[]): void {
+    for (let i = 0; i < stmts.length; i++) this.walkStmt(stmts[i]);
+  }
+
+  walkBlk(block: BlockStatement): void {
+    this.walkStmts(block.statements);
   }
 }
 
-function argWalkStmts(stmts: Statement[]): void {
-  for (let i = 0; i < stmts.length; i++) argWalkStmt(stmts[i]);
-}
-
-function argWalkBlk(block: BlockStatement): void {
-  argWalkStmts(block.statements);
-}
-
-function argCountParams(fn: FunctionNode): { min: number; max: number } {
-  if (!fn.parameters) return { min: fn.params.length, max: fn.params.length };
+function argCountMin(fn: FunctionNode): number {
+  if (!fn.parameters) return fn.params.length;
   let min = 0;
-  const max = fn.parameters.length;
   for (let i = 0; i < fn.parameters.length; i++) {
     if (!fn.parameters[i].optional && !fn.parameters[i].defaultValue) min++;
     else break;
   }
-  return { min, max };
+  return min;
+}
+
+function argHasRest(fn: FunctionNode): boolean {
+  for (let i = 0; i < fn.params.length; i++) {
+    if (fn.params[i].indexOf("...") === 0) return true;
+  }
+  if (fn.parameters) {
+    for (let i = 0; i < fn.parameters.length; i++) {
+      if (fn.parameters[i].name.indexOf("...") === 0) return true;
+    }
+  }
+  return false;
+}
+
+function argCountMax(fn: FunctionNode): number {
+  if (!fn.parameters) return fn.params.length;
+  return fn.parameters.length;
 }
 
 export function checkArgumentCounts(ast: AST, sourceCode: string): void {
-  argNames = [];
-  argMins = [];
-  argMaxes = [];
-  argAliasNames = ast.importAliasNames ? ast.importAliasNames : [];
-  argAliasOriginals = ast.importAliasOriginals ? ast.importAliasOriginals : [];
-  argSrc = sourceCode;
+  const state = new ArgCheckState();
+  state.src = sourceCode;
+  if (ast.importAliasNames) state.aliasNames = ast.importAliasNames;
+  if (ast.importAliasOriginals) state.aliasOriginals = ast.importAliasOriginals;
 
   for (let i = 0; i < ast.functions.length; i++) {
     const fn = ast.functions[i];
-    const existing = argLookup(fn.name);
-    if (existing >= 0) {
-      argNames.splice(existing, 1);
-      argMins.splice(existing, 1);
-      argMaxes.splice(existing, 1);
+    if (state.lookup(fn.name) >= 0) {
+      state.dupNames.push(fn.name);
       continue;
     }
-    const counts = argCountParams(fn);
-    argNames.push(fn.name);
-    argMins.push(counts.min);
-    argMaxes.push(counts.max);
+    if (argHasRest(fn)) continue;
+    state.names.push(fn.name);
+    state.mins.push(argCountMin(fn));
+    state.maxes.push(argCountMax(fn));
   }
 
   const items = ast.topLevelItems;
-  if (items) argWalkStmts(items as Statement[]);
-  for (let i = 0; i < ast.functions.length; i++) argWalkBlk(ast.functions[i].body);
+  if (items) state.walkStmts(items as Statement[]);
+  for (let i = 0; i < ast.functions.length; i++) state.walkBlk(ast.functions[i].body);
   for (let i = 0; i < ast.classes.length; i++) {
     const cls = ast.classes[i];
-    for (let j = 0; j < cls.methods.length; j++) argWalkBlk(cls.methods[j].body);
+    for (let j = 0; j < cls.methods.length; j++) state.walkBlk(cls.methods[j].body);
   }
+}
+
+function mrSkipReturnType(rt: string): boolean {
+  if (rt === "void") return true;
+  if (rt === "never") return true;
+  if (rt.indexOf("Promise") === 0) return true;
+  return false;
 }
 
 export function checkMissingReturns(ast: AST, sourceCode: string): void {
   const nn: string[] = ["process.exit"];
+  const fnNames: string[] = [];
+  const fnBodies: BlockStatement[] = [];
+  const fnLocs: (SourceLocation | undefined)[] = [];
+
   for (let i = 0; i < ast.functions.length; i++) {
-    if (ast.functions[i].returnType === "never") nn.push(ast.functions[i].name);
+    const fn = ast.functions[i];
+    if (fn.returnType === "never") nn.push(fn.name);
   }
   for (let i = 0; i < ast.classes.length; i++) {
     const cls = ast.classes[i];
@@ -502,15 +543,22 @@ export function checkMissingReturns(ast: AST, sourceCode: string): void {
   for (let i = 0; i < ast.functions.length; i++) {
     const fn = ast.functions[i];
     if (fn.declare) continue;
-    if (!fn.returnType || fn.returnType === "void" || fn.returnType === "never") continue;
     if (fn.async) continue;
-    if (fn.returnType.indexOf("Promise") === 0) continue;
-    if (!mrAllReturn(fn.body.statements, nn)) {
+    const rt = fn.returnType;
+    if (!rt || rt.length === 0) continue;
+    if (mrSkipReturnType(rt)) continue;
+    fnNames.push(fn.name);
+    fnBodies.push(fn.body);
+    fnLocs.push(fn.loc);
+  }
+
+  for (let i = 0; i < fnNames.length; i++) {
+    if (!mrAllReturn(fnBodies[i].statements, nn)) {
       process.stderr.write(
         formatCompileError(
           sourceCode,
-          "function '" + fn.name + "' does not return a value on all code paths",
-          fn.loc,
+          "function '" + fnNames[i] + "' does not return a value on all code paths",
+          fnLocs[i],
           "add a return statement to all branches",
           [],
         ),
@@ -518,13 +566,15 @@ export function checkMissingReturns(ast: AST, sourceCode: string): void {
       process.exit(1);
     }
   }
+
   for (let i = 0; i < ast.classes.length; i++) {
     const cls = ast.classes[i];
     for (let j = 0; j < cls.methods.length; j++) {
       const method = cls.methods[j];
       if (method.isConstructor) continue;
-      if (!method.returnType || method.returnType === "void" || method.returnType === "never")
-        continue;
+      const mrt = method.returnType;
+      if (!mrt) continue;
+      if (mrSkipReturnType(mrt)) continue;
       if (!mrAllReturn(method.body.statements, nn)) {
         process.stderr.write(
           formatCompileError(
