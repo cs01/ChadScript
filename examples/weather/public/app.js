@@ -543,13 +543,15 @@ zipInput.addEventListener("input", function () {
       "https://nominatim.openstreetmap.org/search?q=" +
       encodeURIComponent(q) +
       "&countrycodes=us&format=json&limit=5&addressdetails=1";
-    fetch(url)
+    fetch(url, { headers: { Accept: "application/json" } })
       .then(function (r) {
         return r.json();
       })
-      .then(showSuggestions)
+      .then(function (data) {
+        if (zipInput.value.trim() === q) showSuggestions(data);
+      })
       .catch(function () {});
-  }, 300);
+  }, 400);
 });
 
 zipInput.addEventListener("keydown", function (e) {
@@ -589,6 +591,17 @@ var urlZip = params.get("zip");
 if (urlZip) {
   zipInput.value = urlZip;
   geocodeAndFetch(urlZip);
+} else if (navigator.geolocation) {
+  heroEl.innerHTML = '<div class="loading">Getting location...</div>';
+  navigator.geolocation.getCurrentPosition(
+    function (pos) {
+      fetchWeather(pos.coords.latitude.toFixed(4), pos.coords.longitude.toFixed(4), null);
+    },
+    function () {
+      fetchWeather(defaultLat, defaultLon, defaultCity);
+    },
+    { timeout: 5000 },
+  );
 } else {
   fetchWeather(defaultLat, defaultLon, defaultCity);
 }
