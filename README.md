@@ -20,35 +20,38 @@ No dependencies — everything is bundled in the compiler.
 
 ---
 
-## Example: Web app in a single binary
+## Example: JSON API in 20 lines
 
 ```typescript
 import { httpServe, Router, Context } from "chadscript/http";
 
-ChadScript.embedDir("./public"); // HTML/CSS/JS baked into the binary at compile time
-
-const db = sqlite.open("app.db");
-sqlite.exec(db, "CREATE TABLE IF NOT EXISTS visits (path TEXT, ts INTEGER)");
-
 const app: Router = new Router();
 
-app.get("/api/stats", (c: Context) => {
-  const rows = sqlite.query(db, "SELECT path, COUNT(*) as n FROM visits GROUP BY path");
-  return c.json(rows);
+app.get("/", (c: Context) => {
+  return c.json({ name: "ChadScript API", version: "1.0.0" });
 });
 
-function handleRequest(req: HttpRequest): HttpResponse {
-  sqlite.exec(db, "INSERT INTO visits VALUES (?, ?)", [req.path, "" + Date.now()]);
-  if (req.path === "/") return ChadScript.serveEmbedded("index.html");
-  const res = app.handle(req);
-  if (res.status !== 404) return res;
-  return ChadScript.serveEmbedded(req.path);
-}
+app.get("/users/:id", (c: Context) => {
+  const id = c.req.param("id");
+  return c.json({ id, name: "User " + id });
+});
 
-httpServe(3000, handleRequest);
+app.post("/echo", (c: Context) => {
+  return c.text(c.req.body);
+});
+
+app.notFound((c: Context) => {
+  return c.status(404).json({ error: "not found" });
+});
+
+httpServe(3000, (req: HttpRequest) => app.handle(req));
 ```
 
-One binary. No node_modules. Starts in under 2ms. See [`examples/`](examples/) for more: [weather app](examples/weather/), [WebSocket chat](examples/websocket/), SQLite, and more.
+```bash
+chad build app.ts && ./app   # compiles in ~0.3s, starts in <2ms
+```
+
+One binary. No node_modules. Express-style routing. See [`examples/`](examples/) for more: [weather app](examples/weather/), [Hacker News clone](examples/hackernews/), [WebSocket chat](examples/websocket/), SQLite, and more.
 
 ---
 
