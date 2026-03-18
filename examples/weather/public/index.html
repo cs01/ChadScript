@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Weather</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1><span>Weather</span></h1>
+      <p>Single-binary weather app &mdash; compiled with ChadScript</p>
+    </header>
+    <div class="search-bar">
+      <input type="text" id="zip" placeholder="Enter US ZIP code" maxlength="10">
+      <button id="search">Search</button>
+    </div>
+    <div id="error"></div>
+    <div class="location-name" id="location"></div>
+    <div id="current"></div>
+    <div class="forecast-grid" id="forecast"></div>
+    <div class="powered-by">Data from <a href="https://www.weather.gov" target="_blank">weather.gov</a></div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
