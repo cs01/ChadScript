@@ -5,8 +5,8 @@ var zipInput = document.getElementById("zip");
 var searchBtn = document.getElementById("search");
 var errorEl = document.getElementById("error");
 
-var defaultLat = "37.7749";
-var defaultLon = "-122.4194";
+var defaultLat = "37.7793";
+var defaultLon = "-122.4193";
 
 function fetchWeather(lat, lon) {
   locationEl.textContent = "";
@@ -15,22 +15,28 @@ function fetchWeather(lat, lon) {
   errorEl.textContent = "";
   searchBtn.disabled = true;
 
-  fetch("/api/weather/" + lat + "/" + lon)
+  fetch("https://api.weather.gov/points/" + lat + "," + lon)
     .then(function (res) {
+      if (!res.ok) throw new Error("Location not found");
       return res.json();
     })
-    .then(function (raw) {
-      searchBtn.disabled = false;
-      var data = typeof raw === "string" ? JSON.parse(raw) : raw;
-      if (data.error) {
-        showError(data.error);
-        return;
-      }
-      renderWeather(data);
+    .then(function (points) {
+      var props = points.properties;
+      var loc = props.relativeLocation.properties;
+      locationEl.innerHTML = "<strong>" + loc.city + "</strong>, " + loc.state;
+      return fetch(props.forecast);
     })
-    .catch(function (err) {
+    .then(function (res) {
+      if (!res.ok) throw new Error("Forecast unavailable");
+      return res.json();
+    })
+    .then(function (forecast) {
       searchBtn.disabled = false;
-      showError("Failed to fetch weather data");
+      renderWeather(forecast.properties.periods);
+    })
+    .catch(function () {
+      searchBtn.disabled = false;
+      showError("Could not load weather data for this location");
     });
 }
 
@@ -40,14 +46,21 @@ function geocodeAndFetch(zip) {
   forecastEl.innerHTML = "";
   searchBtn.disabled = true;
 
-  fetch("/api/geocode/" + encodeURIComponent(zip))
+  var url =
+    "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=" +
+    encodeURIComponent(zip + ", USA") +
+    "&benchmark=Public_AR_Current&format=json";
+
+  fetch(url)
     .then(function (res) {
-      if (!res.ok) throw new Error("not found");
+      if (!res.ok) throw new Error("Geocoding failed");
       return res.json();
     })
-    .then(function (raw) {
-      var coords = typeof raw === "string" ? JSON.parse(raw) : raw;
-      fetchWeather("" + coords.lat, "" + coords.lon);
+    .then(function (data) {
+      var matches = data.result.addressMatches;
+      if (!matches || matches.length === 0) throw new Error("No match");
+      var coords = matches[0].coordinates;
+      fetchWeather("" + coords.y, "" + coords.x);
     })
     .catch(function () {
       searchBtn.disabled = false;
@@ -61,9 +74,7 @@ function showError(msg) {
   errorEl.innerHTML = '<div class="error-msg">' + msg + "</div>";
 }
 
-function renderWeather(data) {
-  locationEl.innerHTML = "<strong>" + data.city + "</strong>, " + data.state;
-  var periods = data.periods;
+function renderWeather(periods) {
   if (!periods || periods.length === 0) {
     showError("No forecast data available");
     return;
