@@ -20,7 +20,7 @@ No dependencies — everything is bundled in the compiler.
 
 ---
 
-## Example: JSON API in 20 lines
+## Example: API server
 
 ```typescript
 import { httpServe, Router, Context } from "chadscript/http";
@@ -28,20 +28,32 @@ import { httpServe, Router, Context } from "chadscript/http";
 const app: Router = new Router();
 
 app.get("/", (c: Context) => {
-  return c.json({ name: "ChadScript API", version: "1.0.0" });
+  return c.html(`<html><body style="font-family:system-ui;max-width:600px;margin:40px auto">
+    <h1>ChadScript API</h1>
+    <p>A native binary serving this page. Try the endpoints:</p>
+    <ul>
+      <li><a href="/users/42">/users/42</a> — get user by ID</li>
+      <li><a href="/users/alice/posts/7">/users/alice/posts/7</a> — nested params</li>
+      <li><a href="/json">/json</a> — JSON response</li>
+    </ul>
+    <p><code>curl -X POST -d 'hello' localhost:3000/echo</code></p>
+  </body></html>`);
+});
+
+app.get("/json", (c: Context) => {
+  return c.json({ name: "ChadScript", compiled: true });
 });
 
 app.get("/users/:id", (c: Context) => {
-  const id = c.req.param("id");
-  return c.json({ id, name: "User " + id });
+  return c.json({ id: c.req.param("id") });
+});
+
+app.get("/users/:name/posts/:pid", (c: Context) => {
+  return c.json({ user: c.req.param("name"), post: c.req.param("pid") });
 });
 
 app.post("/echo", (c: Context) => {
   return c.text(c.req.body);
-});
-
-app.notFound((c: Context) => {
-  return c.status(404).json({ error: "not found" });
 });
 
 httpServe(3000, (req: HttpRequest) => app.handle(req));
