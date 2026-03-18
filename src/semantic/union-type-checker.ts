@@ -65,6 +65,34 @@ function reportUnionError(
   process.exit(1);
 }
 
+function reportFieldUnionError(
+  sourceCode: string,
+  context: string,
+  fieldName: string,
+  aliasName: string,
+  loc: SourceLocation | undefined,
+): void {
+  const output = formatCompileError(
+    sourceCode,
+    "in " +
+      context +
+      ", field '" +
+      fieldName +
+      "' has type '" +
+      aliasName +
+      "' which is a union type alias with mixed representations",
+    loc,
+    "use a common base interface or separate the types",
+    [
+      "'" +
+        aliasName +
+        "' is a type alias for a union whose members have different native types (e.g., i8* vs double)",
+    ],
+  );
+  process.stderr.write(output);
+  process.exit(1);
+}
+
 export function checkUnionTypes(ast: AST, sourceCode: string): void {
   const unsafeAliases = buildUnsafeAliases(ast);
 
@@ -93,6 +121,35 @@ export function checkUnionTypes(ast: AST, sourceCode: string): void {
         if (isUnsafeAlias(unsafeAliases, paramTypes[j])) {
           reportUnionError(sourceCode, qualName, paramTypes[j], locHolder.loc);
         }
+      }
+    }
+    for (let k = 0; k < cls.fields.length; k++) {
+      const field = cls.fields[k];
+      if (field.tsType && isUnsafeAlias(unsafeAliases, field.tsType)) {
+        const locHolder = cls as { loc?: SourceLocation };
+        reportFieldUnionError(
+          sourceCode,
+          "class '" + cls.name + "'",
+          field.name,
+          field.tsType,
+          locHolder.loc,
+        );
+      }
+    }
+  }
+
+  for (let i = 0; i < ast.interfaces.length; i++) {
+    const iface = ast.interfaces[i];
+    for (let j = 0; j < iface.fields.length; j++) {
+      const field = iface.fields[j];
+      if (isUnsafeAlias(unsafeAliases, field.type)) {
+        reportFieldUnionError(
+          sourceCode,
+          "interface '" + iface.name + "'",
+          field.name,
+          field.type,
+          undefined,
+        );
       }
     }
   }
