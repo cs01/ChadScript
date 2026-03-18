@@ -488,16 +488,96 @@ function render(city, forecast, hourlyData, grid) {
   dashEl.innerHTML = cards;
 }
 
-searchBtn.addEventListener("click", function () {
+// Typeahead
+var sugEl = document.getElementById("suggestions");
+var locateBtn = document.getElementById("locate");
+var searchTimer = null;
+
+function doSearch() {
+  sugEl.innerHTML = "";
+  sugEl.classList.remove("active");
   var z = zipInput.value.trim();
   if (z) geocodeAndFetch(z);
+}
+
+function showSuggestions(results) {
+  sugEl.innerHTML = "";
+  if (!results || results.length === 0) {
+    sugEl.classList.remove("active");
+    return;
+  }
+  for (var i = 0; i < Math.min(results.length, 5); i++) {
+    var r = results[i];
+    var div = document.createElement("div");
+    div.className = "suggestion-item";
+    div.textContent = r.display_name.split(",").slice(0, 3).join(",");
+    div.setAttribute("data-lat", r.lat);
+    div.setAttribute("data-lon", r.lon);
+    div.setAttribute("data-name", r.display_name.split(",")[0].trim());
+    div.addEventListener("click", function () {
+      var lat = this.getAttribute("data-lat");
+      var lon = this.getAttribute("data-lon");
+      var name = this.getAttribute("data-name");
+      zipInput.value = name;
+      sugEl.classList.remove("active");
+      fetchWeather(lat, lon, name);
+    });
+    sugEl.appendChild(div);
+  }
+  sugEl.classList.add("active");
+}
+
+zipInput.addEventListener("input", function () {
+  clearTimeout(searchTimer);
+  var q = zipInput.value.trim();
+  if (q.length < 2) {
+    sugEl.classList.remove("active");
+    return;
+  }
+  searchTimer = setTimeout(function () {
+    var url =
+      "https://nominatim.openstreetmap.org/search?q=" +
+      encodeURIComponent(q) +
+      "&countrycodes=us&format=json&limit=5&addressdetails=1";
+    fetch(url)
+      .then(function (r) {
+        return r.json();
+      })
+      .then(showSuggestions)
+      .catch(function () {});
+  }, 300);
 });
 
 zipInput.addEventListener("keydown", function (e) {
   if (e.key === "Enter") {
-    var z = zipInput.value.trim();
-    if (z) geocodeAndFetch(z);
+    e.preventDefault();
+    doSearch();
   }
+});
+
+document.addEventListener("click", function (e) {
+  if (!e.target.closest(".search-wrap")) sugEl.classList.remove("active");
+});
+
+searchBtn.addEventListener("click", doSearch);
+
+// Geolocation
+locateBtn.addEventListener("click", function () {
+  if (!navigator.geolocation) {
+    showError("Geolocation not supported");
+    return;
+  }
+  heroEl.innerHTML = '<div class="loading">Getting location...</div>';
+  navigator.geolocation.getCurrentPosition(
+    function (pos) {
+      var lat = pos.coords.latitude.toFixed(4);
+      var lon = pos.coords.longitude.toFixed(4);
+      fetchWeather(lat, lon, null);
+    },
+    function () {
+      showError("Could not get your location. Try searching instead.");
+    },
+  );
 });
 
 var params = new URLSearchParams(window.location.search);

@@ -9,7 +9,11 @@
   <body>
     <div class="container">
       <div class="search-bar">
-        <input type="text" id="zip" placeholder="Enter US ZIP code" maxlength="10" />
+        <button class="locate-btn" id="locate" title="Use my location">&#x1F4CD;</button>
+        <div class="search-wrap">
+          <input type="text" id="zip" placeholder="City or ZIP code" autocomplete="off" />
+          <div class="suggestions" id="suggestions"></div>
+        </div>
         <button id="search">Search</button>
       </div>
       <div id="error"></div>

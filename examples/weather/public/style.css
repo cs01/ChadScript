@@ -25,17 +25,74 @@ body {
 }
 
 .search-bar input {
-  width: 160px;
-  padding: 0.7rem 1rem;
+  width: 260px;
+  padding: 0.85rem 1.1rem;
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 10px;
   color: #fff;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   text-align: center;
-  letter-spacing: 0.05em;
   outline: none;
+}
+
+.search-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: rgba(30, 41, 59, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  overflow: hidden;
+  z-index: 10;
+  display: none;
+}
+
+.suggestions.active {
+  display: block;
+}
+
+.suggestion-item {
+  padding: 0.6rem 1rem;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  text-align: left;
+}
+
+.suggestion-item:last-child {
+  border-bottom: none;
+}
+
+.suggestion-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.locate-btn {
+  padding: 0.85rem;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  color: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  font-size: 1.1rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.locate-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
 }
 
 .search-bar input::placeholder {
