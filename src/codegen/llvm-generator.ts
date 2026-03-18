@@ -158,7 +158,11 @@ import { analyzeEscapes } from "../semantic/escape-analysis.js";
 // binary-type-checker.ts: original top-level-only checker kept for reference; deep version is in safety-checks.ts
 import { checkEnumDeclarations } from "../semantic/enum-checker.js";
 import { checkAsyncAwait } from "../semantic/async-await-checker.js";
-import { checkBinaryTypesDeep } from "../semantic/safety-checks.js";
+import {
+  checkBinaryTypesDeep,
+  checkMissingReturns,
+  checkArgumentCounts,
+} from "../semantic/safety-checks.js";
 import { DebugMetadataBuilder } from "./infrastructure/debug-metadata.js";
 
 export interface SemaSymbolData {
@@ -2671,6 +2675,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     checkTypeAssertions(this.ast, this.sourceCode);
     checkUninitializedFields(this.ast, this.sourceCode);
     checkBinaryTypesDeep(this.ast, this.sourceCode);
+    checkMissingReturns(this.ast, this.sourceCode);
+    checkArgumentCounts(this.ast, this.sourceCode);
     checkAsyncAwait(this.ast, this.sourceCode);
     this.stackEligibleVars = analyzeEscapes(this.ast);
 

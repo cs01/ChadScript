@@ -20,6 +20,8 @@ import type {
   UnaryNode,
   ConditionalExpressionNode,
   MethodCallNode,
+  FunctionNode,
+  SourceLocation,
 } from "../ast/types.js";
 import { formatCompileError } from "../diagnostics/engine.js";
 
@@ -285,6 +287,203 @@ export function checkBinaryTypesDeep(ast: AST, sourceCode: string): void {
   for (let i = 0; i < ast.classes.length; i++) {
     const cls = ast.classes[i];
     for (let j = 0; j < cls.methods.length; j++) binWalkBlk(cls.methods[j].body, sourceCode);
+  }
+}
+
+// --- Argument count checker ---
+// Module-level vars to avoid 5+ param functions (native compiler infinite loop workaround)
+
+let argNames: string[] = [];
+let argMins: number[] = [];
+let argMaxes: number[] = [];
+let argAliasNames: string[] = [];
+let argAliasOriginals: string[] = [];
+let argSrc: string = "";
+
+function argResolveName(name: string): string {
+  for (let i = 0; i < argAliasNames.length; i++) {
+    if (argAliasNames[i] === name) return argAliasOriginals[i];
+  }
+  return name;
+}
+
+function argLookup(name: string): number {
+  for (let i = 0; i < argNames.length; i++) {
+    if (argNames[i] === name) return i;
+  }
+  return -1;
+}
+
+function argCheckCall(name: string, argCount: number, loc: SourceLocation | undefined): void {
+  const resolved = argResolveName(name);
+  const idx = argLookup(resolved);
+  if (idx < 0) return;
+  const min = argMins[idx];
+  const max = argMaxes[idx];
+  if (argCount < min) {
+    process.stderr.write(
+      formatCompileError(
+        argSrc,
+        "function '" + name + "' expects at least " + min + " argument(s) but got " + argCount,
+        loc as SourceLocation | undefined,
+        "check the function signature",
+        [],
+      ),
+    );
+    process.exit(1);
+  }
+  if (argCount > max) {
+    process.stderr.write(
+      formatCompileError(
+        argSrc,
+        "function '" + name + "' expects at most " + max + " argument(s) but got " + argCount,
+        loc as SourceLocation | undefined,
+        "check the function signature",
+        [],
+      ),
+    );
+    process.exit(1);
+  }
+}
+
+function argCheckExpr(expr: Expression): void {
+  if (!expr) return;
+  if (expr.type === "call") {
+    const c = expr as CallNode;
+    argCheckCall(c.name, c.args.length, c.loc);
+    for (let i = 0; i < c.args.length; i++) argCheckExpr(c.args[i]);
+  } else if (expr.type === "binary") {
+    const b = expr as BinaryNode;
+    argCheckExpr(b.left);
+    argCheckExpr(b.right);
+  } else if (expr.type === "unary") {
+    argCheckExpr((expr as UnaryNode).operand);
+  } else if (expr.type === "conditional") {
+    const c = expr as ConditionalExpressionNode;
+    argCheckExpr(c.condition);
+    argCheckExpr(c.consequent);
+    argCheckExpr(c.alternate);
+  } else if (expr.type === "method_call") {
+    const mc = expr as MethodCallNode;
+    if (mc.object) argCheckExpr(mc.object);
+    for (let i = 0; i < mc.args.length; i++) argCheckExpr(mc.args[i]);
+  }
+}
+
+function argWalkStmt(stmt: Statement): void {
+  const stype = (stmt as { type: string }).type;
+  if (stype === "variable_declaration") {
+    const d = stmt as VariableDeclaration;
+    if (d.value) argCheckExpr(d.value as Expression);
+  } else if (stype === "assignment") {
+    argCheckExpr((stmt as AssignmentStatement).value);
+  } else if (stype === "if") {
+    const i = stmt as IfStatement;
+    argCheckExpr(i.condition);
+    argWalkBlk(i.thenBlock);
+    if (i.elseBlock) argWalkBlk(i.elseBlock);
+  } else if (stype === "while") {
+    const w = stmt as WhileStatement;
+    argCheckExpr(w.condition);
+    argWalkBlk(w.body);
+  } else if (stype === "do_while") {
+    const d = stmt as DoWhileStatement;
+    argWalkBlk(d.body);
+    argCheckExpr(d.condition);
+  } else if (stype === "for") {
+    const f = stmt as ForStatement;
+    if (f.init) argWalkStmt(f.init as Statement);
+    if (f.condition) argCheckExpr(f.condition);
+    if (f.update) {
+      if ((f.update as { type: string }).type === "assignment") argWalkStmt(f.update as Statement);
+      else argCheckExpr(f.update as Expression);
+    }
+    argWalkBlk(f.body);
+  } else if (stype === "for_of") {
+    const fo = stmt as ForOfStatement;
+    argCheckExpr(fo.iterable);
+    argWalkBlk(fo.body);
+  } else if (stype === "try") {
+    const t = stmt as TryStatement;
+    argWalkBlk(t.tryBlock);
+    if (t.catchBody) argWalkBlk(t.catchBody);
+    if (t.finallyBlock) argWalkBlk(t.finallyBlock);
+  } else if (stype === "switch") {
+    const sw = stmt as SwitchStatement;
+    argCheckExpr(sw.discriminant);
+    for (let ci = 0; ci < sw.cases.length; ci++) {
+      const c = sw.cases[ci];
+      if (c.test) argCheckExpr(c.test as Expression);
+      argWalkStmts(c.consequent);
+    }
+  } else if (stype === "return") {
+    const r = stmt as ReturnStatement;
+    if (r.value) argCheckExpr(r.value as Expression);
+  } else if (stype === "throw") {
+    argCheckExpr((stmt as ThrowStatement).argument);
+  } else if (stype === "block") {
+    argWalkBlk(stmt as BlockStatement);
+  } else if (stype === "call") {
+    const c = stmt as unknown as CallNode;
+    argCheckCall(c.name, c.args.length, c.loc);
+    for (let i = 0; i < c.args.length; i++) argCheckExpr(c.args[i]);
+  } else if (stype === "method_call") {
+    const mc = stmt as unknown as MethodCallNode;
+    if (mc.object) argCheckExpr(mc.object);
+    for (let i = 0; i < mc.args.length; i++) argCheckExpr(mc.args[i]);
+  } else if (stype !== "break" && stype !== "continue") {
+    argCheckExpr(stmt as Expression);
+  }
+}
+
+function argWalkStmts(stmts: Statement[]): void {
+  for (let i = 0; i < stmts.length; i++) argWalkStmt(stmts[i]);
+}
+
+function argWalkBlk(block: BlockStatement): void {
+  argWalkStmts(block.statements);
+}
+
+function argCountParams(fn: FunctionNode): { min: number; max: number } {
+  if (!fn.parameters) return { min: fn.params.length, max: fn.params.length };
+  let min = 0;
+  const max = fn.parameters.length;
+  for (let i = 0; i < fn.parameters.length; i++) {
+    if (!fn.parameters[i].optional && !fn.parameters[i].defaultValue) min++;
+    else break;
+  }
+  return { min, max };
+}
+
+export function checkArgumentCounts(ast: AST, sourceCode: string): void {
+  argNames = [];
+  argMins = [];
+  argMaxes = [];
+  argAliasNames = ast.importAliasNames ? ast.importAliasNames : [];
+  argAliasOriginals = ast.importAliasOriginals ? ast.importAliasOriginals : [];
+  argSrc = sourceCode;
+
+  for (let i = 0; i < ast.functions.length; i++) {
+    const fn = ast.functions[i];
+    const existing = argLookup(fn.name);
+    if (existing >= 0) {
+      argNames.splice(existing, 1);
+      argMins.splice(existing, 1);
+      argMaxes.splice(existing, 1);
+      continue;
+    }
+    const counts = argCountParams(fn);
+    argNames.push(fn.name);
+    argMins.push(counts.min);
+    argMaxes.push(counts.max);
+  }
+
+  const items = ast.topLevelItems;
+  if (items) argWalkStmts(items as Statement[]);
+  for (let i = 0; i < ast.functions.length; i++) argWalkBlk(ast.functions[i].body);
+  for (let i = 0; i < ast.classes.length; i++) {
+    const cls = ast.classes[i];
+    for (let j = 0; j < cls.methods.length; j++) argWalkBlk(cls.methods[j].body);
   }
 }
 
