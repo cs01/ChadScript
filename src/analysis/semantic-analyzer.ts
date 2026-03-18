@@ -955,6 +955,15 @@ export class SemanticAnalyzer {
           }
         }
       }
+      if (t === "try") {
+        const tryStmt = stmt as TryStatement;
+        if (
+          this.blockAlwaysReturns(tryStmt.tryBlock) &&
+          (!tryStmt.catchBody || this.blockAlwaysReturns(tryStmt.catchBody))
+        ) {
+          return true;
+        }
+      }
     }
     return false;
   }
