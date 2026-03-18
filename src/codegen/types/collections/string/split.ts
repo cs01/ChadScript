@@ -50,6 +50,10 @@ export function generateSplit(ctx: IGeneratorContext, strPtr: string, delimiter:
   const emptyDataMem = ctx.emitCall("i8*", "@GC_malloc", `i64 ${emptyDataSizeI64}`);
   const emptyDataPtr = ctx.emitBitcast(emptyDataMem, "i8*", "i8**");
 
+  const charBufSize = ctx.nextTemp();
+  ctx.emit(`${charBufSize} = mul i64 ${strLenI64}, 2`);
+  const charBuf = ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${charBufSize}`);
+
   const emptyLoopLabel = ctx.nextLabel("split_empty_loop");
   const emptyLoopBodyLabel = ctx.nextLabel("split_empty_body");
   const emptyLoopEndLabel = ctx.nextLabel("split_empty_end");
@@ -63,10 +67,13 @@ export function generateSplit(ctx: IGeneratorContext, strPtr: string, delimiter:
   ctx.emitBrCond(emptyLoopCond, emptyLoopBodyLabel, emptyLoopEndLabel);
 
   ctx.emitLabel(emptyLoopBodyLabel);
-  const charStr = ctx.emitCall("i8*", "@cs_arena_alloc", "i64 2");
-
   const charIdx = ctx.nextTemp();
   ctx.emit(`${charIdx} = sext i32 ${emptyCounterVal} to i64`);
+  const charBufOffset = ctx.nextTemp();
+  ctx.emit(`${charBufOffset} = mul i64 ${charIdx}, 2`);
+  const charStr = ctx.nextTemp();
+  ctx.emit(`${charStr} = getelementptr inbounds i8, i8* ${charBuf}, i64 ${charBufOffset}`);
+
   const charPtr = ctx.nextTemp();
   ctx.emit(`${charPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${charIdx}`);
   const charVal = ctx.nextTemp();
