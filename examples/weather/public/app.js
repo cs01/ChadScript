@@ -153,14 +153,24 @@ function render(city, forecast, hourlyData, grid) {
   var hi = now.isDaytime ? now.temperature : tonight ? periods[2].temperature : now.temperature;
   var lo = tonight ? tonight.temperature : now.temperature;
 
+  var hrs = hourlyData.properties.periods;
+  var currentTemp = hrs.length > 0 ? hrs[0].temperature : now.temperature;
+
+  var feelsLike = getGridVal(grid, "apparentTemperature");
+  var feelsHtml =
+    feelsLike !== null
+      ? '<div class="hero-feels">Feels Like: ' + cToF(feelsLike) + "\u00B0</div>"
+      : "";
+
   heroEl.innerHTML =
     '<div class="hero-section">' +
     '<div class="hero-city">' +
     city +
     "</div>" +
     '<div class="hero-temp">' +
-    now.temperature +
+    currentTemp +
     "\u00B0</div>" +
+    feelsHtml +
     '<div class="hero-condition">' +
     now.shortForecast +
     "</div>" +
@@ -172,7 +182,6 @@ function render(city, forecast, hourlyData, grid) {
     "</div>";
 
   // Hourly
-  var hrs = hourlyData.properties.periods;
   var hHtml =
     '<div class="hourly-card glass"><div class="hourly-label">' +
     now.detailedForecast.substring(0, 80) +
@@ -250,7 +259,6 @@ function render(city, forecast, hourlyData, grid) {
   dailyEl.innerHTML = dHtml;
 
   // Dashboard cards
-  var feelsLike = getGridVal(grid, "apparentTemperature");
   var humidity = getGridVal(grid, "relativeHumidity");
   var dewpoint = getGridVal(grid, "dewpoint");
   var visibility = getGridVal(grid, "visibility");
@@ -265,15 +273,6 @@ function render(city, forecast, hourlyData, grid) {
     '<div class="dash-detail">' +
     now.windDirection +
     "</div></div>";
-
-  if (feelsLike !== null) {
-    cards +=
-      '<div class="dash-card glass"><div class="dash-title">\uD83C\uDF21\uFE0F Feels Like</div>' +
-      '<div class="dash-value">' +
-      cToF(feelsLike) +
-      "\u00B0</div>" +
-      '<div class="dash-detail">Based on humidity and wind</div></div>';
-  }
 
   if (humidity !== null) {
     cards +=
