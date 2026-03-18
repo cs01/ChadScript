@@ -327,11 +327,33 @@ export class ControlFlowGenerator {
           return this.ctx.emitError("Variable declaration in for loop must have an initializer");
         }
         const value = this.ctx.generateExpression(initVarDecl.value, params);
-        const dblValue = this.ctx.ensureDouble(value);
+        const valueType = this.ctx.getVariableType(value) || "double";
+        const eligible = this.ctx.getI64EligibleVars();
+        let useI64 = false;
+        for (let ei = 0; ei < eligible.length; ei++) {
+          if (eligible[ei] === initVarDecl.name) {
+            useI64 = true;
+            break;
+          }
+        }
         const allocaReg = this.ctx.nextAllocaReg(initVarDecl.name);
-        this.ctx.defineVariable(initVarDecl.name, allocaReg, "double", SymbolKind_Number, "local");
-        this.emit(`${allocaReg} = alloca double`);
-        this.ctx.emitStore("double", dblValue, allocaReg);
+        if (useI64 && (valueType === "i64" || valueType === "double")) {
+          const i64Val = valueType === "double" ? this.ctx.ensureI64(value) : value;
+          this.ctx.defineVariable(initVarDecl.name, allocaReg, "i64", SymbolKind_Number, "local");
+          this.emit(`${allocaReg} = alloca i64`);
+          this.ctx.emitStore("i64", i64Val, allocaReg);
+        } else {
+          const dblValue = this.ctx.ensureDouble(value);
+          this.ctx.defineVariable(
+            initVarDecl.name,
+            allocaReg,
+            "double",
+            SymbolKind_Number,
+            "local",
+          );
+          this.emit(`${allocaReg} = alloca double`);
+          this.ctx.emitStore("double", dblValue, allocaReg);
+        }
       } else if (initBase.type === "assignment") {
         const initAssign = forStmt.init as AssignmentStatement;
         let value = this.ctx.generateExpression(initAssign.value, params);

@@ -954,6 +954,7 @@ export interface IGeneratorContext {
 
   ensureDouble(value: string): string;
   ensureI64(value: string): string;
+  getI64EligibleVars(): string[];
 
   /**
    * Env pointer for the last inline lambda that had captures.
@@ -2125,6 +2126,10 @@ export class MockGeneratorContext implements IGeneratorContext {
       return temp;
     }
     return value;
+  }
+
+  getI64EligibleVars(): string[] {
+    return [];
   }
 
   ensureI64(value: string): string {
