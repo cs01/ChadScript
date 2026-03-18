@@ -63,7 +63,7 @@ httpServe(3000, (req: HttpRequest) => app.handle(req));
 chad build app.ts && ./app   # compiles in ~0.3s, starts in <2ms
 ```
 
-One binary. No node_modules. No `Cargo.toml`. Express-style routing with C-level performance. See [`examples/`](examples/) for more: [weather app](examples/weather/) (in production at [chadsmith.dev/weather](https://chadsmith.dev/weather)), [Hacker News clone](examples/hackernews/), [WebSocket chat](examples/websocket/), SQLite, and more.
+Hono-style API, C-level performance. One binary, no node_modules. See [`examples/`](examples/) for more: [weather app](examples/weather/) (in production at [chadsmith.dev/weather](https://chadsmith.dev/weather)), [Hacker News clone](examples/hackernews/), [WebSocket chat](examples/websocket/), SQLite, and more.
 
 ---
 
