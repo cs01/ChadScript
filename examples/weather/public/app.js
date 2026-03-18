@@ -152,13 +152,12 @@ function dirToDeg(dir) {
   return dirs[dir] !== undefined ? dirs[dir] : 0;
 }
 
-function windCompassSvg(dir, speed) {
+function windCompassSvg(dir) {
   var deg = dirToDeg(dir);
-  var r = 40;
+  var r = 42;
   var cx = 50;
   var cy = 50;
   var svg = '<svg viewBox="0 0 100 100" class="wind-compass">';
-  // Outer circle
   svg +=
     '<circle cx="' +
     cx +
@@ -166,51 +165,81 @@ function windCompassSvg(dir, speed) {
     cy +
     '" r="' +
     r +
-    '" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>';
-  // Tick marks
+    '" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"/>';
   for (var ti = 0; ti < 360; ti += 30) {
     var tRad = ((ti - 90) * Math.PI) / 180;
-    var inner = ti % 90 === 0 ? r - 6 : r - 3;
+    var outer = r;
+    var inner = ti % 90 === 0 ? r - 8 : r - 4;
+    var sw = ti % 90 === 0 ? "1.5" : "1";
     svg +=
       '<line x1="' +
       (cx + inner * Math.cos(tRad)).toFixed(1) +
       '" y1="' +
       (cy + inner * Math.sin(tRad)).toFixed(1) +
       '" x2="' +
-      (cx + r * Math.cos(tRad)).toFixed(1) +
+      (cx + outer * Math.cos(tRad)).toFixed(1) +
       '" y2="' +
-      (cy + r * Math.sin(tRad)).toFixed(1) +
-      '" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>';
+      (cy + outer * Math.sin(tRad)).toFixed(1) +
+      '" stroke="rgba(255,255,255,0.4)" stroke-width="' +
+      sw +
+      '"/>';
   }
-  // Cardinal labels
   svg +=
-    '<text x="50" y="12" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="7" font-weight="600">N</text>';
+    '<text x="50" y="8" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-size="9" font-weight="600">N</text>';
   svg +=
-    '<text x="92" y="53" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="6">E</text>';
+    '<text x="95" y="54" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="8">E</text>';
   svg +=
-    '<text x="50" y="96" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="6">S</text>';
+    '<text x="50" y="99" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="8">S</text>';
   svg +=
-    '<text x="8" y="53" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="6">W</text>';
-  // Direction arrow
+    '<text x="5" y="54" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="8">W</text>';
+  // Arrow with triangular head
   var aRad = ((deg - 90) * Math.PI) / 180;
-  var ax = cx + (r - 10) * Math.cos(aRad);
-  var ay = cy + (r - 10) * Math.sin(aRad);
-  // Arrow line from center to edge
+  var tipX = cx + (r - 8) * Math.cos(aRad);
+  var tipY = cy + (r - 8) * Math.sin(aRad);
+  var tailX = cx - 12 * Math.cos(aRad);
+  var tailY = cy - 12 * Math.sin(aRad);
+  // Arrowhead
+  var headLen = 8;
+  var headAng = 0.4;
+  var h1x = tipX - headLen * Math.cos(aRad - headAng);
+  var h1y = tipY - headLen * Math.sin(aRad - headAng);
+  var h2x = tipX - headLen * Math.cos(aRad + headAng);
+  var h2y = tipY - headLen * Math.sin(aRad + headAng);
   svg +=
     '<line x1="' +
     cx +
     '" y1="' +
     cy +
     '" x2="' +
-    ax.toFixed(1) +
+    tipX.toFixed(1) +
     '" y2="' +
-    ay.toFixed(1) +
+    tipY.toFixed(1) +
     '" stroke="#fff" stroke-width="2" stroke-linecap="round"/>';
-  // Dot at center
-  svg += '<circle cx="' + cx + '" cy="' + cy + '" r="3" fill="#fff"/>';
-  // Speed in center
   svg +=
-    '<text x="50" y="62" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="5">mph</text>';
+    '<polygon points="' +
+    tipX.toFixed(1) +
+    "," +
+    tipY.toFixed(1) +
+    " " +
+    h1x.toFixed(1) +
+    "," +
+    h1y.toFixed(1) +
+    " " +
+    h2x.toFixed(1) +
+    "," +
+    h2y.toFixed(1) +
+    '" fill="#fff"/>';
+  svg +=
+    '<line x1="' +
+    cx +
+    '" y1="' +
+    cy +
+    '" x2="' +
+    tailX.toFixed(1) +
+    '" y2="' +
+    tailY.toFixed(1) +
+    '" stroke="rgba(255,255,255,0.3)" stroke-width="1.5" stroke-linecap="round"/>';
+  svg += '<circle cx="' + cx + '" cy="' + cy + '" r="3" fill="#fff"/>';
   svg += "</svg>";
   return svg;
 }
@@ -539,7 +568,7 @@ function render(city, forecast, hourlyData, grid) {
     '<div class="dash-value">' +
     now.windSpeed +
     "</div>" +
-    windCompassSvg(now.windDirection, now.windSpeed) +
+    windCompassSvg(now.windDirection) +
     "</div>";
 
   // Humidity
