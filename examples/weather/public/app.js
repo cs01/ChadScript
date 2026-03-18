@@ -113,9 +113,10 @@ function calcSunTimes(lat, lon, date, timeZone) {
         4 * 0.01671 * y * Math.sin(g) * Math.cos(2 * Lrad))) /
     rad;
   var solarNoon = 720 - 4 * lon - eqTime;
-  var riseMin = solarNoon - 4 * HA;
-  var setMin = solarNoon + 4 * HA;
-  var noonMin = solarNoon;
+  var tzOff = timeZone ? getTzOffset(timeZone, date) : -date.getTimezoneOffset();
+  var riseLocalMin = solarNoon - 4 * HA + tzOff;
+  var setLocalMin = solarNoon + 4 * HA + tzOff;
+  var noonLocalMin = solarNoon + tzOff;
   function minsToDate(mins) {
     var d = new Date(date);
     d.setUTCHours(0, 0, 0, 0);
@@ -123,11 +124,14 @@ function calcSunTimes(lat, lon, date, timeZone) {
     return d;
   }
   return {
-    sunrise: minsToDate(riseMin),
-    sunset: minsToDate(setMin),
-    solarNoon: minsToDate(noonMin),
+    sunrise: minsToDate(solarNoon - 4 * HA),
+    sunset: minsToDate(solarNoon + 4 * HA),
+    solarNoon: minsToDate(solarNoon),
     declination: decl / rad,
-    dayLength: setMin - riseMin,
+    dayLength: 8 * HA,
+    riseLocalMin: riseLocalMin,
+    setLocalMin: setLocalMin,
+    noonLocalMin: noonLocalMin,
   };
 }
 
@@ -387,7 +391,7 @@ function geocodeAndFetch(query) {
       var state = ad.state || "";
       var stateAbbr = state.length > 2 ? state.substring(0, 2).toUpperCase() : state;
       var label = stateAbbr ? cityName + ", " + stateAbbr : cityName;
-      history.replaceState(null, "", "?zip=" + encodeURIComponent(query));
+      history.replaceState(null, "", "?q=" + encodeURIComponent(query));
       fetchWeather(r.lat, r.lon, label);
     })
     .catch(function () {
@@ -551,12 +555,11 @@ function render(city, forecast, hourlyData, grid, timeZone) {
   var sunDetail = isBeforeSunset
     ? "Sunrise: " + fmtTimeInTz(sunTimes.sunrise, timeZone)
     : "Sunset: " + fmtTimeInTz(sunTimes.sunset, timeZone);
-  var midnightToday = new Date(nowTime);
-  midnightToday.setUTCHours(0, 0, 0, 0);
-  var fullDay = 24 * 60 * 60 * 1000;
-  var dayFrac = (nowTime - midnightToday) / fullDay;
-  var riseFrac = (sunTimes.sunrise - midnightToday) / fullDay;
-  var setFrac = (sunTimes.sunset - midnightToday) / fullDay;
+  var tzOff = timeZone ? getTzOffset(timeZone, nowTime) : -nowTime.getTimezoneOffset();
+  var nowLocalMin = nowTime.getUTCHours() * 60 + nowTime.getUTCMinutes() + tzOff;
+  var riseFrac = sunTimes.riseLocalMin / 1440;
+  var setFrac = sunTimes.setLocalMin / 1440;
+  var dayFrac = nowLocalMin / 1440;
   var horizY = 28;
   var amp = 16;
   function sunPt(frac) {
@@ -804,10 +807,10 @@ locateBtn.addEventListener("click", function () {
 });
 
 var params = new URLSearchParams(window.location.search);
-var urlZip = params.get("zip");
-if (urlZip) {
-  zipInput.value = urlZip;
-  geocodeAndFetch(urlZip);
+var urlQuery = params.get("q") || params.get("zip");
+if (urlQuery) {
+  zipInput.value = urlQuery;
+  geocodeAndFetch(urlQuery);
 } else {
   fetchWeather(defaultLat, defaultLon, defaultCity);
 }
