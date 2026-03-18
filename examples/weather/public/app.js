@@ -360,23 +360,41 @@ function render(city, forecast, hourlyData, grid) {
   var sunDetail = isBeforeSunset
     ? "Sunrise: " + fmtTime(sunTimes.sunrise)
     : "Sunset: " + fmtTime(sunTimes.sunset);
-  // Sun arc progress
+  // Sun arc progress — quadratic bezier: P0(10,45) P1(50,−10) P2(90,45)
   var dayLen = sunTimes.sunset - sunTimes.sunrise;
   var sunProgress = isBeforeSunset
     ? Math.max(0, Math.min(1, (nowTime - sunTimes.sunrise) / dayLen))
     : 1;
+  // Point on quadratic bezier at t: B(t) = (1-t)^2*P0 + 2(1-t)t*P1 + t^2*P2
+  var t = sunProgress;
+  var mt = 1 - t;
+  var sunX = mt * mt * 10 + 2 * mt * t * 50 + t * t * 90;
+  var sunY = mt * mt * 45 + 2 * mt * t * -10 + t * t * 45;
+  // Split the path into traced (gold) and untraced (gray) portions
+  // We approximate arc length as ~120 for dasharray
+  var arcLen = 120;
   var arcSvg =
-    '<svg viewBox="0 0 100 50" class="sun-arc">' +
-    '<path d="M 10 45 Q 50 -5 90 45" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="2"/>' +
-    '<path d="M 10 45 Q 50 -5 90 45" fill="none" stroke="#ffcc00" stroke-width="2" stroke-dasharray="120" stroke-dashoffset="' +
-    (120 - sunProgress * 120) +
+    '<svg viewBox="0 0 100 55" class="sun-arc">' +
+    '<path d="M 10 45 Q 50 -10 90 45" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/>' +
+    '<path d="M 10 45 Q 50 -10 90 45" fill="none" stroke="#ffcc00" stroke-width="2" ' +
+    'stroke-dasharray="' +
+    arcLen +
+    '" stroke-dashoffset="' +
+    (arcLen - t * arcLen) +
     '"/>' +
     '<circle cx="' +
-    (10 + sunProgress * 80) +
+    sunX.toFixed(1) +
     '" cy="' +
-    (45 - Math.sin(sunProgress * Math.PI) * 50) +
+    sunY.toFixed(1) +
     '" r="4" fill="#ffcc00"/>' +
-    '<line x1="10" y1="45" x2="90" y2="45" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>' +
+    (sunY < 44
+      ? '<circle cx="' +
+        sunX.toFixed(1) +
+        '" cy="' +
+        sunY.toFixed(1) +
+        '" r="7" fill="rgba(255,204,0,0.2)"/>'
+      : "") +
+    '<line x1="10" y1="45" x2="90" y2="45" stroke="rgba(255,255,255,0.15)" stroke-width="0.5" stroke-dasharray="2,2"/>' +
     "</svg>";
   cards +=
     '<div class="dash-card glass"><div class="dash-title">\uD83C\uDF05 ' +
