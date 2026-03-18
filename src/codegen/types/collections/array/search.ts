@@ -765,12 +765,10 @@ function generateObjectArrayAt(
   gen.emitBr(endLabel);
 
   gen.emitLabel(oobLabel);
-  const nullPtr = gen.nextTemp();
-  gen.emit(`${nullPtr} = inttoptr i64 0 to i8*`);
   gen.emitBr(endLabel);
 
   gen.emitLabel(endLabel);
   const resultObj = gen.nextTemp();
-  gen.emit(`${resultObj} = phi i8* [${validVal}, %${validLabel}], [${nullPtr}, %${oobLabel}]`);
+  gen.emit(`${resultObj} = phi i8* [${validVal}, %${validLabel}], [null, %${oobLabel}]`);
   return resultObj;
 }

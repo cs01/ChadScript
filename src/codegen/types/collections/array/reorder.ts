@@ -316,8 +316,6 @@ function generateObjectArrayShift(gen: IGeneratorContext, arrayPtr: string): str
   gen.emitBrCond(isEmpty, emptyLabel, notEmptyLabel);
 
   gen.emitLabel(emptyLabel);
-  const nullPtr = gen.nextTemp();
-  gen.emit(`${nullPtr} = inttoptr i64 0 to i8*`);
   gen.emitBr(endLabel);
 
   gen.emitLabel(notEmptyLabel);
@@ -350,9 +348,7 @@ function generateObjectArrayShift(gen: IGeneratorContext, arrayPtr: string): str
 
   gen.emitLabel(endLabel);
   const result = gen.nextTemp();
-  gen.emit(
-    `${result} = phi i8* [ ${nullPtr}, %${emptyLabel} ], [ ${firstElem}, %${notEmptyLabel} ]`,
-  );
+  gen.emit(`${result} = phi i8* [ null, %${emptyLabel} ], [ ${firstElem}, %${notEmptyLabel} ]`);
   gen.setVariableType(result, "i8*");
   return result;
 }
