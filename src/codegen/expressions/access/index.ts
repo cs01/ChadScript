@@ -476,11 +476,20 @@ export class IndexAccessGenerator {
       this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
     }
 
-    // Get array item using cJSON_GetArrayItem
     const itemPtr = this.ctx.nextTemp();
     this.ctx.emit(`${itemPtr} = call i8* @csyyjson_arr_get(i8* ${jsonPtr}, i32 ${index})`);
 
-    // Check if item is an object - if so, return the item pointer directly
+    const isNull = this.ctx.nextTemp();
+    this.ctx.emit(`${isNull} = icmp eq i8* ${itemPtr}, null`);
+    const nullLabel = this.ctx.nextLabel("json_arr_null");
+    const validLabel = this.ctx.nextLabel("json_arr_valid");
+    const objEndLabel = this.ctx.nextLabel("json_arr_obj_end");
+    this.ctx.emit(`br i1 ${isNull}, label %${nullLabel}, label %${validLabel}`);
+
+    this.ctx.emit(`${nullLabel}:`);
+    this.ctx.emit(`br label %${objEndLabel}`);
+
+    this.ctx.emit(`${validLabel}:`);
     const isObject = this.ctx.nextTemp();
     this.ctx.emit(`${isObject} = call i32 @csyyjson_is_obj(i8* ${itemPtr})`);
     const isObjBool = this.ctx.nextTemp();
@@ -488,7 +497,6 @@ export class IndexAccessGenerator {
 
     const objectLabel = this.ctx.nextLabel("json_arr_object");
     const primitiveLabel = this.ctx.nextLabel("json_arr_primitive");
-    const objEndLabel = this.ctx.nextLabel("json_arr_obj_end");
 
     this.ctx.emit(`br i1 ${isObjBool}, label %${objectLabel}, label %${primitiveLabel}`);
 
@@ -533,11 +541,10 @@ export class IndexAccessGenerator {
     );
     this.ctx.emit(`br label %${objEndLabel}`);
 
-    // Final merge
     this.ctx.emit(`${objEndLabel}:`);
     const result = this.ctx.nextTemp();
     this.ctx.emit(
-      `${result} = phi i8* [ ${itemPtr}, %${objectLabel} ], [ ${primResult}, %${primEndLabel} ]`,
+      `${result} = phi i8* [ null, %${nullLabel} ], [ ${itemPtr}, %${objectLabel} ], [ ${primResult}, %${primEndLabel} ]`,
     );
     this.ctx.setVariableType(result, "i8*");
 
@@ -596,6 +603,17 @@ export class IndexAccessGenerator {
     const itemPtr = this.ctx.nextTemp();
     this.ctx.emit(`${itemPtr} = call i8* @csyyjson_arr_get(i8* ${jsonPtr}, i32 ${index})`);
 
+    const isNull = this.ctx.nextTemp();
+    this.ctx.emit(`${isNull} = icmp eq i8* ${itemPtr}, null`);
+    const nullLabel = this.ctx.nextLabel("json_marr_null");
+    const validLabel = this.ctx.nextLabel("json_marr_valid");
+    const objEndLabel = this.ctx.nextLabel("json_marr_obj_end");
+    this.ctx.emit(`br i1 ${isNull}, label %${nullLabel}, label %${validLabel}`);
+
+    this.ctx.emit(`${nullLabel}:`);
+    this.ctx.emit(`br label %${objEndLabel}`);
+
+    this.ctx.emit(`${validLabel}:`);
     const isObject = this.ctx.nextTemp();
     this.ctx.emit(`${isObject} = call i32 @csyyjson_is_obj(i8* ${itemPtr})`);
     const isObjBool = this.ctx.nextTemp();
@@ -603,7 +621,6 @@ export class IndexAccessGenerator {
 
     const objectLabel = this.ctx.nextLabel("json_marr_object");
     const primitiveLabel = this.ctx.nextLabel("json_marr_primitive");
-    const objEndLabel = this.ctx.nextLabel("json_marr_obj_end");
 
     this.ctx.emit(`br i1 ${isObjBool}, label %${objectLabel}, label %${primitiveLabel}`);
 
@@ -646,7 +663,7 @@ export class IndexAccessGenerator {
     this.ctx.emit(`${objEndLabel}:`);
     const result = this.ctx.nextTemp();
     this.ctx.emit(
-      `${result} = phi i8* [ ${itemPtr}, %${objectLabel} ], [ ${primResult}, %${primEndLabel} ]`,
+      `${result} = phi i8* [ null, %${nullLabel} ], [ ${itemPtr}, %${objectLabel} ], [ ${primResult}, %${primEndLabel} ]`,
     );
     this.ctx.setVariableType(result, "i8*");
 
