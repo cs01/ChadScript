@@ -642,14 +642,14 @@ function showSuggestions(results) {
 zipInput.addEventListener("input", function () {
   clearTimeout(searchTimer);
   var q = zipInput.value.trim();
-  if (q.length < 2) {
+  if (q.length < 3) {
     sugEl.classList.remove("active");
     return;
   }
   searchTimer = setTimeout(function () {
     var url =
       "https://nominatim.openstreetmap.org/search?q=" +
-      encodeURIComponent(q + "*") +
+      encodeURIComponent(q) +
       "&countrycodes=us&format=json&limit=5&addressdetails=1";
     fetch(url, { headers: { Accept: "application/json" } })
       .then(function (r) {
