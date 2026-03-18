@@ -16,18 +16,10 @@ body {
 
 .sun-flare {
   position: fixed;
-  top: -100px;
-  left: -100px;
-  width: 500px;
-  height: 500px;
-  border-radius: 50%;
-  background: radial-gradient(
-    circle,
-    rgba(255, 255, 240, 0.45) 0%,
-    rgba(255, 250, 230, 0.2) 15%,
-    rgba(200, 220, 255, 0.08) 35%,
-    transparent 65%
-  );
+  top: -60px;
+  left: -60px;
+  width: 0;
+  height: 0;
   pointer-events: none;
   z-index: 0;
   display: none;
@@ -37,40 +29,145 @@ body {
   display: block;
 }
 
-.sun-flare::before {
-  content: "";
+.flare-core {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 200px;
-  height: 200px;
+  top: 0;
+  left: 0;
+  width: 120px;
+  height: 120px;
   transform: translate(-50%, -50%);
   border-radius: 50%;
   background: radial-gradient(
     circle,
-    rgba(255, 255, 255, 0.7) 0%,
-    rgba(255, 255, 240, 0.3) 30%,
-    transparent 65%
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(255, 255, 240, 0.6) 25%,
+    rgba(255, 250, 220, 0.2) 50%,
+    transparent 75%
   );
 }
 
-.sun-flare::after {
-  content: "";
+.flare-glow {
   position: absolute;
-  top: 35%;
-  left: 55%;
-  width: 300px;
-  height: 200px;
-  transform: rotate(-25deg);
-  background: linear-gradient(
-    135deg,
-    transparent 20%,
-    rgba(180, 200, 255, 0.08) 30%,
-    rgba(150, 220, 255, 0.06) 40%,
-    rgba(200, 180, 255, 0.04) 50%,
-    transparent 60%
+  top: 0;
+  left: 0;
+  width: 450px;
+  height: 450px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 250, 0.25) 0%,
+    rgba(255, 250, 230, 0.1) 25%,
+    rgba(200, 220, 255, 0.04) 50%,
+    transparent 70%
   );
-  filter: blur(8px);
+}
+
+.flare-rays {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 600px;
+  height: 600px;
+  transform: translate(-50%, -50%);
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    rgba(255, 255, 255, 0.06) 5deg,
+    transparent 10deg,
+    transparent 30deg,
+    rgba(255, 255, 255, 0.04) 35deg,
+    transparent 40deg,
+    transparent 60deg,
+    rgba(255, 255, 255, 0.05) 65deg,
+    transparent 70deg,
+    transparent 90deg,
+    rgba(255, 255, 255, 0.03) 95deg,
+    transparent 100deg,
+    transparent 120deg,
+    rgba(255, 255, 255, 0.06) 125deg,
+    transparent 130deg,
+    transparent 150deg,
+    rgba(255, 255, 255, 0.04) 155deg,
+    transparent 160deg,
+    transparent 180deg,
+    rgba(255, 255, 255, 0.05) 185deg,
+    transparent 190deg,
+    transparent 210deg,
+    rgba(255, 255, 255, 0.03) 215deg,
+    transparent 220deg,
+    transparent 240deg,
+    rgba(255, 255, 255, 0.04) 245deg,
+    transparent 250deg,
+    transparent 270deg,
+    rgba(255, 255, 255, 0.06) 275deg,
+    transparent 280deg,
+    transparent 300deg,
+    rgba(255, 255, 255, 0.04) 305deg,
+    transparent 310deg,
+    transparent 330deg,
+    rgba(255, 255, 255, 0.05) 335deg,
+    transparent 340deg,
+    transparent 360deg
+  );
+  border-radius: 50%;
+  filter: blur(2px);
+}
+
+.flare-streak {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 500px;
+  height: 3px;
+  transform-origin: 0 50%;
+  transform: rotate(35deg);
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.4) 0%,
+    rgba(200, 230, 255, 0.15) 20%,
+    rgba(180, 200, 255, 0.06) 40%,
+    rgba(220, 180, 255, 0.04) 60%,
+    transparent 80%
+  );
+  filter: blur(3px);
+}
+
+.flare-streak2 {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 350px;
+  height: 2px;
+  transform-origin: 0 50%;
+  transform: rotate(55deg);
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.2) 0%,
+    rgba(180, 220, 255, 0.1) 30%,
+    transparent 70%
+  );
+  filter: blur(2px);
+}
+
+.flare-orb {
+  position: absolute;
+  top: 180px;
+  left: 250px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(180, 210, 255, 0.12) 0%, transparent 70%);
+}
+
+.flare-orb2 {
+  position: absolute;
+  top: 280px;
+  left: 380px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(200, 180, 255, 0.08) 0%, transparent 70%);
 }
 
 .container {
