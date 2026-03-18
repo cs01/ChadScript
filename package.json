@@ -36,8 +36,13 @@
     "javascript",
     "native"
   ],
-  "author": "",
+  "author": "Chad Smith",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cs01/ChadScript.git"
+  },
+  "homepage": "https://chadscript.dev",
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/node": "^20.0.0",

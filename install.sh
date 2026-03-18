@@ -3,7 +3,7 @@ set -e
 
 REPO="cs01/ChadScript"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.chadscript}"
-VERSION="0.1.0"
+VERSION="0.2.0-beta"
 
 if [ -t 1 ]; then
   ESC=$(printf '\033')
