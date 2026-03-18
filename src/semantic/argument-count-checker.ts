@@ -16,10 +16,6 @@ import type {
   ReturnStatement,
   ThrowStatement,
   BlockStatement,
-  ArrowFunctionNode,
-  MethodCallNode,
-  BinaryNode,
-  UnaryNode,
   FunctionParameter,
 } from "../ast/types.js";
 import { formatCompileError } from "../diagnostics/engine.js";
@@ -92,6 +88,100 @@ function argResolveAlias(name: string, ast: AST): string {
   return name;
 }
 
+function argCheckCall(
+  call: CallNode,
+  lookup: Map<string, ParamInfo>,
+  ast: AST,
+  sourceCode: string,
+): void {
+  const resolved = argResolveAlias(call.name, ast);
+  const info = lookup.get(resolved);
+  if (!info) return;
+  const argc = call.args.length;
+  let hasSpread = false;
+  for (let i = 0; i < call.args.length; i++) {
+    if (call.args[i] && call.args[i].type === "spread_element") {
+      hasSpread = true;
+      break;
+    }
+  }
+  if (hasSpread) return;
+  if (argc < info.min) {
+    const output = formatCompileError(
+      sourceCode,
+      "function '" + call.name + "' expects at least " + info.min + " argument(s) but got " + argc,
+      call.loc,
+      undefined,
+      [],
+    );
+    process.stderr.write(output);
+    process.exit(1);
+  }
+  if (argc > info.max) {
+    const output = formatCompileError(
+      sourceCode,
+      "function '" + call.name + "' expects at most " + info.max + " argument(s) but got " + argc,
+      call.loc,
+      undefined,
+      [],
+    );
+    process.stderr.write(output);
+    process.exit(1);
+  }
+}
+
+function argCheckNew(
+  n: NewNode,
+  lookup: Map<string, ParamInfo>,
+  ast: AST,
+  sourceCode: string,
+): void {
+  const resolved = argResolveAlias(n.className, ast);
+  const info = lookup.get(resolved);
+  if (!info) return;
+  const argc = n.args.length;
+  let hasSpread = false;
+  for (let i = 0; i < n.args.length; i++) {
+    if (n.args[i] && n.args[i].type === "spread_element") {
+      hasSpread = true;
+      break;
+    }
+  }
+  if (hasSpread) return;
+  if (argc < info.min) {
+    const output = formatCompileError(
+      sourceCode,
+      "constructor '" +
+        n.className +
+        "' expects at least " +
+        info.min +
+        " argument(s) but got " +
+        argc,
+      n.loc,
+      undefined,
+      [],
+    );
+    process.stderr.write(output);
+    process.exit(1);
+  }
+  if (argc > info.max) {
+    const output = formatCompileError(
+      sourceCode,
+      "constructor '" +
+        n.className +
+        "' expects at most " +
+        info.max +
+        " argument(s) but got " +
+        argc,
+      n.loc,
+      undefined,
+      [],
+    );
+    process.stderr.write(output);
+    process.exit(1);
+  }
+}
+
 function argCheckExpr(
   expr: Expression,
   lookup: Map<string, ParamInfo>,
@@ -103,187 +193,10 @@ function argCheckExpr(
 
   if (t === "call") {
     const call = expr as CallNode;
-    const resolved = argResolveAlias(call.name, ast);
-    const info = lookup.get(resolved);
-    if (info) {
-      const argc = call.args.length;
-      let hasSpread = false;
-      for (let i = 0; i < call.args.length; i++) {
-        if (call.args[i] && call.args[i].type === "spread_element") {
-          hasSpread = true;
-          break;
-        }
-      }
-      if (!hasSpread) {
-        if (argc < info.min) {
-          const output = formatCompileError(
-            sourceCode,
-            "function '" +
-              call.name +
-              "' expects at least " +
-              info.min +
-              " argument(s) but got " +
-              argc,
-            call.loc,
-            undefined,
-            [],
-          );
-          process.stderr.write(output);
-          process.exit(1);
-        }
-        if (argc > info.max) {
-          const output = formatCompileError(
-            sourceCode,
-            "function '" +
-              call.name +
-              "' expects at most " +
-              info.max +
-              " argument(s) but got " +
-              argc,
-            call.loc,
-            undefined,
-            [],
-          );
-          process.stderr.write(output);
-          process.exit(1);
-        }
-      }
-    }
-    for (let i = 0; i < call.args.length; i++) {
-      argCheckExpr(call.args[i], lookup, ast, sourceCode);
-    }
-    return;
-  }
-
-  if (t === "new") {
+    argCheckCall(call, lookup, ast, sourceCode);
+  } else if (t === "new") {
     const n = expr as NewNode;
-    const resolved = argResolveAlias(n.className, ast);
-    const info = lookup.get(resolved);
-    if (info) {
-      const argc = n.args.length;
-      let hasSpread = false;
-      for (let i = 0; i < n.args.length; i++) {
-        if (n.args[i] && n.args[i].type === "spread_element") {
-          hasSpread = true;
-          break;
-        }
-      }
-      if (!hasSpread) {
-        if (argc < info.min) {
-          const output = formatCompileError(
-            sourceCode,
-            "constructor '" +
-              n.className +
-              "' expects at least " +
-              info.min +
-              " argument(s) but got " +
-              argc,
-            n.loc,
-            undefined,
-            [],
-          );
-          process.stderr.write(output);
-          process.exit(1);
-        }
-        if (argc > info.max) {
-          const output = formatCompileError(
-            sourceCode,
-            "constructor '" +
-              n.className +
-              "' expects at most " +
-              info.max +
-              " argument(s) but got " +
-              argc,
-            n.loc,
-            undefined,
-            [],
-          );
-          process.stderr.write(output);
-          process.exit(1);
-        }
-      }
-    }
-    for (let i = 0; i < n.args.length; i++) {
-      argCheckExpr(n.args[i], lookup, ast, sourceCode);
-    }
-    return;
-  }
-
-  if (t === "binary") {
-    const b = expr as BinaryNode;
-    argCheckExpr(b.left, lookup, ast, sourceCode);
-    argCheckExpr(b.right, lookup, ast, sourceCode);
-  } else if (t === "unary") {
-    const u = expr as UnaryNode;
-    argCheckExpr(u.operand, lookup, ast, sourceCode);
-  } else if (t === "method_call") {
-    const mc = expr as MethodCallNode;
-    argCheckExpr(mc.object, lookup, ast, sourceCode);
-    for (let i = 0; i < mc.args.length; i++) {
-      argCheckExpr(mc.args[i], lookup, ast, sourceCode);
-    }
-  } else if (t === "conditional") {
-    const c = expr as {
-      type: string;
-      condition: Expression;
-      consequent: Expression;
-      alternate: Expression;
-    };
-    argCheckExpr(c.condition, lookup, ast, sourceCode);
-    argCheckExpr(c.consequent, lookup, ast, sourceCode);
-    argCheckExpr(c.alternate, lookup, ast, sourceCode);
-  } else if (t === "array") {
-    const a = expr as { type: string; elements: Expression[] };
-    for (let i = 0; i < a.elements.length; i++) {
-      argCheckExpr(a.elements[i], lookup, ast, sourceCode);
-    }
-  } else if (t === "template_literal") {
-    const tl = expr as { type: string; parts: (string | Expression)[] };
-    for (let i = 0; i < tl.parts.length; i++) {
-      const part = tl.parts[i];
-      const partTyped = part as { type: string };
-      if (partTyped.type) {
-        argCheckExpr(part as Expression, lookup, ast, sourceCode);
-      }
-    }
-  } else if (t === "arrow_function") {
-    const arrow = expr as ArrowFunctionNode;
-    const bodyTyped = arrow.body as { type: string };
-    if (bodyTyped.type === "block") {
-      argWalkBlock(arrow.body as BlockStatement, lookup, ast, sourceCode);
-    } else {
-      argCheckExpr(arrow.body as Expression, lookup, ast, sourceCode);
-    }
-  } else if (t === "type_assertion") {
-    const ta = expr as { type: string; expression: Expression };
-    argCheckExpr(ta.expression, lookup, ast, sourceCode);
-  } else if (t === "await") {
-    const aw = expr as { type: string; argument: Expression };
-    argCheckExpr(aw.argument, lookup, ast, sourceCode);
-  } else if (t === "member_access") {
-    const ma = expr as { type: string; object: Expression };
-    argCheckExpr(ma.object, lookup, ast, sourceCode);
-  } else if (t === "index_access") {
-    const ia = expr as { type: string; object: Expression; index: Expression };
-    argCheckExpr(ia.object, lookup, ast, sourceCode);
-    argCheckExpr(ia.index, lookup, ast, sourceCode);
-  } else if (t === "object") {
-    const obj = expr as { type: string; properties: { key: string; value: Expression }[] };
-    for (let i = 0; i < obj.properties.length; i++) {
-      argCheckExpr(obj.properties[i].value, lookup, ast, sourceCode);
-    }
-  } else if (t === "spread_element") {
-    const se = expr as { type: string; argument: Expression };
-    argCheckExpr(se.argument, lookup, ast, sourceCode);
-  } else if (t === "member_access_assignment") {
-    const maa = expr as { type: string; object: Expression; property: string; value: Expression };
-    argCheckExpr(maa.object, lookup, ast, sourceCode);
-    argCheckExpr(maa.value, lookup, ast, sourceCode);
-  } else if (t === "index_access_assignment") {
-    const iaa = expr as { type: string; object: Expression; index: Expression; value: Expression };
-    argCheckExpr(iaa.object, lookup, ast, sourceCode);
-    argCheckExpr(iaa.index, lookup, ast, sourceCode);
-    argCheckExpr(iaa.value, lookup, ast, sourceCode);
+    argCheckNew(n, lookup, ast, sourceCode);
   }
 }
 

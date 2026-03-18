@@ -21,6 +21,18 @@ import type {
   CallNode,
   MethodCallNode,
   NewNode,
+  ConditionalExpressionNode,
+  ArrayNode,
+  TemplateLiteralNode,
+  TypeAssertionNode,
+  AwaitExpressionNode,
+  MemberAccessNode,
+  IndexAccessNode,
+  ObjectNode,
+  ObjectProperty,
+  SpreadElementNode,
+  MemberAccessAssignmentNode,
+  IndexAccessAssignmentNode,
 } from "../ast/types.js";
 import { formatCompileError } from "../diagnostics/engine.js";
 
@@ -137,22 +149,17 @@ function checkBinaryInExpr(expr: Expression, sourceCode: string): void {
       checkBinaryInExpr(n.args[i], sourceCode);
     }
   } else if (t === "conditional") {
-    const c = expr as {
-      type: string;
-      condition: Expression;
-      consequent: Expression;
-      alternate: Expression;
-    };
+    const c = expr as ConditionalExpressionNode;
     checkBinaryInExpr(c.condition, sourceCode);
     checkBinaryInExpr(c.consequent, sourceCode);
     checkBinaryInExpr(c.alternate, sourceCode);
   } else if (t === "array") {
-    const a = expr as { type: string; elements: Expression[] };
+    const a = expr as ArrayNode;
     for (let i = 0; i < a.elements.length; i++) {
       checkBinaryInExpr(a.elements[i], sourceCode);
     }
   } else if (t === "template_literal") {
-    const tl = expr as { type: string; parts: (string | Expression)[] };
+    const tl = expr as TemplateLiteralNode;
     for (let i = 0; i < tl.parts.length; i++) {
       const part = tl.parts[i];
       const partTyped = part as { type: string };
@@ -172,32 +179,33 @@ function checkBinaryInExpr(expr: Expression, sourceCode: string): void {
     const u = expr as UnaryNode;
     checkBinaryInExpr(u.operand, sourceCode);
   } else if (t === "type_assertion") {
-    const ta = expr as { type: string; expression: Expression };
+    const ta = expr as TypeAssertionNode;
     checkBinaryInExpr(ta.expression, sourceCode);
   } else if (t === "await") {
-    const aw = expr as { type: string; argument: Expression };
+    const aw = expr as AwaitExpressionNode;
     checkBinaryInExpr(aw.argument, sourceCode);
   } else if (t === "member_access") {
-    const ma = expr as { type: string; object: Expression };
+    const ma = expr as MemberAccessNode;
     checkBinaryInExpr(ma.object, sourceCode);
   } else if (t === "index_access") {
-    const ia = expr as { type: string; object: Expression; index: Expression };
+    const ia = expr as IndexAccessNode;
     checkBinaryInExpr(ia.object, sourceCode);
     checkBinaryInExpr(ia.index, sourceCode);
   } else if (t === "object") {
-    const obj = expr as { type: string; properties: { key: string; value: Expression }[] };
+    const obj = expr as ObjectNode;
     for (let i = 0; i < obj.properties.length; i++) {
-      checkBinaryInExpr(obj.properties[i].value, sourceCode);
+      const prop = obj.properties[i] as ObjectProperty;
+      checkBinaryInExpr(prop.value, sourceCode);
     }
   } else if (t === "spread_element") {
-    const se = expr as { type: string; argument: Expression };
+    const se = expr as SpreadElementNode;
     checkBinaryInExpr(se.argument, sourceCode);
   } else if (t === "member_access_assignment") {
-    const maa = expr as { type: string; object: Expression; property: string; value: Expression };
+    const maa = expr as MemberAccessAssignmentNode;
     checkBinaryInExpr(maa.object, sourceCode);
     checkBinaryInExpr(maa.value, sourceCode);
   } else if (t === "index_access_assignment") {
-    const iaa = expr as { type: string; object: Expression; index: Expression; value: Expression };
+    const iaa = expr as IndexAccessAssignmentNode;
     checkBinaryInExpr(iaa.object, sourceCode);
     checkBinaryInExpr(iaa.index, sourceCode);
     checkBinaryInExpr(iaa.value, sourceCode);
