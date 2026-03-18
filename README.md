@@ -20,23 +20,25 @@ No dependencies — everything is bundled in the compiler.
 
 ---
 
-## Example: Weather app in a single binary
+## Example: Web app in a single binary
 
 ```typescript
 import { httpServe, Router, Context } from "chadscript/http";
 
 ChadScript.embedDir("./public"); // HTML/CSS/JS baked into the binary at compile time
 
+const db = sqlite.open("app.db");
+sqlite.exec(db, "CREATE TABLE IF NOT EXISTS visits (path TEXT, ts INTEGER)");
+
 const app: Router = new Router();
 
-app.get("/api/weather/:lat/:lon", (c: Context) => {
-  const url = "https://api.weather.gov/points/" + c.req.param("lat") + "," + c.req.param("lon");
-  const points = (await fetch(url)).json<PointsResponse>();
-  const forecast = (await fetch(points.properties.forecast)).json<ForecastResponse>();
-  return c.json(forecast.properties.periods);
+app.get("/api/stats", (c: Context) => {
+  const rows = sqlite.query(db, "SELECT path, COUNT(*) as n FROM visits GROUP BY path");
+  return c.json(rows);
 });
 
 function handleRequest(req: HttpRequest): HttpResponse {
+  sqlite.exec(db, "INSERT INTO visits VALUES (?, ?)", [req.path, "" + Date.now()]);
   if (req.path === "/") return ChadScript.serveEmbedded("index.html");
   const res = app.handle(req);
   if (res.status !== 404) return res;
@@ -46,7 +48,7 @@ function handleRequest(req: HttpRequest): HttpResponse {
 httpServe(3000, handleRequest);
 ```
 
-One binary. No node_modules. Starts in under 2ms. [Full source →](examples/weather/)
+One binary. No node_modules. Starts in under 2ms. See [`examples/`](examples/) for more: [weather app](examples/weather/), [WebSocket chat](examples/websocket/), SQLite, and more.
 
 ---
 
