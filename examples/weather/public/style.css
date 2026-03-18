@@ -16,8 +16,8 @@ body {
 
 .sun-flare {
   position: fixed;
-  top: -60px;
-  left: -60px;
+  top: 0;
+  left: 0;
   width: 0;
   height: 0;
   pointer-events: none;
