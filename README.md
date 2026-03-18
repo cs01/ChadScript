@@ -103,6 +103,7 @@ chad run examples/parallel.ts          # async/await + Promise.all
 chad run examples/query.ts             # SQLite
 chad run examples/http-server.ts       # http://localhost:3000
 chad run examples/weather/app.ts       # weather app — live at https://chadsmith.dev/weather
+chad run examples/hackernews/app.ts    # Hacker News clone
 ```
 
 See [`examples/`](examples/) for the full list: grep tool, word counter, WebSocket chat, TUI apps, and more.
