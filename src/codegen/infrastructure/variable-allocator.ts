@@ -489,9 +489,20 @@ export class VariableAllocator {
     };
   }
 
+  private isNullishValue(value: Expression | null): boolean {
+    if (value === null) return true;
+    const vType = (value as VariableNode).type as string;
+    if (vType === "null" || vType === "undefined") return true;
+    if (vType === "variable") {
+      const vName = (value as VariableNode).name;
+      if (vName === "undefined" || vName === "null") return true;
+    }
+    return false;
+  }
+
   allocate(stmt: VariableDeclaration, params: string[]): void {
     const existingScope = this.ctx.symbolTable.getScope(stmt.name);
-    if (existingScope === "global" && stmt.value !== null) {
+    if (existingScope === "global" && stmt.value !== null && !this.isNullishValue(stmt.value)) {
       // For global Uint8Array vars, set wantsBinaryReturn so readFileSync etc.
       // dispatch to their binary variants (same as allocateUint8Array does for locals)
       const sym = this.ctx.symbolTable.lookup(stmt.name);
@@ -527,6 +538,7 @@ export class VariableAllocator {
       }
       return;
     }
+    if (existingScope === "global") return;
 
     const stmtValueAsVar = stmt.value as VariableNode;
     const isAstNullLiteral =
