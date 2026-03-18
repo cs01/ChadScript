@@ -30,6 +30,7 @@ import { IGeneratorContext } from "../infrastructure/generator-context.js";
 import { SymbolKind_Number, SymbolKind_String } from "../infrastructure/symbol-table.js";
 import type { FieldInfo } from "../infrastructure/type-resolver/types.js";
 import { stripOptional } from "../infrastructure/type-system.js";
+import { setWantsI1 } from "../expressions/condition-generator.js";
 
 interface ExprBase {
   type: string;
@@ -105,6 +106,42 @@ export class ControlFlowGenerator {
     }
   }
 
+  private isSimpleComparisonForBranch(expr: Expression): boolean {
+    if (expr.type !== "binary") return false;
+    const bin = expr as BinaryNode;
+    const op = bin.op;
+    if (
+      op !== "<" &&
+      op !== ">" &&
+      op !== "<=" &&
+      op !== ">=" &&
+      op !== "==" &&
+      op !== "!=" &&
+      op !== "===" &&
+      op !== "!=="
+    ) {
+      return false;
+    }
+    const lt = bin.left.type;
+    const rt = bin.right.type;
+    if (lt === "binary" || rt === "binary") return false;
+    if (lt === "call" || rt === "call") return false;
+    if (lt === "method_call" || rt === "method_call") return false;
+    if (lt === "conditional" || rt === "conditional") return false;
+    return true;
+  }
+
+  private generateBranchCondition(expr: Expression, params: string[]): string {
+    if (this.isSimpleComparisonForBranch(expr)) {
+      setWantsI1(true);
+      const condValue = this.ctx.generateExpression(expr, params);
+      setWantsI1(false);
+      return this.convertToBool(condValue);
+    }
+    const condValue = this.ctx.generateExpression(expr, params);
+    return this.convertToBool(condValue);
+  }
+
   private convertToNonNullish(value: string, valueType: string): string {
     if (
       valueType === "i1" ||
@@ -144,8 +181,7 @@ export class ControlFlowGenerator {
 
     const typeGuard = this.detectTypeGuard(ifStmt.condition);
 
-    const condValue = this.ctx.generateExpression(ifStmt.condition, params);
-    const condBool = this.convertToBool(condValue);
+    const condBool = this.generateBranchCondition(ifStmt.condition, params);
 
     if (ifStmt.elseBlock) {
       this.ctx.emitBrCond(condBool, thenLabel, elseLabel);
@@ -222,8 +258,7 @@ export class ControlFlowGenerator {
 
     // Condition block
     this.ctx.emitLabel(condLabel);
-    const condValue = this.ctx.generateExpression(whileStmt.condition, params);
-    const condBool = this.convertToBool(condValue);
+    const condBool = this.generateBranchCondition(whileStmt.condition, params);
     this.ctx.emitBrCond(condBool, bodyLabel, endLabel);
 
     // Body block - push loop context for break/continue
@@ -277,9 +312,8 @@ export class ControlFlowGenerator {
     // Condition block — evaluated after body
     this.ctx.emitLabel(condLabel);
     this.ctx.setCurrentLabel(condLabel);
-    const condValue = this.ctx.generateExpression(doWhileStmt.condition, params);
-    const condBool = this.convertToBool(condValue);
-    this.ctx.emitBrCond(condBool, bodyLabel, endLabel);
+    const condBool2 = this.generateBranchCondition(doWhileStmt.condition, params);
+    this.ctx.emitBrCond(condBool2, bodyLabel, endLabel);
 
     // End block
     this.ctx.emitLabel(endLabel);
@@ -372,9 +406,8 @@ export class ControlFlowGenerator {
     // Condition block
     this.ctx.emitLabel(condLabel);
     if (forStmt.condition) {
-      const condValue = this.ctx.generateExpression(forStmt.condition, params);
-      const condBool = this.convertToBool(condValue);
-      this.ctx.emitBrCond(condBool, bodyLabel, endLabel);
+      const condBool3 = this.generateBranchCondition(forStmt.condition, params);
+      this.ctx.emitBrCond(condBool3, bodyLabel, endLabel);
     } else {
       // No condition means infinite loop
       this.ctx.emitBr(bodyLabel);
