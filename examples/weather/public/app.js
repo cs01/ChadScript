@@ -360,41 +360,64 @@ function render(city, forecast, hourlyData, grid) {
   var sunDetail = isBeforeSunset
     ? "Sunrise: " + fmtTime(sunTimes.sunrise)
     : "Sunset: " + fmtTime(sunTimes.sunset);
-  // Sun arc progress — quadratic bezier: P0(10,45) P1(50,−10) P2(90,45)
+  // Sun arc — full sinusoidal curve, above horizon = day, below = night
   var dayLen = sunTimes.sunset - sunTimes.sunrise;
-  var sunProgress = isBeforeSunset
-    ? Math.max(0, Math.min(1, (nowTime - sunTimes.sunrise) / dayLen))
-    : 1;
-  // Point on quadratic bezier at t: B(t) = (1-t)^2*P0 + 2(1-t)t*P1 + t^2*P2
-  var t = sunProgress;
-  var mt = 1 - t;
-  var sunX = mt * mt * 10 + 2 * mt * t * 50 + t * t * 90;
-  var sunY = mt * mt * 45 + 2 * mt * t * -10 + t * t * 45;
-  // Split the path into traced (gold) and untraced (gray) portions
-  // We approximate arc length as ~120 for dasharray
-  var arcLen = 120;
+  var midnightToday = new Date(nowTime);
+  midnightToday.setHours(0, 0, 0, 0);
+  var fullDay = 24 * 60 * 60 * 1000;
+  var dayProgress = (nowTime - midnightToday) / fullDay;
+  var riseFrac = (sunTimes.sunrise - midnightToday) / fullDay;
+  var setFrac = (sunTimes.sunset - midnightToday) / fullDay;
+  var hY = 40;
+  var amp = 28;
+  var sinPoints = [];
+  for (var si = 0; si <= 60; si++) {
+    var frac = si / 60;
+    var px = 5 + frac * 90;
+    var phase = ((frac - riseFrac) / (setFrac - riseFrac)) * Math.PI;
+    var py = hY - Math.sin(phase) * amp;
+    sinPoints.push(px.toFixed(1) + "," + py.toFixed(1));
+  }
+  var pathD = "M " + sinPoints.join(" L ");
+  var sunPhase = ((dayProgress - riseFrac) / (setFrac - riseFrac)) * Math.PI;
+  var sunX = 5 + dayProgress * 90;
+  var sunY = hY - Math.sin(sunPhase) * amp;
+  var aboveHorizon = sunY < hY;
+  var progPts = [];
+  for (var pi = 0; pi <= 60; pi++) {
+    var pf = pi / 60;
+    if (pf > dayProgress) break;
+    var ppx = 5 + pf * 90;
+    var pp = ((pf - riseFrac) / (setFrac - riseFrac)) * Math.PI;
+    var ppy = hY - Math.sin(pp) * amp;
+    progPts.push(ppx.toFixed(1) + "," + ppy.toFixed(1));
+  }
+  var progD = progPts.length > 1 ? "M " + progPts.join(" L ") : "";
   var arcSvg =
-    '<svg viewBox="0 0 100 55" class="sun-arc">' +
-    '<path d="M 10 45 Q 50 -10 90 45" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/>' +
-    '<path d="M 10 45 Q 50 -10 90 45" fill="none" stroke="#ffcc00" stroke-width="2" ' +
-    'stroke-dasharray="' +
-    arcLen +
-    '" stroke-dashoffset="' +
-    (arcLen - t * arcLen) +
-    '"/>' +
+    '<svg viewBox="0 0 100 80" class="sun-arc">' +
+    '<path d="' +
+    pathD +
+    '" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1.5"/>' +
+    (progD ? '<path d="' + progD + '" fill="none" stroke="#ffcc00" stroke-width="2"/>' : "") +
+    '<line x1="5" y1="' +
+    hY +
+    '" x2="95" y2="' +
+    hY +
+    '" stroke="rgba(255,255,255,0.2)" stroke-width="0.5" stroke-dasharray="2,2"/>' +
     '<circle cx="' +
     sunX.toFixed(1) +
     '" cy="' +
     sunY.toFixed(1) +
-    '" r="4" fill="#ffcc00"/>' +
-    (sunY < 44
+    '" r="3.5" fill="' +
+    (aboveHorizon ? "#ffcc00" : "rgba(255,255,255,0.4)") +
+    '"/>' +
+    (aboveHorizon
       ? '<circle cx="' +
         sunX.toFixed(1) +
         '" cy="' +
         sunY.toFixed(1) +
-        '" r="7" fill="rgba(255,204,0,0.2)"/>'
+        '" r="6" fill="rgba(255,204,0,0.15)"/>'
       : "") +
-    '<line x1="10" y1="45" x2="90" y2="45" stroke="rgba(255,255,255,0.15)" stroke-width="0.5" stroke-dasharray="2,2"/>' +
     "</svg>";
   cards +=
     '<div class="dash-card glass"><div class="dash-title">\uD83C\uDF05 ' +
