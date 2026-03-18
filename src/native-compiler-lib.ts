@@ -555,9 +555,10 @@ export function compileNative(inputFile: string, outputFile: string): void {
     irText = irText + irParts[pi];
   }
 
+  const irFile = outputFile + ".ll";
+  fs.writeFileSync(irFile, irText);
+
   if (emitLLVMOnly) {
-    const irFile = outputFile + ".ll";
-    fs.writeFileSync(irFile, irText);
     if (verbose) {
       console.log("LLVM IR written to " + irFile);
     }
