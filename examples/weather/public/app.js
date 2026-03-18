@@ -173,7 +173,7 @@ function fetchWeather(lat, lon, city) {
     });
 }
 
-function geocodeAndFetch(zip) {
+function geocodeAndFetch(query) {
   errorEl.textContent = "";
   heroEl.innerHTML = '<div class="loading">Looking up location...</div>';
   hourlyEl.innerHTML = "";
@@ -181,10 +181,14 @@ function geocodeAndFetch(zip) {
   dashEl.innerHTML = "";
   searchBtn.disabled = true;
 
-  var url =
-    "https://nominatim.openstreetmap.org/search?postalcode=" +
-    encodeURIComponent(zip) +
-    "&country=US&format=json&limit=1";
+  var isZip = /^\d{5}$/.test(query.trim());
+  var url = isZip
+    ? "https://nominatim.openstreetmap.org/search?postalcode=" +
+      encodeURIComponent(query) +
+      "&country=US&format=json&limit=1"
+    : "https://nominatim.openstreetmap.org/search?q=" +
+      encodeURIComponent(query) +
+      "&countrycodes=us&format=json&limit=1";
 
   fetch(url)
     .then(function (res) {
@@ -195,12 +199,12 @@ function geocodeAndFetch(zip) {
       if (!results || results.length === 0) throw new Error("No match");
       var parts = results[0].display_name.split(",");
       var city = parts.length > 2 ? parts[1].trim() : parts[0].trim();
-      history.replaceState(null, "", "?zip=" + encodeURIComponent(zip));
+      history.replaceState(null, "", "?zip=" + encodeURIComponent(query));
       fetchWeather(results[0].lat, results[0].lon, city);
     })
     .catch(function () {
       searchBtn.disabled = false;
-      showError('Could not find "' + zip + '". Try a US ZIP like 94102 or 10001.');
+      showError('Could not find "' + query + '". Try a city name or US ZIP code.');
     });
 }
 
