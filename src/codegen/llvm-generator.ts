@@ -158,6 +158,8 @@ import { analyzeEscapes } from "../semantic/escape-analysis.js";
 import { checkBinaryTypes } from "../semantic/binary-type-checker.js";
 import { checkEnumDeclarations } from "../semantic/enum-checker.js";
 import { checkAsyncAwait } from "../semantic/async-await-checker.js";
+import { checkArgumentCounts } from "../semantic/argument-count-checker.js";
+import { checkMissingReturns } from "../semantic/missing-return-checker.js";
 import { DebugMetadataBuilder } from "./infrastructure/debug-metadata.js";
 
 export interface SemaSymbolData {
@@ -2671,6 +2673,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     checkUninitializedFields(this.ast, this.sourceCode);
     checkBinaryTypes(this.ast, this.sourceCode);
     checkAsyncAwait(this.ast, this.sourceCode);
+    checkArgumentCounts(this.ast, this.sourceCode);
+    checkMissingReturns(this.ast, this.sourceCode);
     this.stackEligibleVars = analyzeEscapes(this.ast);
 
     const irParts: string[] = [];
