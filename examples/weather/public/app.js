@@ -5,8 +5,8 @@ var zipInput = document.getElementById("zip");
 var searchBtn = document.getElementById("search");
 var errorEl = document.getElementById("error");
 
-var defaultLat = "37.7793";
-var defaultLon = "-122.4193";
+var defaultLat = "37.7849";
+var defaultLon = "-122.4094";
 
 function fetchWeather(lat, lon) {
   locationEl.textContent = "";
@@ -47,20 +47,18 @@ function geocodeAndFetch(zip) {
   searchBtn.disabled = true;
 
   var url =
-    "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=" +
-    encodeURIComponent(zip + ", USA") +
-    "&benchmark=Public_AR_Current&format=json";
+    "https://nominatim.openstreetmap.org/search?postalcode=" +
+    encodeURIComponent(zip) +
+    "&country=US&format=json&limit=1";
 
   fetch(url)
     .then(function (res) {
       if (!res.ok) throw new Error("Geocoding failed");
       return res.json();
     })
-    .then(function (data) {
-      var matches = data.result.addressMatches;
-      if (!matches || matches.length === 0) throw new Error("No match");
-      var coords = matches[0].coordinates;
-      fetchWeather("" + coords.y, "" + coords.x);
+    .then(function (results) {
+      if (!results || results.length === 0) throw new Error("No match");
+      fetchWeather(results[0].lat, results[0].lon);
     })
     .catch(function () {
       searchBtn.disabled = false;
