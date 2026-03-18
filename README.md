@@ -2,20 +2,11 @@
 
 As fast as C, as ergonomic as TypeScript.
 
-ChadScript is a natively-compiled systems language with TypeScript syntax. Write familiar TypeScript, run `chad build`, get a standalone ELF or Mach-O binary via LLVM — no Node.js, no JVM, no runtime.
+ChadScript compiles TypeScript to native binaries via LLVM — the same backend behind Clang, Rust, and Swift. No Node.js, no JVM, no runtime, no cold start. Sub-2ms startup, ~250KB binaries.
 
-The compiler is self-hosting: tens of thousands of lines of TypeScript that compile themselves to a native binary. You install it with curl, not npm.
+The compiler is self-hosting: written in ChadScript, compiled by ChadScript, verified in a 3-stage bootstrap. Install with curl, not npm.
 
-**Status: Beta** — core language features work reliably with clear error messages. Safe for early adopters building real projects. Self-hosting, 621+ tests passing.
-
-| Milestone                           | Status |
-| ----------------------------------- | ------ |
-| Proof of concept                    | Done   |
-| Standard library + external linking | Done   |
-| Self-hosting (3-stage)              | Done   |
-| Performance (LLVM -O2)              | Done   |
-| Testing (620+ tests, CI)            | Done   |
-| Compile-time error coverage         | Done   |
+**Status: Beta** — self-hosting, 621+ tests, used in [production](https://chadsmith.dev/hn). Safe for early adopters.
 
 ---
 
@@ -66,18 +57,19 @@ httpServe(3000, (req: HttpRequest) => app.handle(req));
 your-app.ts  →  ChadScript parser  →  AST  →  LLVM IR  →  clang  →  ./your-app
 ```
 
-The same LLVM backend used by Clang, Rust, and Swift. Direct calls into C libraries — SQLite, libcurl, openssl — with zero FFI overhead. The output is a standard native binary: run it, ship it, containerize it.
+Every type is resolved at compile time. LLVM optimizes your code with the same passes used by C and Rust compilers — loop vectorization, inlining, dead code elimination. Direct calls into C libraries (SQLite, libcurl, openssl) with zero FFI overhead. The output is a standard native binary: run it, ship it, `scp` it, containerize it.
 
 ---
 
 ## Why TypeScript syntax?
 
-TypeScript is familiar to tens of millions of developers, and LLMs are well-trained on it. ChadScript uses a statically-safe subset where every type is known at compile time:
+TypeScript is familiar to millions of developers, and LLMs generate it fluently. ChadScript uses a statically-typed subset where every type is resolved at compile time — no `any`, no runtime type checks, no surprises:
 
 - **Null safety** — `string` is never null. Use `string | null` and `?.` for optional values.
-- **GC-managed memory** — Boehm GC handles allocation. No use-after-free, no double-frees.
-- **Compile-time checks** — type mismatches, invalid method calls, and unsafe patterns are caught before your code runs.
-- **IDE support** — `chad init` generates `tsconfig.json` with ChadScript types. VS Code language services work out of the box.
+- **No manual memory management** — Boehm GC handles allocation. No use-after-free, no double-frees, no `malloc`/`free`.
+- **Compile-time error catching** — type mismatches, invalid method calls, and unsafe patterns are caught before your code runs.
+- **Zero-cost C interop** — `declare function` binds any C library directly. No wrappers, no marshalling.
+- **IDE support** — `chad init` generates `tsconfig.json` with ChadScript types. VS Code works out of the box.
 
 ---
 

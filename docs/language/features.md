@@ -195,12 +195,21 @@ Strings are null-terminated C strings, not JavaScript's UTF-16 strings. They wor
 
 ## Closures
 
-Arrow functions and nested functions can capture outer variables, but captures are **by value, not by reference**. Mutating a variable after a closure captures it is a **compile error**:
+Arrow functions and nested functions can capture outer variables. Captures are **by value** — the closure gets a snapshot of the variable at the point of capture. Mutating a variable after a closure captures it is a **compile error**, preventing an entire class of bugs where closures silently observe stale or unexpected state:
 
 ```typescript
 let x = 1;
 const f = () => console.log(x);
 x = 2; // error: variable 'x' is reassigned after being captured by a closure
+```
+
+This is a deliberate design choice. If you need shared mutable state, use an object:
+
+```typescript
+const state = { count: 0 };
+const inc = () => { state.count += 1; };
+inc();
+console.log(state.count); // 1
 ```
 
 Inline lambdas with captures work in array methods:
