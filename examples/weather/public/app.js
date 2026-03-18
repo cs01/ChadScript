@@ -366,44 +366,36 @@ function render(city, forecast, hourlyData, grid) {
   var dayFrac = (nowTime - midnightToday) / fullDay;
   var riseFrac = (sunTimes.sunrise - midnightToday) / fullDay;
   var setFrac = (sunTimes.sunset - midnightToday) / fullDay;
-  // Sine wave: sunrise=phase 0, sunset=phase PI
-  // Cropped view centered on horizon, like Apple Weather
-  var horizY = 25;
-  var amp = 18;
-  function sunPoint(frac) {
+  var horizY = 28;
+  var amp = 16;
+  function sunPt(frac) {
     var phase = ((frac - riseFrac) / (setFrac - riseFrac)) * Math.PI;
     return { x: 5 + frac * 90, y: horizY - Math.sin(phase) * amp };
   }
-  // Split into above-horizon (bold) and below-horizon (dim) segments
-  var abovePts = [];
-  var belowPts = [];
+  // Full curve (dim) — all 24 hours
+  var fullPts = [];
   for (var ci = 0; ci <= 80; ci++) {
-    var cf = ci / 80;
-    var cp = sunPoint(cf);
-    if (cp.y <= horizY) {
-      if (belowPts.length > 0) {
-        belowPts.push(cp.x.toFixed(1) + "," + cp.y.toFixed(1));
-        belowPts = [];
-      }
-      abovePts.push(cp.x.toFixed(1) + "," + cp.y.toFixed(1));
-    } else {
-      if (abovePts.length > 0 && belowPts.length === 0) {
-        belowPts.push(abovePts[abovePts.length - 1]);
-      }
-      belowPts.push(cp.x.toFixed(1) + "," + cp.y.toFixed(1));
-    }
+    var cp = sunPt(ci / 80);
+    fullPts.push(cp.x.toFixed(1) + "," + cp.y.toFixed(1));
   }
-  var aboveD = abovePts.length > 1 ? "M " + abovePts.join(" L ") : "";
-  var belowD = belowPts.length > 1 ? "M " + belowPts.join(" L ") : "";
-  var sp = sunPoint(dayFrac);
+  var fullD = "M " + fullPts.join(" L ");
+  // Above-horizon only (bold) — just the daytime portion
+  var boldPts = [];
+  for (var bi = 0; bi <= 80; bi++) {
+    var bf = bi / 80;
+    var bp = sunPt(bf);
+    if (bp.y <= horizY) boldPts.push(bp.x.toFixed(1) + "," + bp.y.toFixed(1));
+  }
+  var boldD = boldPts.length > 1 ? "M " + boldPts.join(" L ") : "";
+  var sp = sunPt(dayFrac);
   var aboveHorizon = sp.y < horizY;
   var arcSvg =
-    '<svg viewBox="0 0 100 45" class="sun-arc">' +
-    (aboveD
-      ? '<path d="' + aboveD + '" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="2"/>'
-      : "") +
-    (belowD
-      ? '<path d="' + belowD + '" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="1.5"/>'
+    '<svg viewBox="0 0 100 48" class="sun-arc">' +
+    '<path d="' +
+    fullD +
+    '" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="1.5"/>' +
+    (boldD
+      ? '<path d="' + boldD + '" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="2"/>'
       : "") +
     '<line x1="5" y1="' +
     horizY +
