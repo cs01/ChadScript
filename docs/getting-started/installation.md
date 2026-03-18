@@ -8,13 +8,9 @@ This downloads a pre-built binary for your platform and installs it to `~/.chads
 
 ## Prerequisites
 
-ChadScript compiles your TypeScript to native code via LLVM. The release bundles all vendor libraries (libgc, libuv, etc.) and pre-compiled C bridge objects, so **LLVM is the only required base dependency**:
+No external dependencies. LLVM and LLD are embedded in the compiler binary. All vendor libraries (libgc, libuv, etc.) and pre-compiled C bridge objects are bundled in the release.
 
-- **macOS**: `brew install llvm`
-- **Ubuntu/Debian**: `sudo apt install llvm clang`
-- **Fedora**: `sudo dnf install llvm clang`
-
-Programs that use certain features also need the corresponding system library present at compile time:
+Programs that use certain features need the corresponding system library present at compile time:
 
 | Feature | Package |
 |---------|---------|

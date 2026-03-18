@@ -16,7 +16,7 @@ The compiler is self-hosting: written in ChadScript, compiled by ChadScript, ver
 curl -fsSL https://raw.githubusercontent.com/cs01/ChadScript/main/install.sh | sh
 ```
 
-Requires LLVM (`brew install llvm` / `apt install llvm clang`).
+No dependencies. LLVM and LLD are embedded in the compiler.
 
 ---
 
@@ -54,7 +54,7 @@ httpServe(3000, (req: HttpRequest) => app.handle(req));
 ## How it works
 
 ```
-your-app.ts  →  ChadScript parser  →  AST  →  LLVM IR  →  clang  →  ./your-app
+your-app.ts  →  ChadScript parser  →  AST  →  LLVM IR  →  LLVM -O2  →  LLD  →  ./your-app
 ```
 
 Every type is resolved at compile time. LLVM optimizes your code with the same passes used by C and Rust compilers — loop vectorization, inlining, dead code elimination. Direct calls into C libraries (SQLite, libcurl, openssl) with zero FFI overhead. The output is a standard native binary: run it, ship it, `scp` it, containerize it.

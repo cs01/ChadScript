@@ -11,7 +11,7 @@ When you run `chad build app.ts -o app`, the compiler:
 3. Runs semantic checks (null safety, closure safety, type validation)
 4. Lowers the AST to [LLVM IR](https://llvm.org/docs/LangRef.html) — the same intermediate format used by Clang, Rust, and Swift
 5. Optimizes with LLVM `-O2` — loop vectorization, inlining, constant folding, dead code elimination
-6. Links to a native binary via `clang`
+6. Links to a native binary via the embedded LLD linker
 
 The output is a standard ELF binary (Linux) or Mach-O binary (macOS). No runtime, no interpreter, no JIT. Types map directly to machine types — `number` is a 64-bit double, `string` is a pointer, structs are contiguous memory.
 
