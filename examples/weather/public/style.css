@@ -11,7 +11,6 @@
   --text: #f1f5f9;
   --text-dim: #94a3b8;
   --accent: #38bdf8;
-  --accent-glow: rgba(56, 189, 248, 0.15);
   --warm: #fb923c;
   --cool: #67e8f9;
   --radius: 12px;
@@ -91,72 +90,115 @@ header p {
 .search-bar button:hover {
   opacity: 0.85;
 }
+
 .search-bar button:disabled {
   opacity: 0.5;
   cursor: wait;
 }
 
 .location-name {
-  font-size: 1.25rem;
+  font-size: 1.5rem;
   font-weight: 600;
   margin-bottom: 1.25rem;
-  color: var(--text-dim);
 }
 
 .location-name strong {
   color: var(--text);
 }
 
-.current {
-  background: var(--surface);
+.hero {
+  background: linear-gradient(135deg, #1e3a5f 0%, #1e293b 100%);
   border-radius: var(--radius);
-  padding: 1.5rem 2rem;
-  margin-bottom: 1.5rem;
+  padding: 2rem;
+  margin-bottom: 1rem;
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 2rem;
   border: 1px solid var(--surface2);
 }
 
-.current-temp {
-  font-size: 4rem;
+.hero-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.hero-icon {
+  font-size: 3.5rem;
+  line-height: 1;
+}
+
+.hero-temp {
+  font-size: 4.5rem;
   font-weight: 700;
   line-height: 1;
 }
 
-.current-temp.warm {
+.hero-temp .degree {
+  font-size: 1.5rem;
+  font-weight: 400;
+  vertical-align: super;
+}
+
+.hero-temp.warm {
   color: var(--warm);
 }
-.current-temp.cool {
+
+.hero-temp.cool {
   color: var(--cool);
 }
 
-.current-detail {
-  text-align: right;
-  max-width: 55%;
+.hero-right {
+  flex: 1;
 }
 
-.current-detail .label {
-  font-size: 1.1rem;
+.hero-condition {
+  font-size: 1.25rem;
   font-weight: 600;
   margin-bottom: 0.25rem;
 }
 
-.current-detail .wind {
+.hero-hilo {
   color: var(--text-dim);
-  font-size: 0.85rem;
-  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+  margin-bottom: 0.15rem;
 }
 
-.current-detail .desc {
+.hero-feels {
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.detail-item {
+  background: var(--surface);
+  border: 1px solid var(--surface2);
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.detail-label {
   color: var(--text-dim);
   font-size: 0.85rem;
-  line-height: 1.4;
+}
+
+.detail-value {
+  font-weight: 600;
+  font-size: 0.95rem;
 }
 
 .forecast-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
   gap: 0.75rem;
 }
 
@@ -164,7 +206,7 @@ header p {
   background: var(--surface);
   border: 1px solid var(--surface2);
   border-radius: var(--radius);
-  padding: 1rem;
+  padding: 1rem 0.75rem;
   text-align: center;
   transition: border-color 0.2s;
 }
@@ -172,38 +214,45 @@ header p {
 .forecast-card:hover {
   border-color: var(--accent);
 }
-.forecast-card .period-name {
-  font-size: 0.8rem;
+
+.fc-name {
+  font-size: 0.75rem;
   color: var(--text-dim);
-  margin-bottom: 0.5rem;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-}
-.forecast-card .temp {
-  font-size: 1.75rem;
-  font-weight: 700;
-  margin-bottom: 0.25rem;
-}
-.forecast-card .temp.warm {
-  color: var(--warm);
-}
-.forecast-card .temp.cool {
-  color: var(--cool);
-}
-.forecast-card .wind {
-  font-size: 0.75rem;
-  color: var(--text-dim);
-  margin-bottom: 0.25rem;
-}
-.forecast-card .short {
-  font-size: 0.8rem;
-  color: var(--text-dim);
-  line-height: 1.3;
+  margin-bottom: 0.5rem;
 }
 
-.night {
-  opacity: 0.7;
+.fc-icon {
+  font-size: 1.75rem;
+  margin-bottom: 0.35rem;
+}
+
+.fc-temp {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 0.1rem;
+}
+
+.fc-temp.warm {
+  color: var(--warm);
+}
+
+.fc-temp.cool {
+  color: var(--cool);
+}
+
+.fc-low {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  margin-bottom: 0.35rem;
+}
+
+.fc-desc {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  line-height: 1.3;
 }
 
 .error-msg {
@@ -235,16 +284,18 @@ header p {
 }
 
 @media (max-width: 480px) {
-  .current {
+  .hero {
     flex-direction: column;
     text-align: center;
     gap: 1rem;
   }
-  .current-detail {
-    text-align: center;
-    max-width: 100%;
+  .hero-left {
+    justify-content: center;
+  }
+  .detail-grid {
+    grid-template-columns: 1fr;
   }
   .forecast-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
   }
 }
