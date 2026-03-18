@@ -128,7 +128,7 @@ export class Context {
   }
 
   text(body: string): HttpResponse {
-    let hdrs = "Content-Type: text/plain";
+    let hdrs = "Content-Type: text/plain; charset=utf-8";
     if (this._extraHeaders.length > 0) {
       hdrs = hdrs + "\n" + this._extraHeaders;
     }
@@ -139,7 +139,7 @@ export class Context {
   }
 
   json(data: any): HttpResponse {
-    let hdrs = "Content-Type: application/json";
+    let hdrs = "Content-Type: application/json; charset=utf-8";
     if (this._extraHeaders.length > 0) {
       hdrs = hdrs + "\n" + this._extraHeaders;
     }
@@ -150,7 +150,7 @@ export class Context {
   }
 
   html(body: string): HttpResponse {
-    let hdrs = "Content-Type: text/html";
+    let hdrs = "Content-Type: text/html; charset=utf-8";
     if (this._extraHeaders.length > 0) {
       hdrs = hdrs + "\n" + this._extraHeaders;
     }

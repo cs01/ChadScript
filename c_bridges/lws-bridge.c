@@ -344,11 +344,11 @@ static void send_http_response(http_conn_t *conn, int status, const char *resp_c
 static const char *sniff_content_type(const char *path, const char *body) {
     const char *dot = strrchr(path, '.');
     if (dot) {
-        if (!strcmp(dot, ".css")) return "text/css";
-        if (!strcmp(dot, ".js")) return "text/javascript";
-        if (!strcmp(dot, ".json")) return "application/json";
-        if (!strcmp(dot, ".html") || !strcmp(dot, ".htm")) return "text/html";
-        if (!strcmp(dot, ".svg")) return "image/svg+xml";
+        if (!strcmp(dot, ".css")) return "text/css; charset=utf-8";
+        if (!strcmp(dot, ".js")) return "text/javascript; charset=utf-8";
+        if (!strcmp(dot, ".json")) return "application/json; charset=utf-8";
+        if (!strcmp(dot, ".html") || !strcmp(dot, ".htm")) return "text/html; charset=utf-8";
+        if (!strcmp(dot, ".svg")) return "image/svg+xml; charset=utf-8";
         if (!strcmp(dot, ".png")) return "image/png";
         if (!strcmp(dot, ".jpg") || !strcmp(dot, ".jpeg")) return "image/jpeg";
         if (!strcmp(dot, ".gif")) return "image/gif";
@@ -359,21 +359,21 @@ static const char *sniff_content_type(const char *path, const char *body) {
         if (!strcmp(dot, ".ttf")) return "font/ttf";
         if (!strcmp(dot, ".otf")) return "font/opentype";
         if (!strcmp(dot, ".wasm")) return "application/wasm";
-        if (!strcmp(dot, ".xml")) return "application/xml";
+        if (!strcmp(dot, ".xml")) return "application/xml; charset=utf-8";
         if (!strcmp(dot, ".pdf")) return "application/pdf";
         if (!strcmp(dot, ".mp4")) return "video/mp4";
         if (!strcmp(dot, ".webm")) return "video/webm";
         if (!strcmp(dot, ".mp3")) return "audio/mpeg";
         if (!strcmp(dot, ".ogg")) return "audio/ogg";
-        if (!strcmp(dot, ".txt")) return "text/plain";
-        if (!strcmp(dot, ".map")) return "application/json";
-        if (body && body[0] == '<') return "text/html";
-        if (body && (body[0] == '{' || body[0] == '[')) return "application/json";
+        if (!strcmp(dot, ".txt")) return "text/plain; charset=utf-8";
+        if (!strcmp(dot, ".map")) return "application/json; charset=utf-8";
+        if (body && body[0] == '<') return "text/html; charset=utf-8";
+        if (body && (body[0] == '{' || body[0] == '[')) return "application/json; charset=utf-8";
     } else {
-        if (body && body[0] == '<') return "text/html";
-        if (body && (body[0] == '{' || body[0] == '[')) return "application/json";
+        if (body && body[0] == '<') return "text/html; charset=utf-8";
+        if (body && (body[0] == '{' || body[0] == '[')) return "application/json; charset=utf-8";
     }
-    return "text/plain";
+    return "text/plain; charset=utf-8";
 }
 
 /* ---- HTTP request dispatch ---- */
