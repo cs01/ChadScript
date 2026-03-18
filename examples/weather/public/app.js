@@ -113,14 +113,13 @@ function calcSunTimes(lat, lon, date, timeZone) {
         4 * 0.01671 * y * Math.sin(g) * Math.cos(2 * Lrad))) /
     rad;
   var solarNoon = 720 - 4 * lon - eqTime;
-  var tzOff = timeZone ? getTzOffset(timeZone, date) : -date.getTimezoneOffset();
-  var riseMin = solarNoon - 4 * HA + tzOff;
-  var setMin = solarNoon + 4 * HA + tzOff;
-  var noonMin = solarNoon + tzOff;
+  var riseMin = solarNoon - 4 * HA;
+  var setMin = solarNoon + 4 * HA;
+  var noonMin = solarNoon;
   function minsToDate(mins) {
     var d = new Date(date);
-    d.setHours(0, 0, 0, 0);
-    d.setMinutes(Math.round(mins));
+    d.setUTCHours(0, 0, 0, 0);
+    d.setUTCMinutes(Math.round(mins));
     return d;
   }
   return {
@@ -553,7 +552,7 @@ function render(city, forecast, hourlyData, grid, timeZone) {
     ? "Sunrise: " + fmtTimeInTz(sunTimes.sunrise, timeZone)
     : "Sunset: " + fmtTimeInTz(sunTimes.sunset, timeZone);
   var midnightToday = new Date(nowTime);
-  midnightToday.setHours(0, 0, 0, 0);
+  midnightToday.setUTCHours(0, 0, 0, 0);
   var fullDay = 24 * 60 * 60 * 1000;
   var dayFrac = (nowTime - midnightToday) / fullDay;
   var riseFrac = (sunTimes.sunrise - midnightToday) / fullDay;
