@@ -8,7 +8,7 @@ var errorEl = document.getElementById("error");
 var defaultLat = "37.7849";
 var defaultLon = "-122.4094";
 
-function fetchWeather(lat, lon) {
+function fetchWeather(lat, lon, displayName) {
   locationEl.textContent = "";
   currentEl.innerHTML = '<div class="loading">Loading forecast...</div>';
   forecastEl.innerHTML = "";
@@ -22,8 +22,12 @@ function fetchWeather(lat, lon) {
     })
     .then(function (points) {
       var props = points.properties;
-      var loc = props.relativeLocation.properties;
-      locationEl.innerHTML = "<strong>" + loc.city + "</strong>, " + loc.state;
+      if (displayName) {
+        locationEl.innerHTML = "<strong>" + displayName + "</strong>";
+      } else {
+        var loc = props.relativeLocation.properties;
+        locationEl.innerHTML = "<strong>" + loc.city + "</strong>, " + loc.state;
+      }
       return fetch(props.forecast);
     })
     .then(function (res) {
@@ -58,7 +62,8 @@ function geocodeAndFetch(zip) {
     })
     .then(function (results) {
       if (!results || results.length === 0) throw new Error("No match");
-      fetchWeather(results[0].lat, results[0].lon);
+      var name = results[0].display_name.split(",")[0];
+      fetchWeather(results[0].lat, results[0].lon, name);
     })
     .catch(function () {
       searchBtn.disabled = false;
@@ -146,4 +151,4 @@ zipInput.addEventListener("keydown", function (e) {
   }
 });
 
-fetchWeather(defaultLat, defaultLon);
+fetchWeather(defaultLat, defaultLon, "San Francisco, CA");
