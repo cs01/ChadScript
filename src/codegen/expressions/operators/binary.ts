@@ -7,6 +7,7 @@ import {
   IndexAccessNode,
 } from "../../../ast/types.js";
 import type { IStringGenerator } from "../../infrastructure/generator-context.js";
+import { getWantsI1, setWantsI1 } from "../condition-generator.js";
 
 interface ControlFlowGeneratorLike {
   generateLogicalOp(op: string, left: Expression, right: Expression, params: string[]): string;
@@ -54,7 +55,11 @@ export class BinaryExpressionGenerator {
 
   generate(op: string, left: Expression, right: Expression, params: string[]): string {
     if (op === "&&" || op === "||" || op === "??") {
-      return this.ctx.controlFlowGen.generateLogicalOp(op, left, right, params);
+      const savedI1 = getWantsI1();
+      setWantsI1(false);
+      const result = this.ctx.controlFlowGen.generateLogicalOp(op, left, right, params);
+      setWantsI1(savedI1);
+      return result;
     }
 
     if (op === "+" && (this.ctx.isStringExpression(left) || this.ctx.isStringExpression(right))) {
@@ -521,6 +526,10 @@ export class BinaryExpressionGenerator {
                   ? "eq"
                   : "ne";
       const cmpResult = this.ctx.emitIcmp(icmpCond, "i64", left, right);
+      if (getWantsI1()) {
+        setWantsI1(false);
+        return cmpResult;
+      }
       const i64Result = this.ctx.nextTemp();
       this.ctx.emit(`${i64Result} = zext i1 ${cmpResult} to i64`);
       this.ctx.setVariableType(i64Result, "i64");
@@ -561,7 +570,12 @@ export class BinaryExpressionGenerator {
     const cmpResult = this.ctx.nextTemp();
     this.ctx.emit(`${cmpResult} = fcmp ${cond} double ${leftDouble}, ${rightDouble}`);
 
-    // Convert boolean result to double (JavaScript semantics: comparisons return numbers)
+    if (getWantsI1()) {
+      setWantsI1(false);
+      this.ctx.setVariableType(cmpResult, "i1");
+      return cmpResult;
+    }
+
     const i32Result = this.ctx.nextTemp();
     this.ctx.emit(`${i32Result} = zext i1 ${cmpResult} to i32`);
     const doubleResult = this.ctx.nextTemp();

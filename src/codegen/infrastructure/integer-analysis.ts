@@ -13,6 +13,9 @@ import type {
   BinaryNode,
   UnaryNode,
   VariableNode,
+  MemberAccessNode,
+  MethodCallNode,
+  CallNode,
 } from "../../ast/types.js";
 
 class IntegerAnalyzer {
@@ -55,6 +58,35 @@ class IntegerAnalyzer {
       if (un.op === "-" || un.op === "~" || un.op === "+") {
         return this.isIntegerExpression(un.operand);
       }
+    }
+
+    if (val.type === "member_access") {
+      const ma = val as MemberAccessNode;
+      if (ma.property === "length") return true;
+    }
+
+    if (val.type === "method_call") {
+      const mc = val as MethodCallNode;
+      const method = mc.method;
+      if (
+        method === "indexOf" ||
+        method === "lastIndexOf" ||
+        method === "findIndex" ||
+        method === "charCodeAt"
+      ) {
+        return true;
+      }
+      const obj = mc.object as VariableNode;
+      if (obj.type === "variable" && obj.name === "Math") {
+        if (method === "floor" || method === "ceil" || method === "round" || method === "trunc") {
+          return true;
+        }
+      }
+    }
+
+    if (val.type === "call") {
+      const call = val as CallNode;
+      if (call.name === "parseInt") return true;
     }
 
     return false;
