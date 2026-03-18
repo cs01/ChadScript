@@ -64,8 +64,24 @@ function fmtTime(date) {
   return h + ":" + (m < 10 ? "0" : "") + m + " " + ampm;
 }
 
-// Sunrise/sunset calculation (simplified NOAA solar calculator)
-function calcSunTimes(lat, lon, date) {
+function fmtTimeInTz(date, timeZone) {
+  if (!timeZone) return fmtTime(date);
+  var parts = date.toLocaleString("en-US", {
+    timeZone: timeZone,
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+  return parts;
+}
+
+function getTzOffset(timeZone, date) {
+  var utc = new Date(date.toLocaleString("en-US", { timeZone: "UTC" }));
+  var loc = new Date(date.toLocaleString("en-US", { timeZone: timeZone }));
+  return (loc - utc) / 60000;
+}
+
+function calcSunTimes(lat, lon, date, timeZone) {
   var rad = Math.PI / 180;
   var JD = Math.floor(date.getTime() / 86400000) + 2440587.5;
   var n = JD - 2451545.0;
@@ -78,9 +94,15 @@ function calcSunTimes(lat, lon, date) {
   var cosHA =
     (Math.cos(90.833 * rad) - Math.sin(lat * rad) * sinDec) /
     (Math.cos(lat * rad) * Math.cos(decl));
-  if (cosHA > 1 || cosHA < -1) return { sunrise: new Date(date), sunset: new Date(date) };
+  if (cosHA > 1 || cosHA < -1)
+    return {
+      sunrise: new Date(date),
+      sunset: new Date(date),
+      solarNoon: new Date(date),
+      declination: 0,
+      dayLength: 0,
+    };
   var HA = Math.acos(cosHA) / rad;
-  // Equation of time
   var y = Math.tan(eps / 2);
   y = y * y;
   var Lrad = L * rad;
@@ -91,16 +113,22 @@ function calcSunTimes(lat, lon, date) {
         4 * 0.01671 * y * Math.sin(g) * Math.cos(2 * Lrad))) /
     rad;
   var solarNoon = 720 - 4 * lon - eqTime;
-  var tzOff = -date.getTimezoneOffset();
-  var riseMin = solarNoon - 4 * HA + tzOff;
-  var setMin = solarNoon + 4 * HA + tzOff;
+  var riseMin = solarNoon - 4 * HA;
+  var setMin = solarNoon + 4 * HA;
+  var noonMin = solarNoon;
   function minsToDate(mins) {
     var d = new Date(date);
-    d.setHours(0, 0, 0, 0);
-    d.setMinutes(Math.round(mins));
+    d.setUTCHours(0, 0, 0, 0);
+    d.setUTCMinutes(Math.round(mins));
     return d;
   }
-  return { sunrise: minsToDate(riseMin), sunset: minsToDate(setMin) };
+  return {
+    sunrise: minsToDate(riseMin),
+    sunset: minsToDate(setMin),
+    solarNoon: minsToDate(noonMin),
+    declination: decl / rad,
+    dayLength: setMin - riseMin,
+  };
 }
 
 function setWeatherBg(forecast, isDaytime) {
@@ -292,6 +320,7 @@ function fetchWeather(lat, lon, city) {
   searchBtn.disabled = true;
 
   var gridUrl = "";
+  var locationTz = "";
 
   fetch("https://api.weather.gov/points/" + lat + "," + lon)
     .then(function (res) {
@@ -300,6 +329,7 @@ function fetchWeather(lat, lon, city) {
     })
     .then(function (points) {
       var p = points.properties;
+      locationTz = p.timeZone || "";
       if (!city) {
         var rl = p.relativeLocation.properties;
         city = rl.city + ", " + rl.state;
@@ -319,7 +349,7 @@ function fetchWeather(lat, lon, city) {
     })
     .then(function (results) {
       searchBtn.disabled = false;
-      render(city, results[0], results[1], results[2]);
+      render(city, results[0], results[1], results[2], locationTz);
     })
     .catch(function () {
       searchBtn.disabled = false;
@@ -379,7 +409,7 @@ function getGridVal(grid, field) {
   return v[v.length - 1].value;
 }
 
-function render(city, forecast, hourlyData, grid) {
+function render(city, forecast, hourlyData, grid, timeZone) {
   var periods = forecast.properties.periods;
   if (!periods || periods.length === 0) {
     showError("No forecast data");
@@ -511,20 +541,18 @@ function render(city, forecast, hourlyData, grid) {
 
   var cards = "";
 
-  // Sunrise/Sunset card
-  var sunTimes = calcSunTimes(parseFloat(currentLat), parseFloat(currentLon), new Date());
+  var sunTimes = calcSunTimes(parseFloat(currentLat), parseFloat(currentLon), new Date(), timeZone);
   var nowTime = new Date();
   var isBeforeSunset = nowTime < sunTimes.sunset;
   var sunLabel = isBeforeSunset ? "Sunset" : "Sunrise";
-  var sunValue = isBeforeSunset ? fmtTime(sunTimes.sunset) : fmtTime(sunTimes.sunrise);
+  var sunValue = isBeforeSunset
+    ? fmtTimeInTz(sunTimes.sunset, timeZone)
+    : fmtTimeInTz(sunTimes.sunrise, timeZone);
   var sunDetail = isBeforeSunset
-    ? "Sunrise: " + fmtTime(sunTimes.sunrise)
-    : "Sunset: " + fmtTime(sunTimes.sunset);
-  // Sun arc — semicircle above horizon (day), dip below (night)
-  // Layout: x 10-90, horizon at y=50, arc peaks at y=15, dips to y=65
-  var dayLen = sunTimes.sunset - sunTimes.sunrise;
+    ? "Sunrise: " + fmtTimeInTz(sunTimes.sunrise, timeZone)
+    : "Sunset: " + fmtTimeInTz(sunTimes.sunset, timeZone);
   var midnightToday = new Date(nowTime);
-  midnightToday.setHours(0, 0, 0, 0);
+  midnightToday.setUTCHours(0, 0, 0, 0);
   var fullDay = 24 * 60 * 60 * 1000;
   var dayFrac = (nowTime - midnightToday) / fullDay;
   var riseFrac = (sunTimes.sunrise - midnightToday) / fullDay;
@@ -535,14 +563,12 @@ function render(city, forecast, hourlyData, grid) {
     var phase = ((frac - riseFrac) / (setFrac - riseFrac)) * Math.PI;
     return { x: 5 + frac * 90, y: horizY - Math.sin(phase) * amp };
   }
-  // Full curve (dim) — all 24 hours
   var fullPts = [];
   for (var ci = 0; ci <= 80; ci++) {
     var cp = sunPt(ci / 80);
     fullPts.push(cp.x.toFixed(1) + "," + cp.y.toFixed(1));
   }
   var fullD = "M " + fullPts.join(" L ");
-  // Above-horizon only (bold) — just the daytime portion
   var boldPts = [];
   for (var bi = 0; bi <= 80; bi++) {
     var bf = bi / 80;
@@ -552,7 +578,19 @@ function render(city, forecast, hourlyData, grid) {
   var boldD = boldPts.length > 1 ? "M " + boldPts.join(" L ") : "";
   var sp = sunPt(dayFrac);
   var aboveHorizon = sp.y < horizY;
+  var dayHrs = Math.floor(sunTimes.dayLength / 60);
+  var dayMins = Math.round(sunTimes.dayLength % 60);
+  var goldenRise = new Date(sunTimes.sunrise.getTime() + 30 * 60000);
+  var goldenSet = new Date(sunTimes.sunset.getTime() - 30 * 60000);
+  var tooltipLines = [
+    aboveHorizon ? "\u2600\uFE0F Sun is up" : "\uD83C\uDF19 Sun is down",
+    "Solar noon: " + fmtTimeInTz(sunTimes.solarNoon, timeZone),
+    "Day length: " + dayHrs + "h " + dayMins + "m",
+    "Golden hour: " + fmtTimeInTz(goldenRise, timeZone) + ", " + fmtTimeInTz(goldenSet, timeZone),
+    "Declination: " + sunTimes.declination.toFixed(1) + "\u00B0",
+  ];
   var arcSvg =
+    '<div class="sun-arc-wrap">' +
     '<svg viewBox="0 0 100 48" class="sun-arc">' +
     '<path d="' +
     fullD +
@@ -565,7 +603,7 @@ function render(city, forecast, hourlyData, grid) {
     '" x2="95" y2="' +
     horizY +
     '" stroke="rgba(255,255,255,0.2)" stroke-width="0.5"/>' +
-    '<circle cx="' +
+    '<circle class="sun-dot" cx="' +
     sp.x.toFixed(1) +
     '" cy="' +
     sp.y.toFixed(1) +
@@ -573,13 +611,16 @@ function render(city, forecast, hourlyData, grid) {
     (aboveHorizon ? "#fff" : "rgba(200,200,220,0.5)") +
     '"/>' +
     (aboveHorizon
-      ? '<circle cx="' +
+      ? '<circle class="sun-dot" cx="' +
         sp.x.toFixed(1) +
         '" cy="' +
         sp.y.toFixed(1) +
         '" r="6" fill="rgba(255,255,255,0.15)"/>'
       : "") +
-    "</svg>";
+    "</svg>" +
+    '<div class="sun-tooltip">' +
+    tooltipLines.join("<br>") +
+    "</div></div>";
   cards +=
     '<div class="dash-card glass"><div class="dash-title">\uD83C\uDF05 ' +
     sunLabel +
@@ -737,7 +778,7 @@ searchBtn.addEventListener("click", doSearch);
 // Geolocation
 locateBtn.addEventListener("click", function () {
   if (!navigator.geolocation) {
-    showError("Geolocation not supported");
+    showError("Geolocation not supported in this browser.");
     return;
   }
   heroEl.innerHTML = '<div class="loading">Getting location...</div>';
@@ -747,9 +788,18 @@ locateBtn.addEventListener("click", function () {
       var lon = pos.coords.longitude.toFixed(4);
       fetchWeather(lat, lon, null);
     },
-    function () {
-      showError("Could not get your location. Try searching instead.");
+    function (err) {
+      if (err.code === 1) {
+        showError(
+          "Location permission denied. Allow location access in your browser settings, or search instead.",
+        );
+      } else if (err.code === 3) {
+        showError("Location request timed out. Try again or search instead.");
+      } else {
+        showError("Could not determine your location. Try searching instead.");
+      }
     },
+    { timeout: 10000, enableHighAccuracy: false },
   );
 });
 
