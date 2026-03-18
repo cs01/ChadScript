@@ -106,6 +106,7 @@ function calcSunTimes(lat, lon, date) {
 function setWeatherBg(forecast, isDaytime) {
   var f = forecast.toLowerCase();
   var bg;
+  var showFlare = false;
   if (!isDaytime) {
     bg = "linear-gradient(180deg, #0a1628 0%, #1a1a3e 40%, #0d0d1f 100%)";
   } else if (f.indexOf("rain") !== -1 || f.indexOf("shower") !== -1) {
@@ -118,8 +119,100 @@ function setWeatherBg(forecast, isDaytime) {
     bg = "linear-gradient(180deg, #6b7b8d 0%, #4a5568 40%, #2d3748 100%)";
   } else {
     bg = "linear-gradient(180deg, #3a7bd5 0%, #1a5276 40%, #0f2b44 100%)";
+    showFlare = isDaytime;
   }
   document.body.style.background = bg;
+  var flare = document.getElementById("flare");
+  if (showFlare) {
+    flare.classList.add("active");
+  } else {
+    flare.classList.remove("active");
+  }
+}
+
+function dirToDeg(dir) {
+  var dirs = {
+    N: 0,
+    NNE: 22.5,
+    NE: 45,
+    ENE: 67.5,
+    E: 90,
+    ESE: 112.5,
+    SE: 135,
+    SSE: 157.5,
+    S: 180,
+    SSW: 202.5,
+    SW: 225,
+    WSW: 247.5,
+    W: 270,
+    WNW: 292.5,
+    NW: 315,
+    NNW: 337.5,
+  };
+  return dirs[dir] !== undefined ? dirs[dir] : 0;
+}
+
+function windCompassSvg(dir, speed) {
+  var deg = dirToDeg(dir);
+  var r = 40;
+  var cx = 50;
+  var cy = 50;
+  var svg = '<svg viewBox="0 0 100 100" class="wind-compass">';
+  // Outer circle
+  svg +=
+    '<circle cx="' +
+    cx +
+    '" cy="' +
+    cy +
+    '" r="' +
+    r +
+    '" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>';
+  // Tick marks
+  for (var ti = 0; ti < 360; ti += 30) {
+    var tRad = ((ti - 90) * Math.PI) / 180;
+    var inner = ti % 90 === 0 ? r - 6 : r - 3;
+    svg +=
+      '<line x1="' +
+      (cx + inner * Math.cos(tRad)).toFixed(1) +
+      '" y1="' +
+      (cy + inner * Math.sin(tRad)).toFixed(1) +
+      '" x2="' +
+      (cx + r * Math.cos(tRad)).toFixed(1) +
+      '" y2="' +
+      (cy + r * Math.sin(tRad)).toFixed(1) +
+      '" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>';
+  }
+  // Cardinal labels
+  svg +=
+    '<text x="50" y="12" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="7" font-weight="600">N</text>';
+  svg +=
+    '<text x="92" y="53" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="6">E</text>';
+  svg +=
+    '<text x="50" y="96" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="6">S</text>';
+  svg +=
+    '<text x="8" y="53" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="6">W</text>';
+  // Direction arrow
+  var aRad = ((deg - 90) * Math.PI) / 180;
+  var ax = cx + (r - 10) * Math.cos(aRad);
+  var ay = cy + (r - 10) * Math.sin(aRad);
+  // Arrow line from center to edge
+  svg +=
+    '<line x1="' +
+    cx +
+    '" y1="' +
+    cy +
+    '" x2="' +
+    ax.toFixed(1) +
+    '" y2="' +
+    ay.toFixed(1) +
+    '" stroke="#fff" stroke-width="2" stroke-linecap="round"/>';
+  // Dot at center
+  svg += '<circle cx="' + cx + '" cy="' + cy + '" r="3" fill="#fff"/>';
+  // Speed in center
+  svg +=
+    '<text x="50" y="62" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="5">mph</text>';
+  svg += "</svg>";
+  return svg;
 }
 
 function showError(msg) {
@@ -433,15 +526,14 @@ function render(city, forecast, hourlyData, grid) {
     sunDetail +
     "</div></div>";
 
-  // Wind
+  // Wind with compass
   cards +=
     '<div class="dash-card glass"><div class="dash-title">\uD83D\uDCA8 Wind</div>' +
     '<div class="dash-value">' +
     now.windSpeed +
     "</div>" +
-    '<div class="dash-detail">' +
-    now.windDirection +
-    "</div></div>";
+    windCompassSvg(now.windDirection, now.windSpeed) +
+    "</div>";
 
   // Humidity
   if (humidity !== null) {

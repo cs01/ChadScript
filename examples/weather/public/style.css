@@ -10,6 +10,53 @@ body {
   color: #fff;
   min-height: 100vh;
   padding: 1.5rem 1rem;
+  position: relative;
+  overflow-x: hidden;
+}
+
+.sun-flare {
+  position: fixed;
+  top: -120px;
+  left: -120px;
+  width: 400px;
+  height: 400px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.35) 0%,
+    rgba(255, 255, 255, 0.12) 20%,
+    rgba(200, 220, 255, 0.06) 40%,
+    transparent 70%
+  );
+  pointer-events: none;
+  z-index: 0;
+  display: none;
+}
+
+.sun-flare.active {
+  display: block;
+}
+
+.sun-flare::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 150px;
+  height: 150px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.5) 0%,
+    rgba(255, 255, 255, 0.15) 40%,
+    transparent 70%
+  );
+}
+
+.container {
+  position: relative;
+  z-index: 1;
 }
 
 .container {
@@ -333,6 +380,12 @@ body {
 
 .sun-time {
   font-size: 1.75rem;
+}
+
+.wind-compass {
+  width: 90px;
+  height: 90px;
+  margin: 0.25rem auto 0;
 }
 
 /* Error & Loading */
