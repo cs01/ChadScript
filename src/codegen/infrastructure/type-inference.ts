@@ -615,6 +615,14 @@ export class TypeInference {
 
     if (objBase.type === "member_access") {
       const memberAccess = expr.object as MemberAccessNode;
+      if (
+        memberAccess.property === "stdin" &&
+        (memberAccess.object as ExprBase).type === "variable" &&
+        (memberAccess.object as VariableNode).name === "process" &&
+        method === "read"
+      ) {
+        return this.ctx.typeContext.stringType;
+      }
       const fieldClassName = this.resolveClassNameFromExpression(memberAccess);
       if (fieldClassName) {
         const classMethod = this.getClassMethod(fieldClassName, method);

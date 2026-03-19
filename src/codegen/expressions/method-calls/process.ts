@@ -97,6 +97,24 @@ export function handleProcessSyscallI32(ctx: MethodCallGeneratorContext, funcNam
   return result;
 }
 
+export function isProcessStdinRead(expr: MethodCallNode): boolean {
+  if (expr.method !== "read") return false;
+  const objBase = expr.object as ExprBase;
+  if (objBase.type !== "member_access") return false;
+  const memberAccess = expr.object as MemberAccessNode;
+  const innerBase = memberAccess.object as ExprBase;
+  if (innerBase.type !== "variable") return false;
+  const varNode = memberAccess.object as VariableNode;
+  return varNode.name === "process" && memberAccess.property === "stdin";
+}
+
+export function handleProcessStdinRead(ctx: MethodCallGeneratorContext): string {
+  const result = ctx.nextTemp();
+  ctx.emit(`${result} = call i8* @__process_stdin_read()`);
+  ctx.setVariableType(result, "i8*");
+  return result;
+}
+
 export function isProcessStdoutOrStderr(expr: MethodCallNode): boolean {
   const objBase = expr.object as ExprBase;
   if (objBase.type !== "member_access") return false;

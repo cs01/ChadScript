@@ -1064,6 +1064,8 @@ export class FunctionGenerator {
       ir += "  store i8* %__stderr_val, i8** @stderr\n";
       ir += "  %__stdout_val = load i8*, i8** @__stdoutp\n";
       ir += "  store i8* %__stdout_val, i8** @stdout\n";
+      ir += "  %__stdin_val = load i8*, i8** @__stdinp\n";
+      ir += "  store i8* %__stdin_val, i8** @stdin\n";
       ir += "\n";
     }
 

@@ -798,4 +798,56 @@ export class FilesystemGenerator {
     ir += "}\n\n";
     return ir;
   }
+
+  generateStdinReadHelper(): string {
+    let ir = "";
+    ir += "define i8* @__process_stdin_read() {\n";
+    ir += "entry:\n";
+    ir += "  %stdin_fp = load i8*, i8** @stdin\n";
+    ir += "  %init_cap = add i64 0, 4096\n";
+    ir += "  %init_buf = call i8* @GC_malloc_atomic(i64 4096)\n";
+    ir += "  br label %loop\n";
+    ir += "\n";
+    ir += "loop:\n";
+    ir += "  %buf = phi i8* [ %init_buf, %entry ], [ %final_buf, %after_grow ]\n";
+    ir += "  %len = phi i64 [ 0, %entry ], [ %new_len, %after_grow ]\n";
+    ir += "  %cap = phi i64 [ %init_cap, %entry ], [ %final_cap, %after_grow ]\n";
+    ir += "  %remain = sub i64 %cap, %len\n";
+    ir += "  %write_ptr = getelementptr inbounds i8, i8* %buf, i64 %len\n";
+    ir += "  %nread = call i64 @fread(i8* %write_ptr, i64 1, i64 %remain, i8* %stdin_fp)\n";
+    ir += "  %new_len = add i64 %len, %nread\n";
+    ir += "  %done = icmp eq i64 %nread, 0\n";
+    ir += "  br i1 %done, label %finish, label %check_grow\n";
+    ir += "\n";
+    ir += "check_grow:\n";
+    ir += "  %full = icmp eq i64 %new_len, %cap\n";
+    ir += "  br i1 %full, label %grow, label %after_grow\n";
+    ir += "\n";
+    ir += "grow:\n";
+    ir += "  %new_cap = mul i64 %cap, 2\n";
+    ir += "  %grown_buf = call i8* @GC_realloc(i8* %buf, i64 %new_cap)\n";
+    ir += "  br label %after_grow\n";
+    ir += "\n";
+    ir += "after_grow:\n";
+    ir += "  %final_buf = phi i8* [ %buf, %check_grow ], [ %grown_buf, %grow ]\n";
+    ir += "  %final_cap = phi i64 [ %cap, %check_grow ], [ %new_cap, %grow ]\n";
+    ir += "  br label %loop\n";
+    ir += "\n";
+    ir += "finish:\n";
+    ir += "  %need_space = add i64 %new_len, 1\n";
+    ir += "  %has_space = icmp ult i64 %need_space, %cap\n";
+    ir += "  br i1 %has_space, label %terminate, label %grow_final\n";
+    ir += "\n";
+    ir += "grow_final:\n";
+    ir += "  %final_realloc = call i8* @GC_realloc(i8* %buf, i64 %need_space)\n";
+    ir += "  br label %terminate\n";
+    ir += "\n";
+    ir += "terminate:\n";
+    ir += "  %out_buf = phi i8* [ %buf, %finish ], [ %final_realloc, %grow_final ]\n";
+    ir += "  %null_ptr = getelementptr inbounds i8, i8* %out_buf, i64 %new_len\n";
+    ir += "  store i8 0, i8* %null_ptr\n";
+    ir += "  ret i8* %out_buf\n";
+    ir += "}\n\n";
+    return ir;
+  }
 }
