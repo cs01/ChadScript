@@ -1,11 +1,11 @@
-interface Config {
+interface Person {
   name: string;
-  port: number;
-  host: string;
+  age: number;
+  active: boolean;
 }
 
-const input = "name: myapp\nport: 8080\nhost: localhost";
-const result: Config = YAML.parse<Config>(input);
-if (result.name === "myapp" && result.port === 8080 && result.host === "localhost") {
+const input = "name: Alice\nage: 30\nactive: true";
+const result: Person = YAML.parse<Person>(input);
+if (result.name === "Alice" && result.age === 30 && result.active === true) {
   console.log("TEST_PASSED");
 }
