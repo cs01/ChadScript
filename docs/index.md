@@ -18,7 +18,7 @@ features:
   - title: TypeScript Syntax
     details: Classes, generics, interfaces, async/await, closures, JSX. If you write TypeScript, you already know ChadScript.
   - title: Batteries Included
-    details: HTTP server, SQLite, fetch, crypto, WebSocket, JSON — all built in. No npm install, no node_modules.
+    details: No package manager, no dependencies. HTTP server, SQLite, fetch, crypto, WebSocket, JSON — all built into the standard library. Write code, run it.
   - title: Single-Binary Deploy
     details: One file, no dependencies. Copy it to a server, drop it in a Docker scratch image, run it anywhere.
 ---

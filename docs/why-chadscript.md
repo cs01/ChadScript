@@ -11,6 +11,18 @@ ChadScript compiles TypeScript to native binaries. Write TypeScript, run `chad b
 - **Single-binary deploy** — `chad build app.ts -o app` produces one self-contained file. Copy it to a server, drop it in a container, run it.
 - **Self-hosting** — the compiler is written in ChadScript and compiles itself.
 
+## No setup, no packages
+
+There is no package manager step. Write your code, run it:
+
+```bash
+chad run app.ts
+```
+
+Everything your program needs — HTTP, SQLite, crypto, WebSocket, JSON, filesystem — is part of the standard library and compiled directly into your binary. No separate install step, no version conflicts, no supply chain to audit.
+
+ChadScript supports importing from other `.ts` files and can resolve `node_modules`, but most npm packages rely on JavaScript features ChadScript doesn't support. In practice, your dependencies are the standard library and your own code — which means fully deterministic builds from day one with nothing to keep up to date.
+
 ## What ChadScript is not
 
 ChadScript is a statically-typed subset of TypeScript designed for native compilation. It is not a JavaScript runtime. There is no `any`, no `eval`, no runtime type inspection, no dynamic imports. npm packages won't work unless rewritten in the ChadScript subset. If you need full Node.js compatibility, use Node, Bun, or Deno. ChadScript is for when you want a native binary.
