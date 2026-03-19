@@ -221,7 +221,13 @@ interface Response {
   ok: boolean;
 }
 
-declare function fetch(url: string): Promise<Response>;
+interface FetchOptions {
+  method?: string;
+  headers?: Record<string, string>;
+  body?: string;
+}
+
+declare function fetch(url: string, options?: FetchOptions): Promise<Response>;
 
 interface HttpRequest {
   method: string;

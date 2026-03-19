@@ -157,7 +157,7 @@ jobs:
       - name: Verify vendor libraries
         run: |
           fail=0
-          for lib in vendor/bdwgc/libgc.a vendor/yyjson/libyyjson.a vendor/libuv/build/libuv.a vendor/picohttpparser/picohttpparser.o c_bridges/lws-bridge.o c_bridges/multipart-bridge.o c_bridges/regex-bridge.o c_bridges/child-process-bridge.o c_bridges/child-process-spawn.o c_bridges/os-bridge.o c_bridges/strlen-cache.o c_bridges/time-bridge.o c_bridges/base64-bridge.o c_bridges/url-bridge.o c_bridges/uri-bridge.o c_bridges/dotenv-bridge.o c_bridges/watch-bridge.o c_bridges/arena-bridge.o c_bridges/llvm-bridge.o c_bridges/llvm-builder-bridge.o c_bridges/lld-bridge.o; do
+          for lib in vendor/bdwgc/libgc.a vendor/yyjson/libyyjson.a vendor/libuv/build/libuv.a vendor/picohttpparser/picohttpparser.o c_bridges/lws-bridge.o c_bridges/multipart-bridge.o c_bridges/regex-bridge.o c_bridges/child-process-bridge.o c_bridges/child-process-spawn.o c_bridges/os-bridge.o c_bridges/strlen-cache.o c_bridges/time-bridge.o c_bridges/base64-bridge.o c_bridges/url-bridge.o c_bridges/uri-bridge.o c_bridges/dotenv-bridge.o c_bridges/watch-bridge.o c_bridges/arena-bridge.o c_bridges/curl-bridge.o c_bridges/llvm-bridge.o c_bridges/llvm-builder-bridge.o c_bridges/lld-bridge.o; do
             if [ ! -f "$lib" ]; then
               echo "MISSING: $lib"
               fail=1
@@ -226,7 +226,7 @@ jobs:
           cp c_bridges/os-bridge.o c_bridges/strlen-cache.o release/lib/
           cp c_bridges/time-bridge.o c_bridges/base64-bridge.o c_bridges/url-bridge.o c_bridges/uri-bridge.o release/lib/
           cp c_bridges/dotenv-bridge.o release/lib/
-          cp c_bridges/watch-bridge.o c_bridges/arena-bridge.o c_bridges/llvm-bridge.o c_bridges/llvm-builder-bridge.o c_bridges/lld-bridge.o release/lib/
+          cp c_bridges/watch-bridge.o c_bridges/arena-bridge.o c_bridges/curl-bridge.o c_bridges/llvm-bridge.o c_bridges/llvm-builder-bridge.o c_bridges/lld-bridge.o release/lib/
           tar -czf chadscript-linux-x64.tar.gz -C release chad lib
 
       - name: Upload artifact
@@ -278,7 +278,7 @@ jobs:
       - name: Verify vendor libraries
         run: |
           fail=0
-          for lib in vendor/bdwgc/libgc.a vendor/yyjson/libyyjson.a vendor/libuv/build/libuv.a vendor/picohttpparser/picohttpparser.o c_bridges/lws-bridge.o c_bridges/multipart-bridge.o c_bridges/regex-bridge.o c_bridges/child-process-bridge.o c_bridges/child-process-spawn.o c_bridges/os-bridge.o c_bridges/strlen-cache.o c_bridges/time-bridge.o c_bridges/base64-bridge.o c_bridges/url-bridge.o c_bridges/uri-bridge.o c_bridges/dotenv-bridge.o c_bridges/watch-bridge.o c_bridges/arena-bridge.o c_bridges/llvm-bridge.o c_bridges/llvm-builder-bridge.o c_bridges/lld-bridge.o; do
+          for lib in vendor/bdwgc/libgc.a vendor/yyjson/libyyjson.a vendor/libuv/build/libuv.a vendor/picohttpparser/picohttpparser.o c_bridges/lws-bridge.o c_bridges/multipart-bridge.o c_bridges/regex-bridge.o c_bridges/child-process-bridge.o c_bridges/child-process-spawn.o c_bridges/os-bridge.o c_bridges/strlen-cache.o c_bridges/time-bridge.o c_bridges/base64-bridge.o c_bridges/url-bridge.o c_bridges/uri-bridge.o c_bridges/dotenv-bridge.o c_bridges/watch-bridge.o c_bridges/arena-bridge.o c_bridges/curl-bridge.o c_bridges/llvm-bridge.o c_bridges/llvm-builder-bridge.o c_bridges/lld-bridge.o; do
             if [ ! -f "$lib" ]; then
               echo "MISSING: $lib"
               fail=1
@@ -351,7 +351,7 @@ jobs:
           cp c_bridges/os-bridge.o c_bridges/strlen-cache.o release/lib/
           cp c_bridges/time-bridge.o c_bridges/base64-bridge.o c_bridges/url-bridge.o c_bridges/uri-bridge.o release/lib/
           cp c_bridges/dotenv-bridge.o release/lib/
-          cp c_bridges/watch-bridge.o c_bridges/arena-bridge.o c_bridges/llvm-bridge.o c_bridges/llvm-builder-bridge.o c_bridges/lld-bridge.o release/lib/
+          cp c_bridges/watch-bridge.o c_bridges/arena-bridge.o c_bridges/curl-bridge.o c_bridges/llvm-bridge.o c_bridges/llvm-builder-bridge.o c_bridges/lld-bridge.o release/lib/
           tar -czf chadscript-macos-arm64.tar.gz -C release chad lib
 
       - name: Upload artifact

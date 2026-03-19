@@ -73,7 +73,7 @@ export class RuntimeGenerator {
     ir += "  ret i64 %total_size\n";
     ir += "}\n\n";
 
-    ir += "define %__FetchResponse* @fetch(i8* %url) {\n";
+    ir += "define %__FetchResponse* @fetch(i8* %url, i8* %method, i8* %headers, i8* %body) {\n";
     ir += "entry:\n";
     ir += "  %curl = call i8* @curl_easy_init()\n";
     ir += "  %curl_null = icmp eq i8* %curl, null\n";
@@ -120,7 +120,38 @@ export class RuntimeGenerator {
     ir += "  %follow_opt = load i32, i32* @CURLOPT_FOLLOWLOCATION\n";
     ir +=
       "  %follow_result = call i32 (i8*, i32, ...) @curl_easy_setopt(i8* %curl, i32 %follow_opt, i64 1)\n";
+
+    ir += "  %has_method = icmp ne i8* %method, null\n";
+    ir += "  br i1 %has_method, label %set_method, label %check_body\n\n";
+    ir += "set_method:\n";
+    ir += "  %method_opt = load i32, i32* @CURLOPT_CUSTOMREQUEST\n";
+    ir += "  call i32 (i8*, i32, ...) @curl_easy_setopt(i8* %curl, i32 %method_opt, i8* %method)\n";
+    ir += "  br label %check_body\n\n";
+
+    ir += "check_body:\n";
+    ir += "  %has_body = icmp ne i8* %body, null\n";
+    ir += "  br i1 %has_body, label %set_body, label %check_headers\n\n";
+    ir += "set_body:\n";
+    ir += "  %body_opt = load i32, i32* @CURLOPT_POSTFIELDS\n";
+    ir += "  call i32 (i8*, i32, ...) @curl_easy_setopt(i8* %curl, i32 %body_opt, i8* %body)\n";
+    ir += "  br label %check_headers\n\n";
+
+    ir += "check_headers:\n";
+    ir += "  %has_req_headers = icmp ne i8* %headers, null\n";
+    ir += "  br i1 %has_req_headers, label %set_headers, label %do_perform\n\n";
+    ir += "set_headers:\n";
+    ir += "  %slist = call i8* @cs_curl_set_headers(i8* %curl, i8* %headers)\n";
+    ir += "  br label %do_perform\n\n";
+
+    ir += "do_perform:\n";
+    ir += "  %slist_phi = phi i8* [null, %check_headers], [%slist, %set_headers]\n";
     ir += "  %perform_result = call i32 @curl_easy_perform(i8* %curl)\n";
+    ir += "  %has_slist = icmp ne i8* %slist_phi, null\n";
+    ir += "  br i1 %has_slist, label %free_slist, label %check_perform\n\n";
+    ir += "free_slist:\n";
+    ir += "  call void @curl_slist_free_all(i8* %slist_phi)\n";
+    ir += "  br label %check_perform\n\n";
+    ir += "check_perform:\n";
     ir += "  %perform_ok = icmp eq i32 %perform_result, 0\n";
     ir += "  br i1 %perform_ok, label %get_status, label %fetch_error\n\n";
 
@@ -223,9 +254,10 @@ export class RuntimeGenerator {
   generateFetchAsyncWrapper(): string {
     let ir = "; fetch_async() - Promise-returning wrapper around sync fetch\n";
     ir += "; This enables await fetch(url) syntax\n";
-    ir += "define %Promise* @fetch_async(i8* %url) {\n";
+    ir += "define %Promise* @fetch_async(i8* %url, i8* %method, i8* %headers, i8* %body) {\n";
     ir += "entry:\n";
-    ir += "  %response = call %__FetchResponse* @fetch(i8* %url)\n";
+    ir +=
+      "  %response = call %__FetchResponse* @fetch(i8* %url, i8* %method, i8* %headers, i8* %body)\n";
     ir += "  %response_i8 = bitcast %__FetchResponse* %response to i8*\n";
     ir += "  %promise = call %Promise* @__Promise_resolve_static(i8* %response_i8)\n";
     ir += "  ret %Promise* %promise\n";

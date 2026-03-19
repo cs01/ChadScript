@@ -232,6 +232,21 @@ else
   echo "==> arena-bridge already built, skipping"
 fi
 
+# --- curl-bridge (libcurl header parsing helper, needs curl headers) ---
+CURL_BRIDGE_SRC="$C_BRIDGES_DIR/curl-bridge.c"
+CURL_BRIDGE_OBJ="$C_BRIDGES_DIR/curl-bridge.o"
+if [ ! -f "$CURL_BRIDGE_OBJ" ] || [ "$CURL_BRIDGE_SRC" -nt "$CURL_BRIDGE_OBJ" ]; then
+  if echo '#include <curl/curl.h>' | cc -xc -fsyntax-only - 2>/dev/null; then
+    echo "==> Building curl-bridge..."
+    cc -c -O2 -fPIC "$CURL_BRIDGE_SRC" -o "$CURL_BRIDGE_OBJ"
+    echo "  -> $CURL_BRIDGE_OBJ"
+  else
+    echo "==> curl-bridge skipped (no curl headers found)"
+  fi
+else
+  echo "==> curl-bridge already built, skipping"
+fi
+
 # --- base64-bridge ---
 BASE64_BRIDGE_SRC="$C_BRIDGES_DIR/base64-bridge.c"
 BASE64_BRIDGE_OBJ="$C_BRIDGES_DIR/base64-bridge.o"

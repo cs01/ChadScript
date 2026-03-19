@@ -249,8 +249,12 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
     ir += "@CURLOPT_USERAGENT = constant i32 10018\n";
     ir += "@CURLOPT_HEADERFUNCTION = constant i32 20079\n";
     ir += "@CURLOPT_HEADERDATA = constant i32 10029\n";
+    ir += "@CURLOPT_CUSTOMREQUEST = constant i32 10036\n";
+    ir += "@CURLOPT_POSTFIELDS = constant i32 10015\n";
     ir += "@CURLINFO_EFFECTIVE_URL = constant i32 1048577\n";
     ir += "@CURLINFO_REDIRECT_COUNT = constant i32 2097172\n";
+    ir += "declare i8* @cs_curl_set_headers(i8*, i8*)\n";
+    ir += "declare void @curl_slist_free_all(i8*)\n";
     ir += "\n";
   }
 

@@ -199,7 +199,37 @@ export class CallExpressionGenerator {
       this.ctx.setUsesPromises(true);
       this.ctx.setUsesCurl(true);
       this.ctx.setUsesJson(true);
-      const temp = this.ctx.emitCall("%Promise*", "@fetch_async", `i8* ${urlValue}`);
+
+      let methodVal = "null";
+      let headersVal = "null";
+      let bodyVal = "null";
+
+      if (expr.args.length >= 2) {
+        const optArg = expr.args[1] as {
+          type: string;
+          properties?: { key: string; value: unknown }[];
+        };
+        if (optArg.type === "object" && optArg.properties) {
+          for (const prop of optArg.properties) {
+            if (prop.key === "method") {
+              methodVal = this.ctx.generateExpression(prop.value as CallNode, params);
+            } else if (prop.key === "body") {
+              bodyVal = this.ctx.generateExpression(prop.value as CallNode, params);
+            } else if (prop.key === "headers") {
+              headersVal = this.generateFetchHeaders(
+                prop.value as { type: string; properties?: { key: string; value: unknown }[] },
+                params,
+              );
+            }
+          }
+        }
+      }
+
+      const temp = this.ctx.emitCall(
+        "%Promise*",
+        "@fetch_async",
+        `i8* ${urlValue}, i8* ${methodVal}, i8* ${headersVal}, i8* ${bodyVal}`,
+      );
       return temp;
     }
 
@@ -1540,5 +1570,48 @@ export class CallExpressionGenerator {
 
     this.ctx.setVariableType(structRaw, "i8*");
     return structRaw;
+  }
+
+  private generateFetchHeaders(
+    headersObj: { type: string; properties?: { key: string; value: unknown }[] },
+    params: string[],
+  ): string {
+    if (
+      headersObj.type !== "object" ||
+      !headersObj.properties ||
+      headersObj.properties.length === 0
+    ) {
+      return "null";
+    }
+
+    let result = createStringConstant(this.ctx, "");
+    for (const prop of headersObj.properties) {
+      const keyStr = createStringConstant(this.ctx, prop.key + ": ");
+      const valStr = this.ctx.generateExpression(prop.value as CallNode, params);
+      const nlStr = createStringConstant(this.ctx, "\n");
+
+      const keyLen = this.ctx.emitCall("i64", "@strlen", `i8* ${keyStr}`);
+      const valLen = this.ctx.emitCall("i64", "@strlen", `i8* ${valStr}`);
+      const nlLen = this.ctx.emitCall("i64", "@strlen", `i8* ${nlStr}`);
+      const prevLen = this.ctx.emitCall("i64", "@strlen", `i8* ${result}`);
+
+      const totalLen = this.ctx.nextTemp();
+      this.ctx.emit(`${totalLen} = add i64 ${prevLen}, ${keyLen}`);
+      const totalLen2 = this.ctx.nextTemp();
+      this.ctx.emit(`${totalLen2} = add i64 ${totalLen}, ${valLen}`);
+      const totalLen3 = this.ctx.nextTemp();
+      this.ctx.emit(`${totalLen3} = add i64 ${totalLen2}, ${nlLen}`);
+      const allocSize = this.ctx.nextTemp();
+      this.ctx.emit(`${allocSize} = add i64 ${totalLen3}, 1`);
+
+      const buf = this.ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${allocSize}`);
+      this.ctx.emitCallVoid("@strcpy", `i8* ${buf}, i8* ${result}`);
+      this.ctx.emitCallVoid("@strcat", `i8* ${buf}, i8* ${keyStr}`);
+      this.ctx.emitCallVoid("@strcat", `i8* ${buf}, i8* ${valStr}`);
+      this.ctx.emitCallVoid("@strcat", `i8* ${buf}, i8* ${nlStr}`);
+      result = buf;
+    }
+    this.ctx.setVariableType(result, "i8*");
+    return result;
   }
 }
