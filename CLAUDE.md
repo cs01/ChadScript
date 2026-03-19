@@ -180,21 +180,18 @@ Tests auto-detect `.build/chad` and use it instead of `node dist/chad-node.js` (
 
 ## Structured IR Builders
 
-Prefer structured builder methods over raw `ctx.emit()` for these instructions:
+Prefer structured builder methods over raw `ctx.emit()` for all supported instructions:
 
-- `ctx.emitStore(type, value, ptr)` — instead of `ctx.emit(\`store ${type} ${value}, ${type}\* ${ptr}\`)`
-- `ctx.emitLoad(type, ptr)` — instead of `ctx.emit(\`${tmp} = load ${type}, ${type}\* ${ptr}\`)`
-- `ctx.emitGep(baseType, ptr, indices)` — instead of `ctx.emit(\`${tmp} = getelementptr ...\`)`
-- `ctx.emitCall(retType, func, args)` — instead of `ctx.emit(\`${tmp} = call ...\`)`
-- `ctx.emitCallVoid(func, args)` — instead of `ctx.emit(\`call void ...\`)`
-- `ctx.emitBitcast(value, fromType, toType)` — instead of `ctx.emit(\`${tmp} = bitcast ...\`)`
-- `ctx.emitIcmp(pred, type, lhs, rhs)` — instead of `ctx.emit(\`${tmp} = icmp ...\`)`
-- `ctx.emitBr(label)` / `ctx.emitBrCond(cond, then, else)` / `ctx.emitLabel(name)` — control flow
+**Memory & access:** `emitStore`, `emitLoad`, `emitGep`, `emitCall`, `emitCallVoid`, `emitBitcast`
+**Comparison:** `emitIcmp`, `emitFcmp`
+**Control flow:** `emitBr`, `emitBrCond`, `emitLabel`, `emitRet`, `emitRetVoid`, `emitUnreachable`
+**Arithmetic:** `emitAdd`, `emitSub`, `emitMul`, `emitFAdd`, `emitFSub`, `emitFMul`, `emitFDiv`, `emitSRem`, `emitFRem`, `emitFNeg`
+**Casts:** `emitZext`, `emitSext`, `emitTrunc`, `emitSitofp`, `emitFptosi`, `emitPtrtoint`, `emitInttoptr`
+**Bitwise:** `emitAnd`, `emitOr`, `emitXor`, `emitShl`, `emitAShr`, `emitLShr`
+**Other:** `emitPhi`, `emitSelect`, `emitAlloca`
 
-Keep `ctx.emit()` for instructions without builders: `phi`, `select`, `add`, `sub`, `mul`, `zext`,
-`sitofp`, `fptosi`, `fcmp`, `alloca`, `ptrtoint`, `inttoptr`, `call void @llvm.memcpy...`.
-Also keep `emit()` when you need `inbounds` on GEP or `!tbaa` metadata on loads/stores (builders
-don't support these qualifiers yet).
+Keep `ctx.emit()` only for: `inbounds` GEP, `!tbaa` metadata, `call void @llvm.memcpy`, and other
+exotic instructions without builders.
 
 ## Terminator Classification
 
