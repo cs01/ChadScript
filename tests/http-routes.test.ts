@@ -9,6 +9,13 @@ import * as net from "node:net";
 
 const execAsync = promisify(exec);
 
+if (!process.env.CHADC_COMPILER) {
+  throw new Error(
+    "CHADC_COMPILER env var is required. Run via: npm test, npm run test:node, or npm run test:native",
+  );
+}
+const compiler = `${process.env.CHADC_COMPILER} build`;
+
 const SERVER_SOURCE = "tests/fixtures/network/http-route-isolation-test.ts";
 const SERVER_BINARY = ".build/tests/fixtures/network/http-route-isolation-test";
 let PORT = 0;
@@ -38,7 +45,7 @@ describe("HTTP Route Isolation Tests", { concurrency: 1 }, () => {
       });
       srv.on("error", reject);
     });
-    await execAsync(`node dist/chad-node.js build ${SERVER_SOURCE}`, { timeout: 60000 });
+    await execAsync(`${compiler} ${SERVER_SOURCE}`, { timeout: 60000 });
     assert.ok(fsSync.existsSync(SERVER_BINARY), "Server binary should exist");
   });
 

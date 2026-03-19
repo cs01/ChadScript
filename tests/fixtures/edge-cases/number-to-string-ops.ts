@@ -1,3 +1,4 @@
+// @test-native-only
 const n = 42;
 const s = n.toString();
 if (s !== "42") {

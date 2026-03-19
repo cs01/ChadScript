@@ -8,7 +8,12 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
 
-const compiler = fs.existsSync(".build/chad") ? ".build/chad" : "node dist/chad-node.js";
+if (!process.env.CHADC_COMPILER) {
+  throw new Error(
+    "CHADC_COMPILER env var is required. Run via: npm test, npm run test:node, or npm run test:native",
+  );
+}
+const compiler = process.env.CHADC_COMPILER;
 
 describe("chad watch", { timeout: 30000 }, () => {
   it("should recompile and re-run on file change", async () => {

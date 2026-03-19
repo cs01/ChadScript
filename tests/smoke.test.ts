@@ -8,9 +8,12 @@ import * as path from "node:path";
 
 const execAsync = promisify(exec);
 
-const compiler = fsSync.existsSync(".build/chad")
-  ? ".build/chad build"
-  : "node dist/chad-node.js build";
+if (!process.env.CHADC_COMPILER) {
+  throw new Error(
+    "CHADC_COMPILER env var is required. Run via: npm test, npm run test:node, or npm run test:native",
+  );
+}
+const compiler = `${process.env.CHADC_COMPILER} build`;
 
 interface TestCase {
   name: string;

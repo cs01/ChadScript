@@ -1,3 +1,4 @@
+// @test-native-only
 // Spread in function calls: ...arr passes array to rest parameter
 function sum(...nums: number[]): number {
   let total = 0;

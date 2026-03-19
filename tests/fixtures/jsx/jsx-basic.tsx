@@ -1,3 +1,4 @@
+// @test-native-only
 // Basic JSX element desugars to createElement call
 interface EmptyProps {}
 

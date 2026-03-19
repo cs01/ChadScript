@@ -6,6 +6,7 @@
 //   // @test-compile-error: msg  — assert compilation fails with error containing "msg"
 //   // @test-args: hello world   — pass CLI args to the compiled binary
 //   // @test-description: ...    — custom test description
+//   // @test-native-only         — skip when running with node compiler
 //   // @test-skip                — exclude from auto-discovery
 //
 // Defaults (no annotation needed):
@@ -23,6 +24,7 @@ export interface TestCase {
   expectTestPassed?: boolean;
   compileError?: string;
   args?: string[];
+  nativeOnly?: boolean;
 }
 
 interface ParsedAnnotations {
@@ -31,19 +33,24 @@ interface ParsedAnnotations {
   args?: string[];
   description?: string;
   skip: boolean;
+  nativeOnly: boolean;
 }
 
 function parseAnnotations(filePath: string): ParsedAnnotations {
   const content = fs.readFileSync(filePath, "utf-8");
   const lines = content.split("\n").slice(0, 10);
 
-  const result: ParsedAnnotations = { skip: false };
+  const result: ParsedAnnotations = { skip: false, nativeOnly: false };
 
   for (const line of lines) {
     const trimmed = line.trim();
 
     if (trimmed === "// @test-skip") {
       result.skip = true;
+    }
+
+    if (trimmed === "// @test-native-only") {
+      result.nativeOnly = true;
     }
 
     const exitCodeMatch = trimmed.match(/^\/\/\s*@test-exit-code:\s*(\d+)/);
@@ -123,6 +130,10 @@ export function discoverTests(fixturesDir: string = "tests/fixtures"): TestCase[
 
     if (annotations.args) {
       testCase.args = annotations.args;
+    }
+
+    if (annotations.nativeOnly) {
+      testCase.nativeOnly = true;
     }
 
     tests.push(testCase);

@@ -1,3 +1,4 @@
+// @test-native-only
 // Fragments desugar to createElement("Fragment", {}, [...])
 interface EmptyProps {}
 

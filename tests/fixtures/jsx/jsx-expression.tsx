@@ -1,3 +1,4 @@
+// @test-native-only
 // Expression children are evaluated as expressions
 interface EmptyProps {}
 
