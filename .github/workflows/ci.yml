@@ -77,9 +77,16 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           RESULTS=$(python3 -c "
-          import json
+          import json, os
           d = json.load(open('docs/public/benchmarks-all.json'))
-          lines = ['### Benchmark Results (Linux x86-64)\n', '| Benchmark | C | ChadScript | Go | Node | Bun |', '|---|---|---|---|---|---|']
+          prev = {}
+          try:
+              import subprocess
+              old = subprocess.run(['git', 'show', 'origin/main:docs/public/benchmarks.json'], capture_output=True, text=True)
+              if old.returncode == 0:
+                  prev = json.loads(old.stdout).get('benchmarks', {})
+          except: pass
+          lines = ['### Benchmark Results (Linux x86-64)\n', '| Benchmark | C | ChadScript | Go | Node | Bun | Place |', '|---|---|---|---|---|---|---|']
           def fmt(val_str):
               try:
                   v = float(val_str.rstrip('smsg/req'))
@@ -96,12 +103,31 @@ jobs:
                       return f'{v:.3f}{suffix}'
               except (ValueError, TypeError):
                   return val_str
+          def rank(b):
+              r = b['results']
+              lower = b.get('lower_is_better', True)
+              chad_v = r.get('chadscript', {}).get('value')
+              if chad_v is None: return '—'
+              vals = sorted([v['value'] for v in r.values()], reverse=not lower)
+              place = vals.index(chad_v) + 1
+              medals = {1: '\U0001f947', 2: '\U0001f948', 3: '\U0001f949'}
+              return medals.get(place, f'#{place}')
+          def delta(k, b):
+              if k not in prev: return ''
+              old_v = prev[k].get('results', {}).get('chadscript', {}).get('value')
+              new_v = b['results'].get('chadscript', {}).get('value')
+              if old_v is None or new_v is None or old_v == 0: return ''
+              pct = (new_v - old_v) / old_v * 100
+              if abs(pct) < 1: return ''
+              if pct < 0: return f' (\u2193{abs(pct):.0f}%)'
+              return f' (\u2191{pct:.0f}%)'
           for k, b in sorted(d['benchmarks'].items(), key=lambda x: x[1]['name']):
               r = b['results']
               def g(lang):
                   v = r.get(lang, {}).get('label', '—')
                   return fmt(v) if v != '—' else v
-              lines.append(f\"| {b['name']} | {g('c')} | **{g('chadscript')}** | {g('go')} | {g('node')} | {g('bun')} |\")
+              chad_str = f'**{g(\"chadscript\")}{delta(k, b)}**'
+              lines.append(f\"| {b['name']} | {g('c')} | {chad_str} | {g('go')} | {g('node')} | {g('bun')} | {rank(b)} |\")
           print('\n'.join(lines))
           ")
           EXISTING=$(gh api repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments --jq '[.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("### Benchmark"))) | .id] | last')

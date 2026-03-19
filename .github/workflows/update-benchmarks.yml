@@ -11,38 +11,48 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
-
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
       - name: Install system dependencies
         run: |
-          sudo apt-get update && sudo apt-get install -y \
-            clang lld libcurl4-openssl-dev libsqlite3-dev libssl-dev \
-            autoconf automake libtool linux-headers-generic git \
-            golang-go libgc-dev
-
-      - name: Install Bun
-        run: curl -fsSL https://bun.sh/install | bash && echo "$HOME/.bun/bin" >> $GITHUB_PATH
-
-      - name: Build ChadScript
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+          echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-21 main" | sudo tee /etc/apt/sources.list.d/llvm-21.list
+          sudo apt-get update
+          sudo apt-get install -y clang-21 lld-21 llvm-21-dev \
+            cmake make gcc g++ \
+            autoconf automake libtool \
+            libzstd-dev zlib1g-dev libsqlite3-dev libcurl4-openssl-dev
+          sudo ln -sf /usr/bin/clang-21 /usr/bin/clang
+          sudo ln -sf /usr/bin/llvm-config-21 /usr/bin/llvm-config
+      - run: npm install
+      - uses: actions/cache@v4
+        with:
+          path: |
+            vendor/
+            c_bridges/*.o
+          key: vendor-${{ runner.os }}-${{ hashFiles('scripts/build-vendor.sh', 'scripts/vendor-pins.sh', 'c_bridges/*.c', 'c_bridges/*.cpp') }}
+      - run: bash scripts/build-vendor.sh
+      - run: npm run build
+      - name: Build tree-sitter TSX objects
         run: |
-          npm ci
-          npm run build
-          bash scripts/build-vendor.sh
           mkdir -p build
           TS_SRC=node_modules/tree-sitter-typescript/tsx/src
           TS_INCLUDE=node_modules/tree-sitter-typescript
           clang -c -O2 -fPIC -I $TS_SRC -I $TS_INCLUDE $TS_SRC/parser.c -o build/tree-sitter-typescript-parser.o
           clang -c -O2 -fPIC -I $TS_SRC -I $TS_INCLUDE $TS_SRC/scanner.c -o build/tree-sitter-typescript-scanner.o
           clang -c -O2 -fPIC -I vendor/tree-sitter/lib/include c_bridges/treesitter-bridge.c -o build/treesitter-bridge.o
-          node dist/chad-node.js build src/chad-native.ts -o .build/chad --target-cpu=x86-64
-
+      - name: Build native chad
+        run: node dist/chad-node.js build src/chad-native.ts -o .build/chad --target-cpu=x86-64
+      - name: Install Bun
+        run: curl -fsSL https://bun.sh/install | bash && echo "$HOME/.bun/bin" >> $GITHUB_PATH
       - name: Run benchmarks
         run: bash benchmarks/run-ci.sh
         timeout-minutes: 10
-
       - name: Commit updated benchmarks
         run: |
           git config user.name "github-actions[bot]"
