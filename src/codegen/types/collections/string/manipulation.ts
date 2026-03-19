@@ -881,118 +881,20 @@ export function generateReplaceAll(
 
 export function generateToUpperCase(ctx: IGeneratorContext, strPtr: string): string {
   const strLen = ctx.emitCall("i64", "@strlen", `i8* ${strPtr}`);
-
   const allocLen = ctx.nextTemp();
   ctx.emit(`${allocLen} = add i64 ${strLen}, 1`);
-
   const resultPtr = ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${allocLen}`);
-
-  const idxPtr = ctx.nextTemp();
-  ctx.emit(`${idxPtr} = alloca i64, align 8`);
-  ctx.emit(`store i64 0, i64* ${idxPtr}`);
-
-  const loopLabel = ctx.nextLabel("toupper_loop");
-  const bodyLabel = ctx.nextLabel("toupper_body");
-  const endLabel = ctx.nextLabel("toupper_end");
-
-  ctx.emitBr(loopLabel);
-
-  ctx.emitLabel(loopLabel);
-  const idx = ctx.nextTemp();
-  // Keep raw: alloca with align qualifier -- emitLoad would work for the load itself,
-  // but keeping paired with the aligned alloca for clarity
-  ctx.emit(`${idx} = load i64, i64* ${idxPtr}`);
-  const cond = ctx.emitIcmp("slt", "i64", idx, strLen);
-  ctx.emitBrCond(cond, bodyLabel, endLabel);
-
-  ctx.emitLabel(bodyLabel);
-  const srcPtr = ctx.nextTemp();
-  ctx.emit(`${srcPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${idx}`);
-  const ch = ctx.nextTemp();
-  ctx.emit(`${ch} = load i8, i8* ${srcPtr}`);
-
-  const isLowerA = ctx.emitIcmp("sge", "i8", ch, "97");
-  const isLowerZ = ctx.emitIcmp("sle", "i8", ch, "122");
-  const isLower = ctx.nextTemp();
-  ctx.emit(`${isLower} = and i1 ${isLowerA}, ${isLowerZ}`);
-
-  const upperCh = ctx.nextTemp();
-  ctx.emit(`${upperCh} = sub i8 ${ch}, 32`);
-  const finalCh = ctx.nextTemp();
-  ctx.emit(`${finalCh} = select i1 ${isLower}, i8 ${upperCh}, i8 ${ch}`);
-
-  const dstPtr = ctx.nextTemp();
-  ctx.emit(`${dstPtr} = getelementptr inbounds i8, i8* ${resultPtr}, i64 ${idx}`);
-  ctx.emitStore("i8", finalCh, dstPtr);
-
-  const nextIdx = ctx.nextTemp();
-  ctx.emit(`${nextIdx} = add i64 ${idx}, 1`);
-  ctx.emit(`store i64 ${nextIdx}, i64* ${idxPtr}`);
-  ctx.emitBr(loopLabel);
-
-  ctx.emitLabel(endLabel);
-  const nullPtr = ctx.nextTemp();
-  ctx.emit(`${nullPtr} = getelementptr inbounds i8, i8* ${resultPtr}, i64 ${strLen}`);
-  ctx.emitStore("i8", "0", nullPtr);
-
+  ctx.emitCallVoid("@cs_to_upper", `i8* ${strPtr}, i8* ${resultPtr}, i64 ${strLen}`);
   ctx.setVariableType(resultPtr, "i8*");
   return resultPtr;
 }
 
 export function generateToLowerCase(ctx: IGeneratorContext, strPtr: string): string {
   const strLen = ctx.emitCall("i64", "@strlen", `i8* ${strPtr}`);
-
   const allocLen = ctx.nextTemp();
   ctx.emit(`${allocLen} = add i64 ${strLen}, 1`);
-
   const resultPtr = ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${allocLen}`);
-
-  const idxPtr = ctx.nextTemp();
-  ctx.emit(`${idxPtr} = alloca i64, align 8`);
-  ctx.emit(`store i64 0, i64* ${idxPtr}`);
-
-  const loopLabel = ctx.nextLabel("tolower_loop");
-  const bodyLabel = ctx.nextLabel("tolower_body");
-  const endLabel = ctx.nextLabel("tolower_end");
-
-  ctx.emitBr(loopLabel);
-
-  ctx.emitLabel(loopLabel);
-  const idx = ctx.nextTemp();
-  ctx.emit(`${idx} = load i64, i64* ${idxPtr}`);
-  const cond = ctx.emitIcmp("slt", "i64", idx, strLen);
-  ctx.emitBrCond(cond, bodyLabel, endLabel);
-
-  ctx.emitLabel(bodyLabel);
-  const srcPtr = ctx.nextTemp();
-  ctx.emit(`${srcPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${idx}`);
-  const ch = ctx.nextTemp();
-  ctx.emit(`${ch} = load i8, i8* ${srcPtr}`);
-
-  const isUpperA = ctx.emitIcmp("sge", "i8", ch, "65");
-  const isUpperZ = ctx.emitIcmp("sle", "i8", ch, "90");
-  const isUpper = ctx.nextTemp();
-  ctx.emit(`${isUpper} = and i1 ${isUpperA}, ${isUpperZ}`);
-
-  const lowerCh = ctx.nextTemp();
-  ctx.emit(`${lowerCh} = add i8 ${ch}, 32`);
-  const finalCh = ctx.nextTemp();
-  ctx.emit(`${finalCh} = select i1 ${isUpper}, i8 ${lowerCh}, i8 ${ch}`);
-
-  const dstPtr = ctx.nextTemp();
-  ctx.emit(`${dstPtr} = getelementptr inbounds i8, i8* ${resultPtr}, i64 ${idx}`);
-  ctx.emitStore("i8", finalCh, dstPtr);
-
-  const nextIdx = ctx.nextTemp();
-  ctx.emit(`${nextIdx} = add i64 ${idx}, 1`);
-  ctx.emit(`store i64 ${nextIdx}, i64* ${idxPtr}`);
-  ctx.emitBr(loopLabel);
-
-  ctx.emitLabel(endLabel);
-  const nullPtr = ctx.nextTemp();
-  ctx.emit(`${nullPtr} = getelementptr inbounds i8, i8* ${resultPtr}, i64 ${strLen}`);
-  ctx.emitStore("i8", "0", nullPtr);
-
+  ctx.emitCallVoid("@cs_to_lower", `i8* ${strPtr}, i8* ${resultPtr}, i64 ${strLen}`);
   ctx.setVariableType(resultPtr, "i8*");
   return resultPtr;
 }

@@ -682,6 +682,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
     ? effectiveBridgePath + "/child-process-bridge.o"
     : "";
   const osBridgeObj = effectiveBridgePath + "/os-bridge.o";
+  const stringOpsBridgeObj = effectiveBridgePath + "/string-ops-bridge.o";
   const strlenCacheObj = effectiveBridgePath + "/strlen-cache.o";
   const timeBridgeObj = effectiveBridgePath + "/time-bridge.o";
   const base64BridgeObj = effectiveBridgePath + "/base64-bridge.o";
@@ -759,6 +760,8 @@ export function compileNative(inputFile: string, outputFile: string): void {
     compressBridgeObj +
     " " +
     yamlBridgeObj +
+    " " +
+    stringOpsBridgeObj +
     " " +
     llvmBridgeObj +
     " " +

@@ -224,6 +224,13 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += "declare void @cs_watch_loop(i8*, i8*, i8*)\n";
   ir += "\n";
 
+  ir += "; string-ops-bridge — optimized case conversion, split, join\n";
+  ir += "declare void @cs_to_upper(i8*, i8*, i64)\n";
+  ir += "declare void @cs_to_lower(i8*, i8*, i64)\n";
+  ir += "declare %StringArray* @cs_str_split(i8*, i64, i8*, i64)\n";
+  ir += "declare i8* @cs_str_join(i8**, i32, i8*, i64)\n";
+  ir += "\n";
+
   ir += "declare i32 @system(i8*)\n";
   ir += "declare i8* @popen(i8*, i8*)\n";
   ir += "declare i32 @pclose(i8*)\n";
