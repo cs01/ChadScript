@@ -67,6 +67,26 @@ Hono-style API, C-level performance. One binary, no node_modules. See [`examples
 
 ---
 
+## Benchmarks
+
+Compared against C, Go, Node.js, and Bun on Ubuntu (CI):
+
+| Benchmark      | C      | ChadScript | Go     | Node   | Bun    | Place |
+| -------------- | ------ | ---------- | ------ | ------ | ------ | ----- |
+| Cold Start     | 0.6ms  | **0.6ms**  | 1.3ms  | 21.8ms | 7.6ms  | 1st   |
+| Monte Carlo Pi | 0.400s | **0.398s** | 0.405s | 1.474s | 6.428s | 1st   |
+| Fibonacci      | 0.725s | **1.424s** | 1.429s | 2.842s | 1.837s | 2nd   |
+| JSON Parse     | 0.004s | **0.005s** | 0.016s | 0.015s | 0.007s | 2nd   |
+| N-Body Sim     | 1.453s | **1.852s** | 1.964s | 2.296s | 2.817s | 2nd   |
+| File I/O       | 0.088s | **0.089s** | 0.088s | 0.315s | 0.204s | 3rd   |
+| Quicksort      | 0.170s | **0.202s** | 0.184s | 0.249s | 0.205s | 3rd   |
+| SQLite         | 0.314s | **0.374s** | ---    | 0.437s | 0.371s | 3rd   |
+| Sieve          | 0.027s | **0.038s** | 0.033s | 0.054s | 0.049s | 3rd   |
+
+[Full benchmarks](https://cs01.github.io/ChadScript/benchmarks) (updated on every PR)
+
+---
+
 ## How it works
 
 ```
