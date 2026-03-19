@@ -1969,7 +1969,7 @@ export class MemberAccessGenerator {
   private classFieldToLlvm(fi: FieldInfo): string {
     const ft = fi.type;
     if (ft === "string") return "i8*";
-    if (ft === "boolean") return "i1";
+    if (ft === "boolean") return "double";
     if (ft === "string[]") return "%StringArray*";
     if (ft === "number[]") return "%Array*";
     if (ft === "boolean[]") return "%Array*";
