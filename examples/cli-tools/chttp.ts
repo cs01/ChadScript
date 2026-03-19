@@ -2,10 +2,14 @@ import { ArgumentParser } from "chadscript/argparse";
 
 const parser = new ArgumentParser("chttp", "HTTP client — like curl, but blazing fast");
 parser.addFlag("verbose", "v", "Show response status and info");
+parser.addFlag("head", "I", "Show only response headers");
 parser.addFlag("silent", "s", "Silent mode, no progress or errors");
 parser.addFlag("no-color", "C", "Disable colorized output");
+parser.addOption("method", "X", "HTTP method (GET, POST, PUT, DELETE)", "GET");
+parser.addOption("header", "H", "Add a request header (Key: Value)", "");
+parser.addOption("data", "d", "Request body data", "");
 parser.addOption("output", "o", "Write response body to file", "");
-parser.addPositional("url", "URL to fetch (GET)");
+parser.addPositional("url", "URL to request");
 parser.parse(process.argv);
 
 const url = parser.getPositional(0);
@@ -16,10 +20,19 @@ if (url.length === 0) {
 }
 
 const verbose = parser.getFlag("verbose");
+const headOnly = parser.getFlag("head");
 const silent = parser.getFlag("silent");
 const noColor = parser.getFlag("no-color");
+let method = parser.getOption("method");
+const headerStr = parser.getOption("header");
+const bodyData = parser.getOption("data");
 const outputFile = parser.getOption("output");
 
+if (bodyData.length > 0 && method === "GET") {
+  method = "POST";
+}
+
+const colorCyan = "\x1b[36m";
 const colorGreen = "\x1b[32m";
 const colorYellow = "\x1b[33m";
 const colorMagenta = "\x1b[35m";
@@ -33,18 +46,44 @@ function colorStatus(status: number): string {
   return "\x1b[31m" + status + colorReset;
 }
 
+function printHeader(key: string, val: string): void {
+  if (val.length === 0) return;
+  if (noColor) {
+    console.log(key + ": " + val);
+  } else {
+    console.log(colorCyan + key + colorReset + ": " + val);
+  }
+}
+
 async function run(): Promise<string> {
-  const response = await fetch(url);
+  const options: RequestInit = { method };
+
+  if (bodyData.length > 0) {
+    options.body = bodyData;
+  }
+
+  if (headerStr.length > 0) {
+    const colonIdx = headerStr.indexOf(":");
+    if (colonIdx !== -1) {
+      const hKey = headerStr.substring(0, colonIdx).trim();
+      const hVal = headerStr.substring(colonIdx + 1, headerStr.length).trim();
+      const headers: Record<string, string> = {};
+      headers[hKey] = hVal;
+      options.headers = headers;
+    }
+  }
+
+  const response = await fetch(url, options);
   const status = response.status;
   const body = response.text();
 
-  if (verbose) {
+  if (verbose || headOnly) {
     if (noColor) {
-      console.log("GET " + url + " " + status);
+      console.log(method + " " + url + " " + status);
     } else {
       console.log(
         colorBold +
-          "GET" +
+          method +
           colorReset +
           " " +
           colorMagenta +
@@ -54,7 +93,13 @@ async function run(): Promise<string> {
           colorStatus(status),
       );
     }
-    console.log("Body length: " + body.length + " bytes");
+
+    const contentType = response.headers.get("content-type");
+    printHeader("Content-Type", contentType);
+    const contentLength = response.headers.get("content-length");
+    printHeader("Content-Length", contentLength);
+
+    if (headOnly) return "done";
     console.log("");
   }
 
