@@ -80,14 +80,36 @@ jobs:
           import json
           d = json.load(open('docs/public/benchmarks.json'))
           lines = ['### Benchmark Results (Linux x86-64)\n', '| Benchmark | C | ChadScript | Go | Node | Bun |', '|---|---|---|---|---|---|']
-          for k, b in d['benchmarks'].items():
+          def fmt(val_str):
+              try:
+                  v = float(val_str.rstrip('smsg/req'))
+                  suffix = ''
+                  for s in ['ms', 'msg/s', 'req/s', 's']:
+                      if val_str.endswith(s):
+                          suffix = s
+                          break
+                  if suffix == 'ms':
+                      return f'{v:.1f}{suffix}'
+                  elif '/' in suffix:
+                      return f'{int(v):,}{suffix}'
+                  else:
+                      return f'{v:.3f}{suffix}'
+              except (ValueError, TypeError):
+                  return val_str
+          for k, b in sorted(d['benchmarks'].items(), key=lambda x: x[1]['name']):
               r = b['results']
               def g(lang):
-                  return r.get(lang, {}).get('label', '—')
+                  v = r.get(lang, {}).get('label', '—')
+                  return fmt(v) if v != '—' else v
               lines.append(f\"| {b['name']} | {g('c')} | **{g('chadscript')}** | {g('go')} | {g('node')} | {g('bun')} |\")
           print('\n'.join(lines))
           ")
-          gh pr comment ${{ github.event.pull_request.number }} --body "$RESULTS"
+          EXISTING=$(gh api repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments --jq '[.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("### Benchmark"))) | .id] | last')
+          if [ -n "$EXISTING" ] && [ "$EXISTING" != "null" ]; then
+            gh api repos/${{ github.repository }}/issues/comments/$EXISTING -X PATCH -f body="$RESULTS"
+          else
+            gh pr comment ${{ github.event.pull_request.number }} --body "$RESULTS"
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

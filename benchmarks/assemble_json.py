@@ -43,7 +43,8 @@ for fname in sorted(os.listdir(json_dir)):
             continue
         lang, value, label = parts[0], parts[1], parts[2]
         try:
-            results[lang] = {"value": float(value), "label": label}
+            v = float(value)
+            results[lang] = {"value": round(v, 3), "label": label}
         except ValueError:
             continue
         if lang == "chadscript":
@@ -55,21 +56,6 @@ for fname in sorted(os.listdir(json_dir)):
 
     meta = META.get(bkey, {"name": bkey, "desc": "", "metric": "s", "lower_is_better": True})
     lower = meta["lower_is_better"]
-
-    dominated = False
-    for lang, r in results.items():
-        if lang in ("chadscript", "c"):
-            continue
-        if lower and r["value"] < chad_val:
-            dominated = True
-            break
-        if not lower and r["value"] > chad_val:
-            dominated = True
-            break
-
-    if dominated:
-        print(f"  Filtered: {meta['name']} (ChadScript not 1st or 2nd behind C)")
-        continue
 
     benchmarks[bkey] = {
         "name": meta["name"],
