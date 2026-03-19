@@ -264,6 +264,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public usesStringBuilder: number = 0;
   public usesLLVM: number = 0;
   public usesLLD: number = 0;
+  public usesCompression: number = 0;
+  public usesYaml: number = 0;
   private stringBuilderSlen: Map<string, string> = new Map();
   private stringBuilderScap: Map<string, string> = new Map();
 
@@ -988,6 +990,18 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
   public getUsesLLD(): boolean {
     return this.usesLLD !== 0;
+  }
+  public setUsesCompression(value: boolean): void {
+    this.usesCompression = value ? 1 : 0;
+  }
+  public getUsesCompression(): boolean {
+    return this.usesCompression !== 0;
+  }
+  public setUsesYaml(value: boolean): void {
+    this.usesYaml = value ? 1 : 0;
+  }
+  public getUsesYaml(): boolean {
+    return this.usesYaml !== 0;
   }
   public setCurrentDeclaredInterfaceType(type: string | undefined): void {
     this.currentDeclaredInterfaceType = type;
@@ -3108,6 +3122,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           curl: this.usesCurl !== 0,
           crypto: this.usesCrypto !== 0,
           sqlite: this.usesSqlite !== 0,
+          compression: this.usesCompression !== 0,
+          yaml: this.usesYaml !== 0,
           testRunner: this.usesTestRunner !== 0,
           targetOS: this.getTargetOS(),
         }),

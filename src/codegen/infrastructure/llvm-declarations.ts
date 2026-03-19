@@ -2,6 +2,8 @@ export interface DeclConfig {
   curl?: boolean;
   crypto?: boolean;
   sqlite?: boolean;
+  compression?: boolean;
+  yaml?: boolean;
   testRunner?: boolean;
   targetOS?: string;
 }
@@ -292,6 +294,24 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
     ir += "declare i32 @sqlite3_column_count(i8*)\n";
     ir += "declare i32 @sqlite3_finalize(i8*)\n";
     ir += "declare i32 @sqlite3_bind_text(i8*, i32, i8*, i32, i64)\n";
+    ir += "\n";
+  }
+
+  if (config && config.compression) {
+    ir += "; zlib compression bridge\n";
+    ir += "declare %Uint8Array* @cs_gzip(i8*, i32)\n";
+    ir += "declare %Uint8Array* @cs_gunzip(i8*, i32)\n";
+    ir += "declare %Uint8Array* @cs_deflate_raw(i8*, i32)\n";
+    ir += "declare %Uint8Array* @cs_inflate_raw(i8*, i32)\n";
+    ir += "declare %Uint8Array* @cs_zstd_compress(i8*, i32)\n";
+    ir += "declare %Uint8Array* @cs_zstd_decompress(i8*, i32)\n";
+    ir += "\n";
+  }
+
+  if (config && config.yaml) {
+    ir += "; YAML bridge (yaml → json string conversion)\n";
+    ir += "declare i8* @cs_yaml_parse(i8*)\n";
+    ir += "declare i8* @cs_yaml_stringify(i8*)\n";
     ir += "\n";
   }
 

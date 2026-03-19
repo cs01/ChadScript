@@ -85,6 +85,9 @@ export class CallExpressionGenerator {
     const encodingResult = this.dispatchEncodingCalls(expr, params);
     if (encodingResult !== null) return encodingResult;
 
+    const compressResult = this.dispatchCompressionCalls(expr, params);
+    if (compressResult !== null) return compressResult;
+
     const ffiResult = this.dispatchCFfiCalls(expr, params);
     if (ffiResult !== null) return ffiResult;
 
@@ -236,6 +239,55 @@ export class CallExpressionGenerator {
     );
     const castPtr = this.ctx.emitBitcast(respPtr, "%__FetchResponse*", "i8*");
     return castPtr;
+  }
+
+  private dispatchCompressionCalls(expr: CallNode, params: string[]): string | null {
+    const compressFns: string[] = [
+      "gzip",
+      "gunzip",
+      "deflateRaw",
+      "inflateRaw",
+      "zstdCompress",
+      "zstdDecompress",
+    ];
+    const bridgeFns: string[] = [
+      "cs_gzip",
+      "cs_gunzip",
+      "cs_deflate_raw",
+      "cs_inflate_raw",
+      "cs_zstd_compress",
+      "cs_zstd_decompress",
+    ];
+    let fnIdx = -1;
+    for (let i = 0; i < compressFns.length; i++) {
+      if (expr.name === compressFns[i]) {
+        fnIdx = i;
+        break;
+      }
+    }
+    if (fnIdx === -1) return null;
+    if (expr.args.length < 1) {
+      return this.ctx.emitError(`${expr.name}() requires 1 argument (Uint8Array)`, expr.loc);
+    }
+    this.ctx.setUsesCompression(true);
+    const arrPtr = this.ctx.generateExpression(expr.args[0], params);
+    const dataFieldPtr = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${dataFieldPtr} = getelementptr inbounds %Uint8Array, %Uint8Array* ${arrPtr}, i32 0, i32 0`,
+    );
+    const dataPtr = this.ctx.emitLoad("i8*", dataFieldPtr);
+    const lenFieldPtr = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${lenFieldPtr} = getelementptr inbounds %Uint8Array, %Uint8Array* ${arrPtr}, i32 0, i32 1`,
+    );
+    const len = this.ctx.emitLoad("i32", lenFieldPtr);
+    const result = this.ctx.emitCall(
+      "%Uint8Array*",
+      `@${bridgeFns[fnIdx]}`,
+      `i8* ${dataPtr}, i32 ${len}`,
+    );
+    this.ctx.setVariableType(result, "%Uint8Array*");
+    return result;
   }
 
   private dispatchEncodingCalls(expr: CallNode, params: string[]): string | null {

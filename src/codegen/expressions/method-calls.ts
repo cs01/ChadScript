@@ -206,6 +206,8 @@ export interface MethodCallGeneratorContext {
   isUint8ArrayExpression(expr: Expression): boolean;
   isBooleanExpression(expr: Expression): boolean;
   setUsesOs(value: boolean): void;
+  setUsesCompression(value: boolean): void;
+  setUsesYaml(value: boolean): void;
 }
 
 export class MethodCallGenerator {
@@ -418,9 +420,40 @@ export class MethodCallGenerator {
       case "sqlite":
         return handleSqliteMethod(this.ctx, method, expr, params);
 
+      case "YAML":
+        if (method === "parse") {
+          this.ctx.setUsesJson(true);
+          this.ctx.setUsesYaml(true);
+          return this.handleYamlParse(expr, params);
+        }
+        if (method === "stringify") {
+          this.ctx.setUsesYaml(true);
+          return this.handleYamlStringify(expr, params);
+        }
+        return null;
+
       default:
         return null;
     }
+  }
+
+  private handleYamlParse(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length < 1) {
+      return this.ctx.emitError("YAML.parse() requires 1 argument", expr.loc);
+    }
+    const yamlStr = this.ctx.generateExpression(expr.args[0], params);
+    const jsonStr = this.ctx.emitCall("i8*", "@cs_yaml_parse", `i8* ${yamlStr}`);
+    return this.ctx.jsonGen.generateParseFromString(jsonStr, expr.typeParameter);
+  }
+
+  private handleYamlStringify(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length < 1) {
+      return this.ctx.emitError("YAML.stringify() requires 1 argument", expr.loc);
+    }
+    const jsonStr = this.ctx.jsonGen.generateStringify(expr, params);
+    const yamlStr = this.ctx.emitCall("i8*", "@cs_yaml_stringify", `i8* ${jsonStr}`);
+    this.ctx.setVariableType(yamlStr, "i8*");
+    return yamlStr;
   }
 
   private nextTemp(): string {
