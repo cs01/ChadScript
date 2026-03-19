@@ -215,6 +215,7 @@ echo ""
 echo "=== CLI: Recursive Grep (search 5x src/ for 'function') ==="
 bench_cli "cligrep" "chadscript" "cgrep" /tmp/bench-cgrep -r -c -C function /tmp/bench-grep-data
 bench_cli "cligrep" "grep" "grep" grep -r -c function /tmp/bench-grep-data
+bench_cli "cligrep" "node" "Node.js" node "$DIR/cligrep/node-grep.mjs" function /tmp/bench-grep-data
 if command -v rg &>/dev/null; then
   bench_cli "cligrep" "ripgrep" "ripgrep" rg -c function /tmp/bench-grep-data
 fi
@@ -223,6 +224,7 @@ echo ""
 echo "=== CLI: Hex Dump (5MB binary) ==="
 bench_cli "clihex" "chadscript" "chex" /tmp/bench-chex -C /tmp/bench-hex-data
 bench_cli "clihex" "xxd" "xxd" xxd /tmp/bench-hex-data
+bench_cli "clihex" "node" "Node.js" node "$DIR/clihex/node-hex.mjs" /tmp/bench-hex-data
 
 rm -rf /tmp/bench-grep-data /tmp/bench-hex-data
 
