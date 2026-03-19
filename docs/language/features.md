@@ -90,7 +90,7 @@ Classes, interfaces, and type aliases work like standard TypeScript with a few d
 | Constructors | Supported |
 | Parameter properties (`constructor(private name: string)`) | Supported |
 | Instance methods | Supported |
-| Getters / setters | Supported |
+| Getters / setters | Not supported |
 | `extends` (single inheritance) | Supported |
 | `implements` | Supported |
 | Interface inheritance (`extends`) | Supported |

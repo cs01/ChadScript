@@ -3,7 +3,6 @@ set -e
 
 REPO="cs01/ChadScript"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.chadscript}"
-VERSION="0.1.0"
 
 if [ -t 1 ]; then
   ESC=$(printf '\033')
@@ -136,7 +135,7 @@ add_to_path() {
 
 main() {
   printf "\n"
-  printf "  ${BOLD}ChadScript Installer${RESET} ${DIM}v${VERSION}${RESET}\n"
+  printf "  ${BOLD}ChadScript Installer${RESET}\n"
   printf "\n"
 
   OS=$(uname -s)
