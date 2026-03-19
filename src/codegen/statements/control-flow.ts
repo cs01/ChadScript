@@ -31,6 +31,7 @@ import { SymbolKind_Number, SymbolKind_String } from "../infrastructure/symbol-t
 import type { FieldInfo } from "../infrastructure/type-resolver/types.js";
 import { stripOptional } from "../infrastructure/type-system.js";
 import { setWantsI1 } from "../expressions/condition-generator.js";
+import { tryOptimizeWhileLoopMap } from "./loop-idiom.js";
 
 interface ExprBase {
   type: string;
@@ -268,6 +269,10 @@ export class ControlFlowGenerator {
     }
 
     const whileStmt = stmt as WhileStatement;
+
+    if (tryOptimizeWhileLoopMap(this.ctx, whileStmt, params)) {
+      return "0";
+    }
 
     // Generate unique labels
     const condLabel = this.nextLabel("while_cond");
