@@ -116,6 +116,7 @@ export interface FunctionGeneratorContext {
   setRawInterfaceType(name: string, type: string): void;
   getUsesMathRandom(): boolean;
   getAllInterfaceFields(iface: InterfaceDeclaration): InterfaceField[];
+  markContiguousObjectArray(name: string, numFields: number): void;
 }
 
 export class FunctionGenerator {
@@ -498,6 +499,26 @@ export class FunctionGenerator {
             "local",
             createInterfacePointerAllocaMetadata(elementType),
           );
+          this.ctx.setRawInterfaceType(paramName, elementType);
+          const ctxAst = this.ctx.getAst();
+          const paramInterfaces = ctxAst ? ctxAst.interfaces || [] : [];
+          for (let pi = 0; pi < paramInterfaces.length; pi++) {
+            const iface = paramInterfaces[pi] as InterfaceDeclaration;
+            if (!iface || iface.name !== elementType) continue;
+            const ifaceFields = this.ctx.getAllInterfaceFields(iface);
+            let allDouble = ifaceFields.length > 0;
+            for (let fi = 0; fi < ifaceFields.length; fi++) {
+              const ft = (ifaceFields[fi] as { type: string }).type || "";
+              if (ft !== "number" && ft !== "boolean") {
+                allDouble = false;
+                break;
+              }
+            }
+            if (allDouble) {
+              this.ctx.markContiguousObjectArray(paramName, ifaceFields.length);
+            }
+            break;
+          }
         } else {
           this.ctx.defineVariableWithMetadata(
             paramName,

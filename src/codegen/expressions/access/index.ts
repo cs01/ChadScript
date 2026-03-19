@@ -267,82 +267,98 @@ export class IndexAccessGenerator {
     return elem;
   }
 
+  private getContiguousStride(expr: IndexAccessNode): number {
+    const objExpr = expr.object as { type: string };
+    if (objExpr.type === "variable") {
+      const varName = (expr.object as VariableNode).name;
+      const numFields = this.ctx.symbolTable.getContiguousFieldCount(varName);
+      if (numFields > 0) return numFields * 8;
+    }
+    return 0;
+  }
+
+  private emitContiguousElementPtr(
+    arrayPtr: string,
+    arrayTypeStr: string,
+    index: string,
+    stride: number,
+  ): string {
+    const dataPtr = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${dataPtr} = getelementptr inbounds ${arrayTypeStr}, ${arrayTypeStr}* ${arrayPtr}, i32 0, i32 0`,
+    );
+    const data = this.ctx.nextTemp();
+    this.ctx.emit(`${data} = load i8*, i8** ${dataPtr}`);
+    const indexI64 = this.ctx.nextTemp();
+    this.ctx.emit(`${indexI64} = sext i32 ${index} to i64`);
+    const offset = this.ctx.nextTemp();
+    this.ctx.emit(`${offset} = mul i64 ${indexI64}, ${stride}`);
+    const elem = this.ctx.nextTemp();
+    this.ctx.emit(`${elem} = getelementptr inbounds i8, i8* ${data}, i64 ${offset}`);
+    this.ctx.setVariableType(elem, "i8*");
+    return elem;
+  }
+
+  private emitPointerArrayElementPtr(dataRaw: string, index: string): string {
+    const dataAsPtrs = this.ctx.nextTemp();
+    this.ctx.emit(`${dataAsPtrs} = bitcast i8* ${dataRaw} to i8**`);
+    const elemPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataAsPtrs}, i32 ${index}`);
+    const elem = this.ctx.nextTemp();
+    this.ctx.emit(`${elem} = load i8*, i8** ${elemPtr}`);
+    this.ctx.setVariableType(elem, "i8*");
+    return elem;
+  }
+
   private generateObjectArrayIndex(expr: IndexAccessNode, params: string[]): string {
     const arrayPtr = this.ctx.generateExpression(expr.object, params);
     const indexDouble = this.ctx.generateExpression(expr.index, params);
 
     const index = this.toI32Index(indexDouble);
+    const contiguousStride = this.getContiguousStride(expr);
 
     const arrayType = this.ctx.getVariableType(arrayPtr);
     if (arrayType === "%ObjectArray*") {
       this.emitBoundsCheck(arrayPtr, "%ObjectArray", index);
-
+      if (contiguousStride > 0) {
+        return this.emitContiguousElementPtr(arrayPtr, "%ObjectArray", index, contiguousStride);
+      }
       const dataPtr = this.ctx.nextTemp();
       this.ctx.emit(
         `${dataPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`,
       );
-
       const data = this.ctx.nextTemp();
       this.ctx.emit(`${data} = load i8*, i8** ${dataPtr}`);
-
-      const dataAsPtrs = this.ctx.nextTemp();
-      this.ctx.emit(`${dataAsPtrs} = bitcast i8* ${data} to i8**`);
-
-      const elemPtr = this.ctx.nextTemp();
-      this.ctx.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataAsPtrs}, i32 ${index}`);
-
-      const elem = this.ctx.nextTemp();
-      this.ctx.emit(`${elem} = load i8*, i8** ${elemPtr}`);
-      this.ctx.setVariableType(elem, "i8*");
-      return elem;
+      return this.emitPointerArrayElementPtr(data, index);
     }
 
     if (arrayType === "i8*") {
       const arrayCast = this.ctx.nextTemp();
       this.ctx.emit(`${arrayCast} = bitcast i8* ${arrayPtr} to %ObjectArray*`);
-
       this.emitBoundsCheck(arrayCast, "%ObjectArray", index);
-
+      if (contiguousStride > 0) {
+        return this.emitContiguousElementPtr(arrayCast, "%ObjectArray", index, contiguousStride);
+      }
       const dataPtr = this.ctx.nextTemp();
       this.ctx.emit(
         `${dataPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayCast}, i32 0, i32 0`,
       );
-
       const data = this.ctx.nextTemp();
       this.ctx.emit(`${data} = load i8*, i8** ${dataPtr}`);
-
-      const dataAsPtrs = this.ctx.nextTemp();
-      this.ctx.emit(`${dataAsPtrs} = bitcast i8* ${data} to i8**`);
-
-      const elemPtr = this.ctx.nextTemp();
-      this.ctx.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataAsPtrs}, i32 ${index}`);
-
-      const elem = this.ctx.nextTemp();
-      this.ctx.emit(`${elem} = load i8*, i8** ${elemPtr}`);
-      this.ctx.setVariableType(elem, "i8*");
-      return elem;
+      return this.emitPointerArrayElementPtr(data, index);
     }
 
     this.emitBoundsCheck(arrayPtr, "%ObjectArray", index);
-
+    if (contiguousStride > 0) {
+      return this.emitContiguousElementPtr(arrayPtr, "%ObjectArray", index, contiguousStride);
+    }
     const dataPtr = this.ctx.nextTemp();
     this.ctx.emit(
       `${dataPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`,
     );
-
     const data = this.ctx.nextTemp();
     this.ctx.emit(`${data} = load i8*, i8** ${dataPtr}`);
-
-    const dataAsPtrs = this.ctx.nextTemp();
-    this.ctx.emit(`${dataAsPtrs} = bitcast i8* ${data} to i8**`);
-
-    const elemPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataAsPtrs}, i32 ${index}`);
-
-    const elem = this.ctx.nextTemp();
-    this.ctx.emit(`${elem} = load i8*, i8** ${elemPtr}`);
-    this.ctx.setVariableType(elem, "i8*");
-    return elem;
+    return this.emitPointerArrayElementPtr(data, index);
   }
 
   private generateUint8ArrayIndex(expr: IndexAccessNode, params: string[]): string {

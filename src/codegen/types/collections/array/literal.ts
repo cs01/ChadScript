@@ -143,7 +143,8 @@ export function generateArrayLiteral(
     gen.setVariableType(arrayPtr, "%StringArray*");
     return arrayPtr;
   } else if (isPointerArray) {
-    // Generate pointer/object array - uses %ObjectArray with i8* data
+    const contiguousStride = gen.symbolTable.getPendingContiguousStride();
+
     const sizePtr = gen.nextTemp();
     gen.emit(`${sizePtr} = getelementptr %ObjectArray, %ObjectArray* null, i32 1`);
     const structSize = gen.nextTemp();
@@ -151,41 +152,71 @@ export function generateArrayLiteral(
     const arrayMem = gen.emitCall("i8*", "@GC_malloc", `i64 ${structSize}`);
     const arrayPtr = gen.emitBitcast(arrayMem, "i8*", "%ObjectArray*");
 
-    // Allocate data array on heap (i8* cast to i8** for pointer storage)
     const dataCount = length === 0 ? 1 : length;
-    const dataSize = gen.nextTemp();
-    gen.emit(`${dataSize} = mul i64 ${dataCount}, 8`);
-    const dataMem = gen.emitCall("i8*", "@GC_malloc", `i64 ${dataSize}`);
-    const dataPtr = gen.emitBitcast(dataMem, "i8*", "i8**");
+    if (contiguousStride > 0) {
+      const dataSize = gen.nextTemp();
+      gen.emit(`${dataSize} = mul i64 ${dataCount}, ${contiguousStride}`);
+      const dataMem = gen.emitCall("i8*", "@GC_malloc_atomic", `i64 ${dataSize}`);
 
-    // Store each pointer element
-    for (let i = 0; i < arrExpr.elements.length; i++) {
-      const elemValue =
-        i === 0 && firstElemValue
-          ? firstElemValue
-          : gen.generateExpression(arrExpr.elements[i], params);
-      const elemCast = gen.emitBitcast(elemValue, gen.getVariableType(elemValue) || "i8*", "i8*");
-      const elemPtr = gen.nextTemp();
-      gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${i}`);
-      gen.emitStore("i8*", elemCast, elemPtr);
+      for (let i = 0; i < arrExpr.elements.length; i++) {
+        const elemValue =
+          i === 0 && firstElemValue
+            ? firstElemValue
+            : gen.generateExpression(arrExpr.elements[i], params);
+        const elemCast = gen.emitBitcast(
+          elemValue,
+          gen.getVariableType(elemValue) || "i8*",
+          "i8*",
+        );
+        const offset = gen.nextTemp();
+        gen.emit(`${offset} = mul i64 ${i}, ${contiguousStride}`);
+        const dest = gen.nextTemp();
+        gen.emit(`${dest} = getelementptr inbounds i8, i8* ${dataMem}, i64 ${offset}`);
+        gen.emit(
+          `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${dest}, i8* ${elemCast}, i64 ${contiguousStride}, i1 false)`,
+        );
+      }
+
+      const dataPtrField = gen.nextTemp();
+      gen.emit(
+        `${dataPtrField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`,
+      );
+      gen.emitStore("i8*", dataMem, dataPtrField);
+    } else {
+      const dataSize = gen.nextTemp();
+      gen.emit(`${dataSize} = mul i64 ${dataCount}, 8`);
+      const dataMem = gen.emitCall("i8*", "@GC_malloc", `i64 ${dataSize}`);
+      const dataPtr = gen.emitBitcast(dataMem, "i8*", "i8**");
+
+      for (let i = 0; i < arrExpr.elements.length; i++) {
+        const elemValue =
+          i === 0 && firstElemValue
+            ? firstElemValue
+            : gen.generateExpression(arrExpr.elements[i], params);
+        const elemCast = gen.emitBitcast(
+          elemValue,
+          gen.getVariableType(elemValue) || "i8*",
+          "i8*",
+        );
+        const elemPtr = gen.nextTemp();
+        gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${i}`);
+        gen.emitStore("i8*", elemCast, elemPtr);
+      }
+
+      const dataPtrField = gen.nextTemp();
+      gen.emit(
+        `${dataPtrField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`,
+      );
+      const dataPtrCast = gen.emitBitcast(dataPtr, "i8**", "i8*");
+      gen.emitStore("i8*", dataPtrCast, dataPtrField);
     }
 
-    // Store data pointer in array struct (field 0) - cast i8** to i8*
-    const dataPtrField = gen.nextTemp();
-    gen.emit(
-      `${dataPtrField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`,
-    );
-    const dataPtrCast = gen.emitBitcast(dataPtr, "i8**", "i8*");
-    gen.emitStore("i8*", dataPtrCast, dataPtrField);
-
-    // Store length in array struct (field 1)
     const lenField = gen.nextTemp();
     gen.emit(
       `${lenField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 1`,
     );
     gen.emitStore("i32", `${length}`, lenField);
 
-    // Store capacity in array struct (field 2)
     const capField = gen.nextTemp();
     gen.emit(
       `${capField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 2`,
