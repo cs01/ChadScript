@@ -48,7 +48,13 @@ export function generateArrayPush(
 
   if (isObjectArray) {
     const valueType = gen.getVariableType(value) || "i8*";
-    return generateObjectArrayPush(gen, arrayPtr, value, valueType);
+    let stride = 0;
+    if (exprObjBase.type === "variable") {
+      const varName = (expr.object as VariableNode).name;
+      const numFields = gen.symbolTable.getContiguousFieldCount(varName);
+      if (numFields > 0) stride = numFields * 8;
+    }
+    return generateObjectArrayPush(gen, arrayPtr, value, valueType, stride);
   }
 
   const valueType = gen.getVariableType(value);
@@ -56,7 +62,7 @@ export function generateArrayPush(
     return generateStringArrayPush(gen, arrayPtr, value);
   }
   if (valueType && valueType.endsWith("*") && valueType !== "double*") {
-    return generateObjectArrayPush(gen, arrayPtr, value, valueType);
+    return generateObjectArrayPush(gen, arrayPtr, value, valueType, 0);
   }
 
   return generateIntArrayPush(gen, arrayPtr, value);
@@ -592,7 +598,11 @@ function generateObjectArrayPush(
   arrayPtr: string,
   value: string,
   valueType: string,
+  contiguousStride: number,
 ): string {
+  const elemSize = contiguousStride > 0 ? contiguousStride : 8;
+  const allocFn = contiguousStride > 0 ? "@GC_malloc_atomic" : "@GC_malloc";
+
   const lenPtr = gen.nextTemp();
   gen.emit(
     `${lenPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 1`,
@@ -624,30 +634,24 @@ function generateObjectArrayPush(
   const newCapI64 = gen.nextTemp();
   gen.emit(`${newCapI64} = zext i32 ${newCap} to i64`);
   const newMemSize = gen.nextTemp();
-  gen.emit(`${newMemSize} = mul i64 ${newCapI64}, 8`);
-  const newMem = gen.emitCall("i8*", "@GC_malloc", `i64 ${newMemSize}`);
-  const newDataPtr = gen.emitBitcast(newMem, "i8*", "i8**");
+  gen.emit(`${newMemSize} = mul i64 ${newCapI64}, ${elemSize}`);
+  const newMem = gen.emitCall("i8*", allocFn, `i64 ${newMemSize}`);
 
   const dataPtrField = gen.nextTemp();
   gen.emit(
     `${dataPtrField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`,
   );
   const oldDataPtrRaw = gen.emitLoad("i8*", dataPtrField);
-  const oldDataPtr = gen.emitBitcast(oldDataPtrRaw, "i8*", "i8**");
 
-  const oldDataI8 = gen.emitBitcast(oldDataPtr, "i8**", "i8*");
-  const newDataI8 = gen.emitBitcast(newDataPtr, "i8**", "i8*");
   const currentLenI64 = gen.nextTemp();
   gen.emit(`${currentLenI64} = zext i32 ${currentLen} to i64`);
   const copySizeI64 = gen.nextTemp();
-  gen.emit(`${copySizeI64} = mul i64 ${currentLenI64}, 8`);
+  gen.emit(`${copySizeI64} = mul i64 ${currentLenI64}, ${elemSize}`);
   gen.emit(
-    `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newDataI8}, i8* ${oldDataI8}, i64 ${copySizeI64}, i1 false)`,
+    `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newMem}, i8* ${oldDataPtrRaw}, i64 ${copySizeI64}, i1 false)`,
   );
 
-  const newDataPtrAsI8 = gen.emitBitcast(newDataPtr, "i8**", "i8*");
-  gen.emitStore("i8*", newDataPtrAsI8, dataPtrField);
-
+  gen.emitStore("i8*", newMem, dataPtrField);
   gen.emitStore("i32", newCap, capPtr);
 
   gen.emitBr(continueLabel);
@@ -660,12 +664,25 @@ function generateObjectArrayPush(
   );
   const dataPtrRaw = gen.nextTemp();
   gen.emit(`${dataPtrRaw} = load i8*, i8** ${dataPtrField2}`);
-  const dataPtr = gen.emitBitcast(dataPtrRaw, "i8*", "i8**");
 
-  const elemPtr = gen.nextTemp();
-  gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${currentLen}`);
-  const valueAsI8 = gen.emitBitcast(value, valueType, "i8*");
-  gen.emit(`store i8* ${valueAsI8}, i8** ${elemPtr}`);
+  if (contiguousStride > 0) {
+    const currentLenI642 = gen.nextTemp();
+    gen.emit(`${currentLenI642} = zext i32 ${currentLen} to i64`);
+    const offsetI64 = gen.nextTemp();
+    gen.emit(`${offsetI64} = mul i64 ${currentLenI642}, ${contiguousStride}`);
+    const dest = gen.nextTemp();
+    gen.emit(`${dest} = getelementptr inbounds i8, i8* ${dataPtrRaw}, i64 ${offsetI64}`);
+    const valueAsI8 = gen.emitBitcast(value, valueType, "i8*");
+    gen.emit(
+      `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${dest}, i8* ${valueAsI8}, i64 ${contiguousStride}, i1 false)`,
+    );
+  } else {
+    const dataPtr = gen.emitBitcast(dataPtrRaw, "i8*", "i8**");
+    const elemPtr = gen.nextTemp();
+    gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${currentLen}`);
+    const valueAsI8 = gen.emitBitcast(value, valueType, "i8*");
+    gen.emit(`store i8* ${valueAsI8}, i8** ${elemPtr}`);
+  }
 
   const newLen = gen.nextTemp();
   gen.emit(`${newLen} = add i32 ${currentLen}, 1`);

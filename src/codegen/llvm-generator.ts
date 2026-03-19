@@ -854,6 +854,13 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public getCurrentDeclaredSetType(): string | undefined {
     return this.currentDeclaredSetType;
   }
+  public contiguousObjectArrayStride: number = 0;
+  public setContiguousObjectArrayStride(stride: number): void {
+    this.contiguousObjectArrayStride = stride;
+  }
+  public getContiguousObjectArrayStride(): number {
+    return this.contiguousObjectArrayStride;
+  }
   public setUsesPromises(value: boolean): void {
     this.usesPromises = value ? 1 : 0;
   }
@@ -904,6 +911,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   public setRawInterfaceType(name: string, type: string): void {
     this.symbolTable.setRawInterfaceType(name, type);
+  }
+
+  public markContiguousObjectArray(name: string, numFields: number): void {
+    this.symbolTable.markContiguousObjectArray(name, numFields);
   }
 
   public getTargetArch(): string {

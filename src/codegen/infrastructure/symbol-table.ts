@@ -452,6 +452,8 @@ export class SymbolTable {
   private savedBoundariesCount: number = 0;
   private typeContext: TypeContext | null;
   private llvmConstants: string[] = [];
+  private contiguousArrayNames: string[] = [];
+  private contiguousArrayFieldCounts: number[] = [];
 
   constructor(typeContext?: TypeContext) {
     this.symbols = new Map();
@@ -1580,5 +1582,27 @@ export class SymbolTable {
       if (this.llvmConstants[i] === name) return true;
     }
     return false;
+  }
+
+  private pendingContiguousStride: number = 0;
+
+  setPendingContiguousStride(stride: number): void {
+    this.pendingContiguousStride = stride;
+  }
+
+  getPendingContiguousStride(): number {
+    return this.pendingContiguousStride;
+  }
+
+  markContiguousObjectArray(name: string, numFields: number): void {
+    this.contiguousArrayNames.push(name);
+    this.contiguousArrayFieldCounts.push(numFields);
+  }
+
+  getContiguousFieldCount(name: string): number {
+    for (let i = 0; i < this.contiguousArrayNames.length; i++) {
+      if (this.contiguousArrayNames[i] === name) return this.contiguousArrayFieldCounts[i];
+    }
+    return 0;
   }
 }

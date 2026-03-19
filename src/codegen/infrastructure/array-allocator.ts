@@ -170,8 +170,21 @@ export class ArrayAllocator {
           elementTypes: typeInfo.types,
           elementTsTypes: typeInfo.tsTypes,
         });
+        let isAllDouble = typeInfo.types.length > 0;
+        for (let ti = 0; ti < typeInfo.types.length; ti++) {
+          if (typeInfo.types[ti] !== "double") {
+            isAllDouble = false;
+            break;
+          }
+        }
+        if (isAllDouble) {
+          const stride = typeInfo.types.length * 8;
+          this.ctx.symbolTable.markContiguousObjectArray(stmt.name, typeInfo.types.length);
+          this.ctx.symbolTable.setPendingContiguousStride(stride);
+        }
         this.ctx.emit(`${allocaReg} = alloca %ObjectArray*`);
         const value = this.ctx.generateExpression(stmt.value!, params);
+        this.ctx.symbolTable.setPendingContiguousStride(0);
         this.ctx.emit(`store %ObjectArray* ${value}, %ObjectArray** ${allocaReg}`);
         return;
       }

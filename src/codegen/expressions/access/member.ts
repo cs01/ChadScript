@@ -1795,6 +1795,14 @@ export class MemberAccessGenerator {
     const structTypeFields = elementInfo.types.join(", ");
     const structType = `{ ${structTypeFields} }`;
 
+    let contiguousStride = 0;
+    const idxObj = indexAccess.object as { type: string };
+    if (idxObj.type === "variable") {
+      const arrVarName = (indexAccess.object as VariableNode).name;
+      const numFields = this.ctx.symbolTable.getContiguousFieldCount(arrVarName);
+      if (numFields > 0) contiguousStride = numFields * 8;
+    }
+
     const dataPtr = this.ctx.nextTemp();
     this.ctx.emit(
       `${dataPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`,
@@ -1803,15 +1811,23 @@ export class MemberAccessGenerator {
     const data = this.ctx.nextTemp();
     this.ctx.emit(`${data} = load i8*, i8** ${dataPtr}`);
 
-    const dataAsPtrs = this.ctx.emitBitcast(data, "i8*", "i8**");
-
-    const elemPtrPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${elemPtrPtr} = getelementptr inbounds i8*, i8** ${dataAsPtrs}, i32 ${index}`);
-
-    const elemPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${elemPtr} = load i8*, i8** ${elemPtrPtr}`);
-
-    const elemTyped = this.ctx.emitBitcast(elemPtr, "i8*", `${structType}*`);
+    let elemTyped: string;
+    if (contiguousStride > 0) {
+      const indexI64 = this.ctx.nextTemp();
+      this.ctx.emit(`${indexI64} = sext i32 ${index} to i64`);
+      const offset = this.ctx.nextTemp();
+      this.ctx.emit(`${offset} = mul i64 ${indexI64}, ${contiguousStride}`);
+      const elemRaw = this.ctx.nextTemp();
+      this.ctx.emit(`${elemRaw} = getelementptr inbounds i8, i8* ${data}, i64 ${offset}`);
+      elemTyped = this.ctx.emitBitcast(elemRaw, "i8*", `${structType}*`);
+    } else {
+      const dataAsPtrs = this.ctx.emitBitcast(data, "i8*", "i8**");
+      const elemPtrPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${elemPtrPtr} = getelementptr inbounds i8*, i8** ${dataAsPtrs}, i32 ${index}`);
+      const elemPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${elemPtr} = load i8*, i8** ${elemPtrPtr}`);
+      elemTyped = this.ctx.emitBitcast(elemPtr, "i8*", `${structType}*`);
+    }
 
     const propType = elementInfo.types[propIndex];
     const propTsType = elementInfo.tsTypes[propIndex];
