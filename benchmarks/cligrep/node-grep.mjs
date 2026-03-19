@@ -1,14 +1,14 @@
-import { readFileSync, readdirSync, statSync } from 'fs';
-import { join } from 'path';
+import { readFileSync, readdirSync, statSync } from "fs";
+import { join } from "path";
 
 const pattern = process.argv[2];
 const target = process.argv[3];
 let totalMatches = 0;
 
 function searchFile(filePath) {
-  const content = readFileSync(filePath, 'utf8');
+  const content = readFileSync(filePath, "utf8");
   if (content.length === 0) return;
-  const lines = content.split('\n');
+  const lines = content.split("\n");
   let count = 0;
   for (let i = 0; i < lines.length; i++) {
     if (lines[i].includes(pattern)) count++;
