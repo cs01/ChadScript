@@ -42,8 +42,6 @@ fail() {
   FAILURES="${FAILURES}\n  $1: $2"
 }
 
-SKIPPED=0
-
 compile() {
   local src="$1"
   local out="$2"
@@ -54,10 +52,6 @@ compile() {
   return 0
 }
 
-skip() {
-  echo "  SKIP: $1 — $2"
-  SKIPPED=$((SKIPPED + 1))
-}
 
 # Wait for a server to respond on a port (up to N seconds)
 wait_for_server() {
@@ -269,7 +263,6 @@ else
 fi
 
 # --- 10. ccat.ts (file viewer with syntax highlighting) ---
-# NOTE: native compiler segfaults on this file (known bug). Skip on compile failure.
 
 echo "[10/15] ccat.ts"
 if compile examples/cli-tools/ccat.ts "$BUILD_DIR/ccat"; then
@@ -280,7 +273,7 @@ if compile examples/cli-tools/ccat.ts "$BUILD_DIR/ccat"; then
     fail "ccat.ts" "unexpected output: ${OUTPUT:0:200}"
   fi
 else
-  skip "ccat.ts" "compile failed (known native compiler issue)"
+  fail "ccat.ts" "compile failed"
 fi
 
 # --- 11. chex.ts (hex dump viewer) ---
@@ -328,13 +321,12 @@ else
 fi
 
 # --- 14. chttp.ts (HTTP client, compile-only — needs network) ---
-# NOTE: native compiler segfaults on this file (known bug). Skip on compile failure.
 
 echo "[14/15] chttp.ts"
 if compile examples/cli-tools/chttp.ts "$BUILD_DIR/chttp"; then
   pass "chttp.ts"
 else
-  skip "chttp.ts" "compile failed (known native compiler issue)"
+  fail "chttp.ts" "compile failed"
 fi
 
 # --- 15. cserve.ts (static file server, compile-only) ---
@@ -350,11 +342,8 @@ fi
 
 echo ""
 echo "=== Results ==="
-TOTAL=$((PASSED + FAILED + SKIPPED))
+TOTAL=$((PASSED + FAILED))
 echo "Passed: $PASSED / $TOTAL"
-if [ $SKIPPED -gt 0 ]; then
-  echo "Skipped: $SKIPPED / $TOTAL"
-fi
 echo "Failed: $FAILED / $TOTAL"
 
 if [ $FAILED -gt 0 ]; then

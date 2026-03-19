@@ -2171,7 +2171,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           stmtValType === "null";
         if (isUndefinedValue && stmt.declaredType) {
           const globalIr = this.handleUninitializedGlobalVar(name, stmt.declaredType);
-          if (globalIr) {
+          if (globalIr.length > 0) {
             ir += globalIr;
             continue;
           }
@@ -2181,7 +2181,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           const callNode = stmt.value as CallNode;
           if (callNode.name) {
             const callIr = this.tryHandleGlobalCallReturn(name, callNode);
-            if (callIr) {
+            if (callIr.length > 0) {
               ir += callIr;
               continue;
             }
@@ -2640,7 +2640,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           defaultValue = "0.0";
         } else if (isJSONParse) {
           const jsonIr = this.tryHandleGlobalJSONParse(name, stmt.value as MethodCallNode);
-          if (jsonIr) {
+          if (jsonIr.length > 0) {
             ir += jsonIr;
             continue;
           }
@@ -2649,7 +2649,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           defaultValue = "null";
         } else {
           const declaredIr = this.tryHandleGlobalDeclaredType(name, stmt.declaredType);
-          if (declaredIr) {
+          if (declaredIr.length > 0) {
             ir += declaredIr;
             continue;
           }
@@ -2681,7 +2681,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
           if (llvmType === "") {
             const exprIr = this.tryHandleGlobalExpressionType(name, stmt.value);
-            if (exprIr) {
+            if (exprIr.length > 0) {
               ir += exprIr;
               continue;
             }
@@ -2732,7 +2732,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       } else if (stmt.declaredType) {
         const name = stmt.name;
         const globalIr = this.handleUninitializedGlobalVar(name, stmt.declaredType);
-        if (globalIr) {
+        if (globalIr.length > 0) {
           ir += globalIr;
         }
       }
@@ -2800,7 +2800,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       return `@${name} = global %ObjectArray* null\n`;
     }
     const declaredIr = this.tryHandleGlobalDeclaredType(name, declaredType);
-    if (declaredIr) return declaredIr;
+    if (declaredIr.length > 0) return declaredIr;
     return "";
   }
 
@@ -2880,7 +2880,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     }
 
     const globalVarDecls = this.generateGlobalVariableDeclarations();
-    if (globalVarDecls) {
+    if (globalVarDecls.length > 0) {
       irParts.push(globalVarDecls);
     }
 
@@ -2889,7 +2889,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       if (!classNode) continue;
       if (!classNode.name) continue;
       const classIr = this.classGen.generateClass(classNode);
-      if (classIr) {
+      if (classIr.length > 0) {
         irParts.push(classIr);
         irParts.push("\n");
       }
@@ -2899,7 +2899,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     for (let funcIdx = 0; funcIdx < this.functionsCount; funcIdx++) {
       const func = this.ast.functions[funcIdx];
       const funcIr = this.generateFunction(func);
-      if (funcIr) {
+      if (funcIr.length > 0) {
         userFuncParts.push(funcIr);
         userFuncParts.push("\n");
       }
@@ -2911,7 +2911,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     for (let _lfi = 0; _lfi < liftedFunctions.length; _lfi++) {
       const func = liftedFunctions[_lfi];
       const liftedIr = this.generateFunction(func);
-      if (liftedIr) {
+      if (liftedIr.length > 0) {
         irParts.push(liftedIr);
         irParts.push("\n");
       }
@@ -2923,7 +2923,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       irParts.push(userFuncParts[ufi]);
     }
 
-    if (mainIr) {
+    if (mainIr.length > 0) {
       irParts.push(mainIr);
     }
 

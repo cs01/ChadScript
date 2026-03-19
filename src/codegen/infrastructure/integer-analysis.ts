@@ -70,10 +70,6 @@ class IntegerAnalyzer {
           return true;
       }
     }
-    if (val.type === "call") {
-      const call = val as CallNode;
-      if (call.name === "parseInt") return true;
-    }
     if (val.type === "binary") {
       const bin = val as BinaryNode;
       const op = bin.op;
@@ -160,11 +156,6 @@ class IntegerAnalyzer {
           return true;
         }
       }
-    }
-
-    if (val.type === "call") {
-      const call = val as CallNode;
-      if (call.name === "parseInt") return true;
     }
 
     return false;
