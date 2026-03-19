@@ -18,6 +18,10 @@ import {
 const dtsContent = ChadScript.embedFile("../chadscript.d.ts");
 registerStdlib("argparse.ts", ChadScript.embedFile("../lib/argparse.ts"));
 registerStdlib("http.ts", ChadScript.embedFile("../lib/http.ts"));
+registerStdlib("colors.ts", ChadScript.embedFile("../lib/colors.ts"));
+registerStdlib("events.ts", ChadScript.embedFile("../lib/events.ts"));
+registerStdlib("glob.ts", ChadScript.embedFile("../lib/glob.ts"));
+registerStdlib("compress.ts", ChadScript.embedFile("../lib/compress.ts"));
 const skillContent = ChadScript.embedFile("../lib/skill.md");
 import { ArgumentParser } from "chadscript/argparse";
 

@@ -248,6 +248,36 @@ else
   echo "==> curl-bridge already built, skipping"
 fi
 
+# --- compress-bridge (zlib + zstd) ---
+COMPRESS_BRIDGE_SRC="$C_BRIDGES_DIR/compress-bridge.c"
+COMPRESS_BRIDGE_OBJ="$C_BRIDGES_DIR/compress-bridge.o"
+if [ ! -f "$COMPRESS_BRIDGE_OBJ" ] || [ "$COMPRESS_BRIDGE_SRC" -nt "$COMPRESS_BRIDGE_OBJ" ]; then
+  echo "==> Building compress-bridge..."
+  ZSTD_CFLAGS=""
+  if [ "$(uname)" = "Darwin" ]; then
+    BREW_PREFIX=$(brew --prefix 2>/dev/null || echo "/opt/homebrew")
+    ZSTD_PREFIX=$(brew --prefix zstd 2>/dev/null || echo "$BREW_PREFIX")
+    if [ -f "$ZSTD_PREFIX/include/zstd.h" ]; then
+      ZSTD_CFLAGS="-I$ZSTD_PREFIX/include"
+    fi
+  fi
+  cc -c -O2 -fPIC $ZSTD_CFLAGS "$COMPRESS_BRIDGE_SRC" -o "$COMPRESS_BRIDGE_OBJ"
+  echo "  -> $COMPRESS_BRIDGE_OBJ"
+else
+  echo "==> compress-bridge already built, skipping"
+fi
+
+# --- yaml-bridge (pure C, no external deps) ---
+YAML_BRIDGE_SRC="$C_BRIDGES_DIR/yaml-bridge.c"
+YAML_BRIDGE_OBJ="$C_BRIDGES_DIR/yaml-bridge.o"
+if [ ! -f "$YAML_BRIDGE_OBJ" ] || [ "$YAML_BRIDGE_SRC" -nt "$YAML_BRIDGE_OBJ" ]; then
+  echo "==> Building yaml-bridge..."
+  cc -c -O2 -fPIC "$YAML_BRIDGE_SRC" -o "$YAML_BRIDGE_OBJ"
+  echo "  -> $YAML_BRIDGE_OBJ"
+else
+  echo "==> yaml-bridge already built, skipping"
+fi
+
 # --- base64-bridge ---
 BASE64_BRIDGE_SRC="$C_BRIDGES_DIR/base64-bridge.c"
 BASE64_BRIDGE_OBJ="$C_BRIDGES_DIR/base64-bridge.o"

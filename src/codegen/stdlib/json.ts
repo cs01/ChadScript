@@ -90,6 +90,30 @@ export class JsonGenerator {
     return result;
   }
 
+  generateParseFromString(jsonStr: string, typeParam?: string): string {
+    if (!typeParam) {
+      const root = this.ctx.emitCall("i8*", "@csyyjson_parse", `i8* ${jsonStr}`);
+      const result = this.ctx.emitCall("i8*", "@csyyjson_get_str", `i8* ${root}`);
+      this.ctx.setVariableType(result, "i8*");
+      return result;
+    }
+
+    if (!this.ctx.interfaceStructGenHasInterface(typeParam)) {
+      return this.ctx.emitCall("i8*", "@__safe_string", `i8* ${jsonStr}`);
+    }
+
+    this.generateJsonStruct(typeParam);
+    this.generateJsonParser(typeParam);
+
+    const result = this.ctx.emitCall(
+      `%${typeParam}*`,
+      `@parse_json_${typeParam}`,
+      `i8* ${jsonStr}`,
+    );
+    this.ctx.setVariableType(result, `%${typeParam}*`);
+    return result;
+  }
+
   private generateUntypedParse(expr: MethodCallNode, params: string[]): string {
     const jsonStr = this.ctx.generateExpression(expr.args[0], params);
     const jsonRoot = this.ctx.emitCall("i8*", "@csyyjson_parse", `i8* ${jsonStr}`);

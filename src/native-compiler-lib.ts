@@ -666,6 +666,9 @@ export function compileNative(inputFile: string, outputFile: string): void {
   if (generator.getUsesHttpServer()) {
     linkLibs = "-lz -lzstd " + linkLibs;
   }
+  if (generator.getUsesCompression() && !generator.getUsesHttpServer()) {
+    linkLibs = "-lz -lzstd " + linkLibs;
+  }
   const lwsBridgeObj = generator.getUsesHttpServer()
     ? effectiveBridgePath +
       "/lws-bridge.o " +
@@ -690,6 +693,10 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const arenaBridgeObj = effectiveBridgePath + "/arena-bridge.o";
   const cpSpawnObj = generator.getUsesSpawn() ? effectiveBridgePath + "/child-process-spawn.o" : "";
   const curlBridgeObj = generator.getUsesCurl() ? effectiveBridgePath + "/curl-bridge.o" : "";
+  const compressBridgeObj = generator.getUsesCompression()
+    ? effectiveBridgePath + "/compress-bridge.o"
+    : "";
+  const yamlBridgeObj = generator.getUsesYaml() ? effectiveBridgePath + "/yaml-bridge.o" : "";
   let llvmBridgeObj = "";
   let llvmBuilderObj = "";
   let lldBridgeObj = "";
@@ -748,6 +755,10 @@ export function compileNative(inputFile: string, outputFile: string): void {
     cpSpawnObj +
     " " +
     curlBridgeObj +
+    " " +
+    compressBridgeObj +
+    " " +
+    yamlBridgeObj +
     " " +
     llvmBridgeObj +
     " " +

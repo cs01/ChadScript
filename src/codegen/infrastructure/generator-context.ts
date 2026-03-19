@@ -183,6 +183,7 @@ export interface IFsGenerator {
 export interface IJsonGenerator {
   canHandle(expr: MethodCallNode): boolean;
   generateParse(expr: MethodCallNode, params: string[], typeParam?: string): string;
+  generateParseFromString(jsonStr: string, typeParam?: string): string;
   generateStringify(expr: MethodCallNode, params: string[]): string;
   generateStringifyExpr(arg: Expression, params: string[]): string;
 }
@@ -812,6 +813,8 @@ export interface IGeneratorContext {
   setUsesChildProcess(value: boolean): void;
   setUsesSpawn(value: boolean): void;
   setUsesAsyncFs(value: boolean): void;
+  setUsesCompression(value: boolean): void;
+  setUsesYaml(value: boolean): void;
   getUsesGC(): boolean;
   setUsesGC(value: boolean): void;
   getUsesMathRandom(): boolean;
@@ -1278,6 +1281,8 @@ export class MockGeneratorContext implements IGeneratorContext {
   setUsesAsyncFs(value: boolean): void {
     this.usesAsyncFs = value ? 1 : 0;
   }
+  setUsesCompression(_value: boolean): void {}
+  setUsesYaml(_value: boolean): void {}
   getUsesGC(): boolean {
     return false;
   }
@@ -1965,6 +1970,8 @@ export class MockGeneratorContext implements IGeneratorContext {
     canHandle: (_expr: MethodCallNode): boolean => false,
     generateParse: (_expr: MethodCallNode, _params: string[], _typeParam?: string): string =>
       "%mock_json_parse",
+    generateParseFromString: (_jsonStr: string, _typeParam?: string): string =>
+      "%mock_json_parse_from_string",
     generateStringify: (_expr: MethodCallNode, _params: string[]): string => "%mock_json_stringify",
     generateStringifyExpr: (_arg: Expression, _params: string[]): string =>
       "%mock_json_stringify_expr",
