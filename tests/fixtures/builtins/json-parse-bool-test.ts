@@ -17,6 +17,15 @@ if (item.name !== "widget") {
 if (item.value !== 3.14) {
   throw new Error("Expected value to be 3.14");
 }
+if (!item.active) {
+  throw new Error("Expected active to be true");
+}
+
+const falseJson = '{"id":1,"name":"off","value":0,"active":false}';
+const falseItem = JSON.parse<Item>(falseJson);
+if (falseItem.active) {
+  throw new Error("Expected active to be false");
+}
 
 const items: Item[] = [];
 let i = 0;
