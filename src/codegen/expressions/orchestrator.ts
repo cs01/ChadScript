@@ -1,6 +1,7 @@
 import {
   Expression,
   ArrowFunctionNode,
+  CallNode,
   VariableNode,
   AwaitExpressionNode,
   TypeAssertionNode,
@@ -194,6 +195,12 @@ export class ExpressionGenerator {
   }
 
   private generateAwaitExpression(expr: AwaitExpressionNode, params: string[]): string {
+    const arg = expr.argument as { type: string; name?: string };
+    if (arg.type === "call" && arg.name === "fetch") {
+      const syncResult = this.callGen.generateSyncFetch(expr.argument as CallNode, params);
+      this.ctx.setVariableType(syncResult, "i8*");
+      return syncResult;
+    }
     const promiseReg = this.generate(expr.argument, params);
     const valueReg = this.ctx.nextTemp();
     this.ctx.emit(`${valueReg} = call i8* @__Promise_await(%Promise* ${promiseReg})`);

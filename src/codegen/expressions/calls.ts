@@ -190,40 +190,63 @@ export class CallExpressionGenerator {
     return null;
   }
 
+  private parseFetchArgs(
+    expr: CallNode,
+    params: string[],
+  ): { urlValue: string; methodVal: string; headersVal: string; bodyVal: string } {
+    const urlValue = this.ctx.generateExpression(expr.args[0], params);
+    let methodVal = "null";
+    let headersVal = "null";
+    let bodyVal = "null";
+
+    if (expr.args.length >= 2) {
+      const optArg = expr.args[1] as {
+        type: string;
+        properties?: { key: string; value: unknown }[];
+      };
+      if (optArg.type === "object" && optArg.properties) {
+        for (const prop of optArg.properties) {
+          if (prop.key === "method") {
+            methodVal = this.ctx.generateExpression(prop.value as CallNode, params);
+          } else if (prop.key === "body") {
+            bodyVal = this.ctx.generateExpression(prop.value as CallNode, params);
+          } else if (prop.key === "headers") {
+            headersVal = this.generateFetchHeaders(
+              prop.value as { type: string; properties?: { key: string; value: unknown }[] },
+              params,
+            );
+          }
+        }
+      }
+    }
+    return { urlValue, methodVal, headersVal, bodyVal };
+  }
+
+  generateSyncFetch(expr: CallNode, params: string[]): string {
+    if (expr.args.length < 1) {
+      return this.ctx.emitError("fetch() requires at least 1 argument (URL)", expr.loc);
+    }
+    const { urlValue, methodVal, headersVal, bodyVal } = this.parseFetchArgs(expr, params);
+    this.ctx.setUsesCurl(true);
+    this.ctx.setUsesJson(true);
+    const respPtr = this.ctx.emitCall(
+      "%__FetchResponse*",
+      "@fetch",
+      `i8* ${urlValue}, i8* ${methodVal}, i8* ${headersVal}, i8* ${bodyVal}`,
+    );
+    const castPtr = this.ctx.emitBitcast(respPtr, "%__FetchResponse*", "i8*");
+    return castPtr;
+  }
+
   private dispatchEncodingCalls(expr: CallNode, params: string[]): string | null {
     if (expr.name === "fetch") {
       if (expr.args.length < 1) {
         return this.ctx.emitError("fetch() requires at least 1 argument (URL)", expr.loc);
       }
-      const urlValue = this.ctx.generateExpression(expr.args[0], params);
+      const { urlValue, methodVal, headersVal, bodyVal } = this.parseFetchArgs(expr, params);
       this.ctx.setUsesPromises(true);
       this.ctx.setUsesCurl(true);
       this.ctx.setUsesJson(true);
-
-      let methodVal = "null";
-      let headersVal = "null";
-      let bodyVal = "null";
-
-      if (expr.args.length >= 2) {
-        const optArg = expr.args[1] as {
-          type: string;
-          properties?: { key: string; value: unknown }[];
-        };
-        if (optArg.type === "object" && optArg.properties) {
-          for (const prop of optArg.properties) {
-            if (prop.key === "method") {
-              methodVal = this.ctx.generateExpression(prop.value as CallNode, params);
-            } else if (prop.key === "body") {
-              bodyVal = this.ctx.generateExpression(prop.value as CallNode, params);
-            } else if (prop.key === "headers") {
-              headersVal = this.generateFetchHeaders(
-                prop.value as { type: string; properties?: { key: string; value: unknown }[] },
-                params,
-              );
-            }
-          }
-        }
-      }
 
       const temp = this.ctx.emitCall(
         "%Promise*",
