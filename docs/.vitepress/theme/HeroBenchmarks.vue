@@ -23,9 +23,6 @@ const LANG_NAMES: Record<string, string> = {
   bun: 'Bun',
   grep: 'grep',
   ripgrep: 'ripgrep',
-  wc: 'wc',
-  xxd: 'xxd',
-  jq: 'jq',
 }
 
 const benchmarks = ref<Benchmark[]>([])

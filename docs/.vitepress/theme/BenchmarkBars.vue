@@ -20,9 +20,6 @@ const langMeta = {
   node:       { name: 'Node.js',    color: 'node' },
   grep:       { name: 'grep',       color: 'c' },
   ripgrep:    { name: 'ripgrep',    color: 'go' },
-  wc:         { name: 'wc',         color: 'c' },
-  xxd:        { name: 'xxd',        color: 'c' },
-  jq:         { name: 'jq',         color: 'c' },
 }
 
 const tabOrder = ['startup', 'sqlite', 'fibonacci', 'json', 'nbody', 'montecarlo', 'sieve', 'sorting', 'matmul', 'binarytrees', 'stringops', 'fileio']

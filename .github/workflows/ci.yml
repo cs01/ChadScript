@@ -131,7 +131,7 @@ jobs:
               chad_str = f'**{g(\"chadscript\")}{delta(k, b)}**'
               lines.append(f\"| {b['name']} | {g('c')} | {chad_str} | {g('go')} | {g('node')} | {g('bun')} | {rank(b)} |\")
           if cli:
-              cli_names = {'grep': 'grep', 'ripgrep': 'ripgrep', 'wc': 'wc', 'xxd': 'xxd', 'jq': 'jq'}
+              cli_names = {'grep': 'grep', 'ripgrep': 'ripgrep'}
               lines.append('')
               lines.append('### CLI Tool Benchmarks\n')
               for k, b in sorted(cli.items(), key=lambda x: x[1]['name']):
