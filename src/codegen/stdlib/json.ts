@@ -427,7 +427,7 @@ export class JsonGenerator {
           lines.push("  store i8* %value_" + fieldIndex + ", i8** %field_ptr_" + fieldIndex);
           lines.push("  br label %" + nextLabel);
           lines.push("");
-        } else if (fieldType === "number" || fieldType === "boolean") {
+        } else if (fieldType === "number") {
           lines.push("field_" + fieldIndex + "_extract:");
           lines.push(
             "  %value_" +
@@ -435,6 +435,31 @@ export class JsonGenerator {
               " = call double @csyyjson_get_num(i8* %item_" +
               fieldIndex +
               ")",
+          );
+          lines.push(
+            "  %field_ptr_" +
+              fieldIndex +
+              " = getelementptr inbounds %" +
+              typeName +
+              ", %" +
+              typeName +
+              "* %struct_ptr, i32 0, i32 " +
+              fieldIndex,
+          );
+          lines.push("  store double %value_" + fieldIndex + ", double* %field_ptr_" + fieldIndex);
+          lines.push("  br label %" + nextLabel);
+          lines.push("");
+        } else if (fieldType === "boolean") {
+          lines.push("field_" + fieldIndex + "_extract:");
+          lines.push(
+            "  %bool_i32_" +
+              fieldIndex +
+              " = call i32 @csyyjson_is_true(i8* %item_" +
+              fieldIndex +
+              ")",
+          );
+          lines.push(
+            "  %value_" + fieldIndex + " = sitofp i32 %bool_i32_" + fieldIndex + " to double",
           );
           lines.push(
             "  %field_ptr_" +
