@@ -81,12 +81,10 @@ const testFiles = [
   "tests/multipart.test.ts",
 ];
 
-const env =
-  flag === "--node"
-    ? { ...process.env, CHADC_COMPILER: "node dist/chad-node.js" }
-    : { ...process.env };
+const compilerPath = flag === "--node" ? "node dist/chad-node.js" : ".build/chad";
+const env = { ...process.env, CHADC_COMPILER: compilerPath };
 
-console.log(`\nRunning tests with ${flag === "--node" ? "node compiler" : "native compiler"}...`);
+console.log(`\nRunning tests with: ${compilerPath}`);
 
 const child = spawn("node", ["--import", "tsx", "--test", ...testFiles], {
   stdio: "inherit",

@@ -15,10 +15,14 @@ const testCases = discoverTests();
 
 const execAsync = promisify(exec);
 
-const compiler = fsSync.existsSync(".build/chad")
-  ? ".build/chad build"
-  : "node dist/chad-node.js build";
-const compilerLabel = fsSync.existsSync(".build/chad") ? "native" : "node";
+if (!process.env.CHADC_COMPILER) {
+  throw new Error(
+    "CHADC_COMPILER env var is required. Run via: npm test, npm run test:node, or npm run test:native",
+  );
+}
+const compilerBase = process.env.CHADC_COMPILER;
+const compiler = `${compilerBase} build`;
+const compilerLabel = compilerBase.includes("chad-node") ? "node" : "native";
 
 describe(`ChadScript Compiler (${compilerLabel})`, () => {
   describe("Compilation and Execution", { concurrency: 32 }, () => {
@@ -139,7 +143,7 @@ describe(`ChadScript Compiler (${compilerLabel})`, () => {
 
       try {
         // Compile with --keep-temps to preserve .ll file for inspection
-        await execAsync(`node dist/chad-node.js build --keep-temps ${fixturePath}`);
+        await execAsync(`${compilerBase} build --keep-temps ${fixturePath}`);
 
         // Read and verify LLVM IR
         const llContent = await fs.readFile(llFile, "utf-8");
@@ -533,7 +537,7 @@ httpServe(${port}, handleRequest, wsHandler);
       const llFile = path.join(outputDir, `${baseName}.ll`);
 
       try {
-        await execAsync(`node dist/chad-node.js ir --target linux-x64 ${fixture}`);
+        await execAsync(`${compilerBase} ir --target linux-x64 ${fixture}`);
         const ir = await fs.readFile(llFile, "utf-8");
         assert.ok(
           ir.includes("@stderr = external global i8*"),
@@ -554,7 +558,7 @@ httpServe(${port}, handleRequest, wsHandler);
       const llFile = path.join(outputDir, `${baseName}.ll`);
 
       try {
-        await execAsync(`node dist/chad-node.js ir --target macos-arm64 ${fixture}`);
+        await execAsync(`${compilerBase} ir --target macos-arm64 ${fixture}`);
         const ir = await fs.readFile(llFile, "utf-8");
         assert.ok(
           ir.includes("@__stderrp = external global i8*"),
@@ -578,7 +582,7 @@ httpServe(${port}, handleRequest, wsHandler);
       const llFile = path.join(outputDir, `${baseName}.ll`);
 
       try {
-        await execAsync(`node dist/chad-node.js ir --target macos-arm64 ${fixture}`);
+        await execAsync(`${compilerBase} ir --target macos-arm64 ${fixture}`);
         const ir = await fs.readFile(llFile, "utf-8");
         assert.ok(
           ir.includes('target triple = "aarch64-apple-darwin"'),
@@ -608,7 +612,7 @@ httpServe(${port}, handleRequest, wsHandler);
 
       try {
         await execAsync(
-          `node dist/chad-node.js ir --target macos-arm64 ${fixture} -o /tmp/test-cross-platform`,
+          `${compilerBase} ir --target macos-arm64 ${fixture} -o /tmp/test-cross-platform`,
         );
         const ir = await fs.readFile(llFile, "utf-8");
         assert.ok(ir.includes("darwin"), "Cross-compiled IR should contain darwin platform string");
@@ -623,9 +627,7 @@ httpServe(${port}, handleRequest, wsHandler);
       }
     });
 
-    // Native binary cross-compilation — this catches self-hosting bugs where
-    // the any-typed targetInfo object produces wrong GEP indices for field access
-    if (fsSync.existsSync(".build/chad")) {
+    if (compilerLabel === "native") {
       it("native binary should emit correct datalayout when cross-compiling", async () => {
         const fixture = "tests/fixtures/arithmetic/simple-add.js";
         const outputDir = path.join(".build", path.dirname(fixture));
@@ -633,7 +635,7 @@ httpServe(${port}, handleRequest, wsHandler);
         const llFile = path.join(outputDir, `${baseName}.ll`);
 
         try {
-          await execAsync(`.build/chad ir --target linux-x64 ${fixture}`);
+          await execAsync(`${compilerBase} ir --target linux-x64 ${fixture}`);
           const ir = fsSync.readFileSync(llFile, "utf-8");
           const dlMatch = ir.match(/target datalayout = "([^"]+)"/);
           assert.ok(dlMatch, "Native binary should emit target datalayout");

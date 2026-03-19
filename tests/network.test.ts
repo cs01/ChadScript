@@ -7,6 +7,13 @@ import * as net from "node:net";
 
 const execAsync = promisify(exec);
 
+if (!process.env.CHADC_COMPILER) {
+  throw new Error(
+    "CHADC_COMPILER env var is required. Run via: npm test, npm run test:node, or npm run test:native",
+  );
+}
+const compiler = `${process.env.CHADC_COMPILER} build`;
+
 function getRandomPort(): Promise<number> {
   return new Promise((resolve, reject) => {
     const srv = net.createServer();
@@ -44,7 +51,7 @@ describe("Network Tests", () => {
 
     try {
       const testFile = "tests/fixtures/network/fetch-integration-test.ts";
-      await execAsync(`node dist/chad-node.js build ${testFile}`);
+      await execAsync(`${compiler} ${testFile}`);
 
       const { stdout } = await execAsync(
         `.build/tests/fixtures/network/fetch-integration-test -p ${port}`,
@@ -82,7 +89,7 @@ describe("Network Tests", () => {
 
     try {
       const testFile = "tests/fixtures/network/promise-all-fetch-test.ts";
-      await execAsync(`node dist/chad-node.js build ${testFile}`);
+      await execAsync(`${compiler} ${testFile}`);
       const { stdout } = await execAsync(
         `.build/tests/fixtures/network/promise-all-fetch-test -p ${port}`,
       );
@@ -106,7 +113,7 @@ describe("Network Tests", () => {
 
     try {
       const testFile = "tests/fixtures/network/async-fetch-test.ts";
-      await execAsync(`node dist/chad-node.js build ${testFile}`);
+      await execAsync(`${compiler} ${testFile}`);
       const { stdout } = await execAsync(
         `.build/tests/fixtures/network/async-fetch-test -p ${port}`,
       );
@@ -133,7 +140,7 @@ describe("Network Tests", () => {
 
     try {
       const testFile = "tests/fixtures/network/promise-all-concurrent.ts";
-      await execAsync(`node dist/chad-node.js build ${testFile}`);
+      await execAsync(`${compiler} ${testFile}`);
       const { stdout } = await execAsync(
         `.build/tests/fixtures/network/promise-all-concurrent -p ${port}`,
       );
@@ -162,7 +169,7 @@ describe("Network Tests", () => {
 
     try {
       const testFile = "tests/fixtures/network/json-parse-and-response-json-test.ts";
-      await execAsync(`node dist/chad-node.js build ${testFile}`);
+      await execAsync(`${compiler} ${testFile}`);
       const { stdout } = await execAsync(
         `.build/tests/fixtures/network/json-parse-and-response-json-test -p ${port}`,
       );
@@ -177,7 +184,7 @@ describe("Network Tests", () => {
 
   it("should run Promise.race with resolved promises", async () => {
     const testFile = "tests/fixtures/network/promise-race-test.ts";
-    await execAsync(`node dist/chad-node.js build ${testFile}`);
+    await execAsync(`${compiler} ${testFile}`);
     const { stdout } = await execAsync(".build/tests/fixtures/network/promise-race-test");
     assert.ok(stdout.includes("TEST_PASSED"), "Promise.race test should pass");
   });
@@ -185,7 +192,7 @@ describe("Network Tests", () => {
   it("should run HTTP server using httpServe()", async () => {
     const port = await getRandomPort();
     const testFile = "tests/fixtures/network/http-server-test.ts";
-    await execAsync(`node dist/chad-node.js build ${testFile}`);
+    await execAsync(`${compiler} ${testFile}`);
 
     const serverProcess = spawn(
       ".build/tests/fixtures/network/http-server-test",
