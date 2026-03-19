@@ -57,6 +57,12 @@ $CHAD build "$DIR/fibonacci/chadscript.ts" -o /tmp/bench-fibonacci-chad
 $CHAD build "$DIR/nbody/chadscript.ts" -o /tmp/bench-nbody-chad
 $CHAD build "$DIR/json/chadscript.ts" -o /tmp/bench-json-chad
 $CHAD build "$DIR/sieve/chadscript.ts" -o /tmp/bench-sieve-chad
+$CHAD build "$DIR/montecarlo/chadscript.ts" -o /tmp/bench-montecarlo-chad
+$CHAD build "$DIR/sorting/chadscript.ts" -o /tmp/bench-sorting-chad
+$CHAD build "$DIR/matmul/chadscript.ts" -o /tmp/bench-matmul-chad
+$CHAD build "$DIR/stringops/chadscript.ts" -o /tmp/bench-stringops-chad
+$CHAD build "$DIR/binarytrees/chadscript.ts" -o /tmp/bench-binarytrees-chad
+$CHAD build "$DIR/fileio/chadscript.ts" -o /tmp/bench-fileio-chad
 echo "  done"
 
 echo "--- Building C benchmarks ---"
@@ -66,6 +72,12 @@ clang -O2 -o /tmp/bench-fibonacci-c "$DIR/fibonacci/fib.c"
 clang -O2 -o /tmp/bench-nbody-c "$DIR/nbody/bench.c" -lm
 clang -O2 -I "$DIR/../vendor/yyjson" -o /tmp/bench-json-c "$DIR/json/bench.c" "$DIR/../vendor/yyjson/libyyjson.a"
 clang -O2 -o /tmp/bench-sieve-c "$DIR/sieve/bench.c"
+clang -O2 -o /tmp/bench-montecarlo-c "$DIR/montecarlo/bench.c" -lm
+clang -O2 -o /tmp/bench-sorting-c "$DIR/sorting/bench.c"
+clang -O2 -o /tmp/bench-matmul-c "$DIR/matmul/bench.c" -lm
+clang -O2 -o /tmp/bench-stringops-c "$DIR/stringops/bench.c"
+clang -O2 -o /tmp/bench-binarytrees-c "$DIR/binarytrees/bench.c"
+clang -O2 -o /tmp/bench-fileio-c "$DIR/fileio/bench.c"
 echo "  done"
 
 echo "--- Building Go benchmarks ---"
@@ -74,6 +86,12 @@ go build -o /tmp/bench-fibonacci-go "$DIR/fibonacci/fib.go"
 go build -o /tmp/bench-nbody-go "$DIR/nbody/nbody.go"
 go build -o /tmp/bench-json-go "$DIR/json/json_bench.go"
 go build -o /tmp/bench-sieve-go "$DIR/sieve/sieve.go"
+go build -o /tmp/bench-montecarlo-go "$DIR/montecarlo/montecarlo.go"
+go build -o /tmp/bench-sorting-go "$DIR/sorting/sorting.go"
+go build -o /tmp/bench-matmul-go "$DIR/matmul/matmul.go"
+go build -o /tmp/bench-stringops-go "$DIR/stringops/stringops.go"
+go build -o /tmp/bench-binarytrees-go "$DIR/binarytrees/binarytrees.go"
+go build -o /tmp/bench-fileio-go "$DIR/fileio/fileio.go"
 echo "  done"
 
 echo ""
@@ -118,6 +136,48 @@ bench_compute "sieve" "chadscript" "ChadScript" "Time:" /tmp/bench-sieve-chad
 bench_compute "sieve" "go" "Go" "Time:" /tmp/bench-sieve-go
 bench_compute "sieve" "node" "Node.js" "Time:" node "$DIR/sieve/node.mjs"
 bench_compute "sieve" "bun" "Bun" "Time:" bun "$DIR/sieve/bun.mjs"
+
+echo "=== Monte Carlo Pi (50M samples) ==="
+bench_compute "montecarlo" "c" "C" "Time:" /tmp/bench-montecarlo-c
+bench_compute "montecarlo" "chadscript" "ChadScript" "Time:" /tmp/bench-montecarlo-chad
+bench_compute "montecarlo" "go" "Go" "Time:" /tmp/bench-montecarlo-go
+bench_compute "montecarlo" "node" "Node.js" "Time:" node "$DIR/montecarlo/node.mjs"
+bench_compute "montecarlo" "bun" "Bun" "Time:" bun "$DIR/montecarlo/bun.mjs"
+
+echo "=== Quicksort (2M doubles) ==="
+bench_compute "sorting" "c" "C" "Time:" /tmp/bench-sorting-c
+bench_compute "sorting" "chadscript" "ChadScript" "Time:" /tmp/bench-sorting-chad
+bench_compute "sorting" "go" "Go" "Time:" /tmp/bench-sorting-go
+bench_compute "sorting" "node" "Node.js" "Time:" node "$DIR/sorting/node.mjs"
+bench_compute "sorting" "bun" "Bun" "Time:" bun "$DIR/sorting/bun.mjs"
+
+echo "=== Matrix Multiply (512x512) ==="
+bench_compute "matmul" "c" "C" "Time:" /tmp/bench-matmul-c
+bench_compute "matmul" "chadscript" "ChadScript" "Time:" /tmp/bench-matmul-chad
+bench_compute "matmul" "go" "Go" "Time:" /tmp/bench-matmul-go
+bench_compute "matmul" "node" "Node.js" "Time:" node "$DIR/matmul/node.mjs"
+bench_compute "matmul" "bun" "Bun" "Time:" bun "$DIR/matmul/bun.mjs"
+
+echo "=== String Manipulation (100K strings) ==="
+bench_compute "stringops" "c" "C" "Time:" /tmp/bench-stringops-c
+bench_compute "stringops" "chadscript" "ChadScript" "Time:" /tmp/bench-stringops-chad
+bench_compute "stringops" "go" "Go" "Time:" /tmp/bench-stringops-go
+bench_compute "stringops" "node" "Node.js" "Time:" node "$DIR/stringops/node.mjs"
+bench_compute "stringops" "bun" "Bun" "Time:" bun "$DIR/stringops/bun.mjs"
+
+echo "=== Binary Trees (depth 18) ==="
+bench_compute "binarytrees" "c" "C" "Time:" /tmp/bench-binarytrees-c
+bench_compute "binarytrees" "chadscript" "ChadScript" "Time:" /tmp/bench-binarytrees-chad
+bench_compute "binarytrees" "go" "Go" "Time:" /tmp/bench-binarytrees-go
+bench_compute "binarytrees" "node" "Node.js" "Time:" node "$DIR/binarytrees/node.mjs"
+bench_compute "binarytrees" "bun" "Bun" "Time:" bun "$DIR/binarytrees/bun.mjs"
+
+echo "=== File I/O (100MB read/write) ==="
+bench_compute "fileio" "c" "C" "Time:" /tmp/bench-fileio-c
+bench_compute "fileio" "chadscript" "ChadScript" "Time:" /tmp/bench-fileio-chad
+bench_compute "fileio" "go" "Go" "Time:" /tmp/bench-fileio-go
+bench_compute "fileio" "node" "Node.js" "Time:" node "$DIR/fileio/node.mjs"
+bench_compute "fileio" "bun" "Bun" "Time:" bun "$DIR/fileio/bun.mjs"
 
 echo ""
 echo "--- Assembling JSON ---"
