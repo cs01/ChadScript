@@ -48,7 +48,9 @@ class IntegerAnalyzer {
   private isIntegerExpressionForCandidacy(val: Expression): boolean {
     if (this.isIntegerLiteral(val)) return true;
     if (val.type === "variable") {
-      return this.hasCandidate((val as VariableNode).name);
+      const name = (val as VariableNode).name;
+      if (name === "NaN" || name === "Infinity") return false;
+      return true;
     }
     if (val.type === "member_access") {
       const ma = val as MemberAccessNode;

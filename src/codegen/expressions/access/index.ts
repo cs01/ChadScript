@@ -192,12 +192,8 @@ export class IndexAccessGenerator {
   }
 
   private emitInlineBoundsCheck(index: string, len: string): void {
-    const oobHi = this.ctx.nextTemp();
-    this.ctx.emit(`${oobHi} = icmp sge i32 ${index}, ${len}`);
-    const oobLo = this.ctx.nextTemp();
-    this.ctx.emit(`${oobLo} = icmp slt i32 ${index}, 0`);
     const oob = this.ctx.nextTemp();
-    this.ctx.emit(`${oob} = or i1 ${oobHi}, ${oobLo}`);
+    this.ctx.emit(`${oob} = icmp uge i32 ${index}, ${len}`);
     const failLabel = this.ctx.nextLabel("bounds_fail");
     const okLabel = this.ctx.nextLabel("bounds_ok");
     this.ctx.emit(`br i1 ${oob}, label %${failLabel}, label %${okLabel}`);

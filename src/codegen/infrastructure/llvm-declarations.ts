@@ -374,7 +374,7 @@ export function getBoundsCheckHelper(): string {
   let ir = "";
   ir +=
     '@.str.oob_fmt = private unnamed_addr constant [49 x i8] c"Error: array index %d out of bounds (length %d)\\0A\\00", align 1\n';
-  ir += "define void @__cs_bounds_fail(i32 %index, i32 %length) cold noinline {\n";
+  ir += "define void @__cs_bounds_fail(i32 %index, i32 %length) noreturn cold noinline {\n";
   ir += "entry:\n";
   ir += "  %stderr = load i8*, i8** @stderr\n";
   ir +=
@@ -384,9 +384,7 @@ export function getBoundsCheckHelper(): string {
   ir += "}\n\n";
   ir += "define void @__cs_bounds_check(i32 %index, i32 %length) {\n";
   ir += "entry:\n";
-  ir += "  %too_high = icmp sge i32 %index, %length\n";
-  ir += "  %too_low = icmp slt i32 %index, 0\n";
-  ir += "  %oob = or i1 %too_high, %too_low\n";
+  ir += "  %oob = icmp uge i32 %index, %length\n";
   ir += "  br i1 %oob, label %fail, label %ok\n";
   ir += "fail:\n";
   ir += "  call void @__cs_bounds_fail(i32 %index, i32 %length)\n";
