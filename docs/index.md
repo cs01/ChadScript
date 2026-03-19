@@ -3,7 +3,7 @@ layout: home
 hero:
   name: ChadScript
   text: TypeScript that compiles to native binaries.
-  tagline: "Sub-2ms startup. ~250KB binaries. No runtime. No dependencies."
+  tagline: "Sub-millisecond startup. ~250KB binaries. No runtime. No dependencies."
   actions:
     - theme: brand
       text: Get Started
