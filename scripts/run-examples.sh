@@ -75,7 +75,7 @@ echo ""
 # --- 1. hello.ts (simple print) ---
 
 echo "[1/9] hello.ts"
-if compile examples/hello.ts "$BUILD_DIR/hello"; then
+if compile examples/snippets/hello.ts "$BUILD_DIR/hello"; then
   OUTPUT=$("$BUILD_DIR/hello" 2>&1) || true
   if echo "$OUTPUT" | grep -q "Hello from ChadScript"; then
     pass "hello.ts"
@@ -89,7 +89,7 @@ fi
 # --- 2. timers.ts (event loop, self-terminating) ---
 
 echo "[2/9] timers.ts"
-if compile examples/timers.ts "$BUILD_DIR/timers"; then
+if compile examples/snippets/timers.ts "$BUILD_DIR/timers"; then
   # No `timeout` on macOS — use background process + wait with a deadline
   "$BUILD_DIR/timers" > "$BUILD_DIR/timers.out" 2>&1 &
   TIMER_PID=$!
@@ -108,56 +108,56 @@ else
   fail "timers.ts" "compile failed"
 fi
 
-# --- 3. query.ts (sqlite in-memory) ---
+# --- 3. sqlite-demo.ts (sqlite in-memory) ---
 
-echo "[3/9] query.ts"
-if compile examples/query.ts "$BUILD_DIR/query"; then
+echo "[3/9] sqlite-demo.ts"
+if compile examples/snippets/sqlite-demo.ts "$BUILD_DIR/query"; then
   OUTPUT=$("$BUILD_DIR/query" 2>&1) || true
   if echo "$OUTPUT" | grep -q "Alice"; then
-    pass "query.ts"
+    pass "sqlite-demo.ts"
   else
-    fail "query.ts" "unexpected output: $OUTPUT"
+    fail "sqlite-demo.ts" "unexpected output: $OUTPUT"
   fi
 else
-  fail "query.ts" "compile failed"
+  fail "sqlite-demo.ts" "compile failed"
 fi
 
-# --- 4. word-count.ts (file I/O + argparse) ---
+# --- 4. cwc.ts (file I/O + argparse) ---
 
-echo "[4/9] word-count.ts"
-if compile examples/word-count.ts "$BUILD_DIR/word-count"; then
+echo "[4/9] cwc.ts"
+if compile examples/cli-tools/cwc.ts "$BUILD_DIR/cwc"; then
   # Create a test file to count
   echo "hello world foo bar" > "$BUILD_DIR/test-input.txt"
-  OUTPUT=$("$BUILD_DIR/word-count" "$BUILD_DIR/test-input.txt" 2>&1) || true
-  if echo "$OUTPUT" | grep -q "words"; then
-    pass "word-count.ts"
+  OUTPUT=$("$BUILD_DIR/cwc" "$BUILD_DIR/test-input.txt" 2>&1) || true
+  if echo "$OUTPUT" | grep -q "4"; then
+    pass "cwc.ts"
   else
-    fail "word-count.ts" "unexpected output: $OUTPUT"
+    fail "cwc.ts" "unexpected output: $OUTPUT"
   fi
 else
-  fail "word-count.ts" "compile failed"
+  fail "cwc.ts" "compile failed"
 fi
 
-# --- 5. string-search.ts (grep-like) ---
+# --- 5. cgrep.ts (grep-like) ---
 
-echo "[5/9] string-search.ts"
-if compile examples/string-search.ts "$BUILD_DIR/string-search"; then
+echo "[5/9] cgrep.ts"
+if compile examples/cli-tools/cgrep.ts "$BUILD_DIR/cgrep"; then
   # Create a test file to search
   printf "line one\nfind me here\nline three\n" > "$BUILD_DIR/search-input.txt"
-  OUTPUT=$("$BUILD_DIR/string-search" "find" "$BUILD_DIR/search-input.txt" 2>&1) || true
+  OUTPUT=$("$BUILD_DIR/cgrep" "find" "$BUILD_DIR/search-input.txt" 2>&1) || true
   if echo "$OUTPUT" | grep -q "find"; then
-    pass "string-search.ts"
+    pass "cgrep.ts"
   else
-    fail "string-search.ts" "unexpected output: $OUTPUT"
+    fail "cgrep.ts" "unexpected output: $OUTPUT"
   fi
 else
-  fail "string-search.ts" "compile failed"
+  fail "cgrep.ts" "compile failed"
 fi
 
-# --- 6. http-server.ts (server + curl) ---
+# --- 6. http-server (server + curl) ---
 
-echo "[6/9] http-server.ts"
-if compile examples/http-server.ts "$BUILD_DIR/http-server"; then
+echo "[6/9] http-server"
+if compile examples/apps/http-server/app.ts "$BUILD_DIR/http-server"; then
   PORT=18080
   "$BUILD_DIR/http-server" -p "$PORT" &
   SERVER_PID=$!
@@ -172,30 +172,30 @@ if compile examples/http-server.ts "$BUILD_DIR/http-server"; then
         # Test POST echo
         RESP3=$(curl -s -X POST -d 'hello world' "http://localhost:$PORT/echo")
         if echo "$RESP3" | grep -q "hello world"; then
-          pass "http-server.ts"
+          pass "http-server"
         else
-          fail "http-server.ts" "POST /echo failed: $RESP3"
+          fail "http-server" "POST /echo failed: $RESP3"
         fi
       else
-        fail "http-server.ts" "GET /json failed: $RESP2"
+        fail "http-server" "GET /json failed: $RESP2"
       fi
     else
-      fail "http-server.ts" "GET / failed: $RESP"
+      fail "http-server" "GET / failed: $RESP"
     fi
   else
-    fail "http-server.ts" "server didn't start on port $PORT"
+    fail "http-server" "server didn't start on port $PORT"
   fi
 
   kill "$SERVER_PID" 2>/dev/null || true
   wait "$SERVER_PID" 2>/dev/null || true
 else
-  fail "http-server.ts" "compile failed"
+  fail "http-server" "compile failed"
 fi
 
 # --- 7. hackernews/app.ts (full-stack server + curl) ---
 
 echo "[7/9] hackernews/app.ts"
-if compile examples/hackernews/app.ts "$BUILD_DIR/hackernews"; then
+if compile examples/apps/hackernews/app.ts "$BUILD_DIR/hackernews"; then
   PORT=18081
   "$BUILD_DIR/hackernews" -p "$PORT" &
   SERVER_PID=$!
@@ -227,7 +227,7 @@ fi
 # --- 8. parallel.ts (parallel HTTP fetches with Promise.all) ---
 
 echo "[8/9] parallel.ts"
-if compile examples/parallel.ts "$BUILD_DIR/parallel"; then
+if compile examples/snippets/parallel.ts "$BUILD_DIR/parallel"; then
   "$BUILD_DIR/parallel" > "$BUILD_DIR/parallel.out" 2>&1 &
   PARALLEL_PID=$!
   ( sleep 30; kill "$PARALLEL_PID" 2>/dev/null ) &
@@ -245,25 +245,20 @@ else
   fail "parallel.ts" "compile failed"
 fi
 
-# --- 9. jsonc/jsonc.ts (JSONC parser) ---
+# --- 9. cjq.ts (JSON query tool) ---
 
-echo "[9/9] jsonc/jsonc.ts"
-if compile examples/jsonc/jsonc.ts "$BUILD_DIR/jsonc"; then
-  # Create a test JSONC file
-  printf '{\n  // comment\n  "name": "test",\n  "values": [1, 2, /* inline */ 3,],\n  "flag": true,\n}\n' > "$BUILD_DIR/test.jsonc"
-  OUTPUT=$("$BUILD_DIR/jsonc" "$BUILD_DIR/test.jsonc" 2>&1) || true
-  if echo "$OUTPUT" | grep -q '"name":"test"'; then
-    # Verify comments and trailing commas are stripped
-    if echo "$OUTPUT" | grep -q "comment"; then
-      fail "jsonc/jsonc.ts" "comments not stripped: $OUTPUT"
-    else
-      pass "jsonc/jsonc.ts"
-    fi
+echo "[9/9] cjq.ts"
+if compile examples/cli-tools/cjq.ts "$BUILD_DIR/cjq"; then
+  # Create a test JSON file
+  printf '{"name":"test","values":[1,2,3]}\n' > "$BUILD_DIR/test.json"
+  OUTPUT=$("$BUILD_DIR/cjq" ".name" "$BUILD_DIR/test.json" 2>&1) || true
+  if echo "$OUTPUT" | grep -q "test"; then
+    pass "cjq.ts"
   else
-    fail "jsonc/jsonc.ts" "unexpected output: $OUTPUT"
+    fail "cjq.ts" "unexpected output: $OUTPUT"
   fi
 else
-  fail "jsonc/jsonc.ts" "compile failed"
+  fail "cjq.ts" "compile failed"
 fi
 
 # --- Summary ---

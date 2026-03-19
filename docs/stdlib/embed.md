@@ -83,4 +83,4 @@ For full usage examples, see [HTTP Server — Serving files](./http-server.md#se
 
 At compile time, the compiler reads the file(s) from disk and emits them as LLVM IR global string constants. At runtime, `getEmbeddedFile()` does a linear strcmp lookup across all embedded keys — no filesystem access occurs.
 
-See [`examples/hackernews/`](https://github.com/cs01/ChadScript/tree/main/examples/hackernews) for a working example with `embedDir()`.
+See [`examples/apps/hackernews/`](https://github.com/cs01/ChadScript/tree/main/examples/apps/hackernews) for a working example with `embedDir()`.

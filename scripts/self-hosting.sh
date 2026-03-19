@@ -26,7 +26,7 @@ step "Stage 0: Node.js builds native compiler"
 node dist/chad-node.js build src/chad-native.ts -o .build/chad || fail "stage 0 build"
 pass "built .build/chad"
 
-.build/chad build examples/hello.ts -o "$TMPDIR/hello0" || fail "stage 0 compile hello"
+.build/chad build examples/snippets/hello.ts -o "$TMPDIR/hello0" || fail "stage 0 compile hello"
 OUTPUT=$("$TMPDIR/hello0" 2>&1)
 [[ "$OUTPUT" == *"Hello from ChadScript"* ]] || fail "stage 0 smoke test"
 pass "smoke test"
@@ -35,7 +35,7 @@ step "Stage 1: Native compiler compiles itself"
 .build/chad build src/chad-native.ts -o "$TMPDIR/chad-stage1" || fail "stage 1 build"
 pass "built stage1"
 
-"$TMPDIR/chad-stage1" build examples/hello.ts -o "$TMPDIR/hello1" || fail "stage 1 compile hello"
+"$TMPDIR/chad-stage1" build examples/snippets/hello.ts -o "$TMPDIR/hello1" || fail "stage 1 compile hello"
 OUTPUT=$("$TMPDIR/hello1" 2>&1)
 [[ "$OUTPUT" == *"Hello from ChadScript"* ]] || fail "stage 1 smoke test"
 pass "smoke test"
@@ -45,7 +45,7 @@ step "Stage 2: Stage 1 compiles itself"
 "$TMPDIR/chad-stage1" build src/chad-native.ts -o "$TMPDIR/chad-stage2" || fail "stage 2 build"
 pass "built stage2"
 
-"$TMPDIR/chad-stage2" build examples/hello.ts -o "$TMPDIR/hello2" || fail "stage 2 compile hello"
+"$TMPDIR/chad-stage2" build examples/snippets/hello.ts -o "$TMPDIR/hello2" || fail "stage 2 compile hello"
 OUTPUT=$("$TMPDIR/hello2" 2>&1)
 [[ "$OUTPUT" == *"Hello from ChadScript"* ]] || fail "stage 2 smoke test"
 pass "smoke test"

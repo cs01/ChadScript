@@ -188,7 +188,7 @@ describe("Self-Hosting", { timeout: 600000 }, () => {
 
       const outBinary = "/tmp/hello-stage0";
       try {
-        await execAsync(`${STAGE0} build examples/hello.ts -o ${outBinary}`, {
+        await execAsync(`${STAGE0} build examples/snippets/hello.ts -o ${outBinary}`, {
           timeout: 30000,
           env: NATIVE_ENV,
         });
@@ -228,7 +228,7 @@ describe("Self-Hosting", { timeout: 600000 }, () => {
 
       const outBinary = "/tmp/hello-stage1";
       try {
-        await execAsync(`${STAGE1} build examples/hello.ts -o ${outBinary}`, {
+        await execAsync(`${STAGE1} build examples/snippets/hello.ts -o ${outBinary}`, {
           timeout: 30000,
           env: NATIVE_ENV,
         });
@@ -265,7 +265,7 @@ describe("Self-Hosting", { timeout: 600000 }, () => {
 
       const outBinary = "/tmp/hello-stage2";
       try {
-        await execAsync(`${STAGE2} build examples/hello.ts -o ${outBinary}`, {
+        await execAsync(`${STAGE2} build examples/snippets/hello.ts -o ${outBinary}`, {
           timeout: 30000,
           env: NATIVE_ENV,
         });
@@ -302,7 +302,7 @@ describe("Self-Hosting", { timeout: 600000 }, () => {
 
       const outBinary = "/tmp/hello-stage3";
       try {
-        await execAsync(`${STAGE3} build examples/hello.ts -o ${outBinary}`, {
+        await execAsync(`${STAGE3} build examples/snippets/hello.ts -o ${outBinary}`, {
           timeout: 30000,
           env: NATIVE_ENV,
         });
