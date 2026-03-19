@@ -1002,7 +1002,6 @@ export class FunctionGenerator {
   generateMain(
     topLevelObjectVariables: Map<string, { ptr: string; keys: string[]; types: string[] }>,
     hasTry?: boolean,
-    usesCurl?: boolean,
   ): string {
     const mainAttrs = hasTry ? "noinline optnone" : "";
 
@@ -1094,11 +1093,6 @@ export class FunctionGenerator {
 
     ir += "  store i32 %argc, i32* @__argc\n";
     ir += "  store i8** %argv, i8*** @__argv\n";
-    ir += "  call void @GC_init()\n";
-    ir += "  call void @GC_allow_register_threads()\n";
-    if (usesCurl) {
-      ir += "  call void @__cs_curl_init()\n";
-    }
     ir += "  call void @cs_load_dotenv()\n";
 
     if (outputStr.length > 0) {
