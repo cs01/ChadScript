@@ -451,6 +451,7 @@ export class SymbolTable {
   private savedBoundaries: number[];
   private savedBoundariesCount: number = 0;
   private typeContext: TypeContext | null;
+  private llvmConstants: string[] = [];
 
   constructor(typeContext?: TypeContext) {
     this.symbols = new Map();
@@ -1568,5 +1569,16 @@ export class SymbolTable {
       }
     }
     return output;
+  }
+
+  markLLVMConstant(name: string): void {
+    this.llvmConstants.push(name);
+  }
+
+  isLLVMConstant(name: string): boolean {
+    for (let i = 0; i < this.llvmConstants.length; i++) {
+      if (this.llvmConstants[i] === name) return true;
+    }
+    return false;
   }
 }

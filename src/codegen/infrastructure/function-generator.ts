@@ -295,7 +295,8 @@ export class FunctionGenerator {
     }
     for (let i = 0; i < funcParams.length; i++) {
       const llvmType = paramLLVMTypes[i] || "double";
-      paramStrings.push(`${llvmType} %arg${i}`);
+      const noalias = llvmType.indexOf("*") !== -1 ? " noalias" : "";
+      paramStrings.push(`${llvmType}${noalias} %arg${i}`);
     }
     ir += paramStrings.join(", ");
     // noinline optnone for try functions (protects setjmp); no nounwind for others
