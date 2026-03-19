@@ -89,9 +89,48 @@ function highlightLine(line: string): string {
   return result;
 }
 
+function countMatchesRaw(content: string): number {
+  let haystack = content;
+  if (ignoreCase) {
+    haystack = content.toLowerCase();
+  }
+  let matchCount = 0;
+  let pos = 0;
+  while (pos < haystack.length) {
+    const idx = haystack.indexOf(searchPattern, pos);
+    if (idx === -1) {
+      break;
+    }
+    matchCount = matchCount + 1;
+    const nlIdx = haystack.indexOf("\n", idx);
+    if (nlIdx === -1) {
+      break;
+    }
+    pos = nlIdx + 1;
+  }
+  return matchCount;
+}
+
 function searchFile(filePath: string, showPrefix: boolean): void {
   const content = fs.readFileSync(filePath);
   if (content.length === 0) {
+    return;
+  }
+
+  if (countOnly && !invertMatch) {
+    const matchCount = countMatchesRaw(content);
+    if (showPrefix) {
+      if (noColor) {
+        console.log(filePath + ":" + matchCount);
+      } else {
+        console.log(
+          colorMagenta + filePath + colorReset + colorCyan + ":" + colorReset + matchCount,
+        );
+      }
+    } else {
+      console.log(matchCount);
+    }
+    totalMatches = totalMatches + matchCount;
     return;
   }
 
