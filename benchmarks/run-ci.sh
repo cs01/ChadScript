@@ -198,33 +198,20 @@ bench_compute "fileio" "bun" "Bun" "Time:" bun "$DIR/fileio/bun.mjs"
 
 echo ""
 echo "--- Building ChadScript CLI tools ---"
-$CHAD build "$REPO/examples/cli-tools/cgrep.ts" -o /tmp/bench-cgrep
 $CHAD build "$REPO/examples/cli-tools/chex.ts" -o /tmp/bench-chex
 echo "  done"
 
 echo ""
 echo "--- Generating CLI benchmark data ---"
-mkdir -p /tmp/bench-grep-data
-for copy in 1 2 3 4 5; do
-  cp -r "$REPO/src" "/tmp/bench-grep-data/src-$copy"
-done
 dd if=/dev/urandom of=/tmp/bench-hex-data bs=1M count=5 2>/dev/null
-echo "  done (grep: 5x src/, hex: 5MB)"
-
-echo ""
-echo "=== CLI: Recursive Grep (search 5x src/ for 'function') ==="
-bench_cli "cligrep" "chadscript" "cgrep" /tmp/bench-cgrep -r -c -C function /tmp/bench-grep-data
-bench_cli "cligrep" "grep" "grep" grep -r -c function /tmp/bench-grep-data
-if command -v rg &>/dev/null; then
-  bench_cli "cligrep" "ripgrep" "ripgrep" rg -c function /tmp/bench-grep-data
-fi
+echo "  done (hex: 5MB)"
 
 echo ""
 echo "=== CLI: Hex Dump (5MB binary) ==="
 bench_cli "clihex" "chadscript" "chex" /tmp/bench-chex -C /tmp/bench-hex-data
 bench_cli "clihex" "xxd" "xxd" xxd /tmp/bench-hex-data
 
-rm -rf /tmp/bench-grep-data /tmp/bench-hex-data
+rm -f /tmp/bench-hex-data
 
 echo ""
 echo "--- Assembling JSON ---"

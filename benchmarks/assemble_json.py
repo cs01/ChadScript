@@ -23,8 +23,7 @@ META = {
     "binarytrees":   {"name": "Binary Trees", "desc": "Build/check/discard binary trees of depth 18.", "metric": "s", "lower_is_better": True},
     "json":          {"name": "JSON Parse/Stringify", "desc": "Parse 10K JSON objects, stringify back.", "metric": "s", "lower_is_better": True},
     "stringsearch":  {"name": "String Search", "desc": "Recursive directory search for 'console.log' in src/.", "metric": "s", "lower_is_better": True},
-    "cligrep":       {"name": "Recursive Grep", "desc": "Search for 'function' across 5x copies of src/.", "metric": "s", "lower_is_better": True, "category": "cli"},
-    "clihex":        {"name": "Hex Dump", "desc": "Hex dump a 5MB binary file.", "metric": "s", "lower_is_better": True, "category": "cli"},
+    "clihex":        {"name": "Hex Dump", "desc": "chex vs xxd — hex dump a 5MB binary file.", "metric": "s", "lower_is_better": True, "category": "cli"},
 }
 
 all_benchmarks = {}
