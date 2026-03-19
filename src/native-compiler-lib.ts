@@ -815,7 +815,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
         if (fs.existsSync("/usr/local/opt/sqlite/lib"))
           linkLibs = "-L/usr/local/opt/sqlite/lib " + linkLibs;
       }
-      if (generator.getUsesHttpServer()) {
+      if (generator.getUsesHttpServer() || generator.getUsesCompression()) {
         if (fs.existsSync("/opt/homebrew/opt/zstd/lib"))
           linkLibs = "-L/opt/homebrew/opt/zstd/lib " + linkLibs;
         if (fs.existsSync("/usr/local/opt/zstd/lib"))
@@ -890,7 +890,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
         if (fs.existsSync("/usr/local/opt/sqlite/lib"))
           linkLibs = "-L/usr/local/opt/sqlite/lib " + linkLibs;
       }
-      if (generator.getUsesHttpServer()) {
+      if (generator.getUsesHttpServer() || generator.getUsesCompression()) {
         if (fs.existsSync("/opt/homebrew/opt/zstd/lib"))
           linkLibs = "-L/opt/homebrew/opt/zstd/lib " + linkLibs;
         if (fs.existsSync("/usr/local/opt/zstd/lib"))
