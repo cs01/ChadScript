@@ -111,6 +111,7 @@ export class MathGenerator {
     const dblArg = this.ctx.ensureDouble(arg);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call double @llvm.sqrt.f64(double ${dblArg})`);
+    this.ctx.setVariableType(result, "double");
     return result;
   }
 
@@ -127,6 +128,7 @@ export class MathGenerator {
     const dblExp = this.ctx.ensureDouble(exp);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call double @llvm.pow.f64(double ${dblBase}, double ${dblExp})`);
+    this.ctx.setVariableType(result, "double");
     return result;
   }
 
@@ -141,6 +143,7 @@ export class MathGenerator {
     const dblArg = this.ctx.ensureDouble(arg);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call double @llvm.floor.f64(double ${dblArg})`);
+    this.ctx.setVariableType(result, "double");
     return result;
   }
 
@@ -155,6 +158,7 @@ export class MathGenerator {
     const dblArg = this.ctx.ensureDouble(arg);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call double @llvm.ceil.f64(double ${dblArg})`);
+    this.ctx.setVariableType(result, "double");
     return result;
   }
 
@@ -169,6 +173,7 @@ export class MathGenerator {
     const dblArg = this.ctx.ensureDouble(arg);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call double @llvm.round.f64(double ${dblArg})`);
+    this.ctx.setVariableType(result, "double");
     return result;
   }
 
@@ -183,6 +188,7 @@ export class MathGenerator {
     const dblArg = this.ctx.ensureDouble(arg);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call double @llvm.fabs.f64(double ${dblArg})`);
+    this.ctx.setVariableType(result, "double");
     return result;
   }
 
@@ -208,6 +214,7 @@ export class MathGenerator {
     const dblArg = this.ctx.ensureDouble(arg);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call double @llvm.trunc.f64(double ${dblArg})`);
+    this.ctx.setVariableType(result, "double");
     return result;
   }
 
@@ -215,6 +222,7 @@ export class MathGenerator {
     this.ctx.setUsesMathRandom(true);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call double @drand48()`);
+    this.ctx.setVariableType(result, "double");
     return result;
   }
 
@@ -247,6 +255,7 @@ export class MathGenerator {
     const dblArg = this.ctx.ensureDouble(arg);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call double @llvm.log.f64(double ${dblArg})`);
+    this.ctx.setVariableType(result, "double");
     return result;
   }
 
@@ -258,6 +267,7 @@ export class MathGenerator {
     const dblArg = this.ctx.ensureDouble(arg);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call double @llvm.sin.f64(double ${dblArg})`);
+    this.ctx.setVariableType(result, "double");
     return result;
   }
 
@@ -269,6 +279,7 @@ export class MathGenerator {
     const dblArg = this.ctx.ensureDouble(arg);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call double @llvm.cos.f64(double ${dblArg})`);
+    this.ctx.setVariableType(result, "double");
     return result;
   }
 
