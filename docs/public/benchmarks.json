@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-03-19T03:46:40Z",
+  "timestamp": "2026-03-19T03:57:58Z",
   "benchmarks": {
     "fibonacci": {
       "name": "Fibonacci",
@@ -8,48 +8,52 @@
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 0.462,
-          "label": "0.462s"
+          "value": 0.814,
+          "label": "0.814s"
         },
         "chadscript": {
-          "value": 0.5420029296875,
-          "label": "0.5420029296875s"
+          "value": 1.36610400390625,
+          "label": "1.36610400390625s"
         },
         "go": {
-          "value": 0.608,
-          "label": "0.608s"
+          "value": 1.564,
+          "label": "1.564s"
         },
         "node": {
-          "value": 1.404,
-          "label": "1.404s"
+          "value": 3.186,
+          "label": "3.186s"
         },
         "bun": {
-          "value": 0.93,
-          "label": "0.930s"
+          "value": 1.941,
+          "label": "1.941s"
         }
       }
     },
-    "sqlite": {
-      "name": "SQLite",
-      "desc": "100K SELECT queries on a 100-row in-memory table.",
+    "json": {
+      "name": "JSON Parse/Stringify",
+      "desc": "Parse 10K JSON objects, stringify back.",
       "metric": "s",
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 0.1,
-          "label": "0.100s"
+          "value": 0.004,
+          "label": "0.004s"
         },
         "chadscript": {
-          "value": 0.097759033203125,
-          "label": "0.097759033203125s"
+          "value": 0.0050478515625,
+          "label": "0.0050478515625s"
+        },
+        "go": {
+          "value": 0.017,
+          "label": "0.017s"
         },
         "node": {
-          "value": 0.156,
-          "label": "0.156s"
+          "value": 0.015,
+          "label": "0.015s"
         },
         "bun": {
-          "value": 0.142,
-          "label": "0.142s"
+          "value": 0.007,
+          "label": "0.007s"
         }
       }
     },
@@ -60,24 +64,24 @@
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 5.9,
-          "label": "5.9ms"
+          "value": 0.8,
+          "label": "0.8ms"
         },
         "chadscript": {
-          "value": 6.0,
-          "label": "6.0ms"
+          "value": 0.8,
+          "label": "0.8ms"
         },
         "go": {
-          "value": 6.7,
-          "label": "6.7ms"
+          "value": 1.2,
+          "label": "1.2ms"
         },
         "bun": {
-          "value": 8.6,
-          "label": "8.6ms"
+          "value": 9.6,
+          "label": "9.6ms"
         },
         "node": {
-          "value": 28.8,
-          "label": "28.8ms"
+          "value": 26.2,
+          "label": "26.2ms"
         }
       }
     }
