@@ -39,8 +39,20 @@ typedef struct {
     char **data;
     int32_t length;
     int32_t capacity;
-    int32_t *lengths;
 } StringArray;
+
+char *cs_str_join_tracked(char **parts, int32_t *lengths, int32_t count,
+                          const char *sep, size_t sep_len);
+
+static char **g_cached_data = NULL;
+static int32_t *g_cached_lengths = NULL;
+static int32_t g_cached_count = 0;
+
+void cs_str_cache_invalidate(void) {
+    g_cached_data = NULL;
+    g_cached_lengths = NULL;
+    g_cached_count = 0;
+}
 
 StringArray *cs_str_split(const char *src, size_t src_len,
                           const char *sep, size_t sep_len) {
@@ -60,7 +72,9 @@ StringArray *cs_str_split(const char *src, size_t src_len,
         arr->data = data;
         arr->length = count;
         arr->capacity = count;
-        arr->lengths = lens;
+        g_cached_data = data;
+        g_cached_lengths = lens;
+        g_cached_count = count;
         return arr;
     }
 
@@ -112,7 +126,9 @@ StringArray *cs_str_split(const char *src, size_t src_len,
     arr->data = data;
     arr->length = part_count;
     arr->capacity = part_count;
-    arr->lengths = lens;
+    g_cached_data = data;
+    g_cached_lengths = lens;
+    g_cached_count = part_count;
     return arr;
 }
 
@@ -182,9 +198,10 @@ StringArray *cs_str_array_to_upper(StringArray *input) {
     int32_t *lens = (int32_t *)GC_malloc((size_t)count * sizeof(int32_t));
 
     size_t total_bytes = 0;
-    if (input->lengths) {
+    int32_t *src_lens = (input->data == g_cached_data && g_cached_count == count) ? g_cached_lengths : NULL;
+    if (src_lens) {
         for (int32_t i = 0; i < count; i++)
-            total_bytes += (size_t)input->lengths[i] + 1;
+            total_bytes += (size_t)src_lens[i] + 1;
     } else {
         for (int32_t i = 0; i < count; i++)
             total_bytes += strlen(input->data[i]) + 1;
@@ -194,7 +211,7 @@ StringArray *cs_str_array_to_upper(StringArray *input) {
     size_t pool_off = 0;
 
     for (int32_t i = 0; i < count; i++) {
-        size_t len = input->lengths ? (size_t)input->lengths[i] : strlen(input->data[i]);
+        size_t len = src_lens ? (size_t)src_lens[i] : strlen(input->data[i]);
         char *dst = pool + pool_off;
         cs_to_upper(input->data[i], dst, len);
         data[i] = dst;
@@ -205,7 +222,9 @@ StringArray *cs_str_array_to_upper(StringArray *input) {
     out->data = data;
     out->length = count;
     out->capacity = count;
-    out->lengths = lens;
+    g_cached_data = data;
+    g_cached_lengths = lens;
+    g_cached_count = count;
     return out;
 }
 
@@ -216,9 +235,10 @@ StringArray *cs_str_array_to_lower(StringArray *input) {
     int32_t *lens = (int32_t *)GC_malloc((size_t)count * sizeof(int32_t));
 
     size_t total_bytes = 0;
-    if (input->lengths) {
+    int32_t *src_lens = (input->data == g_cached_data && g_cached_count == count) ? g_cached_lengths : NULL;
+    if (src_lens) {
         for (int32_t i = 0; i < count; i++)
-            total_bytes += (size_t)input->lengths[i] + 1;
+            total_bytes += (size_t)src_lens[i] + 1;
     } else {
         for (int32_t i = 0; i < count; i++)
             total_bytes += strlen(input->data[i]) + 1;
@@ -228,7 +248,7 @@ StringArray *cs_str_array_to_lower(StringArray *input) {
     size_t pool_off = 0;
 
     for (int32_t i = 0; i < count; i++) {
-        size_t len = input->lengths ? (size_t)input->lengths[i] : strlen(input->data[i]);
+        size_t len = src_lens ? (size_t)src_lens[i] : strlen(input->data[i]);
         char *dst = pool + pool_off;
         cs_to_lower(input->data[i], dst, len);
         data[i] = dst;
@@ -239,6 +259,8 @@ StringArray *cs_str_array_to_lower(StringArray *input) {
     out->data = data;
     out->length = count;
     out->capacity = count;
-    out->lengths = lens;
+    g_cached_data = data;
+    g_cached_lengths = lens;
+    g_cached_count = count;
     return out;
 }

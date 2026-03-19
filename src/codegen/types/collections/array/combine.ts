@@ -516,41 +516,11 @@ function generateStringArrayJoin(
   );
   const dataPtr = gen.emitLoad("i8**", dataPtrField);
 
-  const lengthsField = gen.nextTemp();
-  gen.emit(
-    `${lengthsField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 3`,
-  );
-  const lengthsPtr = gen.emitLoad("i32*", lengthsField);
-  const hasLengths = gen.emitIcmp("ne", "i32*", lengthsPtr, "null");
-
-  const trackedLabel = gen.nextLabel("join_tracked");
-  const fallbackLabel = gen.nextLabel("join_fallback");
-  const doneLabel = gen.nextLabel("join_done");
-
-  gen.emitBrCond(hasLengths, trackedLabel, fallbackLabel);
-
-  gen.emitLabel(trackedLabel);
-  const sepLen1 = gen.emitCall("i64", "@strlen", `i8* ${separator}`);
-  const trackedResult = gen.emitCall(
-    "i8*",
-    "@cs_str_join_tracked",
-    `i8** ${dataPtr}, i32* ${lengthsPtr}, i32 ${length}, i8* ${separator}, i64 ${sepLen1}`,
-  );
-  gen.emitBr(doneLabel);
-
-  gen.emitLabel(fallbackLabel);
-  const sepLen2 = gen.emitCall("i64", "@strlen", `i8* ${separator}`);
-  const fallbackResult = gen.emitCall(
+  const sepLen = gen.emitCall("i64", "@strlen", `i8* ${separator}`);
+  const result = gen.emitCall(
     "i8*",
     "@cs_str_join",
-    `i8** ${dataPtr}, i32 ${length}, i8* ${separator}, i64 ${sepLen2}`,
-  );
-  gen.emitBr(doneLabel);
-
-  gen.emitLabel(doneLabel);
-  const result = gen.nextTemp();
-  gen.emit(
-    `${result} = phi i8* [ ${trackedResult}, %${trackedLabel} ], [ ${fallbackResult}, %${fallbackLabel} ]`,
+    `i8** ${dataPtr}, i32 ${length}, i8* ${separator}, i64 ${sepLen}`,
   );
   gen.setVariableType(result, "i8*");
   return result;

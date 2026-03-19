@@ -13,7 +13,7 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
 
   ir += "%Array = type { double*, i32, i32 }\n";
   ir += "%ObjectArray = type { i8*, i32, i32 }\n";
-  ir += "%StringArray = type { i8**, i32, i32, i32* }\n";
+  ir += "%StringArray = type { i8**, i32, i32 }\n";
   ir += "%Uint8Array = type { i8*, i32, i32 }\n";
   ir += "%Map = type { double*, double*, i32, i32 }\n";
   ir += "%StringMap = type { i8**, i8**, i32, i32 }\n";
@@ -234,6 +234,7 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += "declare i8* @cs_str_join_tracked(i8**, i32*, i32, i8*, i64)\n";
   ir += "declare %StringArray* @cs_str_array_to_upper(%StringArray*)\n";
   ir += "declare %StringArray* @cs_str_array_to_lower(%StringArray*)\n";
+  ir += "declare void @cs_str_cache_invalidate()\n";
   ir += "\n";
 
   ir += "declare i32 @system(i8*)\n";
