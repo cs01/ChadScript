@@ -19,18 +19,17 @@ if (filter.length === 0) {
   process.exit(2);
 }
 
-if (filePath.length === 0) {
-  console.error("cjq: missing file argument");
-  console.error("Try 'cjq --help' for more information");
-  process.exit(2);
-}
-
 const rawMode = parser.getFlag("raw");
 const compact = parser.getFlag("compact");
 
-const content = fs.readFileSync(filePath);
+let content = "";
+if (filePath.length === 0) {
+  content = process.stdin.read();
+} else {
+  content = fs.readFileSync(filePath);
+}
 if (content.length === 0) {
-  console.error("cjq: empty file: " + filePath);
+  console.error("cjq: empty input");
   process.exit(1);
 }
 
