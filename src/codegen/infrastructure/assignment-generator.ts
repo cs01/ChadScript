@@ -608,9 +608,7 @@ export class AssignmentGenerator {
     } else {
       const dataAsPtrs = this.ctx.emitBitcast(data, "i8*", "i8**");
       const elemPtrPtr = this.ctx.nextTemp();
-      this.ctx.emit(
-        `${elemPtrPtr} = getelementptr inbounds i8*, i8** ${dataAsPtrs}, i32 ${index}`,
-      );
+      this.ctx.emit(`${elemPtrPtr} = getelementptr inbounds i8*, i8** ${dataAsPtrs}, i32 ${index}`);
       const elemPtr = this.ctx.nextTemp();
       this.ctx.emit(`${elemPtr} = load i8*, i8** ${elemPtrPtr}`);
       elemTyped = this.ctx.emitBitcast(elemPtr, "i8*", `${structType}*`);

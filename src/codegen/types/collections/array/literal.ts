@@ -163,11 +163,7 @@ export function generateArrayLiteral(
           i === 0 && firstElemValue
             ? firstElemValue
             : gen.generateExpression(arrExpr.elements[i], params);
-        const elemCast = gen.emitBitcast(
-          elemValue,
-          gen.getVariableType(elemValue) || "i8*",
-          "i8*",
-        );
+        const elemCast = gen.emitBitcast(elemValue, gen.getVariableType(elemValue) || "i8*", "i8*");
         const offset = gen.nextTemp();
         gen.emit(`${offset} = mul i64 ${i}, ${contiguousStride}`);
         const dest = gen.nextTemp();
@@ -193,11 +189,7 @@ export function generateArrayLiteral(
           i === 0 && firstElemValue
             ? firstElemValue
             : gen.generateExpression(arrExpr.elements[i], params);
-        const elemCast = gen.emitBitcast(
-          elemValue,
-          gen.getVariableType(elemValue) || "i8*",
-          "i8*",
-        );
+        const elemCast = gen.emitBitcast(elemValue, gen.getVariableType(elemValue) || "i8*", "i8*");
         const elemPtr = gen.nextTemp();
         gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${i}`);
         gen.emitStore("i8*", elemCast, elemPtr);
