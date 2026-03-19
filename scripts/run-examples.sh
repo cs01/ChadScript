@@ -74,7 +74,7 @@ echo ""
 
 # --- 1. hello.ts (simple print) ---
 
-echo "[1/9] hello.ts"
+echo "[1/15] hello.ts"
 if compile examples/snippets/hello.ts "$BUILD_DIR/hello"; then
   OUTPUT=$("$BUILD_DIR/hello" 2>&1) || true
   if echo "$OUTPUT" | grep -q "Hello from ChadScript"; then
@@ -88,7 +88,7 @@ fi
 
 # --- 2. timers.ts (event loop, self-terminating) ---
 
-echo "[2/9] timers.ts"
+echo "[2/15] timers.ts"
 if compile examples/snippets/timers.ts "$BUILD_DIR/timers"; then
   # No `timeout` on macOS — use background process + wait with a deadline
   "$BUILD_DIR/timers" > "$BUILD_DIR/timers.out" 2>&1 &
@@ -110,7 +110,7 @@ fi
 
 # --- 3. sqlite-demo.ts (sqlite in-memory) ---
 
-echo "[3/9] sqlite-demo.ts"
+echo "[3/15] sqlite-demo.ts"
 if compile examples/snippets/sqlite-demo.ts "$BUILD_DIR/query"; then
   OUTPUT=$("$BUILD_DIR/query" 2>&1) || true
   if echo "$OUTPUT" | grep -q "Alice"; then
@@ -124,7 +124,7 @@ fi
 
 # --- 4. cwc.ts (file I/O + argparse) ---
 
-echo "[4/9] cwc.ts"
+echo "[4/15] cwc.ts"
 if compile examples/cli-tools/cwc.ts "$BUILD_DIR/cwc"; then
   # Create a test file to count
   echo "hello world foo bar" > "$BUILD_DIR/test-input.txt"
@@ -140,7 +140,7 @@ fi
 
 # --- 5. cgrep.ts (grep-like) ---
 
-echo "[5/9] cgrep.ts"
+echo "[5/15] cgrep.ts"
 if compile examples/cli-tools/cgrep.ts "$BUILD_DIR/cgrep"; then
   # Create a test file to search
   printf "line one\nfind me here\nline three\n" > "$BUILD_DIR/search-input.txt"
@@ -156,7 +156,7 @@ fi
 
 # --- 6. http-server (server + curl) ---
 
-echo "[6/9] http-server"
+echo "[6/15] http-server"
 if compile examples/apps/http-server/app.ts "$BUILD_DIR/http-server"; then
   PORT=18080
   "$BUILD_DIR/http-server" -p "$PORT" &
@@ -194,7 +194,7 @@ fi
 
 # --- 7. hackernews/app.ts (full-stack server + curl) ---
 
-echo "[7/9] hackernews/app.ts"
+echo "[7/15] hackernews/app.ts"
 if compile examples/apps/hackernews/app.ts "$BUILD_DIR/hackernews"; then
   PORT=18081
   "$BUILD_DIR/hackernews" -p "$PORT" &
@@ -226,7 +226,7 @@ fi
 
 # --- 8. parallel.ts (parallel HTTP fetches with Promise.all) ---
 
-echo "[8/9] parallel.ts"
+echo "[8/15] parallel.ts"
 if compile examples/snippets/parallel.ts "$BUILD_DIR/parallel"; then
   "$BUILD_DIR/parallel" > "$BUILD_DIR/parallel.out" 2>&1 &
   PARALLEL_PID=$!
@@ -247,7 +247,7 @@ fi
 
 # --- 9. cjq.ts (JSON query tool) ---
 
-echo "[9/9] cjq.ts"
+echo "[9/15] cjq.ts"
 if compile examples/cli-tools/cjq.ts "$BUILD_DIR/cjq"; then
   # Create a test JSON file
   printf '{"name":"test","values":[1,2,3]}\n' > "$BUILD_DIR/test.json"
@@ -259,6 +259,82 @@ if compile examples/cli-tools/cjq.ts "$BUILD_DIR/cjq"; then
   fi
 else
   fail "cjq.ts" "compile failed"
+fi
+
+# --- 10. ccat.ts (file viewer with syntax highlighting) ---
+
+echo "[10/15] ccat.ts"
+if compile examples/cli-tools/ccat.ts "$BUILD_DIR/ccat"; then
+  OUTPUT=$("$BUILD_DIR/ccat" --plain examples/cli-tools/ccat.ts 2>&1) || true
+  if echo "$OUTPUT" | grep -q "ArgumentParser"; then
+    pass "ccat.ts"
+  else
+    fail "ccat.ts" "unexpected output: ${OUTPUT:0:200}"
+  fi
+else
+  fail "ccat.ts" "compile failed"
+fi
+
+# --- 11. chex.ts (hex dump viewer) ---
+
+echo "[11/15] chex.ts"
+if compile examples/cli-tools/chex.ts "$BUILD_DIR/chex"; then
+  printf 'Hello ChadScript\n' > "$BUILD_DIR/hex-input.txt"
+  OUTPUT=$("$BUILD_DIR/chex" -C "$BUILD_DIR/hex-input.txt" 2>&1) || true
+  if echo "$OUTPUT" | grep -q "48 65 6c 6c 6f"; then
+    pass "chex.ts"
+  else
+    fail "chex.ts" "unexpected output: ${OUTPUT:0:200}"
+  fi
+else
+  fail "chex.ts" "compile failed"
+fi
+
+# --- 12. ctree.ts (directory tree) ---
+
+echo "[12/15] ctree.ts"
+if compile examples/cli-tools/ctree.ts "$BUILD_DIR/ctree"; then
+  OUTPUT=$("$BUILD_DIR/ctree" -C -L 1 examples/cli-tools 2>&1) || true
+  if echo "$OUTPUT" | grep -q "director"; then
+    pass "ctree.ts"
+  else
+    fail "ctree.ts" "unexpected output: ${OUTPUT:0:200}"
+  fi
+else
+  fail "ctree.ts" "compile failed"
+fi
+
+# --- 13. cql.ts (SQL on CSV) ---
+
+echo "[13/15] cql.ts"
+if compile examples/cli-tools/cql.ts "$BUILD_DIR/cql"; then
+  printf 'name,age\nAlice,30\nBob,25\n' > "$BUILD_DIR/test.csv"
+  OUTPUT=$("$BUILD_DIR/cql" "SELECT * FROM data" "$BUILD_DIR/test.csv" 2>&1) || true
+  if echo "$OUTPUT" | grep -q "Alice"; then
+    pass "cql.ts"
+  else
+    fail "cql.ts" "unexpected output: ${OUTPUT:0:200}"
+  fi
+else
+  fail "cql.ts" "compile failed"
+fi
+
+# --- 14. chttp.ts (HTTP client, compile-only — needs network) ---
+
+echo "[14/15] chttp.ts"
+if compile examples/cli-tools/chttp.ts "$BUILD_DIR/chttp"; then
+  pass "chttp.ts"
+else
+  fail "chttp.ts" "compile failed"
+fi
+
+# --- 15. cserve.ts (static file server, compile-only) ---
+
+echo "[15/15] cserve.ts"
+if compile examples/cli-tools/cserve.ts "$BUILD_DIR/cserve"; then
+  pass "cserve.ts"
+else
+  fail "cserve.ts" "compile failed"
 fi
 
 # --- Summary ---
