@@ -31,12 +31,7 @@ const colorGreen = "\x1b[32m";
 const colorCyan = "\x1b[36m";
 const colorReset = "\x1b[0m";
 
-let content = "";
-if (filePath.length === 0) {
-  content = process.stdin.read();
-} else {
-  content = fs.readFileSync(filePath);
-}
+const bytes: Uint8Array = fs.readFileSync(filePath);
 
 const hexChars = "0123456789abcdef";
 
@@ -63,7 +58,7 @@ function isPrintable(b: number): boolean {
 }
 
 let start = skipBytes;
-let end = content.length;
+let end = bytes.length;
 if (maxLength > 0 && start + maxLength < end) {
   end = start + maxLength;
 }
@@ -75,7 +70,7 @@ while (offset < end) {
   let col = 0;
 
   while (col < cols && offset + col < end) {
-    const b = content.charCodeAt(offset + col);
+    const b = bytes[offset + col];
     const hex = byteToHex(b);
 
     if (noColor) {
@@ -96,7 +91,13 @@ while (offset < end) {
 
     if (!plainMode) {
       if (isPrintable(b)) {
-        const ch = content.charAt(offset + col);
+        const code = b;
+        let ch = "";
+        if (code >= 32 && code < 127) {
+          ch = String.fromCharCode(code);
+        } else {
+          ch = ".";
+        }
         if (noColor) {
           asciiPart = asciiPart + ch;
         } else {
