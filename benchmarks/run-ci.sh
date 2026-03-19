@@ -199,7 +199,6 @@ bench_compute "fileio" "bun" "Bun" "Time:" bun "$DIR/fileio/bun.mjs"
 echo ""
 echo "--- Building ChadScript CLI tools ---"
 $CHAD build "$REPO/examples/cli-tools/cgrep.ts" -o /tmp/bench-cgrep
-$CHAD build "$REPO/examples/cli-tools/cwc.ts" -o /tmp/bench-cwc
 $CHAD build "$REPO/examples/cli-tools/chex.ts" -o /tmp/bench-chex
 echo "  done"
 
@@ -209,11 +208,8 @@ mkdir -p /tmp/bench-grep-data
 for copy in 1 2 3 4 5; do
   cp -r "$REPO/src" "/tmp/bench-grep-data/src-$copy"
 done
-find "$REPO/src" -name "*.ts" -exec cat {} + > /tmp/bench-wc-data.txt
-for copy in $(seq 1 19); do cat /tmp/bench-wc-data.txt >> /tmp/bench-wc-data-big.txt; done
-cat /tmp/bench-wc-data.txt >> /tmp/bench-wc-data-big.txt
 dd if=/dev/urandom of=/tmp/bench-hex-data bs=1M count=5 2>/dev/null
-echo "  done (grep: 5x src/, wc: $(du -sh /tmp/bench-wc-data-big.txt | cut -f1), hex: 5MB)"
+echo "  done (grep: 5x src/, hex: 5MB)"
 
 echo ""
 echo "=== CLI: Recursive Grep (search 5x src/ for 'function') ==="
@@ -224,16 +220,11 @@ if command -v rg &>/dev/null; then
 fi
 
 echo ""
-echo "=== CLI: Word Count ($(du -sh /tmp/bench-wc-data-big.txt | cut -f1) file) ==="
-bench_cli "cliwc" "chadscript" "cwc" /tmp/bench-cwc /tmp/bench-wc-data-big.txt
-bench_cli "cliwc" "wc" "wc" wc /tmp/bench-wc-data-big.txt
-
-echo ""
 echo "=== CLI: Hex Dump (5MB binary) ==="
 bench_cli "clihex" "chadscript" "chex" /tmp/bench-chex -C /tmp/bench-hex-data
 bench_cli "clihex" "xxd" "xxd" xxd /tmp/bench-hex-data
 
-rm -rf /tmp/bench-grep-data /tmp/bench-wc-data.txt /tmp/bench-wc-data-big.txt /tmp/bench-hex-data
+rm -rf /tmp/bench-grep-data /tmp/bench-hex-data
 
 echo ""
 echo "--- Assembling JSON ---"

@@ -24,7 +24,6 @@ META = {
     "json":          {"name": "JSON Parse/Stringify", "desc": "Parse 10K JSON objects, stringify back.", "metric": "s", "lower_is_better": True},
     "stringsearch":  {"name": "String Search", "desc": "Recursive directory search for 'console.log' in src/.", "metric": "s", "lower_is_better": True},
     "cligrep":       {"name": "Recursive Grep", "desc": "Search for 'function' across 5x copies of src/.", "metric": "s", "lower_is_better": True, "category": "cli"},
-    "cliwc":         {"name": "Word Count", "desc": "Count lines, words, and chars in a ~20MB file.", "metric": "s", "lower_is_better": True, "category": "cli"},
     "clihex":        {"name": "Hex Dump", "desc": "Hex dump a 5MB binary file.", "metric": "s", "lower_is_better": True, "category": "cli"},
 }
 
