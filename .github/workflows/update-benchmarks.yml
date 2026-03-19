@@ -8,6 +8,7 @@ jobs:
     runs-on: ubuntu-22.04
     permissions:
       contents: write
+      pull-requests: write
 
     steps:
       - uses: actions/checkout@v4
@@ -53,14 +54,20 @@ jobs:
       - name: Run benchmarks
         run: bash benchmarks/run-ci.sh
         timeout-minutes: 10
-      - name: Commit updated benchmarks
+      - name: Create benchmark update PR
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/public/benchmarks.json
+          git add docs/public/benchmarks.json docs/public/benchmarks-all.json
           if git diff --cached --quiet; then
             echo "No benchmark changes"
           else
-            git commit -m "update benchmark data [skip ci]"
-            git push
+            BRANCH="update-benchmarks-$(date +%Y%m%d-%H%M%S)"
+            git checkout -b "$BRANCH"
+            git commit -m "update benchmark data"
+            git push origin "$BRANCH"
+            gh pr create --title "update benchmark data" --body "Automated benchmark data refresh." --head "$BRANCH"
+            gh pr merge "$BRANCH" --squash --auto --delete-branch
           fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
