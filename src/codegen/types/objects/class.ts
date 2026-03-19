@@ -903,7 +903,8 @@ export class ClassGenerator {
       paramParts.push("i32 %__argc");
     }
     for (let pidx = 0; pidx < paramLLVMTypes.length; pidx++) {
-      paramParts.push(paramLLVMTypes[pidx] + " %arg" + pidx);
+      const noalias = paramLLVMTypes[pidx].indexOf("*") !== -1 ? " noalias" : "";
+      paramParts.push(paramLLVMTypes[pidx] + noalias + " %arg" + pidx);
     }
     if (paramParts.length > 0) {
       ir += ", " + paramParts.join(", ");
@@ -1052,7 +1053,8 @@ export class ClassGenerator {
     if (method.params.length > 0) {
       const paramParts: string[] = [];
       for (let pidx = 0; pidx < paramLLVMTypes.length; pidx++) {
-        paramParts.push(paramLLVMTypes[pidx] + " %arg" + pidx);
+        const noalias = paramLLVMTypes[pidx].indexOf("*") !== -1 ? " noalias" : "";
+        paramParts.push(paramLLVMTypes[pidx] + noalias + " %arg" + pidx);
       }
       ir += paramParts.join(", ");
     }

@@ -502,6 +502,9 @@ export class VariableAllocator {
 
   allocate(stmt: VariableDeclaration, params: string[]): void {
     const existingScope = this.ctx.symbolTable.getScope(stmt.name);
+    if (existingScope === "global" && this.ctx.symbolTable.isLLVMConstant(stmt.name)) {
+      return;
+    }
     if (existingScope === "global" && stmt.value !== null && !this.isNullishValue(stmt.value)) {
       // For global Uint8Array vars, set wantsBinaryReturn so readFileSync etc.
       // dispatch to their binary variants (same as allocateUint8Array does for locals)

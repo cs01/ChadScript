@@ -2089,6 +2089,36 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return null;
   }
 
+  private tryGetConstLiteralValue(
+    stmt: { kind: string; value: Expression | null; name: string },
+    llvmType: string,
+    i64Eligible: string[],
+  ): { llvmType: string; value: string } | null {
+    if (stmt.kind !== "const" || stmt.value === null) return null;
+    const val = stmt.value as { type: string; value?: number | string | boolean };
+    if (val.type === "number" && typeof val.value === "number") {
+      let isI64 = false;
+      for (let ei = 0; ei < i64Eligible.length; ei++) {
+        if (i64Eligible[ei] === stmt.name) {
+          isI64 = true;
+          break;
+        }
+      }
+      if (isI64 && val.value % 1 === 0) {
+        return { llvmType: "i64", value: String(Math.trunc(val.value)) };
+      }
+      const s = String(val.value);
+      if (s.indexOf(".") === -1 && s.indexOf("e") === -1 && s.indexOf("E") === -1) {
+        return { llvmType: "double", value: s + ".0" };
+      }
+      return { llvmType: "double", value: s };
+    }
+    if (val.type === "boolean") {
+      return { llvmType: "double", value: val.value === true ? "0x3FF0000000000000" : "0.0" };
+    }
+    return null;
+  }
+
   private generateGlobalVariableDeclarations(): string {
     let ir = "";
     const totalCount = this.topLevelStatementsCount;
@@ -2651,9 +2681,21 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           }
         }
 
-        ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
-        this.globalVariables.set(name, { llvmType, kind, initialized: false });
-        this.defineVariable(name, `@${name}`, llvmType, kind, "global");
+        const constLiteral = this.tryGetConstLiteralValue(stmt, llvmType, i64Eligible);
+        if (constLiteral !== null) {
+          ir += `@${name} = constant ${constLiteral.llvmType} ${constLiteral.value}` + "\n";
+          this.globalVariables.set(name, {
+            llvmType: constLiteral.llvmType,
+            kind,
+            initialized: false,
+          });
+          this.defineVariable(name, `@${name}`, constLiteral.llvmType, kind, "global");
+          this.symbolTable.markLLVMConstant(name);
+        } else {
+          ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
+          this.globalVariables.set(name, { llvmType, kind, initialized: false });
+          this.defineVariable(name, `@${name}`, llvmType, kind, "global");
+        }
         if (stmt.declaredType) {
           this.symbolTable.setResolvedType(name, parseTypeString(stmt.declaredType));
         } else if (stmt.value) {
