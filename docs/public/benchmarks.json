@@ -1,32 +1,30 @@
 {
-  "timestamp": "2026-03-19T03:57:58Z",
+  "timestamp": "2026-03-19T10:00:00Z",
   "benchmarks": {
+    "startup": {
+      "name": "Cold Start",
+      "desc": "Time to print 'Hello, World!' and exit. Average of 50 runs.",
+      "metric": "ms",
+      "lower_is_better": true,
+      "results": {
+        "c": { "value": 0.7, "label": "0.7ms" },
+        "chadscript": { "value": 0.8, "label": "0.8ms" },
+        "go": { "value": 1.2, "label": "1.2ms" },
+        "bun": { "value": 9.1, "label": "9.1ms" },
+        "node": { "value": 24.7, "label": "24.7ms" }
+      }
+    },
     "fibonacci": {
       "name": "Fibonacci",
       "desc": "fib(42) naive recursion.",
       "metric": "s",
       "lower_is_better": true,
       "results": {
-        "c": {
-          "value": 0.814,
-          "label": "0.814s"
-        },
-        "chadscript": {
-          "value": 1.36610400390625,
-          "label": "1.37s"
-        },
-        "go": {
-          "value": 1.564,
-          "label": "1.564s"
-        },
-        "node": {
-          "value": 3.186,
-          "label": "3.186s"
-        },
-        "bun": {
-          "value": 1.941,
-          "label": "1.941s"
-        }
+        "c": { "value": 0.814, "label": "0.814s" },
+        "chadscript": { "value": 1.369, "label": "1.369s" },
+        "go": { "value": 1.556, "label": "1.556s" },
+        "bun": { "value": 1.945, "label": "1.945s" },
+        "node": { "value": 3.16, "label": "3.160s" }
       }
     },
     "json": {
@@ -35,54 +33,36 @@
       "metric": "s",
       "lower_is_better": true,
       "results": {
-        "c": {
-          "value": 0.004,
-          "label": "0.004s"
-        },
-        "chadscript": {
-          "value": 0.0050478515625,
-          "label": "5ms"
-        },
-        "go": {
-          "value": 0.017,
-          "label": "0.017s"
-        },
-        "node": {
-          "value": 0.015,
-          "label": "0.015s"
-        },
-        "bun": {
-          "value": 0.007,
-          "label": "0.007s"
-        }
+        "c": { "value": 0.004, "label": "0.004s" },
+        "chadscript": { "value": 0.005, "label": "0.005s" },
+        "bun": { "value": 0.007, "label": "0.007s" },
+        "node": { "value": 0.015, "label": "0.015s" },
+        "go": { "value": 0.017, "label": "0.017s" }
       }
     },
-    "startup": {
-      "name": "Cold Start",
-      "desc": "Time to print 'Hello, World!' and exit. Average of 50 runs.",
-      "metric": "ms",
+    "nbody": {
+      "name": "N-Body Simulation",
+      "desc": "5-body simulation, 50M timesteps.",
+      "metric": "s",
       "lower_is_better": true,
       "results": {
-        "c": {
-          "value": 0.8,
-          "label": "0.8ms"
-        },
-        "chadscript": {
-          "value": 0.8,
-          "label": "0.8ms"
-        },
-        "go": {
-          "value": 1.2,
-          "label": "1.2ms"
-        },
-        "bun": {
-          "value": 9.6,
-          "label": "9.6ms"
-        },
-        "node": {
-          "value": 26.2,
-          "label": "26.2ms"
-        }
+        "c": { "value": 1.674, "label": "1.674s" },
+        "chadscript": { "value": 1.839, "label": "1.839s" },
+        "go": { "value": 2.202, "label": "2.202s" },
+        "node": { "value": 2.384, "label": "2.384s" },
+        "bun": { "value": 3.256, "label": "3.256s" }
+      }
+    },
+    "sqlite": {
+      "name": "SQLite",
+      "desc": "100K SELECT queries on a 100-row in-memory table.",
+      "metric": "s",
+      "lower_is_better": true,
+      "results": {
+        "c": { "value": 0.354, "label": "0.354s" },
+        "chadscript": { "value": 0.396, "label": "0.396s" },
+        "bun": { "value": 0.402, "label": "0.402s" },
+        "node": { "value": 0.419, "label": "0.419s" }
       }
     },
     "sieve": {
@@ -91,70 +71,11 @@
       "metric": "s",
       "lower_is_better": true,
       "results": {
-        "c": {
-          "value": 0.009,
-          "label": "9ms"
-        },
-        "chadscript": {
-          "value": 0.012,
-          "label": "12ms"
-        },
-        "node": {
-          "value": 0.029,
-          "label": "29ms"
-        }
-      }
-    },
-    "montecarlo": {
-      "name": "Monte Carlo Pi",
-      "desc": "Estimate Pi via 50M random samples.",
-      "metric": "s",
-      "lower_is_better": true,
-      "results": {
-        "c": {
-          "value": 0.301,
-          "label": "0.301s"
-        },
-        "chadscript": {
-          "value": 0.297,
-          "label": "0.297s"
-        },
-        "node": {
-          "value": 2.783,
-          "label": "2.783s"
-        }
-      }
-    },
-    "sorting": {
-      "name": "Quicksort",
-      "desc": "Sort 2M random doubles.",
-      "metric": "s",
-      "lower_is_better": true,
-      "results": {
-        "chadscript": {
-          "value": 0.190,
-          "label": "0.190s"
-        },
-        "node": {
-          "value": 0.158,
-          "label": "0.158s"
-        }
-      }
-    },
-    "nbody": {
-      "name": "N-Body Simulation",
-      "desc": "Gravitational N-body with 25M timesteps.",
-      "metric": "s",
-      "lower_is_better": true,
-      "results": {
-        "chadscript": {
-          "value": 1.177,
-          "label": "1.18s"
-        },
-        "node": {
-          "value": 1.10,
-          "label": "1.10s"
-        }
+        "c": { "value": 0.015, "label": "0.015s" },
+        "go": { "value": 0.018, "label": "0.018s" },
+        "chadscript": { "value": 0.024, "label": "0.024s" },
+        "bun": { "value": 0.036, "label": "0.036s" },
+        "node": { "value": 0.038, "label": "0.038s" }
       }
     }
   }
