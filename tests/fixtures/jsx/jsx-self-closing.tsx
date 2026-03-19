@@ -1,3 +1,4 @@
+// @test-native-only
 // Self-closing JSX element produces empty children array
 interface EmptyProps {}
 

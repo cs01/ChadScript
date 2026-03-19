@@ -1,3 +1,4 @@
+// @test-native-only
 // JSX attributes become object properties, boolean shorthand works
 interface BoxProps {
   border: string;

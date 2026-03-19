@@ -1,3 +1,4 @@
+// @test-native-only
 const a = parseInt("42");
 if (a !== 42) process.exit(1);
 

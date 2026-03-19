@@ -27,6 +27,7 @@ const compilerLabel = compilerBase.includes("chad-node") ? "node" : "native";
 describe(`ChadScript Compiler (${compilerLabel})`, () => {
   describe("Compilation and Execution", { concurrency: 32 }, () => {
     for (const testCase of testCases) {
+      if (testCase.nativeOnly && compilerLabel === "node") continue;
       it(testCase.description, async () => {
         const fixturePath = testCase.fixture; // Use relative path, not resolved
         // Binaries now go in .build/ directory

@@ -1,3 +1,4 @@
+// @test-native-only
 function sum(...nums: number[]): number {
   return nums.reduce((a: number, b: number): number => a + b, 0);
 }

@@ -1,3 +1,4 @@
+// @test-native-only
 // Nested JSX elements produce nested createElement calls
 interface EmptyProps {}
 
