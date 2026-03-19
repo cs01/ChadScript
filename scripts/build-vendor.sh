@@ -32,7 +32,8 @@ if [ ! -f "$VENDOR_DIR/bdwgc/libgc.a" ]; then
     -DCMAKE_C_FLAGS="-fPIC" \
     -DBUILD_SHARED_LIBS=OFF \
     -DBUILD_TESTING=OFF \
-    -Denable_cplusplus=OFF -Denable_docs=OFF -Dwithout_libatomic_ops=ON
+    -Denable_cplusplus=OFF -Denable_docs=OFF -Dwithout_libatomic_ops=ON \
+    -Denable_threads=ON -Denable_parallel_mark=ON
   make -j"$NPROC"
   mkdir -p "$VENDOR_DIR/bdwgc"
   if [ -f libgc.a ]; then

@@ -218,6 +218,13 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += "declare double @chad_os_uptime()\n";
   // dotenv-bridge.c — auto-loads .env at startup
   ir += "declare void @cs_load_dotenv()\n";
+  ir += "declare i32 @setenv(i8*, i8*, i32)\n";
+  ir += "declare void @GC_init()\n";
+  ir += "declare void @GC_allow_register_threads()\n";
+  ir += "%struct.GC_stack_base = type { i8*, i8* }\n";
+  ir += "declare i32 @GC_get_stack_base(%struct.GC_stack_base*)\n";
+  ir += "declare i32 @GC_register_my_thread(%struct.GC_stack_base*)\n";
+  ir += "declare i32 @GC_unregister_my_thread()\n";
   // watch-bridge.c — file watcher for `chad watch`
   ir += "declare void @cs_watch_loop(i8*, i8*, i8*)\n";
   ir += "\n";
@@ -255,7 +262,18 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
     ir += "@CURLINFO_REDIRECT_COUNT = constant i32 2097172\n";
     ir += "declare i8* @cs_curl_set_headers(i8*, i8*)\n";
     ir += "declare void @curl_slist_free_all(i8*)\n";
+    ir += "declare i32 @curl_global_init(i64)\n";
+    ir += '@__uv_tp_key = private unnamed_addr constant [19 x i8] c"UV_THREADPOOL_SIZE\\00"\n';
+    ir += '@__uv_tp_val = private unnamed_addr constant [3 x i8] c"32\\00"\n';
     ir += "\n";
+    ir += "define void @__cs_curl_init() {\n";
+    ir += "entry:\n";
+    ir += "  %k = getelementptr inbounds [19 x i8], [19 x i8]* @__uv_tp_key, i64 0, i64 0\n";
+    ir += "  %v = getelementptr inbounds [3 x i8], [3 x i8]* @__uv_tp_val, i64 0, i64 0\n";
+    ir += "  call i32 @setenv(i8* %k, i8* %v, i32 0)\n";
+    ir += "  call i32 @curl_global_init(i64 3)\n";
+    ir += "  ret void\n";
+    ir += "}\n\n";
   }
 
   if (config && config.crypto) {
