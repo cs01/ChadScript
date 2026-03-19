@@ -44,7 +44,7 @@ No package manager, no `node_modules`. Everything compiles into your binary.
 | **console** | `log`, `error`, `warn` |
 | **fs** | `readFileSync`, `writeFileSync`, `existsSync`, `mkdirSync`, `readdirSync`, `statSync` |
 | **JSON** | `parse<T>`, `stringify` |
-| **fetch** | `fetch(url)` → Response with `.text()`, `.json()` |
+| **fetch** | `fetch(url, { method, headers, body })` → Response with `.text()`, `.status`, `.headers` |
 | **HTTP server** | `Router`, `httpServe`, `Context`, WebSocket support |
 | **SQLite** | `open`, `exec`, `all`, `get`, `close` |
 | **crypto** | `sha256`, `md5`, `randomBytes`, `randomUUID` |
