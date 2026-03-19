@@ -1,6 +1,9 @@
 import { ArgumentParser } from "chadscript/argparse";
 
-const parser = new ArgumentParser("cgrep", "Search for a string pattern in files — like grep, but blazing fast");
+const parser = new ArgumentParser(
+  "cgrep",
+  "Search for a string pattern in files — like grep, but blazing fast",
+);
 parser.addFlag("ignore-case", "i", "Case-insensitive search");
 parser.addFlag("line-number", "n", "Show line numbers");
 parser.addFlag("count", "c", "Only print a count of matching lines per file");
