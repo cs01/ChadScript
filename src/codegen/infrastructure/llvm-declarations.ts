@@ -227,8 +227,14 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += "; string-ops-bridge — optimized case conversion, split, join\n";
   ir += "declare void @cs_to_upper(i8*, i8*, i64)\n";
   ir += "declare void @cs_to_lower(i8*, i8*, i64)\n";
+  ir += "declare i8* @cs_to_upper_alloc(i8*)\n";
+  ir += "declare i8* @cs_to_lower_alloc(i8*)\n";
   ir += "declare %StringArray* @cs_str_split(i8*, i64, i8*, i64)\n";
   ir += "declare i8* @cs_str_join(i8**, i32, i8*, i64)\n";
+  ir += "declare i8* @cs_str_join_tracked(i8**, i32*, i32, i8*, i64)\n";
+  ir += "declare %StringArray* @cs_str_array_to_upper(%StringArray*)\n";
+  ir += "declare %StringArray* @cs_str_array_to_lower(%StringArray*)\n";
+  ir += "declare void @cs_str_cache_invalidate()\n";
   ir += "\n";
 
   ir += "declare i32 @system(i8*)\n";

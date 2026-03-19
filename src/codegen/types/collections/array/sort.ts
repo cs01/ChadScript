@@ -168,6 +168,7 @@ function generateDefaultStringSort(gen: ArraySortContext, arrayPtr: string): str
   gen.emit(
     `call void @qsort(i8* ${dataI8}, i64 ${lenI64}, i64 8, i32 (i8*, i8*)* @__cmp_string_asc)`,
   );
+  gen.emit("call void @cs_str_cache_invalidate()");
 
   gen.setVariableType(arrayPtr, "%StringArray*");
   return arrayPtr;
