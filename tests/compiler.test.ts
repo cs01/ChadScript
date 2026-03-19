@@ -157,7 +157,7 @@ describe(`ChadScript Compiler (${compilerLabel})`, () => {
         assert.ok(llContent.includes("ret"), "Should have return statements");
         assert.ok(
           (llContent.includes("fadd") && llContent.includes("double")) ||
-            llContent.includes("add nsw i64"),
+            llContent.includes("add i64"),
           "Should have add instruction",
         );
       } finally {
