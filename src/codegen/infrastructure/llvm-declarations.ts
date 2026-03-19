@@ -142,6 +142,12 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   } else {
     ir += "@stdout = external global i8*\n";
   }
+  if (isMac) {
+    ir += "@__stdinp = external global i8*\n";
+    ir += "@stdin = internal global i8* null\n";
+  } else {
+    ir += "@stdin = external global i8*\n";
+  }
   ir += "\n";
 
   ir += "; Console format strings for inline console.log\n";

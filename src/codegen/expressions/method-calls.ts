@@ -58,7 +58,12 @@ import { dispatchMapMethod } from "./method-calls/map-dispatch.js";
 import { dispatchSetMethod } from "./method-calls/set-dispatch.js";
 import { dispatchUrlSearchParamsMethod } from "./method-calls/urlsearchparams-dispatch.js";
 import type { FieldInfo } from "../infrastructure/type-resolver/types.js";
-import { isProcessStdoutOrStderr, handleProcessWrite } from "./method-calls/process.js";
+import {
+  isProcessStdoutOrStderr,
+  isProcessStdinRead,
+  handleProcessWrite,
+  handleProcessStdinRead,
+} from "./method-calls/process.js";
 import {
   generateObjectKeys,
   generateObjectValues,
@@ -471,6 +476,10 @@ export class MethodCallGenerator {
 
     if (method === "write" && isProcessStdoutOrStderr(expr)) {
       return handleProcessWrite(this.ctx, expr, params);
+    }
+
+    if (isProcessStdinRead(expr)) {
+      return handleProcessStdinRead(this.ctx);
     }
 
     // Handle Math.* methods (delegated to MathGenerator)
