@@ -307,6 +307,21 @@ export class FunctionGenerator {
     ir += "entry:\n";
     this.ctx.setCurrentLabel("entry");
 
+    const bodyStmts = func.body ? func.body.statements : [];
+    const numericParamNames: string[] = [];
+    for (let i = 0; i < funcParams.length; i++) {
+      if (paramLLVMTypes[i] === "double") {
+        numericParamNames.push(funcParams[i]);
+      }
+    }
+    const eligible = findI64EligibleVariables(
+      bodyStmts,
+      numericParamNames.length > 0 ? numericParamNames : undefined,
+    );
+    this.ctx.setI64EligibleVars(eligible);
+
+    let eligibleSet: string[] = eligible;
+
     for (let i = 0; i < funcParams.length; i++) {
       const paramName = funcParams[i];
       if (!paramName) continue;
@@ -608,12 +623,31 @@ export class FunctionGenerator {
           this.ctx.emit(`store ${llvmType} %arg${i}, ${llvmType}* ${allocaReg}`);
         }
       } else {
-        this.ctx.defineVariable(paramName, allocaReg, "double", SymbolKind_Number, "local");
-        this.ctx.emit(`${allocaReg} = alloca double`);
-        if (isOptional && hasOptionalParams) {
-          this.generateOptionalParamInit(i, allocaReg, llvmType, paramInfo!, funcParams);
+        let paramIsI64 = false;
+        for (let ei = 0; ei < eligibleSet.length; ei++) {
+          if (eligibleSet[ei] === paramName) {
+            paramIsI64 = true;
+            break;
+          }
+        }
+        if (paramIsI64) {
+          this.ctx.defineVariable(paramName, allocaReg, "i64", SymbolKind_Number, "local");
+          this.ctx.emit(`${allocaReg} = alloca i64`);
+          if (isOptional && hasOptionalParams) {
+            this.generateOptionalParamInitI64(i, allocaReg, paramInfo!, funcParams);
+          } else {
+            const i64Val = this.ctx.nextTemp();
+            this.ctx.emit(`${i64Val} = fptosi double %arg${i} to i64`);
+            this.ctx.emit(`store i64 ${i64Val}, i64* ${allocaReg}`);
+          }
         } else {
-          this.ctx.emit(`store double %arg${i}, double* ${allocaReg}`);
+          this.ctx.defineVariable(paramName, allocaReg, "double", SymbolKind_Number, "local");
+          this.ctx.emit(`${allocaReg} = alloca double`);
+          if (isOptional && hasOptionalParams) {
+            this.generateOptionalParamInit(i, allocaReg, llvmType, paramInfo!, funcParams);
+          } else {
+            this.ctx.emit(`store double %arg${i}, double* ${allocaReg}`);
+          }
         }
       }
     }
@@ -652,14 +686,6 @@ export class FunctionGenerator {
       this.ctx.setAsyncResultPromise(resultPromise);
       this.ctx.emit(`${resultPromise} = call %Promise* @__Promise_new()`);
     }
-
-    // Access func.body.statements directly to preserve struct type info.
-    // funcBody (from `func.body || {...}`) is an opaque i8* in the native compiler,
-    // which means .statements access doesn't GEP into the struct. Using func.body
-    // directly preserves the FunctionNode → BlockStatement type chain.
-    const bodyStmts = func.body ? func.body.statements : [];
-    const eligible = findI64EligibleVariables(bodyStmts);
-    this.ctx.setI64EligibleVars(eligible);
 
     const result = this.ctx.generateBlock(funcBody, funcParams);
 
@@ -977,6 +1003,42 @@ export class FunctionGenerator {
     } else {
       const defaultVal = this.getDefaultValue(llvmType);
       this.ctx.emit(`store ${llvmType} ${defaultVal}, ${ptrType} ${allocaReg}`);
+    }
+    this.ctx.emit(`br label %${doneLabel}`);
+
+    this.ctx.emit(`${doneLabel}:`);
+  }
+
+  private generateOptionalParamInitI64(
+    paramIndex: number,
+    allocaReg: string,
+    paramInfo: FunctionParameter,
+    params: string[],
+  ): void {
+    const labelId = this.labelCounter++;
+    const hasArgLabel = `has_arg_${labelId}`;
+    const noArgLabel = `no_arg_${labelId}`;
+    const doneLabel = `done_arg_${labelId}`;
+
+    const cmpReg = this.ctx.nextTemp();
+    this.ctx.emit(`${cmpReg} = icmp sgt i32 %__argc, ${paramIndex}`);
+    this.ctx.emit(`br i1 ${cmpReg}, label %${hasArgLabel}, label %${noArgLabel}`);
+
+    this.ctx.emit(`${hasArgLabel}:`);
+    const i64Val = this.ctx.nextTemp();
+    this.ctx.emit(`${i64Val} = fptosi double %arg${paramIndex} to i64`);
+    this.ctx.emit(`store i64 ${i64Val}, i64* ${allocaReg}`);
+    this.ctx.emit(`br label %${doneLabel}`);
+
+    this.ctx.emit(`${noArgLabel}:`);
+    if (paramInfo.defaultValue) {
+      const defaultReg = this.ctx.generateExpression(paramInfo.defaultValue, params);
+      const coerced = this.ctx.ensureDouble(defaultReg);
+      const defI64 = this.ctx.nextTemp();
+      this.ctx.emit(`${defI64} = fptosi double ${coerced} to i64`);
+      this.ctx.emit(`store i64 ${defI64}, i64* ${allocaReg}`);
+    } else {
+      this.ctx.emit(`store i64 0, i64* ${allocaReg}`);
     }
     this.ctx.emit(`br label %${doneLabel}`);
 
