@@ -78,7 +78,7 @@ jobs:
         run: |
           RESULTS=$(python3 -c "
           import json
-          d = json.load(open('docs/public/benchmarks.json'))
+          d = json.load(open('docs/public/benchmarks-all.json'))
           lines = ['### Benchmark Results (Linux x86-64)\n', '| Benchmark | C | ChadScript | Go | Node | Bun |', '|---|---|---|---|---|---|']
           def fmt(val_str):
               try:

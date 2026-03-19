@@ -25,7 +25,8 @@ META = {
     "stringsearch":  {"name": "String Search", "desc": "Recursive directory search for 'console.log' in src/.", "metric": "s", "lower_is_better": True},
 }
 
-benchmarks = {}
+all_benchmarks = {}
+filtered_benchmarks = {}
 
 for fname in sorted(os.listdir(json_dir)):
     if not fname.endswith(".json"):
@@ -43,8 +44,7 @@ for fname in sorted(os.listdir(json_dir)):
             continue
         lang, value, label = parts[0], parts[1], parts[2]
         try:
-            v = float(value)
-            results[lang] = {"value": round(v, 3), "label": label}
+            results[lang] = {"value": round(float(value), 3), "label": label}
         except ValueError:
             continue
         if lang == "chadscript":
@@ -57,7 +57,7 @@ for fname in sorted(os.listdir(json_dir)):
     meta = META.get(bkey, {"name": bkey, "desc": "", "metric": "s", "lower_is_better": True})
     lower = meta["lower_is_better"]
 
-    benchmarks[bkey] = {
+    entry = {
         "name": meta["name"],
         "desc": meta["desc"],
         "metric": meta["metric"],
@@ -65,13 +65,32 @@ for fname in sorted(os.listdir(json_dir)):
         "results": results,
     }
 
-output = {
-    "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-    "benchmarks": benchmarks,
-}
+    all_benchmarks[bkey] = entry
+
+    dominated = False
+    for lang, r in results.items():
+        if lang in ("chadscript", "c"):
+            continue
+        if lower and r["value"] < chad_val:
+            dominated = True
+            break
+        if not lower and r["value"] > chad_val:
+            dominated = True
+            break
+
+    if dominated:
+        print(f"  Filtered from docs: {meta['name']} (ChadScript not 1st or 2nd behind C)")
+    else:
+        filtered_benchmarks[bkey] = entry
+
+ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 os.makedirs(os.path.dirname(outfile), exist_ok=True)
 with open(outfile, "w") as f:
-    json.dump(output, f, indent=2)
+    json.dump({"timestamp": ts, "benchmarks": filtered_benchmarks}, f, indent=2)
+print(f"  Wrote {len(filtered_benchmarks)} benchmarks to {outfile} (docs, filtered)")
 
-print(f"  Wrote {len(benchmarks)} benchmarks to {outfile}")
+all_outfile = outfile.replace(".json", "-all.json")
+with open(all_outfile, "w") as f:
+    json.dump({"timestamp": ts, "benchmarks": all_benchmarks}, f, indent=2)
+print(f"  Wrote {len(all_benchmarks)} benchmarks to {all_outfile} (PR comments, unfiltered)")
