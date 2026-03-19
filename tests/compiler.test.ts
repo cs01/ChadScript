@@ -143,8 +143,7 @@ describe(`ChadScript Compiler (${compilerLabel})`, () => {
       }
 
       try {
-        // Compile with --keep-temps to preserve .ll file for inspection
-        await execAsync(`${compilerBase} build --keep-temps ${fixturePath}`);
+        await execAsync(`${compilerBase} ir ${fixturePath}`);
 
         // Read and verify LLVM IR
         const llContent = await fs.readFile(llFile, "utf-8");
