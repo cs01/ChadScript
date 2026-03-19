@@ -1,7 +1,12 @@
 // Array iteration operations: filter, forEach, reduce, map
 // Exported functions accept (gen, expr, params) and handle callback resolution internally.
 
-import { MethodCallNode, VariableNode, ArrowFunctionNode } from "../../../../ast/types.js";
+import {
+  MethodCallNode,
+  VariableNode,
+  ArrowFunctionNode,
+  MemberAccessNode,
+} from "../../../../ast/types.js";
 import {
   IGeneratorContext,
   loadArrayMeta,
@@ -11,6 +16,38 @@ import {
 
 interface ExprBase {
   type: string;
+}
+
+function resolveObjectArrayElementType(gen: IGeneratorContext, objectExpr: ExprBase): string {
+  if (objectExpr.type === "variable") {
+    const varName = (objectExpr as VariableNode).name;
+    return gen.symbolTable.getObjectArrayElementType(varName) || "";
+  }
+  if (objectExpr.type === "member_access") {
+    const memberExpr = objectExpr as MemberAccessNode;
+    const memberObj = memberExpr.object as ExprBase;
+    let className = "";
+    if (memberObj.type === "this") {
+      className = gen.getCurrentClassName() || "";
+    } else if (memberObj.type === "variable") {
+      const varName = (memberObj as VariableNode).name;
+      const rawType = gen.symbolTable.getRawInterfaceType(varName);
+      if (rawType) className = rawType;
+    }
+    if (className) {
+      const tsType = gen.classGenGetFieldTsType(className, memberExpr.property);
+      if (
+        tsType &&
+        tsType.endsWith("[]") &&
+        tsType !== "string[]" &&
+        tsType !== "number[]" &&
+        tsType !== "boolean[]"
+      ) {
+        return tsType.slice(0, -2);
+      }
+    }
+  }
+  return "";
 }
 
 function getCallbackParamCount(callbackArg: ExprBase): number {
@@ -67,11 +104,7 @@ export function generateArrayFilter(
 
   let elementType = "";
   if (isObjectArray) {
-    const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type === "variable") {
-      const varName = (expr.object as VariableNode).name;
-      elementType = gen.symbolTable.getObjectArrayElementType(varName) || "";
-    }
+    elementType = resolveObjectArrayElementType(gen, expr.object as ExprBase);
   }
 
   const callbackArg = expr.args[0];
@@ -330,11 +363,7 @@ export function generateArrayForEach(
 
   let elementType = "";
   if (isObjectArray) {
-    const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type === "variable") {
-      const varName = (expr.object as VariableNode).name;
-      elementType = gen.symbolTable.getObjectArrayElementType(varName) || "";
-    }
+    elementType = resolveObjectArrayElementType(gen, expr.object as ExprBase);
   }
 
   const callbackArg = expr.args[0];
@@ -491,11 +520,7 @@ export function generateArrayReduce(
 
   let elementType = "";
   if (isObjectArray) {
-    const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type === "variable") {
-      const varName = (expr.object as VariableNode).name;
-      elementType = gen.symbolTable.getObjectArrayElementType(varName) || "";
-    }
+    elementType = resolveObjectArrayElementType(gen, expr.object as ExprBase);
   }
 
   const callbackArg = expr.args[0];
@@ -805,11 +830,7 @@ export function generateArrayMap(
 
   let elementType = "";
   if (isObjectArray) {
-    const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type === "variable") {
-      const varName = (expr.object as VariableNode).name;
-      elementType = gen.symbolTable.getObjectArrayElementType(varName) || "";
-    }
+    elementType = resolveObjectArrayElementType(gen, expr.object as ExprBase);
   }
 
   const callbackArg = expr.args[0];
