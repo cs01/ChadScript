@@ -50,6 +50,23 @@ bench_startup() {
     json_add_result "startup" "$lang" "${avg_ms_int}.${avg_ms_frac}" "${avg_ms_int}.${avg_ms_frac}ms"
 }
 
+CLI_RUNS=10
+bench_cli() {
+    local bench="$1" lang="$2" display="$3"
+    shift 3
+    echo "  $display"
+    local start_ns=$(now_ns)
+    for i in $(seq 1 $CLI_RUNS); do "$@" > /dev/null 2>&1 || true; done
+    local end_ns=$(now_ns)
+    local total_ms=$(( (end_ns - start_ns) / 1000000 ))
+    local avg_ms=$(( total_ms / CLI_RUNS ))
+    local sec=$(( avg_ms / 1000 ))
+    local frac=$(printf "%03d" $(( avg_ms % 1000 )))
+    local result="${sec}.${frac}"
+    printf "    %-20s %ss (avg of %d runs)\n" "$display" "$result" "$CLI_RUNS"
+    json_add_result "$bench" "$lang" "$result" "${result}s"
+}
+
 echo "--- Building ChadScript benchmarks ---"
 $CHAD build "$DIR/startup/chadscript.ts" -o /tmp/bench-startup-chad
 $CHAD build "$DIR/sqlite/chadscript.ts" -o /tmp/bench-sqlite-chad
@@ -178,6 +195,45 @@ bench_compute "fileio" "chadscript" "ChadScript" "Time:" /tmp/bench-fileio-chad
 bench_compute "fileio" "go" "Go" "Time:" /tmp/bench-fileio-go
 bench_compute "fileio" "node" "Node.js" "Time:" node "$DIR/fileio/node.mjs"
 bench_compute "fileio" "bun" "Bun" "Time:" bun "$DIR/fileio/bun.mjs"
+
+echo ""
+echo "--- Building ChadScript CLI tools ---"
+$CHAD build "$REPO/examples/cli-tools/cgrep.ts" -o /tmp/bench-cgrep
+$CHAD build "$REPO/examples/cli-tools/cwc.ts" -o /tmp/bench-cwc
+$CHAD build "$REPO/examples/cli-tools/chex.ts" -o /tmp/bench-chex
+echo "  done"
+
+echo ""
+echo "--- Generating CLI benchmark data ---"
+mkdir -p /tmp/bench-grep-data
+for copy in 1 2 3 4 5; do
+  cp -r "$REPO/src" "/tmp/bench-grep-data/src-$copy"
+done
+find "$REPO/src" -name "*.ts" -exec cat {} + > /tmp/bench-wc-data.txt
+for copy in $(seq 1 19); do cat /tmp/bench-wc-data.txt >> /tmp/bench-wc-data-big.txt; done
+cat /tmp/bench-wc-data.txt >> /tmp/bench-wc-data-big.txt
+dd if=/dev/urandom of=/tmp/bench-hex-data bs=1M count=5 2>/dev/null
+echo "  done (grep: 5x src/, wc: $(du -sh /tmp/bench-wc-data-big.txt | cut -f1), hex: 5MB)"
+
+echo ""
+echo "=== CLI: Recursive Grep (search 5x src/ for 'function') ==="
+bench_cli "cligrep" "chadscript" "cgrep" /tmp/bench-cgrep -r -c -C function /tmp/bench-grep-data
+bench_cli "cligrep" "grep" "grep" grep -r -c function /tmp/bench-grep-data
+if command -v rg &>/dev/null; then
+  bench_cli "cligrep" "ripgrep" "ripgrep" rg -c function /tmp/bench-grep-data
+fi
+
+echo ""
+echo "=== CLI: Word Count ($(du -sh /tmp/bench-wc-data-big.txt | cut -f1) file) ==="
+bench_cli "cliwc" "chadscript" "cwc" /tmp/bench-cwc /tmp/bench-wc-data-big.txt
+bench_cli "cliwc" "wc" "wc" wc /tmp/bench-wc-data-big.txt
+
+echo ""
+echo "=== CLI: Hex Dump (5MB binary) ==="
+bench_cli "clihex" "chadscript" "chex" /tmp/bench-chex -C /tmp/bench-hex-data
+bench_cli "clihex" "xxd" "xxd" xxd /tmp/bench-hex-data
+
+rm -rf /tmp/bench-grep-data /tmp/bench-wc-data.txt /tmp/bench-wc-data-big.txt /tmp/bench-hex-data
 
 echo ""
 echo "--- Assembling JSON ---"

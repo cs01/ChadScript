@@ -121,13 +121,39 @@ jobs:
               if abs(pct) < 1: return ''
               if pct < 0: return f' (\u2193{abs(pct):.0f}%)'
               return f' (\u2191{pct:.0f}%)'
-          for k, b in sorted(d['benchmarks'].items(), key=lambda x: x[1]['name']):
+          compute = {k: b for k, b in d['benchmarks'].items() if b.get('category') != 'cli'}
+          cli = {k: b for k, b in d['benchmarks'].items() if b.get('category') == 'cli'}
+          for k, b in sorted(compute.items(), key=lambda x: x[1]['name']):
               r = b['results']
               def g(lang):
                   v = r.get(lang, {}).get('label', '—')
                   return fmt(v) if v != '—' else v
               chad_str = f'**{g(\"chadscript\")}{delta(k, b)}**'
               lines.append(f\"| {b['name']} | {g('c')} | {chad_str} | {g('go')} | {g('node')} | {g('bun')} | {rank(b)} |\")
+          if cli:
+              cli_names = {'grep': 'grep', 'ripgrep': 'ripgrep', 'wc': 'wc', 'xxd': 'xxd', 'jq': 'jq'}
+              lines.append('')
+              lines.append('### CLI Tool Benchmarks\n')
+              for k, b in sorted(cli.items(), key=lambda x: x[1]['name']):
+                  r = b['results']
+                  competitors = [l for l in r if l != 'chadscript']
+                  chad_v = r.get('chadscript', {}).get('label', '—')
+                  chad_str = f'**{fmt(chad_v)}{delta(k, b)}**'
+                  cols = ' | '.join(f'{fmt(r[c][\"label\"])}' for c in competitors)
+                  comp_names = ' | '.join(c for c in competitors)
+                  if not hasattr(rank, '_cli_header_done'):
+                      all_comps = set()
+                      for kb, bb in cli.items():
+                          all_comps.update(l for l in bb['results'] if l != 'chadscript')
+                      comp_list = sorted(all_comps)
+                      lines.append('| Benchmark | ChadScript | ' + ' | '.join(comp_list) + ' | Place |')
+                      lines.append('|---|---|' + '|'.join(['---'] * len(comp_list)) + '|---|')
+                      rank._cli_header_done = True
+                  row_vals = []
+                  for c in comp_list:
+                      v = r.get(c, {}).get('label', '—')
+                      row_vals.append(fmt(v) if v != '—' else v)
+                  lines.append(f\"| {b['name']} | {chad_str} | {' | '.join(row_vals)} | {rank(b)} |\")
           print('\n'.join(lines))
           ")
           EXISTING=$(gh api repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments --jq '[.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("### Benchmark"))) | .id] | last')

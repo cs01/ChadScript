@@ -23,6 +23,9 @@ META = {
     "binarytrees":   {"name": "Binary Trees", "desc": "Build/check/discard binary trees of depth 18.", "metric": "s", "lower_is_better": True},
     "json":          {"name": "JSON Parse/Stringify", "desc": "Parse 10K JSON objects, stringify back.", "metric": "s", "lower_is_better": True},
     "stringsearch":  {"name": "String Search", "desc": "Recursive directory search for 'console.log' in src/.", "metric": "s", "lower_is_better": True},
+    "cligrep":       {"name": "Recursive Grep", "desc": "Search for 'function' across 5x copies of src/.", "metric": "s", "lower_is_better": True, "category": "cli"},
+    "cliwc":         {"name": "Word Count", "desc": "Count lines, words, and chars in a ~20MB file.", "metric": "s", "lower_is_better": True, "category": "cli"},
+    "clihex":        {"name": "Hex Dump", "desc": "Hex dump a 5MB binary file.", "metric": "s", "lower_is_better": True, "category": "cli"},
 }
 
 all_benchmarks = {}
@@ -57,6 +60,8 @@ for fname in sorted(os.listdir(json_dir)):
     meta = META.get(bkey, {"name": bkey, "desc": "", "metric": "s", "lower_is_better": True})
     lower = meta["lower_is_better"]
 
+    is_cli = meta.get("category") == "cli"
+
     entry = {
         "name": meta["name"],
         "desc": meta["desc"],
@@ -64,19 +69,25 @@ for fname in sorted(os.listdir(json_dir)):
         "lower_is_better": lower,
         "results": results,
     }
+    if is_cli:
+        entry["category"] = "cli"
 
     all_benchmarks[bkey] = entry
 
-    langs_ahead = 0
-    for lang, r in results.items():
-        if lang in ("chadscript", "c"):
-            continue
-        if lower and r["value"] < chad_val:
-            langs_ahead += 1
-        if not lower and r["value"] > chad_val:
-            langs_ahead += 1
+    if is_cli:
+        langs_ahead = sum(1 for l, r in results.items() if l != "chadscript" and ((lower and r["value"] < chad_val) or (not lower and r["value"] > chad_val)))
+        place = 1 + langs_ahead
+    else:
+        langs_ahead = 0
+        for lang, r in results.items():
+            if lang in ("chadscript", "c"):
+                continue
+            if lower and r["value"] < chad_val:
+                langs_ahead += 1
+            if not lower and r["value"] > chad_val:
+                langs_ahead += 1
+        place = 1 + (1 if any(r["value"] < chad_val if lower else r["value"] > chad_val for l, r in results.items() if l == "c") else 0) + langs_ahead
 
-    place = 1 + (1 if any(r["value"] < chad_val if lower else r["value"] > chad_val for l, r in results.items() if l == "c") else 0) + langs_ahead
     if place > 3:
         print(f"  Filtered from docs: {meta['name']} (ChadScript #{place})")
     else:
