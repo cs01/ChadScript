@@ -200,6 +200,17 @@ else
   echo "==> time-bridge already built, skipping"
 fi
 
+# --- string-ops-bridge (optimized toUpperCase, toLowerCase, split, join) ---
+STRING_OPS_SRC="$C_BRIDGES_DIR/string-ops-bridge.c"
+STRING_OPS_OBJ="$C_BRIDGES_DIR/string-ops-bridge.o"
+if [ ! -f "$STRING_OPS_OBJ" ] || [ "$STRING_OPS_SRC" -nt "$STRING_OPS_OBJ" ]; then
+  echo "==> Building string-ops-bridge..."
+  cc -c -O2 -fPIC "$STRING_OPS_SRC" -o "$STRING_OPS_OBJ"
+  echo "  -> $STRING_OPS_OBJ"
+else
+  echo "==> string-ops-bridge already built, skipping"
+fi
+
 # --- os-bridge (platform-abstracted os.freemem/os.uptime) ---
 OS_BRIDGE_SRC="$C_BRIDGES_DIR/os-bridge.c"
 OS_BRIDGE_OBJ="$C_BRIDGES_DIR/os-bridge.o"

@@ -445,6 +445,7 @@ export function compile(
   const regexBridgeObj = generator.usesRegex ? `${bridgePath}/regex-bridge.o` : "";
   const cpBridgeObj = generator.usesChildProcess ? `${bridgePath}/child-process-bridge.o` : "";
   const osBridgeObj = `${bridgePath}/os-bridge.o`;
+  const stringOpsBridgeObj = `${bridgePath}/string-ops-bridge.o`;
   const strlenCacheObj = `${bridgePath}/strlen-cache.o`;
   const timeBridgeObj = `${bridgePath}/time-bridge.o`;
   const base64BridgeObj = `${bridgePath}/base64-bridge.o`;
@@ -622,7 +623,7 @@ export function compile(
   const userObjs = extraLinkObjs.length > 0 ? " " + extraLinkObjs.join(" ") : "";
   const userPaths = extraLinkPaths.map((p) => ` -L${p}`).join("");
   const userLibs = extraLinkLibs.map((l) => ` -l${l}`).join("");
-  const linkCmd = `${linker} ${objFile} ${lwsBridgeObj} ${regexBridgeObj} ${cpBridgeObj} ${osBridgeObj} ${strlenCacheObj} ${timeBridgeObj} ${base64BridgeObj} ${urlBridgeObj} ${uriBridgeObj} ${dotenvBridgeObj} ${watchBridgeObj} ${arenaBridgeObj} ${cpSpawnObj} ${curlBridgeObj} ${compressBridgeObj} ${yamlBridgeObj}${extraObjs}${userObjs} -o ${outputFile}${noPie}${debugFlag}${stripFlag}${staticFlag}${crossTarget}${crossLinker}${suppressLdWarnings}${sanitizeFlags} ${linkLibs}${userPaths}${userLibs}`;
+  const linkCmd = `${linker} ${objFile} ${lwsBridgeObj} ${regexBridgeObj} ${cpBridgeObj} ${osBridgeObj} ${strlenCacheObj} ${timeBridgeObj} ${base64BridgeObj} ${urlBridgeObj} ${uriBridgeObj} ${dotenvBridgeObj} ${watchBridgeObj} ${arenaBridgeObj} ${cpSpawnObj} ${curlBridgeObj} ${compressBridgeObj} ${yamlBridgeObj} ${stringOpsBridgeObj}${extraObjs}${userObjs} -o ${outputFile}${noPie}${debugFlag}${stripFlag}${staticFlag}${crossTarget}${crossLinker}${suppressLdWarnings}${sanitizeFlags} ${linkLibs}${userPaths}${userLibs}`;
   logger.info(` ${linkCmd}`);
   const linkStdio = logger.getLevel() >= LogLevel_Verbose ? "inherit" : "pipe";
   execSync(linkCmd, { stdio: linkStdio });
