@@ -21,10 +21,25 @@ void cs_to_lower(const char *src, char *dst, size_t len) {
     dst[len] = '\0';
 }
 
+char *cs_to_upper_alloc(const char *src) {
+    size_t len = strlen(src);
+    char *dst = (char *)cs_arena_alloc(len + 1);
+    cs_to_upper(src, dst, len);
+    return dst;
+}
+
+char *cs_to_lower_alloc(const char *src) {
+    size_t len = strlen(src);
+    char *dst = (char *)cs_arena_alloc(len + 1);
+    cs_to_lower(src, dst, len);
+    return dst;
+}
+
 typedef struct {
     char **data;
     int32_t length;
     int32_t capacity;
+    int32_t *lengths;
 } StringArray;
 
 StringArray *cs_str_split(const char *src, size_t src_len,
@@ -33,16 +48,19 @@ StringArray *cs_str_split(const char *src, size_t src_len,
         StringArray *arr = (StringArray *)GC_malloc(sizeof(StringArray));
         int32_t count = (int32_t)src_len;
         char **data = (char **)GC_malloc((size_t)count * sizeof(char *));
+        int32_t *lens = (int32_t *)GC_malloc((size_t)count * sizeof(int32_t));
         char *buf = (char *)cs_arena_alloc(src_len * 2);
         for (int32_t i = 0; i < count; i++) {
             char *s = buf + i * 2;
             s[0] = src[i];
             s[1] = '\0';
             data[i] = s;
+            lens[i] = 1;
         }
         arr->data = data;
         arr->length = count;
         arr->capacity = count;
+        arr->lengths = lens;
         return arr;
     }
 
@@ -59,6 +77,7 @@ StringArray *cs_str_split(const char *src, size_t src_len,
 
     StringArray *arr = (StringArray *)GC_malloc(sizeof(StringArray));
     char **data = (char **)GC_malloc((size_t)part_count * sizeof(char *));
+    int32_t *lens = (int32_t *)GC_malloc((size_t)part_count * sizeof(int32_t));
 
     size_t total_str_bytes = src_len + (size_t)part_count;
     char *pool = (char *)cs_arena_alloc(total_str_bytes);
@@ -74,7 +93,9 @@ StringArray *cs_str_split(const char *src, size_t src_len,
             memcpy(s, src + start, plen);
             s[plen] = '\0';
             pool_off += plen + 1;
-            data[idx++] = s;
+            data[idx] = s;
+            lens[idx] = (int32_t)plen;
+            idx++;
             start = pos + sep_len;
             pos = start;
         } else {
@@ -86,10 +107,12 @@ StringArray *cs_str_split(const char *src, size_t src_len,
     memcpy(s, src + start, plen);
     s[plen] = '\0';
     data[idx] = s;
+    lens[idx] = (int32_t)plen;
 
     arr->data = data;
     arr->length = part_count;
     arr->capacity = part_count;
+    arr->lengths = lens;
     return arr;
 }
 
@@ -121,4 +144,101 @@ char *cs_str_join(char **parts, int32_t count, const char *sep, size_t sep_len) 
     }
     result[off] = '\0';
     return result;
+}
+
+char *cs_str_join_tracked(char **parts, int32_t *lengths, int32_t count,
+                          const char *sep, size_t sep_len) {
+    if (count == 0) {
+        char *empty = (char *)cs_arena_alloc(1);
+        empty[0] = '\0';
+        return empty;
+    }
+
+    size_t total = 0;
+    for (int32_t i = 0; i < count; i++) {
+        total += (size_t)lengths[i];
+    }
+    total += (size_t)(count - 1) * sep_len;
+
+    char *result = (char *)cs_arena_alloc(total + 1);
+    size_t off = 0;
+    for (int32_t i = 0; i < count; i++) {
+        if (i > 0 && sep_len > 0) {
+            memcpy(result + off, sep, sep_len);
+            off += sep_len;
+        }
+        size_t len = (size_t)lengths[i];
+        memcpy(result + off, parts[i], len);
+        off += len;
+    }
+    result[off] = '\0';
+    return result;
+}
+
+StringArray *cs_str_array_to_upper(StringArray *input) {
+    int32_t count = input->length;
+    StringArray *out = (StringArray *)GC_malloc(sizeof(StringArray));
+    char **data = (char **)GC_malloc((size_t)count * sizeof(char *));
+    int32_t *lens = (int32_t *)GC_malloc((size_t)count * sizeof(int32_t));
+
+    size_t total_bytes = 0;
+    if (input->lengths) {
+        for (int32_t i = 0; i < count; i++)
+            total_bytes += (size_t)input->lengths[i] + 1;
+    } else {
+        for (int32_t i = 0; i < count; i++)
+            total_bytes += strlen(input->data[i]) + 1;
+    }
+
+    char *pool = (char *)cs_arena_alloc(total_bytes);
+    size_t pool_off = 0;
+
+    for (int32_t i = 0; i < count; i++) {
+        size_t len = input->lengths ? (size_t)input->lengths[i] : strlen(input->data[i]);
+        char *dst = pool + pool_off;
+        cs_to_upper(input->data[i], dst, len);
+        data[i] = dst;
+        lens[i] = (int32_t)len;
+        pool_off += len + 1;
+    }
+
+    out->data = data;
+    out->length = count;
+    out->capacity = count;
+    out->lengths = lens;
+    return out;
+}
+
+StringArray *cs_str_array_to_lower(StringArray *input) {
+    int32_t count = input->length;
+    StringArray *out = (StringArray *)GC_malloc(sizeof(StringArray));
+    char **data = (char **)GC_malloc((size_t)count * sizeof(char *));
+    int32_t *lens = (int32_t *)GC_malloc((size_t)count * sizeof(int32_t));
+
+    size_t total_bytes = 0;
+    if (input->lengths) {
+        for (int32_t i = 0; i < count; i++)
+            total_bytes += (size_t)input->lengths[i] + 1;
+    } else {
+        for (int32_t i = 0; i < count; i++)
+            total_bytes += strlen(input->data[i]) + 1;
+    }
+
+    char *pool = (char *)cs_arena_alloc(total_bytes);
+    size_t pool_off = 0;
+
+    for (int32_t i = 0; i < count; i++) {
+        size_t len = input->lengths ? (size_t)input->lengths[i] : strlen(input->data[i]);
+        char *dst = pool + pool_off;
+        cs_to_lower(input->data[i], dst, len);
+        data[i] = dst;
+        lens[i] = (int32_t)len;
+        pool_off += len + 1;
+    }
+
+    out->data = data;
+    out->length = count;
+    out->capacity = count;
+    out->lengths = lens;
+    return out;
 }

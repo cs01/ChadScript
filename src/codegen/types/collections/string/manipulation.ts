@@ -880,21 +880,13 @@ export function generateReplaceAll(
 }
 
 export function generateToUpperCase(ctx: IGeneratorContext, strPtr: string): string {
-  const strLen = ctx.emitCall("i64", "@strlen", `i8* ${strPtr}`);
-  const allocLen = ctx.nextTemp();
-  ctx.emit(`${allocLen} = add i64 ${strLen}, 1`);
-  const resultPtr = ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${allocLen}`);
-  ctx.emitCallVoid("@cs_to_upper", `i8* ${strPtr}, i8* ${resultPtr}, i64 ${strLen}`);
+  const resultPtr = ctx.emitCall("i8*", "@cs_to_upper_alloc", `i8* ${strPtr}`);
   ctx.setVariableType(resultPtr, "i8*");
   return resultPtr;
 }
 
 export function generateToLowerCase(ctx: IGeneratorContext, strPtr: string): string {
-  const strLen = ctx.emitCall("i64", "@strlen", `i8* ${strPtr}`);
-  const allocLen = ctx.nextTemp();
-  ctx.emit(`${allocLen} = add i64 ${strLen}, 1`);
-  const resultPtr = ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${allocLen}`);
-  ctx.emitCallVoid("@cs_to_lower", `i8* ${strPtr}, i8* ${resultPtr}, i64 ${strLen}`);
+  const resultPtr = ctx.emitCall("i8*", "@cs_to_lower_alloc", `i8* ${strPtr}`);
   ctx.setVariableType(resultPtr, "i8*");
   return resultPtr;
 }
