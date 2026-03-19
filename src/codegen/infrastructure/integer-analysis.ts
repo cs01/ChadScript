@@ -214,7 +214,7 @@ class IntegerAnalyzer {
     }
   }
 
-  findI64EligibleVariables(statements: Statement[]): string[] {
+  findI64EligibleVariables(statements: Statement[], paramNames?: string[]): string[] {
     if (!statements || !statements.length) return [];
 
     const allDecls: VariableDeclaration[] = [];
@@ -224,8 +224,15 @@ class IntegerAnalyzer {
     const isConst: boolean[] = [];
     const pendingDecls: VariableDeclaration[] = [];
 
-    // Pass 1: collect candidates with simple integer initializers (no variable refs)
     this.candidateNames = [];
+    if (paramNames) {
+      for (let pi = 0; pi < paramNames.length; pi++) {
+        candidates.push(paramNames[pi]);
+        isConst.push(false);
+        this.candidateNames.push(paramNames[pi]);
+      }
+    }
+
     for (let di = 0; di < allDecls.length; di++) {
       const varDecl = allDecls[di];
       if (!varDecl.value) continue;
@@ -299,6 +306,6 @@ class IntegerAnalyzer {
   }
 }
 
-export function findI64EligibleVariables(statements: Statement[]): string[] {
-  return new IntegerAnalyzer().findI64EligibleVariables(statements);
+export function findI64EligibleVariables(statements: Statement[], paramNames?: string[]): string[] {
+  return new IntegerAnalyzer().findI64EligibleVariables(statements, paramNames);
 }
