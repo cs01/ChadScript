@@ -2,11 +2,11 @@
 import { ref, onMounted } from 'vue'
 
 const entries = [
-  { name: 'C', val: '1.7ms', pct: 3, hero: false },
-  { name: 'ChadScript', val: '1.9ms', pct: 4, hero: true },
-  { name: 'Go', val: '3.7ms', pct: 7, hero: false },
-  { name: 'Bun', val: '19ms', pct: 35, hero: false },
-  { name: 'Node.js', val: '54ms', pct: 100, hero: false },
+  { name: 'C', val: '0.8ms', pct: 3, hero: false },
+  { name: 'ChadScript', val: '0.8ms', pct: 3, hero: true },
+  { name: 'Go', val: '1.2ms', pct: 5, hero: false },
+  { name: 'Bun', val: '9.6ms', pct: 37, hero: false },
+  { name: 'Node.js', val: '26.2ms', pct: 100, hero: false },
 ]
 
 const visible = ref(false)

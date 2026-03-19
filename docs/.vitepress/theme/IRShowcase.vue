@@ -59,7 +59,7 @@ async function run() {
   phase.value = 'output'
   execOutput.value = 'Hello from ChadScript!'
   await delay(200)
-  execTime.value = '1.9ms'
+  execTime.value = '0.8ms'
   await delay(400)
   phase.value = 'done'
 }
