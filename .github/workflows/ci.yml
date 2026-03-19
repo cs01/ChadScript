@@ -170,7 +170,7 @@ jobs:
 
       - name: Smoke test native chad
         run: |
-          .build/chad build examples/hello.ts -o /tmp/hello
+          .build/chad build examples/snippets/hello.ts -o /tmp/hello
           /tmp/hello
 
       - name: Run examples
@@ -295,7 +295,7 @@ jobs:
 
       - name: Smoke test native chad
         run: |
-          .build/chad build examples/hello.ts -o /tmp/hello
+          .build/chad build examples/snippets/hello.ts -o /tmp/hello
           /tmp/hello
 
       - name: Run examples
@@ -492,7 +492,7 @@ jobs:
 
       - name: Smoke test - compile hackernews example (exercises HTTP + sqlite bridges)
         run: |
-          chad build examples/hackernews/app.ts -o /tmp/hackernews
+          chad build examples/apps/hackernews/app.ts -o /tmp/hackernews
           file /tmp/hackernews
           echo "Hackernews example compiled successfully"
 

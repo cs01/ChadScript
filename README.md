@@ -63,7 +63,7 @@ httpServe(3000, (req: HttpRequest) => app.handle(req));
 chad build app.ts && ./app   # compiles in ~0.3s, starts in <2ms
 ```
 
-Hono-style API, C-level performance. One binary, no node_modules. See [`examples/`](examples/) for more: [weather app](examples/weather/) (in production at [chadsmith.dev/weather](https://chadsmith.dev/weather)), [Hacker News clone](examples/hackernews/), [WebSocket chat](examples/websocket/), SQLite, and more.
+Hono-style API, C-level performance. One binary, no node_modules. See [`examples/`](examples/) for more: [weather app](examples/apps/weather/) (in production at [chadsmith.dev/weather](https://chadsmith.dev/weather)), [Hacker News clone](examples/apps/hackernews/), [WebSocket chat](examples/apps/websocket/), SQLite, and more.
 
 ---
 
@@ -115,15 +115,15 @@ No `npm install`. Everything ships with the compiler:
 ```bash
 git clone https://github.com/cs01/ChadScript && cd ChadScript
 
-chad run examples/hello.ts
-chad run examples/parallel.ts          # async/await + Promise.all
-chad run examples/query.ts             # SQLite
-chad run examples/http-server.ts       # http://localhost:3000
-chad run examples/weather/app.ts       # weather app — live at https://chadsmith.dev/weather
-chad run examples/hackernews/app.ts    # Hacker News clone
+chad run examples/snippets/hello.ts
+chad run examples/snippets/parallel.ts          # async/await + Promise.all
+chad run examples/snippets/sqlite-demo.ts       # SQLite
+chad run examples/apps/http-server/app.ts       # http://localhost:3000
+chad run examples/apps/weather/app.ts           # weather app — live at https://chadsmith.dev/weather
+chad run examples/apps/hackernews/app.ts        # Hacker News clone
 ```
 
-See [`examples/`](examples/) for the full list: grep tool, word counter, WebSocket chat, TUI apps, and more.
+See [`examples/cli-tools/`](examples/cli-tools/) for a suite of Unix tool replacements: `cgrep`, `cwc`, `ccat`, `ctree`, `chex`, `cjq`, `cql`, `chttp`, and `cserve`.
 
 ---
 

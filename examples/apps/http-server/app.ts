@@ -10,7 +10,7 @@ const port = parseInt(parser.getOption("port"));
 
 const app: Router = new Router();
 
-ChadScript.embedDir("./http-server-public");
+ChadScript.embedDir("./public");
 
 app.get("/", (c: Context) => {
   return c.html(ChadScript.getEmbeddedFile("index.html"));

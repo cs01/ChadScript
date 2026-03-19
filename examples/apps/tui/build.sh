@@ -4,14 +4,14 @@
 # This uses `chad build` with --link-obj/--link-path/--link-lib to compile
 # the TypeScript apps, link the C bridge, and produce native binaries.
 #
-# Usage: bash examples/tui/build.sh
-# Run:   .build/examples/tui/app       (imperative)
-#        .build/examples/tui/app-jsx   (JSX)
+# Usage: bash examples/apps/tui/build.sh
+# Run:   .build/examples/apps/tui/app       (imperative)
+#        .build/examples/apps/tui/app-jsx   (JSX)
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 ZIREAEL_DIR="${ZIREAEL_DIR:?Set ZIREAEL_DIR to point to your Zireael checkout}"
 ZIREAEL_LIB="$ZIREAEL_DIR/out/build/posix-clang-release/libzireael.a"
 ZIREAEL_INCLUDE="$ZIREAEL_DIR/include"
@@ -39,19 +39,19 @@ cd "$REPO_DIR"
 CHAD="node dist/chad-node.js"
 
 echo "Building app.tsx..."
-$CHAD build examples/tui/app.tsx \
-  -o .build/examples/tui/app \
+$CHAD build examples/apps/tui/app.tsx \
+  -o .build/examples/apps/tui/app \
   --link-obj "$BRIDGE_OBJ,$ZIREAEL_LIB" \
   --link-lib pthread
 
 echo "Building app-jsx.tsx..."
-$CHAD build examples/tui/app-jsx.tsx \
-  -o .build/examples/tui/app-jsx \
+$CHAD build examples/apps/tui/app-jsx.tsx \
+  -o .build/examples/apps/tui/app-jsx \
   --link-obj "$BRIDGE_OBJ,$ZIREAEL_LIB" \
   --link-lib pthread
 
 echo ""
-echo "Built: .build/examples/tui/app       (imperative)"
-echo "       .build/examples/tui/app-jsx   (JSX)"
-echo "Run:   .build/examples/tui/app"
-echo "       .build/examples/tui/app-jsx"
+echo "Built: .build/examples/apps/tui/app       (imperative)"
+echo "       .build/examples/apps/tui/app-jsx   (JSX)"
+echo "Run:   .build/examples/apps/tui/app"
+echo "       .build/examples/apps/tui/app-jsx"

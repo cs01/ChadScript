@@ -1,7 +1,9 @@
-// String Search - grep-like file search tool with colorized output
 import { ArgumentParser } from "chadscript/argparse";
 
-const parser = new ArgumentParser("string-search", "Search for a string pattern in files");
+const parser = new ArgumentParser(
+  "cgrep",
+  "Search for a string pattern in files — like grep, but blazing fast",
+);
 parser.addFlag("ignore-case", "i", "Case-insensitive search");
 parser.addFlag("line-number", "n", "Show line numbers");
 parser.addFlag("count", "c", "Only print a count of matching lines per file");
@@ -16,8 +18,8 @@ const pattern = parser.getPositional(0);
 const target = parser.getPositional(1);
 
 if (pattern.length === 0 || target.length === 0) {
-  console.error("string-search: missing pattern or file argument");
-  console.error("Try 'string-search --help' for more information");
+  console.error("cgrep: missing pattern or file argument");
+  console.error("Try 'cgrep --help' for more information");
   process.exit(2);
 }
 
@@ -28,8 +30,6 @@ const recursive = parser.getFlag("recursive");
 const invertMatch = parser.getFlag("invert-match");
 const noColor = parser.getFlag("no-color");
 
-// ANSI color codes for ripgrep-style output
-// \x1b is the ESC character (0x1B) - works with the TypeScript parser
 const colorMagenta = "\x1b[35m";
 const colorGreen = "\x1b[32m";
 const colorRed = "\x1b[1;31m";
@@ -55,9 +55,6 @@ function matchesLine(line: string): boolean {
   return found;
 }
 
-// Highlight all occurrences of the pattern in a line.
-// ChadScript's indexOf only takes 1 arg, so we consume the string
-// progressively by slicing off the already-processed prefix.
 function highlightLine(line: string): string {
   if (noColor || invertMatch) {
     return line;
@@ -71,19 +68,16 @@ function highlightLine(line: string): string {
   let result = "";
   let pos = 0;
   while (pos < line.length) {
-    // Search in the remaining portion of the string
     const remaining = haystack.substring(pos, haystack.length);
     const idx = remaining.indexOf(searchPattern);
     if (idx === -1) {
       result = result + line.substring(pos, line.length);
       pos = line.length;
     } else {
-      // Add text before match
       const matchStart = pos + idx;
       if (matchStart > pos) {
         result = result + line.substring(pos, matchStart);
       }
-      // Add highlighted match (use the original case from the line)
       result =
         result +
         colorRed +
@@ -169,7 +163,7 @@ function main(): void {
 
   if (info.isDirectory()) {
     if (!recursive) {
-      console.error("string-search: " + target + ": Is a directory (use -r to search recursively)");
+      console.error("cgrep: " + target + ": Is a directory (use -r to search recursively)");
       process.exit(2);
     }
     searchDir(target);

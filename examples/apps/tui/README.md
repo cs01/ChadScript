@@ -12,8 +12,8 @@ Uses [Zireael](https://github.com/nicegraf/Zireael) — a C11 terminal rendering
 ## Build & Run
 
 ```bash
-ZIREAEL_DIR=../Zireael bash examples/tui/build.sh
-.build/examples/tui/app
+ZIREAEL_DIR=../Zireael bash examples/apps/tui/build.sh
+.build/examples/apps/tui/app
 ```
 
 ## Controls
