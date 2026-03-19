@@ -1,5 +1,7 @@
 // Static analysis to find variables safe to keep as native i64 instead of double.
 // Used by both function-level and global-level codegen to enable integer optimization.
+// NOTE: This code must work under BOTH node and native compilers. Avoid Set, for...of,
+// and other patterns that break self-hosting.
 
 import type {
   Expression,
@@ -19,7 +21,24 @@ import type {
 } from "../../ast/types.js";
 
 class IntegerAnalyzer {
-  private candidateSet: Set<string> = new Set();
+  private candidateNames: string[] = [];
+
+  private hasCandidate(name: string): boolean {
+    for (let i = 0; i < this.candidateNames.length; i++) {
+      if (this.candidateNames[i] === name) return true;
+    }
+    return false;
+  }
+
+  private removeCandidate(name: string): void {
+    const next: string[] = [];
+    for (let i = 0; i < this.candidateNames.length; i++) {
+      if (this.candidateNames[i] !== name) {
+        next.push(this.candidateNames[i]);
+      }
+    }
+    this.candidateNames = next;
+  }
 
   private isIntegerLiteral(val: Expression): boolean {
     if (val.type !== "number") return false;
@@ -28,6 +47,9 @@ class IntegerAnalyzer {
 
   private isIntegerExpressionForCandidacy(val: Expression): boolean {
     if (this.isIntegerLiteral(val)) return true;
+    if (val.type === "variable") {
+      return this.hasCandidate((val as VariableNode).name);
+    }
     if (val.type === "member_access") {
       const ma = val as MemberAccessNode;
       if (ma.property === "length") return true;
@@ -86,7 +108,7 @@ class IntegerAnalyzer {
     if (this.isIntegerLiteral(val)) return true;
 
     if (val.type === "variable") {
-      return this.candidateSet.has((val as VariableNode).name);
+      return this.hasCandidate((val as VariableNode).name);
     }
 
     if (val.type === "binary") {
@@ -149,7 +171,8 @@ class IntegerAnalyzer {
   }
 
   private collectVarDecls(stmts: Statement[], out: VariableDeclaration[]): void {
-    for (const stmt of stmts) {
+    for (let si = 0; si < stmts.length; si++) {
+      const stmt = stmts[si];
       if (stmt.type === "variable_declaration") {
         out.push(stmt as VariableDeclaration);
       } else if (stmt.type === "for") {
@@ -172,7 +195,8 @@ class IntegerAnalyzer {
   }
 
   private collectNestedAssignments(stmts: Statement[], out: AssignmentStatement[]): void {
-    for (const stmt of stmts) {
+    for (let si = 0; si < stmts.length; si++) {
+      const stmt = stmts[si];
       if (stmt.type === "assignment") {
         out.push(stmt as AssignmentStatement);
       } else if (stmt.type === "while" || stmt.type === "do_while") {
@@ -205,18 +229,45 @@ class IntegerAnalyzer {
 
     const candidates: string[] = [];
     const isConst: boolean[] = [];
+    const pendingDecls: VariableDeclaration[] = [];
 
-    for (const varDecl of allDecls) {
+    // Pass 1: collect candidates with simple integer initializers (no variable refs)
+    this.candidateNames = [];
+    for (let di = 0; di < allDecls.length; di++) {
+      const varDecl = allDecls[di];
       if (!varDecl.value) continue;
       if (this.isIntegerExpressionForCandidacy(varDecl.value)) {
         candidates.push(varDecl.name);
         isConst.push(varDecl.kind === "const");
+        this.candidateNames.push(varDecl.name);
+      } else {
+        pendingDecls.push(varDecl);
       }
     }
 
-    if (candidates.length === 0) return [];
+    // Pass 2: re-check rejected decls now that candidateNames is populated
+    // This handles `m = p * p` where `p` was identified in pass 1
+    let currentPending = pendingDecls;
+    let added = true;
+    while (added) {
+      added = false;
+      const nextPending: VariableDeclaration[] = [];
+      for (let pi = 0; pi < currentPending.length; pi++) {
+        const varDecl = currentPending[pi];
+        if (!varDecl.value) continue;
+        if (this.isIntegerExpressionForCandidacy(varDecl.value)) {
+          candidates.push(varDecl.name);
+          isConst.push(varDecl.kind === "const");
+          this.candidateNames.push(varDecl.name);
+          added = true;
+        } else {
+          nextPending.push(varDecl);
+        }
+      }
+      currentPending = nextPending;
+    }
 
-    this.candidateSet = new Set(candidates);
+    if (candidates.length === 0) return [];
 
     const isDemoted: boolean[] = [];
     for (let k = 0; k < candidates.length; k++) {
@@ -229,13 +280,14 @@ class IntegerAnalyzer {
     let changed = true;
     while (changed) {
       changed = false;
-      for (const stmt of allAssignments) {
+      for (let ai = 0; ai < allAssignments.length; ai++) {
+        const stmt = allAssignments[ai];
         for (let j = 0; j < candidates.length; j++) {
           if (candidates[j] === stmt.name) {
             if (isConst[j]) break;
             if (!isDemoted[j] && !this.isIntegerExpression(stmt.value)) {
               isDemoted[j] = true;
-              this.candidateSet.delete(candidates[j]);
+              this.removeCandidate(candidates[j]);
               changed = true;
             }
             break;

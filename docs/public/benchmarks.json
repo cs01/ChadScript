@@ -13,7 +13,7 @@
         },
         "chadscript": {
           "value": 1.36610400390625,
-          "label": "1.36610400390625s"
+          "label": "1.37s"
         },
         "go": {
           "value": 1.564,
@@ -41,7 +41,7 @@
         },
         "chadscript": {
           "value": 0.0050478515625,
-          "label": "0.0050478515625s"
+          "label": "5ms"
         },
         "go": {
           "value": 0.017,
@@ -82,6 +82,78 @@
         "node": {
           "value": 26.2,
           "label": "26.2ms"
+        }
+      }
+    },
+    "sieve": {
+      "name": "Sieve of Eratosthenes",
+      "desc": "Find all primes up to 10M.",
+      "metric": "s",
+      "lower_is_better": true,
+      "results": {
+        "c": {
+          "value": 0.009,
+          "label": "9ms"
+        },
+        "chadscript": {
+          "value": 0.012,
+          "label": "12ms"
+        },
+        "node": {
+          "value": 0.029,
+          "label": "29ms"
+        }
+      }
+    },
+    "montecarlo": {
+      "name": "Monte Carlo Pi",
+      "desc": "Estimate Pi via 50M random samples.",
+      "metric": "s",
+      "lower_is_better": true,
+      "results": {
+        "c": {
+          "value": 0.301,
+          "label": "0.301s"
+        },
+        "chadscript": {
+          "value": 0.297,
+          "label": "0.297s"
+        },
+        "node": {
+          "value": 2.783,
+          "label": "2.783s"
+        }
+      }
+    },
+    "sorting": {
+      "name": "Quicksort",
+      "desc": "Sort 2M random doubles.",
+      "metric": "s",
+      "lower_is_better": true,
+      "results": {
+        "chadscript": {
+          "value": 0.190,
+          "label": "0.190s"
+        },
+        "node": {
+          "value": 0.158,
+          "label": "0.158s"
+        }
+      }
+    },
+    "nbody": {
+      "name": "N-Body Simulation",
+      "desc": "Gravitational N-body with 25M timesteps.",
+      "metric": "s",
+      "lower_is_better": true,
+      "results": {
+        "chadscript": {
+          "value": 1.177,
+          "label": "1.18s"
+        },
+        "node": {
+          "value": 1.10,
+          "label": "1.10s"
         }
       }
     }
