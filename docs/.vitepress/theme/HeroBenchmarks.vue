@@ -12,6 +12,7 @@ interface Benchmark {
   metric: string
   lower_is_better: boolean
   results: Record<string, BenchResult>
+  place?: number
 }
 
 const LANG_NAMES: Record<string, string> = {
@@ -71,12 +72,9 @@ onMounted(async () => {
     const base = import.meta.env.BASE_URL || '/'
     const res = await fetch(`${base}benchmarks.json`)
     const data = await res.json()
-    const preferred = ['startup', 'montecarlo', 'fibonacci', 'json', 'nbody', 'sqlite', 'sieve']
-    const keys = preferred.filter(k => k in data.benchmarks)
-    for (const k of Object.keys(data.benchmarks)) {
-      if (!keys.includes(k)) keys.push(k)
-    }
-    benchmarks.value = keys.map(k => data.benchmarks[k])
+    const all = Object.values(data.benchmarks) as Benchmark[]
+    all.sort((a, b2) => (a.place || 99) - (b2.place || 99))
+    benchmarks.value = all
   } catch {
     benchmarks.value = []
   }
@@ -93,8 +91,8 @@ onUnmounted(() => {
   <div class="hero-bench" :class="{ visible }" v-if="activeBench">
     <div class="bench-header">
       <div class="bench-title">{{ activeBench.name }}</div>
-      <div class="bench-place">
-        {{ entries.length > 0 && entries[0]?.hero ? '1st' : '2nd' }}
+      <div class="bench-place" :class="'place-' + (activeBench.place || 1)">
+        {{ activeBench.place === 1 ? '1st' : activeBench.place === 2 ? '2nd' : '3rd' }}
       </div>
     </div>
     <div class="bench-subtitle">{{ activeBench.desc }}</div>
@@ -166,6 +164,11 @@ onUnmounted(() => {
   background: rgba(255, 200, 50, 0.1);
   padding: 2px 8px;
   border-radius: 10px;
+}
+
+.bench-place.place-3 {
+  color: var(--vp-c-text-2);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .bench-subtitle {

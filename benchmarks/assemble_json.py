@@ -67,20 +67,20 @@ for fname in sorted(os.listdir(json_dir)):
 
     all_benchmarks[bkey] = entry
 
-    dominated = False
+    langs_ahead = 0
     for lang, r in results.items():
         if lang in ("chadscript", "c"):
             continue
         if lower and r["value"] < chad_val:
-            dominated = True
-            break
+            langs_ahead += 1
         if not lower and r["value"] > chad_val:
-            dominated = True
-            break
+            langs_ahead += 1
 
-    if dominated:
-        print(f"  Filtered from docs: {meta['name']} (ChadScript not 1st or 2nd behind C)")
+    place = 1 + (1 if any(r["value"] < chad_val if lower else r["value"] > chad_val for l, r in results.items() if l == "c") else 0) + langs_ahead
+    if place > 3:
+        print(f"  Filtered from docs: {meta['name']} (ChadScript #{place})")
     else:
+        entry["place"] = place
         filtered_benchmarks[bkey] = entry
 
 ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
