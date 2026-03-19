@@ -689,6 +689,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const watchBridgeObj = effectiveBridgePath + "/watch-bridge.o";
   const arenaBridgeObj = effectiveBridgePath + "/arena-bridge.o";
   const cpSpawnObj = generator.getUsesSpawn() ? effectiveBridgePath + "/child-process-spawn.o" : "";
+  const curlBridgeObj = generator.getUsesCurl() ? effectiveBridgePath + "/curl-bridge.o" : "";
   let llvmBridgeObj = "";
   let llvmBuilderObj = "";
   let lldBridgeObj = "";
@@ -745,6 +746,8 @@ export function compileNative(inputFile: string, outputFile: string): void {
     arenaBridgeObj +
     " " +
     cpSpawnObj +
+    " " +
+    curlBridgeObj +
     " " +
     llvmBridgeObj +
     " " +

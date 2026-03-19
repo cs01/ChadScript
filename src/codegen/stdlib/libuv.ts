@@ -51,8 +51,8 @@ export class LibuvGenerator {
     ir += "declare i8* @uv_req_get_data(i8*)\n\n";
 
     if (includePromiseTypes) {
-      ir += "; FetchWorkContext: { url: i8*, response: %__FetchResponse*, promise: %Promise* }\n";
-      ir += "%FetchWorkContext = type { i8*, %__FetchResponse*, %Promise* }\n\n";
+      ir += "; FetchWorkContext: { url, method, headers, body, response, promise }\n";
+      ir += "%FetchWorkContext = type { i8*, i8*, i8*, i8*, %__FetchResponse*, %Promise* }\n\n";
     }
 
     return ir;
@@ -184,9 +184,19 @@ export class LibuvGenerator {
     ir +=
       "  %url_ptr = getelementptr inbounds %FetchWorkContext, %FetchWorkContext* %ctx, i32 0, i32 0\n";
     ir += "  %url = load i8*, i8** %url_ptr\n";
-    ir += "  %response = call %__FetchResponse* @fetch(i8* %url)\n";
     ir +=
-      "  %resp_ptr = getelementptr inbounds %FetchWorkContext, %FetchWorkContext* %ctx, i32 0, i32 1\n";
+      "  %method_ptr = getelementptr inbounds %FetchWorkContext, %FetchWorkContext* %ctx, i32 0, i32 1\n";
+    ir += "  %method = load i8*, i8** %method_ptr\n";
+    ir +=
+      "  %headers_ptr = getelementptr inbounds %FetchWorkContext, %FetchWorkContext* %ctx, i32 0, i32 2\n";
+    ir += "  %hdrs = load i8*, i8** %headers_ptr\n";
+    ir +=
+      "  %body_ptr = getelementptr inbounds %FetchWorkContext, %FetchWorkContext* %ctx, i32 0, i32 3\n";
+    ir += "  %body = load i8*, i8** %body_ptr\n";
+    ir +=
+      "  %response = call %__FetchResponse* @fetch(i8* %url, i8* %method, i8* %hdrs, i8* %body)\n";
+    ir +=
+      "  %resp_ptr = getelementptr inbounds %FetchWorkContext, %FetchWorkContext* %ctx, i32 0, i32 4\n";
     ir += "  store %__FetchResponse* %response, %__FetchResponse** %resp_ptr\n";
     ir += "  ret void\n";
     ir += "}\n\n";
@@ -198,10 +208,10 @@ export class LibuvGenerator {
     ir += "  %data = call i8* @uv_req_get_data(i8* %req_i8)\n";
     ir += "  %ctx = bitcast i8* %data to %FetchWorkContext*\n";
     ir +=
-      "  %resp_ptr = getelementptr inbounds %FetchWorkContext, %FetchWorkContext* %ctx, i32 0, i32 1\n";
+      "  %resp_ptr = getelementptr inbounds %FetchWorkContext, %FetchWorkContext* %ctx, i32 0, i32 4\n";
     ir += "  %response = load %__FetchResponse*, %__FetchResponse** %resp_ptr\n";
     ir +=
-      "  %promise_ptr = getelementptr inbounds %FetchWorkContext, %FetchWorkContext* %ctx, i32 0, i32 2\n";
+      "  %promise_ptr = getelementptr inbounds %FetchWorkContext, %FetchWorkContext* %ctx, i32 0, i32 5\n";
     ir += "  %promise = load %Promise*, %Promise** %promise_ptr\n";
     ir += "  %response_i8 = bitcast %__FetchResponse* %response to i8*\n";
     ir += "  call void @__Promise_resolve(%Promise* %promise, i8* %response_i8)\n";
@@ -212,21 +222,30 @@ export class LibuvGenerator {
   }
 
   generateFetchAsync(): string {
-    let ir = "; fetch_async(url) -> %Promise*\n";
+    let ir = "; fetch_async(url, method, headers, body) -> %Promise*\n";
     ir += "; Queues a fetch on the libuv thread pool, returns a pending promise\n";
-    ir += "define %Promise* @fetch_async(i8* %url) {\n";
+    ir += "define %Promise* @fetch_async(i8* %url, i8* %method, i8* %headers, i8* %body) {\n";
     ir += "entry:\n";
     ir += "  %promise = call %Promise* @__Promise_new()\n";
-    ir += "  %ctx_mem = call i8* @GC_malloc(i64 24)\n";
+    ir += "  %ctx_mem = call i8* @GC_malloc(i64 48)\n";
     ir += "  %ctx = bitcast i8* %ctx_mem to %FetchWorkContext*\n";
     ir +=
       "  %url_ptr = getelementptr inbounds %FetchWorkContext, %FetchWorkContext* %ctx, i32 0, i32 0\n";
     ir += "  store i8* %url, i8** %url_ptr\n";
     ir +=
-      "  %resp_ptr = getelementptr inbounds %FetchWorkContext, %FetchWorkContext* %ctx, i32 0, i32 1\n";
+      "  %method_ptr = getelementptr inbounds %FetchWorkContext, %FetchWorkContext* %ctx, i32 0, i32 1\n";
+    ir += "  store i8* %method, i8** %method_ptr\n";
+    ir +=
+      "  %headers_ptr = getelementptr inbounds %FetchWorkContext, %FetchWorkContext* %ctx, i32 0, i32 2\n";
+    ir += "  store i8* %headers, i8** %headers_ptr\n";
+    ir +=
+      "  %body_ptr = getelementptr inbounds %FetchWorkContext, %FetchWorkContext* %ctx, i32 0, i32 3\n";
+    ir += "  store i8* %body, i8** %body_ptr\n";
+    ir +=
+      "  %resp_ptr = getelementptr inbounds %FetchWorkContext, %FetchWorkContext* %ctx, i32 0, i32 4\n";
     ir += "  store %__FetchResponse* null, %__FetchResponse** %resp_ptr\n";
     ir +=
-      "  %promise_ptr = getelementptr inbounds %FetchWorkContext, %FetchWorkContext* %ctx, i32 0, i32 2\n";
+      "  %promise_ptr = getelementptr inbounds %FetchWorkContext, %FetchWorkContext* %ctx, i32 0, i32 5\n";
     ir += "  store %Promise* %promise, %Promise** %promise_ptr\n";
     ir += "  %req_mem = call i8* @GC_malloc(i64 128)\n";
     ir += "  %req = bitcast i8* %req_mem to %struct.uv_work_s*\n";
