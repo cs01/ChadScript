@@ -4133,7 +4133,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         break;
       }
     }
-    const ir = this.funcGen.generateMain(this.topLevelObjectVariables, hasTry);
+    const ir = this.funcGen.generateMain(this.topLevelObjectVariables, hasTry, this.usesCurl > 0);
     this.currentSubprogramId = -1;
     this.currentDebugLocId = -1;
     return ir;

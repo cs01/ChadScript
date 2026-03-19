@@ -178,6 +178,9 @@ export class LibuvGenerator {
     ir += "; __fetch_work_cb - runs on worker thread, performs sync curl fetch\n";
     ir += "define void @__fetch_work_cb(%struct.uv_work_s* %req) {\n";
     ir += "entry:\n";
+    ir += "  %_gc_sb = alloca %struct.GC_stack_base\n";
+    ir += "  call i32 @GC_get_stack_base(%struct.GC_stack_base* %_gc_sb)\n";
+    ir += "  call i32 @GC_register_my_thread(%struct.GC_stack_base* %_gc_sb)\n";
     ir += "  %req_i8 = bitcast %struct.uv_work_s* %req to i8*\n";
     ir += "  %data = call i8* @uv_req_get_data(i8* %req_i8)\n";
     ir += "  %ctx = bitcast i8* %data to %FetchWorkContext*\n";
@@ -198,6 +201,7 @@ export class LibuvGenerator {
     ir +=
       "  %resp_ptr = getelementptr inbounds %FetchWorkContext, %FetchWorkContext* %ctx, i32 0, i32 4\n";
     ir += "  store %__FetchResponse* %response, %__FetchResponse** %resp_ptr\n";
+    ir += "  call i32 @GC_unregister_my_thread()\n";
     ir += "  ret void\n";
     ir += "}\n\n";
 
