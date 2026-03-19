@@ -144,6 +144,10 @@ bench_ws_server() {
 }
 
 assemble_json() {
+    python3 "$DIR/assemble_json.py" "$JSON_DIR" "$1" "$STARTUP_RUNS"
+}
+
+assemble_json_old() {
     local outfile="$1"
     mkdir -p "$(dirname "$outfile")"
 
