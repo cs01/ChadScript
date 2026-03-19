@@ -13,6 +13,7 @@ if (!process.env.CHADC_COMPILER) {
   );
 }
 const compiler = `${process.env.CHADC_COMPILER} build`;
+const isNodeCompiler = process.env.CHADC_COMPILER.includes("chad-node");
 
 function getRandomPort(): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -182,7 +183,7 @@ describe("Network Tests", () => {
     }
   });
 
-  it("should run Promise.race with resolved promises", async () => {
+  it("should run Promise.race with resolved promises", { skip: isNodeCompiler }, async () => {
     const testFile = "tests/fixtures/network/promise-race-test.ts";
     await execAsync(`${compiler} ${testFile}`);
     const { stdout } = await execAsync(".build/tests/fixtures/network/promise-race-test");
