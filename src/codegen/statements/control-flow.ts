@@ -76,8 +76,6 @@ export class ControlFlowGenerator {
       this.emit(`${condBool} = fcmp one double ${value}, 0.0`);
       return condBool;
     } else if (valueType && valueType.indexOf("*") !== -1) {
-      // Value is a pointer type, check if non-null
-      // Use i8* for complex types that aren't valid LLVM types
       const isValidLlvmType =
         !valueType.startsWith("%{") && !valueType.includes("|") && !valueType.includes(":");
       const llvmType = isValidLlvmType ? valueType : "i8*";
@@ -131,6 +129,27 @@ export class ControlFlowGenerator {
     return true;
   }
 
+  private isStringConditionExpr(expr: Expression): boolean {
+    if (expr.type === "variable") {
+      const varName = (expr as VariableNode).name;
+      return this.ctx.symbolTable.isString(varName);
+    }
+    return false;
+  }
+
+  private convertStringToBool(value: string): string {
+    const notNull = this.ctx.emitIcmp("ne", "i8*", value, "null");
+    const emptyStr = this.nextTemp();
+    this.emit(
+      `${emptyStr} = getelementptr inbounds [1 x i8], [1 x i8]* @.str.empty_str, i64 0, i64 0`,
+    );
+    const safePtr = this.nextTemp();
+    this.emit(`${safePtr} = select i1 ${notNull}, i8* ${value}, i8* ${emptyStr}`);
+    const firstByte = this.nextTemp();
+    this.emit(`${firstByte} = load i8, i8* ${safePtr}`);
+    return this.ctx.emitIcmp("ne", "i8", firstByte, "0");
+  }
+
   private generateBranchCondition(expr: Expression, params: string[]): string {
     if (this.isSimpleComparisonForBranch(expr)) {
       setWantsI1(true);
@@ -138,7 +157,9 @@ export class ControlFlowGenerator {
       setWantsI1(false);
       return this.convertToBool(condValue);
     }
+    const isStr = this.isStringConditionExpr(expr);
     const condValue = this.ctx.generateExpression(expr, params);
+    if (isStr) return this.convertStringToBool(condValue);
     return this.convertToBool(condValue);
   }
 

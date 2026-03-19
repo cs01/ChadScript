@@ -483,7 +483,7 @@ export class ClassGenerator {
     if (constructorResult) {
       this.ctx.clearOutput();
       const constructorIr = this.generateConstructor(className, constructor, allFields);
-      if (constructorIr) {
+      if (constructorIr.length > 0) {
         const ctorPrefix = constructorIr.substr(0, 40);
         if (ctorPrefix.indexOf("define") === -1) {
           console.log(
@@ -505,7 +505,7 @@ export class ClassGenerator {
       if (inheritedCtor) {
         this.ctx.clearOutput();
         const constructorIr = this.generateConstructor(className, inheritedCtor, allFields);
-        if (constructorIr) {
+        if (constructorIr.length > 0) {
           parts.push(constructorIr);
           parts.push("\n");
         }
@@ -515,7 +515,7 @@ export class ClassGenerator {
           fieldLlvmTypes,
           allFields,
         );
-        if (defaultCtorIr) {
+        if (defaultCtorIr.length > 0) {
           parts.push(defaultCtorIr);
           parts.push("\n");
         }
@@ -550,7 +550,7 @@ export class ClassGenerator {
         const methodIr = method.isStatic
           ? this.generateStaticMethod(className, method)
           : this.generateMethod(className, method, allFields);
-        if (methodIr) {
+        if (methodIr.length > 0) {
           parts.push(methodIr);
           parts.push("\n");
         }
