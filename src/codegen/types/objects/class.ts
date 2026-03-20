@@ -79,8 +79,7 @@ export class ClassGenerator {
       }
     }
     for (let i = 0; i < classNode.fields.length; i++) {
-      // Static fields are globals, not part of the instance struct
-      if (classNode.fields[i].isStatic) continue;
+      if ((classNode.fields[i] as ClassField).isStatic) continue;
       allFields.push(classNode.fields[i]);
     }
     return allFields;
@@ -524,7 +523,7 @@ export class ClassGenerator {
 
     // Emit static fields as LLVM globals
     for (let fi = 0; fi < classNode.fields.length; fi++) {
-      const field = classNode.fields[fi];
+      const field = classNode.fields[fi] as ClassField;
       if (!field || !field.isStatic) continue;
       const globalName = `@${this.ctx.mangleUserName(className)}_${field.name}`;
       const llvmType = this.fieldToLlvmType(field);
@@ -686,7 +685,7 @@ export class ClassGenerator {
     }
 
     for (let fi = 0; fi < fields.length; fi++) {
-      const classField = fields[fi];
+      const classField = fields[fi] as ClassField;
       if (!classField) continue;
       if (!classField.initializer) continue;
       const initType = classField.initializer.type;
@@ -809,7 +808,7 @@ export class ClassGenerator {
       this.ctx.setThisPointer(objPtr);
       this.ctx.setCurrentClassName(className);
       for (let fi = 0; fi < classFields.length; fi++) {
-        const cf = classFields[fi];
+        const cf = classFields[fi] as ClassField;
         if (!cf) continue;
         if (!cf.initializer) continue;
         const initType = cf.initializer.type;
