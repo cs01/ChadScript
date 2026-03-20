@@ -79,9 +79,8 @@ export class ClassGenerator {
       }
     }
     for (let i = 0; i < classNode.fields.length; i++) {
-      const f = classNode.fields[i] as ClassField;
-      if (f.isStatic) continue;
-      allFields.push(f);
+      if ((classNode.fields[i] as ClassField).isStatic) continue;
+      allFields.push(classNode.fields[i]);
     }
     return allFields;
   }
