@@ -158,7 +158,7 @@ export class ControlFlowGenerator {
       setWantsI1(false);
       return this.convertToBool(condValue);
     }
-    const isStr = this.isStringConditionExpr(expr);
+    const isStr = this.isStringConditionExpr(expr) || this.ctx.isStringExpression(expr);
     const condValue = this.ctx.generateExpression(expr, params);
     if (isStr) return this.convertStringToBool(condValue);
     return this.convertToBool(condValue);
