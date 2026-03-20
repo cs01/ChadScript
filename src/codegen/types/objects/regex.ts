@@ -50,15 +50,66 @@ export class RegexGenerator {
     return hi + lo;
   }
 
-  // Compile a regex pattern and return a pointer to the compiled regex
-  // Returns a pointer to regex_t struct (i8*)
-  generateRegexCompile(pattern: string, flags: string): string {
-    this.ctx.setUsesRegex(true);
-    let escaped = "";
-    let byteCount = 0;
+  private translateJSPatternToPOSIX(pattern: string): string {
+    let result = "";
+    let inBracket = false;
     for (let i = 0; i < pattern.length; i++) {
       const ch = pattern[i];
-      const code = pattern.charCodeAt(i);
+      if (ch === "\\" && i + 1 < pattern.length) {
+        const next = pattern[i + 1];
+        if (next === "d") {
+          result += inBracket ? "0-9" : "[0-9]";
+          i++;
+          continue;
+        }
+        if (next === "D") {
+          result += inBracket ? "^0-9" : "[^0-9]";
+          i++;
+          continue;
+        }
+        if (next === "w") {
+          result += inBracket ? "a-zA-Z0-9_" : "[a-zA-Z0-9_]";
+          i++;
+          continue;
+        }
+        if (next === "W") {
+          result += inBracket ? "^a-zA-Z0-9_" : "[^a-zA-Z0-9_]";
+          i++;
+          continue;
+        }
+        if (next === "s") {
+          result += inBracket ? " \\t\\n\\r" : "[ \\t\\n\\r]";
+          i++;
+          continue;
+        }
+        if (next === "S") {
+          result += inBracket ? "^ \\t\\n\\r" : "[^ \\t\\n\\r]";
+          i++;
+          continue;
+        }
+        result += ch;
+        result += next;
+        i++;
+        continue;
+      }
+      if (ch === "[" && !inBracket) {
+        inBracket = true;
+      } else if (ch === "]" && inBracket) {
+        inBracket = false;
+      }
+      result += ch;
+    }
+    return result;
+  }
+
+  generateRegexCompile(pattern: string, flags: string): string {
+    this.ctx.setUsesRegex(true);
+    const posixPattern = this.translateJSPatternToPOSIX(pattern);
+    let escaped = "";
+    let byteCount = 0;
+    for (let i = 0; i < posixPattern.length; i++) {
+      const ch = posixPattern[i];
+      const code = posixPattern.charCodeAt(i);
       if (ch === "\\") {
         escaped += "\\5C";
         byteCount += 1;
