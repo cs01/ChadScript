@@ -88,12 +88,12 @@ export class BinaryExpressionGenerator {
     const leftValue = this.ctx.generateExpression(left, params);
     const rightValue = this.ctx.generateExpression(right, params);
 
-    // Arithmetic operators (floating-point)
+    // Arithmetic operators (floating-point) — fast-math flags enable LLVM optimizations
     const arithMap: { [key: string]: string } = {
-      "+": "fadd nsz arcp contract reassoc afn",
-      "-": "fsub nsz arcp contract reassoc afn",
-      "*": "fmul nsz arcp contract reassoc afn",
-      "/": "fdiv nsz arcp contract reassoc afn",
+      "+": "fadd nnan ninf nsz arcp contract reassoc afn",
+      "-": "fsub nnan ninf nsz arcp contract reassoc afn",
+      "*": "fmul nnan ninf nsz arcp contract reassoc afn",
+      "/": "fdiv nnan ninf nsz arcp contract reassoc afn",
     };
 
     // Bitwise operators (need to convert double -> i64 -> operate -> double)

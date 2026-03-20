@@ -201,6 +201,9 @@ export class IndexAccessGenerator {
     this.ctx.emit(`call void @__cs_bounds_fail(i32 ${index}, i32 ${len})`);
     this.ctx.emit(`unreachable`);
     this.ctx.emit(`${okLabel}:`);
+    const inBounds = this.ctx.nextTemp();
+    this.ctx.emit(`${inBounds} = icmp ult i32 ${index}, ${len}`);
+    this.ctx.emit(`call void @llvm.assume(i1 ${inBounds})`);
   }
 
   private generateStringArrayIndex(expr: IndexAccessNode, params: string[]): string {
