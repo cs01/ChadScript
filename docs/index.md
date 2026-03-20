@@ -108,7 +108,7 @@ ChadScript is a statically-typed subset of TypeScript designed for native compil
 
 ## Why It's Fast
 
-C-like speed with TypeScript ergonomics. ChadScript is within 5–25% of C on most benchmarks and actually beats it on allocation-heavy workloads. Garbage collection means you never think about memory, but arena allocation keeps GC pressure low. All numbers are `double` by default (like JavaScript), but a static analysis pass promotes them to native integers when it can prove it's safe — giving LLVM's optimizer clean, tight IR without changing the type system.
+C-like speed with TypeScript ergonomics. You write familiar, garbage-collected code — no manual memory management, no pointers, no segfaults. Behind the scenes, the compiler promotes `double` values to native integers via static analysis and feeds LLVM the same clean IR that C compilers produce.
 
 ## In Production
 
