@@ -4,6 +4,7 @@ import {
   MemberAccessNode,
   VariableNode,
   RegexNode,
+  StringNode,
 } from "../../../ast/types.js";
 import type { MethodCallGeneratorContext } from "../method-calls.js";
 
@@ -309,7 +310,20 @@ export function handleIndexOf(
     return ctx.emitError(`indexOf() expects 1 or 2 arguments, got ${expr.args.length}`, expr.loc);
   }
 
-  const substring = ctx.generateExpression(expr.args[0], params);
+  const searchArg = expr.args[0];
+  const isSingleChar = searchArg.type === "string" && (searchArg as StringNode).value.length === 1;
+
+  if (isSingleChar) {
+    const charCode = (searchArg as StringNode).value.charCodeAt(0);
+    if (expr.args.length === 2) {
+      const fromIndexDouble = ctx.generateExpression(expr.args[1], params);
+      const fromIndex = convertToI32(ctx, fromIndexDouble);
+      return ctx.stringGen.doGenerateIndexOfCharFrom(strPtr, charCode, fromIndex);
+    }
+    return ctx.stringGen.doGenerateIndexOfChar(strPtr, charCode);
+  }
+
+  const substring = ctx.generateExpression(searchArg, params);
 
   if (expr.args.length === 2) {
     const fromIndexDouble = ctx.generateExpression(expr.args[1], params);

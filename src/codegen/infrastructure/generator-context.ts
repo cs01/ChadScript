@@ -91,7 +91,9 @@ export interface IStringGenerator {
   doGenerateToUpperCase(strPtr: string): string;
   doGenerateToLowerCase(strPtr: string): string;
   doGenerateIndexOf(strPtr: string, substring: string): string;
+  doGenerateIndexOfChar(strPtr: string, charCode: number): string;
   doGenerateIndexOfFrom(strPtr: string, substring: string, fromIndex: string): string;
+  doGenerateIndexOfCharFrom(strPtr: string, charCode: number, fromIndex: string): string;
   doGenerateLastIndexOf(strPtr: string, substring: string): string;
   doGenerateLastIndexOfFrom(strPtr: string, substring: string, fromIndex: string): string;
   doGenerateIncludes(strPtr: string, substring: string): string;
@@ -1725,7 +1727,10 @@ export class MockGeneratorContext implements IGeneratorContext {
     doGenerateToUpperCase: (_strPtr: string): string => "%0",
     doGenerateToLowerCase: (_strPtr: string): string => "%0",
     doGenerateIndexOf: (_strPtr: string, _substring: string): string => "%0",
+    doGenerateIndexOfChar: (_strPtr: string, _charCode: number): string => "%0",
     doGenerateIndexOfFrom: (_strPtr: string, _substring: string, _fromIndex: string): string =>
+      "%0",
+    doGenerateIndexOfCharFrom: (_strPtr: string, _charCode: number, _fromIndex: string): string =>
       "%0",
     doGenerateLastIndexOf: (_strPtr: string, _substring: string): string => "%0",
     doGenerateLastIndexOfFrom: (_strPtr: string, _substring: string, _fromIndex: string): string =>
