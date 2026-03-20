@@ -46,7 +46,16 @@ for fname in sorted(os.listdir(json_dir)):
             continue
         lang, value, label = parts[0], parts[1], parts[2]
         try:
-            results[lang] = {"value": round(float(value), 3), "label": label}
+            rounded = round(float(value), 3)
+            meta_info = META.get(bkey, {"metric": "s"})
+            metric = meta_info.get("metric", "s")
+            if metric == "ms":
+                clean_label = f"{rounded}ms"
+            elif metric in ("req/s", "msg/s"):
+                clean_label = f"{int(rounded)} {metric}"
+            else:
+                clean_label = f"{rounded:.3f}s"
+            results[lang] = {"value": rounded, "label": clean_label}
         except ValueError:
             continue
         if lang == "chadscript":

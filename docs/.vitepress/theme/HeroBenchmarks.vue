@@ -36,10 +36,14 @@ const activeBench = computed(() => benchmarks.value[activeIndex.value])
 const entries = computed(() => {
   const b = activeBench.value
   if (!b) return []
-  const langOrder = ['c', 'chadscript', 'go', 'bun', 'node']
+  const langOrder = ['c', 'chadscript', 'go', 'bun', 'node', 'grep', 'ripgrep', 'xxd']
+  const known = new Set(langOrder)
   const sorted = langOrder
     .filter(k => k in b.results)
     .map(k => ({ key: k, ...b.results[k] }))
+  for (const k of Object.keys(b.results)) {
+    if (!known.has(k)) sorted.push({ key: k, ...b.results[k] })
+  }
   if (b.lower_is_better) {
     sorted.sort((a, b2) => a.value - b2.value)
   } else {

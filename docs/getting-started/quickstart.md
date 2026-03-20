@@ -1,5 +1,17 @@
 # Quickstart
 
+## Running and Building
+
+Any ChadScript program can be run directly or compiled to a standalone binary:
+
+```bash
+chad run app.ts              # compile and run in one step
+chad build app.ts            # compile to .build/app
+chad build app.ts -o myapp   # compile to a custom path
+```
+
+`chad run` compiles and executes immediately. `chad build` produces a native binary — by default in `.build/` mirroring the source path. Use `-o` to specify an output location.
+
 ## Hello World
 
 ```typescript
@@ -8,8 +20,6 @@ console.log("Hello from ChadScript!");
 
 ```bash
 chad run hello.ts
-# or compile to a standalone binary:
-chad build hello.ts -o hello && ./hello
 ```
 
 ## More Examples

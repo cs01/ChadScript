@@ -1,12 +1,14 @@
 # ChadScript
 
-As fast as C, as ergonomic as TypeScript.
+TypeScript, compiled to native code.
 
-ChadScript compiles TypeScript to native binaries. No Node.js, no V8, no runtime. Sub-2ms startup, ~250KB binaries.
+ChadScript compiles a statically analyzable subset of TypeScript to native machine code via LLVM — the same backend behind C, Rust, and Swift. No VM, no interpreter, no runtime. The output is a standalone binary: sub-millisecond startup, ~250KB, zero dependencies.
 
 The compiler is self-hosting and the only dependency is itself. Install with curl, not npm.
 
 **Status: Beta** — self-hosting, 621+ tests, used in [production](https://chadsmith.dev/weather).
+
+**[Docs](https://cs01.github.io/ChadScript/getting-started/installation)** · **[Standard Library](https://cs01.github.io/ChadScript/stdlib/)** · **[Language Features](https://cs01.github.io/ChadScript/language/features)** · **[Benchmarks](https://cs01.github.io/ChadScript/benchmarks)**
 
 ---
 
@@ -69,61 +71,35 @@ Hono-style API, C-level performance. One binary, no node_modules. See [`examples
 
 ## Benchmarks
 
-Compared against C, Go, Node.js, and Bun on Ubuntu (CI):
+ChadScript compiles through LLVM, the same backend behind C and Rust — so it gets the same optimization passes. Compared against C, Go, Node.js, and Bun on Ubuntu (CI):
 
-| Benchmark      | C      | ChadScript | Go     | Node   | Bun    |
-| -------------- | ------ | ---------- | ------ | ------ | ------ |
-| Cold Start     | 0.6ms  | **0.6ms**  | 1.3ms  | 21.8ms | 7.6ms  |
-| Monte Carlo Pi | 0.400s | **0.398s** | 0.405s | 1.474s | 6.428s |
-| Fibonacci      | 0.725s | **1.424s** | 1.429s | 2.842s | 1.837s |
-| JSON Parse     | 0.004s | **0.005s** | 0.016s | 0.015s | 0.007s |
-| N-Body Sim     | 1.453s | **1.852s** | 1.964s | 2.296s | 2.817s |
+| Benchmark      | ChadScript | Node.js | vs Node  | C      |
+| -------------- | ---------- | ------- | -------- | ------ |
+| Cold Start     | **0.6ms**  | 21.8ms  | **36x**  | 0.6ms  |
+| Monte Carlo Pi | **0.398s** | 1.474s  | **3.7x** | 0.400s |
+| File I/O       | **0.089s** | 0.315s  | **3.5x** | 0.088s |
+| JSON Parse     | **0.005s** | 0.015s  | **3.0x** | 0.004s |
+| Fibonacci      | **1.424s** | 2.842s  | **2.0x** | 0.725s |
+| Sieve          | **0.038s** | 0.054s  | **1.4x** | 0.027s |
+| N-Body Sim     | **1.852s** | 2.296s  | **1.2x** | 1.453s |
+| Quicksort      | **0.202s** | 0.249s  | **1.2x** | 0.170s |
+| SQLite         | **0.374s** | 0.437s  | **1.2x** | 0.314s |
 
-Updated on every PR. [Source](https://github.com/cs01/ChadScript/tree/main/benchmarks)
-
----
-
-## How it works
-
-```bash
-chad run app.ts          # compile + run in one step — no build config, no install
-chad build app.ts        # or compile to a standalone binary
-```
-
-Every type is resolved at compile time. The compiler optimizes your code the same way C and Rust compilers do. `chad run` compiles and executes in one step — no build step, no install process, no config files. When you want a deployable binary, `chad build` produces a single native executable.
+[Full benchmarks with Go and Bun](https://cs01.github.io/ChadScript/benchmarks) (updated on every PR)
 
 ---
 
-## Why TypeScript syntax?
+## It's Fast
 
-TypeScript is familiar to millions of developers, and LLMs generate it fluently. ChadScript uses a statically-typed subset where every type is resolved at compile time — no `any`, no runtime type checks, no surprises:
+Your code goes through the same LLVM optimization passes as C and Rust — not a JIT, not an interpreter. 0.8ms cold start, native execution speed.
 
-- **Null safety** — `string` is never null. Use `string | null` and `?.` for optional values.
-- **No manual memory management** — automatic garbage collection. No use-after-free, no double-frees.
-- **Compile-time error catching** — type mismatches, invalid method calls, and unsafe patterns are caught before your code runs.
-- **C interop** — call any C library directly with `declare function`. No wrappers, no overhead.
-- **IDE support** — `chad init` generates `tsconfig.json` with ChadScript types. VS Code works out of the box.
+## It's Familiar
 
----
+Classes, interfaces, generics, async/await, closures, destructuring, template literals, JSX, `for...of`, `Map`, `Set`, `Promise.all` — it's the TypeScript you already write. No new syntax, no new mental model.
 
-## What's included
+## It's Friendly
 
-No `npm install`. Everything ships with the compiler:
-
-| Module                | What it does             |
-| --------------------- | ------------------------ |
-| `fetch`               | HTTP client              |
-| `Router`, `httpServe` | HTTP server with routing |
-| `fs`                  | File system              |
-| `sqlite`              | Embedded database        |
-| `crypto`              | Hashing, random bytes    |
-| `JSON`                | Typed parse/stringify    |
-| `child_process`       | Spawn subprocesses       |
-| `WebSocket`           | WebSocket server         |
-| `Map`, `Set`          | Hash map and set         |
-| `RegExp`              | Regular expressions      |
-| `console`             | Prints any type          |
-| `ArgumentParser`      | CLI argument parsing     |
+No `npm install`. Everything ships with the compiler: HTTP server, SQLite, fetch, crypto, WebSocket, JSON, filesystem, regex, child processes, argument parsing. Write your code, compile it, ship a single binary.
 
 ---
 
@@ -150,4 +126,3 @@ See [`examples/cli-tools/`](examples/cli-tools/) for a suite of Unix tool replac
 - [Quickstart](https://cs01.github.io/ChadScript/getting-started/quickstart)
 - [Supported Features](https://cs01.github.io/ChadScript/language/features)
 - [Standard Library](https://cs01.github.io/ChadScript/stdlib/)
-- [FAQ](https://cs01.github.io/ChadScript/faq)
