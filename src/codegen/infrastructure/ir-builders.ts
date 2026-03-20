@@ -25,30 +25,32 @@ export function emitMul(ctx: EmitContext, type: string, lhs: string, rhs: string
   return temp;
 }
 
+const FMATH = "nnan ninf nsz arcp contract reassoc afn";
+
 export function emitFAdd(ctx: EmitContext, lhs: string, rhs: string): string {
   const temp = ctx.nextTemp();
-  ctx.emit(`${temp} = fadd double ${lhs}, ${rhs}`);
+  ctx.emit(`${temp} = fadd ${FMATH} double ${lhs}, ${rhs}`);
   ctx.setVariableType(temp, "double");
   return temp;
 }
 
 export function emitFSub(ctx: EmitContext, lhs: string, rhs: string): string {
   const temp = ctx.nextTemp();
-  ctx.emit(`${temp} = fsub double ${lhs}, ${rhs}`);
+  ctx.emit(`${temp} = fsub ${FMATH} double ${lhs}, ${rhs}`);
   ctx.setVariableType(temp, "double");
   return temp;
 }
 
 export function emitFMul(ctx: EmitContext, lhs: string, rhs: string): string {
   const temp = ctx.nextTemp();
-  ctx.emit(`${temp} = fmul double ${lhs}, ${rhs}`);
+  ctx.emit(`${temp} = fmul ${FMATH} double ${lhs}, ${rhs}`);
   ctx.setVariableType(temp, "double");
   return temp;
 }
 
 export function emitFDiv(ctx: EmitContext, lhs: string, rhs: string): string {
   const temp = ctx.nextTemp();
-  ctx.emit(`${temp} = fdiv double ${lhs}, ${rhs}`);
+  ctx.emit(`${temp} = fdiv ${FMATH} double ${lhs}, ${rhs}`);
   ctx.setVariableType(temp, "double");
   return temp;
 }
@@ -62,14 +64,14 @@ export function emitSRem(ctx: EmitContext, type: string, lhs: string, rhs: strin
 
 export function emitFRem(ctx: EmitContext, lhs: string, rhs: string): string {
   const temp = ctx.nextTemp();
-  ctx.emit(`${temp} = frem double ${lhs}, ${rhs}`);
+  ctx.emit(`${temp} = frem ${FMATH} double ${lhs}, ${rhs}`);
   ctx.setVariableType(temp, "double");
   return temp;
 }
 
 export function emitFNeg(ctx: EmitContext, value: string): string {
   const temp = ctx.nextTemp();
-  ctx.emit(`${temp} = fneg double ${value}`);
+  ctx.emit(`${temp} = fneg ${FMATH} double ${value}`);
   ctx.setVariableType(temp, "double");
   return temp;
 }

@@ -51,6 +51,7 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += "declare i8* @strstr(i8*, i8*)\n";
   ir += "declare i8* @strchr(i8*, i32)\n";
   ir += "declare i8* @strrchr(i8*, i32)\n";
+  ir += "declare void @llvm.assume(i1)\n";
   ir += "declare void @llvm.memcpy.p0i8.p0i8.i64(i8*, i8*, i64, i1)\n";
   ir += "declare void @llvm.memmove.p0i8.p0i8.i64(i8*, i8*, i64, i1)\n";
   ir += "declare void @llvm.memset.p0i8.i64(i8*, i8, i64, i1)\n";
