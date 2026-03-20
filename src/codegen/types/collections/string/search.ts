@@ -154,6 +154,108 @@ export function generateCharCodeAt(ctx: IGeneratorContext, strPtr: string, index
   return result;
 }
 
+export function generateIndexOfChar(
+  ctx: IGeneratorContext,
+  strPtr: string,
+  charCode: number,
+): string {
+  const foundPtr = ctx.emitCall("i8*", "@strchr", `i8* ${strPtr}, i32 ${charCode}`);
+
+  const isNull = ctx.emitIcmp("eq", "i8*", foundPtr, "null");
+
+  const notFoundLabel = ctx.nextLabel("indexof_notfound");
+  const foundLabel = ctx.nextLabel("indexof_found");
+  const endLabel = ctx.nextLabel("indexof_end");
+
+  ctx.emitBrCond(isNull, notFoundLabel, foundLabel);
+
+  ctx.emitLabel(notFoundLabel);
+  ctx.emitBr(endLabel);
+
+  ctx.emitLabel(foundLabel);
+  const strPtrInt = ctx.nextTemp();
+  ctx.emit(`${strPtrInt} = ptrtoint i8* ${strPtr} to i64`);
+  const foundPtrInt = ctx.nextTemp();
+  ctx.emit(`${foundPtrInt} = ptrtoint i8* ${foundPtr} to i64`);
+  const indexI64 = ctx.nextTemp();
+  ctx.emit(`${indexI64} = sub i64 ${foundPtrInt}, ${strPtrInt}`);
+  const indexI32 = ctx.nextTemp();
+  ctx.emit(`${indexI32} = trunc i64 ${indexI64} to i32`);
+  ctx.emitBr(endLabel);
+
+  ctx.emitLabel(endLabel);
+  const resultI32 = ctx.nextTemp();
+  ctx.emit(`${resultI32} = phi i32 [ -1, %${notFoundLabel} ], [ ${indexI32}, %${foundLabel} ]`);
+
+  const result = ctx.nextTemp();
+  ctx.emit(`${result} = sitofp i32 ${resultI32} to double`);
+  ctx.setVariableType(result, "double");
+
+  return result;
+}
+
+export function generateIndexOfCharFrom(
+  ctx: IGeneratorContext,
+  strPtr: string,
+  charCode: number,
+  fromIndex: string,
+): string {
+  const strLen = ctx.emitCall("i64", "@strlen", `i8* ${strPtr}`);
+  const strLenI32 = ctx.nextTemp();
+  ctx.emit(`${strLenI32} = trunc i64 ${strLen} to i32`);
+
+  const isNeg = ctx.emitIcmp("slt", "i32", fromIndex, "0");
+  const clamped0 = ctx.nextTemp();
+  ctx.emit(`${clamped0} = select i1 ${isNeg}, i32 0, i32 ${fromIndex}`);
+  const pastEnd = ctx.emitIcmp("sge", "i32", clamped0, strLenI32);
+
+  const searchLabel = ctx.nextLabel("indexof_from_search");
+  const pastEndLabel = ctx.nextLabel("indexof_from_pastend");
+  const endLabel = ctx.nextLabel("indexof_from_end");
+  ctx.emitBrCond(pastEnd, pastEndLabel, searchLabel);
+
+  ctx.emitLabel(pastEndLabel);
+  ctx.emitBr(endLabel);
+
+  ctx.emitLabel(searchLabel);
+  const offsetI64 = ctx.nextTemp();
+  ctx.emit(`${offsetI64} = zext i32 ${clamped0} to i64`);
+  const offsetPtr = ctx.nextTemp();
+  ctx.emit(`${offsetPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${offsetI64}`);
+  const foundPtr = ctx.emitCall("i8*", "@strchr", `i8* ${offsetPtr}, i32 ${charCode}`);
+  const isNull = ctx.emitIcmp("eq", "i8*", foundPtr, "null");
+
+  const notFoundLabel = ctx.nextLabel("indexof_from_notfound");
+  const foundLabel = ctx.nextLabel("indexof_from_found");
+  ctx.emitBrCond(isNull, notFoundLabel, foundLabel);
+
+  ctx.emitLabel(notFoundLabel);
+  ctx.emitBr(endLabel);
+
+  ctx.emitLabel(foundLabel);
+  const strPtrInt = ctx.nextTemp();
+  ctx.emit(`${strPtrInt} = ptrtoint i8* ${strPtr} to i64`);
+  const foundPtrInt = ctx.nextTemp();
+  ctx.emit(`${foundPtrInt} = ptrtoint i8* ${foundPtr} to i64`);
+  const indexI64 = ctx.nextTemp();
+  ctx.emit(`${indexI64} = sub i64 ${foundPtrInt}, ${strPtrInt}`);
+  const indexI32 = ctx.nextTemp();
+  ctx.emit(`${indexI32} = trunc i64 ${indexI64} to i32`);
+  ctx.emitBr(endLabel);
+
+  ctx.emitLabel(endLabel);
+  const resultI32 = ctx.nextTemp();
+  ctx.emit(
+    `${resultI32} = phi i32 [ -1, %${pastEndLabel} ], [ -1, %${notFoundLabel} ], [ ${indexI32}, %${foundLabel} ]`,
+  );
+
+  const result = ctx.nextTemp();
+  ctx.emit(`${result} = sitofp i32 ${resultI32} to double`);
+  ctx.setVariableType(result, "double");
+
+  return result;
+}
+
 export function generateIndexOf(ctx: IGeneratorContext, strPtr: string, substring: string): string {
   const foundPtr = ctx.emitCall("i8*", "@strstr", `i8* ${strPtr}, i8* ${substring}`);
 

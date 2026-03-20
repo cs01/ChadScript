@@ -27,7 +27,9 @@ import {
   generateStringAt,
   generateCharCodeAt,
   generateIndexOf,
+  generateIndexOfChar,
   generateIndexOfFrom,
+  generateIndexOfCharFrom,
   generateLastIndexOf,
   generateLastIndexOfFrom,
   generateIncludes,
@@ -140,8 +142,16 @@ export class StringGenerator implements IStringGenerator {
     return generateIndexOf(this.ctx, strPtr, substring);
   }
 
+  doGenerateIndexOfChar(strPtr: string, charCode: number): string {
+    return generateIndexOfChar(this.ctx, strPtr, charCode);
+  }
+
   doGenerateIndexOfFrom(strPtr: string, substring: string, fromIndex: string): string {
     return generateIndexOfFrom(this.ctx, strPtr, substring, fromIndex);
+  }
+
+  doGenerateIndexOfCharFrom(strPtr: string, charCode: number, fromIndex: string): string {
+    return generateIndexOfCharFrom(this.ctx, strPtr, charCode, fromIndex);
   }
 
   doGenerateLastIndexOf(strPtr: string, substring: string): string {
