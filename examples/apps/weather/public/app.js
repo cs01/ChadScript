@@ -150,7 +150,7 @@ function setWeatherBg(forecast, isDaytime) {
   } else if (f.indexOf("fog") !== -1 || f.indexOf("haze") !== -1) {
     bg = "linear-gradient(180deg, #6b7b8d 0%, #4a5568 40%, #2d3748 100%)";
   } else {
-    bg = "linear-gradient(180deg, #3a7bd5 0%, #1a5276 40%, #0f2b44 100%)";
+    bg = "linear-gradient(180deg, #4a8fe7 0%, #3a7bd5 35%, #2a6cb5 65%, #1a5276 100%)";
     showFlare = isDaytime;
   }
   document.body.style.background = bg;
@@ -592,9 +592,11 @@ function render(city, forecast, hourlyData, grid, timeZone) {
     "Golden hour: " + fmtTimeInTz(goldenRise, timeZone) + ", " + fmtTimeInTz(goldenSet, timeZone),
     "Declination: " + sunTimes.declination.toFixed(1) + "\u00B0",
   ];
+  var riseX = sunPt(riseFrac).x;
+  var setX = sunPt(setFrac).x;
   var arcSvg =
     '<div class="sun-arc-wrap">' +
-    '<svg viewBox="0 0 100 48" class="sun-arc">' +
+    '<svg viewBox="0 0 100 38" class="sun-arc">' +
     '<path d="' +
     fullD +
     '" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="1.5"/>' +
@@ -606,6 +608,20 @@ function render(city, forecast, hourlyData, grid, timeZone) {
     '" x2="95" y2="' +
     horizY +
     '" stroke="rgba(255,255,255,0.2)" stroke-width="0.5"/>' +
+    '<text x="' +
+    riseX.toFixed(1) +
+    '" y="' +
+    (horizY + 7) +
+    '" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="3.5">' +
+    fmtTimeInTz(sunTimes.sunrise, timeZone) +
+    "</text>" +
+    '<text x="' +
+    setX.toFixed(1) +
+    '" y="' +
+    (horizY + 7) +
+    '" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="3.5">' +
+    fmtTimeInTz(sunTimes.sunset, timeZone) +
+    "</text>" +
     '<circle class="sun-dot" cx="' +
     sp.x.toFixed(1) +
     '" cy="' +
@@ -789,6 +805,8 @@ locateBtn.addEventListener("click", function () {
     function (pos) {
       var lat = pos.coords.latitude.toFixed(4);
       var lon = pos.coords.longitude.toFixed(4);
+      history.replaceState(null, "", "?q=current+location");
+      zipInput.value = "";
       fetchWeather(lat, lon, null);
     },
     function (err) {
@@ -808,7 +826,9 @@ locateBtn.addEventListener("click", function () {
 
 var params = new URLSearchParams(window.location.search);
 var urlQuery = params.get("q") || params.get("zip");
-if (urlQuery) {
+if (urlQuery && urlQuery.replace(/\+/g, " ").trim().toLowerCase() === "current location") {
+  locateBtn.click();
+} else if (urlQuery) {
   zipInput.value = urlQuery;
   geocodeAndFetch(urlQuery);
 } else {
