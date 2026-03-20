@@ -9,7 +9,8 @@ body {
   background: linear-gradient(180deg, #1a3a5c 0%, #0f1f3d 40%, #0a1628 100%);
   color: #fff;
   min-height: 100vh;
-  padding: 1.5rem 1rem;
+  min-height: 100dvh;
+  padding: 1.5rem 1rem 2rem;
   position: relative;
   overflow-x: hidden;
 }
@@ -567,19 +568,22 @@ body {
 
 .powered-by {
   text-align: center;
-  padding: 1.5rem 0 0.5rem;
-  font-size: 0.7rem;
-  opacity: 0.4;
+  padding: 2rem 0 1rem;
+  font-size: 1.1rem;
+  font-weight: 500;
+  opacity: 0.6;
+  letter-spacing: 0.02em;
 }
 
 .powered-by a {
   color: #fff;
   text-decoration: none;
-  opacity: 0.8;
+  font-weight: 700;
 }
 
 .powered-by a:hover {
   opacity: 1;
+  text-decoration: underline;
 }
 
 @media (max-width: 700px) {
@@ -590,7 +594,7 @@ body {
 
 @media (max-width: 600px) {
   body {
-    padding: 1rem 0.75rem;
+    padding: 1rem 0.5rem 2.5rem;
   }
   .hero-city {
     font-size: 1.5rem;
@@ -608,8 +612,29 @@ body {
     width: 45px;
     font-size: 0.8rem;
   }
+  .dashboard {
+    grid-template-columns: repeat(2, 1fr);
+  }
   .dash-value {
     font-size: 1.5rem;
+  }
+  .wind-compass {
+    width: 100px;
+    height: 100px;
+  }
+  .search-bar input {
+    width: 180px;
+    font-size: 0.95rem;
+    padding: 0.75rem 0.8rem;
+  }
+  .search-bar button {
+    padding: 0.6rem 1rem;
+    font-size: 0.85rem;
+  }
+  .daily-low,
+  .daily-high {
+    width: 30px;
+    font-size: 0.8rem;
   }
 }
 
@@ -623,5 +648,15 @@ body {
   }
   .dash-card {
     padding: 0.75rem;
+  }
+  .wind-compass {
+    width: 80px;
+    height: 80px;
+  }
+  .search-bar input {
+    width: 140px;
+  }
+  .sun-time {
+    font-size: 1.4rem;
   }
 }
