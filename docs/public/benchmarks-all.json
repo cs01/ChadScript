@@ -161,6 +161,34 @@
       },
       "place": 2
     },
+    "matmul": {
+      "name": "Matrix Multiply",
+      "desc": "512x512 double-precision matrix multiply.",
+      "metric": "s",
+      "lower_is_better": true,
+      "results": {
+        "c": {
+          "value": 0.435,
+          "label": "0.435s"
+        },
+        "chadscript": {
+          "value": 0.714,
+          "label": "0.714165771484375s"
+        },
+        "go": {
+          "value": 0.569,
+          "label": "0.569s"
+        },
+        "node": {
+          "value": 0.388,
+          "label": "0.388s"
+        },
+        "bun": {
+          "value": 0.33,
+          "label": "0.330s"
+        }
+      }
+    },
     "montecarlo": {
       "name": "Monte Carlo Pi",
       "desc": "100M Monte Carlo samples to estimate Pi.",
@@ -248,6 +276,34 @@
       },
       "place": 3
     },
+    "sorting": {
+      "name": "Quicksort",
+      "desc": "Quicksort 2M doubles (deterministic LCG).",
+      "metric": "s",
+      "lower_is_better": true,
+      "results": {
+        "c": {
+          "value": 0.215,
+          "label": "0.215s"
+        },
+        "chadscript": {
+          "value": 0.245,
+          "label": "0.244509033203125s"
+        },
+        "go": {
+          "value": 0.213,
+          "label": "0.213s"
+        },
+        "node": {
+          "value": 0.262,
+          "label": "0.262s"
+        },
+        "bun": {
+          "value": 0.226,
+          "label": "0.226s"
+        }
+      }
+    },
     "sqlite": {
       "name": "SQLite",
       "desc": "100K SELECT queries on a 100-row in-memory table.",
@@ -301,6 +357,34 @@
         }
       },
       "place": 1
+    },
+    "stringops": {
+      "name": "String Manipulation",
+      "desc": "Concatenate 100K strings, split, toUpperCase, join.",
+      "metric": "s",
+      "lower_is_better": true,
+      "results": {
+        "c": {
+          "value": 0.008,
+          "label": "0.008s"
+        },
+        "chadscript": {
+          "value": 0.045,
+          "label": "0.04503955078125s"
+        },
+        "go": {
+          "value": 0.017,
+          "label": "0.017s"
+        },
+        "node": {
+          "value": 0.035,
+          "label": "0.035s"
+        },
+        "bun": {
+          "value": 0.027,
+          "label": "0.027s"
+        }
+      }
     }
   }
 }
