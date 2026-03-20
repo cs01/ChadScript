@@ -73,17 +73,17 @@ Hono-style API, C-level performance. One binary, no node_modules. See [`examples
 
 ChadScript compiles through LLVM, the same backend behind C and Rust — so it gets the same optimization passes. Compared against C, Go, Node.js, and Bun on Ubuntu (CI):
 
-| Benchmark      | ChadScript | Node.js | vs Node | C      |
-| -------------- | ---------- | ------- | ------- | ------ |
-| Cold Start     | **0.6ms**  | 21.8ms  | **36x** | 0.6ms  |
-| Monte Carlo Pi | **0.398s** | 1.474s  | **3.7x**| 0.400s |
-| File I/O       | **0.089s** | 0.315s  | **3.5x**| 0.088s |
-| JSON Parse     | **0.005s** | 0.015s  | **3.0x**| 0.004s |
-| Fibonacci      | **1.424s** | 2.842s  | **2.0x**| 0.725s |
-| Sieve          | **0.038s** | 0.054s  | **1.4x**| 0.027s |
-| N-Body Sim     | **1.852s** | 2.296s  | **1.2x**| 1.453s |
-| Quicksort      | **0.202s** | 0.249s  | **1.2x**| 0.170s |
-| SQLite         | **0.374s** | 0.437s  | **1.2x**| 0.314s |
+| Benchmark      | ChadScript | Node.js | vs Node  | C      |
+| -------------- | ---------- | ------- | -------- | ------ |
+| Cold Start     | **0.6ms**  | 21.8ms  | **36x**  | 0.6ms  |
+| Monte Carlo Pi | **0.398s** | 1.474s  | **3.7x** | 0.400s |
+| File I/O       | **0.089s** | 0.315s  | **3.5x** | 0.088s |
+| JSON Parse     | **0.005s** | 0.015s  | **3.0x** | 0.004s |
+| Fibonacci      | **1.424s** | 2.842s  | **2.0x** | 0.725s |
+| Sieve          | **0.038s** | 0.054s  | **1.4x** | 0.027s |
+| N-Body Sim     | **1.852s** | 2.296s  | **1.2x** | 1.453s |
+| Quicksort      | **0.202s** | 0.249s  | **1.2x** | 0.170s |
+| SQLite         | **0.374s** | 0.437s  | **1.2x** | 0.314s |
 
 [Full benchmarks with Go and Bun](https://cs01.github.io/ChadScript/benchmarks) (updated on every PR)
 
@@ -126,4 +126,3 @@ See [`examples/cli-tools/`](examples/cli-tools/) for a suite of Unix tool replac
 - [Quickstart](https://cs01.github.io/ChadScript/getting-started/quickstart)
 - [Supported Features](https://cs01.github.io/ChadScript/language/features)
 - [Standard Library](https://cs01.github.io/ChadScript/stdlib/)
-
