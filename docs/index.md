@@ -106,6 +106,10 @@ No package manager, no `node_modules`. Everything compiles into your binary.
 
 ChadScript is a statically-typed subset of TypeScript designed for native compilation. It is not a JavaScript runtime. There is no `any`, no `eval`, no runtime type inspection, no dynamic imports. npm packages won't work unless rewritten in the ChadScript subset. If you need full Node.js compatibility, use Node, Bun, or Deno. ChadScript is for when you want a native binary.
 
+## Why It's Fast
+
+ChadScript strikes a balance between C and Go. It has garbage collection so you never think about memory, but uses arena allocation and integer promotion via static analysis to give LLVM's optimizer clean, tight IR. The result: C-like speed with TypeScript ergonomics.
+
 ## In Production
 
 [chadsmith.dev/weather](https://chadsmith.dev/weather) — a live weather dashboard running as a ChadScript binary.
