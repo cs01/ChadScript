@@ -50,8 +50,14 @@ if (missingVendor.length > 0) {
 }
 
 const chad = path.join(projectRoot, ".build", "chad");
-if (!fs.existsSync(chad)) {
-  console.log("Native compiler missing, building .build/chad...");
+const chadMtime = fs.existsSync(chad) ? fs.statSync(chad).mtimeMs : 0;
+const distMtimeForChad = fs.existsSync(distEntry) ? fs.statSync(distEntry).mtimeMs : 0;
+if (!chadMtime || distMtimeForChad > chadMtime) {
+  console.log(
+    chadMtime
+      ? "Native compiler is stale, rebuilding .build/chad..."
+      : "Native compiler missing, building .build/chad...",
+  );
   try {
     execSync("node dist/chad-node.js build src/chad-native.ts -o .build/chad", {
       cwd: projectRoot,
