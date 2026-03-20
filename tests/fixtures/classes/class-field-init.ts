@@ -1,5 +1,3 @@
-// @test-skip
-// native compiler's tree-sitter parser doesn't populate field initializers yet
 class Config {
   maxRetries: number = 5;
   name: string = "default";

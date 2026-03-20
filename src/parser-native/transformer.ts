@@ -2796,7 +2796,13 @@ function transformClassDeclaration(node: TreeSitterNode): ClassNode | null {
                 }
               }
               if (alreadyExists === false) {
-                const newField: ClassField = { name: propName, fieldType, tsType };
+                const newField: ClassField = {
+                  name: propName,
+                  fieldType,
+                  tsType,
+                  initializer: undefined,
+                  isStatic: false,
+                };
                 fields.push(newField);
               }
             }
@@ -2872,11 +2878,8 @@ function transformClassField(node: TreeSitterNode): ClassField | null {
     }
   }
 
-  const result: ClassField = { name, fieldType, tsType };
-  if (isStatic) result.isStatic = true;
-  if (valueNode) {
-    result.initializer = transformExpression(valueNode);
-  }
+  const initializer = valueNode ? transformExpression(valueNode) : undefined;
+  const result: ClassField = { name, fieldType, tsType, initializer, isStatic };
   return result;
 }
 
