@@ -94,9 +94,6 @@ onUnmounted(() => {
   <div class="hero-bench" :class="{ visible }" v-if="activeBench">
     <div class="bench-header">
       <div class="bench-title">{{ activeBench.name }}</div>
-      <div class="bench-place" :class="'place-' + (activeBench.place || 1)">
-        {{ activeBench.place === 1 ? '1st' : activeBench.place === 2 ? '2nd' : '3rd' }}
-      </div>
     </div>
     <div class="bench-subtitle">{{ activeBench.desc }}</div>
     <div class="bench-rows">
@@ -123,9 +120,6 @@ onUnmounted(() => {
         :class="{ active: i === activeIndex }"
         @click="selectBench(i)"
       >{{ b.name }}</button>
-    </div>
-    <div class="bench-footer">
-      <a href="./benchmarks">All benchmarks &rarr;</a>
     </div>
   </div>
 </template>
@@ -158,20 +152,6 @@ onUnmounted(() => {
   font-size: 0.9rem;
   font-weight: 700;
   color: var(--vp-c-text-1);
-}
-
-.bench-place {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: var(--vp-c-brand-1);
-  background: rgba(255, 200, 50, 0.1);
-  padding: 2px 8px;
-  border-radius: 10px;
-}
-
-.bench-place.place-3 {
-  color: var(--vp-c-text-2);
-  background: rgba(255, 255, 255, 0.06);
 }
 
 .bench-subtitle {
@@ -271,22 +251,6 @@ onUnmounted(() => {
   color: var(--vp-c-brand-1);
   border-color: var(--vp-c-brand-1);
   background: rgba(255, 200, 50, 0.06);
-}
-
-.bench-footer {
-  margin-top: 12px;
-  text-align: center;
-}
-
-.bench-footer a {
-  font-size: 0.76rem;
-  color: var(--vp-c-text-3);
-  text-decoration: none;
-  transition: color 0.15s;
-}
-
-.bench-footer a:hover {
-  color: var(--vp-c-brand-1);
 }
 
 @keyframes bar-grow {

@@ -122,7 +122,7 @@ onUnmounted(() => {
       </div>
 
       <div class="cta-section" :class="{ visible: phase === 'done' }">
-        <p class="cta-tagline">No packages. No runtime. Just your code, compiled and running.</p>
+        <p class="cta-tagline">No build step. No install. Just <code>chad run yourfile.ts</code> and it compiles + runs instantly.</p>
         <div class="cta-buttons">
           <a href="/ChadScript/getting-started/installation" class="cta-link">Get Started</a>
           <a href="/ChadScript/why-chadscript" class="cta-link secondary">What is ChadScript?</a>
@@ -255,16 +255,14 @@ onUnmounted(() => {
   background: rgba(0, 0, 0, 0.25);
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.08);
+  margin-top: 8px;
+  height: 38px;
   opacity: 0;
-  max-height: 0;
-  overflow: hidden;
-  transition: opacity 0.3s ease, max-height 0.3s ease, margin 0.3s ease;
+  transition: opacity 0.3s ease;
 }
 
 .stage-link.visible {
   opacity: 1;
-  max-height: 200px;
-  margin-top: 8px;
 }
 
 .link-row {
@@ -314,16 +312,13 @@ onUnmounted(() => {
 
 .cta-section {
   text-align: center;
+  margin-top: 8px;
   opacity: 0;
-  max-height: 0;
-  overflow: hidden;
-  transition: opacity 0.4s ease, max-height 0.3s ease, margin 0.3s ease;
+  transition: opacity 0.4s ease;
 }
 
 .cta-section.visible {
   opacity: 1;
-  max-height: 200px;
-  margin-top: 8px;
 }
 
 .cta-tagline {
