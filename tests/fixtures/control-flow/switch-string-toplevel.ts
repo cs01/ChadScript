@@ -1,4 +1,3 @@
-// @test-skip
 const s = "b";
 switch (s) {
   case "a":
