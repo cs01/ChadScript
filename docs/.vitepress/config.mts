@@ -53,7 +53,6 @@ export default defineConfig({
         items: [
           { text: 'CLI', link: '/getting-started/cli' },
           { text: 'Type Mappings', link: '/language/type-mappings' },
-          { text: 'Benchmarks', link: '/benchmarks' },
           {
             text: 'Standard Library',
             collapsed: true,
