@@ -1052,6 +1052,75 @@ export class CallExpressionGenerator {
       returnType = "void";
     }
 
+    if (lambdaName === "") {
+      const allocaReg = this.ctx.symbolTable.getAlloca(expr.name);
+      if (!allocaReg) {
+        return this.ctx.emitError(`Function value '${expr.name}' not found`, expr.loc);
+      }
+      const pairPtr = this.ctx.emitLoad("i8*", allocaReg);
+      const fnSlot = this.ctx.emitBitcast(pairPtr, "i8*", "i8**");
+      const rawFnPtr = this.ctx.emitLoad("i8*", fnSlot);
+      const envSlot = this.ctx.nextTemp();
+      this.ctx.emit(`${envSlot} = getelementptr i8*, i8** ${fnSlot}, i32 1`);
+      const indirectEnvPtr = this.ctx.emitLoad("i8*", envSlot);
+
+      let funcSig = returnType + " (i8*";
+      const paramTypeStr = closureMetadata.envStructName;
+      const closureParamTypes = paramTypeStr.length > 0 ? paramTypeStr.split(",") : [];
+      for (let i = 0; i < expr.args.length; i++) {
+        let pt = "number";
+        if (i < closureParamTypes.length) {
+          pt = closureParamTypes[i];
+        }
+        if (pt === "string") {
+          funcSig = funcSig + ", i8*";
+        } else {
+          funcSig = funcSig + ", double";
+        }
+      }
+      funcSig = funcSig + ")*";
+
+      const fnPtr = this.ctx.emitBitcast(rawFnPtr, "i8*", funcSig);
+
+      const indirectArgsList: string[] = [];
+      indirectArgsList.push("i8* " + indirectEnvPtr);
+      for (let i = 0; i < expr.args.length; i++) {
+        const arg = expr.args[i];
+        const result = this.ctx.generateExpression(arg, params);
+        let pt = "number";
+        if (i < closureParamTypes.length) {
+          pt = closureParamTypes[i];
+        }
+        if (pt === "string") {
+          indirectArgsList.push("i8* " + result);
+        } else {
+          const coerced = this.ctx.ensureDouble(result);
+          indirectArgsList.push("double " + coerced);
+        }
+      }
+
+      if (returnType === "void") {
+        this.ctx.emit("call void " + fnPtr + "(" + indirectArgsList.join(", ") + ")");
+        return "0.0";
+      }
+
+      const indirectTemp = this.ctx.nextTemp();
+      this.ctx.emit(
+        indirectTemp +
+          " = call " +
+          returnType +
+          " " +
+          fnPtr +
+          "(" +
+          indirectArgsList.join(", ") +
+          ")",
+      );
+      if (returnType === "i8*") {
+        this.ctx.setVariableType(indirectTemp, "i8*");
+      }
+      return indirectTemp;
+    }
+
     const argsList: string[] = [];
     if (captures && captures.length > 0) {
       argsList.push(`i8* ${envPtrRegister}`);

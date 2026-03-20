@@ -84,7 +84,7 @@ export interface ObjectArrayMetadata {
  * Closure-specific metadata
  */
 export interface ClosureMetadata {
-  lambdaName: string; // The lifted function name (e.g., __lambda_0)
+  lambdaName: string; // The lifted function name (e.g., __lambda_0), empty for indirect calls
   envStructName: string; // The environment struct type name
   envPtrRegister: string; // Register holding the environment pointer
   captures: { name: string; llvmType: string }[]; // Captured variables

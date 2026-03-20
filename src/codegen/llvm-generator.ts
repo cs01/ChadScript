@@ -3753,7 +3753,44 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             }
           }
         }
+        let clearFnTypeHints = false;
+        if (
+          stmtValBase3.type === "arrow_function" &&
+          this.currentFunctionTsReturnType &&
+          this.currentFunctionTsReturnType.indexOf("=>") !== -1
+        ) {
+          const fnRetType = this.currentFunctionTsReturnType;
+          const arrowIdx = fnRetType.indexOf("=>");
+          if (arrowIdx !== -1) {
+            const retPart = fnRetType.substring(arrowIdx + 2).trim();
+            const paramPart = fnRetType.substring(0, arrowIdx).trim();
+            let inner = paramPart;
+            if (inner.startsWith("(") && inner.endsWith(")")) {
+              inner = inner.substring(1, inner.length - 1).trim();
+            }
+            const hintParamTypes: string[] = [];
+            if (inner.length > 0) {
+              const parts = inner.split(",");
+              for (let pi = 0; pi < parts.length; pi++) {
+                const p = parts[pi].trim();
+                const colonIdx = p.indexOf(":");
+                if (colonIdx !== -1) {
+                  hintParamTypes.push(p.substring(colonIdx + 1).trim());
+                } else {
+                  hintParamTypes.push("number");
+                }
+              }
+            }
+            this.setExpectedCallbackParamTypes(hintParamTypes);
+            this.setExpectedCallbackReturnType(retPart);
+            clearFnTypeHints = true;
+          }
+        }
         lastValue = this.generateExpression(stmt.value as Expression, params);
+        if (clearFnTypeHints) {
+          this.setExpectedCallbackParamTypes(null);
+          this.setExpectedCallbackReturnType(null);
+        }
         this.currentDeclaredInterfaceType = undefined;
 
         if (!lastValue || lastValue === "") {
@@ -3803,12 +3840,23 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               const paramCount = liftedFunc.params ? liftedFunc.params.length : 0;
               let funcType = `${llvmRet} (i8*`;
               for (let pi = 0; pi < paramCount; pi++) {
-                funcType += ", double";
+                const pType = liftedFunc.paramTypes ? liftedFunc.paramTypes[pi] : "";
+                funcType += pType === "string" ? ", i8*" : ", double";
               }
               funcType += ")*";
               const castPtr = this.nextTemp();
               this.emit(`${castPtr} = bitcast ${funcType} @${lastValue} to i8*`);
-              this.emit(`ret i8* ${castPtr}`);
+              const envPtr = this.getLastInlineLambdaEnvPtr() || "null";
+              const pairMem = this.nextTemp();
+              this.emit(`${pairMem} = call i8* @GC_malloc(i64 16)`);
+              const fnSlot = this.nextTemp();
+              this.emit(`${fnSlot} = bitcast i8* ${pairMem} to i8**`);
+              this.emit(`store i8* ${castPtr}, i8** ${fnSlot}`);
+              const envSlot = this.nextTemp();
+              this.emit(`${envSlot} = getelementptr i8*, i8** ${fnSlot}, i32 1`);
+              this.emit(`store i8* ${envPtr}, i8** ${envSlot}`);
+              this.setLastInlineLambdaEnvPtr(null);
+              this.emit(`ret i8* ${pairMem}`);
             } else {
               this.emit(`ret ${this.currentFunctionReturnType} ${lastValue}`);
             }
