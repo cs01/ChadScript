@@ -9,6 +9,7 @@ import {
   ArrayNode,
   ObjectNode,
   ObjectProperty,
+  CallNode,
   MethodCallNode,
   BinaryNode,
   VariableNode,
@@ -82,6 +83,7 @@ export class SemanticAnalyzer {
   private currentFunction: string = "";
   private diagnosticEngine: DiagnosticEngine;
   private suppressWarnings: boolean = false;
+  private functionReturnTypes: Map<string, string> = new Map();
 
   constructor(ast: AST) {
     this.ast = ast;
@@ -162,6 +164,13 @@ export class SemanticAnalyzer {
     // The native compiler can't handle iface.fields[i].name or iface.methods[i].name
     // (array-of-objects field access pattern) during self-hosting. The variable
     // declaration and class field checks below still catch most unsafe unions.
+
+    for (let _fri = 0; _fri < this.ast.functions.length; _fri++) {
+      const fn = this.ast.functions[_fri];
+      if (fn.name && fn.returnType) {
+        this.functionReturnTypes.set(fn.name, fn.returnType);
+      }
+    }
 
     for (let _si = 0; _si < this.ast.topLevelStatements.length; _si++) {
       const stmt = this.ast.topLevelStatements[_si];
@@ -849,8 +858,16 @@ export class SemanticAnalyzer {
       };
     }
 
+    if (e.type === "call") {
+      const callExpr = expr as CallNode;
+      const retType = this.functionReturnTypes.get(callExpr.name);
+      if (retType === "string") return STRING_SYMBOL;
+      if (retType === "number") return NUMBER_SYMBOL;
+      if (retType === "boolean") return { name: "", type: "boolean", llvmType: "double" };
+      return { name: "", type: "unknown", llvmType: "double" };
+    }
+
     if (
-      e.type === "call" ||
       e.type === "new" ||
       e.type === "index_access" ||
       e.type === "arrow_function" ||
