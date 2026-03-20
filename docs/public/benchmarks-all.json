@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-03-20T00:03:49Z",
+  "timestamp": "2026-03-20T00:28:44Z",
   "benchmarks": {
     "binarytrees": {
       "name": "Binary Trees",
@@ -8,27 +8,26 @@
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 1.342,
-          "label": "1.342s"
+          "value": 1.317,
+          "label": "1.317s"
         },
         "chadscript": {
-          "value": 1.237,
-          "label": "1.2366279296875s"
+          "value": 1.4,
+          "label": "1.3998125s"
         },
         "go": {
-          "value": 2.695,
-          "label": "2.695s"
+          "value": 2.939,
+          "label": "2.939s"
         },
         "node": {
-          "value": 1.138,
-          "label": "1.138s"
+          "value": 1.332,
+          "label": "1.332s"
         },
         "bun": {
-          "value": 0.92,
-          "label": "0.920s"
+          "value": 1.13,
+          "label": "1.130s"
         }
-      },
-      "place": 3
+      }
     },
     "cligrep": {
       "name": "Recursive Grep",
@@ -37,16 +36,16 @@
       "lower_is_better": true,
       "results": {
         "chadscript": {
-          "value": 0.018,
-          "label": "0.018s"
+          "value": 0.012,
+          "label": "0.012s"
         },
         "grep": {
-          "value": 0.009,
-          "label": "0.009s"
+          "value": 0.007,
+          "label": "0.007s"
         },
         "node": {
-          "value": 0.095,
-          "label": "0.095s"
+          "value": 0.089,
+          "label": "0.089s"
         }
       },
       "category": "cli",
@@ -59,16 +58,16 @@
       "lower_is_better": true,
       "results": {
         "chadscript": {
-          "value": 0.426,
-          "label": "0.426s"
+          "value": 0.41,
+          "label": "0.410s"
         },
         "xxd": {
-          "value": 0.129,
-          "label": "0.129s"
+          "value": 0.067,
+          "label": "0.067s"
         },
         "node": {
-          "value": 0.959,
-          "label": "0.959s"
+          "value": 0.966,
+          "label": "0.966s"
         }
       },
       "category": "cli",
@@ -81,24 +80,24 @@
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 0.815,
-          "label": "0.815s"
+          "value": 0.724,
+          "label": "0.724s"
         },
         "chadscript": {
-          "value": 1.471,
-          "label": "1.47148095703125s"
+          "value": 1.424,
+          "label": "1.42435961914062s"
         },
         "go": {
-          "value": 1.56,
-          "label": "1.560s"
+          "value": 1.428,
+          "label": "1.428s"
         },
         "node": {
-          "value": 3.164,
-          "label": "3.164s"
+          "value": 2.915,
+          "label": "2.915s"
         },
         "bun": {
-          "value": 1.94,
-          "label": "1.940s"
+          "value": 1.838,
+          "label": "1.838s"
         }
       },
       "place": 2
@@ -110,27 +109,27 @@
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 0.116,
-          "label": "0.116s"
+          "value": 0.075,
+          "label": "0.075s"
         },
         "chadscript": {
-          "value": 0.09,
-          "label": "0.0898876953125s"
+          "value": 0.076,
+          "label": "0.076445556640625s"
         },
         "go": {
-          "value": 0.088,
-          "label": "0.088s"
+          "value": 0.073,
+          "label": "0.073s"
         },
         "node": {
-          "value": 0.201,
-          "label": "0.201s"
+          "value": 0.229,
+          "label": "0.229s"
         },
         "bun": {
-          "value": 0.173,
-          "label": "0.173s"
+          "value": 0.168,
+          "label": "0.168s"
         }
       },
-      "place": 2
+      "place": 3
     },
     "json": {
       "name": "JSON Parse/Stringify",
@@ -139,24 +138,24 @@
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 0.004,
-          "label": "0.004s"
+          "value": 0.003,
+          "label": "0.003s"
         },
         "chadscript": {
-          "value": 0.005,
-          "label": "0.004997314453125s"
+          "value": 0.004,
+          "label": "0.004400634765625s"
         },
         "go": {
           "value": 0.017,
           "label": "0.017s"
         },
         "node": {
-          "value": 0.015,
-          "label": "0.015s"
+          "value": 0.014,
+          "label": "0.014s"
         },
         "bun": {
-          "value": 0.007,
-          "label": "0.007s"
+          "value": 0.006,
+          "label": "0.006s"
         }
       },
       "place": 2
@@ -168,24 +167,24 @@
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 0.435,
-          "label": "0.435s"
+          "value": 0.432,
+          "label": "0.432s"
         },
         "chadscript": {
-          "value": 0.714,
-          "label": "0.714165771484375s"
+          "value": 0.648,
+          "label": "0.648471923828125s"
         },
         "go": {
-          "value": 0.569,
-          "label": "0.569s"
+          "value": 0.467,
+          "label": "0.467s"
         },
         "node": {
-          "value": 0.388,
-          "label": "0.388s"
+          "value": 0.468,
+          "label": "0.468s"
         },
         "bun": {
-          "value": 0.33,
-          "label": "0.330s"
+          "value": 0.448,
+          "label": "0.448s"
         }
       }
     },
@@ -196,27 +195,27 @@
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 0.389,
-          "label": "0.389s"
+          "value": 0.4,
+          "label": "0.400s"
         },
         "chadscript": {
-          "value": 0.41,
-          "label": "0.4100888671875s"
+          "value": 0.381,
+          "label": "0.381451904296875s"
         },
         "go": {
           "value": 0.405,
           "label": "0.405s"
         },
         "node": {
-          "value": 2.248,
-          "label": "2.248s"
+          "value": 1.473,
+          "label": "1.473s"
         },
         "bun": {
-          "value": 6.022,
-          "label": "6.022s"
+          "value": 6.447,
+          "label": "6.447s"
         }
       },
-      "place": 3
+      "place": 1
     },
     "nbody": {
       "name": "N-Body Simulation",
@@ -225,24 +224,24 @@
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 1.665,
-          "label": "1.665s"
+          "value": 1.421,
+          "label": "1.421s"
         },
         "chadscript": {
-          "value": 2.118,
-          "label": "2.11844140625s"
+          "value": 1.846,
+          "label": "1.84625830078125s"
         },
         "go": {
-          "value": 2.201,
-          "label": "2.201s"
+          "value": 1.95,
+          "label": "1.950s"
         },
         "node": {
-          "value": 2.418,
-          "label": "2.418s"
+          "value": 2.271,
+          "label": "2.271s"
         },
         "bun": {
-          "value": 3.24,
-          "label": "3.240s"
+          "value": 2.839,
+          "label": "2.839s"
         }
       },
       "place": 2
@@ -254,24 +253,24 @@
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 0.015,
-          "label": "0.015s"
+          "value": 0.029,
+          "label": "0.029s"
         },
         "chadscript": {
-          "value": 0.028,
-          "label": "0.027859375s"
+          "value": 0.042,
+          "label": "0.042161376953125s"
         },
         "go": {
-          "value": 0.02,
-          "label": "0.020s"
+          "value": 0.037,
+          "label": "0.037s"
         },
         "node": {
-          "value": 0.039,
-          "label": "0.039s"
+          "value": 0.056,
+          "label": "0.056s"
         },
         "bun": {
-          "value": 0.038,
-          "label": "0.038s"
+          "value": 0.051,
+          "label": "0.051s"
         }
       },
       "place": 3
@@ -283,26 +282,27 @@
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 0.215,
-          "label": "0.215s"
+          "value": 0.17,
+          "label": "0.170s"
         },
         "chadscript": {
-          "value": 0.245,
-          "label": "0.244509033203125s"
+          "value": 0.202,
+          "label": "0.201742919921875s"
         },
         "go": {
-          "value": 0.213,
-          "label": "0.213s"
+          "value": 0.183,
+          "label": "0.183s"
         },
         "node": {
-          "value": 0.262,
-          "label": "0.262s"
+          "value": 0.248,
+          "label": "0.248s"
         },
         "bun": {
-          "value": 0.226,
-          "label": "0.226s"
+          "value": 0.206,
+          "label": "0.206s"
         }
-      }
+      },
+      "place": 3
     },
     "sqlite": {
       "name": "SQLite",
@@ -311,20 +311,20 @@
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 0.353,
-          "label": "0.353s"
+          "value": 0.31,
+          "label": "0.310s"
         },
         "chadscript": {
-          "value": 0.398,
-          "label": "0.397888427734375s"
+          "value": 0.368,
+          "label": "0.367540283203125s"
         },
         "node": {
-          "value": 0.419,
-          "label": "0.419s"
+          "value": 0.434,
+          "label": "0.434s"
         },
         "bun": {
-          "value": 0.397,
-          "label": "0.397s"
+          "value": 0.351,
+          "label": "0.351s"
         }
       },
       "place": 3
@@ -336,24 +336,24 @@
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 0.8,
-          "label": "0.8ms"
+          "value": 0.6,
+          "label": "0.6ms"
         },
         "chadscript": {
-          "value": 0.8,
-          "label": "0.8ms"
+          "value": 0.6,
+          "label": "0.6ms"
         },
         "go": {
-          "value": 1.1,
-          "label": "1.1ms"
+          "value": 1.0,
+          "label": "1.0ms"
         },
         "bun": {
-          "value": 8.5,
-          "label": "8.5ms"
+          "value": 7.1,
+          "label": "7.1ms"
         },
         "node": {
-          "value": 23.2,
-          "label": "23.2ms"
+          "value": 21.1,
+          "label": "21.1ms"
         }
       },
       "place": 1
@@ -369,20 +369,20 @@
           "label": "0.008s"
         },
         "chadscript": {
-          "value": 0.045,
-          "label": "0.04503955078125s"
+          "value": 0.04,
+          "label": "0.039859619140625s"
         },
         "go": {
-          "value": 0.017,
-          "label": "0.017s"
+          "value": 0.016,
+          "label": "0.016s"
         },
         "node": {
-          "value": 0.035,
-          "label": "0.035s"
+          "value": 0.036,
+          "label": "0.036s"
         },
         "bun": {
-          "value": 0.027,
-          "label": "0.027s"
+          "value": 0.026,
+          "label": "0.026s"
         }
       }
     }
