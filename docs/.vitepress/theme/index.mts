@@ -3,8 +3,7 @@ import DefaultTheme from 'vitepress/theme'
 import CopyMarkdown from './CopyMarkdown.vue'
 import HeroRotator from './HeroRotator.vue'
 import ComparisonCards from './ComparisonCards.vue'
-import IRShowcase from './IRShowcase.vue'
-import ExampleTabs from './ExampleTabs.vue'
+import PipelineAnimation from './PipelineAnimation.vue'
 import HeroBenchmarks from './HeroBenchmarks.vue'
 import './style.css'
 
@@ -18,8 +17,7 @@ export default {
   enhanceApp({ app }) {
     app.component('HeroRotator', HeroRotator)
     app.component('ComparisonCards', ComparisonCards)
-    app.component('IRShowcase', IRShowcase)
-    app.component('ExampleTabs', ExampleTabs)
+    app.component('PipelineAnimation', PipelineAnimation)
     app.component('HeroBenchmarks', HeroBenchmarks)
   }
 }

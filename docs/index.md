@@ -2,125 +2,114 @@
 layout: home
 hero:
   name: ChadScript
-  text: TypeScript that compiles to native binaries.
-  tagline: "Sub-millisecond startup. ~250KB binaries. No runtime. No dependencies."
+  text: "TypeScript, compiled to native code."
+  tagline: "A compiler that takes a statically analyzable subset of TypeScript and generates optimized machine code via LLVM — the same backend behind C, Rust, and Swift."
   actions:
     - theme: brand
       text: Get Started
       link: /getting-started/installation
     - theme: alt
-      text: What is ChadScript?
-      link: /why-chadscript
+      text: Learn More
+      link: /language/features
 
 features:
   - title: Native Speed
-    details: Compiles to optimized machine code. Same optimization passes used by C and Rust compilers.
+    details: Compiles to native CPU code via LLVM — the same compiler backend used by C, Rust, and Swift. No V8, no JIT warmup, no garbage collection pauses.
   - title: TypeScript Syntax
-    details: Classes, generics, interfaces, async/await, closures, JSX. If you write TypeScript, you already know ChadScript.
+    details: Write the TypeScript you already know — classes, generics, interfaces, async/await, closures, JSX. No new language to learn.
   - title: Batteries Included
     details: No package manager, no dependencies. HTTP server, SQLite, fetch, crypto, WebSocket, JSON — all built into the standard library. Write code, run it.
   - title: Single-Binary Deploy
-    details: One file, no dependencies. Copy it to a server, drop it in a Docker scratch image, run it anywhere.
+    details: The output is a standalone native binary — no runtime, no node_modules, no bundler. Copy it to a server, drop it in a Docker scratch image, run it anywhere.
 ---
 
 <HeroRotator />
 
-<IRShowcase />
-
-<HeroBenchmarks />
-
-<ExampleTabs />
-
-<div class="examples-link">See more <a href="/ChadScript/getting-started/quickstart">examples</a></div>
-
-<div class="landing-content">
-
-## What's Included
-
-No package manager, no `node_modules`. Everything compiles into your binary.
-
-| Module | Key APIs |
-|--------|----------|
-| **console** | `log`, `error`, `warn` |
-| **fs** | `readFileSync`, `writeFileSync`, `existsSync`, `mkdirSync`, `readdirSync`, `statSync` |
-| **JSON** | `parse<T>`, `stringify` |
-| **fetch** | `fetch(url, { method, headers, body })` → Response with `.text()`, `.status`, `.headers` |
-| **HTTP server** | `Router`, `httpServe`, `Context`, WebSocket support |
-| **SQLite** | `open`, `exec`, `all`, `get`, `close` |
-| **crypto** | `sha256`, `md5`, `randomBytes`, `randomUUID` |
-| **child_process** | `execSync`, `spawnSync` |
-| **Map, Set** | Full `Map<K,V>` and `Set<T>` with typed keys/values |
-| **path** | `join`, `dirname`, `basename`, `resolve` |
-| **Math, Date** | Standard APIs |
-| **RegExp** | `test`, `match`, `replace` |
-| **process** | `argv`, `env`, `exit`, `cwd`, `stdin.read()` |
-| **os** | `platform`, `arch`, `hostname`, `homedir` |
-| **ArgumentParser** | CLI arg parsing (`import from chadscript/argparse`) |
-| **URL, URLSearchParams** | URL parsing and query string handling |
-| **btoa, atob** | Base64 and `encodeURIComponent` encoding utilities |
-
-<a href="/ChadScript/stdlib/" class="section-link">Full standard library docs →</a>
-
-## Language Support
-
-<div class="feature-columns">
-<div class="feature-col">
-
-**Supported**
-
-- `let`/`const`, `if`/`else`, `for`/`while`/`switch`
-- `try`/`catch`/`finally`, `throw`
-- Arrow functions, `async`/`await`
-- Classes with inheritance and `implements`
-- Generics (`class Stack<T>`, `function identity<T>`)
-- Interfaces and type aliases
-- Destructuring, spread, rest params
-- Template literals, closures, modules
-- JSX (desugared to `createElement` calls)
-- RegExp, `for...of`, `for...in`
-- `Map<K,V>`, `Set<T>`, `Uint8Array`
-- `Promise.all`, `.race`, `.allSettled`
-- Default and rest parameters
-
+<div class="stat-cards">
+  <div class="stat"><div class="stat-value">0.8ms</div><div class="stat-label">cold start</div></div>
+  <div class="stat"><div class="stat-value">~250KB</div><div class="stat-label">binary size</div></div>
+  <div class="stat"><div class="stat-value">621+</div><div class="stat-label">tests passing</div></div>
+  <div class="stat"><div class="stat-value">self-hosting</div><div class="stat-label">compiles itself</div></div>
 </div>
-<div class="feature-col">
 
-**Not Supported**
+<PipelineAnimation />
 
-- `any`, `unknown`, `never`
-- `eval`, `Proxy`, `Reflect`
-- Runtime `instanceof`
-- Dynamic `import()`
-- Generators, decorators
-- `WeakMap`, `WeakSet`, `Symbol`
-- Intersection / mapped / conditional types
-- Closures capture by value (not by reference)
-- Union types limited to nullable (`T | null`)
+<div class="story-section">
+<h2 class="story-heading">It's Fast.</h2>
+<p class="story-body">Your code goes through the same LLVM optimization passes as C and Rust. No interpreter, no JIT warmup, no virtual machine overhead. The binary starts in under a millisecond and runs at native speed.</p>
 
+| Benchmark | ChadScript | Node.js | vs Node | C |
+|---|---|---|---|---|
+| Cold Start | **0.6ms** | 21.8ms | **36x** | 0.6ms |
+| Monte Carlo Pi | **0.398s** | 1.474s | **3.7x** | 0.400s |
+| File I/O | **0.089s** | 0.315s | **3.5x** | 0.088s |
+| JSON Parse | **0.005s** | 0.015s | **3.0x** | 0.004s |
+| Fibonacci | **1.424s** | 2.842s | **2.0x** | 0.725s |
+| N-Body Sim | **1.852s** | 2.296s | **1.2x** | 1.453s |
+
+<p class="story-link"><a href="/ChadScript/benchmarks">Full benchmarks →</a></p>
+</div>
+
+<div class="story-section">
+<h2 class="story-heading">It's Familiar.</h2>
+<p class="story-body">No new syntax to learn. If you write TypeScript, you already know ChadScript.</p>
+
+<div class="evidence-grid">
+<div class="evidence-col">
+<div class="evidence-item">Classes & inheritance</div>
+<div class="evidence-item">Interfaces & type aliases</div>
+<div class="evidence-item">Generics</div>
+<div class="evidence-item">async / await</div>
+<div class="evidence-item">Closures</div>
+<div class="evidence-item">Destructuring & spread</div>
+<div class="evidence-item">Template literals</div>
+</div>
+<div class="evidence-col">
+<div class="evidence-item">Arrow functions</div>
+<div class="evidence-item">for...of / for...in</div>
+<div class="evidence-item">Map, Set, Uint8Array</div>
+<div class="evidence-item">Promise.all / .race</div>
+<div class="evidence-item">JSX</div>
+<div class="evidence-item">Modules & imports</div>
+<div class="evidence-item">try / catch / finally</div>
+</div>
 </div>
 </div>
 
-<a href="/ChadScript/language/features" class="section-link">Full feature reference →</a>
+<div class="story-code">
 
-## What ChadScript Is Not
+```typescript
+import { httpServe, Router, Context } from "chadscript/http";
 
-ChadScript is a statically-typed subset of TypeScript designed for native compilation. It is not a JavaScript runtime. There is no `any`, no `eval`, no runtime type inspection, no dynamic imports. npm packages won't work unless rewritten in the ChadScript subset. If you need full Node.js compatibility, use Node, Bun, or Deno. ChadScript is for when you want a native binary.
+const app: Router = new Router();
+app.get("/", (c: Context) => c.json({ hello: "world" }));
+httpServe(3000, (req: HttpRequest) => app.handle(req));
+```
 
-## Why It's Fast
-
-C-like speed with TypeScript ergonomics. You write familiar, garbage-collected code — no manual memory management, no pointers, no segfaults. Behind the scenes, the compiler promotes `double` values to native integers via static analysis and feeds LLVM the same clean IR that C compilers produce.
-
-## In Production
-
-[chadsmith.dev/weather](https://chadsmith.dev/weather) — a live weather dashboard running as a ChadScript binary.
-
-[chadsmith.dev/hn](https://chadsmith.dev/hn) — a Hacker News clone: SQLite, HTTP server, embedded assets, shipped as a single file.
-
+<div class="code-caption">A complete HTTP server. <code>chad build app.ts</code> → 247KB binary, 0.8ms startup.</div>
 </div>
 
-<div class="cta-section">
+<div class="story-section">
+<h2 class="story-heading">It's Friendly.</h2>
+<p class="story-body">No package manager. No <code>node_modules</code>. Everything ships with the compiler.</p>
 
-## Ready to try it?
+<div class="stdlib-grid">
+<div class="stdlib-item"><span class="stdlib-name">HTTP server</span><span class="stdlib-api">Router, httpServe, WebSocket</span></div>
+<div class="stdlib-item"><span class="stdlib-name">SQLite</span><span class="stdlib-api">open, query, exec, transactions</span></div>
+<div class="stdlib-item"><span class="stdlib-name">fetch</span><span class="stdlib-api">GET, POST, headers, JSON</span></div>
+<div class="stdlib-item"><span class="stdlib-name">crypto</span><span class="stdlib-api">SHA-256, HMAC, randomBytes</span></div>
+<div class="stdlib-item"><span class="stdlib-name">fs</span><span class="stdlib-api">read, write, stat, readdir</span></div>
+<div class="stdlib-item"><span class="stdlib-name">JSON</span><span class="stdlib-api">parse&lt;T&gt;, stringify</span></div>
+<div class="stdlib-item"><span class="stdlib-name">child_process</span><span class="stdlib-api">execSync, spawnSync</span></div>
+<div class="stdlib-item"><span class="stdlib-name">RegExp</span><span class="stdlib-api">test, match, replace</span></div>
+<div class="stdlib-item"><span class="stdlib-name">path</span><span class="stdlib-api">join, resolve, dirname</span></div>
+<div class="stdlib-item"><span class="stdlib-name">process</span><span class="stdlib-api">argv, env, exit, cwd</span></div>
+</div>
+
+<p class="story-body" style="margin-top: 1rem;">In production today: <a href="https://chadsmith.dev/hn">chadsmith.dev/hn</a> and <a href="https://chadsmith.dev/weather">chadsmith.dev/weather</a> — both running as single ChadScript binaries.</p>
+</div>
+
+<div class="bottom-cta">
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/cs01/ChadScript/main/install.sh | sh
@@ -128,44 +117,200 @@ curl -fsSL https://raw.githubusercontent.com/cs01/ChadScript/main/install.sh | s
 
 <div class="cta-buttons">
   <a href="/ChadScript/getting-started/installation" class="cta-button primary">Get Started</a>
-  <a href="/ChadScript/why-chadscript" class="cta-button secondary">What is ChadScript?</a>
+  <a href="/ChadScript/stdlib/" class="cta-button secondary">Standard Library</a>
 </div>
+
+<p class="cta-note">ChadScript compiles a subset of TypeScript — not a drop-in replacement. <a href="/ChadScript/language/features">See what's supported →</a></p>
 
 </div>
 
 <style>
-.examples-link {
-  text-align: center;
-  margin-top: 1rem;
-  font-size: 0.9rem;
-  color: var(--vp-c-text-3);
+.story-section {
+  max-width: 640px;
+  margin: 3.5rem auto;
+  padding: 0 24px;
 }
-.examples-link a {
+
+.story-heading {
+  font-size: 3rem;
+  font-weight: 800;
+  color: var(--vp-c-text-1);
+  margin-bottom: 0.75rem;
+  border: none;
+}
+
+.story-body {
+  font-size: 1rem;
+  color: var(--vp-c-text-2);
+  line-height: 1.7;
+  margin-bottom: 0.5rem;
+}
+
+.story-body code {
+  font-size: 0.9rem;
+  color: var(--vp-c-text-1);
+}
+
+.story-body a {
   color: var(--vp-c-brand-1);
   text-decoration: none;
 }
-.examples-link a:hover {
+
+.story-body a:hover {
   text-decoration: underline;
 }
-.cta-section {
+
+.story-link {
+  margin-top: 0.5rem;
+  font-size: 0.88rem;
+}
+
+.story-link a {
+  color: var(--vp-c-brand-1);
+  text-decoration: none;
+}
+
+.story-link a:hover {
+  text-decoration: underline;
+}
+
+.story-section table {
+  font-size: 0.9rem;
+  margin-top: 1rem;
+}
+
+.evidence-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 2rem;
+  margin-top: 1rem;
+}
+
+.evidence-item {
+  font-size: 0.92rem;
+  color: var(--vp-c-text-1);
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.stdlib-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 2rem;
+  margin-top: 1rem;
+}
+
+.stdlib-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.stdlib-name {
+  font-weight: 600;
+  font-size: 0.92rem;
+  color: var(--vp-c-text-1);
+}
+
+.stdlib-api {
+  font-family: var(--vp-font-family-mono);
+  font-size: 0.75rem;
+  color: var(--vp-c-text-3);
+}
+
+@media (max-width: 640px) {
+  .evidence-grid, .stdlib-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.story-code {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.code-caption {
+  max-width: 640px;
+  margin: -0.5rem auto 0;
+  padding: 0 24px;
+  font-size: 0.85rem;
+  color: var(--vp-c-text-2);
+  text-align: center;
+}
+
+.code-caption code {
+  font-size: 0.82rem;
+  color: var(--vp-c-text-1);
+}
+
+.stat-cards {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  flex-wrap: wrap;
+  margin: 1rem auto 2.5rem;
+  max-width: 640px;
+  padding: 0 24px;
+}
+
+.stat {
+  text-align: center;
+  min-width: 100px;
+}
+
+.stat-value {
+  font-family: var(--vp-font-family-mono);
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--vp-c-text-1);
+}
+
+.stat-label {
+  font-size: 0.78rem;
+  color: var(--vp-c-text-2);
+  margin-top: 2px;
+}
+
+.production-bar {
+  max-width: 700px;
+  margin: 2.5rem auto;
+  padding: 0 24px;
+  text-align: center;
+  font-size: 0.88rem;
+  color: var(--vp-c-text-2);
+  line-height: 1.6;
+}
+
+.production-bar a {
+  color: var(--vp-c-brand-1);
+  text-decoration: none;
+}
+
+.production-bar a:hover {
+  text-decoration: underline;
+}
+
+.bottom-cta {
   max-width: 688px;
-  margin: 4rem auto 2rem;
+  margin: 1rem auto 2rem;
   padding: 0 1.5rem;
   text-align: center;
 }
-.cta-section h2 {
-  font-size: 1.8rem;
-  margin-bottom: 1rem;
-}
-.cta-section .language-bash {
+
+.bottom-cta .language-bash {
   text-align: left;
 }
+
 .cta-buttons {
   display: flex;
   gap: 1rem;
   justify-content: center;
   margin-top: 1.5rem;
 }
+
 .cta-button {
   padding: 0.6rem 1.4rem;
   border-radius: 8px;
@@ -174,75 +319,38 @@ curl -fsSL https://raw.githubusercontent.com/cs01/ChadScript/main/install.sh | s
   text-decoration: none;
   transition: opacity 0.2s;
 }
-.cta-button:hover {
-  opacity: 0.85;
-}
+
+.cta-button:hover { opacity: 0.85; }
+
 .cta-button.primary {
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.12);
   color: var(--vp-c-text-1);
 }
+
 .cta-button.primary:hover {
   background: rgba(255, 255, 255, 0.12);
   border-color: rgba(255, 255, 255, 0.2);
   opacity: 1;
 }
+
 .cta-button.secondary {
   border: 1px solid var(--vp-c-divider);
   color: var(--vp-c-text-1);
 }
-.landing-content {
-  max-width: 768px;
-  margin: 3rem auto;
-  padding: 0 1.5rem;
-}
-.landing-content h2 {
-  font-size: 1.5rem;
-  margin-top: 3rem;
-  margin-bottom: 1rem;
-  border-bottom: 1px solid var(--vp-c-divider);
-  padding-bottom: 0.5rem;
-}
-.landing-content h2:first-child {
-  margin-top: 0;
-}
-.landing-content table {
-  width: 100%;
-  font-size: 0.9rem;
-}
-.landing-content p {
+
+.cta-note {
+  margin-top: 1.5rem;
+  font-size: 0.88rem;
   color: var(--vp-c-text-2);
-  line-height: 1.7;
 }
-.section-link {
-  display: inline-block;
-  margin-top: 0.5rem;
-  font-size: 0.9rem;
+
+.cta-note a {
   color: var(--vp-c-brand-1);
   text-decoration: none;
 }
-.section-link:hover {
+
+.cta-note a:hover {
   text-decoration: underline;
-}
-.feature-columns {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2rem;
-}
-@media (max-width: 640px) {
-  .feature-columns {
-    grid-template-columns: 1fr;
-    gap: 1rem;
-  }
-}
-.feature-col ul {
-  padding-left: 1.2rem;
-  font-size: 0.9rem;
-  line-height: 1.8;
-}
-.feature-col strong {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-size: 0.95rem;
 }
 </style>

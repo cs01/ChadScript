@@ -1,16 +1,16 @@
 # Language
 
-ChadScript is a statically-typed subset of TypeScript. You can write standard TypeScript constructs — variables, functions, classes, interfaces, async/await, modules — as long as all types can be resolved at compile time.
+ChadScript is a statically-typed subset of TypeScript that compiles to native code. You write standard TypeScript — variables, functions, classes, interfaces, async/await, modules — and the compiler handles the rest.
 
-What this means in practice:
-- No `any`, `unknown`, or mixed union types like `string | number`
-- No runtime type inspection (`instanceof`, runtime `typeof`)
-- No dynamic code execution (`eval`, dynamic `import()`)
-- Closures capture by value — mutating a variable after capturing it is a compile error
+**Can I parse JSON?** Yes. `JSON.parse<T>()` and `JSON.stringify()` are built in — define an interface for your data shape, and the compiler handles the rest. See [`cjq`](https://github.com/cs01/ChadScript/blob/main/examples/cli-tools/cjq.ts) — a jq clone written in ChadScript.
 
-The [Standard Library](/stdlib/) covers common needs — HTTP, SQLite, fetch, crypto, JSON, filesystem — without external packages.
+**Can I query a database?** Yes. SQLite is built in — `sqlite.open()`, `sqlite.query()`, parameterized queries, transactions. See [`cql`](https://github.com/cs01/ChadScript/blob/main/examples/cli-tools/cql.ts) — run SQL on CSV files, compiled to a native binary.
 
-The tables below describe the full feature set and support status.
+**Can I build an HTTP server?** Yes. `Router`, `httpServe`, WebSocket — all built in. See it live at [chadsmith.dev/hn](https://chadsmith.dev/hn).
+
+The full [Standard Library](/stdlib/) covers HTTP, SQLite, fetch, crypto, JSON, filesystem, and more — no packages to install.
+
+The constraint is that all types must be resolved at compile time: no `any`, no `eval`, no runtime type inspection. Closures capture by value. The tables below describe the full feature set.
 
 ## Core Language
 

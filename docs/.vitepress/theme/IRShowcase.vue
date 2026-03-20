@@ -125,7 +125,7 @@ onUnmounted(() => {
         <p class="cta-tagline">No build step. No install. Just <code>chad run yourfile.ts</code> and it compiles + runs instantly.</p>
         <div class="cta-buttons">
           <a href="/ChadScript/getting-started/installation" class="cta-link">Get Started</a>
-          <a href="/ChadScript/why-chadscript" class="cta-link secondary">What is ChadScript?</a>
+          <a href="/ChadScript/language/features" class="cta-link secondary">Language Features</a>
         </div>
       </div>
     </div>
