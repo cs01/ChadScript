@@ -138,6 +138,37 @@ export class ControlFlowGenerator {
     return false;
   }
 
+  private isStringMethodCall(expr: Expression): boolean {
+    if (expr.type === "method_call") {
+      const mc = expr as MethodCallNode;
+      const m = mc.method;
+      if (
+        m === "trim" ||
+        m === "trimStart" ||
+        m === "trimEnd" ||
+        m === "toLowerCase" ||
+        m === "toUpperCase" ||
+        m === "slice" ||
+        m === "substring" ||
+        m === "replace" ||
+        m === "replaceAll" ||
+        m === "padStart" ||
+        m === "padEnd" ||
+        m === "repeat" ||
+        m === "charAt" ||
+        m === "normalize" ||
+        m === "toString"
+      ) {
+        return true;
+      }
+    }
+    if (expr.type === "call") {
+      const ce = expr as CallNode;
+      if (ce.name === "String") return true;
+    }
+    return false;
+  }
+
   private convertStringToBool(value: string): string {
     const notNull = this.ctx.emitIcmp("ne", "i8*", value, "null");
     const emptyStr = this.nextTemp();
@@ -158,7 +189,7 @@ export class ControlFlowGenerator {
       setWantsI1(false);
       return this.convertToBool(condValue);
     }
-    const isStr = this.isStringConditionExpr(expr);
+    const isStr = this.isStringConditionExpr(expr) || this.isStringMethodCall(expr);
     const condValue = this.ctx.generateExpression(expr, params);
     if (isStr) return this.convertStringToBool(condValue);
     return this.convertToBool(condValue);

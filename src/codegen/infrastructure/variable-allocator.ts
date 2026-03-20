@@ -841,6 +841,11 @@ export class VariableAllocator {
     const isPointer = this.isPointerOrExpression(stmt.value);
     const isNull = this.isNullLiteral(stmt.value);
 
+    if (this.isFunctionValueExpression(stmt, stmtValue, nodeType)) {
+      this.allocateFunctionValue(stmt, params);
+      return;
+    }
+
     if (!isString && !isStringArray && !isObjectArray && !isArray && !isClassInstance) {
       const genericReturn = this.resolveGenericCallReturnType(stmtValue);
       if (genericReturn === "string") isString = true;
@@ -2112,5 +2117,86 @@ export class VariableAllocator {
     typeInfo: UnionCommonFields,
   ): void {
     this.arrayAlloc.allocateArrayMethodReturn(stmt, params, typeInfo);
+  }
+
+  private isFunctionValueExpression(
+    stmt: VariableDeclaration,
+    stmtValue: Expression,
+    nodeType: string,
+  ): boolean {
+    if (stmt.declaredType && stmt.declaredType.indexOf("=>") !== -1) return true;
+    if (nodeType !== "call") return false;
+    const callExpr = stmtValue as CallNode;
+    const func = this.findFunctionInAST(callExpr.name);
+    if (func && func.returnType && func.returnType.indexOf("=>") !== -1) return true;
+    return false;
+  }
+
+  private findFunctionInAST(name: string): FunctionNode | null {
+    const ast = this.ctx.getAst();
+    if (!ast || !ast.functions) return null;
+    const resolved = this.ctx.resolveImportAlias(name);
+    for (let i = 0; i < ast.functions.length; i++) {
+      const f = ast.functions[i];
+      if (f && (f.name === name || f.name === resolved)) return f;
+    }
+    return null;
+  }
+
+  private parseFunctionTypeSignature(typeStr: string): {
+    paramCount: number;
+    paramTypes: string[];
+    returnType: string;
+  } {
+    const arrowIdx = typeStr.indexOf("=>");
+    if (arrowIdx === -1) return { paramCount: 0, paramTypes: [], returnType: "void" };
+    const retPart = typeStr.substring(arrowIdx + 2).trim();
+    const paramPart = typeStr.substring(0, arrowIdx).trim();
+    let inner = paramPart;
+    if (inner.startsWith("(") && inner.endsWith(")")) {
+      inner = inner.substring(1, inner.length - 1).trim();
+    }
+    if (inner.length === 0) return { paramCount: 0, paramTypes: [], returnType: retPart };
+    const parts = inner.split(",");
+    const paramTypes: string[] = [];
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i].trim();
+      const colonIdx = p.indexOf(":");
+      if (colonIdx !== -1) {
+        paramTypes.push(p.substring(colonIdx + 1).trim());
+      } else {
+        paramTypes.push("number");
+      }
+    }
+    return { paramCount: paramTypes.length, paramTypes, returnType: retPart };
+  }
+
+  private allocateFunctionValue(stmt: VariableDeclaration, params: string[]): void {
+    if (!stmt.value) return;
+    let funcTypeStr = stmt.declaredType || "";
+    if (!funcTypeStr || funcTypeStr.indexOf("=>") === -1) {
+      const callExpr = stmt.value as CallNode;
+      const func = this.findFunctionInAST(callExpr.name);
+      if (func && func.returnType) funcTypeStr = func.returnType;
+    }
+    const sig = this.parseFunctionTypeSignature(funcTypeStr);
+    const value = this.ctx.generateExpression(stmt.value, params);
+    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
+    this.ctx.emit(`${allocaReg} = alloca i8*`);
+    this.ctx.emit(`store i8* ${value}, i8** ${allocaReg}`);
+    this.ctx.defineVariableWithMetadata(
+      stmt.name,
+      allocaReg,
+      "i8*",
+      SymbolKind_Closure,
+      "local",
+      createClosureMetadataSymbol({
+        lambdaName: "",
+        envStructName: sig.paramTypes.join(","),
+        envPtrRegister: "null",
+        captures: [],
+        returnType: sig.returnType,
+      }),
+    );
   }
 }
