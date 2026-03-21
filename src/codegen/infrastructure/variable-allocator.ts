@@ -572,7 +572,18 @@ export class VariableAllocator {
         );
         this.ctx.emit(`${allocaReg} = alloca %StringArray*`);
         this.ctx.emit(`store %StringArray* null, %StringArray** ${allocaReg}`);
-      } else if (baseType === "number[]" || baseType === "boolean[]") {
+      } else if (baseType === "boolean[]") {
+        this.ctx.defineVariableWithMetadata(
+          stmt.name,
+          allocaReg,
+          "%Uint8Array*",
+          SymbolKind_Uint8Array,
+          "local",
+          createPointerAllocaMetadata(),
+        );
+        this.ctx.emit(`${allocaReg} = alloca %Uint8Array*`);
+        this.ctx.emit(`store %Uint8Array* null, %Uint8Array** ${allocaReg}`);
+      } else if (baseType === "number[]") {
         this.ctx.defineVariableWithMetadata(
           stmt.name,
           allocaReg,
@@ -711,7 +722,9 @@ export class VariableAllocator {
       const strippedType = stripNullable(stmt.declaredType);
       if (strippedType === "string[]") {
         this.ctx.setExpectedArrayElementType("string");
-      } else if (strippedType === "number[]" || strippedType === "boolean[]") {
+      } else if (strippedType === "boolean[]") {
+        this.ctx.setExpectedArrayElementType("boolean");
+      } else if (strippedType === "number[]") {
         this.ctx.setExpectedArrayElementType("number");
       } else if (strippedType.endsWith("[]")) {
         this.ctx.setExpectedArrayElementType("pointer");
@@ -1704,7 +1717,20 @@ export class VariableAllocator {
         this.ctx.emit(`store %StringArray* null, %StringArray** ${allocaReg}`);
         return;
       }
-      if (baseType === "number[]" || baseType === "boolean[]") {
+      if (baseType === "boolean[]") {
+        this.ctx.defineVariableWithMetadata(
+          stmt.name,
+          allocaReg,
+          "%Uint8Array*",
+          SymbolKind_Uint8Array,
+          "local",
+          createPointerAllocaMetadata(),
+        );
+        this.ctx.emit(`${allocaReg} = alloca %Uint8Array*`);
+        this.ctx.emit(`store %Uint8Array* null, %Uint8Array** ${allocaReg}`);
+        return;
+      }
+      if (baseType === "number[]") {
         this.ctx.defineVariableWithMetadata(
           stmt.name,
           allocaReg,

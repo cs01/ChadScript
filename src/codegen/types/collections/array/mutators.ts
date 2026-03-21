@@ -42,6 +42,21 @@ export function generateArrayPush(
     else if (ptrType === "%ObjectArray*" || ptrType === "%ObjectArray") isObjectArray = true;
   }
 
+  let isUint8Array = false;
+  if (exprObjBase.type === "variable") {
+    const varName = (expr.object as VariableNode).name;
+    const varType = gen.getVariableType(varName);
+    if (varType === "%Uint8Array*" || varType === "%Uint8Array") isUint8Array = true;
+  }
+  if (!isUint8Array) {
+    const ptrType = gen.getVariableType(arrayPtr);
+    if (ptrType === "%Uint8Array*" || ptrType === "%Uint8Array") isUint8Array = true;
+  }
+
+  if (isUint8Array) {
+    return generateUint8ArrayPush(gen, arrayPtr, value);
+  }
+
   if (isStringArray) {
     return generateStringArrayPush(gen, arrayPtr, value);
   }
@@ -411,6 +426,91 @@ function generateIntArrayPush(gen: IGeneratorContext, arrayPtr: string, value: s
   gen.emitStore("i32", newLen, lenPtr);
 
   // Return new length as double (JavaScript semantics)
+  const newLenDouble = gen.nextTemp();
+  gen.emit(`${newLenDouble} = sitofp i32 ${newLen} to double`);
+  gen.setVariableType(newLenDouble, "double");
+  return newLenDouble;
+}
+
+function generateUint8ArrayPush(gen: IGeneratorContext, arrayPtr: string, value: string): string {
+  const lenPtr = gen.nextTemp();
+  gen.emit(
+    `${lenPtr} = getelementptr inbounds %Uint8Array, %Uint8Array* ${arrayPtr}, i32 0, i32 1`,
+  );
+  const currentLen = gen.nextTemp();
+  gen.emit(`${currentLen} = load i32, i32* ${lenPtr}`);
+
+  const capPtr = gen.nextTemp();
+  gen.emit(
+    `${capPtr} = getelementptr inbounds %Uint8Array, %Uint8Array* ${arrayPtr}, i32 0, i32 2`,
+  );
+  const currentCap = gen.nextTemp();
+  gen.emit(`${currentCap} = load i32, i32* ${capPtr}`);
+
+  const needResize = gen.emitIcmp("eq", "i32", currentLen, currentCap);
+
+  const resizeLabel = gen.nextLabel("resize");
+  const continueLabel = gen.nextLabel("continue");
+
+  gen.emitBrCond(needResize, resizeLabel, continueLabel);
+
+  gen.emitLabel(resizeLabel);
+  const isZero = gen.emitIcmp("eq", "i32", currentCap, "0");
+  const doubled = gen.nextTemp();
+  gen.emit(`${doubled} = mul i32 ${currentCap}, 2`);
+  const newCap = gen.nextTemp();
+  gen.emit(`${newCap} = select i1 ${isZero}, i32 2, i32 ${doubled}`);
+
+  const newCapI64 = gen.nextTemp();
+  gen.emit(`${newCapI64} = zext i32 ${newCap} to i64`);
+  const newMem = gen.emitCall("i8*", "@cs_arena_alloc", `i64 ${newCapI64}`);
+
+  const dataPtrField = gen.nextTemp();
+  gen.emit(
+    `${dataPtrField} = getelementptr inbounds %Uint8Array, %Uint8Array* ${arrayPtr}, i32 0, i32 0`,
+  );
+  const oldDataPtr = gen.emitLoad("i8*", dataPtrField);
+
+  const currentLenI64 = gen.nextTemp();
+  gen.emit(`${currentLenI64} = zext i32 ${currentLen} to i64`);
+  gen.emit(
+    `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newMem}, i8* ${oldDataPtr}, i64 ${currentLenI64}, i1 false)`,
+  );
+
+  gen.emitStore("i8*", newMem, dataPtrField);
+  gen.emitStore("i32", newCap, capPtr);
+
+  gen.emitBr(continueLabel);
+
+  gen.emitLabel(continueLabel);
+
+  const dataPtrField2 = gen.nextTemp();
+  gen.emit(
+    `${dataPtrField2} = getelementptr inbounds %Uint8Array, %Uint8Array* ${arrayPtr}, i32 0, i32 0`,
+  );
+  const dataPtr = gen.emitLoad("i8*", dataPtrField2);
+
+  const valueType = gen.getVariableType(value);
+  let i8Val: string;
+  if (valueType === "i1") {
+    i8Val = gen.nextTemp();
+    gen.emit(`${i8Val} = zext i1 ${value} to i8`);
+  } else {
+    const dblValue = gen.ensureDouble(value);
+    const rawI8 = gen.nextTemp();
+    gen.emit(`${rawI8} = fptosi double ${dblValue} to i8`);
+    i8Val = gen.nextTemp();
+    gen.emit(`${i8Val} = and i8 ${rawI8}, 1`);
+  }
+
+  const elemPtr = gen.nextTemp();
+  gen.emit(`${elemPtr} = getelementptr inbounds i8, i8* ${dataPtr}, i32 ${currentLen}`);
+  gen.emitStore("i8", i8Val, elemPtr);
+
+  const newLen = gen.nextTemp();
+  gen.emit(`${newLen} = add i32 ${currentLen}, 1`);
+  gen.emitStore("i32", newLen, lenPtr);
+
   const newLenDouble = gen.nextTemp();
   gen.emit(`${newLenDouble} = sitofp i32 ${newLen} to double`);
   gen.setVariableType(newLenDouble, "double");

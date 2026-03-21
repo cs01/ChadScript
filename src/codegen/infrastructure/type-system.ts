@@ -194,7 +194,8 @@ function basicTypeToLlvm(tsType: string): string | null {
 }
 
 function collectionTypeToLlvm(tsType: string): string | null {
-  if (tsType === "number[]" || tsType === "boolean[]") return "%Array*";
+  if (tsType === "number[]") return "%Array*";
+  if (tsType === "boolean[]") return "%Uint8Array*";
   if (tsType === "Uint8Array") return "%Uint8Array*";
   if (tsType.endsWith("[]")) return "%ObjectArray*";
   if (tsType === "Set<string>") return "%StringSet*";

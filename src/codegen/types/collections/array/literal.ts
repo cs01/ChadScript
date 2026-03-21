@@ -93,7 +93,78 @@ export function generateArrayLiteral(
     }
   }
 
-  if (isStringArray) {
+  let isBooleanArray = false;
+  if (length > 0 && !isStringArray && !isPointerArray) {
+    let allBooleans = true;
+    for (let i = 0; i < arrExpr.elements.length; i++) {
+      const el = arrExpr.elements[i] as { type: string };
+      if (el.type !== "boolean") {
+        allBooleans = false;
+        break;
+      }
+    }
+    isBooleanArray = allBooleans;
+  }
+  if (length === 0 && gen.getExpectedArrayElementType() === "boolean") {
+    isBooleanArray = true;
+  }
+
+  if (isBooleanArray) {
+    const sizePtr = gen.nextTemp();
+    gen.emit(`${sizePtr} = getelementptr %Uint8Array, %Uint8Array* null, i32 1`);
+    const structSize = gen.nextTemp();
+    gen.emit(`${structSize} = ptrtoint %Uint8Array* ${sizePtr} to i64`);
+    const arrayMem = gen.emitCall("i8*", "@GC_malloc", `i64 ${structSize}`);
+    const arrayPtr = gen.emitBitcast(arrayMem, "i8*", "%Uint8Array*");
+
+    const dataCount = length === 0 ? 1 : length;
+    const dataSize = gen.nextTemp();
+    gen.emit(`${dataSize} = mul i64 ${dataCount}, 1`);
+    const dataMem = gen.emitCall("i8*", "@cs_arena_alloc", `i64 ${dataSize}`);
+
+    for (let i = 0; i < arrExpr.elements.length; i++) {
+      const elemValue =
+        i === 0 && firstElemValue
+          ? firstElemValue
+          : gen.generateExpression(arrExpr.elements[i], params);
+      const elemType = gen.getVariableType(elemValue);
+      let i8Val: string;
+      if (elemType === "i1") {
+        i8Val = gen.nextTemp();
+        gen.emit(`${i8Val} = zext i1 ${elemValue} to i8`);
+      } else {
+        const dblElem = gen.ensureDouble(elemValue);
+        const rawI8 = gen.nextTemp();
+        gen.emit(`${rawI8} = fptosi double ${dblElem} to i8`);
+        i8Val = gen.nextTemp();
+        gen.emit(`${i8Val} = and i8 ${rawI8}, 1`);
+      }
+      const elemPtr = gen.nextTemp();
+      gen.emit(`${elemPtr} = getelementptr inbounds i8, i8* ${dataMem}, i32 ${i}`);
+      gen.emitStore("i8", i8Val, elemPtr);
+    }
+
+    const dataPtrField = gen.nextTemp();
+    gen.emit(
+      `${dataPtrField} = getelementptr inbounds %Uint8Array, %Uint8Array* ${arrayPtr}, i32 0, i32 0`,
+    );
+    gen.emitStore("i8*", dataMem, dataPtrField);
+
+    const lenField = gen.nextTemp();
+    gen.emit(
+      `${lenField} = getelementptr inbounds %Uint8Array, %Uint8Array* ${arrayPtr}, i32 0, i32 1`,
+    );
+    gen.emitStore("i32", `${length}`, lenField);
+
+    const capField = gen.nextTemp();
+    gen.emit(
+      `${capField} = getelementptr inbounds %Uint8Array, %Uint8Array* ${arrayPtr}, i32 0, i32 2`,
+    );
+    gen.emitStore("i32", `${length}`, capField);
+
+    gen.setVariableType(arrayPtr, "%Uint8Array*");
+    return arrayPtr;
+  } else if (isStringArray) {
     // Generate string array - allocate on HEAP, not stack
     // Compute sizeof(%StringArray) dynamically for portability
     const sizePtr = gen.nextTemp();
