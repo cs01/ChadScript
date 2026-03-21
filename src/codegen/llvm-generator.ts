@@ -1090,7 +1090,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
   public setOutputLine(index: number, line: string): void {
     const newOutput: string[] = [];
-    const newIsTerminator: boolean[] = [];
+    const newIsTerminator: number[] = [];
     for (let i = 0; i < this.output.length; i++) {
       if (i === index) {
         newOutput.push(line);

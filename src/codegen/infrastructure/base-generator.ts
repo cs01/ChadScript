@@ -60,7 +60,7 @@ export class BaseGenerator {
   public labelCounter: number = 0;
   public stringCounter: number = 0;
   public output: string[];
-  public outputIsTerminator: boolean[] = [];
+  public outputIsTerminator: number[] = [];
   public outputCount: number = 0;
   public allocaInstructions: string[]; // Collected allocas to hoist to entry block
   public globalStrings: string[];
@@ -274,7 +274,7 @@ export class BaseGenerator {
         this.allocaInstructions.push(dbgInstruction);
       } else {
         this.output.push(dbgInstruction);
-        this.outputIsTerminator.push(false);
+        this.outputIsTerminator.push(0);
         this.outputCount++;
       }
     } else {
@@ -469,14 +469,14 @@ export class BaseGenerator {
     this.globalStrings.push(str);
   }
 
-  protected classifyTerminator(instruction: string): boolean {
+  protected classifyTerminator(instruction: string): number {
     return classifyTerminator(instruction);
   }
 
   lastInstructionIsTerminator(): boolean {
     const len = this.outputIsTerminator.length;
     if (len === 0) return false;
-    return this.outputIsTerminator[len - 1];
+    return this.outputIsTerminator[len - 1] !== 0;
   }
 
   emitRet(type: string, value: string): void {
