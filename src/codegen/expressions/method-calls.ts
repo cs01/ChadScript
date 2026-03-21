@@ -343,7 +343,8 @@ export class MethodCallGenerator {
           const isArr =
             this.ctx.isArrayExpression(arg) ||
             this.ctx.isStringArrayExpression(arg) ||
-            this.ctx.isObjectArrayExpression(arg);
+            this.ctx.isObjectArrayExpression(arg) ||
+            this.ctx.isUint8ArrayExpression(arg);
           return isArr ? "1.0" : "0.0";
         }
         return null;
