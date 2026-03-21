@@ -221,14 +221,14 @@ class IntegerAnalyzer {
     this.collectVarDecls(statements, allDecls);
 
     const candidates: string[] = [];
-    const isConst: boolean[] = [];
+    const isConst: number[] = [];
     const pendingDecls: VariableDeclaration[] = [];
 
     this.candidateNames = [];
     if (paramNames) {
       for (let pi = 0; pi < paramNames.length; pi++) {
         candidates.push(paramNames[pi]);
-        isConst.push(false);
+        isConst.push(0);
         this.candidateNames.push(paramNames[pi]);
       }
     }
@@ -238,7 +238,7 @@ class IntegerAnalyzer {
       if (!varDecl.value) continue;
       if (this.isIntegerExpressionForCandidacy(varDecl.value)) {
         candidates.push(varDecl.name);
-        isConst.push(varDecl.kind === "const");
+        isConst.push(varDecl.kind === "const" ? 1 : 0);
         this.candidateNames.push(varDecl.name);
       } else {
         pendingDecls.push(varDecl);
@@ -257,7 +257,7 @@ class IntegerAnalyzer {
         if (!varDecl.value) continue;
         if (this.isIntegerExpressionForCandidacy(varDecl.value)) {
           candidates.push(varDecl.name);
-          isConst.push(varDecl.kind === "const");
+          isConst.push(varDecl.kind === "const" ? 1 : 0);
           this.candidateNames.push(varDecl.name);
           added = true;
         } else {
@@ -269,9 +269,9 @@ class IntegerAnalyzer {
 
     if (candidates.length === 0) return [];
 
-    const isDemoted: boolean[] = [];
+    const isDemoted: number[] = [];
     for (let k = 0; k < candidates.length; k++) {
-      isDemoted.push(false);
+      isDemoted.push(0);
     }
 
     const allAssignments: AssignmentStatement[] = [];
@@ -286,7 +286,7 @@ class IntegerAnalyzer {
           if (candidates[j] === stmt.name) {
             if (isConst[j]) break;
             if (!isDemoted[j] && !this.isIntegerExpression(stmt.value)) {
-              isDemoted[j] = true;
+              isDemoted[j] = 1;
               this.removeCandidate(candidates[j]);
               changed = true;
             }

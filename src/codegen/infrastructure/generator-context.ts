@@ -1007,7 +1007,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   private labelCount = 0;
   private stringCount = 0;
   public output: string[] = [];
-  public outputIsTerminator: boolean[] = [];
+  public outputIsTerminator: number[] = [];
   public allocaInstructions: string[] = [];
   public symbolTable: SymbolTable;
   public diagnostics?: DiagnosticEngine;
@@ -1555,14 +1555,14 @@ export class MockGeneratorContext implements IGeneratorContext {
     this.outputIsTerminator.push(this.classifyTerminatorImpl(instruction));
   }
 
-  private classifyTerminatorImpl(instruction: string): boolean {
+  private classifyTerminatorImpl(instruction: string): number {
     return classifyTerminator(instruction);
   }
 
   lastInstructionIsTerminator(): boolean {
     const len = this.outputIsTerminator.length;
     if (len === 0) return false;
-    return this.outputIsTerminator[len - 1];
+    return this.outputIsTerminator[len - 1] !== 0;
   }
 
   emitRet(type: string, value: string): void {
@@ -1657,7 +1657,7 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   setOutputLine(index: number, line: string): void {
     const newOutput: string[] = [];
-    const newIsTerminator: boolean[] = [];
+    const newIsTerminator: number[] = [];
     for (let i = 0; i < this.output.length; i++) {
       if (i === index) {
         newOutput.push(line);

@@ -1090,7 +1090,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
   public setOutputLine(index: number, line: string): void {
     const newOutput: string[] = [];
-    const newIsTerminator: boolean[] = [];
+    const newIsTerminator: number[] = [];
     for (let i = 0; i < this.output.length; i++) {
       if (i === index) {
         newOutput.push(line);
@@ -2213,7 +2213,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           isString = base === "string" && depth === 0;
           isStringArray = base === "string" && depth > 0;
           isObjectArray = depth > 0 && base !== "string" && base !== "number" && base !== "boolean";
-          isArray = depth > 0 && (base === "number" || base === "boolean");
+          isArray = depth > 0 && base === "number";
+          if (depth > 0 && base === "boolean") isUint8Array = true;
           isMap = base === "Map" || base.startsWith("Map<");
           isSet = base === "Set" || base.startsWith("Set<");
           isRegex = base === "RegExp";
@@ -2267,6 +2268,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         if (!isUint8Array && stmt.value && this.typeInference.isUint8ArrayExpression(stmt.value)) {
           isUint8Array = true;
           isString = false;
+        }
+        if (!isUint8Array && stmt.declaredType === "boolean[]") {
+          isUint8Array = true;
+          isArray = false;
         }
         if (
           !isClassInstance &&
@@ -2419,6 +2424,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           if (stmt.declaredType) {
             this.symbolTable.setResolvedType(name, parseTypeString(stmt.declaredType));
           }
+          continue;
+        } else if (isUint8Array) {
+          llvmType = "%Uint8Array*";
+          kind = SymbolKind_Uint8Array;
+          defaultValue = "null";
+          ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
+          this.globalVariables.set(name, { llvmType, kind, initialized: false });
+          this.defineVariable(name, `@${name}`, llvmType, kind, "global");
           continue;
         } else if (isArray) {
           llvmType = "%Array*";
@@ -2591,14 +2604,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           llvmType = "i8*";
           kind = SymbolKind_Regex;
           defaultValue = "null";
-        } else if (isUint8Array) {
-          llvmType = "%Uint8Array*";
-          kind = SymbolKind_Uint8Array;
-          defaultValue = "null";
-          ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
-          this.globalVariables.set(name, { llvmType, kind, initialized: false });
-          this.defineVariable(name, `@${name}`, llvmType, kind, "global");
-          continue;
         } else if (isClassInstance) {
           let className = "";
           const stmtValueType = (stmt.value as { type: string }).type;
@@ -2669,10 +2674,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               defaultValue = "0.0";
             } else if (strippedDeclaredType === "string[]") {
               isStringArray = true;
-            } else if (
-              strippedDeclaredType === "number[]" ||
-              strippedDeclaredType === "boolean[]"
-            ) {
+            } else if (strippedDeclaredType === "boolean[]") {
+              isUint8Array = true;
+              isArray = false;
+            } else if (strippedDeclaredType === "number[]") {
               isArray = true;
             } else if (strippedDeclaredType.endsWith("[]")) {
               isObjectArray = true;
@@ -2781,7 +2786,16 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       this.defineVariable(name, `@${name}`, "%StringArray*", SymbolKind_StringArray, "global");
       return `@${name} = global %StringArray* null\n`;
     }
-    if (baseType === "number[]" || baseType === "boolean[]") {
+    if (baseType === "boolean[]") {
+      this.globalVariables.set(name, {
+        llvmType: "%Uint8Array*",
+        kind: SymbolKind_Uint8Array,
+        initialized: false,
+      });
+      this.defineVariable(name, `@${name}`, "%Uint8Array*", SymbolKind_Uint8Array, "global");
+      return `@${name} = global %Uint8Array* null\n`;
+    }
+    if (baseType === "number[]") {
       this.globalVariables.set(name, {
         llvmType: "%Array*",
         kind: SymbolKind_Array,

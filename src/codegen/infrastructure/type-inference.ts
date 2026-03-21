@@ -2039,6 +2039,7 @@ export class TypeInference {
   isUint8ArrayExpression(expr: Expression): boolean {
     const resolved = this.resolveExpressionType(expr);
     if (resolved && resolved.base === "Uint8Array" && resolved.arrayDepth === 0) return true;
+    if (resolved && resolved.base === "boolean" && resolved.arrayDepth === 1) return true;
     const e = expr as ExprBase;
     if (e.type === "new") {
       const newExpr = expr as NewNode;
@@ -2047,6 +2048,7 @@ export class TypeInference {
     if (e.type === "variable") {
       const varName = (expr as VariableNode).name;
       if (this.st.isUint8Array(varName)) return true;
+      if (this.st.isBooleanArray(varName)) return true;
     }
     // ChadScript.getEmbeddedFileAsUint8Array() returns Uint8Array
     if (e.type === "method_call") {
