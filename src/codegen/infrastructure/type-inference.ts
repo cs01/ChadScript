@@ -1408,7 +1408,7 @@ export class TypeInference {
     }
     if (e.type === "call") {
       const rt = this.getCallReturnType(expr);
-      if (rt === "number[]") return true;
+      if (rt === "number[]" || rt === "boolean[]") return true;
       return false;
     }
     if (e.type === "member_access") {
@@ -1427,7 +1427,7 @@ export class TypeInference {
         const className = this.st.getClassName((memberExpr.object as VariableNode).name);
         if (className) {
           const fieldType = this.ctx.classGenGetFieldType(className, memberExpr.property);
-          if (fieldType === "number[]") {
+          if (fieldType === "number[]" || fieldType === "boolean[]") {
             return true;
           }
         }
@@ -1436,7 +1436,7 @@ export class TypeInference {
         const className = this.ctx.getCurrentClassName();
         if (className) {
           const fieldType = this.ctx.classGenGetFieldType(className, memberExpr.property);
-          if (fieldType === "number[]") {
+          if (fieldType === "number[]" || fieldType === "boolean[]") {
             return true;
           }
         }
