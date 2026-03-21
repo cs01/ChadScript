@@ -1335,7 +1335,11 @@ export class TypeInference {
     }
     if (e.type === "variable" || e.type === "index_access") {
       const resolved = this.resolveExpressionType(expr);
-      if (resolved && resolved.arrayDepth > 0 && resolved.base === "number") {
+      if (
+        resolved &&
+        resolved.arrayDepth > 0 &&
+        (resolved.base === "number" || resolved.base === "boolean")
+      ) {
         return true;
       }
       if (e.type === "index_access") return false;
