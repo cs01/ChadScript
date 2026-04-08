@@ -5,6 +5,7 @@ import HeroRotator from './HeroRotator.vue'
 import ComparisonCards from './ComparisonCards.vue'
 import PipelineAnimation from './PipelineAnimation.vue'
 import HeroBenchmarks from './HeroBenchmarks.vue'
+import BenchmarkBars from './BenchmarkBars.vue'
 import './style.css'
 
 export default {
@@ -19,5 +20,6 @@ export default {
     app.component('ComparisonCards', ComparisonCards)
     app.component('PipelineAnimation', PipelineAnimation)
     app.component('HeroBenchmarks', HeroBenchmarks)
+    app.component('BenchmarkBars', BenchmarkBars)
   }
 }
