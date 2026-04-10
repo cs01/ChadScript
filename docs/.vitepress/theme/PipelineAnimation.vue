@@ -16,20 +16,20 @@ function delay(ms: number): Promise<void> {
 }
 
 const codeLines = [
-  { text: 'function fib(n: number): number {', color: '#c792ea' },
+  { text: 'function app(n: number): number {', color: '#c792ea' },
   { text: '  if (n <= 1) return n;', color: '#89ddff' },
-  { text: '  return fib(n-1) + fib(n-2);', color: '#f78c6c' },
+  { text: '  return app(n-1) + app(n-2);', color: '#f78c6c' },
   { text: '}', color: '#c792ea' },
-  { text: 'console.log(fib(42));', color: '#82aaff' },
+  { text: 'console.log(app(42));', color: '#82aaff' },
 ]
 
 const blocks = [
-  { id: 0, line: 0, label: 'FunctionDecl', ir: 'define i64 @fib(i64 %n) {', left: 0,  width: 100 },
+  { id: 0, line: 0, label: 'FunctionDecl', ir: 'define i64 @app(i64 %n) {', left: 0,  width: 100 },
   { id: 1, line: 1, label: 'IfStmt',       ir: '  %cmp = icmp sle i64 %n, 1', left: 0,  width: 55 },
   { id: 2, line: 1, label: 'ReturnExpr',   ir: '  br i1 %cmp, label %b, %r',  left: 58, width: 42 },
-  { id: 3, line: 2, label: 'CallExpr',     ir: '  %a = call i64 @fib(%n-1)',   left: 0,  width: 38 },
+  { id: 3, line: 2, label: 'CallExpr',     ir: '  %a = call i64 @app(%n-1)',   left: 0,  width: 38 },
   { id: 4, line: 2, label: 'BinaryAdd',    ir: '  %s = add nsw i64 %a, %b',    left: 40, width: 22 },
-  { id: 5, line: 2, label: 'CallExpr',     ir: '  %b = call i64 @fib(%n-2)',   left: 64, width: 36 },
+  { id: 5, line: 2, label: 'CallExpr',     ir: '  %b = call i64 @app(%n-2)',   left: 64, width: 36 },
   { id: 6, line: 3, label: 'ReturnStmt',   ir: '  ret i64 %s',                 left: 0,  width: 100 },
   { id: 7, line: 4, label: 'CallExpr',     ir: '}',                            left: 0,  width: 100 },
 ]
@@ -64,35 +64,35 @@ async function run() {
   step.value = 'source'
   stepDesc.value = stepDescriptions.source
   phase.value = 1
-  await delay(1800)
+  await delay(2400)
   phase.value = 2
-  await delay(2200)
+  await delay(3000)
 
   step.value = 'parse'
   stepDesc.value = stepDescriptions.parse
   phase.value = 3
-  await delay(600)
-  phase.value = 4
   await delay(1000)
+  phase.value = 4
+  await delay(1600)
 
   step.value = 'analyze'
   stepDesc.value = stepDescriptions.analyze
   phase.value = 5
   for (let i = 0; i < blocks.length; i++) {
     analyzeIdx.value = i
-    await delay(300)
+    await delay(450)
   }
-  analyzeIdx.value = blocks.length // hold last one lit briefly
-  await delay(400)
-  analyzeIdx.value = 99 // all checked green
-  await delay(700)
+  analyzeIdx.value = blocks.length
+  await delay(600)
+  analyzeIdx.value = 99
+  await delay(1000)
 
   step.value = 'codegen'
   stepDesc.value = stepDescriptions.codegen
-  phase.value = 6 // stack into column
-  await delay(1600)
-  phase.value = 7 // labels morph to IR
-  await delay(3000)
+  phase.value = 6
+  await delay(2000)
+  phase.value = 7
+  await delay(3500)
 
   step.value = 'link'
   stepDesc.value = stepDescriptions.link
@@ -226,7 +226,7 @@ function stepState(s: string) {
                 </div>
               </div>
               <div class="cube-info">
-                <div class="cube-name">fib</div>
+                <div class="cube-name">app</div>
                 <div class="cube-detail">standalone native binary</div>
                 <div class="cube-stats">247 KB &middot; 0.8ms cold start</div>
               </div>

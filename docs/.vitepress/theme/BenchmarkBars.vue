@@ -45,13 +45,17 @@ function sortEntries(b: Benchmark) {
     sorted.sort((a, b2) => b2.value - a.value)
   }
   const maxVal = Math.max(...sorted.map(s => s.value))
-  return sorted.map(s => ({
-    name: LANG_NAMES[s.key] || s.key,
-    val: s.label,
-    pct: Math.max(3, Math.round((s.value / maxVal) * 100)),
-    hero: s.key === 'chadscript',
-    rank: sorted.findIndex(e => e.key === s.key) + 1,
-  }))
+  return sorted.map(s => {
+    const unit = b.metric === 'ms' ? 'ms' : 's'
+    const formatted = s.value.toFixed(3) + unit
+    return {
+      name: LANG_NAMES[s.key] || s.key,
+      val: formatted,
+      pct: Math.max(3, Math.round((s.value / maxVal) * 100)),
+      hero: s.key === 'chadscript',
+      rank: sorted.findIndex(e => e.key === s.key) + 1,
+    }
+  })
 }
 
 const groups = computed(() => {
