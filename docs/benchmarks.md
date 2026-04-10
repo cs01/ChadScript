@@ -2,7 +2,7 @@
 
 ChadScript compiles to native binaries via LLVM IR — no runtime, no JIT warmup, no cold start penalty.
 
-These benchmarks compare ChadScript against C (clang -O2), Go, Bun, and Node.js across compute, I/O, and real-world workloads. Only benchmarks where ChadScript places in the **top 3** are shown.
+These benchmarks compare ChadScript against C (clang -O2), Go, Bun, and Node.js across compute, I/O, and real-world workloads.
 
 <BenchmarkBars />
 
