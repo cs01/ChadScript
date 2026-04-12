@@ -430,6 +430,7 @@ export function parseFileToAST(inputFile: string): string {
 }
 
 export function compileNative(inputFile: string, outputFile: string): void {
+  const phaseStart = Date.now();
   const execDir = path.dirname(path.resolve(process.argv0));
   const installedLibDir = execDir + "/lib";
   const isInstalled = fs.existsSync(installedLibDir + "/libgc.a");
@@ -939,7 +940,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
 
   fs.unlinkSync(objFile);
   if (verbose) {
-    console.log("Compiled: " + outputFile);
+    console.log("Compiled: " + outputFile + " in " + (Date.now() - phaseStart) + "ms");
   }
 }
 

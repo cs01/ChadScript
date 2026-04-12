@@ -436,6 +436,7 @@ export class MethodCallGenerator {
       default:
         return null;
     }
+    return null;
   }
 
   private handleYamlParse(expr: MethodCallNode, params: string[]): string {
