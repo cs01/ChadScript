@@ -71,27 +71,29 @@ Hono-style API, C-level performance. One binary, no node_modules. See [`examples
 
 ## Benchmarks
 
-ChadScript compiles through LLVM, the same backend behind C and Rust — so it gets the same optimization passes. Compared against C, Go, and Node.js on Ubuntu (CI):
+ChadScript compiles through LLVM, the same backend behind C and Rust — so it gets the same optimization passes. Compared against C, Go, and Node.js on Apple Silicon. **Median of N=10 runs**; full 95% bootstrap confidence intervals on the [benchmarks dashboard](https://cs01.github.io/ChadScript/benchmarks).
 
-| Benchmark      | ChadScript | Node.js | vs Node  | C      |
-| -------------- | ---------- | ------- | -------- | ------ |
-| Cold Start     | **0.6ms**  | 21.8ms  | **36x**  | 0.6ms  |
-| Monte Carlo Pi | **0.398s** | 1.474s  | **3.7x** | 0.400s |
-| File I/O       | **0.089s** | 0.315s  | **3.5x** | 0.088s |
-| JSON Parse     | **0.005s** | 0.015s  | **3.0x** | 0.004s |
-| Fibonacci      | **1.424s** | 2.842s  | **2.0x** | 0.725s |
-| Sieve          | **0.038s** | 0.054s  | **1.4x** | 0.027s |
-| N-Body Sim     | **1.852s** | 2.296s  | **1.2x** | 1.453s |
-| Quicksort      | **0.202s** | 0.249s  | **1.2x** | 0.170s |
-| SQLite         | **0.374s** | 0.437s  | **1.2x** | 0.314s |
+| Benchmark       | ChadScript | Node.js | vs Node  | C      |
+| --------------- | ---------- | ------- | -------- | ------ |
+| SQLite          | **0.079s** | 0.165s  | **2.1x** | 0.080s |
+| JSON Parse      | **0.002s** | 0.004s  | **2.0x** | 0.002s |
+| Monte Carlo Pi  | **0.264s** | 2.486s  | **9.4x** | 0.265s |
+| Matrix Multiply | **0.109s** | 0.137s  | **1.3x** | 0.099s |
+| Fibonacci       | **0.516s** | 1.502s  | **2.9x** | 0.442s |
+| Sieve           | **0.012s** | 0.025s  | **2.1x** | 0.008s |
+| Quicksort       | **0.140s** | 0.159s  | **1.1x** | 0.121s |
+| N-Body Sim      | **0.824s** | 1.089s  | **1.3x** | 0.774s |
+| File I/O        | **0.054s** | 0.072s  | **1.3x** | 0.027s |
+| Binary Trees    | **0.604s** | 0.368s  | 0.6x     | 0.854s |
+| Cold Start      | **5.9ms**  | 27.4ms  | **4.6x** | 6.8ms  |
 
-[Full benchmarks dashboard](https://cs01.github.io/ChadScript/benchmarks) (updated on every PR)
+**Statistically tied with C on 3 benchmarks** (SQLite, JSON, Monte Carlo — 95% CIs overlap). **Beats both C and Go on Binary Trees** — but loses to Node's V8 JIT which eliminates allocations via escape analysis. **Matches Go within 5% on Matrix Multiply, N-Body, Monte Carlo, and Sieve.**
 
 ---
 
 ## It's Fast
 
-Your code goes through the same LLVM optimization passes as C and Rust — not a JIT, not an interpreter. 0.8ms cold start, native execution speed.
+Your code goes through the same LLVM optimization passes as C and Rust — not a JIT, not an interpreter. Ties hand-written C on SQLite, JSON, and Monte Carlo. Native execution speed.
 
 ## It's Familiar
 

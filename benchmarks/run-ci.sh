@@ -26,15 +26,31 @@ json_add_result() {
 bench_compute() {
     local bench="$1" lang="$2" display="$3" metric_key="$4"
     shift 4
-    echo "  $display"
-    local output
-    output=$("$@" 2>&1) || true
-    echo "$output" | sed 's/^/    /'
+    local runs="${BENCH_RUNS:-1}"
+    echo "  $display (N=$runs)"
+    local samples=""
+    local last_output=""
+    for i in $(seq 1 $runs); do
+        local output
+        output=$("$@" 2>&1) || true
+        local raw value
+        raw=$(extract_metric "$metric_key" "$output")
+        value=$(echo "$raw" | sed 's/[^0-9.]//g')
+        [ -z "$value" ] && continue
+        if [ -z "$samples" ]; then
+            samples="$value"
+        else
+            samples="${samples},${value}"
+        fi
+        last_output="$output"
+    done
+    echo "$last_output" | sed 's/^/    /'
     echo ""
-    local raw value
-    raw=$(extract_metric "$metric_key" "$output")
-    value=$(echo "$raw" | sed 's/[^0-9.]//g')
-    [ -n "$value" ] && json_add_result "$bench" "$lang" "$value" "$raw"
+    if [ -n "$samples" ]; then
+        local last_raw
+        last_raw=$(extract_metric "$metric_key" "$last_output")
+        json_add_result "$bench" "$lang" "$samples" "$last_raw"
+    fi
 }
 
 bench_startup() {
