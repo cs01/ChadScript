@@ -73,21 +73,23 @@ Hono-style API, C-level performance. One binary, no node_modules. See [`examples
 
 ChadScript compiles through LLVM, the same backend behind C and Rust — so it gets the same optimization passes. Compared against C, Go, and Node.js on Apple Silicon. **Median of N=10 runs**; full 95% bootstrap confidence intervals on the [benchmarks dashboard](https://cs01.github.io/ChadScript/benchmarks).
 
-| Benchmark       | ChadScript | Node.js | vs Node  | C      |
-| --------------- | ---------- | ------- | -------- | ------ |
-| SQLite          | **0.079s** | 0.165s  | **2.1x** | 0.080s |
-| JSON Parse      | **0.002s** | 0.004s  | **2.0x** | 0.002s |
-| Monte Carlo Pi  | **0.264s** | 2.486s  | **9.4x** | 0.265s |
-| Matrix Multiply | **0.109s** | 0.137s  | **1.3x** | 0.099s |
-| Fibonacci       | **0.516s** | 1.502s  | **2.9x** | 0.442s |
-| Sieve           | **0.012s** | 0.025s  | **2.1x** | 0.008s |
-| Quicksort       | **0.140s** | 0.159s  | **1.1x** | 0.121s |
-| N-Body Sim      | **0.824s** | 1.089s  | **1.3x** | 0.774s |
-| File I/O        | **0.054s** | 0.072s  | **1.3x** | 0.027s |
-| Binary Trees    | **0.604s** | 0.368s  | 0.6x     | 0.854s |
-| Cold Start      | **5.9ms**  | 27.4ms  | **4.6x** | 6.8ms  |
+| Benchmark           | ChadScript | Node.js | vs Node  | C      |
+| ------------------- | ---------- | ------- | -------- | ------ |
+| SQLite              | **0.076s** | 0.169s  | **2.2x** | 0.083s |
+| JSON Parse          | **0.002s** | 0.004s  | **2.0x** | 0.002s |
+| String Manipulation | **0.007s** | 0.012s  | **1.7x** | 0.006s |
+| Cold Start          | **5.8ms**  | 28.9ms  | **5.0x** | 6.7ms  |
+| Monte Carlo Pi      | **0.279s** | 2.564s  | **9.2x** | 0.279s |
+| Sieve               | **0.012s** | 0.026s  | **2.1x** | 0.008s |
+| Fibonacci           | **0.542s** | 1.518s  | **2.8x** | 0.449s |
+| String Search       | **0.008s** | 0.011s  | **1.4x** | 0.005s |
+| Matrix Multiply     | **0.116s** | 0.138s  | **1.2x** | 0.106s |
+| Quicksort           | **0.141s** | 0.160s  | **1.1x** | 0.130s |
+| N-Body Sim          | **0.825s** | 1.096s  | **1.3x** | 0.777s |
+| File I/O            | **0.055s** | 0.070s  | **1.3x** | 0.027s |
+| Binary Trees        | **0.609s** | 0.372s  | 0.6x     | 0.880s |
 
-**Statistically tied with C on 3 benchmarks** (SQLite, JSON, Monte Carlo — 95% CIs overlap). **Beats both C and Go on Binary Trees** — but loses to Node's V8 JIT which eliminates allocations via escape analysis. **Matches Go within 5% on Matrix Multiply, N-Body, Monte Carlo, and Sieve.**
+**🥇 on 4 benchmarks** (SQLite, JSON, String Manipulation, Cold Start — all statsig tied with or beating C via 95% CI overlap). **Beats Node on every benchmark except Binary Trees**, where V8's JIT eliminates allocations via escape analysis. **Matches Go within 5% on Matrix Multiply, N-Body, Monte Carlo, and Sieve.**
 
 ---
 
