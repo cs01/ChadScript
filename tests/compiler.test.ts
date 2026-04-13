@@ -150,8 +150,8 @@ describe(`ChadScript Compiler (${compilerLabel})`, () => {
 
         // Check for essential LLVM IR components
         assert.ok(
-          llContent.includes("define double @_cs_add"),
-          "Should define add function (mangled)",
+          llContent.includes("define double @_cs_add") || llContent.includes("define i64 @_cs_add"),
+          "Should define add function (mangled, either double or i64 ABI)",
         );
         assert.ok(llContent.includes("define i32 @main"), "Should define main function");
         assert.ok(llContent.includes("ret"), "Should have return statements");

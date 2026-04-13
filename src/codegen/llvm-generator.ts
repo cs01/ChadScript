@@ -152,6 +152,7 @@ import { JsonObjectMeta } from "./expressions/access/member.js";
 import type { TargetInfo } from "../target-types.js";
 import { checkClosureMutations } from "../semantic/closure-mutation-checker.js";
 import { checkUnionTypes } from "../semantic/union-type-checker.js";
+import { markIntSpecializedFunctions } from "./infrastructure/int-specialization-detector.js";
 import { checkTypeAssertions } from "../semantic/type-assertion-checker.js";
 import { checkUninitializedFields } from "../semantic/uninitialized-field-checker.js";
 import { analyzeEscapes } from "../semantic/escape-analysis.js";
@@ -2862,6 +2863,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     checkArgumentCounts(this.ast, this.sourceCode);
     checkAsyncAwait(this.ast, this.sourceCode);
     this.stackEligibleVars = analyzeEscapes(this.ast);
+    markIntSpecializedFunctions(this.ast);
 
     const irParts: string[] = [];
 
@@ -3838,6 +3840,18 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               lastValue = converted;
             } else if (valueType === "i8*" || lastValue === "null") {
               lastValue = "0.0";
+            }
+          } else if (this.currentFunctionReturnType === "i64") {
+            // Integer-specialized function: every return must end up i64.
+            const valueType = this.getVariableType(lastValue);
+            if (valueType === "double" || !valueType) {
+              const converted = this.nextTemp();
+              this.emit(`${converted} = fptosi double ${lastValue} to i64`);
+              lastValue = converted;
+            } else if (valueType === "i32") {
+              const converted = this.nextTemp();
+              this.emit(`${converted} = sext i32 ${lastValue} to i64`);
+              lastValue = converted;
             }
           }
 

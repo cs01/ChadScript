@@ -415,6 +415,9 @@ export interface FunctionNode {
   // When true, codegen emits LLVM `declare` instead of `define`, no _cs_ prefix
   declare?: boolean;
   typeParameters?: string[];
+  // Marked true by int-specialization pass when params and return are
+  // all integer-valued. Triggers i64 ABI codegen instead of double.
+  intSpecialized?: boolean;
 }
 
 export interface ClassMethod {
