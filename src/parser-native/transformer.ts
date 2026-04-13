@@ -33,6 +33,7 @@ import {
   TopLevelItem,
   FunctionParameter,
   StringNode,
+  NumberNode,
   BinaryNode,
   UnaryNode,
   CallNode,
@@ -495,7 +496,7 @@ function handleExportStatement(node: TreeSitterNode, ast: AST): void {
 function transformExpression(node: TreeSitterNode): Expression {
   switch (node.type) {
     case "number":
-      return { type: "number", value: parseFloat(node.text) };
+      return transformNumberNode(node);
 
     case "string":
       return transformStringNode(node);
@@ -759,6 +760,13 @@ function transformTypeAssertion(node: TreeSitterNode): TypeAssertionNode {
     expression,
     assertedType,
   };
+}
+
+function transformNumberNode(node: TreeSitterNode): NumberNode {
+  const numText = node.text;
+  const isFloat =
+    numText.indexOf(".") !== -1 || numText.indexOf("e") !== -1 || numText.indexOf("E") !== -1;
+  return { type: "number", value: parseFloat(numText), loc: undefined, isFloat };
 }
 
 function transformStringNode(node: TreeSitterNode): StringNode {

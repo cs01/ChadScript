@@ -17,6 +17,7 @@ export interface NumberNode {
   type: "number";
   value: number;
   loc?: SourceLocation;
+  isFloat?: boolean;
 }
 
 export interface StringNode {

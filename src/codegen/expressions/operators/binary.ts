@@ -178,7 +178,7 @@ export class BinaryExpressionGenerator {
   private isKnownInteger(expr: Expression): boolean {
     const exprTyped = expr as NumberNode;
     if (exprTyped.type === "number" && typeof exprTyped.value === "number") {
-      return Number.isInteger(exprTyped.value);
+      return exprTyped.isFloat !== true && Number.isInteger(exprTyped.value);
     }
     return false;
   }

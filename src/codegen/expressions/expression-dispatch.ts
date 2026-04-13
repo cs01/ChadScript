@@ -50,7 +50,8 @@ export function dispatchPrimitiveLiteral(
   _params: string[],
 ): string | null {
   if (expr.type === "number") {
-    return ctx.literalGen.generateNumber((expr as NumberNode).value);
+    const numNode = expr as NumberNode;
+    return ctx.literalGen.generateNumber(numNode.value, numNode.isFloat);
   }
   if (expr.type === "boolean") {
     return ctx.literalGen.generateBoolean((expr as BooleanNode).value);

@@ -2120,7 +2120,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     i64Eligible: string[],
   ): { llvmType: string; value: string } | null {
     if (stmt.kind !== "const" || stmt.value === null) return null;
-    const val = stmt.value as { type: string; value?: number | string | boolean };
+    const val = stmt.value as {
+      type: string;
+      value?: number | string | boolean;
+      loc?: SourceLocation;
+      isFloat?: boolean;
+    };
     if (val.type === "number" && typeof val.value === "number") {
       let isI64 = false;
       for (let ei = 0; ei < i64Eligible.length; ei++) {
@@ -2129,7 +2134,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           break;
         }
       }
-      if (isI64 && val.value % 1 === 0) {
+      if (isI64 && val.value % 1 === 0 && val.isFloat !== true) {
         return { llvmType: "i64", value: String(Math.trunc(val.value)) };
       }
       const s = String(val.value);

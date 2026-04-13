@@ -157,7 +157,10 @@ export function transformExpressionStatement(
 }
 
 function transformNumericLiteral(node: ts.NumericLiteral): NumberNode {
-  return { type: "number", value: parseFloat(node.text), loc: getLoc(node) };
+  const rawText = node.getText();
+  const isFloat =
+    rawText.indexOf(".") !== -1 || rawText.indexOf("e") !== -1 || rawText.indexOf("E") !== -1;
+  return { type: "number", value: parseFloat(node.text), loc: getLoc(node), isFloat };
 }
 
 function transformStringLiteral(node: ts.StringLiteral): StringNode {
