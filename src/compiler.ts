@@ -1,4 +1,5 @@
 import * as fs from "fs";
+import * as os from "os";
 import * as path from "path";
 import { fileURLToPath } from "url";
 const _libDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "../lib");
@@ -13,6 +14,37 @@ import { TargetInfo, resolveTarget, getHostTarget, isCrossCompiling } from "./ta
 import { loadTargetSDK, ensureTargetSDK, TargetSDK } from "./cross-compile.js";
 import { VERSION } from "./version.js";
 import { setGlobalDiagnosticColor } from "./diagnostics/engine.js";
+
+function detectInterpretPragma(source: string): boolean {
+  const lines = source.split("\n", 10);
+  for (const line of lines) {
+    if (/^\s*\/\/\s*@chadscript\s*:\s*interpret\b/.test(line)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function buildInterpretWrapper(originalSource: string): string {
+  // Phase 1 pragma: embed user source as a JS string literal, evaluate under V8,
+  // print whatever it evaluates to. No console polyfill yet — user source should
+  // be a single expression or end with one. Phase 2 will inject a native print().
+  const encoded = JSON.stringify(originalSource);
+  return (
+    "declare function cs_v8_eval_string(src: string): string;\n" +
+    "declare function cs_v8_last_error(): string;\n" +
+    "const __chad_src = " +
+    encoded +
+    ";\n" +
+    "const __chad_out = cs_v8_eval_string(__chad_src);\n" +
+    "const __chad_err = cs_v8_last_error();\n" +
+    "if (__chad_err.length > 0) {\n" +
+    "  console.log('interpret error: ' + __chad_err);\n" +
+    "} else {\n" +
+    "  console.log(__chad_out);\n" +
+    "}\n"
+  );
+}
 
 function findLLVMTool(name: string): string {
   const candidates = [
@@ -189,6 +221,20 @@ export function compile(
 ): void {
   // Set the global logger level
   logger.setLevel(logLevel);
+
+  // Phase 1 pragma: if the entry file has `// @chadscript: interpret`, rewrite
+  // it into a wrapper .ts that embeds the original source and eval's it under V8.
+  if (fs.existsSync(inputFile)) {
+    const entrySource = fs.readFileSync(inputFile, "utf8");
+    if (detectInterpretPragma(entrySource)) {
+      const wrapper = buildInterpretWrapper(entrySource);
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "chad-interpret-"));
+      const tmpFile = path.join(tmpDir, path.basename(inputFile));
+      fs.writeFileSync(tmpFile, wrapper);
+      logger.info(`@chadscript: interpret detected — routing ${inputFile} through V8`);
+      return compile(tmpFile, outputFile, logLevel);
+    }
+  }
 
   const target = targetOverride || getHostTarget();
   const crossCompiling = isCrossCompiling(target);
