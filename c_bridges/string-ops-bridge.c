@@ -1,9 +1,65 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include <stdio.h>
+#include <math.h>
 
 extern void *cs_arena_alloc(size_t size);
 extern void *GC_malloc(size_t size);
+
+// Fast number-to-string with integer fast path.
+// Matches JS semantics for integer-valued doubles (no trailing ".0"),
+// and falls back to snprintf("%.15g") for non-integers and specials.
+// Returns arena-allocated null-terminated string.
+char *cs_num_to_str(double val) {
+    // Fast path: integer-valued doubles in [-2^53, 2^53]. The %.15g format
+    // produces pure integer text for these, so we can itoa directly.
+    // Also handles -0.0 correctly (prints "0", matching JS stringification).
+    if (val == 0.0) {
+        char *out = (char *)cs_arena_alloc(2);
+        out[0] = '0';
+        out[1] = '\0';
+        return out;
+    }
+    // Reject NaN/Infinity and non-integers via a single check.
+    // Casting NaN/Inf to int64 is UB, so gate on isfinite first.
+    if (__builtin_expect(isfinite(val), 1)) {
+        double truncated = (double)(int64_t)val;
+        if (truncated == val && val >= -9007199254740992.0 && val <= 9007199254740992.0) {
+            int64_t n = (int64_t)val;
+            // Up to 20 digits + sign + null.
+            char buf[24];
+            int pos = 23;
+            buf[pos--] = '\0';
+            int negative = 0;
+            uint64_t u;
+            if (n < 0) {
+                negative = 1;
+                u = (uint64_t)(-(n + 1)) + 1; // safe for INT64_MIN
+            } else {
+                u = (uint64_t)n;
+            }
+            do {
+                buf[pos--] = (char)('0' + (u % 10));
+                u /= 10;
+            } while (u != 0);
+            if (negative) buf[pos--] = '-';
+            size_t start = (size_t)(pos + 1);
+            size_t len = 23 - start;
+            char *out = (char *)cs_arena_alloc(len + 1);
+            memcpy(out, buf + start, len + 1);
+            return out;
+        }
+    }
+    // Fallback: non-integer, NaN, or Infinity.
+    char tmp[48];
+    int n = snprintf(tmp, sizeof(tmp), "%.15g", val);
+    if (n < 0) n = 0;
+    if (n >= (int)sizeof(tmp)) n = (int)sizeof(tmp) - 1;
+    char *out = (char *)cs_arena_alloc((size_t)n + 1);
+    memcpy(out, tmp, (size_t)n + 1);
+    return out;
+}
 
 void cs_to_upper(const char *src, char *dst, size_t len) {
     for (size_t i = 0; i < len; i++) {
