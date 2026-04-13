@@ -66,10 +66,12 @@ export class LiteralExpressionGenerator {
 
   /**
    * Generate number literal
-   * Converts integers to double via sitofp for consistency with JavaScript semantics
+   * Converts integers to double via sitofp for consistency with JavaScript semantics.
+   * isFloat is set by the parser when the literal was written with `.` or an exponent
+   * (`0.0`, `1.5`, `3e10`) — such literals must stay double even if the value is mathematically integral.
    */
-  generateNumber(value: number): string {
-    const isInteger = value % 1 === 0;
+  generateNumber(value: number, isFloat?: boolean): string {
+    const isInteger = isFloat !== true && value % 1 === 0;
 
     if (isInteger && value >= -9007199254740991 && value <= 9007199254740991) {
       const temp = this.ctx.nextTemp();

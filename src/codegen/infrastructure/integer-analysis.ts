@@ -42,7 +42,9 @@ class IntegerAnalyzer {
 
   private isIntegerLiteral(val: Expression): boolean {
     if (val.type !== "number") return false;
-    return (val as NumberNode).value % 1 === 0;
+    const num = val as NumberNode;
+    if (num.isFloat === true) return false;
+    return num.value % 1 === 0;
   }
 
   private isIntegerExpressionForCandidacy(val: Expression): boolean {
