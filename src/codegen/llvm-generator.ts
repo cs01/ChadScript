@@ -330,6 +330,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public usesGC: number = 0;
   public usesMathRandom: number = 0;
 
+  // Bounds-check elimination: parallel arrays tracking (indexVar, arrayVar) pairs
+  // that are proven safe within the currently active loop scope.
+  // Parallel arrays used instead of Map for self-hosting compatibility.
+  public safeIndexVars: string[] = [];
+  public safeIndexArrays: string[] = [];
+  // Per-loop-scope frame: each entry is how many pairs were added when that scope began.
+  public safeIndexFrames: number[] = [];
+
   public emitError(message: string, loc?: SourceLocation, suggestion?: string): never {
     this.diagnostics.error(message, loc, suggestion);
     const output = this.diagnostics.formatDiagnostic(
@@ -1677,6 +1685,39 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     // LLVMGenerator-specific fields not in BaseGenerator
     this.stringBuilderSlen.clear();
     this.stringBuilderScap.clear();
+    this.safeIndexVars.length = 0;
+    this.safeIndexArrays.length = 0;
+    this.safeIndexFrames.length = 0;
+  }
+
+  // Push a new loop scope for bounds-check elimination tracking
+  pushSafeIndexScope(): void {
+    this.safeIndexFrames.push(this.safeIndexVars.length);
+  }
+
+  // Pop the most recent loop scope, removing any pairs added within it
+  popSafeIndexScope(): void {
+    if (this.safeIndexFrames.length === 0) return;
+    const frameStart = this.safeIndexFrames[this.safeIndexFrames.length - 1];
+    this.safeIndexFrames.pop();
+    this.safeIndexVars.length = frameStart;
+    this.safeIndexArrays.length = frameStart;
+  }
+
+  // Record that indexName indexing into arrayName is proven in-bounds
+  addSafeIndex(indexName: string, arrayName: string): void {
+    this.safeIndexVars.push(indexName);
+    this.safeIndexArrays.push(arrayName);
+  }
+
+  // Check whether indexName indexing arrayName is known safe in some enclosing loop scope
+  isSafeIndex(indexName: string, arrayName: string): boolean {
+    for (let i = this.safeIndexVars.length - 1; i >= 0; i--) {
+      if (this.safeIndexVars[i] === indexName && this.safeIndexArrays[i] === arrayName) {
+        return true;
+      }
+    }
+    return false;
   }
 
   getThisPointer(): string | null {

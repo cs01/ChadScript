@@ -38,6 +38,7 @@ export interface IndexAccessGeneratorContext {
   ensureDouble(value: string): string;
   setUsesJson(value: boolean): void;
   emitError(message: string, loc?: SourceLocation, suggestion?: string): never;
+  isSafeIndex(indexName: string, arrayName: string): boolean;
 }
 
 /**
@@ -181,6 +182,19 @@ export class IndexAccessGenerator {
     return indexValue;
   }
 
+  // Returns true when the given index access is a direct `arr[i]` pattern where
+  // the (i, arr) pair has been proven safe by loop analysis, so we can skip the
+  // runtime bounds check entirely.
+  private isProvenSafeAccess(expr: IndexAccessNode | IndexAccessAssignmentNode): boolean {
+    const obj = expr.object as ExprBase;
+    const idx = expr.index as ExprBase;
+    if (obj.type !== "variable") return false;
+    if (idx.type !== "variable") return false;
+    const arrName = (expr.object as VariableNode).name;
+    const idxName = (expr.index as VariableNode).name;
+    return this.ctx.isSafeIndex(idxName, arrName);
+  }
+
   private emitBoundsCheck(arrayPtr: string, arrayType: string, index: string): void {
     const lenPtr = this.ctx.nextTemp();
     this.ctx.emit(
@@ -218,7 +232,9 @@ export class IndexAccessGenerator {
       stringArrayPtr = cast;
     }
 
-    this.emitBoundsCheck(stringArrayPtr, "%StringArray", index);
+    if (!this.isProvenSafeAccess(expr)) {
+      this.emitBoundsCheck(stringArrayPtr, "%StringArray", index);
+    }
 
     const dataPtr = this.ctx.nextTemp();
     this.ctx.emit(
@@ -249,7 +265,9 @@ export class IndexAccessGenerator {
       arrayPtr = cast;
     }
 
-    this.emitBoundsCheck(arrayPtr, "%Array", index);
+    if (!this.isProvenSafeAccess(expr)) {
+      this.emitBoundsCheck(arrayPtr, "%Array", index);
+    }
 
     const dataPtr = this.ctx.nextTemp();
     this.ctx.emit(`${dataPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
@@ -316,9 +334,10 @@ export class IndexAccessGenerator {
     const index = this.toI32Index(indexDouble);
     const contiguousStride = this.getContiguousStride(expr);
 
+    const safeAccess = this.isProvenSafeAccess(expr);
     const arrayType = this.ctx.getVariableType(arrayPtr);
     if (arrayType === "%ObjectArray*") {
-      this.emitBoundsCheck(arrayPtr, "%ObjectArray", index);
+      if (!safeAccess) this.emitBoundsCheck(arrayPtr, "%ObjectArray", index);
       if (contiguousStride > 0) {
         return this.emitContiguousElementPtr(arrayPtr, "%ObjectArray", index, contiguousStride);
       }
@@ -334,7 +353,7 @@ export class IndexAccessGenerator {
     if (arrayType === "i8*") {
       const arrayCast = this.ctx.nextTemp();
       this.ctx.emit(`${arrayCast} = bitcast i8* ${arrayPtr} to %ObjectArray*`);
-      this.emitBoundsCheck(arrayCast, "%ObjectArray", index);
+      if (!safeAccess) this.emitBoundsCheck(arrayCast, "%ObjectArray", index);
       if (contiguousStride > 0) {
         return this.emitContiguousElementPtr(arrayCast, "%ObjectArray", index, contiguousStride);
       }
@@ -347,7 +366,7 @@ export class IndexAccessGenerator {
       return this.emitPointerArrayElementPtr(data, index);
     }
 
-    this.emitBoundsCheck(arrayPtr, "%ObjectArray", index);
+    if (!safeAccess) this.emitBoundsCheck(arrayPtr, "%ObjectArray", index);
     if (contiguousStride > 0) {
       return this.emitContiguousElementPtr(arrayPtr, "%ObjectArray", index, contiguousStride);
     }
@@ -366,7 +385,9 @@ export class IndexAccessGenerator {
 
     const index = this.toI32Index(indexDouble);
 
-    this.emitBoundsCheck(arrayPtr, "%Uint8Array", index);
+    if (!this.isProvenSafeAccess(expr)) {
+      this.emitBoundsCheck(arrayPtr, "%Uint8Array", index);
+    }
 
     const dataFieldPtr = this.ctx.nextTemp();
     this.ctx.emit(
