@@ -71,7 +71,7 @@ Hono-style API, C-level performance. One binary, no node_modules. See [`examples
 
 ## Benchmarks
 
-ChadScript compiles through LLVM, the same backend behind C and Rust — so it gets the same optimization passes. Compared against C, Go, Node.js, and Bun on Ubuntu (CI):
+ChadScript compiles through LLVM, the same backend behind C and Rust — so it gets the same optimization passes. Compared against C, Go, and Node.js on Ubuntu (CI):
 
 | Benchmark      | ChadScript | Node.js | vs Node  | C      |
 | -------------- | ---------- | ------- | -------- | ------ |
@@ -85,7 +85,7 @@ ChadScript compiles through LLVM, the same backend behind C and Rust — so it g
 | Quicksort      | **0.202s** | 0.249s  | **1.2x** | 0.170s |
 | SQLite         | **0.374s** | 0.437s  | **1.2x** | 0.314s |
 
-[Full benchmarks with Go and Bun](https://cs01.github.io/ChadScript/benchmarks) (updated on every PR)
+[Full benchmarks dashboard](https://cs01.github.io/ChadScript/benchmarks) (updated on every PR)
 
 ---
 

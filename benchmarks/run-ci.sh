@@ -116,7 +116,6 @@ echo "=== Cold Start (avg of $STARTUP_RUNS runs) ==="
 bench_startup "C" "c" /tmp/bench-startup-c
 bench_startup "ChadScript" "chadscript" /tmp/bench-startup-chad
 bench_startup "Go" "go" /tmp/bench-startup-go
-bench_startup "Bun" "bun" bun "$DIR/startup/bun.mjs"
 bench_startup "Node.js" "node" node "$DIR/startup/node.mjs"
 
 echo ""
@@ -124,77 +123,66 @@ echo "=== SQLite (100K queries) ==="
 bench_compute "sqlite" "c" "C" "Time:" /tmp/bench-sqlite-c
 bench_compute "sqlite" "chadscript" "ChadScript" "Time:" /tmp/bench-sqlite-chad
 bench_compute "sqlite" "node" "Node.js" "Time:" node --experimental-sqlite "$DIR/sqlite/node.mjs"
-bench_compute "sqlite" "bun" "Bun" "Time:" bun "$DIR/sqlite/bun.mjs"
 
 echo "=== Fibonacci (fib 42) ==="
 bench_compute "fibonacci" "c" "C" "Time:" /tmp/bench-fibonacci-c
 bench_compute "fibonacci" "chadscript" "ChadScript" "Time:" /tmp/bench-fibonacci-chad
 bench_compute "fibonacci" "go" "Go" "Time:" /tmp/bench-fibonacci-go
 bench_compute "fibonacci" "node" "Node.js" "Time:" node "$DIR/fibonacci/node.mjs"
-bench_compute "fibonacci" "bun" "Bun" "Time:" bun "$DIR/fibonacci/bun.mjs"
 
 echo "=== N-Body (50M steps) ==="
 bench_compute "nbody" "c" "C" "Time:" /tmp/bench-nbody-c
 bench_compute "nbody" "chadscript" "ChadScript" "Time:" /tmp/bench-nbody-chad
 bench_compute "nbody" "go" "Go" "Time:" /tmp/bench-nbody-go
 bench_compute "nbody" "node" "Node.js" "Time:" node "$DIR/nbody/node.mjs"
-bench_compute "nbody" "bun" "Bun" "Time:" bun "$DIR/nbody/bun.mjs"
 
 echo "=== JSON Parse/Stringify (10K objects) ==="
 bench_compute "json" "c" "C (yyjson)" "Time:" /tmp/bench-json-c
 bench_compute "json" "chadscript" "ChadScript" "Time:" /tmp/bench-json-chad
 bench_compute "json" "go" "Go" "Time:" /tmp/bench-json-go
 bench_compute "json" "node" "Node.js" "Time:" node "$DIR/json/node.mjs"
-bench_compute "json" "bun" "Bun" "Time:" bun "$DIR/json/bun.mjs"
 
 echo "=== Sieve of Eratosthenes (10M) ==="
 bench_compute "sieve" "c" "C" "Time:" /tmp/bench-sieve-c
 bench_compute "sieve" "chadscript" "ChadScript" "Time:" /tmp/bench-sieve-chad
 bench_compute "sieve" "go" "Go" "Time:" /tmp/bench-sieve-go
 bench_compute "sieve" "node" "Node.js" "Time:" node "$DIR/sieve/node.mjs"
-bench_compute "sieve" "bun" "Bun" "Time:" bun "$DIR/sieve/bun.mjs"
 
 echo "=== Monte Carlo Pi (50M samples) ==="
 bench_compute "montecarlo" "c" "C" "Time:" /tmp/bench-montecarlo-c
 bench_compute "montecarlo" "chadscript" "ChadScript" "Time:" /tmp/bench-montecarlo-chad
 bench_compute "montecarlo" "go" "Go" "Time:" /tmp/bench-montecarlo-go
 bench_compute "montecarlo" "node" "Node.js" "Time:" node "$DIR/montecarlo/node.mjs"
-bench_compute "montecarlo" "bun" "Bun" "Time:" bun "$DIR/montecarlo/bun.mjs"
 
 echo "=== Quicksort (2M doubles) ==="
 bench_compute "sorting" "c" "C" "Time:" /tmp/bench-sorting-c
 bench_compute "sorting" "chadscript" "ChadScript" "Time:" /tmp/bench-sorting-chad
 bench_compute "sorting" "go" "Go" "Time:" /tmp/bench-sorting-go
 bench_compute "sorting" "node" "Node.js" "Time:" node "$DIR/sorting/node.mjs"
-bench_compute "sorting" "bun" "Bun" "Time:" bun "$DIR/sorting/bun.mjs"
 
 echo "=== Matrix Multiply (512x512) ==="
 bench_compute "matmul" "c" "C" "Time:" /tmp/bench-matmul-c
 bench_compute "matmul" "chadscript" "ChadScript" "Time:" /tmp/bench-matmul-chad
 bench_compute "matmul" "go" "Go" "Time:" /tmp/bench-matmul-go
 bench_compute "matmul" "node" "Node.js" "Time:" node "$DIR/matmul/node.mjs"
-bench_compute "matmul" "bun" "Bun" "Time:" bun "$DIR/matmul/bun.mjs"
 
 echo "=== String Manipulation (100K strings) ==="
 bench_compute "stringops" "c" "C" "Time:" /tmp/bench-stringops-c
 bench_compute "stringops" "chadscript" "ChadScript" "Time:" /tmp/bench-stringops-chad
 bench_compute "stringops" "go" "Go" "Time:" /tmp/bench-stringops-go
 bench_compute "stringops" "node" "Node.js" "Time:" node "$DIR/stringops/node.mjs"
-bench_compute "stringops" "bun" "Bun" "Time:" bun "$DIR/stringops/bun.mjs"
 
 echo "=== Binary Trees (depth 18) ==="
 bench_compute "binarytrees" "c" "C" "Time:" /tmp/bench-binarytrees-c
 bench_compute "binarytrees" "chadscript" "ChadScript" "Time:" /tmp/bench-binarytrees-chad
 bench_compute "binarytrees" "go" "Go" "Time:" /tmp/bench-binarytrees-go
 bench_compute "binarytrees" "node" "Node.js" "Time:" node "$DIR/binarytrees/node.mjs"
-bench_compute "binarytrees" "bun" "Bun" "Time:" bun "$DIR/binarytrees/bun.mjs"
 
 echo "=== File I/O (100MB read/write) ==="
 bench_compute "fileio" "c" "C" "Time:" /tmp/bench-fileio-c
 bench_compute "fileio" "chadscript" "ChadScript" "Time:" /tmp/bench-fileio-chad
 bench_compute "fileio" "go" "Go" "Time:" /tmp/bench-fileio-go
 bench_compute "fileio" "node" "Node.js" "Time:" node "$DIR/fileio/node.mjs"
-bench_compute "fileio" "bun" "Bun" "Time:" bun "$DIR/fileio/bun.mjs"
 
 echo ""
 echo "--- Building ChadScript CLI tools ---"

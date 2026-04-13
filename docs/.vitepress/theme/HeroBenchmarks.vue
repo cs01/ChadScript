@@ -20,7 +20,6 @@ const LANG_NAMES: Record<string, string> = {
   chadscript: 'ChadScript',
   go: 'Go',
   node: 'Node.js',
-  bun: 'Bun',
   grep: 'grep',
   ripgrep: 'ripgrep',
   xxd: 'xxd',
@@ -36,7 +35,7 @@ const activeBench = computed(() => benchmarks.value[activeIndex.value])
 const entries = computed(() => {
   const b = activeBench.value
   if (!b) return []
-  const langOrder = ['c', 'chadscript', 'go', 'bun', 'node', 'grep', 'ripgrep', 'xxd']
+  const langOrder = ['c', 'chadscript', 'go', 'node', 'grep', 'ripgrep', 'xxd']
   const known = new Set(langOrder)
   const sorted = langOrder
     .filter(k => k in b.results)
