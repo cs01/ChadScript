@@ -20,7 +20,6 @@ const langMeta = {
   c: { name: "C", color: "c" },
   chadscript: { name: "ChadScript", color: "chad", hero: true },
   go: { name: "Go", color: "go" },
-  bun: { name: "Bun", color: "bun" },
   node: { name: "Node.js", color: "node" },
 };
 
@@ -152,13 +151,11 @@ function buildMarkdownSummary(json) {
   if (b.fibonacci) {
     const cs = b.fibonacci.results.chadscript;
     const go = b.fibonacci.results.go;
-    const bun = b.fibonacci.results.bun;
     const node = b.fibonacci.results.node;
     if (cs && go) {
-      const bunRatio = bun ? (bun.value / cs.value).toFixed(0) : "?";
       const nodeRatio = node ? (node.value / cs.value).toFixed(0) : "?";
       lines.push(
-        `- **Faster than Go on recursion** \u2014 fib(42) in ${fmt(b.fibonacci, "chadscript")} vs Go\u2019s ${fmt(b.fibonacci, "go")}, ${bunRatio}x faster than Bun, ${nodeRatio}x faster than Node`,
+        `- **Faster than Go on recursion** \u2014 fib(42) in ${fmt(b.fibonacci, "chadscript")} vs Go\u2019s ${fmt(b.fibonacci, "go")}, ${nodeRatio}x faster than Node`,
       );
     }
   }
@@ -167,14 +164,12 @@ function buildMarkdownSummary(json) {
     const cs = b.startup.results.chadscript;
     const c = b.startup.results.c;
     const go = b.startup.results.go;
-    const bun = b.startup.results.bun;
     const node = b.startup.results.node;
     if (cs && c) {
       const goRatio = go ? Math.round(go.value / cs.value) : "?";
-      const bunRatio = bun ? Math.round(bun.value / cs.value) : "?";
       const nodeRatio = node ? Math.round(node.value / cs.value) : "?";
       lines.push(
-        `- **${fmt(b.startup, "chadscript")} cold start** \u2014 within ${Math.round((cs.value / c.value - 1) * 100)}% of C, ${goRatio}x faster than Go, ${bunRatio}x faster than Bun, ${nodeRatio}x faster than Node`,
+        `- **${fmt(b.startup, "chadscript")} cold start** \u2014 within ${Math.round((cs.value / c.value - 1) * 100)}% of C, ${goRatio}x faster than Go, ${nodeRatio}x faster than Node`,
       );
     }
   }
@@ -195,14 +190,12 @@ function buildMarkdownSummary(json) {
   if (b.sqlite) {
     const cs = b.sqlite.results.chadscript;
     const c = b.sqlite.results.c;
-    const bun = b.sqlite.results.bun;
     const node = b.sqlite.results.node;
     if (cs && c) {
       const pct = Math.round((c.value / cs.value) * 100);
-      const bunRatio = bun ? (bun.value / cs.value).toFixed(1) : "?";
       const nodeRatio = node ? (node.value / cs.value).toFixed(1) : "?";
       lines.push(
-        `- **Zero-overhead FFI** \u2014 calls C libraries directly, ${pct}% of C\u2019s SQLite throughput, ${bunRatio}x faster than Bun, ${nodeRatio}x faster than Node`,
+        `- **Zero-overhead FFI** \u2014 calls C libraries directly, ${pct}% of C\u2019s SQLite throughput, ${nodeRatio}x faster than Node`,
       );
     }
   }

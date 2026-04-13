@@ -63,8 +63,6 @@ jobs:
           clang -c -O2 -fPIC -I vendor/tree-sitter/lib/include c_bridges/treesitter-bridge.c -o build/treesitter-bridge.o
       - name: Build native chad
         run: node dist/chad-node.js build src/chad-native.ts -o .build/chad --target-cpu=x86-64
-      - name: Install Bun
-        run: curl -fsSL https://bun.sh/install | bash && echo "$HOME/.bun/bin" >> $GITHUB_PATH
       - name: Run benchmarks
         run: bash benchmarks/run-ci.sh
         timeout-minutes: 10
@@ -86,7 +84,7 @@ jobs:
               if old.returncode == 0:
                   prev = json.loads(old.stdout).get('benchmarks', {})
           except: pass
-          lines = ['### Benchmark Results (Linux x86-64)\n', '| Benchmark | C | ChadScript | Go | Node | Bun | Place |', '|---|---|---|---|---|---|---|']
+          lines = ['### Benchmark Results (Linux x86-64)\n', '| Benchmark | C | ChadScript | Go | Node | Place |', '|---|---|---|---|---|---|']
           def fmt(val_str):
               try:
                   v = float(val_str.rstrip('smsg/req'))
@@ -129,7 +127,7 @@ jobs:
                   v = r.get(lang, {}).get('label', '—')
                   return fmt(v) if v != '—' else v
               chad_str = f'**{g(\"chadscript\")}{delta(k, b)}**'
-              lines.append(f\"| {b['name']} | {g('c')} | {chad_str} | {g('go')} | {g('node')} | {g('bun')} | {rank(b)} |\")
+              lines.append(f\"| {b['name']} | {g('c')} | {chad_str} | {g('go')} | {g('node')} | {rank(b)} |\")
           if cli:
               cli_names = {'grep': 'grep', 'ripgrep': 'ripgrep', 'node': 'Node.js', 'xxd': 'xxd'}
               lines.append('')
