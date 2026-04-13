@@ -1,6 +1,47 @@
 {
-  "timestamp": "2026-04-13T21:51:56Z",
+  "timestamp": "2026-04-13T22:41:36Z",
   "benchmarks": {
+    "binarytrees": {
+      "name": "Binary Trees",
+      "desc": "Build/check/discard binary trees of depth 18.",
+      "metric": "s",
+      "lower_is_better": true,
+      "results": {
+        "c": {
+          "value": 0.8805,
+          "ci_lo": 0.869,
+          "ci_hi": 0.889,
+          "n": 10,
+          "label": "0.880s",
+          "ci_label": "0.880s (0.869s\u20130.889s)"
+        },
+        "chadscript": {
+          "value": 0.6092,
+          "ci_lo": 0.6029,
+          "ci_hi": 0.6123,
+          "n": 10,
+          "label": "0.609s",
+          "ci_label": "0.609s (0.603s\u20130.612s)"
+        },
+        "go": {
+          "value": 0.819,
+          "ci_lo": 0.8145,
+          "ci_hi": 0.825,
+          "n": 10,
+          "label": "0.819s",
+          "ci_label": "0.819s (0.815s\u20130.825s)"
+        },
+        "node": {
+          "value": 0.3725,
+          "ci_lo": 0.3706,
+          "ci_hi": 0.433,
+          "n": 10,
+          "label": "0.372s",
+          "ci_label": "0.372s (0.371s\u20130.433s)"
+        }
+      },
+      "place": 2
+    },
     "fibonacci": {
       "name": "Fibonacci",
       "desc": "fib(42) naive recursion.",
@@ -8,36 +49,36 @@
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 0.4415,
-          "ci_lo": 0.439,
-          "ci_hi": 0.445,
+          "value": 0.449,
+          "ci_lo": 0.445,
+          "ci_hi": 0.4535,
           "n": 10,
-          "label": "0.442s",
-          "ci_label": "0.442s (0.439s\u20130.445s)"
+          "label": "0.449s",
+          "ci_label": "0.449s (0.445s\u20130.454s)"
         },
         "chadscript": {
-          "value": 0.5165,
-          "ci_lo": 0.514,
-          "ci_hi": 0.5191,
+          "value": 0.542,
+          "ci_lo": 0.538,
+          "ci_hi": 0.5475,
           "n": 10,
-          "label": "0.516s",
-          "ci_label": "0.516s (0.514s\u20130.519s)"
+          "label": "0.542s",
+          "ci_label": "0.542s (0.538s\u20130.547s)"
         },
         "go": {
-          "value": 0.5725,
-          "ci_lo": 0.5696,
-          "ci_hi": 0.579,
+          "value": 0.578,
+          "ci_lo": 0.572,
+          "ci_hi": 0.596,
           "n": 10,
-          "label": "0.573s",
-          "ci_label": "0.573s (0.570s\u20130.579s)"
+          "label": "0.578s",
+          "ci_label": "0.578s (0.572s\u20130.596s)"
         },
         "node": {
-          "value": 1.5025,
-          "ci_lo": 1.459,
-          "ci_hi": 1.541,
+          "value": 1.5185,
+          "ci_lo": 1.486,
+          "ci_hi": 1.5365,
           "n": 10,
-          "label": "1.502s",
-          "ci_label": "1.502s (1.459s\u20131.541s)"
+          "label": "1.518s",
+          "ci_label": "1.518s (1.486s\u20131.536s)"
         }
       },
       "place": 2
@@ -57,28 +98,28 @@
           "ci_label": "0.027s (0.026s\u20130.030s)"
         },
         "chadscript": {
-          "value": 0.054,
-          "ci_lo": 0.0536,
-          "ci_hi": 0.055,
+          "value": 0.0551,
+          "ci_lo": 0.0542,
+          "ci_hi": 0.0559,
           "n": 10,
-          "label": "0.054s",
-          "ci_label": "0.054s (0.054s\u20130.055s)"
+          "label": "0.055s",
+          "ci_label": "0.055s (0.054s\u20130.056s)"
         },
         "go": {
-          "value": 0.027,
+          "value": 0.0265,
           "ci_lo": 0.026,
-          "ci_hi": 0.03,
+          "ci_hi": 0.0275,
           "n": 10,
-          "label": "0.027s",
-          "ci_label": "0.027s (0.026s\u20130.030s)"
+          "label": "0.026s",
+          "ci_label": "0.026s (0.026s\u20130.028s)"
         },
         "node": {
-          "value": 0.072,
-          "ci_lo": 0.071,
-          "ci_hi": 0.0735,
+          "value": 0.07,
+          "ci_lo": 0.069,
+          "ci_hi": 0.072,
           "n": 10,
-          "label": "0.072s",
-          "ci_label": "0.072s (0.071s\u20130.073s)"
+          "label": "0.070s",
+          "ci_label": "0.070s (0.069s\u20130.072s)"
         }
       },
       "place": 3
@@ -99,8 +140,8 @@
         },
         "chadscript": {
           "value": 0.0024,
-          "ci_lo": 0.0023,
-          "ci_hi": 0.0031,
+          "ci_lo": 0.0024,
+          "ci_hi": 0.003,
           "n": 10,
           "label": "0.002s",
           "ci_label": "0.002s (0.002s\u20130.003s)"
@@ -108,15 +149,15 @@
         "go": {
           "value": 0.007,
           "ci_lo": 0.007,
-          "ci_hi": 0.0075,
+          "ci_hi": 0.008,
           "n": 10,
           "label": "0.007s",
-          "ci_label": "0.007s (0.007s\u20130.007s)"
+          "ci_label": "0.007s (0.007s\u20130.008s)"
         },
         "node": {
           "value": 0.004,
           "ci_lo": 0.004,
-          "ci_hi": 0.004,
+          "ci_hi": 0.0045,
           "n": 10,
           "label": "0.004s",
           "ci_label": "0.004s (0.004s\u20130.004s)"
@@ -131,36 +172,36 @@
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 0.099,
-          "ci_lo": 0.098,
-          "ci_hi": 0.0995,
+          "value": 0.106,
+          "ci_lo": 0.105,
+          "ci_hi": 0.107,
           "n": 10,
-          "label": "0.099s",
-          "ci_label": "0.099s (0.098s\u20130.100s)"
+          "label": "0.106s",
+          "ci_label": "0.106s (0.105s\u20130.107s)"
         },
         "chadscript": {
-          "value": 0.1086,
-          "ci_lo": 0.1071,
-          "ci_hi": 0.1094,
+          "value": 0.1163,
+          "ci_lo": 0.1157,
+          "ci_hi": 0.1168,
           "n": 10,
-          "label": "0.109s",
-          "ci_label": "0.109s (0.107s\u20130.109s)"
+          "label": "0.116s",
+          "ci_label": "0.116s (0.116s\u20130.117s)"
         },
         "go": {
-          "value": 0.1,
-          "ci_lo": 0.0995,
-          "ci_hi": 0.101,
+          "value": 0.106,
+          "ci_lo": 0.105,
+          "ci_hi": 0.108,
           "n": 10,
-          "label": "0.100s",
-          "ci_label": "0.100s (0.100s\u20130.101s)"
+          "label": "0.106s",
+          "ci_label": "0.106s (0.105s\u20130.108s)"
         },
         "node": {
-          "value": 0.137,
-          "ci_lo": 0.1363,
-          "ci_hi": 0.1377,
+          "value": 0.138,
+          "ci_lo": 0.1373,
+          "ci_hi": 0.1387,
           "n": 10,
-          "label": "0.137s",
-          "ci_label": "0.137s (0.136s\u20130.138s)"
+          "label": "0.138s",
+          "ci_label": "0.138s (0.137s\u20130.139s)"
         }
       },
       "place": 3
@@ -172,36 +213,36 @@
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 0.2645,
-          "ci_lo": 0.2632,
-          "ci_hi": 0.2658,
+          "value": 0.2785,
+          "ci_lo": 0.277,
+          "ci_hi": 0.28,
           "n": 10,
-          "label": "0.265s",
-          "ci_label": "0.265s (0.263s\u20130.266s)"
+          "label": "0.279s",
+          "ci_label": "0.279s (0.277s\u20130.280s)"
         },
         "chadscript": {
-          "value": 0.2641,
-          "ci_lo": 0.2628,
-          "ci_hi": 0.2654,
+          "value": 0.2788,
+          "ci_lo": 0.2774,
+          "ci_hi": 0.2809,
           "n": 10,
-          "label": "0.264s",
-          "ci_label": "0.264s (0.263s\u20130.265s)"
+          "label": "0.279s",
+          "ci_label": "0.279s (0.277s\u20130.281s)"
         },
         "go": {
-          "value": 0.254,
-          "ci_lo": 0.2527,
-          "ci_hi": 0.2555,
+          "value": 0.2705,
+          "ci_lo": 0.2691,
+          "ci_hi": 0.274,
           "n": 10,
-          "label": "0.254s",
-          "ci_label": "0.254s (0.253s\u20130.256s)"
+          "label": "0.271s",
+          "ci_label": "0.271s (0.269s\u20130.274s)"
         },
         "node": {
-          "value": 2.4855,
-          "ci_lo": 2.4731,
-          "ci_hi": 2.4979,
+          "value": 2.564,
+          "ci_lo": 2.5512,
+          "ci_hi": 2.5768,
           "n": 10,
-          "label": "2.486s",
-          "ci_label": "2.486s (2.473s\u20132.498s)"
+          "label": "2.564s",
+          "ci_label": "2.564s (2.551s\u20132.577s)"
         }
       },
       "place": 2
@@ -213,36 +254,36 @@
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 0.7745,
-          "ci_lo": 0.7706,
-          "ci_hi": 0.7784,
+          "value": 0.777,
+          "ci_lo": 0.7731,
+          "ci_hi": 0.7809,
           "n": 10,
-          "label": "0.774s",
-          "ci_label": "0.774s (0.771s\u20130.778s)"
+          "label": "0.777s",
+          "ci_label": "0.777s (0.773s\u20130.781s)"
         },
         "chadscript": {
-          "value": 0.8242,
-          "ci_lo": 0.8201,
-          "ci_hi": 0.8283,
+          "value": 0.8252,
+          "ci_lo": 0.821,
+          "ci_hi": 0.8293,
           "n": 10,
-          "label": "0.824s",
-          "ci_label": "0.824s (0.820s\u20130.828s)"
+          "label": "0.825s",
+          "ci_label": "0.825s (0.821s\u20130.829s)"
         },
         "go": {
-          "value": 0.7845,
-          "ci_lo": 0.7806,
-          "ci_hi": 0.7884,
+          "value": 0.7865,
+          "ci_lo": 0.7826,
+          "ci_hi": 0.7904,
           "n": 10,
-          "label": "0.784s",
-          "ci_label": "0.784s (0.781s\u20130.788s)"
+          "label": "0.786s",
+          "ci_label": "0.786s (0.783s\u20130.790s)"
         },
         "node": {
-          "value": 1.089,
-          "ci_lo": 1.0836,
-          "ci_hi": 1.0944,
+          "value": 1.096,
+          "ci_lo": 1.0905,
+          "ci_hi": 1.1015,
           "n": 10,
-          "label": "1.089s",
-          "ci_label": "1.089s (1.084s\u20131.094s)"
+          "label": "1.096s",
+          "ci_label": "1.096s (1.091s\u20131.101s)"
         }
       },
       "place": 3
@@ -256,34 +297,34 @@
         "c": {
           "value": 0.008,
           "ci_lo": 0.008,
-          "ci_hi": 0.0095,
+          "ci_hi": 0.01,
           "n": 10,
           "label": "0.008s",
-          "ci_label": "0.008s (0.008s\u20130.009s)"
+          "ci_label": "0.008s (0.008s\u20130.010s)"
         },
         "chadscript": {
-          "value": 0.0119,
-          "ci_lo": 0.0117,
-          "ci_hi": 0.013,
+          "value": 0.0122,
+          "ci_lo": 0.0121,
+          "ci_hi": 0.0132,
           "n": 10,
           "label": "0.012s",
           "ci_label": "0.012s (0.012s\u20130.013s)"
         },
         "go": {
-          "value": 0.011,
-          "ci_lo": 0.0109,
-          "ci_hi": 0.012,
+          "value": 0.012,
+          "ci_lo": 0.0115,
+          "ci_hi": 0.013,
           "n": 10,
-          "label": "0.011s",
-          "ci_label": "0.011s (0.011s\u20130.012s)"
+          "label": "0.012s",
+          "ci_label": "0.012s (0.011s\u20130.013s)"
         },
         "node": {
-          "value": 0.025,
-          "ci_lo": 0.0249,
-          "ci_hi": 0.026,
+          "value": 0.026,
+          "ci_lo": 0.0259,
+          "ci_hi": 0.0261,
           "n": 10,
-          "label": "0.025s",
-          "ci_label": "0.025s (0.025s\u20130.026s)"
+          "label": "0.026s",
+          "ci_label": "0.026s (0.026s\u20130.026s)"
         }
       },
       "place": 2
@@ -295,36 +336,36 @@
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 0.121,
-          "ci_lo": 0.1204,
-          "ci_hi": 0.123,
+          "value": 0.13,
+          "ci_lo": 0.127,
+          "ci_hi": 0.131,
           "n": 10,
-          "label": "0.121s",
-          "ci_label": "0.121s (0.120s\u20130.123s)"
+          "label": "0.130s",
+          "ci_label": "0.130s (0.127s\u20130.131s)"
         },
         "chadscript": {
-          "value": 0.1404,
-          "ci_lo": 0.1397,
-          "ci_hi": 0.1415,
+          "value": 0.1415,
+          "ci_lo": 0.1408,
+          "ci_hi": 0.1422,
           "n": 10,
-          "label": "0.140s",
-          "ci_label": "0.140s (0.140s\u20130.141s)"
+          "label": "0.141s",
+          "ci_label": "0.141s (0.141s\u20130.142s)"
         },
         "go": {
-          "value": 0.125,
-          "ci_lo": 0.1244,
-          "ci_hi": 0.126,
+          "value": 0.13,
+          "ci_lo": 0.1293,
+          "ci_hi": 0.131,
           "n": 10,
-          "label": "0.125s",
-          "ci_label": "0.125s (0.124s\u20130.126s)"
+          "label": "0.130s",
+          "ci_label": "0.130s (0.129s\u20130.131s)"
         },
         "node": {
-          "value": 0.159,
-          "ci_lo": 0.1582,
-          "ci_hi": 0.16,
+          "value": 0.16,
+          "ci_lo": 0.159,
+          "ci_hi": 0.1608,
           "n": 10,
-          "label": "0.159s",
-          "ci_label": "0.159s (0.158s\u20130.160s)"
+          "label": "0.160s",
+          "ci_label": "0.160s (0.159s\u20130.161s)"
         }
       },
       "place": 3
@@ -336,28 +377,28 @@
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 0.08,
-          "ci_lo": 0.079,
-          "ci_hi": 0.082,
+          "value": 0.083,
+          "ci_lo": 0.0826,
+          "ci_hi": 0.0855,
           "n": 10,
-          "label": "0.080s",
-          "ci_label": "0.080s (0.079s\u20130.082s)"
+          "label": "0.083s",
+          "ci_label": "0.083s (0.083s\u20130.086s)"
         },
         "chadscript": {
-          "value": 0.0789,
-          "ci_lo": 0.0783,
-          "ci_hi": 0.0804,
+          "value": 0.0757,
+          "ci_lo": 0.0753,
+          "ci_hi": 0.077,
           "n": 10,
-          "label": "0.079s",
-          "ci_label": "0.079s (0.078s\u20130.080s)"
+          "label": "0.076s",
+          "ci_label": "0.076s (0.075s\u20130.077s)"
         },
         "node": {
-          "value": 0.165,
-          "ci_lo": 0.164,
-          "ci_hi": 0.1665,
+          "value": 0.169,
+          "ci_lo": 0.166,
+          "ci_hi": 0.1705,
           "n": 10,
-          "label": "0.165s",
-          "ci_label": "0.165s (0.164s\u20130.167s)"
+          "label": "0.169s",
+          "ci_label": "0.169s (0.166s\u20130.171s)"
         }
       },
       "place": 1
@@ -369,39 +410,39 @@
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 6.8,
-          "ci_lo": 6.46,
-          "ci_hi": 7.14,
+          "value": 6.7,
+          "ci_lo": 6.365,
+          "ci_hi": 7.035,
           "n": 1,
-          "label": "6.8ms",
-          "ci_label": "6.8ms (6.46ms\u20137.14ms)"
+          "label": "6.7ms",
+          "ci_label": "6.7ms (6.365ms\u20137.035ms)"
         },
         "chadscript": {
-          "value": 5.9,
-          "ci_lo": 5.605,
-          "ci_hi": 6.195,
+          "value": 5.8,
+          "ci_lo": 5.51,
+          "ci_hi": 6.09,
           "n": 1,
-          "label": "5.9ms",
-          "ci_label": "5.9ms (5.605ms\u20136.195ms)"
+          "label": "5.8ms",
+          "ci_label": "5.8ms (5.51ms\u20136.09ms)"
         },
         "go": {
-          "value": 4.5,
-          "ci_lo": 4.275,
-          "ci_hi": 4.725,
+          "value": 6.4,
+          "ci_lo": 6.08,
+          "ci_hi": 6.72,
           "n": 1,
-          "label": "4.5ms",
-          "ci_label": "4.5ms (4.275ms\u20134.725ms)"
+          "label": "6.4ms",
+          "ci_label": "6.4ms (6.08ms\u20136.72ms)"
         },
         "node": {
-          "value": 27.4,
-          "ci_lo": 26.03,
-          "ci_hi": 28.77,
+          "value": 28.9,
+          "ci_lo": 27.455,
+          "ci_hi": 30.345,
           "n": 1,
-          "label": "27.4ms",
-          "ci_label": "27.4ms (26.03ms\u201328.77ms)"
+          "label": "28.9ms",
+          "ci_label": "28.9ms (27.455ms\u201330.345ms)"
         }
       },
-      "place": 2
+      "place": 1
     },
     "stringops": {
       "name": "String Manipulation",
@@ -412,26 +453,26 @@
         "c": {
           "value": 0.006,
           "ci_lo": 0.005,
-          "ci_hi": 0.0075,
+          "ci_hi": 0.007,
           "n": 10,
           "label": "0.006s",
           "ci_label": "0.006s (0.005s\u20130.007s)"
         },
         "chadscript": {
-          "value": 0.0169,
-          "ci_lo": 0.0167,
-          "ci_hi": 0.0192,
-          "n": 10,
-          "label": "0.017s",
-          "ci_label": "0.017s (0.017s\u20130.019s)"
-        },
-        "go": {
-          "value": 0.0075,
-          "ci_lo": 0.007,
-          "ci_hi": 0.009,
+          "value": 0.007,
+          "ci_lo": 0.0065,
+          "ci_hi": 0.0082,
           "n": 10,
           "label": "0.007s",
-          "ci_label": "0.007s (0.007s\u20130.009s)"
+          "ci_label": "0.007s (0.006s\u20130.008s)"
+        },
+        "go": {
+          "value": 0.008,
+          "ci_lo": 0.0075,
+          "ci_hi": 0.009,
+          "n": 10,
+          "label": "0.008s",
+          "ci_label": "0.008s (0.007s\u20130.009s)"
         },
         "node": {
           "value": 0.012,
@@ -442,7 +483,7 @@
           "ci_label": "0.012s (0.012s\u20130.012s)"
         }
       },
-      "place": 4
+      "place": 1
     },
     "stringsearch": {
       "name": "String Search",
@@ -453,94 +494,53 @@
         "c": {
           "value": 0.005,
           "ci_lo": 0.005,
-          "ci_hi": 0.0075,
+          "ci_hi": 0.0065,
           "n": 10,
           "label": "0.005s",
-          "ci_label": "0.005s (0.005s\u20130.007s)"
+          "ci_label": "0.005s (0.005s\u20130.006s)"
         },
         "chadscript": {
-          "value": 0.0202,
-          "ci_lo": 0.0195,
-          "ci_hi": 0.0225,
+          "value": 0.008,
+          "ci_lo": 0.0079,
+          "ci_hi": 0.0093,
           "n": 10,
-          "label": "0.020s",
-          "ci_label": "0.020s (0.019s\u20130.022s)"
+          "label": "0.008s",
+          "ci_label": "0.008s (0.008s\u20130.009s)"
         },
         "go": {
           "value": 0.005,
           "ci_lo": 0.005,
-          "ci_hi": 0.006,
+          "ci_hi": 0.0065,
           "n": 10,
           "label": "0.005s",
           "ci_label": "0.005s (0.005s\u20130.006s)"
         },
         "node": {
-          "value": 0.01,
-          "ci_lo": 0.01,
-          "ci_hi": 0.01,
+          "value": 0.011,
+          "ci_lo": 0.0109,
+          "ci_hi": 0.0111,
           "n": 10,
-          "label": "0.010s",
-          "ci_label": "0.010s (0.010s\u20130.010s)"
+          "label": "0.011s",
+          "ci_label": "0.011s (0.011s\u20130.011s)"
         },
         "grep": {
-          "value": 0.025,
-          "ci_lo": 0.024,
-          "ci_hi": 0.0251,
+          "value": 0.026,
+          "ci_lo": 0.0255,
+          "ci_hi": 0.0261,
           "n": 10,
-          "label": "0.025s",
-          "ci_label": "0.025s (0.024s\u20130.025s)"
+          "label": "0.026s",
+          "ci_label": "0.026s (0.025s\u20130.026s)"
         },
         "ripgrep": {
-          "value": 0.009,
-          "ci_lo": 0.009,
+          "value": 0.0095,
+          "ci_lo": 0.0085,
           "ci_hi": 0.01,
           "n": 10,
           "label": "0.009s",
           "ci_label": "0.009s (0.009s\u20130.010s)"
         }
       },
-      "place": 5
-    },
-    "binarytrees": {
-      "name": "Binary Trees",
-      "desc": "Build/check/discard binary trees of depth 18.",
-      "metric": "s",
-      "lower_is_better": true,
-      "results": {
-        "c": {
-          "value": 0.854,
-          "ci_lo": 0.8405,
-          "ci_hi": 0.8675,
-          "n": 10,
-          "label": "0.854s",
-          "ci_label": "0.854s (0.841s\u20130.868s)"
-        },
-        "chadscript": {
-          "value": 0.6035,
-          "ci_lo": 0.5942,
-          "ci_hi": 0.6082,
-          "n": 10,
-          "label": "0.604s",
-          "ci_label": "0.604s (0.594s\u20130.608s)"
-        },
-        "go": {
-          "value": 0.8005,
-          "ci_lo": 0.7965,
-          "ci_hi": 0.8045,
-          "n": 10,
-          "label": "0.800s",
-          "ci_label": "0.800s (0.796s\u20130.804s)"
-        },
-        "node": {
-          "value": 0.368,
-          "ci_lo": 0.3655,
-          "ci_hi": 0.37,
-          "n": 10,
-          "label": "0.368s",
-          "ci_label": "0.368s (0.365s\u20130.370s)"
-        }
-      },
-      "place": 2
+      "place": 3
     }
   }
 }
