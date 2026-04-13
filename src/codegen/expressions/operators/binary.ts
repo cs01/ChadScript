@@ -704,23 +704,33 @@ export class BinaryExpressionGenerator {
     const isEq = op === "===" || op === "==";
     const cmpPred = isEq ? "eq" : "ne";
     const validCmp = this.ctx.emitIcmp(cmpPred, "i8", charByte, `${charCode}`);
-    const validI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${validI32} = zext i1 ${validCmp} to i32`);
     this.ctx.emitBr(endLabel);
 
     this.ctx.emitLabel(oobLabel);
-    const oobVal = isEq ? "0" : "1";
+    const oobI1 = isEq ? "false" : "true";
     this.ctx.emitBr(endLabel);
 
     this.ctx.emitLabel(negLabel);
-    const negVal = isEq ? "0" : "1";
+    const negI1 = isEq ? "false" : "true";
     this.ctx.emitBr(endLabel);
 
     this.ctx.emitLabel(endLabel);
-    const resultI32 = this.ctx.nextTemp();
+    // Merge as i1 so the branch-condition fast path can return directly.
+    const resultI1 = this.ctx.nextTemp();
     this.ctx.emit(
-      `${resultI32} = phi i32 [${validI32}, %${cmpLabel}], [${oobVal}, %${oobLabel}], [${negVal}, %${negLabel}]`,
+      `${resultI1} = phi i1 [${validCmp}, %${cmpLabel}], [${oobI1}, %${oobLabel}], [${negI1}, %${negLabel}]`,
     );
+
+    // If a branch condition wants the raw i1, return it directly — avoids
+    // the round-trip through i32 → double → fcmp-against-zero.
+    if (getWantsI1()) {
+      setWantsI1(false);
+      this.ctx.setVariableType(resultI1, "i1");
+      return resultI1;
+    }
+
+    const resultI32 = this.ctx.nextTemp();
+    this.ctx.emit(`${resultI32} = zext i1 ${resultI1} to i32`);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = sitofp i32 ${resultI32} to double`);
     this.ctx.setVariableType(result, "double");
@@ -797,6 +807,17 @@ export class BinaryExpressionGenerator {
     const lhs = swapped ? `${literalVal}` : byteVal;
     const rhs = swapped ? byteVal : `${literalVal}`;
     const cmpResult = this.ctx.emitIcmp(icmpPred, "i8", lhs, rhs);
+
+    // Fast path: if the enclosing branch wants an i1 directly (e.g. the
+    // comparison is an `if (flags[p] === 1)` guard), return the raw boolean
+    // instead of round-tripping through i32 → double → fcmp-against-zero.
+    // The previous unconditional widening cost ~3 extra instructions per
+    // iteration on integer-heavy hot loops like the sieve's marking pass.
+    if (getWantsI1()) {
+      setWantsI1(false);
+      this.ctx.setVariableType(cmpResult, "i1");
+      return cmpResult;
+    }
 
     const i32Result = this.ctx.nextTemp();
     this.ctx.emit(`${i32Result} = zext i1 ${cmpResult} to i32`);

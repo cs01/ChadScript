@@ -8,6 +8,7 @@ import {
   MemberAccessNode,
   VariableNode,
   BinaryNode,
+  UnaryNode,
   InterfaceDeclaration,
   MethodCallNode,
   InterfaceField,
@@ -122,12 +123,61 @@ export class ControlFlowGenerator {
     ) {
       return false;
     }
-    const lt = bin.left.type;
-    const rt = bin.right.type;
-    if (lt === "binary" || rt === "binary") return false;
-    if (lt === "call" || rt === "call") return false;
-    if (lt === "method_call" || rt === "method_call") return false;
-    if (lt === "conditional" || rt === "conditional") return false;
+    if (!this.isPureSubexprForBranch(bin.left)) return false;
+    if (!this.isPureSubexprForBranch(bin.right)) return false;
+    return true;
+  }
+
+  // A "pure sub-expression" for the branch-condition fast path is any
+  // expression that does NOT itself consume the global `wantsI1` flag, i.e.
+  // no nested comparisons, no logical ops, no conditionals, no calls.
+  // Simple arithmetic (mul, add, sub, shifts), variable reads, member/index
+  // accesses, and numeric literals are all safe — they produce numeric
+  // values without touching the i1 propagation state, so the OUTER binary
+  // comparison still cleanly consumes `wantsI1` at the end.
+  //
+  // Previously the check bailed on ANY nested binary, which meant loop
+  // guards like `while (p * p <= LIMIT)` fell through to the slow path that
+  // round-trips the comparison result through `i32 → double → fcmp`.
+  private isPureSubexprForBranch(expr: Expression): boolean {
+    const t = expr.type;
+    if (t === "call" || t === "method_call") return false;
+    if (t === "conditional") return false;
+    if (t === "arrow_function" || t === "await") return false;
+    if (t === "binary") {
+      const bin = expr as BinaryNode;
+      const op = bin.op;
+      // Reject nested comparisons / logical ops — those consume wantsI1.
+      if (
+        op === "<" ||
+        op === ">" ||
+        op === "<=" ||
+        op === ">=" ||
+        op === "==" ||
+        op === "!=" ||
+        op === "===" ||
+        op === "!==" ||
+        op === "&&" ||
+        op === "||" ||
+        op === "??"
+      ) {
+        return false;
+      }
+      // Recurse — inner arithmetic is fine as long as its sub-expressions
+      // are also pure for the branch path.
+      if (!this.isPureSubexprForBranch(bin.left)) return false;
+      if (!this.isPureSubexprForBranch(bin.right)) return false;
+      return true;
+    }
+    if (t === "unary") {
+      const un = expr as UnaryNode;
+      // `!x` would consume wantsI1 via its inner comparison; reject.
+      if (un.op === "!") return false;
+      return this.isPureSubexprForBranch(un.operand);
+    }
+    // Everything else (number/string/boolean/null literals, variable reads,
+    // member_access, index_access) is pure from the i1-propagation
+    // standpoint.
     return true;
   }
 
