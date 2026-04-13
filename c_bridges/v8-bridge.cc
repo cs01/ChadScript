@@ -4,7 +4,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <cmath>
+#include <cstdint>
 #include <string>
+#include <unordered_map>
 
 static std::unique_ptr<v8::Platform> g_platform;
 static v8::Isolate* g_isolate = nullptr;
@@ -12,6 +14,25 @@ static v8::Isolate::CreateParams g_create_params;
 static bool g_initialized = false;
 
 static thread_local std::string t_last_error;
+
+// JSHandle v0: thread-local handle table. Phase 2 will add Boehm finalizers;
+// for now handles are explicitly released. High byte is JS_HANDLE_TAG so the
+// id is cheaply distinguishable from a primitive/pointer.
+static constexpr uint64_t JS_HANDLE_TAG = 0xC4AD000000000000ULL;
+static constexpr uint64_t JS_HANDLE_TAG_MASK = 0xFFFF000000000000ULL;
+
+static thread_local uint64_t t_next_handle_id = 1;
+static thread_local std::unordered_map<uint64_t, v8::Global<v8::Value>> t_handles;
+
+static uint64_t store_handle(v8::Isolate* iso, v8::Local<v8::Value> value) {
+    uint64_t id = JS_HANDLE_TAG | (t_next_handle_id++);
+    t_handles.emplace(id, v8::Global<v8::Value>(iso, value));
+    return id;
+}
+
+static bool is_handle(uint64_t id) {
+    return (id & JS_HANDLE_TAG_MASK) == JS_HANDLE_TAG;
+}
 
 static void cs_v8_lazy_init(void) {
     if (g_initialized) return;
@@ -184,6 +205,111 @@ char* cs_v8_eval_string(const char* src) {
 
     v8::String::Utf8Value utf8(g_isolate, str);
     return strdup(*utf8 ? *utf8 : "");
+}
+
+// ---- JSHandle API (Phase 2 foundation) ----
+
+uint64_t cs_v8_eval_handle(const char* src) {
+    cs_v8_lazy_init();
+    t_last_error.clear();
+    v8::Isolate::Scope isolate_scope(g_isolate);
+    v8::HandleScope handle_scope(g_isolate);
+    v8::Local<v8::Context> context = v8::Context::New(g_isolate);
+    v8::Context::Scope context_scope(context);
+    install_host_env(g_isolate, context);
+
+    v8::TryCatch try_catch(g_isolate);
+
+    v8::Local<v8::String> source;
+    if (!v8::String::NewFromUtf8(g_isolate, src, v8::NewStringType::kNormal)
+             .ToLocal(&source)) {
+        t_last_error = "failed to allocate source string";
+        return 0;
+    }
+
+    v8::Local<v8::Script> script;
+    if (!v8::Script::Compile(context, source).ToLocal(&script)) {
+        set_error_from_trycatch(g_isolate, context, try_catch, "compile failed");
+        return 0;
+    }
+
+    v8::Local<v8::Value> result;
+    if (!script->Run(context).ToLocal(&result)) {
+        set_error_from_trycatch(g_isolate, context, try_catch, "run failed");
+        return 0;
+    }
+
+    return store_handle(g_isolate, result);
+}
+
+double cs_v8_handle_to_number(uint64_t handle) {
+    t_last_error.clear();
+    if (!is_handle(handle)) {
+        t_last_error = "not a JSHandle";
+        return std::nan("");
+    }
+    auto it = t_handles.find(handle);
+    if (it == t_handles.end()) {
+        t_last_error = "JSHandle already released or invalid";
+        return std::nan("");
+    }
+    v8::Isolate::Scope isolate_scope(g_isolate);
+    v8::HandleScope hs(g_isolate);
+    v8::Local<v8::Context> ctx = v8::Context::New(g_isolate);
+    v8::Context::Scope context_scope(ctx);
+    v8::Local<v8::Value> val = it->second.Get(g_isolate);
+    if (!val->IsNumber()) {
+        t_last_error = "handle does not hold a number";
+        return std::nan("");
+    }
+    double out;
+    if (!val->NumberValue(ctx).To(&out)) {
+        t_last_error = "NumberValue failed";
+        return std::nan("");
+    }
+    return out;
+}
+
+char* cs_v8_handle_to_string(uint64_t handle) {
+    t_last_error.clear();
+    if (!is_handle(handle)) {
+        t_last_error = "not a JSHandle";
+        return nullptr;
+    }
+    auto it = t_handles.find(handle);
+    if (it == t_handles.end()) {
+        t_last_error = "JSHandle already released or invalid";
+        return nullptr;
+    }
+    v8::Isolate::Scope isolate_scope(g_isolate);
+    v8::HandleScope hs(g_isolate);
+    v8::Local<v8::Context> ctx = v8::Context::New(g_isolate);
+    v8::Context::Scope context_scope(ctx);
+    v8::Local<v8::Value> val = it->second.Get(g_isolate);
+    v8::Local<v8::String> str;
+    if (!val->ToString(ctx).ToLocal(&str)) {
+        t_last_error = "ToString failed";
+        return nullptr;
+    }
+    v8::String::Utf8Value utf8(g_isolate, str);
+    return strdup(*utf8 ? *utf8 : "");
+}
+
+void cs_v8_handle_release(uint64_t handle) {
+    if (!is_handle(handle)) return;
+    auto it = t_handles.find(handle);
+    if (it != t_handles.end()) {
+        it->second.Reset();
+        t_handles.erase(it);
+    }
+}
+
+uint64_t cs_v8_handle_table_size(void) {
+    return (uint64_t)t_handles.size();
+}
+
+double cs_v8_is_handle(uint64_t value) {
+    return is_handle(value) ? 1.0 : 0.0;
 }
 
 }

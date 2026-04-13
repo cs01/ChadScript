@@ -2,12 +2,20 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <stdint.h>
 
 extern double cs_v8_available(void);
 extern double cs_v8_eval_number(const char* src);
 extern char* cs_v8_eval_string(const char* src);
 extern const char* cs_v8_last_error(void);
 extern void cs_v8_clear_error(void);
+
+extern uint64_t cs_v8_eval_handle(const char* src);
+extern double   cs_v8_handle_to_number(uint64_t h);
+extern char*    cs_v8_handle_to_string(uint64_t h);
+extern void     cs_v8_handle_release(uint64_t h);
+extern uint64_t cs_v8_handle_table_size(void);
+extern double   cs_v8_is_handle(uint64_t v);
 
 static int g_pass = 0;
 static int g_fail = 0;
@@ -69,6 +77,66 @@ int main(void) {
         if (r != (double)(i * 2)) { seq_ok = 0; break; }
     }
     check("1000 sequential evals state clean", seq_ok, NULL);
+
+    printf("\n-- JSHandle v0 --\n");
+
+    uint64_t h_num = cs_v8_eval_handle("6 * 7");
+    check("eval_handle returns non-zero", h_num != 0, NULL);
+    check("eval_handle returns tagged handle", cs_v8_is_handle(h_num) == 1.0, NULL);
+    check("handle_to_number reads 42", cs_v8_handle_to_number(h_num) == 42.0, NULL);
+
+    char* h_num_str = cs_v8_handle_to_string(h_num);
+    check("handle_to_string of number == '42'",
+          h_num_str != NULL && strcmp(h_num_str, "42") == 0, h_num_str);
+    free(h_num_str);
+
+    uint64_t h_str = cs_v8_eval_handle("'v8 live'");
+    char* h_str_val = cs_v8_handle_to_string(h_str);
+    check("handle_to_string of string == 'v8 live'",
+          h_str_val != NULL && strcmp(h_str_val, "v8 live") == 0, h_str_val);
+    free(h_str_val);
+
+    check("handle_to_number on string handle sets error",
+          isnan(cs_v8_handle_to_number(h_str))
+          && strstr(cs_v8_last_error(), "does not hold a number") != NULL,
+          cs_v8_last_error());
+
+    uint64_t h_obj = cs_v8_eval_handle("({name: 'chad', count: 3})");
+    char* h_obj_str = cs_v8_handle_to_string(h_obj);
+    check("handle_to_string of object contains '[object Object]' or serialization",
+          h_obj_str != NULL, h_obj_str);
+    free(h_obj_str);
+
+    uint64_t table_before = cs_v8_handle_table_size();
+    check("handle table has 3 entries before releases", table_before == 3, NULL);
+
+    cs_v8_handle_release(h_num);
+    cs_v8_handle_release(h_str);
+    cs_v8_handle_release(h_obj);
+    check("handle table empty after releases", cs_v8_handle_table_size() == 0, NULL);
+
+    check("use-after-release returns NaN + error",
+          isnan(cs_v8_handle_to_number(h_num))
+          && strstr(cs_v8_last_error(), "already released") != NULL,
+          cs_v8_last_error());
+
+    int churn_ok = 1;
+    for (int i = 0; i < 10000; i++) {
+        char buf[32];
+        snprintf(buf, sizeof(buf), "%d", i);
+        uint64_t h = cs_v8_eval_handle(buf);
+        if (h == 0) { churn_ok = 0; break; }
+        if (cs_v8_handle_to_number(h) != (double)i) { churn_ok = 0; break; }
+        cs_v8_handle_release(h);
+    }
+    check("10k handle alloc+release churn", churn_ok, NULL);
+    check("handle table empty after churn",
+          cs_v8_handle_table_size() == 0, NULL);
+
+    check("cs_v8_is_handle rejects a raw integer",
+          cs_v8_is_handle(42) == 0.0, NULL);
+    check("cs_v8_is_handle rejects a NULL pointer",
+          cs_v8_is_handle(0) == 0.0, NULL);
 
     printf("\n%d passed, %d failed\n", g_pass, g_fail);
     if (g_fail == 0) {
