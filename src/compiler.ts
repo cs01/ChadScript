@@ -40,7 +40,7 @@ function buildInterpretWrapper(originalSource: string): string {
     "const __chad_err = cs_v8_last_error();\n" +
     "if (__chad_err.length > 0) {\n" +
     "  console.log('interpret error: ' + __chad_err);\n" +
-    "} else {\n" +
+    "} else if (__chad_out.length > 0) {\n" +
     "  console.log(__chad_out);\n" +
     "}\n"
   );

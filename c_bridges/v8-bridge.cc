@@ -26,6 +26,37 @@ static void cs_v8_lazy_init(void) {
     g_initialized = true;
 }
 
+static void native_print_callback(const v8::FunctionCallbackInfo<v8::Value>& args) {
+    v8::Isolate* iso = args.GetIsolate();
+    v8::HandleScope hs(iso);
+    for (int i = 0; i < args.Length(); i++) {
+        if (i > 0) fputc(' ', stdout);
+        v8::String::Utf8Value s(iso, args[i]);
+        fputs(*s ? *s : "<?>", stdout);
+    }
+    fputc('\n', stdout);
+    fflush(stdout);
+}
+
+static void install_host_env(v8::Isolate* iso, v8::Local<v8::Context> context) {
+    v8::Local<v8::Object> global = context->Global();
+    v8::Local<v8::FunctionTemplate> tmpl =
+        v8::FunctionTemplate::New(iso, native_print_callback);
+    v8::Local<v8::Function> fn;
+    if (!tmpl->GetFunction(context).ToLocal(&fn)) return;
+    v8::Local<v8::String> print_name =
+        v8::String::NewFromUtf8Literal(iso, "print");
+    global->Set(context, print_name, fn).Check();
+
+    v8::Local<v8::Object> console_obj = v8::Object::New(iso);
+    console_obj->Set(context, v8::String::NewFromUtf8Literal(iso, "log"), fn).Check();
+    console_obj->Set(context, v8::String::NewFromUtf8Literal(iso, "error"), fn).Check();
+    console_obj->Set(context, v8::String::NewFromUtf8Literal(iso, "warn"), fn).Check();
+    global->Set(context,
+                v8::String::NewFromUtf8Literal(iso, "console"),
+                console_obj).Check();
+}
+
 static void set_error_from_trycatch(v8::Isolate* iso,
                                     v8::Local<v8::Context> ctx,
                                     v8::TryCatch& tc,
@@ -73,6 +104,7 @@ double cs_v8_eval_number(const char* src) {
     v8::HandleScope handle_scope(g_isolate);
     v8::Local<v8::Context> context = v8::Context::New(g_isolate);
     v8::Context::Scope context_scope(context);
+    install_host_env(g_isolate, context);
 
     v8::TryCatch try_catch(g_isolate);
 
@@ -117,6 +149,7 @@ char* cs_v8_eval_string(const char* src) {
     v8::HandleScope handle_scope(g_isolate);
     v8::Local<v8::Context> context = v8::Context::New(g_isolate);
     v8::Context::Scope context_scope(context);
+    install_host_env(g_isolate, context);
 
     v8::TryCatch try_catch(g_isolate);
 
@@ -137,6 +170,10 @@ char* cs_v8_eval_string(const char* src) {
     if (!script->Run(context).ToLocal(&result)) {
         set_error_from_trycatch(g_isolate, context, try_catch, "run failed");
         return nullptr;
+    }
+
+    if (result->IsUndefined() || result->IsNull()) {
+        return strdup("");
     }
 
     v8::Local<v8::String> str;

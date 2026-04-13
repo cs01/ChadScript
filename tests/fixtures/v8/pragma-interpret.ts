@@ -1,4 +1,4 @@
 // @chadscript: interpret
-// @test-description: pragma routes this file through V8; last expression becomes stdout
+// @test-description: pragma runs this file under V8; native print callback forwards console.log to stdout
 // @test-skip
-"TEST_PASSED";
+console.log("TEST_PASSED");
