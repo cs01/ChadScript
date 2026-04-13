@@ -469,6 +469,40 @@ else
   fi
 fi
 
+# --- v8-bridge (requires brew v8 on macOS, apt libv8-dev on Linux) ---
+V8_BRIDGE_SRC="$C_BRIDGES_DIR/v8-bridge.cc"
+V8_BRIDGE_OBJ="$C_BRIDGES_DIR/v8-bridge.o"
+if [ -f "$V8_BRIDGE_SRC" ]; then
+  V8_INCLUDE=""
+  if [ -d "/opt/homebrew/opt/v8/include" ]; then
+    V8_INCLUDE="/opt/homebrew/opt/v8/include"
+  elif [ -d "/usr/local/opt/v8/include" ]; then
+    V8_INCLUDE="/usr/local/opt/v8/include"
+  elif [ -d "/usr/include/v8" ]; then
+    V8_INCLUDE="/usr/include/v8"
+  fi
+  if [ -n "$V8_INCLUDE" ]; then
+    if [ ! -f "$V8_BRIDGE_OBJ" ] || [ "$V8_BRIDGE_SRC" -nt "$V8_BRIDGE_OBJ" ]; then
+      echo "==> Building v8-bridge (headers at $V8_INCLUDE)..."
+      V8_CXX="c++"
+      if [ -n "${LLVM_CONFIG:-}" ]; then
+        LLVM_BINDIR=$(dirname "$LLVM_CONFIG")
+        if [ -f "$LLVM_BINDIR/clang++" ]; then
+          V8_CXX="$LLVM_BINDIR/clang++"
+        fi
+      fi
+      $V8_CXX -c -std=c++20 -O2 -fPIC \
+        -DV8_COMPRESS_POINTERS -DV8_ENABLE_SANDBOX \
+        -I"$V8_INCLUDE" "$V8_BRIDGE_SRC" -o "$V8_BRIDGE_OBJ"
+      echo "  -> $V8_BRIDGE_OBJ"
+    else
+      echo "==> v8-bridge already built, skipping"
+    fi
+  else
+    echo "==> v8-bridge skipped (no v8 headers found — brew install v8)"
+  fi
+fi
+
 # --- child-process-spawn (async, requires libuv) ---
 CP_SPAWN_SRC="$C_BRIDGES_DIR/child-process-spawn.c"
 CP_SPAWN_OBJ="$C_BRIDGES_DIR/child-process-spawn.o"

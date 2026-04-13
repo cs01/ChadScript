@@ -447,6 +447,16 @@ export function compile(
       linkLibs += " -framework Security -framework CoreFoundation";
     }
   }
+  if (generator.getUsesV8()) {
+    const brewV8 = process.arch === "arm64" ? "/opt/homebrew/opt/v8" : "/usr/local/opt/v8";
+    linkLibs += ` -L${brewV8}/lib -lv8 -lv8_libplatform -lv8_libbase`;
+    linkLibs += ` -Wl,-rpath,${brewV8}/lib`;
+    if (hostIsMac) {
+      linkLibs += " -lc++";
+    } else {
+      linkLibs += " -lstdc++";
+    }
+  }
 
   // Platform-specific library search paths
   if (sdk) {
@@ -551,6 +561,13 @@ export function compile(
 
       extraObjs = ` ${tsParserObj} ${tsScannerObj} ${bridgeObj}`;
       linkLibs += ` ${TREESITTER_LIB_PATH}/libtree-sitter.a`;
+    }
+  }
+
+  if (generator.getUsesV8()) {
+    const v8BridgeObj = `${bridgePath}/v8-bridge.o`;
+    if (fs.existsSync(v8BridgeObj)) {
+      extraObjs += ` ${v8BridgeObj}`;
     }
   }
 
