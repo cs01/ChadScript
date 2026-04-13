@@ -4,6 +4,10 @@ import { ref, onMounted, onUnmounted, computed } from 'vue'
 interface BenchResult {
   value: number
   label: string
+  ci_lo?: number
+  ci_hi?: number
+  ci_label?: string
+  n?: number
 }
 
 interface Benchmark {

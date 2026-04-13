@@ -28,15 +28,17 @@ extract_metric() {
 }
 
 json_add_result() {
+    # Stores: lang | comma-separated samples | sample raw label (from last run)
+    # Example: chadscript|0.596,0.584,0.601,0.593,0.599|Time: 0.596s
     local bench="$1"
     local lang="$2"
-    local value="$3"
+    local samples_csv="$3"
     local label="$4"
     local file="$JSON_DIR/${bench}.json"
     if [ ! -f "$file" ]; then
         echo -n "" > "$file"
     fi
-    echo "${lang}|${value}|${label}" >> "$file"
+    echo "${lang}|${samples_csv}|${label}" >> "$file"
 }
 
 bench_compute() {
@@ -46,18 +48,34 @@ bench_compute() {
     local metric_key="$4"
     shift 4
 
-    echo "  $display"
-    local output
-    output=$("$@" 2>&1) || true
-    echo "$output" | sed 's/^/    /'
+    local runs="${BENCH_RUNS:-1}"
+    echo "  $display (N=$runs)"
+    local samples=""
+    local last_output=""
+    for i in $(seq 1 $runs); do
+        local output
+        output=$("$@" 2>&1) || true
+        local raw
+        raw=$(extract_metric "$metric_key" "$output")
+        local value
+        value=$(echo "$raw" | sed 's/[^0-9.]//g')
+        if [ -z "$value" ]; then
+            continue
+        fi
+        if [ -z "$samples" ]; then
+            samples="$value"
+        else
+            samples="${samples},${value}"
+        fi
+        last_output="$output"
+    done
+    echo "$last_output" | sed 's/^/    /'
     echo ""
 
-    local raw
-    raw=$(extract_metric "$metric_key" "$output")
-    local value
-    value=$(echo "$raw" | sed 's/[^0-9.]//g')
-    if [ -n "$value" ]; then
-        json_add_result "$bench" "$lang" "$value" "$raw"
+    if [ -n "$samples" ]; then
+        local last_raw
+        last_raw=$(extract_metric "$metric_key" "$last_output")
+        json_add_result "$bench" "$lang" "$samples" "$last_raw"
     fi
 }
 

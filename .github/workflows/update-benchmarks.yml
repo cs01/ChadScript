@@ -50,8 +50,10 @@ jobs:
       - name: Build native chad
         run: node dist/chad-node.js build src/chad-native.ts -o .build/chad --target-cpu=x86-64
       - name: Run benchmarks
+        env:
+          BENCH_RUNS: 10
         run: bash benchmarks/run-ci.sh
-        timeout-minutes: 10
+        timeout-minutes: 40
       - name: Create benchmark update PR
         run: |
           git config user.name "github-actions[bot]"

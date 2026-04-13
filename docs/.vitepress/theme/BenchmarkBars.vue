@@ -4,6 +4,10 @@ import { ref, onMounted } from 'vue'
 interface BenchResult {
   value: number
   label: string
+  ci_lo?: number
+  ci_hi?: number
+  ci_label?: string
+  n?: number
 }
 
 interface Benchmark {
@@ -46,11 +50,20 @@ function sortEntries(b: Benchmark) {
   return sorted.map(s => {
     const unit = b.metric === 'ms' ? 'ms' : 's'
     const formatted = s.value.toFixed(3) + unit
+    // CI whisker: where ci_lo / ci_hi sit as a percentage of the bar scale.
+    const hasCI = s.ci_lo !== undefined && s.ci_hi !== undefined && s.ci_hi > s.ci_lo
+    const ciLoPct = hasCI ? Math.max(0, Math.round((s.ci_lo! / maxVal) * 100)) : 0
+    const ciHiPct = hasCI ? Math.min(100, Math.round((s.ci_hi! / maxVal) * 100)) : 0
     return {
       name: LANG_NAMES[s.key] || s.key,
       val: formatted,
       pct: Math.max(3, Math.round((s.value / maxVal) * 100)),
       hero: s.key === 'chadscript',
+      hasCI,
+      ciLoPct,
+      ciHiPct,
+      ciLabel: s.ci_label || formatted,
+      n: s.n || 0,
     }
   })
 }
@@ -93,8 +106,15 @@ onMounted(async () => {
                 :class="{ hero: e.hero }"
                 :style="{ width: e.pct + '%' }"
               ></div>
+              <div
+                v-if="e.hasCI"
+                class="card-ci"
+                :class="{ hero: e.hero }"
+                :style="{ left: e.ciLoPct + '%', width: (e.ciHiPct - e.ciLoPct) + '%' }"
+                :title="`95% bootstrap CI: ${e.ciLabel} (N=${e.n})`"
+              ></div>
             </div>
-            <div class="card-val" :class="{ hero: e.hero }">{{ e.val }}</div>
+            <div class="card-val" :class="{ hero: e.hero }" :title="e.hasCI ? e.ciLabel : e.val">{{ e.val }}</div>
           </div>
         </div>
       </div>
@@ -181,6 +201,7 @@ onMounted(async () => {
   background: rgba(255, 255, 255, 0.04);
   border-radius: 4px;
   overflow: hidden;
+  position: relative;
 }
 
 .card-bar {
@@ -192,6 +213,26 @@ onMounted(async () => {
 
 .card-bar.hero {
   background: var(--vp-c-brand-1);
+}
+
+/* 95% bootstrap confidence interval whisker — overlaid on the track, shows
+ * where the true value could fall. Narrower whisker = more confident. */
+.card-ci {
+  position: absolute;
+  top: 5px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.35);
+  border-left: 1px solid rgba(255, 255, 255, 0.6);
+  border-right: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 1px;
+  pointer-events: auto;
+  transition: left 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+              width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.card-ci.hero {
+  background: rgba(255, 255, 255, 0.5);
+  border-color: rgba(255, 255, 255, 0.85);
 }
 
 .card-val {
