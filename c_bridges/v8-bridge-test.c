@@ -16,6 +16,11 @@ extern char*    cs_v8_handle_to_string(uint64_t h);
 extern void     cs_v8_handle_release(uint64_t h);
 extern uint64_t cs_v8_handle_table_size(void);
 extern double   cs_v8_is_handle(uint64_t v);
+extern uint64_t cs_v8_make_number_handle(double n);
+extern uint64_t cs_v8_make_string_handle(const char* s);
+extern uint64_t cs_v8_handle_get_property(uint64_t obj, const char* name);
+extern uint64_t cs_v8_handle_call(uint64_t fn, uint64_t this_or_zero,
+                                  int32_t n_args, const uint64_t* args);
 
 static int g_pass = 0;
 static int g_fail = 0;
@@ -137,6 +142,93 @@ int main(void) {
           cs_v8_is_handle(42) == 0.0, NULL);
     check("cs_v8_is_handle rejects a NULL pointer",
           cs_v8_is_handle(0) == 0.0, NULL);
+
+    printf("\n-- JSHandle v1: make, get_property, call --\n");
+
+    uint64_t h_n = cs_v8_make_number_handle(3.14);
+    check("make_number_handle round-trip",
+          cs_v8_handle_to_number(h_n) == 3.14, NULL);
+    cs_v8_handle_release(h_n);
+
+    uint64_t h_s = cs_v8_make_string_handle("round trip");
+    char* s_back = cs_v8_handle_to_string(h_s);
+    check("make_string_handle round-trip",
+          s_back != NULL && strcmp(s_back, "round trip") == 0, s_back);
+    free(s_back);
+    cs_v8_handle_release(h_s);
+
+    uint64_t h_obj2 = cs_v8_eval_handle("({name: 'chad', count: 3})");
+    uint64_t h_name = cs_v8_handle_get_property(h_obj2, "name");
+    char* name_str = cs_v8_handle_to_string(h_name);
+    check("get_property 'name' == 'chad'",
+          name_str != NULL && strcmp(name_str, "chad") == 0, name_str);
+    free(name_str);
+
+    uint64_t h_count = cs_v8_handle_get_property(h_obj2, "count");
+    check("get_property 'count' == 3",
+          cs_v8_handle_to_number(h_count) == 3.0, NULL);
+
+    uint64_t h_missing = cs_v8_handle_get_property(h_obj2, "nonexistent");
+    check("get_property of missing key returns non-zero handle to undefined",
+          h_missing != 0, NULL);
+    cs_v8_handle_release(h_missing);
+
+    uint64_t h_num_handle_for_get = cs_v8_make_number_handle(42);
+    uint64_t bad_get = cs_v8_handle_get_property(h_num_handle_for_get, "foo");
+    check("get_property on non-object returns 0 + error",
+          bad_get == 0 &&
+          strstr(cs_v8_last_error(), "not") != NULL,
+          cs_v8_last_error());
+    cs_v8_handle_release(h_num_handle_for_get);
+    cs_v8_handle_release(h_obj2);
+    cs_v8_handle_release(h_name);
+    cs_v8_handle_release(h_count);
+
+    uint64_t h_double = cs_v8_eval_handle("(function(x) { return x * 2; })");
+    uint64_t arg = cs_v8_make_number_handle(21);
+    uint64_t h_result = cs_v8_handle_call(h_double, 0, 1, &arg);
+    check("call function (x => x*2)(21) == 42",
+          cs_v8_handle_to_number(h_result) == 42.0, NULL);
+    cs_v8_handle_release(h_double);
+    cs_v8_handle_release(arg);
+    cs_v8_handle_release(h_result);
+
+    uint64_t h_greeter = cs_v8_eval_handle(
+        "({prefix: 'hi ', greet(n) { return this.prefix + n; }})"
+    );
+    uint64_t h_greet = cs_v8_handle_get_property(h_greeter, "greet");
+    uint64_t h_who = cs_v8_make_string_handle("world");
+    uint64_t h_greeting = cs_v8_handle_call(h_greet, h_greeter, 1, &h_who);
+    char* greeting = cs_v8_handle_to_string(h_greeting);
+    check("method call with this-binding: greeter.greet('world') == 'hi world'",
+          greeting != NULL && strcmp(greeting, "hi world") == 0, greeting);
+    free(greeting);
+    cs_v8_handle_release(h_greeter);
+    cs_v8_handle_release(h_greet);
+    cs_v8_handle_release(h_who);
+    cs_v8_handle_release(h_greeting);
+
+    uint64_t h_not_fn = cs_v8_eval_handle("({notCallable: true})");
+    uint64_t dummy = cs_v8_make_number_handle(1);
+    uint64_t bad_call = cs_v8_handle_call(h_not_fn, 0, 1, &dummy);
+    check("call on non-function returns 0 + error",
+          bad_call == 0 && strstr(cs_v8_last_error(), "function") != NULL,
+          cs_v8_last_error());
+    cs_v8_handle_release(h_not_fn);
+    cs_v8_handle_release(dummy);
+
+    uint64_t h_thrower = cs_v8_eval_handle(
+        "(function() { throw new Error('js side crash'); })"
+    );
+    uint64_t thrown_result = cs_v8_handle_call(h_thrower, 0, 0, NULL);
+    check("call that throws returns 0 + error contains 'crash'",
+          thrown_result == 0 &&
+          strstr(cs_v8_last_error(), "crash") != NULL,
+          cs_v8_last_error());
+    cs_v8_handle_release(h_thrower);
+
+    check("handle table empty at end of v1 tests",
+          cs_v8_handle_table_size() == 0, NULL);
 
     printf("\n%d passed, %d failed\n", g_pass, g_fail);
     if (g_fail == 0) {
