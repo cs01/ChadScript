@@ -79,13 +79,26 @@ StringArray *cs_str_split(const char *src, size_t src_len,
     }
 
     int32_t part_count = 1;
-    size_t pos = 0;
-    while (pos + sep_len <= src_len) {
-        if (memcmp(src + pos, sep, sep_len) == 0) {
+    if (sep_len == 1) {
+        // Fast path: single-char separator uses SIMD memchr
+        const char c = sep[0];
+        const char *p = src;
+        const char *end = src + src_len;
+        while (p < end) {
+            const char *hit = (const char *)memchr(p, c, (size_t)(end - p));
+            if (!hit) break;
             part_count++;
-            pos += sep_len;
-        } else {
-            pos++;
+            p = hit + 1;
+        }
+    } else {
+        size_t pos = 0;
+        while (pos + sep_len <= src_len) {
+            if (memcmp(src + pos, sep, sep_len) == 0) {
+                part_count++;
+                pos += sep_len;
+            } else {
+                pos++;
+            }
         }
     }
 
@@ -99,10 +112,15 @@ StringArray *cs_str_split(const char *src, size_t src_len,
 
     int32_t idx = 0;
     size_t start = 0;
-    pos = 0;
-    while (pos + sep_len <= src_len) {
-        if (memcmp(src + pos, sep, sep_len) == 0) {
-            size_t plen = pos - start;
+    if (sep_len == 1) {
+        // Fast path: single-char separator uses SIMD memchr
+        const char c = sep[0];
+        const char *p = src;
+        const char *end = src + src_len;
+        while (p < end) {
+            const char *hit = (const char *)memchr(p, c, (size_t)(end - p));
+            if (!hit) break;
+            size_t plen = (size_t)(hit - (src + start));
             char *s = pool + pool_off;
             memcpy(s, src + start, plen);
             s[plen] = '\0';
@@ -110,10 +128,26 @@ StringArray *cs_str_split(const char *src, size_t src_len,
             data[idx] = s;
             lens[idx] = (int32_t)plen;
             idx++;
-            start = pos + sep_len;
-            pos = start;
-        } else {
-            pos++;
+            start = (size_t)(hit - src) + 1;
+            p = hit + 1;
+        }
+    } else {
+        size_t pos = 0;
+        while (pos + sep_len <= src_len) {
+            if (memcmp(src + pos, sep, sep_len) == 0) {
+                size_t plen = pos - start;
+                char *s = pool + pool_off;
+                memcpy(s, src + start, plen);
+                s[plen] = '\0';
+                pool_off += plen + 1;
+                data[idx] = s;
+                lens[idx] = (int32_t)plen;
+                idx++;
+                start = pos + sep_len;
+                pos = start;
+            } else {
+                pos++;
+            }
         }
     }
     size_t plen = src_len - start;
