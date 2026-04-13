@@ -32,6 +32,7 @@ import type { FieldInfo } from "../infrastructure/type-resolver/types.js";
 import { stripOptional } from "../infrastructure/type-system.js";
 import { setWantsI1 } from "../expressions/condition-generator.js";
 import { tryOptimizeWhileLoopMap } from "./loop-idiom.js";
+import { analyzeWhileSafety, analyzeForSafety } from "./loop-safety.js";
 
 interface ExprBase {
   type: string;
@@ -323,7 +324,17 @@ export class ControlFlowGenerator {
     this.ctx.setCurrentLabel(bodyLabel);
     this.loopContinueLabels.push(condLabel);
     this.loopBreakLabels.push(endLabel);
+
+    // Bounds-check elimination: if the loop matches a safe pattern, register
+    // the (indexVar, arrayVar) pair so arr[i] inside body skips its bounds check.
+    const whileSafePat = analyzeWhileSafety(whileStmt);
+    this.ctx.pushSafeIndexScope();
+    if (whileSafePat) {
+      this.ctx.addSafeIndex(whileSafePat.indexName, whileSafePat.arrayName);
+    }
+
     this.ctx.generateBlock(whileStmt.body, params);
+    this.ctx.popSafeIndexScope();
     this.loopContinueLabels.pop();
     this.loopBreakLabels.pop();
     const bodyHasTerminator = this.ctx.lastInstructionIsTerminator();
@@ -475,7 +486,16 @@ export class ControlFlowGenerator {
     this.ctx.setCurrentLabel(bodyLabel);
     this.loopContinueLabels.push(updateLabel);
     this.loopBreakLabels.push(endLabel);
+
+    // Bounds-check elimination: classic-for-loop safe index registration.
+    const forSafePat = analyzeForSafety(forStmt as ForStatement);
+    this.ctx.pushSafeIndexScope();
+    if (forSafePat) {
+      this.ctx.addSafeIndex(forSafePat.indexName, forSafePat.arrayName);
+    }
+
     this.ctx.generateBlock(forStmt.body, params);
+    this.ctx.popSafeIndexScope();
     this.loopContinueLabels.pop();
     this.loopBreakLabels.pop();
     const bodyHasTerminator3 = this.ctx.lastInstructionIsTerminator();
