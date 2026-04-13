@@ -266,6 +266,22 @@ export class FunctionGenerator {
     const liftedFunc = func as LiftedFunction;
     const closureInfo = liftedFunc.closureInfo;
     const hasClosure = closureInfo ? closureInfo.captures.length > 0 : false;
+
+    // Integer-specialized functions (detected by markIntSpecializedFunctions)
+    // use the i64 ABI: every numeric param becomes i64 instead of double, and
+    // the return type becomes i64 instead of double. Closures are excluded by
+    // construction (the detector only sees ast.functions, not lifted lambdas)
+    // but we double-check here.
+    const intSpecialized = func.intSpecialized && !hasClosure ? true : false;
+    if (intSpecialized) {
+      for (let i = 0; i < paramLLVMTypes.length; i++) {
+        if (paramLLVMTypes[i] === "double") paramLLVMTypes[i] = "i64";
+      }
+      if (returnType === "double") {
+        returnType = "i64";
+        this.ctx.setCurrentFunctionReturnType("i64");
+      }
+    }
     const captures = closureInfo ? closureInfo.captures : null;
     let hasOptionalParams = false;
     if (func.parameters) {
@@ -310,7 +326,8 @@ export class FunctionGenerator {
     const bodyStmts = func.body ? func.body.statements : [];
     const numericParamNames: string[] = [];
     for (let i = 0; i < funcParams.length; i++) {
-      if (paramLLVMTypes[i] === "double") {
+      // Numeric params include both default-double params and intSpec'd i64 params.
+      if (paramLLVMTypes[i] === "double" || paramLLVMTypes[i] === "i64") {
         numericParamNames.push(funcParams[i]);
       }
     }
@@ -630,11 +647,15 @@ export class FunctionGenerator {
             break;
           }
         }
+        // intSpecialized: the function ABI passes i64 directly, so skip fptosi.
+        const paramAbiIsI64 = llvmType === "i64";
         if (paramIsI64) {
           this.ctx.defineVariable(paramName, allocaReg, "i64", SymbolKind_Number, "local");
           this.ctx.emit(`${allocaReg} = alloca i64`);
           if (isOptional && hasOptionalParams) {
             this.generateOptionalParamInitI64(i, allocaReg, paramInfo!, funcParams);
+          } else if (paramAbiIsI64) {
+            this.ctx.emit(`store i64 %arg${i}, i64* ${allocaReg}`);
           } else {
             const i64Val = this.ctx.nextTemp();
             this.ctx.emit(`${i64Val} = fptosi double %arg${i} to i64`);

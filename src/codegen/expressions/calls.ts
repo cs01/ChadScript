@@ -904,6 +904,15 @@ export class CallExpressionGenerator {
           ),
         );
       }
+      // Integer-specialized callee: every double param/return becomes i64.
+      // The existing FFI coercion paths in this loop already handle paramType
+      // === "i64" (fptosi from double, or pass-through from i64).
+      if (func.intSpecialized) {
+        for (let pi = 0; pi < paramTypes.length; pi++) {
+          if (paramTypes[pi] === "double") paramTypes[pi] = "i64";
+        }
+        if (returnType === "double") returnType = "i64";
+      }
     } else {
       const funcNode = this.getFunctionFromAST(expr.name);
       if (funcNode) {
@@ -935,6 +944,12 @@ export class CallExpressionGenerator {
               mapParamTypeToLLVM(t, paramName, this.ctx.isEnumType(stripNullable(t)), false),
             );
           }
+        }
+        if (funcNode.intSpecialized) {
+          for (let pi = 0; pi < paramTypes.length; pi++) {
+            if (paramTypes[pi] === "double") paramTypes[pi] = "i64";
+          }
+          if (returnType === "double") returnType = "i64";
         }
       }
     }
@@ -1022,6 +1037,13 @@ export class CallExpressionGenerator {
       return coerced;
     }
     if (returnType === "i64") {
+      // Integer-specialized callees keep their result as native i64 so that
+      // surrounding integer arithmetic stays in the i64 lane (no fadd round-trip).
+      // Other i64-returning extern calls still get coerced to double.
+      if (func && func.intSpecialized) {
+        this.ctx.setVariableType(temp, "i64");
+        return temp;
+      }
       const coerced = this.ctx.nextTemp();
       this.ctx.emit(`${coerced} = sitofp i64 ${temp} to double`);
       return coerced;
