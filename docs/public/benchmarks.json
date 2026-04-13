@@ -1,6 +1,31 @@
 {
-  "timestamp": "2026-03-20T00:28:44Z",
+  "timestamp": "2026-04-13T17:42:13Z",
   "benchmarks": {
+    "binarytrees": {
+      "name": "Binary Trees",
+      "desc": "Build/check/discard binary trees of depth 18.",
+      "metric": "s",
+      "lower_is_better": true,
+      "results": {
+        "c": {
+          "value": 1.479,
+          "label": "1.479s"
+        },
+        "chadscript": {
+          "value": 1.57,
+          "label": "1.570s"
+        },
+        "go": {
+          "value": 2.991,
+          "label": "2.991s"
+        },
+        "node": {
+          "value": 1.484,
+          "label": "1.484s"
+        }
+      },
+      "place": 3
+    },
     "cligrep": {
       "name": "Recursive Grep",
       "desc": "cgrep vs grep \u2014 search for 'function' across 5x copies of src/.",
@@ -8,16 +33,16 @@
       "lower_is_better": true,
       "results": {
         "chadscript": {
-          "value": 0.012,
-          "label": "0.012s"
+          "value": 0.021,
+          "label": "0.021s"
         },
         "grep": {
-          "value": 0.007,
-          "label": "0.007s"
+          "value": 0.011,
+          "label": "0.011s"
         },
         "node": {
-          "value": 0.089,
-          "label": "0.089s"
+          "value": 0.106,
+          "label": "0.106s"
         }
       },
       "category": "cli",
@@ -30,16 +55,16 @@
       "lower_is_better": true,
       "results": {
         "chadscript": {
-          "value": 0.41,
-          "label": "0.410s"
+          "value": 0.477,
+          "label": "0.477s"
         },
         "xxd": {
-          "value": 0.067,
-          "label": "0.067s"
+          "value": 0.14,
+          "label": "0.140s"
         },
         "node": {
-          "value": 0.966,
-          "label": "0.966s"
+          "value": 1.189,
+          "label": "1.189s"
         }
       },
       "category": "cli",
@@ -52,24 +77,20 @@
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 0.724,
-          "label": "0.724s"
+          "value": 0.876,
+          "label": "0.876s"
         },
         "chadscript": {
-          "value": 1.424,
-          "label": "1.42435961914062s"
+          "value": 0.882,
+          "label": "0.882s"
         },
         "go": {
-          "value": 1.428,
-          "label": "1.428s"
+          "value": 1.66,
+          "label": "1.660s"
         },
         "node": {
-          "value": 2.915,
-          "label": "2.915s"
-        },
-        "bun": {
-          "value": 1.838,
-          "label": "1.838s"
+          "value": 3.498,
+          "label": "3.498s"
         }
       },
       "place": 2
@@ -81,27 +102,23 @@
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 0.075,
-          "label": "0.075s"
+          "value": 0.134,
+          "label": "0.134s"
         },
         "chadscript": {
-          "value": 0.076,
-          "label": "0.076445556640625s"
+          "value": 0.115,
+          "label": "0.115s"
         },
         "go": {
-          "value": 0.073,
-          "label": "0.073s"
+          "value": 0.106,
+          "label": "0.106s"
         },
         "node": {
-          "value": 0.229,
-          "label": "0.229s"
-        },
-        "bun": {
-          "value": 0.168,
-          "label": "0.168s"
+          "value": 0.28,
+          "label": "0.280s"
         }
       },
-      "place": 3
+      "place": 2
     },
     "json": {
       "name": "JSON Parse/Stringify",
@@ -110,24 +127,20 @@
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 0.003,
-          "label": "0.003s"
+          "value": 0.005,
+          "label": "0.005s"
         },
         "chadscript": {
-          "value": 0.004,
-          "label": "0.004400634765625s"
-        },
-        "go": {
-          "value": 0.017,
-          "label": "0.017s"
-        },
-        "node": {
-          "value": 0.014,
-          "label": "0.014s"
-        },
-        "bun": {
           "value": 0.006,
           "label": "0.006s"
+        },
+        "go": {
+          "value": 0.018,
+          "label": "0.018s"
+        },
+        "node": {
+          "value": 0.018,
+          "label": "0.018s"
         }
       },
       "place": 2
@@ -139,27 +152,23 @@
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 0.4,
-          "label": "0.400s"
+          "value": 0.402,
+          "label": "0.402s"
         },
         "chadscript": {
-          "value": 0.381,
-          "label": "0.381451904296875s"
+          "value": 0.432,
+          "label": "0.432s"
         },
         "go": {
-          "value": 0.405,
-          "label": "0.405s"
+          "value": 0.414,
+          "label": "0.414s"
         },
         "node": {
-          "value": 1.473,
-          "label": "1.473s"
-        },
-        "bun": {
-          "value": 6.447,
-          "label": "6.447s"
+          "value": 2.355,
+          "label": "2.355s"
         }
       },
-      "place": 1
+      "place": 3
     },
     "nbody": {
       "name": "N-Body Simulation",
@@ -168,24 +177,20 @@
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 1.421,
-          "label": "1.421s"
+          "value": 1.74,
+          "label": "1.740s"
         },
         "chadscript": {
-          "value": 1.846,
-          "label": "1.84625830078125s"
+          "value": 2.188,
+          "label": "2.188s"
         },
         "go": {
-          "value": 1.95,
-          "label": "1.950s"
+          "value": 2.27,
+          "label": "2.270s"
         },
         "node": {
-          "value": 2.271,
-          "label": "2.271s"
-        },
-        "bun": {
-          "value": 2.839,
-          "label": "2.839s"
+          "value": 2.5,
+          "label": "2.500s"
         }
       },
       "place": 2
@@ -197,24 +202,20 @@
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 0.029,
-          "label": "0.029s"
+          "value": 0.018,
+          "label": "0.018s"
         },
         "chadscript": {
-          "value": 0.042,
-          "label": "0.042161376953125s"
+          "value": 0.03,
+          "label": "0.030s"
         },
         "go": {
-          "value": 0.037,
-          "label": "0.037s"
+          "value": 0.023,
+          "label": "0.023s"
         },
         "node": {
-          "value": 0.056,
-          "label": "0.056s"
-        },
-        "bun": {
-          "value": 0.051,
-          "label": "0.051s"
+          "value": 0.041,
+          "label": "0.041s"
         }
       },
       "place": 3
@@ -226,24 +227,20 @@
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 0.17,
-          "label": "0.170s"
+          "value": 0.228,
+          "label": "0.228s"
         },
         "chadscript": {
-          "value": 0.202,
-          "label": "0.201742919921875s"
+          "value": 0.253,
+          "label": "0.253s"
         },
         "go": {
-          "value": 0.183,
-          "label": "0.183s"
+          "value": 0.226,
+          "label": "0.226s"
         },
         "node": {
-          "value": 0.248,
-          "label": "0.248s"
-        },
-        "bun": {
-          "value": 0.206,
-          "label": "0.206s"
+          "value": 0.28,
+          "label": "0.280s"
         }
       },
       "place": 3
@@ -255,23 +252,19 @@
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 0.31,
-          "label": "0.310s"
+          "value": 0.368,
+          "label": "0.368s"
         },
         "chadscript": {
-          "value": 0.368,
-          "label": "0.367540283203125s"
+          "value": 0.422,
+          "label": "0.422s"
         },
         "node": {
-          "value": 0.434,
-          "label": "0.434s"
-        },
-        "bun": {
-          "value": 0.351,
-          "label": "0.351s"
+          "value": 0.437,
+          "label": "0.437s"
         }
       },
-      "place": 3
+      "place": 2
     },
     "startup": {
       "name": "Cold Start",
@@ -280,24 +273,20 @@
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 0.6,
-          "label": "0.6ms"
-        },
-        "chadscript": {
-          "value": 0.6,
-          "label": "0.6ms"
-        },
-        "go": {
           "value": 1.0,
           "label": "1.0ms"
         },
-        "bun": {
-          "value": 7.1,
-          "label": "7.1ms"
+        "chadscript": {
+          "value": 0.9,
+          "label": "0.9ms"
+        },
+        "go": {
+          "value": 1.4,
+          "label": "1.4ms"
         },
         "node": {
-          "value": 21.1,
-          "label": "21.1ms"
+          "value": 28.4,
+          "label": "28.4ms"
         }
       },
       "place": 1
