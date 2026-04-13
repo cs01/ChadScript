@@ -584,22 +584,15 @@ jobs:
         with:
           path: artifacts
 
-      - name: Delete old latest release
-        run: gh release delete latest --yes --cleanup-tag 2>/dev/null || true
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-
-      - name: Create latest release
-        run: |
-          gh release create latest \
-            --title "Latest Build" \
-            --notes "Automated release from ${GITHUB_REF_NAME} branch. Download native binaries and target SDKs below." \
-            --latest \
-            artifacts/**/*.tar.gz
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
+      - name: Publish latest release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest Build
+          body: Automated release from main branch. Download native binaries and target SDKs below.
+          files: artifacts/**/*.tar.gz
+          make_latest: "true"
+          target_commitish: ${{ github.sha }}
 
   tagged-release:
     needs: [build-linux-glibc, build-macos, test-artifact]
