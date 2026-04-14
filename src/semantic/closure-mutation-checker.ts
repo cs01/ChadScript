@@ -97,7 +97,11 @@ class ClosureMutationChecker {
       // Simple-name reassignment after capture is the error we're looking for.
       // Member-access assignments (obj.x = y) don't reassign the binding itself.
       if (capturedNames.indexOf(assign.name) !== -1) {
-        this.reportError(assign.name, assign.loc);
+        // NOTE: `assign.loc` is intentionally not passed here. No AssignmentStatement
+        // creation site in parser-ts/parser-native sets `loc`, so reading `assign.loc`
+        // in the native self-hosted compiler GEPs past the struct and segfaults.
+        // See the PR that introduced this comment for the full root cause.
+        this.reportError(assign.name, undefined);
       }
       this.scanExprForCaptures(assign.value, scopeVarNames, capturedNames);
     } else if (stype === "if") {
