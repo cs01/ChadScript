@@ -8,9 +8,9 @@ void *cs_pg_connect(const char *conninfo) {
     return (void *)conn;
 }
 
-int cs_pg_status(void *conn) {
-    if (!conn) return CONNECTION_BAD;
-    return PQstatus((PGconn *)conn);
+double cs_pg_status(void *conn) {
+    if (!conn) return (double)CONNECTION_BAD;
+    return (double)PQstatus((PGconn *)conn);
 }
 
 const char *cs_pg_error_message(void *conn) {
@@ -28,14 +28,14 @@ void *cs_pg_exec(void *conn, const char *sql) {
     return (void *)PQexec((PGconn *)conn, sql);
 }
 
-void *cs_pg_exec_params(void *conn, const char *sql, int nparams, const char **values) {
+void *cs_pg_exec_params(void *conn, const char *sql, double nparams, const char **values) {
     if (!conn || !sql) return NULL;
-    return (void *)PQexecParams((PGconn *)conn, sql, nparams, NULL, values, NULL, NULL, 0);
+    return (void *)PQexecParams((PGconn *)conn, sql, (int)nparams, NULL, values, NULL, NULL, 0);
 }
 
-int cs_pg_result_status(void *res) {
-    if (!res) return PGRES_FATAL_ERROR;
-    return PQresultStatus((PGresult *)res);
+double cs_pg_result_status(void *res) {
+    if (!res) return (double)PGRES_FATAL_ERROR;
+    return (double)PQresultStatus((PGresult *)res);
 }
 
 const char *cs_pg_result_error_message(void *res) {
@@ -43,35 +43,35 @@ const char *cs_pg_result_error_message(void *res) {
     return PQresultErrorMessage((PGresult *)res);
 }
 
-int cs_pg_nrows(void *res) {
-    if (!res) return 0;
-    return PQntuples((PGresult *)res);
+double cs_pg_nrows(void *res) {
+    if (!res) return 0.0;
+    return (double)PQntuples((PGresult *)res);
 }
 
-int cs_pg_ncols(void *res) {
-    if (!res) return 0;
-    return PQnfields((PGresult *)res);
+double cs_pg_ncols(void *res) {
+    if (!res) return 0.0;
+    return (double)PQnfields((PGresult *)res);
 }
 
-const char *cs_pg_fname(void *res, int col) {
+const char *cs_pg_fname(void *res, double col) {
     if (!res) return "";
-    const char *n = PQfname((PGresult *)res, col);
+    const char *n = PQfname((PGresult *)res, (int)col);
     return n ? n : "";
 }
 
-unsigned int cs_pg_ftype(void *res, int col) {
-    if (!res) return 0;
-    return (unsigned int)PQftype((PGresult *)res, col);
+double cs_pg_ftype(void *res, double col) {
+    if (!res) return 0.0;
+    return (double)PQftype((PGresult *)res, (int)col);
 }
 
-const char *cs_pg_getvalue(void *res, int row, int col) {
+const char *cs_pg_getvalue(void *res, double row, double col) {
     if (!res) return "";
-    return PQgetvalue((PGresult *)res, row, col);
+    return PQgetvalue((PGresult *)res, (int)row, (int)col);
 }
 
-int cs_pg_getisnull(void *res, int row, int col) {
-    if (!res) return 1;
-    return PQgetisnull((PGresult *)res, row, col);
+double cs_pg_getisnull(void *res, double row, double col) {
+    if (!res) return 1.0;
+    return (double)PQgetisnull((PGresult *)res, (int)row, (int)col);
 }
 
 const char *cs_pg_cmdtuples(void *res) {
@@ -85,8 +85,8 @@ void cs_pg_clear(void *res) {
     PQclear((PGresult *)res);
 }
 
-int cs_pg_result_ok(void *res) {
-    if (!res) return 0;
+double cs_pg_result_ok(void *res) {
+    if (!res) return 0.0;
     ExecStatusType s = PQresultStatus((PGresult *)res);
-    return (s == PGRES_COMMAND_OK || s == PGRES_TUPLES_OK) ? 1 : 0;
+    return (s == PGRES_COMMAND_OK || s == PGRES_TUPLES_OK) ? 1.0 : 0.0;
 }
