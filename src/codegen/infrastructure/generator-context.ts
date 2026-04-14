@@ -988,12 +988,6 @@ export interface IGeneratorContext {
   currentVarDeclKey: string | null;
   setCurrentVarDeclKey(key: string | null): void;
   getCurrentVarDeclKey(): string | null;
-
-  // Bounds-check elimination (perf) — IMPORTANT: keep at END of interface.
-  pushSafeIndexScope(): void;
-  popSafeIndexScope(): void;
-  addSafeIndex(indexName: string, arrayName: string): void;
-  isSafeIndex(indexName: string, arrayName: string): boolean;
 }
 
 /**
@@ -2317,13 +2311,5 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   getCurrentVarDeclKey(): string | null {
     return this.currentVarDeclKey;
-  }
-
-  // Bounds-check elimination stubs for MockGeneratorContext (no-ops).
-  pushSafeIndexScope(): void {}
-  popSafeIndexScope(): void {}
-  addSafeIndex(_indexName: string, _arrayName: string): void {}
-  isSafeIndex(_indexName: string, _arrayName: string): boolean {
-    return false;
   }
 }
