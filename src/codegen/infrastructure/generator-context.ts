@@ -800,6 +800,8 @@ export interface IGeneratorContext {
   getUsesTimers(): boolean;
   setUsesTreeSitter(value: boolean): void;
   setUsesSqlite(value: boolean): void;
+  setUsesPostgres(value: boolean): void;
+  getUsesPostgres(): boolean;
   setUsesCurl(value: boolean): void;
   setUsesOs(value: boolean): void;
   setUsesUvHrtime(value: boolean): void;
@@ -1034,6 +1036,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   public usesPromises: number = 0;
   public usesTimers: number = 0;
   public usesSqlite: number = 0;
+  public usesPostgres: number = 0;
   public usesCurl: number = 0;
   public usesUvHrtime: number = 0;
   public usesCrypto: number = 0;
@@ -1237,6 +1240,12 @@ export class MockGeneratorContext implements IGeneratorContext {
   setUsesTreeSitter(_value: boolean): void {}
   setUsesSqlite(value: boolean): void {
     this.usesSqlite = value ? 1 : 0;
+  }
+  setUsesPostgres(value: boolean): void {
+    this.usesPostgres = value ? 1 : 0;
+  }
+  getUsesPostgres(): boolean {
+    return this.usesPostgres !== 0;
   }
   setUsesCurl(value: boolean): void {
     this.usesCurl = value ? 1 : 0;
