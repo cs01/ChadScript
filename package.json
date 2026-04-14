@@ -1,6 +1,6 @@
 {
   "name": "chadscript",
-  "version": "0.2.0-beta",
+  "version": "0.3.0-beta",
   "description": "A JavaScript to native code compiler using LLVM",
   "type": "module",
   "main": "dist/chad-node.js",
