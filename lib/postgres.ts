@@ -12,6 +12,9 @@ declare function cs_pg_ncols(res: string): number;
 declare function cs_pg_fname(res: string, col: number): string;
 declare function cs_pg_getvalue(res: string, row: number, col: number): string;
 declare function cs_pg_getisnull(res: string, row: number, col: number): number;
+declare function cs_pg_params_new(): string;
+declare function cs_pg_params_add(params: string, value: string): void;
+declare function cs_pg_exec_params_with(conn: string, sql: string, params: string): string;
 
 const CONNECTION_OK: number = 0;
 
@@ -75,6 +78,40 @@ export class QueryResult {
     }
     return "";
   }
+
+  getInt(row: number, col: string): number {
+    const s = this.getValue(row, col);
+    return parseInt(s, 10);
+  }
+
+  getFloat(row: number, col: string): number {
+    const s = this.getValue(row, col);
+    return parseFloat(s);
+  }
+
+  getBool(row: number, col: string): boolean {
+    const s = this.getValue(row, col);
+    return s === "t" || s === "true" || s === "1";
+  }
+}
+
+export class Pool {
+  private _client: Client;
+
+  constructor(conninfo: string) {
+    this._client = new Client(conninfo);
+  }
+
+  query(sql: string, params: string[] = []): QueryResult {
+    if (!this._client.isConnected()) {
+      this._client.connect();
+    }
+    return this._client.query(sql, params);
+  }
+
+  end(): void {
+    this._client.end();
+  }
 }
 
 export class Client {
@@ -86,6 +123,10 @@ export class Client {
     this._conninfo = conninfo;
     this._conn = "";
     this._connected = false;
+  }
+
+  isConnected(): boolean {
+    return this._connected;
   }
 
   connect(): void {
@@ -100,11 +141,20 @@ export class Client {
     this._connected = true;
   }
 
-  query(sql: string): QueryResult {
+  query(sql: string, params: string[] = []): QueryResult {
     if (!this._connected) {
       throw new Error("postgres query on disconnected client");
     }
-    const res = cs_pg_exec(this._conn, sql);
+    let res: string;
+    if (params.length === 0) {
+      res = cs_pg_exec(this._conn, sql);
+    } else {
+      const p = cs_pg_params_new();
+      for (let i = 0; i < params.length; i++) {
+        cs_pg_params_add(p, params[i]);
+      }
+      res = cs_pg_exec_params_with(this._conn, sql, p);
+    }
     const ok = cs_pg_result_ok(res);
     if (ok === 0) {
       const msg = cs_pg_result_error_message(res);

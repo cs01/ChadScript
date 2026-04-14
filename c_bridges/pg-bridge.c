@@ -43,6 +43,42 @@ void *cs_pg_exec_params(void *conn, const char *sql, double nparams, const char 
     return (void *)PQexecParams((PGconn *)conn, sql, (int)nparams, NULL, values, NULL, NULL, 0);
 }
 
+typedef struct {
+    const char **values;
+    int count;
+    int capacity;
+} PgParamList;
+
+void *cs_pg_params_new(void) {
+    PgParamList *p = (PgParamList *)GC_malloc_atomic(sizeof(PgParamList));
+    if (!p) return NULL;
+    p->count = 0;
+    p->capacity = 8;
+    p->values = (const char **)GC_malloc_atomic(sizeof(const char *) * (size_t)p->capacity);
+    return (void *)p;
+}
+
+void cs_pg_params_add(void *params, const char *value) {
+    if (!params) return;
+    PgParamList *p = (PgParamList *)params;
+    if (p->count >= p->capacity) {
+        int newcap = p->capacity * 2;
+        const char **newvals = (const char **)GC_malloc_atomic(sizeof(const char *) * (size_t)newcap);
+        for (int i = 0; i < p->count; i++) newvals[i] = p->values[i];
+        p->values = newvals;
+        p->capacity = newcap;
+    }
+    p->values[p->count++] = value ? gc_strdup(value) : NULL;
+}
+
+void *cs_pg_exec_params_with(void *conn, const char *sql, void *params) {
+    if (!conn || !sql) return NULL;
+    PgParamList *p = (PgParamList *)params;
+    int n = p ? p->count : 0;
+    const char **vals = p ? p->values : NULL;
+    return (void *)PQexecParams((PGconn *)conn, sql, n, NULL, vals, NULL, NULL, 0);
+}
+
 double cs_pg_result_status(void *res) {
     if (!res) return (double)PGRES_FATAL_ERROR;
     return (double)PQresultStatus((PGresult *)res);
