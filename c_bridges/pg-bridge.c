@@ -2,6 +2,16 @@
 #include <stdlib.h>
 #include <string.h>
 
+extern void *GC_malloc_atomic(size_t);
+
+static const char *gc_strdup(const char *s) {
+    if (!s) return "";
+    size_t n = strlen(s);
+    char *out = (char *)GC_malloc_atomic(n + 1);
+    memcpy(out, s, n + 1);
+    return out;
+}
+
 void *cs_pg_connect(const char *conninfo) {
     if (!conninfo) return NULL;
     PGconn *conn = PQconnectdb(conninfo);
@@ -15,7 +25,7 @@ double cs_pg_status(void *conn) {
 
 const char *cs_pg_error_message(void *conn) {
     if (!conn) return "null connection";
-    return PQerrorMessage((PGconn *)conn);
+    return gc_strdup(PQerrorMessage((PGconn *)conn));
 }
 
 void cs_pg_finish(void *conn) {
@@ -40,7 +50,7 @@ double cs_pg_result_status(void *res) {
 
 const char *cs_pg_result_error_message(void *res) {
     if (!res) return "null result";
-    return PQresultErrorMessage((PGresult *)res);
+    return gc_strdup(PQresultErrorMessage((PGresult *)res));
 }
 
 double cs_pg_nrows(void *res) {
@@ -56,7 +66,7 @@ double cs_pg_ncols(void *res) {
 const char *cs_pg_fname(void *res, double col) {
     if (!res) return "";
     const char *n = PQfname((PGresult *)res, (int)col);
-    return n ? n : "";
+    return gc_strdup(n ? n : "");
 }
 
 double cs_pg_ftype(void *res, double col) {
@@ -66,7 +76,7 @@ double cs_pg_ftype(void *res, double col) {
 
 const char *cs_pg_getvalue(void *res, double row, double col) {
     if (!res) return "";
-    return PQgetvalue((PGresult *)res, (int)row, (int)col);
+    return gc_strdup(PQgetvalue((PGresult *)res, (int)row, (int)col));
 }
 
 double cs_pg_getisnull(void *res, double row, double col) {
@@ -77,7 +87,7 @@ double cs_pg_getisnull(void *res, double row, double col) {
 const char *cs_pg_cmdtuples(void *res) {
     if (!res) return "0";
     const char *c = PQcmdTuples((PGresult *)res);
-    return (c && *c) ? c : "0";
+    return gc_strdup((c && *c) ? c : "0");
 }
 
 void cs_pg_clear(void *res) {
