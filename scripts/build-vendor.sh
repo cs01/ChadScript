@@ -259,6 +259,36 @@ else
   echo "==> curl-bridge already built, skipping"
 fi
 
+# --- pg-bridge (libpq Postgres client) ---
+PG_BRIDGE_SRC="$C_BRIDGES_DIR/pg-bridge.c"
+PG_BRIDGE_OBJ="$C_BRIDGES_DIR/pg-bridge.o"
+if [ ! -f "$PG_BRIDGE_OBJ" ] || [ "$PG_BRIDGE_SRC" -nt "$PG_BRIDGE_OBJ" ]; then
+  PG_CFLAGS=""
+  PG_FOUND=0
+  if [ "$(uname)" = "Darwin" ]; then
+    BREW_PREFIX=$(brew --prefix 2>/dev/null || echo "/opt/homebrew")
+    LIBPQ_PREFIX=$(brew --prefix libpq 2>/dev/null || echo "$BREW_PREFIX/opt/libpq")
+    if [ -f "$LIBPQ_PREFIX/include/libpq-fe.h" ]; then
+      PG_CFLAGS="-I$LIBPQ_PREFIX/include"
+      PG_FOUND=1
+    fi
+  fi
+  if [ "$PG_FOUND" = "0" ]; then
+    if echo '#include <libpq-fe.h>' | cc -xc -fsyntax-only - 2>/dev/null; then
+      PG_FOUND=1
+    fi
+  fi
+  if [ "$PG_FOUND" = "1" ]; then
+    echo "==> Building pg-bridge..."
+    cc -c -O2 -fPIC $PG_CFLAGS "$PG_BRIDGE_SRC" -o "$PG_BRIDGE_OBJ"
+    echo "  -> $PG_BRIDGE_OBJ"
+  else
+    echo "==> pg-bridge skipped (no libpq headers found)"
+  fi
+else
+  echo "==> pg-bridge already built, skipping"
+fi
+
 # --- compress-bridge (zlib + zstd) ---
 COMPRESS_BRIDGE_SRC="$C_BRIDGES_DIR/compress-bridge.c"
 COMPRESS_BRIDGE_OBJ="$C_BRIDGES_DIR/compress-bridge.o"
