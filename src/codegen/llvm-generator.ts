@@ -1695,13 +1695,24 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.safeIndexFrames.push(this.safeIndexVars.length);
   }
 
-  // Pop the most recent loop scope, removing any pairs added within it
+  // Pop the most recent loop scope, removing any pairs added within it.
+  // Uses explicit pop() in a loop rather than `arr.length = N` because the
+  // self-hosted native compiler only implements the `.length = 0` (full
+  // clear) form of length-assignment — any non-zero truncation is silently
+  // ignored. That caused scoped safe-index entries to leak across loop
+  // bodies when chad compiles itself, over-eagerly eliminating bounds
+  // checks in unrelated code paths and in particular corrupting the
+  // semantic analyzer's `checkBinaryTypesDeep` walk (stage0 and stage1
+  // behaved differently, and every PR merged after #506 has been failing
+  // CI on `semantic/binary-type-in-function`).
   popSafeIndexScope(): void {
     if (this.safeIndexFrames.length === 0) return;
     const frameStart = this.safeIndexFrames[this.safeIndexFrames.length - 1];
     this.safeIndexFrames.pop();
-    this.safeIndexVars.length = frameStart;
-    this.safeIndexArrays.length = frameStart;
+    while (this.safeIndexVars.length > frameStart) {
+      this.safeIndexVars.pop();
+      this.safeIndexArrays.pop();
+    }
   }
 
   // Record that indexName indexing into arrayName is proven in-bounds
