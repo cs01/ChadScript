@@ -265,14 +265,17 @@ PG_BRIDGE_OBJ="$C_BRIDGES_DIR/pg-bridge.o"
 if [ ! -f "$PG_BRIDGE_OBJ" ] || [ "$PG_BRIDGE_SRC" -nt "$PG_BRIDGE_OBJ" ]; then
   PG_CFLAGS=""
   PG_FOUND=0
-  if [ "$(uname)" = "Darwin" ]; then
-    BREW_PREFIX=$(brew --prefix 2>/dev/null || echo "/opt/homebrew")
-    LIBPQ_PREFIX=$(brew --prefix libpq 2>/dev/null || echo "$BREW_PREFIX/opt/libpq")
-    if [ -f "$LIBPQ_PREFIX/include/libpq-fe.h" ]; then
-      PG_CFLAGS="-I$LIBPQ_PREFIX/include"
+  # Prefer pg_config — ships with libpq (libpq-dev on debian/ubuntu, libpq on
+  # brew). Knows the right -I regardless of platform-specific install layout.
+  if command -v pg_config >/dev/null 2>&1; then
+    PG_INCDIR=$(pg_config --includedir 2>/dev/null || echo "")
+    if [ -n "$PG_INCDIR" ] && [ -f "$PG_INCDIR/libpq-fe.h" ]; then
+      PG_CFLAGS="-I$PG_INCDIR"
       PG_FOUND=1
     fi
   fi
+  # Fallback: default cc include path (covers cases where libpq-fe.h is in
+  # /usr/include directly or the user has set CPATH/CPLUS_INCLUDE_PATH).
   if [ "$PG_FOUND" = "0" ]; then
     if echo '#include <libpq-fe.h>' | cc -xc -fsyntax-only - 2>/dev/null; then
       PG_FOUND=1
@@ -283,7 +286,7 @@ if [ ! -f "$PG_BRIDGE_OBJ" ] || [ "$PG_BRIDGE_SRC" -nt "$PG_BRIDGE_OBJ" ]; then
     cc -c -O2 -fPIC $PG_CFLAGS "$PG_BRIDGE_SRC" -o "$PG_BRIDGE_OBJ"
     echo "  -> $PG_BRIDGE_OBJ"
   else
-    echo "==> pg-bridge skipped (no libpq headers found)"
+    echo "==> pg-bridge skipped (no libpq headers found — install libpq-dev / libpq)"
   fi
 else
   echo "==> pg-bridge already built, skipping"

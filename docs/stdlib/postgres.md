@@ -6,7 +6,9 @@ PostgreSQL client via `libpq`. Connect to a Postgres database, run queries, and 
 import { Pool } from "chadscript/postgres";
 ```
 
-`libpq` is required at build time. On macOS: `brew install libpq`. On Debian/Ubuntu: `apt install libpq-dev`.
+`libpq` is required at build time. On Debian/Ubuntu: `apt install libpq-dev`. On macOS: `brew install libpq` then add `pg_config` to your `PATH` (libpq is keg-only) — `export PATH="/opt/homebrew/opt/libpq/bin:$PATH"`. Or `brew install postgresql@16` which puts `pg_config` on `PATH` automatically.
+
+The build script discovers `libpq` via `pg_config --includedir`, so as long as `pg_config` is on `PATH` the bridge compiles cleanly. If `pg_config` is missing, `pg-bridge.o` is silently skipped and `import { Pool } from "chadscript/postgres"` fails to link.
 
 ## `new Pool(conninfo)`
 
