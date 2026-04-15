@@ -8,6 +8,7 @@
 //   // @test-description: ...    — custom test description
 //   // @test-native-only         — skip when running with node compiler
 //   // @test-skip                — exclude from auto-discovery
+//   // @test-requires-env: VAR   — skip unless process.env.VAR is set and non-empty
 //
 // Defaults (no annotation needed):
 //   expectTestPassed: true — asserts stdout contains TEST_PASSED and exit code 0
@@ -34,6 +35,7 @@ interface ParsedAnnotations {
   description?: string;
   skip: boolean;
   nativeOnly: boolean;
+  requiresEnv?: string;
 }
 
 function parseAnnotations(filePath: string): ParsedAnnotations {
@@ -71,6 +73,11 @@ function parseAnnotations(filePath: string): ParsedAnnotations {
     const descMatch = trimmed.match(/^\/\/\s*@test-description:\s*(.+)/);
     if (descMatch) {
       result.description = descMatch[1].trim();
+    }
+
+    const requiresEnvMatch = trimmed.match(/^\/\/\s*@test-requires-env:\s*(\S+)/);
+    if (requiresEnvMatch) {
+      result.requiresEnv = requiresEnvMatch[1].trim();
     }
   }
 
@@ -111,6 +118,10 @@ export function discoverTests(fixturesDir: string = "tests/fixtures"): TestCase[
     const annotations = parseAnnotations(absPath);
 
     if (annotations.skip) continue;
+    if (annotations.requiresEnv) {
+      const val = process.env[annotations.requiresEnv];
+      if (!val || val.length === 0) continue;
+    }
 
     // Name from relative path without extension: "arrays/array-filter"
     const relToFixtures = path.relative(fixturesDir, relPath);
