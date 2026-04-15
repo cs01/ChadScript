@@ -265,7 +265,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public usesStringBuilder: number = 0;
   public usesLLVM: number = 0;
   public usesLLD: number = 0;
-  public usesPostgres: number = 0;
   public usesCompression: number = 0;
   public usesYaml: number = 0;
   private stringBuilderSlen: Map<string, string> = new Map();
@@ -993,12 +992,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public getUsesLLD(): boolean {
     return this.usesLLD !== 0;
   }
-  public setUsesPostgres(value: boolean): void {
-    this.usesPostgres = value ? 1 : 0;
-  }
-  public getUsesPostgres(): boolean {
-    return this.usesPostgres !== 0;
-  }
   public setUsesCompression(value: boolean): void {
     this.usesCompression = value ? 1 : 0;
   }
@@ -1415,7 +1408,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.usesAsyncFs = 0;
     this.usesGC = 0;
     this.usesMathRandom = 0;
-    this.usesPostgres = 0;
 
     this.ast = ast;
 
@@ -3387,7 +3379,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.declaredExternFunctions.push(func.name);
     if (func.name.startsWith("cs_llvm_")) this.usesLLVM = 1;
     if (func.name.startsWith("cs_lld_")) this.usesLLD = 1;
-    if (func.name.startsWith("cs_pg_")) this.usesPostgres = 1;
     return `declare ${retType} @${func.name}(${paramLlvmTypes.join(", ")})\n`;
   }
 

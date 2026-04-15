@@ -614,7 +614,6 @@ function transformExpression(node: TreeSitterNode): Expression {
     default:
       return { type: "variable", name: "undefined" };
   }
-  return { type: "variable", name: "undefined" };
 }
 
 // ============================================

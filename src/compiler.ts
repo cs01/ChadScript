@@ -406,7 +406,14 @@ export function compile(
   if (generator.usesSqlite) {
     linkLibs += " -lsqlite3";
   }
-  if (generator.usesPostgres) {
+  let usesPostgres = false;
+  for (let i = 0; i < generator.declaredExternFunctions.length; i++) {
+    if (generator.declaredExternFunctions[i].startsWith("cs_pg_")) {
+      usesPostgres = true;
+      break;
+    }
+  }
+  if (usesPostgres) {
     linkLibs += " -lpq";
   }
   if (generator.usesHttpServer) {
@@ -433,7 +440,7 @@ export function compile(
     if (generator.usesSqlite) {
       linkLibs = `-L${brewPrefix}/sqlite/lib ` + linkLibs;
     }
-    if (generator.usesPostgres) {
+    if (usesPostgres) {
       linkLibs = `-L${brewPrefix}/libpq/lib ` + linkLibs;
     }
     if (generator.usesHttpServer || generator.usesCompression) {
@@ -464,7 +471,7 @@ export function compile(
   const arenaBridgeObj = `${bridgePath}/arena-bridge.o`;
   const cpSpawnObj = generator.getUsesSpawn() ? `${bridgePath}/child-process-spawn.o` : "";
   const curlBridgeObj = generator.usesCurl ? `${bridgePath}/curl-bridge.o` : "";
-  const pgBridgeObj = generator.usesPostgres ? `${bridgePath}/pg-bridge.o` : "";
+  const pgBridgeObj = usesPostgres ? `${bridgePath}/pg-bridge.o` : "";
   const compressBridgeObj = generator.usesCompression ? `${bridgePath}/compress-bridge.o` : "";
   const yamlBridgeObj = generator.usesYaml ? `${bridgePath}/yaml-bridge.o` : "";
   let extraObjs = "";
