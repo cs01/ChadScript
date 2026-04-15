@@ -29,9 +29,9 @@ const name = sqlite.get(db, "SELECT name FROM users WHERE id = ?", [1]);
 // "Alice"
 ```
 
-## `sqlite.getRow<T>(db, sql, params?)`
+## `sqlite.getRow(db, sql, params?)`
 
-Execute a query and return the first row as a typed object, or `null` if no row matches. Fields are accessed by position via type assertion.
+Execute a query and return the first row as a typed object, or `null` if no row matches. The row type comes from the variable's type annotation — fields map to columns by position.
 
 ```typescript
 interface User {
@@ -40,7 +40,7 @@ interface User {
   age: string;
 }
 
-const user = sqlite.getRow<User>(db, "SELECT id, name, age FROM users WHERE id = ?", [1]);
+const user: User | null = sqlite.getRow(db, "SELECT id, name, age FROM users WHERE id = ?", [1]);
 if (user !== null) {
   console.log(user.name); // "Alice"
 }
@@ -55,9 +55,9 @@ const names = sqlite.all(db, "SELECT name FROM users WHERE age > ?", [25]);
 // ["Alice", "Charlie"]
 ```
 
-## `sqlite.query<T>(db, sql, params?)`
+## `sqlite.query(db, sql, params?)`
 
-Execute a query and return all rows as a typed object array. This is the recommended API for multi-column queries.
+Execute a query and return all rows as a typed object array. The row type comes from the variable's type annotation — fields map to columns by position. This is the recommended API for multi-column queries.
 
 ```typescript
 interface User {
@@ -66,13 +66,13 @@ interface User {
   age: string;
 }
 
-const users = sqlite.query<User>(db, "SELECT id, name, age FROM users ORDER BY id");
+const users: User[] = sqlite.query(db, "SELECT id, name, age FROM users ORDER BY id");
 for (const user of users) {
   console.log(user.name + " age " + user.age);
 }
 
 // With parameters:
-const adults = sqlite.query<User>(
+const adults: User[] = sqlite.query(
   db,
   "SELECT id, name, age FROM users WHERE age >= ?",
   ["18"]
@@ -101,11 +101,11 @@ interface User {
   age: string;
 }
 
-const users = sqlite.query<User>(db, "SELECT id, name, age FROM users ORDER BY name");
+const users: User[] = sqlite.query(db, "SELECT id, name, age FROM users ORDER BY name");
 console.log(users.length); // 2
 console.log(users[0].name); // "Alice"
 
-const alice = sqlite.getRow<User>(db, "SELECT id, name, age FROM users WHERE name = ?", ["Alice"]);
+const alice: User | null = sqlite.getRow(db, "SELECT id, name, age FROM users WHERE name = ?", ["Alice"]);
 if (alice !== null) {
   console.log(alice.age); // "30"
 }
