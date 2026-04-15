@@ -664,6 +664,16 @@ export function compileNative(inputFile: string, outputFile: string): void {
   if (generator.getUsesSqlite()) {
     linkLibs = "-lsqlite3 " + linkLibs;
   }
+  let usesPostgres: boolean = false;
+  for (let i = 0; i < generator.declaredExternFunctions.length; i++) {
+    if (generator.declaredExternFunctions[i].startsWith("cs_pg_")) {
+      usesPostgres = true;
+      break;
+    }
+  }
+  if (usesPostgres) {
+    linkLibs = "-lpq " + linkLibs;
+  }
   if (generator.getUsesHttpServer()) {
     linkLibs = "-lz -lzstd " + linkLibs;
   }
@@ -695,6 +705,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const arenaBridgeObj = effectiveBridgePath + "/arena-bridge.o";
   const cpSpawnObj = generator.getUsesSpawn() ? effectiveBridgePath + "/child-process-spawn.o" : "";
   const curlBridgeObj = generator.getUsesCurl() ? effectiveBridgePath + "/curl-bridge.o" : "";
+  const pgBridgeObj = usesPostgres ? effectiveBridgePath + "/pg-bridge.o" : "";
   const compressBridgeObj = generator.getUsesCompression()
     ? effectiveBridgePath + "/compress-bridge.o"
     : "";
@@ -758,6 +769,8 @@ export function compileNative(inputFile: string, outputFile: string): void {
     " " +
     curlBridgeObj +
     " " +
+    pgBridgeObj +
+    " " +
     compressBridgeObj +
     " " +
     yamlBridgeObj +
@@ -818,6 +831,12 @@ export function compileNative(inputFile: string, outputFile: string): void {
           linkLibs = "-L/opt/homebrew/opt/sqlite/lib " + linkLibs;
         if (fs.existsSync("/usr/local/opt/sqlite/lib"))
           linkLibs = "-L/usr/local/opt/sqlite/lib " + linkLibs;
+      }
+      if (usesPostgres) {
+        if (fs.existsSync("/opt/homebrew/opt/libpq/lib"))
+          linkLibs = "-L/opt/homebrew/opt/libpq/lib " + linkLibs;
+        if (fs.existsSync("/usr/local/opt/libpq/lib"))
+          linkLibs = "-L/usr/local/opt/libpq/lib " + linkLibs;
       }
       if (generator.getUsesHttpServer() || generator.getUsesCompression()) {
         if (fs.existsSync("/opt/homebrew/opt/zstd/lib"))
@@ -893,6 +912,12 @@ export function compileNative(inputFile: string, outputFile: string): void {
           linkLibs = "-L/opt/homebrew/opt/sqlite/lib " + linkLibs;
         if (fs.existsSync("/usr/local/opt/sqlite/lib"))
           linkLibs = "-L/usr/local/opt/sqlite/lib " + linkLibs;
+      }
+      if (usesPostgres) {
+        if (fs.existsSync("/opt/homebrew/opt/libpq/lib"))
+          linkLibs = "-L/opt/homebrew/opt/libpq/lib " + linkLibs;
+        if (fs.existsSync("/usr/local/opt/libpq/lib"))
+          linkLibs = "-L/usr/local/opt/libpq/lib " + linkLibs;
       }
       if (generator.getUsesHttpServer() || generator.getUsesCompression()) {
         if (fs.existsSync("/opt/homebrew/opt/zstd/lib"))

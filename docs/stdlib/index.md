@@ -25,11 +25,13 @@ A few APIs live in named modules and need an import:
 ```typescript
 import { httpServe, Router, Context } from "chadscript/http";
 import { ArgumentParser } from "chadscript/argparse";
+import { Pool } from "chadscript/postgres";
 ```
 
 | Module | Contents |
 |--------|----------|
 | `chadscript/http` | `httpServe`, `wsBroadcast`, `wsSend`, `parseMultipart`, `bytesResponse`, `serveFile`, `getHeader`, `parseQueryString`, `parseCookies`, `Router`, `Context`, `RouterRequest` |
 | `chadscript/argparse` | `ArgumentParser` |
+| `chadscript/postgres` | `Pool`, `Client`, `QueryResult`, `Row` — PostgreSQL client via `libpq` |
 
 The `chadscript/` prefix works like Node's `node:` prefix — unambiguous and collision-free.
