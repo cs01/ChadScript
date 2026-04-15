@@ -1,4 +1,4 @@
-// @test-skip
+// @test-requires-env: PG_TESTS_ENABLED
 import { Pool } from "chadscript/postgres";
 
 const pool = new Pool("host=127.0.0.1 port=5432 user=postgres password=test dbname=chadtest");
