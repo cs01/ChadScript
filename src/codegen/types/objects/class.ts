@@ -1160,7 +1160,21 @@ export class ClassGenerator {
     for (let ai = 0; ai < ctorLoopLimit; ai++) {
       if (ai < args.length) {
         const arg = args[ai];
+        const argBase = arg as { type: string };
+        let savedDeclaredIface: string | undefined = undefined;
+        let wrappedDeclaredIface = false;
+        if (argBase.type === "object" && ai < paramTypes.length) {
+          const tsParamType = paramTypes[ai];
+          if (tsParamType && this.ctx.interfaceStructGenHasInterface(tsParamType)) {
+            savedDeclaredIface = this.ctx.getCurrentDeclaredInterfaceType();
+            this.ctx.setCurrentDeclaredInterfaceType(tsParamType);
+            wrappedDeclaredIface = true;
+          }
+        }
         const val = this.ctx.generateExpression(arg, params);
+        if (wrappedDeclaredIface) {
+          this.ctx.setCurrentDeclaredInterfaceType(savedDeclaredIface);
+        }
         const argType = ai < paramLLVMTypes.length ? paramLLVMTypes[ai] : "double";
         if (argType === "double") {
           argParts.push(argType + " " + this.ctx.ensureDouble(val));
@@ -1257,9 +1271,22 @@ export class ClassGenerator {
           methodName === "json" &&
           className === "Context" &&
           !this.ctx.isStringExpression(arg);
+        let savedDeclaredIfaceM: string | undefined = undefined;
+        let wrappedDeclaredIfaceM = false;
+        if (argTyped.type === "object" && ai < paramTypes.length && !autoSerialize) {
+          const tsParamTypeM = paramTypes[ai];
+          if (tsParamTypeM && this.ctx.interfaceStructGenHasInterface(tsParamTypeM)) {
+            savedDeclaredIfaceM = this.ctx.getCurrentDeclaredInterfaceType();
+            this.ctx.setCurrentDeclaredInterfaceType(tsParamTypeM);
+            wrappedDeclaredIfaceM = true;
+          }
+        }
         const val = autoSerialize
           ? this.ctx.jsonGen.generateStringifyExpr(arg, params)
           : this.ctx.generateExpression(arg, params);
+        if (wrappedDeclaredIfaceM) {
+          this.ctx.setCurrentDeclaredInterfaceType(savedDeclaredIfaceM);
+        }
         this.ctx.setExpectedCallbackParamType(null);
 
         let argType = "double";

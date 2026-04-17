@@ -3744,21 +3744,57 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
                 }
               }
               if (returnTypeName === this.currentFunctionTsReturnType) {
-                const numObjFields = objLit.properties ? objLit.properties.length : 0;
+                const objKeys: string[] = [];
+                if (objLit.properties) {
+                  for (let k = 0; k < objLit.properties.length; k++) {
+                    objKeys.push(objLit.properties[k].key);
+                  }
+                }
                 let bestMatch: string | null = null;
+                let bestMatchSize = -1;
+                let exactMatch: string | null = null;
                 for (let i = 0; i < parts.length; i++) {
                   const part = parts[i].trim();
                   if (part === "null" || part === "undefined") continue;
                   if (!bestMatch) bestMatch = part;
                   if (this.interfaceStructGen) {
                     const ifaceInfo = this.interfaceStructGen.getInterfaceStruct(part);
-                    if (ifaceInfo && ifaceInfo.fields && ifaceInfo.fields.length === numObjFields) {
-                      bestMatch = part;
-                      break;
+                    if (ifaceInfo && ifaceInfo.fields) {
+                      const fieldNames: string[] = [];
+                      for (let f = 0; f < ifaceInfo.fields.length; f++) {
+                        const field = ifaceInfo.fields[f] as { name: string };
+                        fieldNames.push(field.name);
+                      }
+                      let isSuperset = true;
+                      for (let k = 0; k < objKeys.length; k++) {
+                        let found = false;
+                        for (let f = 0; f < fieldNames.length; f++) {
+                          if (fieldNames[f] === objKeys[k]) {
+                            found = true;
+                            break;
+                          }
+                        }
+                        if (!found) {
+                          isSuperset = false;
+                          break;
+                        }
+                      }
+                      if (isSuperset) {
+                        if (ifaceInfo.fields.length === objKeys.length) {
+                          exactMatch = part;
+                          break;
+                        }
+                        if (bestMatchSize === -1 || ifaceInfo.fields.length < bestMatchSize) {
+                          bestMatch = part;
+                          bestMatchSize = ifaceInfo.fields.length;
+                        }
+                      }
                     }
                   }
                 }
-                if (bestMatch) {
+                if (exactMatch) {
+                  returnTypeName = exactMatch;
+                } else if (bestMatch) {
                   returnTypeName = bestMatch;
                 }
               }
