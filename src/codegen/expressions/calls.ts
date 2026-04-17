@@ -866,6 +866,7 @@ export class CallExpressionGenerator {
     const resolvedFuncName = this.ctx.resolveImportAlias(expr.name);
     let returnType = "double";
     let paramTypes: string[] = [];
+    const paramTsTypes: string[] = [];
 
     const funcResult = this.getFunctionFromAST(expr.name);
     const func = funcResult as FunctionNode;
@@ -903,6 +904,7 @@ export class CallExpressionGenerator {
             this.ctx.interfaceStructGenHasInterface(stripNullable(p)),
           ),
         );
+        paramTsTypes.push(stripNullable(p));
       }
       // Integer-specialized callee: every double param/return becomes i64.
       // The existing FFI coercion paths in this loop already handle paramType
@@ -935,6 +937,7 @@ export class CallExpressionGenerator {
                 false,
               ),
             );
+            paramTsTypes.push(stripNullable(pType));
           }
         } else if (funcNode.paramTypes) {
           for (let i = 0; i < funcNode.paramTypes.length; i++) {
@@ -943,6 +946,7 @@ export class CallExpressionGenerator {
             paramTypes.push(
               mapParamTypeToLLVM(t, paramName, this.ctx.isEnumType(stripNullable(t)), false),
             );
+            paramTsTypes.push(stripNullable(t));
           }
         }
         if (funcNode.intSpecialized) {
@@ -967,7 +971,21 @@ export class CallExpressionGenerator {
     for (let i = 0; i < loopLimit; i++) {
       if (i < expr.args.length) {
         const paramType = paramTypes[i] || "double";
+        const argExpr = expr.args[i] as { type: string };
+        let savedDeclaredIface: string | undefined = undefined;
+        let wrappedDeclaredIface = false;
+        if (argExpr.type === "object" && i < paramTsTypes.length) {
+          const tsParamType = paramTsTypes[i];
+          if (tsParamType && this.ctx.interfaceStructGenHasInterface(tsParamType)) {
+            savedDeclaredIface = this.ctx.getCurrentDeclaredInterfaceType();
+            this.ctx.setCurrentDeclaredInterfaceType(tsParamType);
+            wrappedDeclaredIface = true;
+          }
+        }
         const result = this.ctx.generateExpression(expr.args[i], params);
+        if (wrappedDeclaredIface) {
+          this.ctx.setCurrentDeclaredInterfaceType(savedDeclaredIface);
+        }
         const resultType = this.ctx.getVariableType(result);
         if (paramType === "double" && resultType === "i8*") {
           argsList.push(`double 0.0`);
