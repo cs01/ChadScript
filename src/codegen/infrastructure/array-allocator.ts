@@ -520,6 +520,12 @@ export class ArrayAllocator {
     }
     if (e.type === "variable") {
       const varName = (expr as VariableNode).name;
+      if (this.ctx.symbolTable.isClass(varName)) {
+        const classInfo = this.ctx.symbolTable.getClassInfo(varName);
+        if (classInfo) return classInfo.className;
+      }
+      const concrete = this.ctx.symbolTable.getConcreteClass(varName);
+      if (concrete) return concrete;
       const objMeta = this.ctx.symbolTable.getObjectMetadata(varName);
       if (objMeta && objMeta.tsTypes) {
         return this.ctx.symbolTable.getType(varName) || null;

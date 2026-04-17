@@ -166,6 +166,7 @@ export interface MemberAccessGeneratorContext {
   ): { keys: string[]; types: string[]; tsTypes: string[] } | null;
   getInterfaceFieldType(interfaceName: string, fieldName: string): string | null;
   getMethodReturnType(className: string, methodName: string): string | null;
+  resolveImportAlias(localName: string): string;
   isEnumType(name: string): boolean;
   getEnumMemberValue(enumName: string, memberName: string): number;
   getEnumMemberStringValue(enumName: string, memberName: string): string | null;
@@ -2334,6 +2335,50 @@ export class MemberAccessGenerator {
         const interfaceInfo = this.getInterfaceInfo(elemType);
         if (interfaceInfo) {
           return interfaceInfo;
+        }
+      }
+    }
+    if (arrayExpr.type === "method_call") {
+      const mc = arrayExpr as MethodCallNode;
+      const mcObjBase = mc.object as { type: string };
+      let className: string | null = null;
+      if (mcObjBase.type === "variable") {
+        const mcVar = mc.object as VariableNode;
+        const concrete = this.ctx.symbolTable.getConcreteClass(mcVar.name);
+        if (concrete) {
+          className = concrete;
+        } else {
+          const classInfo = this.ctx.symbolTable.getClassInfo(mcVar.name);
+          if (classInfo) className = classInfo.className;
+        }
+      } else if (mcObjBase.type === "this") {
+        className = this.ctx.getCurrentClassName();
+      }
+      if (className) {
+        const retType = this.ctx.getMethodReturnType(className, mc.method);
+        if (retType && retType.endsWith("[]")) {
+          const elemType = retType.slice(0, -2);
+          const interfaceInfo = this.getInterfaceInfo(elemType);
+          if (interfaceInfo) return interfaceInfo;
+        }
+      }
+    }
+    if (arrayExpr.type === "call") {
+      const ce = arrayExpr as CallNode;
+      const fnName = this.ctx.resolveImportAlias(ce.name);
+      const ast = this.ctx.getAst();
+      if (ast) {
+        for (let fi = 0; fi < ast.functions.length; fi++) {
+          const fn = ast.functions[fi] as FunctionNode;
+          if (fn && fn.name === fnName && fn.returnType) {
+            const rt = fn.returnType;
+            if (rt.endsWith("[]")) {
+              const elemType = rt.slice(0, -2);
+              const interfaceInfo = this.getInterfaceInfo(elemType);
+              if (interfaceInfo) return interfaceInfo;
+            }
+            break;
+          }
         }
       }
     }
