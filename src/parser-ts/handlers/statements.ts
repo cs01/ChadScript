@@ -155,6 +155,7 @@ function desugarObjectDestructuring(
       name: tempName,
       value: source,
       declaredType,
+      loc: undefined,
     } as VariableDeclaration);
     objectRef = { type: "variable", name: tempName } as VariableNode;
   }
@@ -175,7 +176,14 @@ function desugarObjectDestructuring(
       property: propertyName,
     };
 
-    statements.push({ type: "variable_declaration", kind, name: localName, value: memberAccess });
+    statements.push({
+      type: "variable_declaration",
+      kind,
+      name: localName,
+      value: memberAccess,
+      declaredType: undefined,
+      loc: undefined,
+    });
   }
 
   return { type: "block", statements };
@@ -212,6 +220,7 @@ function desugarArrayDestructuring(
       name: tempName,
       value: source,
       declaredType,
+      loc: undefined,
     } as VariableDeclaration);
     arrayRef = { type: "variable", name: tempName } as VariableNode;
   }
@@ -230,7 +239,14 @@ function desugarArrayDestructuring(
       index: { type: "number", value: i },
     };
 
-    statements.push({ type: "variable_declaration", kind, name: localName, value: indexAccess });
+    statements.push({
+      type: "variable_declaration",
+      kind,
+      name: localName,
+      value: indexAccess,
+      declaredType: undefined,
+      loc: undefined,
+    });
   }
 
   return { type: "block", statements };

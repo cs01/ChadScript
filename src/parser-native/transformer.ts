@@ -1835,6 +1835,8 @@ function desugarDestructuring(
       kind: "const",
       name: tempName,
       value: rhsExpr,
+      declaredType: undefined,
+      loc: undefined,
     });
     objectRef = { type: "variable", name: tempName } as Expression;
   }
@@ -1852,6 +1854,8 @@ function desugarDestructuring(
           kind,
           name: propName,
           value: { type: "member_access", object: objectRef, property: propName } as Expression,
+          declaredType: undefined,
+          loc: undefined,
         });
       } else if (p.type === "pair_pattern") {
         const keyNode = getNamedChild(prop, 0);
@@ -1864,6 +1868,8 @@ function desugarDestructuring(
             kind,
             name: aliasName,
             value: { type: "member_access", object: objectRef, property: keyName } as Expression,
+            declaredType: undefined,
+            loc: undefined,
           });
         }
       }
@@ -1887,6 +1893,8 @@ function desugarDestructuring(
             object: objectRef,
             index: { type: "number", value: idx },
           } as Expression,
+          declaredType: undefined,
+          loc: undefined,
         });
         idx++;
       }
@@ -1920,7 +1928,7 @@ function transformVariableDeclarator(
     }
   }
 
-  return { type: "variable_declaration", kind, name, value, declaredType };
+  return { type: "variable_declaration", kind, name, value, declaredType, loc: undefined };
 }
 
 function transformReturnStatement(node: TreeSitterNode): ReturnStatement {

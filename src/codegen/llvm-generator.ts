@@ -2159,13 +2159,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     const items = this.ast.topLevelStatements;
     const i64Eligible = findI64EligibleVariables(this.ast.topLevelStatements);
     for (let stmtIdx = 0; stmtIdx < totalCount; stmtIdx++) {
-      const stmt = items[stmtIdx] as {
-        type: string;
-        kind: string;
-        name: string;
-        value: Expression | null;
-        declaredType?: string;
-      };
+      const stmt = items[stmtIdx] as VariableDeclaration;
       if (stmt.type !== "variable_declaration") continue;
       if (stmt.value !== null) {
         const name = stmt.name;
