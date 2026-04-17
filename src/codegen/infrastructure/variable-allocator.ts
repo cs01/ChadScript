@@ -174,6 +174,7 @@ export interface VariableAllocatorContext {
   setCurrentDeclaredInterfaceType(type: string | undefined): void;
   getCurrentDeclaredInterfaceType(): string | undefined;
   getCurrentClassName(): string | null;
+  getMethodReturnType(className: string, methodName: string): string | null;
   getParameterTypeFromAST(paramName: string): string | null;
   resolveImportAlias(localName: string): string;
   typeResolverGetInterface(name: string): InterfaceDeclaration | null;
@@ -1223,33 +1224,70 @@ export class VariableAllocator {
     if (exprBase.type !== "member_access") return null;
     const memberExpr = expr as MemberAccessNode;
     const objBase = memberExpr.object as ExprBase;
-    if (objBase.type !== "variable") return null;
-    const varName = (memberExpr.object as VariableNode).name;
-    if (!varName) return null;
     let objectInterfaceType: string | null = null;
-    const ifaceType = this.ctx.symbolTable.getInterfaceType(varName);
-    if (ifaceType) {
-      objectInterfaceType = ifaceType;
-    } else {
-      const objMeta = this.ctx.symbolTable.getObjectMetadata(varName);
-      if (objMeta && objMeta.tsTypes) {
-        if (!objMeta.keys || !memberExpr.property) return null;
-        const keyIdx = objMeta.keys.indexOf(memberExpr.property);
-        if (keyIdx >= 0 && objMeta.tsTypes) {
-          const propType = objMeta.tsTypes[keyIdx];
-          if (
-            propType &&
-            !propType.endsWith("[]") &&
-            propType !== "string" &&
-            propType !== "number" &&
-            propType !== "boolean"
-          ) {
-            const iface = this.getInterface(propType);
-            if (iface) return propType;
+    if (objBase.type === "method_call") {
+      const mc = memberExpr.object as MethodCallNode;
+      const mcObjBase = mc.object as ExprBase;
+      let mcClassName: string | null = null;
+      if (mcObjBase.type === "variable") {
+        const mcVar = mc.object as VariableNode;
+        const concrete = this.ctx.symbolTable.getConcreteClass(mcVar.name);
+        if (concrete) mcClassName = concrete;
+        else if (this.ctx.symbolTable.isClass(mcVar.name)) {
+          const ci = this.ctx.symbolTable.getClassInfo(mcVar.name);
+          if (ci) mcClassName = ci.className;
+        }
+      } else if (mcObjBase.type === "this") {
+        mcClassName = this.ctx.getCurrentClassName();
+      }
+      if (mcClassName) {
+        const rt = this.ctx.getMethodReturnType(mcClassName, mc.method);
+        if (rt && !rt.endsWith("[]")) {
+          objectInterfaceType = stripNullable(rt);
+        }
+      }
+    } else if (objBase.type === "call") {
+      const ce = memberExpr.object as CallNode;
+      const ast = this.ctx.getAst();
+      if (ast && ce.name) {
+        const funcs = ast.functions || [];
+        for (let i = 0; i < funcs.length; i++) {
+          const fn = funcs[i];
+          if (fn.name === ce.name && fn.returnType && !fn.returnType.endsWith("[]")) {
+            objectInterfaceType = stripNullable(fn.returnType);
+            break;
           }
         }
-        return null;
       }
+    } else if (objBase.type === "variable") {
+      const varName = (memberExpr.object as VariableNode).name;
+      if (!varName) return null;
+      const ifaceType = this.ctx.symbolTable.getInterfaceType(varName);
+      if (ifaceType) {
+        objectInterfaceType = ifaceType;
+      } else {
+        const objMeta = this.ctx.symbolTable.getObjectMetadata(varName);
+        if (objMeta && objMeta.tsTypes) {
+          if (!objMeta.keys || !memberExpr.property) return null;
+          const keyIdx = objMeta.keys.indexOf(memberExpr.property);
+          if (keyIdx >= 0 && objMeta.tsTypes) {
+            const propType = objMeta.tsTypes[keyIdx];
+            if (
+              propType &&
+              !propType.endsWith("[]") &&
+              propType !== "string" &&
+              propType !== "number" &&
+              propType !== "boolean"
+            ) {
+              const iface = this.getInterface(propType);
+              if (iface) return propType;
+            }
+          }
+          return null;
+        }
+      }
+    } else {
+      return null;
     }
     if (!objectInterfaceType) return null;
     const objectInterface = this.getInterface(objectInterfaceType);

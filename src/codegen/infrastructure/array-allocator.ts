@@ -10,6 +10,7 @@ import {
   MemberAccessNode,
   VariableNode,
   MethodCallNode,
+  CallNode,
   SourceLocation,
 } from "../../ast/types.js";
 import { InterfaceAllocator } from "./interface-allocator.js";
@@ -433,6 +434,26 @@ export class ArrayAllocator {
       if (returnType && returnType.endsWith("[]")) {
         const elementType = returnType.slice(0, -2).trim();
         return this.interfaceAlloc.getTypeInfoForElementType(elementType);
+      }
+      return null;
+    }
+
+    if (idxObjBase.type === "call") {
+      const callExpr = indexExpr.object as CallNode;
+      const ast = this.ctx.getAst();
+      if (ast && callExpr.name) {
+        const funcs = ast.functions || [];
+        for (let i = 0; i < funcs.length; i++) {
+          const fn = funcs[i];
+          if (fn.name === callExpr.name && fn.returnType) {
+            const rt = fn.returnType;
+            if (rt.endsWith("[]")) {
+              const elementType = rt.slice(0, -2).trim();
+              return this.interfaceAlloc.getTypeInfoForElementType(elementType);
+            }
+            break;
+          }
+        }
       }
       return null;
     }
