@@ -69,6 +69,19 @@ function emitArrayPrint(
   arrayPtr: string,
   arrayType: "Array" | "StringArray" | "ObjectArray",
 ): void {
+  const arrCast = ctx.nextTemp();
+  ctx.emit(`${arrCast} = ptrtoint %${arrayType}* ${arrayPtr} to i64`);
+  const arrIsNull = ctx.emitIcmp("eq", "i64", arrCast, "0");
+  const arrNullLabel = ctx.nextLabel("arr_null");
+  const arrNonNullLabel = ctx.nextLabel("arr_nonnull");
+  ctx.emitBrCond(arrIsNull, arrNullLabel, arrNonNullLabel);
+  ctx.emitLabel(arrNullLabel);
+  const undefStr = ctx.stringGen.doCreateStringConstant("undefined");
+  emitPrintStrNoNl(ctx, useStderr, undefStr);
+  const arrDoneNullLabel = ctx.nextLabel("arr_done_null");
+  ctx.emitBr(arrDoneNullLabel);
+  ctx.emitLabel(arrNonNullLabel);
+
   const lenPtr = ctx.nextTemp();
   ctx.emit(
     `${lenPtr} = getelementptr inbounds %${arrayType}, %${arrayType}* ${arrayPtr}, i32 0, i32 1`,
@@ -164,6 +177,8 @@ function emitArrayPrint(
   ctx.emitBr(doneLabel);
 
   ctx.emitLabel(doneLabel);
+  ctx.emitBr(arrDoneNullLabel);
+  ctx.emitLabel(arrDoneNullLabel);
 }
 
 function emitMapPrint(
@@ -513,13 +528,39 @@ function emitSingleArg(
     const ifaceType =
       ctx.symbolTable.getInterfaceType(varName) || ctx.symbolTable.getRawInterfaceType(varName);
     if (ifaceType) {
+      const ptrVal = ctx.generateExpression(arg, params);
+      const isNull = ctx.emitIcmp("eq", "i8*", ptrVal, "null");
+      const nullLabel = ctx.nextLabel("console_null");
+      const nonNullLabel = ctx.nextLabel("console_nonnull");
+      const doneLabel = ctx.nextLabel("console_done");
+      ctx.emitBrCond(isNull, nullLabel, nonNullLabel);
+      ctx.emitLabel(nullLabel);
+      const nullStr = ctx.stringGen.doCreateStringConstant("null");
+      emitPrintStrNoNl(ctx, useStderr, nullStr);
+      ctx.emitBr(doneLabel);
+      ctx.emitLabel(nonNullLabel);
       const jsonStr = ctx.jsonGen.generateStringifyExpr(arg, params);
       emitPrintStrNoNl(ctx, useStderr, jsonStr);
+      ctx.emitBr(doneLabel);
+      ctx.emitLabel(doneLabel);
       return;
     }
     const cn = ctx.symbolTable.getClassName(varName);
     if (cn) {
+      const clsPtr = ctx.generateExpression(arg, params);
+      const clsIsNull = ctx.emitIcmp("eq", "i8*", clsPtr, "null");
+      const clsNullLabel = ctx.nextLabel("console_cls_null");
+      const clsNonNullLabel = ctx.nextLabel("console_cls_nonnull");
+      const clsDoneLabel = ctx.nextLabel("console_cls_done");
+      ctx.emitBrCond(clsIsNull, clsNullLabel, clsNonNullLabel);
+      ctx.emitLabel(clsNullLabel);
+      const clsNullStr = ctx.stringGen.doCreateStringConstant("null");
+      emitPrintStrNoNl(ctx, useStderr, clsNullStr);
+      ctx.emitBr(clsDoneLabel);
+      ctx.emitLabel(clsNonNullLabel);
       emitClassInstancePrint(ctx, useStderr, arg, params, cn);
+      ctx.emitBr(clsDoneLabel);
+      ctx.emitLabel(clsDoneLabel);
       return;
     }
   }
