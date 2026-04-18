@@ -49,9 +49,16 @@ export function generateArrayLiteral(
   }
   let firstElemValue: string | null = null;
   if (length > 0 && !isStringArray) {
+    // Object literal elements are i8* pointers to struct allocations — they must
+    // flow to ObjectArray, not StringArray. Detect BEFORE generating the element
+    // so the i8*-fallback below doesn't misclassify as string.
+    const firstElemAstType = (arrExpr.elements[0] as { type: string }).type;
+    if (firstElemAstType === "object" || firstElemAstType === "new") {
+      isPointerArray = true;
+    }
     firstElemValue = gen.generateExpression(arrExpr.elements[0], params);
     const firstElemType = gen.getVariableType(firstElemValue);
-    if (firstElemType === "i8*") {
+    if (!isPointerArray && firstElemType === "i8*") {
       isStringArray = true;
     } else if (firstElemType && firstElemType !== "double" && firstElemType.indexOf("*") !== -1) {
       isPointerArray = true;

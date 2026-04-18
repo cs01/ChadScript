@@ -1625,6 +1625,17 @@ export class TypeInference {
 
   isObjectArrayExpression(expr: Expression): boolean {
     const e = expr as ExprBase;
+    if (e.type === "array") {
+      // Array literal: classify by first element. Object literals / new-expressions
+      // yield ObjectArray element storage (each slot is i8* to a struct).
+      const arrExpr = expr as ArrayNode;
+      if (arrExpr.elements && arrExpr.elements.length > 0) {
+        const firstBase = arrExpr.elements[0] as ExprBase;
+        if (firstBase && (firstBase.type === "object" || firstBase.type === "new")) {
+          return true;
+        }
+      }
+    }
     if (e.type === "binary") {
       const binExpr = expr as BinaryNode;
       if (binExpr.op === "||" || binExpr.op === "??") {
