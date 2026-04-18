@@ -33,7 +33,12 @@ import {
   createResolvedType,
   tsTypeToLlvm,
 } from "./type-system.js";
-import type { ResolvedType, ResolvedTypeSourceKind, ResolvedTypeFields } from "./type-system.js";
+import type {
+  ResolvedType,
+  ResolvedTypeSourceKind,
+  ResolvedTypeFields,
+  ArrayStorageStrategy,
+} from "./type-system.js";
 import type { TypeContext } from "./type-context.js";
 
 interface ExprBase {
@@ -125,7 +130,9 @@ export class TypeInference {
   resolveExpressionTypeRich(expr: Expression): ResolvedType | null {
     const baseType = this.resolveExpressionType(expr);
     if (!baseType) return null;
-    return this.enrichResolvedType(baseType);
+    const enriched = this.enrichResolvedType(baseType);
+    this.populateArrayStorage(enriched, expr);
+    return enriched;
   }
 
   private enrichResolvedType(rt: ResolvedType): ResolvedType {
@@ -146,6 +153,30 @@ export class TypeInference {
     const fields = this.computeFieldsForType(rich);
     if (fields) rich.fields = fields;
     return rich;
+  }
+
+  // Phase A: derive array storage strategy. Only populated for arrayDepth > 0.
+  // Rule: "inlined" only when the expression is an array LITERAL whose element
+  // interface has fields that are all "double". Anything else — including
+  // derived arrays from indexing, method returns, function returns, variables
+  // whose source is a derived array — is "pointer". This matches what the
+  // codegen actually lays out today; Phase B makes consumers read this
+  // instead of the per-var markContiguousObjectArray table.
+  private populateArrayStorage(rich: ResolvedType, expr: Expression): void {
+    if (rich.arrayDepth === 0) return;
+    rich.arrayStorage = this.deriveArrayStorage(rich, expr);
+  }
+
+  private deriveArrayStorage(rich: ResolvedType, expr: Expression): ArrayStorageStrategy {
+    const e = expr as ExprBase;
+    if (!e || e.type !== "array") return "pointer";
+    if (!rich.fields) return "pointer";
+    const types = rich.fields.types;
+    if (types.length === 0) return "pointer";
+    for (let i = 0; i < types.length; i++) {
+      if (types[i] !== "double") return "pointer";
+    }
+    return "inlined";
   }
 
   private classifySourceKind(base: string): ResolvedTypeSourceKind {

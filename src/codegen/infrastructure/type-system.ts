@@ -31,6 +31,16 @@ export type ResolvedTypeSourceKind =
   | "union"
   | "unknown";
 
+// Array storage strategy — single source of truth for ObjectArray element layout.
+// Phase A (rearchitect) adds this field additively; consumers still read the legacy
+// `markContiguousObjectArray` table for now. Phase B retires that table.
+//   "inlined" — packed struct-of-doubles in contiguous bytes (array literal of
+//               interface whose fields are all `double`). Indexer uses stride math.
+//   "pointer" — ObjectArray of i8* element pointers (derived arrays from indexing,
+//               method returns, function results, etc.). Indexer bitcasts data to
+//               i8** and loads each slot.
+export type ArrayStorageStrategy = "inlined" | "pointer";
+
 export interface ResolvedType {
   base: string;
   qualifiers: TypeQualifiers;
@@ -45,6 +55,7 @@ export interface ResolvedType {
   sourceKind?: ResolvedTypeSourceKind;
   members?: ResolvedType[]; // reserved for P3 union-type propagation; unpopulated in P1
   fields?: ResolvedTypeFields;
+  arrayStorage?: ArrayStorageStrategy; // Phase A: populated when arrayDepth > 0
 }
 
 // Keys/types/tsTypes triple used by object-array element access and object-literal codegen.
