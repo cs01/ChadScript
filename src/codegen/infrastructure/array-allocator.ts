@@ -27,6 +27,7 @@ import {
   createObjectMetadataWithInterface,
 } from "./symbol-table.js";
 import { stripOptional, parseArrayTypeString } from "./type-system.js";
+import type { ResolvedType } from "./type-system.js";
 import type { FieldInfo } from "./type-resolver/types.js";
 import type { UnionCommonFields } from "./type-resolver/index.js";
 
@@ -66,6 +67,7 @@ export interface ArrayAllocatorContext {
   readonly symbolTable: SymbolTable;
   emitError(message: string, loc?: SourceLocation, suggestion?: string): never;
   getAst(): AST | undefined;
+  resolveExpressionTypeRich(expr: Expression): ResolvedType | null;
 }
 
 export class ArrayAllocator {
@@ -379,6 +381,16 @@ export class ArrayAllocator {
 
     const indexExpr = expr as IndexAccessNode;
     if (!indexExpr.object) return null;
+
+    // Canonical path (P2): delegate to TypeInference.resolveExpressionTypeRich.
+    // Fires when the object resolves to an array of an interface/class whose
+    // fields we know. Legacy fallback below still handles shapes the canonical
+    // resolver doesn't yet cover (P3 widens coverage).
+    const rich = this.ctx.resolveExpressionTypeRich(indexExpr.object);
+    if (rich && rich.arrayDepth > 0 && rich.fields) {
+      return { keys: rich.fields.keys, types: rich.fields.types, tsTypes: rich.fields.tsTypes };
+    }
+
     const idxObjBase = indexExpr.object as ExprBase;
     if (!idxObjBase || !idxObjBase.type) return null;
 
