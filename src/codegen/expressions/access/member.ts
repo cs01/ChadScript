@@ -2223,13 +2223,12 @@ export class MemberAccessGenerator {
   private getObjectArrayElementInfo(
     arrayExpr: Expression,
   ): { keys: string[]; types: string[]; tsTypes: string[] } | null {
-    // Canonical path (P3b): delegate to TypeInference.resolveExpressionTypeRich.
-    // Fires when the object resolves to an array of an interface/class whose
-    // fields we know — covers method-chain and call returns that the legacy
-    // branches below partially miss. Legacy branches remain for shapes not yet
-    // covered by the canonical resolver.
+    // Canonical path: only fires when the INDEX will yield a scalar
+    // interface/class element — i.e. the object is a depth-1 array. For
+    // depth>1 (e.g. `P[][]` indexed once → `P[]`) the result is still an
+    // array and the indexed-object-array element-info is not appropriate.
     const rich = this.ctx.resolveExpressionTypeRich(arrayExpr);
-    if (rich && rich.arrayDepth > 0 && rich.fields) {
+    if (rich && rich.arrayDepth === 1 && rich.fields) {
       return { keys: rich.fields.keys, types: rich.fields.types, tsTypes: rich.fields.tsTypes };
     }
 
