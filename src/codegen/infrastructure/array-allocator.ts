@@ -68,6 +68,7 @@ export interface ArrayAllocatorContext {
   emitError(message: string, loc?: SourceLocation, suggestion?: string): never;
   getAst(): AST | undefined;
   resolveExpressionTypeRich(expr: Expression): ResolvedType | null;
+  getArrayStorageStrategy(expr: Expression): "inlined" | "pointer";
 }
 
 export class ArrayAllocator {
@@ -173,20 +174,16 @@ export class ArrayAllocator {
           elementTypes: typeInfo.types,
           elementTsTypes: typeInfo.tsTypes,
         });
-        // Contiguous layout is only correct when the RHS is an ARRAY LITERAL
-        // that the compiler packs inline. Derived arrays (e.g. `g[1]` where
-        // g is P[][], or a method return) inherit pointer-based storage, so
-        // marking them contiguous causes the indexer to compute byte offsets
-        // into raw memory instead of loading element pointers.
-        const stmtValueBase = stmt.value as ExprBase | undefined;
-        const isArrayLiteral = stmtValueBase !== undefined && stmtValueBase.type === "array";
-        let isAllDouble = isArrayLiteral && typeInfo.types.length > 0;
-        for (let ti = 0; ti < typeInfo.types.length && isAllDouble; ti++) {
-          if (typeInfo.types[ti] !== "double") {
-            isAllDouble = false;
-          }
-        }
-        if (isAllDouble) {
+        // Phase B: consult the canonical resolver's arrayStorage strategy
+        // as the single source of truth. The helper returns "inlined" only
+        // for array-literal RHS whose element fields are all double; derived
+        // arrays (indexing, method returns, function results) return
+        // "pointer" so we correctly skip the contiguous marking. Supersedes
+        // the ad-hoc "isArrayLiteral + all-double" check introduced in #529.
+        const storage = stmt.value
+          ? this.ctx.getArrayStorageStrategy(stmt.value)
+          : ("pointer" as const);
+        if (storage === "inlined") {
           const stride = typeInfo.types.length * 8;
           this.ctx.symbolTable.markContiguousObjectArray(stmt.name, typeInfo.types.length);
           this.ctx.symbolTable.setPendingContiguousStride(stride);

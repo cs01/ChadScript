@@ -4036,6 +4036,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return this.typeInference.resolveExpressionTypeRich(expr);
   }
 
+  public getArrayStorageStrategy(expr: Expression): "inlined" | "pointer" {
+    return this.typeInference.getArrayStorageStrategy(expr);
+  }
+
   public isObjectArrayExpression(expr: Expression): boolean {
     return this.typeInference.isObjectArrayExpression(expr);
   }

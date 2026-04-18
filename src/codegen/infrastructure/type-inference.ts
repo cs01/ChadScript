@@ -160,8 +160,7 @@ export class TypeInference {
   // interface has fields that are all "double". Anything else — including
   // derived arrays from indexing, method returns, function returns, variables
   // whose source is a derived array — is "pointer". This matches what the
-  // codegen actually lays out today; Phase B makes consumers read this
-  // instead of the per-var markContiguousObjectArray table.
+  // codegen actually lays out today.
   private populateArrayStorage(rich: ResolvedType, expr: Expression): void {
     if (rich.arrayDepth === 0) return;
     rich.arrayStorage = this.deriveArrayStorage(rich, expr);
@@ -177,6 +176,16 @@ export class TypeInference {
       if (types[i] !== "double") return "pointer";
     }
     return "inlined";
+  }
+
+  // Phase B: public single source of truth for array storage strategy.
+  // All code that needs to decide "is this array inlined-contiguous or
+  // pointer-based" should call this helper — never recompute ad hoc.
+  // Returns "pointer" when the expression has no resolvable array type.
+  public getArrayStorageStrategy(expr: Expression): ArrayStorageStrategy {
+    const rich = this.resolveExpressionTypeRich(expr);
+    if (!rich || rich.arrayDepth === 0) return "pointer";
+    return rich.arrayStorage || "pointer";
   }
 
   private classifySourceKind(base: string): ResolvedTypeSourceKind {
