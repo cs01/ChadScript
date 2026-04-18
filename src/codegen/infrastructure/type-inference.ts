@@ -26,8 +26,14 @@ import type { TypeChecker } from "../../typescript/type-checker.js";
 import type { ClassGenerator } from "../types/objects/class.js";
 import type { TypeResolver } from "./type-resolver/index.js";
 import type { FieldInfo } from "./type-resolver/types.js";
-import { stripNullable, parseMapTypeString, createResolvedType } from "./type-system.js";
-import type { ResolvedType } from "./type-system.js";
+import {
+  stripNullable,
+  stripOptional,
+  parseMapTypeString,
+  createResolvedType,
+  tsTypeToLlvm,
+} from "./type-system.js";
+import type { ResolvedType, ResolvedTypeSourceKind, ResolvedTypeFields } from "./type-system.js";
 import type { TypeContext } from "./type-context.js";
 
 interface ExprBase {
@@ -60,6 +66,7 @@ export interface TypeInferenceContext {
   classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
   classGenGetFieldType(className: string, fieldName: string): string | null;
   classGenGetFieldTsType(className: string, fieldName: string): string | null;
+  classGenGetClassFields(className: string): { name: string; fieldType: string }[];
   typeResolver?: TypeResolver;
   typeResolverGetInterface(name: string): InterfaceDeclaration | null;
   typeResolverGetInterfaceProperty(interfaceName: string, propName: string): InterfaceField | null;
@@ -108,6 +115,104 @@ export class TypeInference {
     if (complex !== undefined) return complex;
 
     return null;
+  }
+
+  // Canonical rich resolver. Returns an enriched clone of resolveExpressionType's
+  // result with elementInterface / sourceKind / fields populated where derivable.
+  // Clones rather than mutating so shared cached instances (typeContext.numberType
+  // etc.) never gain stray enrichment. Fields are eager in P1a; lazy-getter
+  // optimization deferred to P1b — callers today only invoke this on the hot path.
+  resolveExpressionTypeRich(expr: Expression): ResolvedType | null {
+    const baseType = this.resolveExpressionType(expr);
+    if (!baseType) return null;
+    return this.enrichResolvedType(baseType);
+  }
+
+  private enrichResolvedType(rt: ResolvedType): ResolvedType {
+    const rich: ResolvedType = {
+      base: rt.base,
+      qualifiers: rt.qualifiers,
+      arrayDepth: rt.arrayDepth,
+      typeParams: rt.typeParams,
+      cachedLlvmType: rt.cachedLlvmType,
+    };
+    rich.sourceKind = this.classifySourceKind(rich.base);
+    if (rich.arrayDepth > 0) {
+      const elemKind = rich.sourceKind;
+      if (elemKind === "interface" || elemKind === "class") {
+        rich.elementInterface = rich.base;
+      }
+    }
+    const fields = this.computeFieldsForType(rich);
+    if (fields) rich.fields = fields;
+    return rich;
+  }
+
+  private classifySourceKind(base: string): ResolvedTypeSourceKind {
+    if (!base) return "unknown";
+    if (
+      base === "string" ||
+      base === "number" ||
+      base === "boolean" ||
+      base === "null" ||
+      base === "undefined" ||
+      base === "void" ||
+      base === "any"
+    ) {
+      return "primitive";
+    }
+    if (this.getInterface(base)) return "interface";
+    if (this.ctx.classGenGetClassFields(base).length > 0) return "class";
+    if (base === "object") return "object_literal";
+    return "unknown";
+  }
+
+  private computeFieldsForType(rt: ResolvedType): ResolvedTypeFields | undefined {
+    // For arrays, fields describe the ELEMENT's struct layout (if element is interface/class).
+    if (rt.arrayDepth > 0) {
+      if (rt.elementInterface) {
+        return this.computeFieldsForNamedType(rt.elementInterface);
+      }
+      return undefined;
+    }
+    if (rt.sourceKind === "interface" || rt.sourceKind === "class") {
+      return this.computeFieldsForNamedType(rt.base);
+    }
+    return undefined;
+  }
+
+  private computeFieldsForNamedType(name: string): ResolvedTypeFields | undefined {
+    const iface = this.getInterface(name);
+    if (iface) {
+      const all = this.getAllFieldsForInterface(iface);
+      const keys: string[] = [];
+      const types: string[] = [];
+      const tsTypes: string[] = [];
+      for (let i = 0; i < all.length; i++) {
+        const f = all[i] as InterfaceField;
+        const fName = f.name ? stripOptional(f.name) : "";
+        keys.push(fName);
+        const fType = f.type || "";
+        tsTypes.push(fType);
+        types.push(tsTypeToLlvm(fType));
+      }
+      return { keys, types, tsTypes };
+    }
+    // Class fallback — walk class fields. Classes store fieldType strings (TS types).
+    const classFields = this.ctx.classGenGetClassFields(name);
+    if (classFields && classFields.length > 0) {
+      const keys: string[] = [];
+      const types: string[] = [];
+      const tsTypes: string[] = [];
+      for (let i = 0; i < classFields.length; i++) {
+        const f = classFields[i];
+        keys.push(f.name);
+        tsTypes.push(f.fieldType);
+        types.push(tsTypeToLlvm(f.fieldType));
+      }
+      return { keys, types, tsTypes };
+    }
+    return undefined;
   }
 
   private resolveCollectionExprType(
