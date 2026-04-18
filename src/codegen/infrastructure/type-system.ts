@@ -21,6 +21,16 @@ interface TypeQualifiers {
   numericKind?: NumericKind;
 }
 
+// Source kind classifies how a type was derived — feeds downstream codegen decisions
+// (e.g. class instance vs interface vs primitive vs object literal).
+export type ResolvedTypeSourceKind =
+  | "interface"
+  | "class"
+  | "object_literal"
+  | "primitive"
+  | "union"
+  | "unknown";
+
 export interface ResolvedType {
   base: string;
   qualifiers: TypeQualifiers;
@@ -28,6 +38,22 @@ export interface ResolvedType {
   typeParams?: ResolvedType[];
   id?: number;
   cachedLlvmType?: string;
+
+  // Populated only by TypeInference.resolveExpressionTypeRich.
+  // When absent, treat as legacy ResolvedType (consumers using .base/.arrayDepth work as before).
+  elementInterface?: string;
+  sourceKind?: ResolvedTypeSourceKind;
+  members?: ResolvedType[]; // reserved for P3 union-type propagation; unpopulated in P1
+  fields?: ResolvedTypeFields;
+}
+
+// Keys/types/tsTypes triple used by object-array element access and object-literal codegen.
+// Kept structurally identical to UnionCommonFields in type-resolver/types.ts so either can be
+// passed to existing call sites — the representations unify in P4.
+export interface ResolvedTypeFields {
+  keys: string[];
+  types: string[];
+  tsTypes: string[];
 }
 
 const DEFAULT_QUALIFIERS: TypeQualifiers = { isNullable: false, isOptional: false };
