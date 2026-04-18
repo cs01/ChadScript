@@ -33,6 +33,7 @@ import {
   parseMapTypeString,
   canonicalTypeToLlvm,
 } from "../../infrastructure/type-system.js";
+import type { ResolvedType } from "../../infrastructure/type-system.js";
 import type {
   IStringGenerator,
   IMapGenerator,
@@ -203,6 +204,7 @@ export interface MemberAccessGeneratorContext {
   classGenIsStaticField(className: string, fieldName: string): boolean;
   classGenGetStaticFieldType(className: string, fieldName: string): string;
   mangleUserName(name: string): string;
+  resolveExpressionTypeRich(expr: Expression): ResolvedType | null;
 }
 
 export type MemberAccessHandlerFn = (
@@ -2221,6 +2223,16 @@ export class MemberAccessGenerator {
   private getObjectArrayElementInfo(
     arrayExpr: Expression,
   ): { keys: string[]; types: string[]; tsTypes: string[] } | null {
+    // Canonical path (P3b): delegate to TypeInference.resolveExpressionTypeRich.
+    // Fires when the object resolves to an array of an interface/class whose
+    // fields we know — covers method-chain and call returns that the legacy
+    // branches below partially miss. Legacy branches remain for shapes not yet
+    // covered by the canonical resolver.
+    const rich = this.ctx.resolveExpressionTypeRich(arrayExpr);
+    if (rich && rich.arrayDepth > 0 && rich.fields) {
+      return { keys: rich.fields.keys, types: rich.fields.types, tsTypes: rich.fields.tsTypes };
+    }
+
     if (arrayExpr.type === "member_access") {
       const memberAccess = arrayExpr as MemberAccessNode;
       const memberAccessObjBase = memberAccess.object as ExprBase;
