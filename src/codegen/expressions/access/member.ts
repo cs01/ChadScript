@@ -2852,6 +2852,23 @@ export class MemberAccessGenerator {
               }
             }
           }
+          // Rearchitect: consult the canonical resolver before falling back
+          // to the opaque { i8* } struct type. For method-call/call/member
+          // returns of a declared interface, this routes through the
+          // named-interface path (correct struct layout, metadata propagated
+          // for nested access). Unblocks `s.build().inner.v` chains.
+          const rich = this.ctx.resolveExpressionTypeRich(expr.object);
+          if (rich && rich.arrayDepth === 0 && rich.base) {
+            const rt = rich.base;
+            if (this.ctx.interfaceStructGen?.hasInterface(rt)) {
+              const ifaceResult = this.accessObjectPropertyWithNamedInterface(
+                innerPtr,
+                expr.property,
+                rt,
+              );
+              if (ifaceResult !== null) return ifaceResult;
+            }
+          }
           const structType = "{ i8* }";
           const typedPtr = this.ctx.nextTemp();
           this.ctx.emit(`${typedPtr} = bitcast i8* ${innerPtr} to ${structType}*`);
