@@ -411,7 +411,9 @@ export class TypeInference {
           !isPrimitive &&
           this.ctx.classGen !== null &&
           this.ctx.classGen.getClassFields(objResolved.base).length > 0;
-        if (isPrimitive || isClass) {
+        const isInterface =
+          !isPrimitive && !isClass && this.getInterface(objResolved.base) !== null;
+        if (isPrimitive || isClass || isInterface) {
           if (objResolved.arrayDepth > 1) {
             return createResolvedType(
               objResolved.base,

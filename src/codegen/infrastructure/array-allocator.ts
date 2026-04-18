@@ -173,11 +173,17 @@ export class ArrayAllocator {
           elementTypes: typeInfo.types,
           elementTsTypes: typeInfo.tsTypes,
         });
-        let isAllDouble = typeInfo.types.length > 0;
-        for (let ti = 0; ti < typeInfo.types.length; ti++) {
+        // Contiguous layout is only correct when the RHS is an ARRAY LITERAL
+        // that the compiler packs inline. Derived arrays (e.g. `g[1]` where
+        // g is P[][], or a method return) inherit pointer-based storage, so
+        // marking them contiguous causes the indexer to compute byte offsets
+        // into raw memory instead of loading element pointers.
+        const stmtValueBase = stmt.value as ExprBase | undefined;
+        const isArrayLiteral = stmtValueBase !== undefined && stmtValueBase.type === "array";
+        let isAllDouble = isArrayLiteral && typeInfo.types.length > 0;
+        for (let ti = 0; ti < typeInfo.types.length && isAllDouble; ti++) {
           if (typeInfo.types[ti] !== "double") {
             isAllDouble = false;
-            break;
           }
         }
         if (isAllDouble) {
@@ -385,11 +391,15 @@ export class ArrayAllocator {
     // Canonical path: only fires when indexing once yields a scalar
     // interface/class element (depth-1 array of interface). For depth>1
     // (e.g. `P[][]` indexed once → `P[]`) we must NOT classify the result
-    // as an indexed-object-array element; fall through so the normal
-    // nested-array allocation is used instead.
+    // as an indexed-object-array element — the result is still an array,
+    // not an element. Short-circuit null so no legacy branch misclassifies
+    // it as element-info either.
     const rich = this.ctx.resolveExpressionTypeRich(indexExpr.object);
     if (rich && rich.arrayDepth === 1 && rich.fields) {
       return { keys: rich.fields.keys, types: rich.fields.types, tsTypes: rich.fields.tsTypes };
+    }
+    if (rich && rich.arrayDepth > 1) {
+      return null;
     }
 
     const idxObjBase = indexExpr.object as ExprBase;
