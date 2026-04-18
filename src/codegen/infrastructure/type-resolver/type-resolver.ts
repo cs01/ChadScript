@@ -746,39 +746,6 @@ export class TypeResolver {
     return valueType;
   }
 
-  resolveIndexedAccessType(expr: IndexAccessNode): ObjectMetadata | null {
-    const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type !== "member_access") return null;
-
-    const memberAccess = expr.object as MemberAccessNode;
-    const propertyName = memberAccess.property;
-
-    let objectInfo:
-      | { ptr: string; keys: string[]; types: string[]; tsTypes?: string[] }
-      | undefined;
-
-    const memberAccessObjBase = memberAccess.object as ExprBase;
-    if (memberAccessObjBase.type === "variable") {
-      const varName = (memberAccess.object as VariableNode).name;
-      objectInfo = this.ctx.symbolTable.getObjectInfo(varName);
-    }
-
-    if (!objectInfo) return null;
-
-    const propIndex = objectInfo.keys.indexOf(propertyName);
-    if (propIndex === -1) return null;
-
-    const tsTypesArr = objectInfo.tsTypes as string[];
-    const propTsType = tsTypesArr[propIndex];
-    if (!propTsType) return null;
-
-    const arrayParsed = parseArrayTypeString(propTsType);
-    if (!arrayParsed) return null;
-
-    const elementType = arrayParsed.elementType;
-    return this.getInterfaceMetadata(elementType);
-  }
-
   detectTypeGuard(condition: Expression): TypeGuardInfo | null {
     if (!condition) return null;
     if (condition.type !== "binary") return null;
