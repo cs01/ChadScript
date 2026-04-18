@@ -576,11 +576,15 @@ export class TypeInference {
         objResolved.arrayDepth > 0 &&
         objResolved.base !== "string" &&
         objResolved.base !== "number" &&
-        objResolved.base !== "boolean" &&
-        this.ctx.classGen !== null &&
-        this.ctx.classGen.getClassFields(objResolved.base).length > 0
+        objResolved.base !== "boolean"
       ) {
-        return this.ctx.typeContext.resolve(objResolved.base);
+        const isClass =
+          this.ctx.classGen !== null &&
+          this.ctx.classGen.getClassFields(objResolved.base).length > 0;
+        const isInterface = !isClass && this.getInterface(objResolved.base) !== null;
+        if (isClass || isInterface) {
+          return this.ctx.typeContext.resolve(objResolved.base);
+        }
       }
       return this.ctx.typeContext.stringType;
     }
