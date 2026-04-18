@@ -4032,6 +4032,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return this.typeInference.resolveExpressionType(expr);
   }
 
+  public resolveExpressionTypeRich(expr: Expression): ResolvedType | null {
+    return this.typeInference.resolveExpressionTypeRich(expr);
+  }
+
   public isObjectArrayExpression(expr: Expression): boolean {
     return this.typeInference.isObjectArrayExpression(expr);
   }
