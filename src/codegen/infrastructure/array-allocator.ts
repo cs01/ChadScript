@@ -382,12 +382,13 @@ export class ArrayAllocator {
     const indexExpr = expr as IndexAccessNode;
     if (!indexExpr.object) return null;
 
-    // Canonical path (P2): delegate to TypeInference.resolveExpressionTypeRich.
-    // Fires when the object resolves to an array of an interface/class whose
-    // fields we know. Legacy fallback below still handles shapes the canonical
-    // resolver doesn't yet cover (P3 widens coverage).
+    // Canonical path: only fires when indexing once yields a scalar
+    // interface/class element (depth-1 array of interface). For depth>1
+    // (e.g. `P[][]` indexed once → `P[]`) we must NOT classify the result
+    // as an indexed-object-array element; fall through so the normal
+    // nested-array allocation is used instead.
     const rich = this.ctx.resolveExpressionTypeRich(indexExpr.object);
-    if (rich && rich.arrayDepth > 0 && rich.fields) {
+    if (rich && rich.arrayDepth === 1 && rich.fields) {
       return { keys: rich.fields.keys, types: rich.fields.types, tsTypes: rich.fields.tsTypes };
     }
 
