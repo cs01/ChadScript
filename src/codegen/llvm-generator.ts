@@ -2099,6 +2099,43 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         if (resolved.base === "boolean") {
           return { llvmType: "i1", kind: SymbolKind_Boolean, defaultValue: "0" };
         }
+        // Interface (non-primitive, non-array, non-class) resolved type — e.g.
+        // `arr.find(...)` on an interface array returns the element interface.
+        // Allocate as opaque i8* with interface metadata so member access later
+        // can consult the named interface's struct layout.
+        if (
+          resolved.arrayDepth === 0 &&
+          resolved.base !== "number" &&
+          resolved.base !== "void" &&
+          resolved.base !== "null" &&
+          resolved.base !== "undefined" &&
+          resolved.base !== "any" &&
+          resolved.base !== "unknown" &&
+          resolved.base !== "object" &&
+          !resolved.base.startsWith("Map") &&
+          !resolved.base.startsWith("Set") &&
+          !resolved.base.startsWith("Promise") &&
+          this.typeResolver &&
+          this.typeResolver.getInterface(resolved.base)
+        ) {
+          if (name) {
+            this.defineVariableWithMetadata(
+              name,
+              `@${name}`,
+              "i8*",
+              SymbolKind_Object,
+              "global",
+              createInterfaceMetadata(resolved.base),
+            );
+            this.symbolTable.setRawInterfaceType(name, resolved.base);
+            this.globalVariables.set(name, {
+              llvmType: "i8*",
+              kind: SymbolKind_Object,
+              initialized: false,
+            });
+          }
+          return { llvmType: "i8*", kind: SymbolKind_Object, defaultValue: "null" };
+        }
       }
       let isI64 = false;
       for (let ei = 0; ei < i64Eligible.length; ei++) {
