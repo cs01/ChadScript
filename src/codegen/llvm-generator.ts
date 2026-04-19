@@ -152,6 +152,7 @@ import { JsonObjectMeta } from "./expressions/access/member.js";
 import type { TargetInfo } from "../target-types.js";
 import { checkClosureMutations } from "../semantic/closure-mutation-checker.js";
 import { checkUnionTypes } from "../semantic/union-type-checker.js";
+import { checkArraysOfFunctions } from "../semantic/array-of-function-checker.js";
 import { markIntSpecializedFunctions } from "./infrastructure/int-specialization-detector.js";
 import { checkTypeAssertions } from "../semantic/type-assertion-checker.js";
 import { checkUninitializedFields } from "../semantic/uninitialized-field-checker.js";
@@ -2968,6 +2969,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     normalizeInterfaceLayouts(this.ast);
     checkClosureMutations(this.ast, this.sourceCode);
     checkUnionTypes(this.ast, this.sourceCode);
+    checkArraysOfFunctions(this.ast, this.sourceCode);
     checkTypeAssertions(this.ast, this.sourceCode);
     checkUninitializedFields(this.ast, this.sourceCode);
     checkBinaryTypesDeep(this.ast, this.sourceCode);
