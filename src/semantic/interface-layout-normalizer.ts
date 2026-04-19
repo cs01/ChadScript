@@ -190,15 +190,24 @@ export class InterfaceLayoutNormalizer {
     }
 
     // Recurse: when a field's type is itself a known interface and the value
-    // the user provided is an object literal, normalize it too.
+    // the user provided is an object literal, normalize it too. Iterate
+    // newProps (not fields) because with inject-defaults OFF, newProps can
+    // be shorter than fields.length — missing optional fields aren't added.
     if (NORM_NESTED) {
-      for (let i = 0; i < fields.length; i++) {
-        const fieldType = normStripNullable(fields[i].type);
-        if (!fieldType || !this.hasInterface(fieldType)) continue;
-        const prop = newProps[i];
-        if (prop && prop.value && (prop.value as { type?: string }).type === "object") {
-          this.normalizeObjectToInterface(prop.value as ObjectNode, fieldType);
+      for (let pi = 0; pi < newProps.length; pi++) {
+        const prop = newProps[pi];
+        if (!prop || !prop.value) continue;
+        if ((prop.value as { type?: string }).type !== "object") continue;
+        // Find this key in interface fields to look up its declared type.
+        let fieldType = "";
+        for (let fi = 0; fi < fields.length; fi++) {
+          if (normStripOptional(fields[fi].name) === prop.key) {
+            fieldType = normStripNullable(fields[fi].type);
+            break;
+          }
         }
+        if (!fieldType || !this.hasInterface(fieldType)) continue;
+        this.normalizeObjectToInterface(prop.value as ObjectNode, fieldType);
       }
     }
   }
@@ -551,7 +560,7 @@ const NORM_VARIABLE_DECL = true;
 const NORM_TYPE_ASSERTION = true;
 const NORM_RETURN = true;
 const NORM_CLASS_FIELD = true;
-const NORM_NESTED = false;
+const NORM_NESTED = true;
 const NORM_ARROW_RETURN = true;
 
 export function normalizeInterfaceLayouts(ast: AST): void {
