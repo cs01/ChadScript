@@ -982,6 +982,46 @@ export class ForOfGenerator {
       if (objArrayMeta) {
         return objArrayMeta;
       }
+      // Fallback: when the allocator stored rawInterfaceType but didn't populate
+      // ObjectArrayMetadata (happens for `const arr: Pt[] = [...]` paths where
+      // classification routed through DeclaredInterface rather than ObjectArray),
+      // synthesize the metadata from the element interface declaration. Without
+      // this fallback, for-of doesn't set interface metadata on `p`, and
+      // member-access on `p` falls through to opaque struct reads — fuzz g14.
+      const rawIface = this.ctx.symbolTable.getRawInterfaceType(varName);
+      if (rawIface && rawIface.length > 0) {
+        const elemIface = this.ctx.getInterfaceFromAST(rawIface);
+        if (elemIface) {
+          const elemIfaceTyped = elemIface as InterfaceDeclaration;
+          const allFields = this.ctx.getAllInterfaceFields(elemIfaceTyped);
+          const elementKeys: string[] = [];
+          const elementTypes: string[] = [];
+          const elementTsTypes: string[] = [];
+          for (let i = 0; i < allFields.length; i++) {
+            const fRaw = allFields[i];
+            if (!fRaw) continue;
+            const f = fRaw as InterfaceField;
+            if (!f.name || !f.type) continue;
+            elementKeys.push(f.name);
+            elementTsTypes.push(f.type);
+            if (f.type === "string") {
+              elementTypes.push("i8*");
+            } else if (f.type === "number") {
+              elementTypes.push("double");
+            } else if (f.type === "boolean") {
+              elementTypes.push("i32");
+            } else {
+              elementTypes.push("i8*");
+            }
+          }
+          return {
+            elementInterfaceName: rawIface,
+            elementKeys,
+            elementTypes,
+            elementTsTypes,
+          };
+        }
+      }
     }
 
     return null;
