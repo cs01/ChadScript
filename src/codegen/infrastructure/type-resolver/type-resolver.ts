@@ -427,8 +427,8 @@ export class TypeResolver {
       }
       const ifaceDecl: InterfaceDeclaration = {
         name: builtinType.name,
-        fields: fields,
         extends: [],
+        fields: fields,
       };
       return ifaceDecl;
     }
