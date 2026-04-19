@@ -89,6 +89,19 @@ function getThisFieldMapInfo(
     return parseMapTypeString(fieldInfoResult.tsType);
   }
 
+  // Also handle <variable>.<field> where <variable> is a class instance.
+  // Unblocks Map fields accessed through a named instance:
+  //   const s = new S();
+  //   s.pending.set(...);
+  if (objBase.type === "variable") {
+    const varName = (memberExpr.object as VariableNode).name;
+    const classInfo = ctx.symbolTable.getClassInfo(varName);
+    if (!classInfo) return null;
+    const fieldInfoResult = ctx.classGenGetFieldInfo(classInfo.className, memberExpr.property);
+    if (!fieldInfoResult || !fieldInfoResult.tsType) return null;
+    return parseMapTypeString(fieldInfoResult.tsType);
+  }
+
   return null;
 }
 
