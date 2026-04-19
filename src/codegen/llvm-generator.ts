@@ -240,7 +240,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public sqliteGen: SqliteGenerator;
   public childProcessGen: ChildProcessGenerator;
   public embedGen: EmbedGenerator;
-  public trampolineEmitter!: TrampolineEmitter;
   private runtimeGen: RuntimeGenerator;
   private httpServerGen: HttpServerGenerator;
   private libuvGen: LibuvGenerator;
@@ -252,7 +251,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   private wsHandlers: string[];
   public usesTimers: number = 0;
   public usesPromises: number = 0;
-  public usesTrampolines: number = 0;
   public usesSqlite: number = 0;
   public usesCurl: number = 0;
   public usesUvHrtime: number = 0;
@@ -1460,6 +1458,11 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public declaredExternFunctions: string[];
   public sourceCode: string = "";
   public filename: string = "";
+  // IMPORTANT: keep trampolineEmitter and usesTrampolines at the END of the
+  // class field list — adding fields in the middle shifts GEP indices in the
+  // self-hosted native compiler (see CLAUDE.md rule #5).
+  public trampolineEmitter!: TrampolineEmitter;
+  public usesTrampolines: number = 0;
 
   constructor(ast: AST, typeChecker: TypeChecker | null, options: LLVMGeneratorOptions) {
     super();
