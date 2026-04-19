@@ -191,12 +191,14 @@ export class InterfaceLayoutNormalizer {
 
     // Recurse: when a field's type is itself a known interface and the value
     // the user provided is an object literal, normalize it too.
-    for (let i = 0; i < fields.length; i++) {
-      const fieldType = normStripNullable(fields[i].type);
-      if (!fieldType || !this.hasInterface(fieldType)) continue;
-      const prop = newProps[i];
-      if (prop && prop.value && (prop.value as { type?: string }).type === "object") {
-        this.normalizeObjectToInterface(prop.value as ObjectNode, fieldType);
+    if (NORM_NESTED) {
+      for (let i = 0; i < fields.length; i++) {
+        const fieldType = normStripNullable(fields[i].type);
+        if (!fieldType || !this.hasInterface(fieldType)) continue;
+        const prop = newProps[i];
+        if (prop && prop.value && (prop.value as { type?: string }).type === "object") {
+          this.normalizeObjectToInterface(prop.value as ObjectNode, fieldType);
+        }
       }
     }
   }
@@ -239,7 +241,12 @@ export class InterfaceLayoutNormalizer {
         const f = cls.fields[i] as ClassField;
         // tsType is the interface/class type (fieldType is the primitive slot).
         const fieldIface = this.resolveInterfaceName(f.tsType);
-        if (f.initializer && fieldIface && this.isObjectLiteral(f.initializer)) {
+        if (
+          NORM_CLASS_FIELD &&
+          f.initializer &&
+          fieldIface &&
+          this.isObjectLiteral(f.initializer)
+        ) {
           this.normalizeObjectToInterface(f.initializer as ObjectNode, fieldIface);
         }
         if (f.initializer) this.visitExpression(f.initializer);
@@ -260,7 +267,7 @@ export class InterfaceLayoutNormalizer {
     if (t === "variable_declaration") {
       const v = stmt as VariableDeclaration;
       const declaredIface = this.resolveInterfaceName(v.declaredType);
-      if (v.value && declaredIface && this.isObjectLiteral(v.value)) {
+      if (NORM_VARIABLE_DECL && v.value && declaredIface && this.isObjectLiteral(v.value)) {
         this.normalizeObjectToInterface(v.value as ObjectNode, declaredIface);
       }
       if (v.value) this.visitExpression(v.value);
@@ -268,7 +275,7 @@ export class InterfaceLayoutNormalizer {
     }
     if (t === "return") {
       const r = stmt as ReturnStatement;
-      if (r.value && returnIface && this.isObjectLiteral(r.value)) {
+      if (NORM_RETURN && r.value && returnIface && this.isObjectLiteral(r.value)) {
         this.normalizeObjectToInterface(r.value as ObjectNode, returnIface);
       }
       if (r.value) this.visitExpression(r.value);
@@ -362,7 +369,7 @@ export class InterfaceLayoutNormalizer {
     if (t === "type_assertion") {
       const ta = expr as TypeAssertionNode;
       const asserted = this.resolveInterfaceName(ta.assertedType);
-      if (asserted && ta.expression && this.isObjectLiteral(ta.expression)) {
+      if (NORM_TYPE_ASSERTION && asserted && ta.expression && this.isObjectLiteral(ta.expression)) {
         this.normalizeObjectToInterface(ta.expression as ObjectNode, asserted);
       }
       if (ta.expression) this.visitExpression(ta.expression);
@@ -440,7 +447,7 @@ export class InterfaceLayoutNormalizer {
           this.visitBlock(af.body as BlockStatement, returnIface);
         } else {
           // Arrow with expression body — treat as the return value.
-          if (returnIface && this.isObjectLiteral(af.body as Expression)) {
+          if (NORM_ARROW_RETURN && returnIface && this.isObjectLiteral(af.body as Expression)) {
             this.normalizeObjectToInterface(af.body as ObjectNode, returnIface);
           }
           this.visitExpression(af.body as Expression);
@@ -479,8 +486,28 @@ export class InterfaceLayoutNormalizer {
 //   INJECT_DEFAULTS_ENABLED: fill missing optional fields with null/0/false.
 // The walker still runs so the AST pass infrastructure lives in code and
 // can be exercised incrementally.
+// Rollout flags for incremental enablement. Even the narrowest setting
+// (REORDER_ENABLED + NORM_VARIABLE_DECL only, nothing else) causes
+// self-hosting to SIGSEGV. Root cause located but not yet fixed:
+// `LLVMGenerator.getObjectMetadata` (llvm-generator.ts:1287) captures
+// {keys, types} in the object literal's SOURCE order, while
+// `generateInterfaceObject` emits the struct in DECLARATION order.
+// Member access later uses the source-order metadata to GEP into the
+// declaration-order struct — already-broken-by-design, but self-hosting
+// accidentally works because the compiler source's object literals
+// happen to be written in declaration order. Reordering exposes cases
+// where an input's source order happens to differ and breaks.
+// Flipping these on requires first making `getObjectMetadata` (and its
+// consumers) canonical-layout-aware.
 const REORDER_ENABLED = false;
 const INJECT_DEFAULTS_ENABLED = false;
+
+const NORM_VARIABLE_DECL = false;
+const NORM_TYPE_ASSERTION = false;
+const NORM_RETURN = false;
+const NORM_CLASS_FIELD = false;
+const NORM_NESTED = false;
+const NORM_ARROW_RETURN = false;
 
 export function normalizeInterfaceLayouts(ast: AST): void {
   if (!REORDER_ENABLED && !INJECT_DEFAULTS_ENABLED) return;
