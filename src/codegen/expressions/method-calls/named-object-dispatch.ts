@@ -168,6 +168,9 @@ export function handleChildProcessMethod(
   if (method === "exec") return ctx.childProcessGen.generateExec(expr, params);
   if (method === "spawn") return ctx.childProcessGen.generateSpawn(expr, params);
   if (method === "spawnSync") return ctx.childProcessGen.generateSpawnSync(expr, params);
+  if (method === "writeStdin") return ctx.childProcessGen.generateWriteStdin(expr, params);
+  if (method === "endStdin") return ctx.childProcessGen.generateEndStdin(expr, params);
+  if (method === "kill") return ctx.childProcessGen.generateKill(expr, params);
   return null;
 }
 

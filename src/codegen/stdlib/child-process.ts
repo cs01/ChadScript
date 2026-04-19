@@ -18,7 +18,7 @@ export class ChildProcessGenerator {
     if (exprObjBase.type !== "variable") return false;
     const varNode = expr.object as VariableNode;
     if (varNode.name !== "child_process" && varNode.name !== "cp") return false;
-    const supported = ["execSync", "spawnSync", "exec", "spawn"];
+    const supported = ["execSync", "spawnSync", "exec", "spawn", "writeStdin", "endStdin", "kill"];
     return supported.indexOf(expr.method) !== -1;
   }
 
@@ -167,11 +167,63 @@ export class ChildProcessGenerator {
     const stderrFn = this.ctx.mangleUserName((expr.args[cbStartIdx + 1] as VariableNode).name);
     const exitFn = this.ctx.mangleUserName((expr.args[cbStartIdx + 2] as VariableNode).name);
 
+    const handle = this.ctx.nextTemp();
     this.ctx.emit(
-      `call void @cs_spawn(i8* ${cmdPtr}, i8** ${argsDataPtr}, i32 ${argsLen}, void (i8*)* @${stdoutFn}, void (i8*)* @${stderrFn}, void (double)* @${exitFn})`,
+      `${handle} = call i8* @cs_spawn(i8* ${cmdPtr}, i8** ${argsDataPtr}, i32 ${argsLen}, void (i8*)* @${stdoutFn}, void (i8*)* @${stderrFn}, void (double)* @${exitFn})`,
     );
+    return handle;
+  }
 
-    // spawn() doesn't return a value — it's fire-and-forget
+  /**
+   * child_process.writeStdin(handle, data) — queue a write to child's stdin.
+   * Fire-and-forget. No-op if handle is null or stdin already closed.
+   */
+  generateWriteStdin(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length < 2) {
+      return this.ctx.emitError("writeStdin() requires 2 arguments (handle, data)", expr.loc);
+    }
+    this.ctx.setUsesChildProcess(true);
+    this.ctx.setUsesSpawn(true);
+    const handlePtr = this.ctx.generateExpression(expr.args[0], params);
+    const dataPtr = this.ctx.generateExpression(expr.args[1], params);
+    this.ctx.emit(`call void @cs_spawn_write(i8* ${handlePtr}, i8* ${dataPtr})`);
+    return "null";
+  }
+
+  /**
+   * child_process.endStdin(handle) — close child's stdin (EOF). Idempotent.
+   */
+  generateEndStdin(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length < 1) {
+      return this.ctx.emitError("endStdin() requires 1 argument (handle)", expr.loc);
+    }
+    this.ctx.setUsesChildProcess(true);
+    this.ctx.setUsesSpawn(true);
+    const handlePtr = this.ctx.generateExpression(expr.args[0], params);
+    this.ctx.emit(`call void @cs_spawn_end_stdin(i8* ${handlePtr})`);
+    return "null";
+  }
+
+  /**
+   * child_process.kill(handle, signum?) — send signal to child (default SIGTERM).
+   * No-op if process already exited.
+   */
+  generateKill(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length < 1) {
+      return this.ctx.emitError("kill() requires at least 1 argument (handle)", expr.loc);
+    }
+    this.ctx.setUsesChildProcess(true);
+    this.ctx.setUsesSpawn(true);
+    const handlePtr = this.ctx.generateExpression(expr.args[0], params);
+    let signum = "i32 0";
+    if (expr.args.length >= 2) {
+      const sigVal = this.ctx.generateExpression(expr.args[1], params);
+      const sigDbl = this.ctx.ensureDouble(sigVal);
+      const sigInt = this.ctx.nextTemp();
+      this.ctx.emit(`${sigInt} = fptosi double ${sigDbl} to i32`);
+      signum = `i32 ${sigInt}`;
+    }
+    this.ctx.emit(`call void @cs_spawn_kill(i8* ${handlePtr}, ${signum})`);
     return "null";
   }
 }
