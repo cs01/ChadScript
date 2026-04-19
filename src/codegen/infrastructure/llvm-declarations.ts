@@ -186,6 +186,7 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += "declare i32 @fclose(i8*)\n";
   ir += "declare i64 @fread(i8*, i64, i64, i8*)\n";
   ir += "declare i64 @fwrite(i8*, i64, i64, i8*)\n";
+  ir += "declare i8* @fgets(i8*, i32, i8*)\n";
   ir += "declare i32 @fseek(i8*, i64, i32)\n";
   ir += "declare i64 @ftell(i8*)\n";
   ir += "declare i32 @unlink(i8*)\n";

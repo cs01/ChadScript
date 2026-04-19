@@ -98,7 +98,7 @@ export function handleProcessSyscallI32(ctx: MethodCallGeneratorContext, funcNam
 }
 
 export function isProcessStdinRead(expr: MethodCallNode): boolean {
-  if (expr.method !== "read") return false;
+  if (expr.method !== "read" && expr.method !== "readLine") return false;
   const objBase = expr.object as ExprBase;
   if (objBase.type !== "member_access") return false;
   const memberAccess = expr.object as MemberAccessNode;
@@ -108,9 +108,18 @@ export function isProcessStdinRead(expr: MethodCallNode): boolean {
   return varNode.name === "process" && memberAccess.property === "stdin";
 }
 
-export function handleProcessStdinRead(ctx: MethodCallGeneratorContext): string {
+export function handleProcessStdinRead(
+  ctx: MethodCallGeneratorContext,
+  expr?: MethodCallNode,
+): string {
   const result = ctx.nextTemp();
-  ctx.emit(`${result} = call i8* @__process_stdin_read()`);
+  // `process.stdin.readLine()` → @__process_stdin_readline (fgets-based,
+  // strips trailing \n / \r\n, returns "" on EOF). `process.stdin.read()`
+  // → @__process_stdin_read (reads entire stream to EOF). Distinguish via
+  // method name — both are stdin reads but different granularity.
+  const isReadLine = expr !== undefined && expr.method === "readLine";
+  const fn = isReadLine ? "@__process_stdin_readline" : "@__process_stdin_read";
+  ctx.emit(`${result} = call i8* ${fn}()`);
   ctx.setVariableType(result, "i8*");
   return result;
 }
