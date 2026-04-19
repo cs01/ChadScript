@@ -132,7 +132,53 @@ export class TypeInference {
     if (!baseType) return null;
     const enriched = this.enrichResolvedType(baseType);
     this.populateArrayStorage(enriched, expr);
+    if (process.env.CHAD_TRACE_RESOLVE) {
+      this.traceResolve(expr, enriched);
+    }
     return enriched;
+  }
+
+  private traceMap: Map<object, ResolvedType[]> = new Map();
+  private traceResolve(expr: Expression, rt: ResolvedType): void {
+    if (!expr || typeof expr !== "object") return;
+    const key = expr as unknown as object;
+    const prev = this.traceMap.get(key) || [];
+    prev.push(rt);
+    this.traceMap.set(key, prev);
+    if (prev.length >= 2) {
+      const first = prev[0];
+      const last = prev[prev.length - 1];
+      const diff =
+        first.base !== last.base ||
+        first.arrayDepth !== last.arrayDepth ||
+        first.sourceKind !== last.sourceKind ||
+        first.elementInterface !== last.elementInterface ||
+        first.arrayStorage !== last.arrayStorage;
+      if (diff) {
+        const eAny = expr as unknown as { type?: string; name?: string; property?: string };
+        console.error(
+          "[RESOLVE-DIVERGE] n=" +
+            prev.length +
+            " expr.type=" +
+            eAny.type +
+            " name/prop=" +
+            (eAny.name || eAny.property || "") +
+            " first={base:" +
+            first.base +
+            ",kind:" +
+            first.sourceKind +
+            ",elem:" +
+            first.elementInterface +
+            "} last={base:" +
+            last.base +
+            ",kind:" +
+            last.sourceKind +
+            ",elem:" +
+            last.elementInterface +
+            "}",
+        );
+      }
+    }
   }
 
   private enrichResolvedType(rt: ResolvedType): ResolvedType {
