@@ -250,6 +250,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   private wsHandlers: string[];
   public usesTimers: number = 0;
   public usesPromises: number = 0;
+  public usesTrampolines: number = 0;
   public usesSqlite: number = 0;
   public usesCurl: number = 0;
   public usesUvHrtime: number = 0;
@@ -896,6 +897,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (this.promiseExecutorStack.length === 0) return null;
     return this.promiseExecutorStack[this.promiseExecutorStack.length - 1];
   }
+  public setUsesTrampolines(value: boolean): void {
+    this.usesTrampolines = value ? 1 : 0;
+  }
+  public getUsesTrampolines(): boolean {
+    return this.usesTrampolines !== 0;
+  }
   public setUsesTimers(value: boolean): void {
     this.usesTimers = value ? 1 : 0;
   }
@@ -1467,6 +1474,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.dbgBuilder = new DebugMetadataBuilder();
     this.usesTimers = 0;
     this.usesPromises = 0;
+    this.usesTrampolines = 0;
     this.usesSqlite = 0;
     this.usesCurl = 0;
     this.usesUvHrtime = 0;
@@ -3354,6 +3362,16 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       if (promiseDecls) {
         finalParts.push(this.filterDuplicateDeclarations(promiseDecls));
       }
+      finalParts.push("\n");
+    }
+
+    if (this.usesTrampolines) {
+      let trampDecls = "";
+      trampDecls += "; C-ABI trampoline slot table (trampoline-bridge.c)\n";
+      trampDecls += "declare i32 @cs_tramp_alloc(i8*)\n";
+      trampDecls += "declare i8* @cs_tramp_get(i32)\n";
+      trampDecls += "declare void @cs_tramp_free(i32)\n";
+      finalParts.push(this.filterDuplicateDeclarations(trampDecls));
       finalParts.push("\n");
     }
 
