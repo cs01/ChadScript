@@ -161,7 +161,10 @@ export interface VariableAllocatorContext {
   getMethodCallInterfaceReturn(expr: Expression): string | null;
   getMethodCallArrayReturn(expr: Expression): string | null;
   getJSONParseInterface(expr: Expression): string | null;
-  getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] };
+  getObjectMetadata(
+    objExpr: ObjectNode,
+    targetInterface?: string,
+  ): { keys: string[]; types: string[] };
   emitError(message: string, loc?: SourceLocation, suggestion?: string): never;
   emitWarning(message: string, loc?: SourceLocation, suggestion?: string): void;
   getAst(): AST | undefined;
