@@ -51,6 +51,42 @@ export class CallExpressionGenerator {
       return this.generateSuperCall(expr, params);
     }
 
+    // Promise-executor binding intercept. When codegen is inside the
+    // inlined body of `new Promise((resolve, reject) => {...})`, calls to
+    // the executor's parameter names route to the bridge directly —
+    // resolve(x) → @__Promise_resolve(p, x), reject(e) → @__Promise_reject(p, e).
+    const pe = this.ctx.getActivePromiseExecutor();
+    if (pe && (expr.name === pe.resolveName || expr.name === pe.rejectName)) {
+      const isResolve = expr.name === pe.resolveName;
+      const bridgeFn = isResolve ? "@__Promise_resolve" : "@__Promise_reject";
+      let valPtr = "null";
+      if (expr.args.length > 0) {
+        const raw = this.ctx.generateExpression(expr.args[0], params);
+        const lt = this.ctx.getVariableType(raw);
+        // Bridge takes i8* value — coerce number to string or wrap in
+        // ptrtoint. For typical DAP usage the resolved value is a string
+        // (JSON response body) so i8* fits directly. For numbers, user
+        // will generally resolve with a string or object; if they pass a
+        // raw number, inttoptr is the least-surprising lowering (matches
+        // how the rest of the codebase boxes primitive payloads).
+        if (lt === "double" || lt === "i64" || lt === "i32" || lt === "i8") {
+          const asI64 = this.ctx.nextTemp();
+          if (lt === "double") {
+            this.ctx.emit(`${asI64} = bitcast double ${raw} to i64`);
+          } else {
+            this.ctx.emit(`${asI64} = sext ${lt} ${raw} to i64`);
+          }
+          const asPtr = this.ctx.nextTemp();
+          this.ctx.emit(`${asPtr} = inttoptr i64 ${asI64} to i8*`);
+          valPtr = asPtr;
+        } else {
+          valPtr = raw;
+        }
+      }
+      this.ctx.emit(`call void ${bridgeFn}(%Promise* ${pe.promisePtr}, i8* ${valPtr})`);
+      return "0.0";
+    }
+
     if (expr.name === "callHandler") {
       // callHandler(fnPtr, ...args) — invoke a raw function pointer stored
       // as i8* (typically an object's function-typed field). Previously the

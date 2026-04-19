@@ -797,6 +797,23 @@ export interface IGeneratorContext {
   getUsesPromises(): boolean;
 
   /**
+   * Promise-executor binding stack. When codegen is inside the inlined
+   * body of `new Promise((resolve, reject) => { ... })`, this holds the
+   * mapping of the executor's parameter names to the allocated %Promise*
+   * pointer. Call dispatch consults the top of the stack: if the callee
+   * name matches resolveName / rejectName, emit a direct call to the
+   * @__Promise_resolve / @__Promise_reject bridge with the promise handle
+   * prepended, instead of going through the normal function lookup.
+   */
+  pushPromiseExecutor(resolveName: string, rejectName: string, promisePtr: string): void;
+  popPromiseExecutor(): void;
+  getActivePromiseExecutor(): {
+    resolveName: string;
+    rejectName: string;
+    promisePtr: string;
+  } | null;
+
+  /**
    * Whether the current compilation uses timers (setTimeout/setInterval)
    */
   usesTimers: number;
@@ -1231,6 +1248,15 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
   getUsesPromises(): boolean {
     return this.usesPromises !== 0;
+  }
+  pushPromiseExecutor(_resolveName: string, _rejectName: string, _promisePtr: string): void {}
+  popPromiseExecutor(): void {}
+  getActivePromiseExecutor(): {
+    resolveName: string;
+    rejectName: string;
+    promisePtr: string;
+  } | null {
+    return null;
   }
   setUsesTimers(value: boolean): void {
     this.usesTimers = value ? 1 : 0;
