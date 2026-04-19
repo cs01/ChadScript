@@ -187,7 +187,8 @@ export class VariableExpressionGenerator {
     for (let fi = 0; fi < funcCount; fi++) {
       const funcName = this.ctx.getAstFunctionNameAt(fi);
       if (funcName === name) {
-        return "_cs_" + name;
+        // Function symbols used as first-class values need the @ sigil.
+        return "@_cs_" + name;
       }
     }
 
