@@ -897,6 +897,21 @@ export class CallExpressionGenerator {
       return this.generateClosureCall(expr, params);
     }
 
+    // If expr.name isn't a declared top-level function but IS a bound
+    // variable, treat it as a function-pointer call: load the i8*, bitcast
+    // with arg-type-matching signature, and call indirectly. This is the
+    // same lowering pattern as callHandler / obj.fn(args) and unblocks
+    //   function cb(...) { ... }
+    //   let hook: (...) => void = cb;
+    //   hook(args);  // ← used to emit `call @_cs_hook` (no such symbol)
+    const astFuncLookup = this.getFunctionFromAST(expr.name);
+    if (!astFuncLookup) {
+      const allocaReg = this.ctx.symbolTable.getAlloca(expr.name);
+      if (allocaReg) {
+        return this.generateFunctionPointerCall(expr, params, allocaReg);
+      }
+    }
+
     const resolvedFuncName = this.ctx.resolveImportAlias(expr.name);
     let returnType = "double";
     let paramTypes: string[] = [];
@@ -1107,6 +1122,52 @@ export class CallExpressionGenerator {
     }
 
     return temp;
+  }
+
+  /**
+   * Call a function pointer stored in a variable — e.g. `let cb = namedFn; cb(args)`.
+   * Mirrors the callHandler lowering: load the i8* from the variable's
+   * alloca, bitcast to a function signature whose parameter types are
+   * inferred from the arg values (with integer → double promotion for
+   * ChadScript's number ABI), and call indirectly.
+   */
+  private generateFunctionPointerCall(expr: CallNode, params: string[], allocaReg: string): string {
+    const fnPtr = this.ctx.emitLoad("i8*", allocaReg);
+    const argValues: string[] = [];
+    const argTypes: string[] = [];
+    for (let i = 0; i < expr.args.length; i++) {
+      const rawVal = this.ctx.generateExpression(expr.args[i], params);
+      const lt = this.ctx.getVariableType(rawVal);
+      let coercedVal = rawVal;
+      let paramTy: string;
+      if (lt === "i64" || lt === "i32" || lt === "i16" || lt === "i8") {
+        const promoted = this.ctx.nextTemp();
+        this.ctx.emit(`${promoted} = sitofp ${lt} ${rawVal} to double`);
+        coercedVal = promoted;
+        paramTy = "double";
+      } else if (lt === "i1") {
+        const promoted = this.ctx.nextTemp();
+        this.ctx.emit(`${promoted} = uitofp i1 ${rawVal} to double`);
+        coercedVal = promoted;
+        paramTy = "double";
+      } else if (!lt || lt.length === 0) {
+        paramTy = "i8*";
+      } else {
+        paramTy = lt;
+      }
+      argValues.push(coercedVal);
+      argTypes.push(paramTy);
+    }
+
+    const typedFn = this.ctx.nextTemp();
+    this.ctx.emit(`${typedFn} = bitcast i8* ${fnPtr} to double (${argTypes.join(", ")})*`);
+    const callArgsList: string[] = [];
+    for (let i = 0; i < argValues.length; i++) {
+      callArgsList.push(`${argTypes[i]} ${argValues[i]}`);
+    }
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call double ${typedFn}(${callArgsList.join(", ")})`);
+    return result;
   }
 
   private generateClosureCall(expr: CallNode, params: string[]): string {
