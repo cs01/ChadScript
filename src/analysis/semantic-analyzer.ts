@@ -170,6 +170,12 @@ export class SemanticAnalyzer {
       if (fn.name && fn.returnType) {
         this.functionReturnTypes.set(fn.name, fn.returnType);
       }
+      // Hoist function symbols so module-level `let`/`const` initializers
+      // can reference them regardless of source order — matches JS/TS hoist
+      // semantics for top-level `function` declarations.
+      if (fn.name && !this.symbols.get(fn.name)) {
+        this.symbols.set(fn.name, { name: fn.name, type: "object", llvmType: "i8*" });
+      }
     }
 
     for (let _si = 0; _si < this.ast.topLevelStatements.length; _si++) {

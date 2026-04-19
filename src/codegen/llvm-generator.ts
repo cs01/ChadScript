@@ -2152,6 +2152,22 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         this.emitError(genericErr);
       }
     }
+    // Function reference RHS — `let cb = namedFn` where namedFn is a
+    // top-level function. Must be classified BEFORE the generic type-infer
+    // path below because resolveExpressionType doesn't know function names
+    // are values; it falls through to number/i64. We'd then emit
+    //   store i64 @_cs_fn, i64* @cb
+    // which clang rejects ("global variable reference must have pointer
+    // type"). Allocate as i8* so the store uses pointer shape. (dapweb #2)
+    if (exprNodeType === "variable") {
+      const vn = value as VariableNode;
+      const funcLen = this.ast.functions.length;
+      for (let fi = 0; fi < funcLen; fi++) {
+        if (this.ast.functions[fi].name === vn.name) {
+          return { llvmType: "i8*", kind: SymbolKind_Object, defaultValue: "null" };
+        }
+      }
+    }
     if (
       exprNodeType === "number" ||
       exprNodeType === "boolean" ||
