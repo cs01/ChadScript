@@ -703,6 +703,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const dotenvBridgeObj = fs.existsSync(dotenvBridgePath) ? dotenvBridgePath : "";
   const watchBridgeObj = effectiveBridgePath + "/watch-bridge.o";
   const arenaBridgeObj = effectiveBridgePath + "/arena-bridge.o";
+  const trampBridgeObj = effectiveBridgePath + "/trampoline-bridge.o";
   const cpSpawnObj = generator.getUsesSpawn() ? effectiveBridgePath + "/child-process-spawn.o" : "";
   const curlBridgeObj = generator.getUsesCurl() ? effectiveBridgePath + "/curl-bridge.o" : "";
   const pgBridgeObj = usesPostgres ? effectiveBridgePath + "/pg-bridge.o" : "";
@@ -764,6 +765,8 @@ export function compileNative(inputFile: string, outputFile: string): void {
     watchBridgeObj +
     " " +
     arenaBridgeObj +
+    " " +
+    trampBridgeObj +
     " " +
     cpSpawnObj +
     " " +

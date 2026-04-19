@@ -814,6 +814,14 @@ export interface IGeneratorContext {
   } | null;
 
   /**
+   * Whether the current compilation uses C-ABI trampoline closures
+   * (slot-table bridge for callbacks that need env recovery).
+   */
+  usesTrampolines: number;
+  setUsesTrampolines(value: boolean): void;
+  getUsesTrampolines(): boolean;
+
+  /**
    * Whether the current compilation uses timers (setTimeout/setInterval)
    */
   usesTimers: number;
@@ -1053,6 +1061,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   public typeChecker: TypeChecker | null = null;
   public typeResolver?: TypeResolver;
   public usesPromises: number = 0;
+  public usesTrampolines: number = 0;
   public usesTimers: number = 0;
   public usesSqlite: number = 0;
   public usesCurl: number = 0;
@@ -1257,6 +1266,12 @@ export class MockGeneratorContext implements IGeneratorContext {
     promisePtr: string;
   } | null {
     return null;
+  }
+  setUsesTrampolines(value: boolean): void {
+    this.usesTrampolines = value ? 1 : 0;
+  }
+  getUsesTrampolines(): boolean {
+    return this.usesTrampolines !== 0;
   }
   setUsesTimers(value: boolean): void {
     this.usesTimers = value ? 1 : 0;

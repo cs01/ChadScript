@@ -451,6 +451,18 @@ else
   echo "==> child-process-spawn already built, skipping"
 fi
 
+# --- trampoline-bridge (C-ABI closure slot table) ---
+TRAMP_SRC="$C_BRIDGES_DIR/trampoline-bridge.c"
+TRAMP_OBJ="$C_BRIDGES_DIR/trampoline-bridge.o"
+TRAMP_HDR="$C_BRIDGES_DIR/trampoline-bridge.h"
+if [ ! -f "$TRAMP_OBJ" ] || [ "$TRAMP_SRC" -nt "$TRAMP_OBJ" ] || [ "$TRAMP_HDR" -nt "$TRAMP_OBJ" ]; then
+  echo "==> Building trampoline-bridge..."
+  cc -c -O2 -fPIC "$TRAMP_SRC" -o "$TRAMP_OBJ"
+  echo "  -> $TRAMP_OBJ"
+else
+  echo "==> trampoline-bridge already built, skipping"
+fi
+
 # --- tree-sitter ---
 if [ ! -f "$VENDOR_DIR/tree-sitter/libtree-sitter.a" ]; then
   echo "==> Building tree-sitter..."
