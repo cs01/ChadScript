@@ -12,11 +12,11 @@ const t = new Ticker();
 
 const id: string = setInterval(() => {
   t.n = t.n + 1;
-}, 5);
+}, 10);
 
 setTimeout(() => {
   clearInterval(id);
-}, 30);
+}, 200);
 
 runEventLoop();
 
