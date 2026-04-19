@@ -548,11 +548,11 @@ const REORDER_ENABLED = true;
 const INJECT_DEFAULTS_ENABLED = false;
 
 const NORM_VARIABLE_DECL = true;
-const NORM_TYPE_ASSERTION = false;
-const NORM_RETURN = false;
-const NORM_CLASS_FIELD = false;
+const NORM_TYPE_ASSERTION = true;
+const NORM_RETURN = true;
+const NORM_CLASS_FIELD = true;
 const NORM_NESTED = false;
-const NORM_ARROW_RETURN = false;
+const NORM_ARROW_RETURN = true;
 
 export function normalizeInterfaceLayouts(ast: AST): void {
   if (!REORDER_ENABLED && !INJECT_DEFAULTS_ENABLED) return;
