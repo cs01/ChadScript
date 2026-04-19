@@ -171,6 +171,10 @@ export class ChildProcessGenerator {
     this.ctx.emit(
       `${handle} = call i8* @cs_spawn(i8* ${cmdPtr}, i8** ${argsDataPtr}, i32 ${argsLen}, void (i8*)* @${stdoutFn}, void (i8*)* @${stderrFn}, void (double)* @${exitFn})`,
     );
+    // Track the return as a pointer — without this, class-field-assignment
+    // doesn't recognize the value as pointer-shape and emits a spurious
+    // `inttoptr i32 %h to i8*` which clang rejects (dapweb note #11).
+    this.ctx.setVariableType(handle, "i8*");
     return handle;
   }
 
