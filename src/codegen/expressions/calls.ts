@@ -967,16 +967,27 @@ export class CallExpressionGenerator {
       }
     }
 
-    if (funcResult && func.async) {
+    const funcIsAsync = funcResult ? func.async === true : false;
+    if (funcIsAsync) {
       returnType = "%Promise*";
       this.ctx.setUsesPromises(true);
-    } else if (funcResult && func.paramTypes && func.paramTypes.length > 0) {
-      const normalizedReturnType = func.returnType ? stripNullable(func.returnType) : "";
-      if (normalizedReturnType) {
-        returnType = mapReturnTypeToLLVM(
-          normalizedReturnType,
-          this.ctx.isEnumType(normalizedReturnType),
-        );
+      // Fall through so async funcs with declared paramTypes also get
+      // correct arg type resolution. Previously this branch was exclusive
+      // with the paramTypes-population branch below, so async calls like
+      // `await fwd("abc", 42)` emitted every arg as the default double —
+      // string args ended up passed as i64 through strlen/puts and crashed.
+    }
+    if (funcResult && func.paramTypes && func.paramTypes.length > 0) {
+      // For async funcs the returnType is already %Promise* — don't overwrite
+      // it. Only non-async funcs should resolve returnType from func.returnType.
+      if (!funcIsAsync) {
+        const normalizedReturnType = func.returnType ? stripNullable(func.returnType) : "";
+        if (normalizedReturnType) {
+          returnType = mapReturnTypeToLLVM(
+            normalizedReturnType,
+            this.ctx.isEnumType(normalizedReturnType),
+          );
+        }
       }
       for (let i = 0; i < func.paramTypes.length; i++) {
         const p = func.paramTypes[i] as string;

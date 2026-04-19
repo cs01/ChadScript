@@ -170,7 +170,14 @@ export class FunctionGenerator {
       }
       returnType = "%Promise*";
       this.ctx.setCurrentFunctionReturnType("%Promise*");
-    } else if (hasParamTypes && paramTypesLen > 0) {
+      // Fall through: the param-type-population block below now runs for
+      // async functions too. Previously it was gated with `else if` which
+      // meant async funcs with mixed-type params (e.g. `(id: string, n: number)`)
+      // defaulted every param to double via the fallback at line ~261,
+      // producing IR that typed string args as double and crashed in
+      // downstream strlen/puts calls (dapweb note: async mixed-type args).
+    }
+    if (hasParamTypes && paramTypesLen > 0) {
       const entryTypes: string[] = [];
       const entryNames: string[] = [];
       for (let i = 0; i < funcParams.length; i++) {
