@@ -158,10 +158,29 @@ declare namespace sqlite {
 
 declare namespace child_process {
   function execSync(command: string): string;
+  function exec(command: string): Promise<{ stdout: string; stderr: string; status: number }>;
   function spawnSync(
     command: string,
     args?: string[],
   ): { stdout: string; stderr: string; status: number };
+  // spawn returns an opaque handle (i8*) usable with writeStdin/endStdin/kill.
+  // Callbacks must be named function references (compiler constraint).
+  function spawn(
+    command: string,
+    args: string[],
+    onStdout: (data: string) => void,
+    onStderr: (data: string) => void,
+    onExit: (code: number) => void,
+  ): string;
+  function spawn(
+    command: string,
+    onStdout: (data: string) => void,
+    onStderr: (data: string) => void,
+    onExit: (code: number) => void,
+  ): string;
+  function writeStdin(handle: string, data: string): void;
+  function endStdin(handle: string): void;
+  function kill(handle: string, signum?: number): void;
 }
 
 // ============================================================================
