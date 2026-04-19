@@ -427,8 +427,18 @@ export function handleSizeProperty(
   if (exprObjType === "member_access") {
     const innerAccess = expr.object as MemberAccessNode;
     const innerObjBase = innerAccess.object as ExprBase;
-    const classNameForLookup = ctx.getCurrentClassName();
-    if (innerObjBase.type === "this" && classNameForLookup) {
+    // Resolve the class that owns the field: either `this.X` (own class) or
+    // `<var>.X` where var is a class instance. Both share the same sizing
+    // logic below — previously only `this.X` worked.
+    let classNameForLookup: string | null = null;
+    if (innerObjBase.type === "this") {
+      classNameForLookup = ctx.getCurrentClassName();
+    } else if (innerObjBase.type === "variable") {
+      const varName = (innerAccess.object as VariableNode).name;
+      const classInfo = ctx.symbolTable.getClassInfo(varName);
+      if (classInfo) classNameForLookup = classInfo.className;
+    }
+    if (classNameForLookup) {
       const fieldInfo = ctx.classGenGetFieldInfo(classNameForLookup, innerAccess.property);
       if (fieldInfo && fieldInfo.tsType) {
         const isMap =
