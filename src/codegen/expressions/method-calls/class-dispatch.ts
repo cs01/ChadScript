@@ -21,6 +21,75 @@ export interface InterfaceDefInfo {
   properties: { name: string; type: string }[];
 }
 
+/**
+ * Invoke a function-typed class field as if it were a method: obj.f(args).
+ * Previously this shape errored with "Method f not found in class X" because
+ * method dispatch only looked at declared methods, not function-typed fields.
+ *
+ * Lowers to the same path as the `callHandler(obj.f, ...args)` builtin:
+ * load the i8* field, bitcast to a function pointer whose signature mirrors
+ * the provided arg types, then call. Integer-typed args are promoted to
+ * double to match ChadScript's (number) => ... ABI.
+ */
+export function invokeFunctionTypedField(
+  ctx: MethodCallGeneratorContext,
+  instancePtr: string,
+  className: string,
+  fieldName: string,
+  args: Expression[],
+  params: string[],
+): string {
+  const fieldInfo = ctx.classGenGetFieldInfo(className, fieldName);
+  if (!fieldInfo) {
+    return ctx.emitError(`Field ${fieldName} not found in class ${className}`);
+  }
+
+  // Load the field — the struct slot holds an i8* function pointer.
+  const fieldPtr = ctx.nextTemp();
+  ctx.emit(
+    `${fieldPtr} = getelementptr inbounds %${className}_struct, %${className}_struct* ${instancePtr}, i32 0, i32 ${fieldInfo.index}`,
+  );
+  const fnPtr = ctx.emitLoad("i8*", fieldPtr);
+
+  // Generate each arg, promote numerics to double, emit the bitcast + call.
+  const argValues: string[] = [];
+  const argTypes: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const rawVal = ctx.generateExpression(args[i], params);
+    const lt = ctx.getVariableType(rawVal);
+    let coercedVal = rawVal;
+    let paramTy: string;
+    if (lt === "i64" || lt === "i32" || lt === "i16" || lt === "i8") {
+      const promoted = ctx.nextTemp();
+      ctx.emit(`${promoted} = sitofp ${lt} ${rawVal} to double`);
+      coercedVal = promoted;
+      paramTy = "double";
+    } else if (lt === "i1") {
+      const promoted = ctx.nextTemp();
+      ctx.emit(`${promoted} = uitofp i1 ${rawVal} to double`);
+      coercedVal = promoted;
+      paramTy = "double";
+    } else if (!lt || lt.length === 0) {
+      paramTy = "i8*";
+    } else {
+      paramTy = lt;
+    }
+    argValues.push(coercedVal);
+    argTypes.push(paramTy);
+  }
+
+  const typedFn = ctx.nextTemp();
+  ctx.emit(`${typedFn} = bitcast i8* ${fnPtr} to double (${argTypes.join(", ")})*`);
+
+  const callArgsList: string[] = [];
+  for (let i = 0; i < argValues.length; i++) {
+    callArgsList.push(`${argTypes[i]} ${argValues[i]}`);
+  }
+  const result = ctx.nextTemp();
+  ctx.emit(`${result} = call double ${typedFn}(${callArgsList.join(", ")})`);
+  return result;
+}
+
 export function getInterfaceDecl(
   ctx: MethodCallGeneratorContext,
   name: string,
@@ -783,6 +852,14 @@ export function handleClassMethods(
       }
     }
     if (!resolvedClass) {
+      // No method with this name — maybe it's a function-typed FIELD being
+      // invoked directly (e.g. s.onEvent(msg) where onEvent is typed
+      // `((s: string) => void) | null`). Load the field as i8* and dispatch
+      // the same way callHandler does: bitcast using arg types, then call.
+      const fldInfo = ctx.classGenGetFieldInfo(className, method);
+      if (fldInfo && fldInfo.tsType && fldInfo.tsType.indexOf("=>") !== -1) {
+        return invokeFunctionTypedField(ctx, instancePtr, className, method, expr.args, params);
+      }
       return ctx.emitError(`Method ${method} not found in class ${className}`, expr.loc);
     }
 
