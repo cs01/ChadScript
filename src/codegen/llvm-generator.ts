@@ -1978,7 +1978,13 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       }
       if (interfaceDef) {
         const llvmType = `%${interfaceName}*`;
-        const kind = SymbolKind_JSON;
+        // Typed JSON.parse<T> produces a concrete %T* struct — treat as a
+        // regular object, not a JSON-lazy handle. Previously we tagged it
+        // SymbolKind_JSON which made downstream member access re-read via
+        // csyyjson_obj_get using the struct pointer as a yyjson handle —
+        // bogus for anything but primitive fields, and the root cause of
+        // dapweb NOTES #8 (T[] fields returning garbage / crashing).
+        const kind = SymbolKind_Object;
         const keys: string[] = [];
         const tsTypes: string[] = [];
         const types: string[] = [];
