@@ -8,6 +8,8 @@ import {
   FunctionParameter,
   ClassNode,
   ClassMethod,
+  ArrowFunctionNode,
+  Expression,
 } from "../../ast/types.js";
 import { IGeneratorContext } from "../infrastructure/generator-context.js";
 import {
@@ -1337,25 +1339,15 @@ export class CallExpressionGenerator {
 
     this.ctx.setUsesTimers(true);
 
-    const callbackArg = expr.args[0];
-    if (callbackArg.type !== "variable") {
-      return this.ctx.emitError("setTimeout() callback must be a function reference", expr.loc);
-    }
-    const callbackName = (callbackArg as VariableNode).name;
+    const resolved = this.resolveTimerCallback(expr.args[0] as Expression, params, "setTimeout");
 
     const delayValue = this.ctx.generateExpression(expr.args[1], params);
     const dblDelay = this.ctx.ensureDouble(delayValue);
 
-    const callbackPtr = this.ctx.emitBitcast(
-      `@${this.ctx.mangleUserName(callbackName)}`,
-      "void ()*",
-      "void ()*",
-    );
-
     const result = this.ctx.emitCall(
       "i8*",
       "@__setTimeout",
-      `void ()* ${callbackPtr}, double ${dblDelay}`,
+      `i8* ${resolved.fnPtrI8}, i32 ${resolved.handle}, double ${dblDelay}`,
     );
 
     return result;
@@ -1371,28 +1363,110 @@ export class CallExpressionGenerator {
 
     this.ctx.setUsesTimers(true);
 
-    const callbackArg = expr.args[0];
-    if (callbackArg.type !== "variable") {
-      return this.ctx.emitError("setInterval() callback must be a function reference", expr.loc);
-    }
-    const callbackName = (callbackArg as VariableNode).name;
+    const resolved = this.resolveTimerCallback(expr.args[0] as Expression, params, "setInterval");
 
     const intervalValue = this.ctx.generateExpression(expr.args[1], params);
     const dblInterval = this.ctx.ensureDouble(intervalValue);
 
-    const callbackPtr = this.ctx.emitBitcast(
-      `@${this.ctx.mangleUserName(callbackName)}`,
-      "void ()*",
-      "void ()*",
-    );
-
     const result = this.ctx.emitCall(
       "i8*",
       "@__setInterval",
-      `void ()* ${callbackPtr}, double ${dblInterval}`,
+      `i8* ${resolved.fnPtrI8}, i32 ${resolved.handle}, double ${dblInterval}`,
     );
 
     return result;
+  }
+
+  /**
+   * Resolve a setTimeout/setInterval callback arg into `{fnPtrI8, handle}`.
+   *
+   * - VariableNode: named function reference -> bare `void()*` bitcast to i8*,
+   *   handle = -1 (timer wrapper invokes directly).
+   * - ArrowFunctionNode: lifts the arrow, boxes env + lifted-fn-ptr into a
+   *   TrampEnv on the GC heap, registers a slot via cs_tramp_alloc, and picks
+   *   the per-shape trampoline `void(i8* env)` from the emitter.
+   *
+   * Mirrors `ChildProcessGenerator.resolveCallback` (PR2). Timer callbacks
+   * take no native args — shape is `void(i8*)`.
+   */
+  private resolveTimerCallback(
+    arg: Expression,
+    params: string[],
+    api: "setTimeout" | "setInterval",
+  ): { fnPtrI8: string; handle: string } {
+    const argBase = arg as { type: string };
+
+    if (argBase.type === "variable") {
+      const fnName = this.ctx.mangleUserName((arg as VariableNode).name);
+      const bc = this.ctx.nextTemp();
+      this.ctx.emit(`${bc} = bitcast void ()* @${fnName} to i8*`);
+      return { fnPtrI8: bc, handle: "-1" };
+    }
+
+    if (argBase.type !== "arrow_function") {
+      return {
+        fnPtrI8: this.ctx.emitError(
+          `${api}() callback must be a function reference or arrow function`,
+          (arg as { loc?: unknown }).loc as never,
+        ),
+        handle: "-1",
+      };
+    }
+
+    // Arrow function path. If the arrow has captures, the lifted lambda takes
+    // `i8* env` as first param and we dispatch through a trampoline. If not,
+    // it's a plain C-shape void() — pass directly, handle = -1.
+
+    const prevParamTypes = this.ctx.getExpectedCallbackParamTypes();
+    const prevReturnType = this.ctx.getExpectedCallbackReturnType();
+    this.ctx.setExpectedCallbackParamTypes([]);
+    this.ctx.setExpectedCallbackReturnType("void");
+
+    const lambdaName = this.ctx.generateExpression(arg as ArrowFunctionNode, params);
+    const envPtrRaw = this.ctx.getLastInlineLambdaEnvPtr();
+    this.ctx.setLastInlineLambdaEnvPtr(null);
+    this.ctx.setExpectedCallbackParamTypes(prevParamTypes ? prevParamTypes : null);
+    this.ctx.setExpectedCallbackReturnType(prevReturnType ? prevReturnType : null);
+
+    if (!envPtrRaw) {
+      const bc = this.ctx.nextTemp();
+      this.ctx.emit(`${bc} = bitcast void ()* @${this.ctx.mangleUserName(lambdaName)} to i8*`);
+      return { fnPtrI8: bc, handle: "-1" };
+    }
+
+    this.ctx.setUsesTrampolines(true);
+    const userEnv = envPtrRaw;
+
+    const trampName = this.ctx.trampolineEmitter.ensureTrampoline({
+      llvmSig: "void(i8*)",
+      argTypes: [],
+      returnType: "void",
+    });
+
+    // TrampEnv = { i8* user_env, i8* user_fn_as_i8 }. Store lifted fn as i8*
+    // to sidestep the codegen store-type validator — the trampoline bitcasts
+    // back to the concrete fn-ptr type at invocation.
+    const tEnvRaw = this.ctx.nextTemp();
+    this.ctx.emit(`${tEnvRaw} = call i8* @GC_malloc(i64 16)`);
+    const uePtr = this.ctx.nextTemp();
+    this.ctx.emit(`${uePtr} = bitcast i8* ${tEnvRaw} to i8**`);
+    this.ctx.emit(`store i8* ${userEnv}, i8** ${uePtr}`);
+    const fpByte = this.ctx.nextTemp();
+    this.ctx.emit(`${fpByte} = getelementptr i8, i8* ${tEnvRaw}, i64 8`);
+    const fpTyped = this.ctx.nextTemp();
+    this.ctx.emit(`${fpTyped} = bitcast i8* ${fpByte} to i8**`);
+    const fnI8 = this.ctx.nextTemp();
+    this.ctx.emit(`${fnI8} = bitcast void (i8*)* @${this.ctx.mangleUserName(lambdaName)} to i8*`);
+    this.ctx.emit(`store i8* ${fnI8}, i8** ${fpTyped}`);
+
+    const handleI32 = this.ctx.nextTemp();
+    this.ctx.emit(`${handleI32} = call i32 @cs_tramp_alloc(i8* ${tEnvRaw})`);
+
+    const trampFnType = "void (i8*)*";
+    const trampI8 = this.ctx.nextTemp();
+    this.ctx.emit(`${trampI8} = bitcast ${trampFnType} ${trampName} to i8*`);
+
+    return { fnPtrI8: trampI8, handle: handleI32 };
   }
 
   private emitIndentPrintf(prefix: string): void {

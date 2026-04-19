@@ -3388,7 +3388,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       finalParts.push("\n");
     }
 
-    if (this.usesTrampolines) {
+    // Timer callback wrapper always references cs_tramp_get / cs_tramp_free
+    // since PR3 — so whenever timers are used, the trampoline externs must
+    // be declared even if no arrow-closure path was ever taken.
+    if (this.usesTrampolines || this.usesTimers) {
       let trampDecls = "";
       trampDecls += "; C-ABI trampoline slot table (trampoline-bridge.c)\n";
       trampDecls += "declare i32 @cs_tramp_alloc(i8*)\n";
