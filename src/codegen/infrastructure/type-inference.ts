@@ -855,6 +855,36 @@ export class TypeInference {
           }
         }
       }
+      // Class-instance Map field: e.g. `s.pending.keys()` where
+      // `s: S` and `S.pending: Map<string, V>`. Without this branch the
+      // result defaults to `number` and downstream `.length` errors with
+      // ".length is not available on type 'number'".
+      if (objBase.type === "member_access") {
+        const memExpr = expr.object as MemberAccessNode;
+        const memObjBase = memExpr.object as ExprBase;
+        if (memObjBase.type === "variable") {
+          const instName = (memExpr.object as VariableNode).name;
+          const classInfo = this.st.getClassInfo(instName);
+          if (classInfo && this.ctx.typeResolver) {
+            const fieldInfo = this.ctx.typeResolver.getClassFieldInfo(
+              classInfo.className,
+              memExpr.property,
+            );
+            if (fieldInfo && fieldInfo.tsType && fieldInfo.tsType.startsWith("Map<")) {
+              // Parse "Map<K, V>" — key is between the first '<' and first ','.
+              const lt = fieldInfo.tsType.indexOf("<");
+              const comma = fieldInfo.tsType.indexOf(",");
+              if (lt !== -1 && comma !== -1) {
+                const keyType = fieldInfo.tsType.slice(lt + 1, comma).trim();
+                if (method === "keys" && keyType === "string") {
+                  return this.ctx.typeContext.getArrayType("string");
+                }
+                return this.ctx.typeContext.getArrayType("number");
+              }
+            }
+          }
+        }
+      }
     }
 
     if (method === "values" || method === "entries") {
