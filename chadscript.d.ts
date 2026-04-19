@@ -27,6 +27,12 @@ declare namespace console {
 // ============================================================================
 
 declare namespace process {
+  // ChadScript convention differs from Node:
+  //   - argv[0] is the FIRST USER ARG (not the binary path or script name)
+  //   - argv0 (separate field) holds the binary path
+  // If you're porting a Node-shaped CLI loop, drop `.slice(2)` — ChadScript
+  // already starts at user args. For any non-trivial parsing, prefer the
+  // ArgumentParser class from `chadscript/argparse`.
   const argv: string[];
   const argv0: string;
   const platform: string;
