@@ -1341,6 +1341,36 @@ export class VariableAllocator {
     this.ctx.emit(`store %Promise* ${promisePtr}, %Promise** ${allocaReg}`);
   }
 
+  /**
+   * For `await userAsyncFn()`, look up the function in the AST and extract
+   * the inner type from its declared `Promise<T>` return. Returns the LLVM
+   * type + SymbolKind pair to allocate, or null if the return type doesn't
+   * map to a known struct pointer (in which case the caller falls through
+   * to its existing i8* default).
+   *
+   * Currently handles: Response. Extend here when other opaque interface
+   * returns start showing up in user code.
+   */
+  private tryUnwrapAsyncCallReturnType(
+    fnName: string,
+  ): { llvmType: string; symbolKind: number } | null {
+    const ast = this.ctx.getAst();
+    if (!ast || !ast.functions) return null;
+    for (let i = 0; i < ast.functions.length; i++) {
+      const fn = ast.functions[i];
+      if (fn.name !== fnName || !fn.async || !fn.returnType) continue;
+      // returnType shape is "Promise<Foo>" — strip the wrapper.
+      const rt = fn.returnType;
+      if (!rt.startsWith("Promise<") || !rt.endsWith(">")) return null;
+      const inner = rt.slice("Promise<".length, rt.length - 1).trim();
+      if (inner === "Response") {
+        return { llvmType: "%__FetchResponse*", symbolKind: SymbolKind_Object };
+      }
+      return null;
+    }
+    return null;
+  }
+
   private allocateAwaitResult(stmt: VariableDeclaration, params: string[]): void {
     const awaitExpr = stmt.value as AwaitExpressionNode;
     const inner = awaitExpr.argument as ExprBase;
@@ -1436,6 +1466,25 @@ export class VariableAllocator {
         this.ctx.emit(`${allocaReg} = alloca %__FetchResponse*`);
         const value = this.ctx.generateExpression(stmt.value!, params);
         this.ctx.emit(`store %__FetchResponse* ${value}, %__FetchResponse** ${allocaReg}`);
+        return;
+      }
+      // await <userAsyncFn>() — unwrap Promise<T> from the function's
+      // declared return type and allocate based on T. Previously this
+      // branch only handled built-in async (fetch), so user-defined
+      // `async function httpGet(): Promise<Response>` fell through to the
+      // i8* fallback and the Response struct pointer got corrupted
+      // (dapweb NOTES #20).
+      const asyncReturnUnwrap = this.tryUnwrapAsyncCallReturnType(callNode.name);
+      if (asyncReturnUnwrap) {
+        const { llvmType, symbolKind } = asyncReturnUnwrap;
+        const allocaReg = this.ctx.nextAllocaReg(stmt.name);
+        this.ctx.defineVariable(stmt.name, allocaReg, llvmType, symbolKind, "local");
+        this.ctx.emit(`${allocaReg} = alloca ${llvmType}`);
+        const value = this.ctx.generateExpression(stmt.value!, params);
+        // value from @__Promise_await is i8*; bitcast to the struct pointer.
+        const cast = this.ctx.nextTemp();
+        this.ctx.emit(`${cast} = bitcast i8* ${value} to ${llvmType}`);
+        this.ctx.emit(`store ${llvmType} ${cast}, ${llvmType}* ${allocaReg}`);
         return;
       }
     }
