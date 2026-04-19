@@ -878,6 +878,24 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public getUsesPromises(): boolean {
     return this.usesPromises !== 0;
   }
+
+  // Promise-executor binding stack — see generator-context.ts comment.
+  private promiseExecutorStack: { resolveName: string; rejectName: string; promisePtr: string }[] =
+    [];
+  public pushPromiseExecutor(resolveName: string, rejectName: string, promisePtr: string): void {
+    this.promiseExecutorStack.push({ resolveName, rejectName, promisePtr });
+  }
+  public popPromiseExecutor(): void {
+    this.promiseExecutorStack.pop();
+  }
+  public getActivePromiseExecutor(): {
+    resolveName: string;
+    rejectName: string;
+    promisePtr: string;
+  } | null {
+    if (this.promiseExecutorStack.length === 0) return null;
+    return this.promiseExecutorStack[this.promiseExecutorStack.length - 1];
+  }
   public setUsesTimers(value: boolean): void {
     this.usesTimers = value ? 1 : 0;
   }
