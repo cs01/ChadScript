@@ -711,6 +711,25 @@ export class MethodCallGenerator {
             imp.source.startsWith("./") ||
             imp.source.startsWith("../") ||
             imp.source.startsWith("/");
+
+          // Namespace import dispatch: `import * as lib from "./x.js"; lib.foo()`
+          // Parser stores the specifier as the literal string "* as <local>".
+          // ChadScript merges imported files' functions into a flat AST, so
+          // `foo` is already in ast.functions — we just need to rewrite the
+          // method_call into a plain call to emit the direct invocation
+          // (dapweb NOTES #17).
+          if (isRelative && imp.specifiers) {
+            const nsPrefix = `* as ${varName}`;
+            if (imp.specifiers.indexOf(nsPrefix) !== -1) {
+              const flatCall = {
+                type: "call",
+                name: method,
+                args: expr.args,
+                loc: expr.loc,
+              } as unknown as Expression;
+              return this.ctx.generateExpression(flatCall, params);
+            }
+          }
           if (!isRelative && imp.specifiers && imp.specifiers.indexOf(varName) !== -1) {
             return this.ctx.emitError(
               `'${varName}.${method}()' — module '${imp.source}' is not supported by ChadScript`,

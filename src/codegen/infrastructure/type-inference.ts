@@ -545,6 +545,35 @@ export class TypeInference {
     const method = expr.method;
     const objBase = expr.object as ExprBase;
 
+    // Namespace-import dispatch: `lib.fn()` when lib is `import * as lib`
+    // resolves to the imported function's return type. The actual codegen
+    // rewrite happens in method-calls.ts (dapweb NOTES #17); here we just
+    // make sure variable-allocator classifies the result correctly when it
+    // runs before codegen sees the rewrite.
+    if (objBase.type === "variable") {
+      const varName = (expr.object as VariableNode).name;
+      const ast = this.ctx.getAst();
+      if (ast && ast.imports) {
+        for (let ii = 0; ii < ast.imports.length; ii++) {
+          const imp = ast.imports[ii];
+          if (!imp || !imp.specifiers) continue;
+          const isRelative =
+            imp.source.startsWith("./") ||
+            imp.source.startsWith("../") ||
+            imp.source.startsWith("/");
+          if (isRelative && imp.specifiers.indexOf(`* as ${varName}`) !== -1) {
+            // Look up the function as if it were called directly.
+            const fakeCall = {
+              type: "call",
+              name: method,
+              args: expr.args,
+            } as unknown as Expression;
+            return this.resolveExpressionType(fakeCall);
+          }
+        }
+      }
+    }
+
     if (
       method === "trim" ||
       method === "toLowerCase" ||
