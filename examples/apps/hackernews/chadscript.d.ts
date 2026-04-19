@@ -158,39 +158,10 @@ declare namespace sqlite {
 
 declare namespace child_process {
   function execSync(command: string): string;
-  function exec(command: string): Promise<{ stdout: string; stderr: string; status: number }>;
   function spawnSync(
     command: string,
     args?: string[],
   ): { stdout: string; stderr: string; status: number };
-  // spawn returns an opaque handle (i8*) usable with writeStdin/endStdin/kill.
-  // Callbacks must be named function references (compiler constraint).
-  function spawn(
-    command: string,
-    args: string[],
-    onStdout: (data: string) => void,
-    onStderr: (data: string) => void,
-    onExit: (code: number) => void,
-  ): string;
-  function spawn(
-    command: string,
-    onStdout: (data: string) => void,
-    onStderr: (data: string) => void,
-    onExit: (code: number) => void,
-  ): string;
-  // spawnTagged: like spawn but each callback receives the tag string as
-  // the first argument — enables per-session demux without module-level state.
-  function spawnTagged(
-    tag: string,
-    command: string,
-    args: string[],
-    onStdout: (tag: string, data: string) => void,
-    onStderr: (tag: string, data: string) => void,
-    onExit: (tag: string, code: number) => void,
-  ): string;
-  function writeStdin(handle: string, data: string): void;
-  function endStdin(handle: string): void;
-  function kill(handle: string, signum?: number): void;
 }
 
 // ============================================================================
@@ -250,25 +221,7 @@ interface Response {
   ok: boolean;
 }
 
-interface FetchOptions {
-  method?: string;
-  headers?: Record<string, string>;
-  body?: string;
-}
-
-declare function fetch(url: string, options?: FetchOptions): Promise<Response>;
-
-// Promise augmentations for deferred construction. Avoids the closure-
-// capture requirement of `new Promise((resolve, reject) => stash(...))`
-// for patterns where resolve/reject need to be stored and invoked later
-// from a separate scope (request/response wires, callback-to-promise
-// bridges). A Promise<T> from deferred() can be passed around like any
-// other value and settled via the static helpers.
-interface PromiseConstructor {
-  deferred<T>(): Promise<T>;
-  resolvePending<T>(promise: Promise<T>, value: T): void;
-  rejectPending(promise: Promise<unknown>, reason: string): void;
-}
+declare function fetch(url: string): Promise<Response>;
 
 interface HttpRequest {
   method: string;
