@@ -570,6 +570,61 @@ export class IndexAccessGenerator {
     const jsonPtr = this.ctx.generateExpression(expr.object, params);
 
     const ptrType = this.ctx.getVariableType(jsonPtr);
+
+    // Typed JSON.parse<T> now materializes number[]/string[] fields as
+    // real %Array* / %StringArray* at parse time (dapweb NOTES #8 fix).
+    // Index access must read directly from the struct instead of re-routing
+    // through csyyjson_arr_get, which would treat the struct pointer as a
+    // yyjson handle and return null.
+    if (ptrType === "%Array*") {
+      const indexRaw = this.ctx.generateExpression(expr.index, params);
+      const indexTy = this.ctx.getVariableType(indexRaw);
+      let index = indexRaw;
+      if (indexTy === "i64") {
+        index = this.ctx.nextTemp();
+        this.ctx.emit(`${index} = trunc i64 ${indexRaw} to i32`);
+      } else if (indexTy === "double" || indexTy === undefined) {
+        index = this.ctx.nextTemp();
+        this.ctx.emit(`${index} = fptosi double ${indexRaw} to i32`);
+      }
+      const dataSlot = this.ctx.nextTemp();
+      this.ctx.emit(
+        `${dataSlot} = getelementptr inbounds %Array, %Array* ${jsonPtr}, i32 0, i32 0`,
+      );
+      const data = this.ctx.nextTemp();
+      this.ctx.emit(`${data} = load double*, double** ${dataSlot}`);
+      const elemPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${elemPtr} = getelementptr double, double* ${data}, i32 ${index}`);
+      const elem = this.ctx.nextTemp();
+      this.ctx.emit(`${elem} = load double, double* ${elemPtr}`);
+      this.ctx.setVariableType(elem, "double");
+      return elem;
+    }
+    if (ptrType === "%StringArray*") {
+      const indexRaw = this.ctx.generateExpression(expr.index, params);
+      const indexTy = this.ctx.getVariableType(indexRaw);
+      let index = indexRaw;
+      if (indexTy === "i64") {
+        index = this.ctx.nextTemp();
+        this.ctx.emit(`${index} = trunc i64 ${indexRaw} to i32`);
+      } else if (indexTy === "double" || indexTy === undefined) {
+        index = this.ctx.nextTemp();
+        this.ctx.emit(`${index} = fptosi double ${indexRaw} to i32`);
+      }
+      const dataSlot = this.ctx.nextTemp();
+      this.ctx.emit(
+        `${dataSlot} = getelementptr inbounds %StringArray, %StringArray* ${jsonPtr}, i32 0, i32 0`,
+      );
+      const data = this.ctx.nextTemp();
+      this.ctx.emit(`${data} = load i8**, i8*** ${dataSlot}`);
+      const elemPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${elemPtr} = getelementptr i8*, i8** ${data}, i32 ${index}`);
+      const elem = this.ctx.nextTemp();
+      this.ctx.emit(`${elem} = load i8*, i8** ${elemPtr}`);
+      this.ctx.setVariableType(elem, "i8*");
+      return elem;
+    }
+
     if (
       ptrType === "%ObjectArray*" ||
       (ptrType === "i8*" && this.isNonJSONObjectMemberAccess(expr.object))
