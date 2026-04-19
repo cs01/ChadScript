@@ -178,6 +178,16 @@ declare namespace child_process {
     onStderr: (data: string) => void,
     onExit: (code: number) => void,
   ): string;
+  // spawnTagged: like spawn but each callback receives the tag string as
+  // the first argument — enables per-session demux without module-level state.
+  function spawnTagged(
+    tag: string,
+    command: string,
+    args: string[],
+    onStdout: (tag: string, data: string) => void,
+    onStderr: (tag: string, data: string) => void,
+    onExit: (tag: string, code: number) => void,
+  ): string;
   function writeStdin(handle: string, data: string): void;
   function endStdin(handle: string): void;
   function kill(handle: string, signum?: number): void;

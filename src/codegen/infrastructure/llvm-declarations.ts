@@ -98,6 +98,10 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += "declare void @cs_spawn_write(i8*, i8*)\n";
   ir += "declare void @cs_spawn_end_stdin(i8*)\n";
   ir += "declare void @cs_spawn_kill(i8*, i32)\n";
+  // cs_spawn_tagged: like cs_spawn but callbacks receive (tag, data) /
+  // (tag, code). Enables multi-session demux without module-level state.
+  ir +=
+    "declare i8* @cs_spawn_tagged(i8*, i8*, i8**, i32, void (i8*, i8*)*, void (i8*, i8*)*, void (i8*, double)*)\n";
   ir += "\n";
 
   // base64 bridge — Buffer.from(str, 'base64') → %Uint8Array*; btoa/atob → i8*

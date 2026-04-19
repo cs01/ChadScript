@@ -18,7 +18,16 @@ export class ChildProcessGenerator {
     if (exprObjBase.type !== "variable") return false;
     const varNode = expr.object as VariableNode;
     if (varNode.name !== "child_process" && varNode.name !== "cp") return false;
-    const supported = ["execSync", "spawnSync", "exec", "spawn", "writeStdin", "endStdin", "kill"];
+    const supported = [
+      "execSync",
+      "spawnSync",
+      "exec",
+      "spawn",
+      "spawnTagged",
+      "writeStdin",
+      "endStdin",
+      "kill",
+    ];
     return supported.indexOf(expr.method) !== -1;
   }
 
@@ -174,6 +183,56 @@ export class ChildProcessGenerator {
     // Track the return as a pointer — without this, class-field-assignment
     // doesn't recognize the value as pointer-shape and emits a spurious
     // `inttoptr i32 %h to i8*` which clang rejects (dapweb note #11).
+    this.ctx.setVariableType(handle, "i8*");
+    return handle;
+  }
+
+  /**
+   * child_process.spawnTagged(tag, command, args, onStdout, onStderr, onExit)
+   * Like spawn, but each callback receives the `tag` string as its first
+   * argument — enables per-session demux without module-level state juggling.
+   * Callback signatures:
+   *   onStdout/onStderr: (tag: string, data: string) => void
+   *   onExit:           (tag: string, code: number) => void
+   */
+  generateSpawnTagged(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length < 6) {
+      return this.ctx.emitError(
+        "spawnTagged() requires 6 arguments: (tag, command, args, onStdout, onStderr, onExit)",
+        expr.loc,
+      );
+    }
+    this.ctx.setUsesChildProcess(true);
+    this.ctx.setUsesSpawn(true);
+    this.ctx.setUsesPromises(true);
+
+    const tagPtr = this.ctx.generateExpression(expr.args[0], params);
+    const cmdPtr = this.ctx.generateExpression(expr.args[1], params);
+
+    const argsArray = this.ctx.generateExpression(expr.args[2], params);
+    const dataPtrPtr = this.ctx.emitGep("%StringArray", argsArray, "i32 0, i32 0");
+    const argsDataPtr = this.ctx.emitLoad("i8**", dataPtrPtr);
+    const lenPtr = this.ctx.emitGep("%StringArray", argsArray, "i32 0, i32 1");
+    const argsLen = this.ctx.emitLoad("i32", lenPtr);
+
+    const stdoutCb = expr.args[3] as ExprBase;
+    const stderrCb = expr.args[4] as ExprBase;
+    const exitCb = expr.args[5] as ExprBase;
+    if (
+      stdoutCb.type !== "variable" ||
+      stderrCb.type !== "variable" ||
+      exitCb.type !== "variable"
+    ) {
+      return this.ctx.emitError("spawnTagged() callbacks must be function references", expr.loc);
+    }
+    const stdoutFn = this.ctx.mangleUserName((expr.args[3] as VariableNode).name);
+    const stderrFn = this.ctx.mangleUserName((expr.args[4] as VariableNode).name);
+    const exitFn = this.ctx.mangleUserName((expr.args[5] as VariableNode).name);
+
+    const handle = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${handle} = call i8* @cs_spawn_tagged(i8* ${tagPtr}, i8* ${cmdPtr}, i8** ${argsDataPtr}, i32 ${argsLen}, void (i8*, i8*)* @${stdoutFn}, void (i8*, i8*)* @${stderrFn}, void (i8*, double)* @${exitFn})`,
+    );
     this.ctx.setVariableType(handle, "i8*");
     return handle;
   }
