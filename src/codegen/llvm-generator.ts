@@ -158,6 +158,7 @@ import { checkUninitializedFields } from "../semantic/uninitialized-field-checke
 import { analyzeEscapes } from "../semantic/escape-analysis.js";
 // binary-type-checker.ts: original top-level-only checker kept for reference; deep version is in safety-checks.ts
 import { checkEnumDeclarations } from "../semantic/enum-checker.js";
+import { normalizeInterfaceLayouts } from "../semantic/interface-layout-normalizer.js";
 import { checkAsyncAwait } from "../semantic/async-await-checker.js";
 import {
   checkBinaryTypesDeep,
@@ -2885,6 +2886,11 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   generateParts(): string[] {
     checkEnumDeclarations(this.ast, this.sourceCode);
+    // Semantic normalization: rewrite object literals to canonical interface
+    // layout before any codegen reads them. This is ChadScript's equivalent of
+    // clang's InitListChecker syntactic→semantic rewrite. Must run before other
+    // passes that inspect ObjectNode.properties (order-sensitive).
+    normalizeInterfaceLayouts(this.ast);
     checkClosureMutations(this.ast, this.sourceCode);
     checkUnionTypes(this.ast, this.sourceCode);
     checkTypeAssertions(this.ast, this.sourceCode);
