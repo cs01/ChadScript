@@ -92,8 +92,12 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += "declare void @cs_exec_passthrough(i8*)\n";
   ir += "declare i8* @cs_execSync(i8*)\n";
   ir += "declare i8* @cs_spawnSync(i8*, i8**, i32)\n";
-  // cs_spawn: async spawn with streaming callbacks (stdout_cb, stderr_cb, exit_cb)
-  ir += "declare void @cs_spawn(i8*, i8**, i32, void (i8*)*, void (i8*)*, void (double)*)\n";
+  // cs_spawn: async spawn with streaming callbacks (stdout_cb, stderr_cb, exit_cb).
+  // Returns opaque handle (i8*) for writeStdin/endStdin/kill; NULL on failure.
+  ir += "declare i8* @cs_spawn(i8*, i8**, i32, void (i8*)*, void (i8*)*, void (double)*)\n";
+  ir += "declare void @cs_spawn_write(i8*, i8*)\n";
+  ir += "declare void @cs_spawn_end_stdin(i8*)\n";
+  ir += "declare void @cs_spawn_kill(i8*, i32)\n";
   ir += "\n";
 
   // base64 bridge — Buffer.from(str, 'base64') → %Uint8Array*; btoa/atob → i8*

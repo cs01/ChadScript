@@ -235,6 +235,23 @@ Pattern:
 Existing bridges: `regex-bridge.c`, `yyjson-bridge.c`, `os-bridge.c`, `child-process-bridge.c`,
 `child-process-spawn.c`, `lws-bridge.c`, `treesitter-bridge.c`.
 
+### child_process.spawn — bidirectional stdio
+
+`child_process.spawn()` returns an opaque handle (`i8*`) for long-lived children with
+interactive stdio (DAP adapters, REPL subprocesses, etc.):
+
+```ts
+const h = child_process.spawn("lldb-dap", [], onStdout, onStderr, onExit);
+child_process.writeStdin(h, "Content-Length: 42\r\n\r\n{...}");
+child_process.endStdin(h);      // sends EOF
+child_process.kill(h, 15);      // optional signum, default SIGTERM
+```
+
+Handle lifecycle is refcounted in `child-process-spawn.c` (proc + 3 pipes each hold a ref;
+freed when all closed). `onExit` fires once after stdout/stderr/proc all close; stdin close
+doesn't gate exit (user controls it). Writes after child exit, `kill` after exit, and
+`writeStdin`/`endStdin` on null handles are all no-ops — never crash.
+
 ## Codegen Quick Rules
 
 1. **Hoist allocas to entry block** — never in conditional branches
