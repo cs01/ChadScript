@@ -2742,6 +2742,33 @@ export class MemberAccessGenerator {
     const value = this.ctx.emitLoad(propType, fieldPtr);
     this.ctx.setVariableType(value, propType);
 
+    // Propagate interface metadata when the field is of named-interface type.
+    // Without this, subsequent chained access (e.g. `make().inner.x`) hits
+    // handleChainedInterfaceAccess with no metadata, falls back to anonymous
+    // struct access, and emits wrong types (`{ i8* }` instead of `%Inner`).
+    const propTsType = stripOptional(propField.type);
+    if (propType === "i8*") {
+      const innerIfaceDef = this.getInterfaceDecl(propTsType);
+      if (innerIfaceDef) {
+        const innerFields = this.ctx.getAllInterfaceFields(innerIfaceDef as InterfaceDeclaration);
+        const keys: string[] = [];
+        const types: string[] = [];
+        const tsTypes: string[] = [];
+        for (const f of innerFields) {
+          const ff = f as { name: string; type: string };
+          keys.push(stripOptional(ff.name));
+          types.push(tsTypeToLlvm(ff.type));
+          tsTypes.push(ff.type);
+        }
+        this.ctx.setJsonObjectMetadata(value, {
+          keys,
+          types,
+          tsTypes,
+          interfaceType: propTsType,
+        });
+      }
+    }
+
     return value;
   }
 
