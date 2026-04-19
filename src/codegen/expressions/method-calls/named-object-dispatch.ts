@@ -167,7 +167,12 @@ export function handleChildProcessMethod(
   if (method === "execSync") return ctx.childProcessGen.generateExecSync(expr, params);
   if (method === "exec") return ctx.childProcessGen.generateExec(expr, params);
   if (method === "spawn") return ctx.childProcessGen.generateSpawn(expr, params);
-  if (method === "spawnTagged") return ctx.childProcessGen.generateSpawnTagged(expr, params);
+  if (method === "spawnTagged") {
+    return ctx.emitError(
+      "child_process.spawnTagged has been removed. Use child_process.spawn with arrow-function callbacks that capture the session id — e.g. child_process.spawn(cmd, args, (d) => onOut(sessionId, d), (d) => onErr(sessionId, d), (c) => onExit(sessionId, c))",
+      expr.loc,
+    );
+  }
   if (method === "spawnSync") return ctx.childProcessGen.generateSpawnSync(expr, params);
   if (method === "writeStdin") return ctx.childProcessGen.generateWriteStdin(expr, params);
   if (method === "endStdin") return ctx.childProcessGen.generateEndStdin(expr, params);

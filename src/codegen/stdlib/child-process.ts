@@ -3,7 +3,13 @@
 // Async: child_process.exec() returns Promise<SpawnSyncResult> via uv_queue_work
 //        child_process.spawn() uses uv_spawn with streaming callbacks
 
-import { MethodCallNode, CallNode, VariableNode } from "../../ast/types.js";
+import {
+  MethodCallNode,
+  CallNode,
+  VariableNode,
+  ArrowFunctionNode,
+  Expression,
+} from "../../ast/types.js";
 import { IGeneratorContext } from "../infrastructure/generator-context.js";
 
 interface ExprBase {
@@ -18,16 +24,7 @@ export class ChildProcessGenerator {
     if (exprObjBase.type !== "variable") return false;
     const varNode = expr.object as VariableNode;
     if (varNode.name !== "child_process" && varNode.name !== "cp") return false;
-    const supported = [
-      "execSync",
-      "spawnSync",
-      "exec",
-      "spawn",
-      "spawnTagged",
-      "writeStdin",
-      "endStdin",
-      "kill",
-    ];
+    const supported = ["execSync", "spawnSync", "exec", "spawn", "writeStdin", "endStdin", "kill"];
     return supported.indexOf(expr.method) !== -1;
   }
 
@@ -121,7 +118,14 @@ export class ChildProcessGenerator {
   /**
    * child_process.spawn(command, args?, onStdout, onStderr, onExit)
    * Spawns a child process with streaming callbacks via uv_spawn.
-   * Callbacks must be named function references (same constraint as setTimeout).
+   *
+   * Each callback may be either:
+   *   - a named function reference (e.g. `onData`) — passed to the bridge as a
+   *     bare C fn ptr, trampoline handle = -1
+   *   - an arrow function (potentially capturing outer variables) — lifted to
+   *     `__lambda_N`, its env is boxed into a `{user_env, user_fn}` struct and
+   *     registered with the trampoline slot table; the bridge dispatches via
+   *     a per-shape trampoline that recovers env via cs_tramp_get(handle).
    *
    * Signatures:
    *   spawn(cmd, args, onStdout, onStderr, onExit) — 5 args, with args array
@@ -159,26 +163,31 @@ export class ChildProcessGenerator {
       cbStartIdx = 1;
     }
 
-    // Extract callback function names — must be variable references
-    const stdoutCb = expr.args[cbStartIdx] as ExprBase;
-    const stderrCb = expr.args[cbStartIdx + 1] as ExprBase;
-    const exitCb = expr.args[cbStartIdx + 2] as ExprBase;
-
-    if (
-      stdoutCb.type !== "variable" ||
-      stderrCb.type !== "variable" ||
-      exitCb.type !== "variable"
-    ) {
-      return this.ctx.emitError("spawn() callbacks must be function references", expr.loc);
-    }
-
-    const stdoutFn = this.ctx.mangleUserName((expr.args[cbStartIdx] as VariableNode).name);
-    const stderrFn = this.ctx.mangleUserName((expr.args[cbStartIdx + 1] as VariableNode).name);
-    const exitFn = this.ctx.mangleUserName((expr.args[cbStartIdx + 2] as VariableNode).name);
+    const stdoutResolved = this.resolveCallback(
+      expr.args[cbStartIdx] as Expression,
+      params,
+      "stdout",
+      expr,
+    );
+    const stderrResolved = this.resolveCallback(
+      expr.args[cbStartIdx + 1] as Expression,
+      params,
+      "stderr",
+      expr,
+    );
+    const exitResolved = this.resolveCallback(
+      expr.args[cbStartIdx + 2] as Expression,
+      params,
+      "exit",
+      expr,
+    );
 
     const handle = this.ctx.nextTemp();
     this.ctx.emit(
-      `${handle} = call i8* @cs_spawn(i8* ${cmdPtr}, i8** ${argsDataPtr}, i32 ${argsLen}, void (i8*)* @${stdoutFn}, void (i8*)* @${stderrFn}, void (double)* @${exitFn})`,
+      `${handle} = call i8* @cs_spawn_v2(i8* ${cmdPtr}, i8** ${argsDataPtr}, i32 ${argsLen}, ` +
+        `i8* ${stdoutResolved.fnPtrI8}, i32 ${stdoutResolved.handle}, ` +
+        `i8* ${stderrResolved.fnPtrI8}, i32 ${stderrResolved.handle}, ` +
+        `i8* ${exitResolved.fnPtrI8}, i32 ${exitResolved.handle})`,
     );
     // Track the return as a pointer — without this, class-field-assignment
     // doesn't recognize the value as pointer-shape and emits a spurious
@@ -188,53 +197,118 @@ export class ChildProcessGenerator {
   }
 
   /**
-   * child_process.spawnTagged(tag, command, args, onStdout, onStderr, onExit)
-   * Like spawn, but each callback receives the `tag` string as its first
-   * argument — enables per-session demux without module-level state juggling.
-   * Callback signatures:
-   *   onStdout/onStderr: (tag: string, data: string) => void
-   *   onExit:           (tag: string, code: number) => void
+   * Resolve one callback argument to a {fnPtrI8, handle} pair for cs_spawn_v2.
+   *
+   * - VariableNode: named function reference. Emits `bitcast <fn> to i8*`,
+   *   handle = -1 (bridge invokes directly).
+   * - ArrowFunctionNode: lifts the arrow, boxes env + lifted-fn-ptr into a
+   *   TrampEnv struct on the GC heap, registers via cs_tramp_alloc, picks a
+   *   per-shape trampoline from the emitter, and returns `{trampFnPtr, handle}`.
+   * - Anything else: compile error.
    */
-  generateSpawnTagged(expr: MethodCallNode, params: string[]): string {
-    if (expr.args.length < 6) {
-      return this.ctx.emitError(
-        "spawnTagged() requires 6 arguments: (tag, command, args, onStdout, onStderr, onExit)",
-        expr.loc,
-      );
+  private resolveCallback(
+    arg: Expression,
+    params: string[],
+    slot: "stdout" | "stderr" | "exit",
+    expr: MethodCallNode,
+  ): { fnPtrI8: string; handle: string } {
+    const argBase = arg as ExprBase;
+    // Native-arg LLVM type (data payload for stdout/stderr, code for exit).
+    const payloadType = slot === "exit" ? "double" : "i8*";
+    // LLVM signature of the underlying lifted function / trampoline target.
+    // User functions take the payload; lifted lambdas take (i8* env, payload).
+    const bareFnLlvm = `void (${payloadType})*`;
+    const liftedFnLlvm = `void (i8*, ${payloadType})*`;
+
+    if (argBase.type === "variable") {
+      const fnName = this.ctx.mangleUserName((arg as VariableNode).name);
+      const bc = this.ctx.nextTemp();
+      this.ctx.emit(`${bc} = bitcast ${bareFnLlvm} @${fnName} to i8*`);
+      return { fnPtrI8: bc, handle: "-1" };
     }
-    this.ctx.setUsesChildProcess(true);
-    this.ctx.setUsesSpawn(true);
-    this.ctx.setUsesPromises(true);
 
-    const tagPtr = this.ctx.generateExpression(expr.args[0], params);
-    const cmdPtr = this.ctx.generateExpression(expr.args[1], params);
-
-    const argsArray = this.ctx.generateExpression(expr.args[2], params);
-    const dataPtrPtr = this.ctx.emitGep("%StringArray", argsArray, "i32 0, i32 0");
-    const argsDataPtr = this.ctx.emitLoad("i8**", dataPtrPtr);
-    const lenPtr = this.ctx.emitGep("%StringArray", argsArray, "i32 0, i32 1");
-    const argsLen = this.ctx.emitLoad("i32", lenPtr);
-
-    const stdoutCb = expr.args[3] as ExprBase;
-    const stderrCb = expr.args[4] as ExprBase;
-    const exitCb = expr.args[5] as ExprBase;
-    if (
-      stdoutCb.type !== "variable" ||
-      stderrCb.type !== "variable" ||
-      exitCb.type !== "variable"
-    ) {
-      return this.ctx.emitError("spawnTagged() callbacks must be function references", expr.loc);
+    if (argBase.type !== "arrow_function") {
+      return {
+        fnPtrI8: this.ctx.emitError(
+          `spawn() ${slot} callback must be a function reference or arrow function`,
+          expr.loc,
+        ),
+        handle: "-1",
+      };
     }
-    const stdoutFn = this.ctx.mangleUserName((expr.args[3] as VariableNode).name);
-    const stderrFn = this.ctx.mangleUserName((expr.args[4] as VariableNode).name);
-    const exitFn = this.ctx.mangleUserName((expr.args[5] as VariableNode).name);
 
-    const handle = this.ctx.nextTemp();
+    // Arrow function path. If the arrow captures outer variables, the lifted
+    // lambda gets an extra `i8* %__env` as its first param and we dispatch
+    // through a trampoline (bridge recovers env via cs_tramp_get). If it
+    // captures nothing, the lifted lambda's signature is already a plain
+    // C callback — no trampoline needed, just pass it as a bare fn ptr.
+
+    // Hint param types so the lifted lambda's signature matches what the
+    // bridge / trampoline will invoke.
+    const prevParamTypes = this.ctx.getExpectedCallbackParamTypes();
+    const prevReturnType = this.ctx.getExpectedCallbackReturnType();
+    this.ctx.setExpectedCallbackParamTypes(slot === "exit" ? ["number"] : ["string"]);
+    this.ctx.setExpectedCallbackReturnType("void");
+
+    // generateExpression on an arrow dispatches through orchestrator, which
+    // lifts the lambda AND (if captures exist) allocates its env struct via
+    // GC_malloc, stashing the env ptr in lastInlineLambdaEnvPtr.
+    const lambdaName = this.ctx.generateExpression(arg as ArrowFunctionNode, params);
+    const envPtrRaw = this.ctx.getLastInlineLambdaEnvPtr();
+    this.ctx.setLastInlineLambdaEnvPtr(null);
+    // Restore prior callback-type hints so nested generation isn't polluted.
+    this.ctx.setExpectedCallbackParamTypes(prevParamTypes ? prevParamTypes : null);
+    this.ctx.setExpectedCallbackReturnType(prevReturnType ? prevReturnType : null);
+
+    // No captures -> no env, no trampoline. The lifted lambda has the plain
+    // `void(payload)` signature and the bridge invokes it directly.
+    if (!envPtrRaw) {
+      const bc = this.ctx.nextTemp();
+      this.ctx.emit(`${bc} = bitcast ${bareFnLlvm} @${this.ctx.mangleUserName(lambdaName)} to i8*`);
+      return { fnPtrI8: bc, handle: "-1" };
+    }
+
+    this.ctx.setUsesTrampolines(true);
+    const userEnv = envPtrRaw;
+
+    // Register (or reuse) the per-shape trampoline. Shape is the native
+    // callback signature the bridge will invoke — void(i8* env, payload).
+    const trampName = this.ctx.trampolineEmitter.ensureTrampoline({
+      llvmSig: `void(i8*,${payloadType})`,
+      argTypes: [payloadType],
+      returnType: "void",
+    });
+
+    // Allocate TrampEnv = { i8* user_env, i8* user_fn_as_i8 }. The lifted fn
+    // is stored as an i8* to sidestep the codegen store-type validator — the
+    // trampoline IR bitcasts it back to its concrete fn-ptr type at call time.
+    const tEnvRaw = this.ctx.nextTemp();
+    this.ctx.emit(`${tEnvRaw} = call i8* @GC_malloc(i64 16)`);
+    const uePtr = this.ctx.nextTemp();
+    this.ctx.emit(`${uePtr} = bitcast i8* ${tEnvRaw} to i8**`);
+    this.ctx.emit(`store i8* ${userEnv}, i8** ${uePtr}`);
+    const fpByte = this.ctx.nextTemp();
+    this.ctx.emit(`${fpByte} = getelementptr i8, i8* ${tEnvRaw}, i64 8`);
+    const fpTyped = this.ctx.nextTemp();
+    this.ctx.emit(`${fpTyped} = bitcast i8* ${fpByte} to i8**`);
+    // Bitcast the lifted lambda's fn ptr to i8* before storing.
+    const fnI8 = this.ctx.nextTemp();
     this.ctx.emit(
-      `${handle} = call i8* @cs_spawn_tagged(i8* ${tagPtr}, i8* ${cmdPtr}, i8** ${argsDataPtr}, i32 ${argsLen}, void (i8*, i8*)* @${stdoutFn}, void (i8*, i8*)* @${stderrFn}, void (i8*, double)* @${exitFn})`,
+      `${fnI8} = bitcast ${liftedFnLlvm} @${this.ctx.mangleUserName(lambdaName)} to i8*`,
     );
-    this.ctx.setVariableType(handle, "i8*");
-    return handle;
+    this.ctx.emit(`store i8* ${fnI8}, i8** ${fpTyped}`);
+
+    // Register the trampoline env with the slot table.
+    const handleI32 = this.ctx.nextTemp();
+    this.ctx.emit(`${handleI32} = call i32 @cs_tramp_alloc(i8* ${tEnvRaw})`);
+
+    // fnPtrI8 is the TRAMPOLINE pointer (bridge calls it directly with env),
+    // not the user's lifted function — the bridge never sees the user's fn.
+    const trampFnType = `void (i8*, ${payloadType})*`;
+    const trampI8 = this.ctx.nextTemp();
+    this.ctx.emit(`${trampI8} = bitcast ${trampFnType} ${trampName} to i8*`);
+
+    return { fnPtrI8: trampI8, handle: handleI32 };
   }
 
   /**

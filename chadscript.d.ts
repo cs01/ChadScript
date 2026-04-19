@@ -170,7 +170,14 @@ declare namespace child_process {
     args?: string[],
   ): { stdout: string; stderr: string; status: number };
   // spawn returns an opaque handle (i8*) usable with writeStdin/endStdin/kill.
-  // Callbacks must be named function references (compiler constraint).
+  // Callbacks can be named function references OR arrow functions with
+  // captured state — arrow closures are lifted and dispatched through a
+  // per-shape C-ABI trampoline (see trampoline-bridge). Per-session demux
+  // (formerly spawnTagged) is just a capture now:
+  //   child_process.spawn(cmd, args,
+  //     (d) => onOut(sessionId, d),
+  //     (d) => onErr(sessionId, d),
+  //     (c) => onExit(sessionId, c));
   function spawn(
     command: string,
     args: string[],
@@ -183,16 +190,6 @@ declare namespace child_process {
     onStdout: (data: string) => void,
     onStderr: (data: string) => void,
     onExit: (code: number) => void,
-  ): string;
-  // spawnTagged: like spawn but each callback receives the tag string as
-  // the first argument — enables per-session demux without module-level state.
-  function spawnTagged(
-    tag: string,
-    command: string,
-    args: string[],
-    onStdout: (tag: string, data: string) => void,
-    onStderr: (tag: string, data: string) => void,
-    onExit: (tag: string, code: number) => void,
   ): string;
   function writeStdin(handle: string, data: string): void;
   function endStdin(handle: string): void;

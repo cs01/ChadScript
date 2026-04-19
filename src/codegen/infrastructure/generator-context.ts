@@ -225,7 +225,6 @@ export interface IChildProcessGenerator {
   generateSpawnSync(expr: MethodCallNode, params: string[]): string;
   generateExec(expr: MethodCallNode, params: string[]): string;
   generateSpawn(expr: MethodCallNode, params: string[]): string;
-  generateSpawnTagged(expr: MethodCallNode, params: string[]): string;
   generateWriteStdin(expr: MethodCallNode, params: string[]): string;
   generateEndStdin(expr: MethodCallNode, params: string[]): string;
   generateKill(expr: MethodCallNode, params: string[]): string;
@@ -240,6 +239,16 @@ export interface IEmbedGenerator {
   generateLookupFunction(): string;
   generateLengthLookupFunction(): string;
   hasEmbeddedFiles(): boolean;
+}
+
+export interface ITrampolineShape {
+  llvmSig: string;
+  argTypes: string[];
+  returnType: string;
+}
+
+export interface ITrampolineEmitter {
+  ensureTrampoline(shape: ITrampolineShape): string;
 }
 
 export interface IArrowFunctionGenerator {
@@ -813,11 +822,6 @@ export interface IGeneratorContext {
     promisePtr: string;
   } | null;
 
-  /**
-   * Whether the current compilation uses C-ABI trampoline closures
-   * (slot-table bridge for callbacks that need env recovery).
-   */
-  usesTrampolines: number;
   setUsesTrampolines(value: boolean): void;
   getUsesTrampolines(): boolean;
 
@@ -1017,6 +1021,17 @@ export interface IGeneratorContext {
   currentVarDeclKey: string | null;
   setCurrentVarDeclKey(key: string | null): void;
   getCurrentVarDeclKey(): string | null;
+
+  // IMPORTANT: trampolineEmitter and usesTrampolines must stay at the END of
+  // this interface — inserting a new data field in the middle shifts GEP
+  // indices for following properties and crashes the self-hosted native
+  // compiler (CLAUDE.md rule #5).
+  readonly trampolineEmitter: ITrampolineEmitter;
+  /**
+   * Whether the current compilation uses C-ABI trampoline closures
+   * (slot-table bridge for callbacks that need env recovery).
+   */
+  usesTrampolines: number;
 }
 
 /**
@@ -1061,7 +1076,6 @@ export class MockGeneratorContext implements IGeneratorContext {
   public typeChecker: TypeChecker | null = null;
   public typeResolver?: TypeResolver;
   public usesPromises: number = 0;
-  public usesTrampolines: number = 0;
   public usesTimers: number = 0;
   public usesSqlite: number = 0;
   public usesCurl: number = 0;
@@ -1078,6 +1092,9 @@ export class MockGeneratorContext implements IGeneratorContext {
   // Must be at end of field list — see BaseGenerator/IGeneratorContext comments
   public lastInlineLambdaEnvPtr: string | null = null;
   public lastTypeAssertionSourceVar: string | null = null;
+  // New fields for trampoline closures — MUST stay at end (CLAUDE.md rule #5);
+  // inserting in the middle shifts GEP indices in the self-hosted compiler.
+  public usesTrampolines: number = 0;
 
   private stackEligibleVars: string[] = [];
   public currentVarDeclKey: string | null = null;
@@ -2129,10 +2146,12 @@ export class MockGeneratorContext implements IGeneratorContext {
     generateSpawnSync: (_expr: MethodCallNode, _params: string[]): string => "%mock_spawnsync",
     generateExec: (_expr: MethodCallNode, _params: string[]): string => "%mock_exec",
     generateSpawn: (_expr: MethodCallNode, _params: string[]): string => "%mock_spawn",
-    generateSpawnTagged: (_expr: MethodCallNode, _params: string[]): string => "%mock_spawn_tagged",
     generateWriteStdin: (_expr: MethodCallNode, _params: string[]): string => "null",
     generateEndStdin: (_expr: MethodCallNode, _params: string[]): string => "null",
     generateKill: (_expr: MethodCallNode, _params: string[]): string => "null",
+  };
+  trampolineEmitter: ITrampolineEmitter = {
+    ensureTrampoline: (_shape: ITrampolineShape): string => "@__mock_tramp",
   };
   arrayGen: IArrayGenerator = {
     generateArrayLiteral: (_expr: ArrayNode, _params: string[]): string => "%mock_array_literal",

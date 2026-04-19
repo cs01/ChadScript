@@ -3,10 +3,19 @@
 // + streaming callbacks. Conditionally linked only when the program uses
 // child_process.spawn(). Separated from child-process-bridge.c to avoid libuv
 // link dependency for programs that only use sync operations.
+//
+// PR2 of the C-ABI trampoline-closures series adds env-carrying callback
+// variants: each of stdout/stderr/exit can be delivered either as a bare C
+// function pointer (tramp_h == -1) or as a trampoline fn_ptr paired with a
+// trampoline-bridge slot handle. When the handle is >= 0, the bridge recovers
+// the closure env via cs_tramp_get(handle) and invokes the trampoline with env
+// as its first argument. This lets ChadScript arrow-function closures work
+// through the raw C callback ABI that libuv demands.
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include <uv.h>
 
 extern void *GC_malloc(size_t);
@@ -14,32 +23,40 @@ extern void *GC_malloc_atomic(size_t);
 extern void *GC_malloc_uncollectable(size_t);
 extern void GC_free(void *);
 
+// Trampoline-bridge API — resolves an integer handle to the env pointer
+// registered at cs_tramp_alloc time. Returns NULL if handle was freed or
+// is out of range.
+extern void *cs_tramp_get(int32_t handle);
+extern void cs_tramp_free(int32_t handle);
+
 typedef void (*cs_data_cb)(const char *data);
 typedef void (*cs_exit_cb)(double exit_status);
-// Tagged-callback variants: first argument is a user-supplied tag string
-// (typically a session id) letting apps demux events across many concurrent
-// spawns without juggling module-level state. The tag is stored on
-// SpawnHandle; ChadScript closures cannot capture env through a raw function
-// pointer, so the tag threading lives at the bridge level.
-typedef void (*cs_data_cb2)(const char *tag, const char *data);
-typedef void (*cs_exit_cb2)(const char *tag, double exit_status);
+// Trampoline variants — first arg is the recovered env pointer. Per-shape
+// trampolines (emitted as LLVM IR) read user_fn_ptr out of env and invoke it.
+typedef void (*cs_data_tramp)(void *env, const char *data);
+typedef void (*cs_exit_tramp)(void *env, double exit_status);
 
 // SpawnHandle — opaque handle returned by cs_spawn. Lifetime managed by refcount.
 // Each outstanding libuv handle (proc, stdin_pipe, stdout_pipe, stderr_pipe) holds
 // one ref; backing memory is freed when refcount hits 0.
 // on_exit fires exactly once, gated by exit_fired, after proc+stdout+stderr close.
 // Stdin close does NOT gate exit (user controls stdin lifetime).
+//
+// Each callback position carries an optional trampoline handle. handle == -1
+// means "use the bare function pointer" (back-compat path, caller passed a
+// named function reference). handle >= 0 means "invoke the trampoline with
+// env = cs_tramp_get(handle)". The slot is freed when that callback's
+// lifecycle event fires (pipe close for stdout/stderr, after exit cb for exit).
 typedef struct {
-    cs_data_cb on_stdout;
+    cs_data_cb on_stdout;       // bare fn ptr; unused if tramp_h_stdout >= 0
     cs_data_cb on_stderr;
     cs_exit_cb on_exit;
-    // Tagged variants — used when tagged != 0. Cannot coexist in one call
-    // (the bridge picks one shape based on which spawn variant was invoked).
-    cs_data_cb2 on_stdout2;
-    cs_data_cb2 on_stderr2;
-    cs_exit_cb2 on_exit2;
-    const char *tag;           // user-supplied demux id; NULL for untagged
-    int tagged;                // 1 = use cb2 pointers, 0 = use cb pointers
+    cs_data_tramp on_stdout_t;  // trampoline fn ptr; unused if tramp_h_stdout < 0
+    cs_data_tramp on_stderr_t;
+    cs_exit_tramp on_exit_t;
+    int32_t tramp_h_stdout;
+    int32_t tramp_h_stderr;
+    int32_t tramp_h_exit;
     uv_process_t *proc;
     uv_pipe_t *stdin_pipe;
     uv_pipe_t *stdout_pipe;
@@ -64,10 +81,13 @@ static void handle_unref(SpawnHandle *h) {
 static void spawn_maybe_fire_exit(SpawnHandle *h) {
     if (h->completions_remaining <= 0 && !h->exit_fired) {
         h->exit_fired = 1;
-        if (h->tagged) {
-            if (h->on_exit2) h->on_exit2(h->tag, h->exit_status);
-        } else {
-            if (h->on_exit) h->on_exit(h->exit_status);
+        if (h->tramp_h_exit >= 0) {
+            void *env = cs_tramp_get(h->tramp_h_exit);
+            if (h->on_exit_t) h->on_exit_t(env, h->exit_status);
+            cs_tramp_free(h->tramp_h_exit);
+            h->tramp_h_exit = -1;
+        } else if (h->on_exit) {
+            h->on_exit(h->exit_status);
         }
     }
 }
@@ -78,9 +98,25 @@ static void spawn_alloc_cb(uv_handle_t *handle, size_t suggested_size, uv_buf_t 
     buf->len = suggested_size;
 }
 
-// Close cb for stdout/stderr: gates exit + releases ref.
-static void spawn_rpipe_close_cb(uv_handle_t *handle) {
+// Close cb for stdout: gates exit, frees stdout trampoline slot, releases ref.
+static void spawn_stdout_close_cb(uv_handle_t *handle) {
     SpawnHandle *h = (SpawnHandle *)uv_handle_get_data(handle);
+    if (h->tramp_h_stdout >= 0) {
+        cs_tramp_free(h->tramp_h_stdout);
+        h->tramp_h_stdout = -1;
+    }
+    h->completions_remaining--;
+    spawn_maybe_fire_exit(h);
+    handle_unref(h);
+}
+
+// Close cb for stderr: mirror of stdout close.
+static void spawn_stderr_close_cb(uv_handle_t *handle) {
+    SpawnHandle *h = (SpawnHandle *)uv_handle_get_data(handle);
+    if (h->tramp_h_stderr >= 0) {
+        cs_tramp_free(h->tramp_h_stderr);
+        h->tramp_h_stderr = -1;
+    }
     h->completions_remaining--;
     spawn_maybe_fire_exit(h);
     handle_unref(h);
@@ -98,17 +134,25 @@ static void spawn_read_cb_impl(uv_stream_t *stream, ssize_t nread, const uv_buf_
         char *data = (char *)GC_malloc_atomic((size_t)nread + 1);
         memcpy(data, buf->base, (size_t)nread);
         data[nread] = '\0';
-        if (h->tagged) {
-            if (is_stdout && h->on_stdout2) h->on_stdout2(h->tag, data);
-            else if (!is_stdout && h->on_stderr2) h->on_stderr2(h->tag, data);
+        if (is_stdout) {
+            if (h->tramp_h_stdout >= 0) {
+                void *env = cs_tramp_get(h->tramp_h_stdout);
+                if (h->on_stdout_t) h->on_stdout_t(env, data);
+            } else if (h->on_stdout) {
+                h->on_stdout(data);
+            }
         } else {
-            if (is_stdout && h->on_stdout) h->on_stdout(data);
-            else if (!is_stdout && h->on_stderr) h->on_stderr(data);
+            if (h->tramp_h_stderr >= 0) {
+                void *env = cs_tramp_get(h->tramp_h_stderr);
+                if (h->on_stderr_t) h->on_stderr_t(env, data);
+            } else if (h->on_stderr) {
+                h->on_stderr(data);
+            }
         }
     }
     if (buf->base) free(buf->base);
     if (nread < 0) {
-        uv_close((uv_handle_t *)stream, spawn_rpipe_close_cb);
+        uv_close((uv_handle_t *)stream, is_stdout ? spawn_stdout_close_cb : spawn_stderr_close_cb);
     }
 }
 
@@ -139,12 +183,19 @@ static void spawn_exit_cb(uv_process_t *proc, int64_t exit_status, int term_sign
     uv_close((uv_handle_t *)proc, spawn_proc_close_cb);
 }
 
-// Internal: shared spawn setup. Exactly one of (on_stdout/on_stderr/on_exit)
-// and (on_stdout2/on_stderr2/on_exit2) must be non-NULL — tagged is 0/1.
-static void *cs_spawn_impl(const char *tag, int tagged,
-                           const char *command, const char **args, int argc,
-                           cs_data_cb on_stdout, cs_data_cb on_stderr, cs_exit_cb on_exit,
-                           cs_data_cb2 on_stdout2, cs_data_cb2 on_stderr2, cs_exit_cb2 on_exit2) {
+// cs_spawn_v2: widened signature — each callback is paired with a trampoline
+// handle. handle == -1 means the corresponding fn_ptr is a bare C function
+// (back-compat); handle >= 0 means fn_ptr is a trampoline and env is
+// recovered via cs_tramp_get(handle) at dispatch time.
+//
+// cb_stdout / cb_stderr / cb_exit are interpreted as cs_data_cb / cs_exit_cb
+// when the matching handle is -1, and as cs_data_tramp / cs_exit_tramp
+// when >= 0. Caller must type them consistently — they're stored as generic
+// function pointers in the struct.
+void *cs_spawn_v2(const char *command, const char **args, int argc,
+                  void (*cb_stdout)(), int32_t h_stdout,
+                  void (*cb_stderr)(), int32_t h_stderr,
+                  void (*cb_exit)(),   int32_t h_exit) {
     uv_loop_t *loop = uv_default_loop();
 
     uv_process_t *proc = (uv_process_t *)GC_malloc_uncollectable(sizeof(uv_process_t));
@@ -157,14 +208,16 @@ static void *cs_spawn_impl(const char *tag, int tagged,
     uv_pipe_init(loop, stderr_pipe, 0);
 
     SpawnHandle *h = (SpawnHandle *)GC_malloc(sizeof(SpawnHandle));
-    h->on_stdout = on_stdout;
-    h->on_stderr = on_stderr;
-    h->on_exit = on_exit;
-    h->on_stdout2 = on_stdout2;
-    h->on_stderr2 = on_stderr2;
-    h->on_exit2 = on_exit2;
-    h->tag = tag;
-    h->tagged = tagged;
+    // Bare vs trampoline: store into the matching slot based on handle.
+    if (h_stdout >= 0) { h->on_stdout_t = (cs_data_tramp)cb_stdout; h->on_stdout = NULL; }
+    else               { h->on_stdout   = (cs_data_cb)cb_stdout;    h->on_stdout_t = NULL; }
+    if (h_stderr >= 0) { h->on_stderr_t = (cs_data_tramp)cb_stderr; h->on_stderr = NULL; }
+    else               { h->on_stderr   = (cs_data_cb)cb_stderr;    h->on_stderr_t = NULL; }
+    if (h_exit   >= 0) { h->on_exit_t   = (cs_exit_tramp)cb_exit;   h->on_exit   = NULL; }
+    else               { h->on_exit     = (cs_exit_cb)cb_exit;      h->on_exit_t  = NULL; }
+    h->tramp_h_stdout = h_stdout;
+    h->tramp_h_stderr = h_stderr;
+    h->tramp_h_exit   = h_exit;
     h->proc = proc;
     h->stdin_pipe = stdin_pipe;
     h->stdout_pipe = stdout_pipe;
@@ -220,11 +273,18 @@ static void *cs_spawn_impl(const char *tag, int tagged,
 
     if (r != 0) {
         fprintf(stderr, "cs_spawn: uv_spawn failed: %s\n", uv_strerror(r));
-        if (tagged) {
-            if (on_exit2) on_exit2(tag, -1.0);
-        } else {
-            if (on_exit) on_exit(-1.0);
+        // Fire exit cb synchronously with -1, draining any trampoline slots.
+        if (h->tramp_h_exit >= 0) {
+            void *env = cs_tramp_get(h->tramp_h_exit);
+            if (h->on_exit_t) h->on_exit_t(env, -1.0);
+            cs_tramp_free(h->tramp_h_exit);
+            h->tramp_h_exit = -1;
+        } else if (h->on_exit) {
+            h->on_exit(-1.0);
         }
+        // stdout/stderr trampoline slots will never fire — free them now.
+        if (h->tramp_h_stdout >= 0) { cs_tramp_free(h->tramp_h_stdout); h->tramp_h_stdout = -1; }
+        if (h->tramp_h_stderr >= 0) { cs_tramp_free(h->tramp_h_stderr); h->tramp_h_stderr = -1; }
         GC_free(proc);
         GC_free(stdin_pipe);
         GC_free(stdout_pipe);
@@ -237,24 +297,16 @@ static void *cs_spawn_impl(const char *tag, int tagged,
     return h;
 }
 
-// cs_spawn: original untagged entry point. Callbacks receive (data) / (code).
+// cs_spawn: legacy entry point — all three callbacks are bare fn ptrs.
+// Kept as a thin shim over cs_spawn_v2 so existing callers (programs emitted
+// by older codegen, or users passing named function references) don't need
+// to change. Codegen now emits cs_spawn_v2 directly.
 void *cs_spawn(const char *command, const char **args, int argc,
                cs_data_cb on_stdout, cs_data_cb on_stderr, cs_exit_cb on_exit) {
-    return cs_spawn_impl(NULL, 0, command, args, argc,
-                         on_stdout, on_stderr, on_exit,
-                         NULL, NULL, NULL);
-}
-
-// cs_spawn_tagged: callbacks receive (tag, data) / (tag, code). Tag is
-// stored by pointer (caller must keep it alive — typically a GC-owned
-// ChadScript string literal or field). Enables multi-session demux.
-void *cs_spawn_tagged(const char *tag,
-                      const char *command, const char **args, int argc,
-                      cs_data_cb2 on_stdout2, cs_data_cb2 on_stderr2,
-                      cs_exit_cb2 on_exit2) {
-    return cs_spawn_impl(tag, 1, command, args, argc,
-                         NULL, NULL, NULL,
-                         on_stdout2, on_stderr2, on_exit2);
+    return cs_spawn_v2(command, args, argc,
+                       (void (*)())on_stdout, -1,
+                       (void (*)())on_stderr, -1,
+                       (void (*)())on_exit,   -1);
 }
 
 // Write-request context — holds the copied buffer until libuv has flushed.

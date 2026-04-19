@@ -116,6 +116,7 @@ import {
 import { DiagnosticEngine } from "../diagnostics/engine.js";
 import { TypeContext } from "./infrastructure/type-context.js";
 import { IGeneratorContext, IArrowFunctionGenerator } from "./infrastructure/generator-context.js";
+import { TrampolineEmitter } from "./infrastructure/trampoline-emitter.js";
 import type { FieldInfo } from "./infrastructure/type-resolver/types.js";
 import { ArrayGenerator } from "./types/collections/array.js";
 import { StringGenerator } from "./types/collections/string.js";
@@ -250,7 +251,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   private wsHandlers: string[];
   public usesTimers: number = 0;
   public usesPromises: number = 0;
-  public usesTrampolines: number = 0;
   public usesSqlite: number = 0;
   public usesCurl: number = 0;
   public usesUvHrtime: number = 0;
@@ -1458,6 +1458,11 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public declaredExternFunctions: string[];
   public sourceCode: string = "";
   public filename: string = "";
+  // IMPORTANT: keep trampolineEmitter and usesTrampolines at the END of the
+  // class field list — adding fields in the middle shifts GEP indices in the
+  // self-hosted native compiler (see CLAUDE.md rule #5).
+  public trampolineEmitter!: TrampolineEmitter;
+  public usesTrampolines: number = 0;
 
   constructor(ast: AST, typeChecker: TypeChecker | null, options: LLVMGeneratorOptions) {
     super();
@@ -1561,6 +1566,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.sqliteGen = new SqliteGenerator(this);
     this.childProcessGen = new ChildProcessGenerator(this);
     this.embedGen = new EmbedGenerator(this, this.filename);
+    this.trampolineEmitter = new TrampolineEmitter();
     this.runtimeGen = new RuntimeGenerator();
     this.httpServerGen = new HttpServerGenerator();
     this.libuvGen = new LibuvGenerator();
@@ -3097,6 +3103,17 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       const liftedIr = this.generateFunction(func);
       if (liftedIr.length > 0) {
         irParts.push(liftedIr);
+        irParts.push("\n");
+      }
+    }
+
+    // C-ABI trampoline closures: per-shape dispatch stubs invoked by C bridges
+    // (e.g. child-process-spawn). Emitted after lifted lambdas so the trampoline
+    // IR can legally reference the lifted fn-ptr types.
+    if (this.usesTrampolines) {
+      const trampIr = this.trampolineEmitter.emitAll();
+      if (trampIr.length > 0) {
+        irParts.push(trampIr);
         irParts.push("\n");
       }
     }
