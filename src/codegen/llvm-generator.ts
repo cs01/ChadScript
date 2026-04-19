@@ -1283,10 +1283,57 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return info.fields[fieldIndex].llvmType;
   }
 
-  // Helper: Extract object literal metadata (public for context pattern access)
-  public getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] } {
+  // Helper: Extract object literal metadata (public for context pattern access).
+  // When `targetInterface` names a known interface, emit keys/types in the
+  // interface's DECLARATION order — this matches the canonical struct layout
+  // that generateInterfaceObject emits, so variable metadata and actual struct
+  // GEP indices agree. Without a target, returns source-order (legacy).
+  //
+  // The canonical-order path is INLINED here rather than a separate helper
+  // method to avoid shifting LLVMGenerator's method count — the native
+  // compiler has positional class-method dispatch (see memory
+  // `native-method-deletion-breaks-vtable.md`).
+  public getObjectMetadata(
+    objExpr: ObjectNode,
+    targetInterface?: string,
+  ): { keys: string[]; types: string[] } {
     if (!objExpr || objExpr.type !== "object") {
       return { keys: [], types: [] };
+    }
+
+    // Canonical-order path when a known interface is provided.
+    if (
+      targetInterface &&
+      this.interfaceStructGen &&
+      this.interfaceStructGen.hasInterface(targetInterface)
+    ) {
+      const info = this.interfaceStructGen.getInterfaceStruct(targetInterface);
+      if (info) {
+        const kOut: string[] = [];
+        const tOut: string[] = [];
+        const covered: string[] = [];
+        for (let fi = 0; fi < info.fields.length; fi++) {
+          const f = info.fields[fi] as { name: string; llvmType: string };
+          kOut.push(f.name);
+          tOut.push(f.llvmType);
+          covered.push(f.name);
+        }
+        if (objExpr.properties) {
+          for (let pi = 0; pi < objExpr.properties.length; pi++) {
+            const p = objExpr.properties[pi] as ObjectProperty;
+            if (!p) continue;
+            if (covered.indexOf(p.key) !== -1) continue;
+            kOut.push(p.key);
+            // Fallback: infer extra-key type inline. i8* is the safe default
+            // because most runtime values are pointers.
+            let t = "i8*";
+            const pvt = (p.value as { type: string }).type;
+            if (pvt === "number" || pvt === "boolean" || pvt === "unary") t = "double";
+            tOut.push(t);
+          }
+        }
+        return { keys: kOut, types: tOut };
+      }
     }
 
     const keys: string[] = [];
@@ -2479,7 +2526,11 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           llvmType = "i8*";
           kind = SymbolKind_Object;
           defaultValue = "null";
-          const objMeta = this.getObjectMetadata(stmt.value as ObjectNode);
+          // Pass declaredType so metadata keys/types come out in canonical
+          // interface declaration order when stmt.declaredType is a known
+          // interface. Keeps variable metadata aligned with the struct layout
+          // generateInterfaceObject emits.
+          const objMeta = this.getObjectMetadata(stmt.value as ObjectNode, stmt.declaredType);
           if (objMeta && objMeta.keys.length > 0) {
             const interfaceName = stmt.declaredType || undefined;
             ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";

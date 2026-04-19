@@ -180,7 +180,7 @@ export interface MemberAccessGeneratorContext {
   getVariableAlloca(name: string): string | undefined;
   emitError(message: string, loc?: SourceLocation, suggestion?: string): never;
   emitWarning(message: string, loc?: SourceLocation, suggestion?: string): void;
-  getObjectMetadata(obj: ObjectNode): ObjectMetadata;
+  getObjectMetadata(obj: ObjectNode, targetInterface?: string): ObjectMetadata;
   classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
   classGenGetFieldType(className: string, fieldName: string): string | null;
   classGenGetFieldTsType(className: string, fieldName: string): string | null;
