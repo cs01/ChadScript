@@ -94,14 +94,16 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += "declare i8* @cs_spawnSync(i8*, i8**, i32)\n";
   // cs_spawn: async spawn with streaming callbacks (stdout_cb, stderr_cb, exit_cb).
   // Returns opaque handle (i8*) for writeStdin/endStdin/kill; NULL on failure.
+  // Legacy entry point — all callbacks are bare C fn ptrs. Kept as a shim
+  // over cs_spawn_v2 for back-compat; codegen now emits cs_spawn_v2 directly.
   ir += "declare i8* @cs_spawn(i8*, i8**, i32, void (i8*)*, void (i8*)*, void (double)*)\n";
+  // cs_spawn_v2: per-callback trampoline handle. handle == -1 -> bare fn ptr;
+  // handle >= 0 -> trampoline fn ptr, env recovered via cs_tramp_get(handle).
+  // Trampoline signatures are void(i8* env, i8* data) and void(i8* env, double code).
+  ir += "declare i8* @cs_spawn_v2(i8*, i8**, i32, i8*, i32, i8*, i32, i8*, i32)\n";
   ir += "declare void @cs_spawn_write(i8*, i8*)\n";
   ir += "declare void @cs_spawn_end_stdin(i8*)\n";
   ir += "declare void @cs_spawn_kill(i8*, i32)\n";
-  // cs_spawn_tagged: like cs_spawn but callbacks receive (tag, data) /
-  // (tag, code). Enables multi-session demux without module-level state.
-  ir +=
-    "declare i8* @cs_spawn_tagged(i8*, i8*, i8**, i32, void (i8*, i8*)*, void (i8*, i8*)*, void (i8*, double)*)\n";
   ir += "\n";
 
   // base64 bridge — Buffer.from(str, 'base64') → %Uint8Array*; btoa/atob → i8*
