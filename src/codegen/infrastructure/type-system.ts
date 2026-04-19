@@ -264,7 +264,13 @@ export function canonicalTypeToLlvm(
   if (mode === "param") {
     if (tsType === "any" || tsType === "unknown") {
       console.error(
-        "error: parameter type '" + tsType + "' is not allowed — add explicit type annotations",
+        "error: parameter type '" +
+          tsType +
+          "' is not allowed — add explicit type annotations. " +
+          "For polymorphic payloads, the idiomatic pattern is to pass a JSON " +
+          "string and let the callee parse with JSON.parse<T>(...) on a " +
+          "discriminant (e.g. a 'kind' or 'event' field). Alternatively use " +
+          "'object' for a generic interface-pointer parameter.",
       );
       process.exit(1);
     }
