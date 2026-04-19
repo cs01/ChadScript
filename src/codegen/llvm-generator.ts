@@ -259,6 +259,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public usesCrypto: number = 0;
   public usesJson: number = 0;
   public usesHttpServer: number = 0;
+  public usesWsPrimitives: number = 0;
   public usesMultipart: number = 0;
   public usesRegex: number = 0;
   public usesTestRunner: number = 0;
@@ -3177,7 +3178,11 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       if (eventHandler) {
         irParts.push(eventHandler);
       }
-      if (wsHandler) {
+      // Emit the WS server→client primitives whenever the program either
+      // registered a wsHandler OR directly called wsBroadcast / wsSend.
+      // Previously only the former triggered emission, causing
+      // "undefined value @__ws_broadcast" at link time for push-only apps.
+      if (wsHandler || this.usesWsPrimitives) {
         irParts.push("\n");
         irParts.push(this.httpServerGen.generateWsBroadcastFunction());
         irParts.push(this.httpServerGen.generateWsSendToFunction());
@@ -4593,6 +4598,11 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (expr.args.length < 1) {
       return this.emitError("wsBroadcast() requires 1 argument: message string", expr.loc);
     }
+    // Mark that this program calls a WS primitive directly so the module
+    // finalizer emits @__ws_broadcast (previously gated behind wsHandler
+    // presence, which broke server→client push when the app didn't accept
+    // incoming WS messages).
+    this.usesWsPrimitives = 1;
     const msgValue = this.generateExpression(expr.args[0], params);
     const len = this.nextTemp();
     this.emit(`${len} = call i64 @strlen(i8* ${msgValue})`);
@@ -4604,6 +4614,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (expr.args.length < 2) {
       return this.emitError("wsSend() requires 2 arguments: connId, message", expr.loc);
     }
+    this.usesWsPrimitives = 1;
     const connIdValue = this.generateExpression(expr.args[0], params);
     const msgValue = this.generateExpression(expr.args[1], params);
     const len = this.nextTemp();

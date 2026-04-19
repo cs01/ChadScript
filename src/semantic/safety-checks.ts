@@ -497,8 +497,25 @@ export function checkArgumentCounts(ast: AST, sourceCode: string): void {
 
   for (let i = 0; i < ast.functions.length; i++) {
     const fn = ast.functions[i];
-    if (state.lookup(fn.name) >= 0) {
-      state.dupNames.push(fn.name);
+    const existingIdx = state.lookup(fn.name);
+    if (existingIdx >= 0) {
+      // Overload: merge min/max across all signatures so a caller passing
+      // an arg count valid for ANY signature is accepted. Previously we
+      // skipped duplicates entirely, leaving the arity constraints of the
+      // first-seen signature as authoritative — which silently broke
+      // 3-arg httpServe (only 2-arg overload's max=2 was kept). Without
+      // this, the declared 3-arg form in chadscript.d.ts was unreachable.
+      if (argHasRest(fn)) {
+        // Rest params effectively unbound upper — drop constraint entirely.
+        state.names.splice(existingIdx, 1);
+        state.mins.splice(existingIdx, 1);
+        state.maxes.splice(existingIdx, 1);
+      } else {
+        const newMin = argCountMin(fn);
+        const newMax = argCountMax(fn);
+        if (newMin < state.mins[existingIdx]) state.mins[existingIdx] = newMin;
+        if (newMax > state.maxes[existingIdx]) state.maxes[existingIdx] = newMax;
+      }
       continue;
     }
     if (argHasRest(fn)) continue;
