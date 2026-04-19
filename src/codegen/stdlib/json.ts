@@ -498,6 +498,35 @@ export class JsonGenerator {
           lines.push("  store double %value_" + fieldIndex + ", double* %field_ptr_" + fieldIndex);
           lines.push("  br label %" + nextLabel);
           lines.push("");
+        } else if (fieldType === "any" || fieldType === "unknown") {
+          // `any`/`unknown` field — serialize the JSON value back to its raw
+          // source-text representation and store as a string (i8*). User can
+          // re-parse with JSON.parse<SpecificShape>(field) once they know
+          // the concrete shape from a sibling discriminant (DAP `command`,
+          // JSON-RPC `method`, etc.). This is the most useful semantics for
+          // polymorphic payloads — matches how dapweb's extractField walker
+          // was manually recovering these fields. (dapweb NOTES #12)
+          lines.push("field_" + fieldIndex + "_extract:");
+          lines.push(
+            "  %value_" +
+              fieldIndex +
+              " = call i8* @csyyjson_val_write(i8* %item_" +
+              fieldIndex +
+              ")",
+          );
+          lines.push(
+            "  %field_ptr_" +
+              fieldIndex +
+              " = getelementptr inbounds %" +
+              typeName +
+              ", %" +
+              typeName +
+              "* %struct_ptr, i32 0, i32 " +
+              fieldIndex,
+          );
+          lines.push("  store i8* %value_" + fieldIndex + ", i8** %field_ptr_" + fieldIndex);
+          lines.push("  br label %" + nextLabel);
+          lines.push("");
         } else if (fieldType === "number[]" || fieldType === "string[]") {
           // Array-of-primitive field. Materialize a %Array* / %StringArray*
           // into the field slot from the already-parsed JSON array at %item_N.
