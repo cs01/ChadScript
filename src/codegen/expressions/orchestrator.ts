@@ -41,6 +41,9 @@ interface ExpressionOrchestratorContext {
   setLastTypeAssertionSourceVar(name: string | null): void;
   emitWarning(message: string, loc?: { line: number; column: number }, suggestion?: string): void;
   emitError(message: string, loc?: { line: number; column: number }, suggestion?: string): never;
+  getCurrentDeclaredInterfaceType(): string | undefined;
+  setCurrentDeclaredInterfaceType(type: string | undefined): void;
+  interfaceStructGenHasInterface(name: string): boolean;
 }
 
 /**
@@ -188,7 +191,23 @@ export class ExpressionGenerator {
       } else {
         this.ctx.setLastTypeAssertionSourceVar(null);
       }
-      return this.generate(assertExpr.expression, params);
+      const innerBase = assertExpr.expression as { type: string };
+      let savedDeclaredIface: string | undefined = undefined;
+      let wrappedDeclaredIface = false;
+      if (
+        innerBase.type === "object" &&
+        assertExpr.assertedType &&
+        this.ctx.interfaceStructGenHasInterface(assertExpr.assertedType)
+      ) {
+        savedDeclaredIface = this.ctx.getCurrentDeclaredInterfaceType();
+        this.ctx.setCurrentDeclaredInterfaceType(assertExpr.assertedType);
+        wrappedDeclaredIface = true;
+      }
+      const result = this.generate(assertExpr.expression, params);
+      if (wrappedDeclaredIface) {
+        this.ctx.setCurrentDeclaredInterfaceType(savedDeclaredIface);
+      }
+      return result;
     }
 
     return null;

@@ -42,6 +42,9 @@ export interface AssignmentGeneratorContext {
   setCurrentDeclaredMapType(type: string | undefined): void;
   currentDeclaredSetType: string | undefined;
   setCurrentDeclaredSetType(type: string | undefined): void;
+  getCurrentDeclaredInterfaceType(): string | undefined;
+  setCurrentDeclaredInterfaceType(type: string | undefined): void;
+  interfaceStructGenHasInterface(name: string): boolean;
   getThisPointer(): string | null;
   getCurrentClassName(): string | null;
   readonly symbolTable: SymbolTable;
@@ -268,7 +271,22 @@ export class AssignmentGenerator {
       this.ctx.setCurrentDeclaredSetType(fieldTsType);
     }
 
+    let savedDeclaredIface: string | undefined = undefined;
+    let wrappedDeclaredIface = false;
+    const rhsTyped = memberAccessValue.value as { type: string };
+    if (rhsTyped.type === "object" && fieldTsType) {
+      const strippedTs = stripNullable(fieldTsType);
+      if (this.ctx.interfaceStructGenHasInterface(strippedTs)) {
+        savedDeclaredIface = this.ctx.getCurrentDeclaredInterfaceType();
+        this.ctx.setCurrentDeclaredInterfaceType(strippedTs);
+        wrappedDeclaredIface = true;
+      }
+    }
+
     const value = this.ctx.generateExpression(memberAccessValue.value, params);
+    if (wrappedDeclaredIface) {
+      this.ctx.setCurrentDeclaredInterfaceType(savedDeclaredIface);
+    }
     this.ctx.setExpectedArrayElementType(null);
     this.ctx.setCurrentDeclaredMapType(undefined);
     this.ctx.setCurrentDeclaredSetType(undefined);
