@@ -52,18 +52,52 @@ export class CallExpressionGenerator {
     }
 
     if (expr.name === "callHandler") {
+      // callHandler(fnPtr, ...args) — invoke a raw function pointer stored
+      // as i8* (typically an object's function-typed field). Previously the
+      // bitcast and call used a fixed `double(i8*, i8*, ...)*` shape, which
+      // only worked when every arg was actually a pointer. For numeric /
+      // boolean args that emitted broken IR (passing i64/double as i8*).
+      //
+      // Current strategy: generate each arg first, inspect its LLVM type,
+      // and mirror that type in both the bitcast signature and the call
+      // site. Assumes the function's declared signature matches the types
+      // the user is passing — which it must, or the TS would not typecheck.
       const fnPtr = this.ctx.generateExpression(expr.args[0], params);
-      const typedFn = this.ctx.nextTemp();
-      const numCallArgs = expr.args.length - 1;
-      const argTypeList: string[] = [];
-      for (let ti = 0; ti < numCallArgs; ti++) {
-        argTypeList.push("i8*");
-      }
-      this.ctx.emit(`${typedFn} = bitcast i8* ${fnPtr} to double (${argTypeList.join(", ")})*`);
-      const callArgsList: string[] = [];
+      const argValues: string[] = [];
+      const argTypes: string[] = [];
       for (let ai = 1; ai < expr.args.length; ai++) {
-        const argVal = this.ctx.generateExpression(expr.args[ai], params);
-        callArgsList.push(`i8* ${argVal}`);
+        const rawArgVal = this.ctx.generateExpression(expr.args[ai], params);
+        const lt = this.ctx.getVariableType(rawArgVal);
+        // ChadScript's 'number' is double in function signatures. Promote
+        // integer-typed values (int literals, i64 from integer specialization)
+        // to double so the call ABI matches a (number) => ... function.
+        let coercedVal = rawArgVal;
+        let paramTy: string;
+        if (lt === "i64" || lt === "i32" || lt === "i16" || lt === "i8") {
+          const promoted = this.ctx.nextTemp();
+          this.ctx.emit(`${promoted} = sitofp ${lt} ${rawArgVal} to double`);
+          coercedVal = promoted;
+          paramTy = "double";
+        } else if (lt === "i1") {
+          const promoted = this.ctx.nextTemp();
+          this.ctx.emit(`${promoted} = uitofp i1 ${rawArgVal} to double`);
+          coercedVal = promoted;
+          paramTy = "double";
+        } else if (!lt || lt.length === 0) {
+          paramTy = "i8*";
+        } else {
+          paramTy = lt;
+        }
+        argValues.push(coercedVal);
+        argTypes.push(paramTy);
+      }
+
+      const typedFn = this.ctx.nextTemp();
+      this.ctx.emit(`${typedFn} = bitcast i8* ${fnPtr} to double (${argTypes.join(", ")})*`);
+
+      const callArgsList: string[] = [];
+      for (let i = 0; i < argValues.length; i++) {
+        callArgsList.push(`${argTypes[i]} ${argValues[i]}`);
       }
       const callResult = this.ctx.nextTemp();
       this.ctx.emit(`${callResult} = call double ${typedFn}(${callArgsList.join(", ")})`);
