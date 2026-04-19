@@ -61,6 +61,19 @@ declare namespace process {
   namespace stderr {
     function write(str: string): void;
   }
+  namespace stdin {
+    // Reads the entire rest of stdin to EOF and returns it as a string.
+    // Good for filter-shaped tools (`cat | tool`) and one-shot pipes.
+    function read(): string;
+    // Reads a single line from stdin (blocking). Strips the trailing \n
+    // (and preceding \r for CRLF). Returns "" on EOF — callers that need
+    // to distinguish "empty line" from "EOF" should tag their protocol
+    // accordingly (MCP / JSON-RPC lines are never empty).
+    //
+    // Intended for line-oriented protocols: MCP stdio server, JSON-RPC,
+    // LSP, simple REPLs.
+    function readLine(): string;
+  }
 }
 
 // ============================================================================

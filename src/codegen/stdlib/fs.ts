@@ -850,4 +850,78 @@ export class FilesystemGenerator {
     ir += "}\n\n";
     return ir;
   }
+
+  /**
+   * `process.stdin.readLine()` — blocking single-line read from stdin.
+   * Returns the line WITHOUT the trailing newline. Returns an empty string
+   * on EOF. Required for MCP stdio servers, JSON-RPC loops, REPLs.
+   *
+   * Implementation: fgets into a grow-as-needed GC buffer. Strips the
+   * trailing \n (and optional \r). On fgets returning NULL (EOF with no
+   * bytes read) returns the empty string.
+   */
+  generateStdinReadLineHelper(): string {
+    let ir = "";
+    ir += "define i8* @__process_stdin_readline() {\n";
+    ir += "entry:\n";
+    ir += "  %stdin_fp = load i8*, i8** @stdin\n";
+    ir += "  %init_cap = add i64 0, 256\n";
+    ir += "  %init_buf = call i8* @GC_malloc_atomic(i64 256)\n";
+    ir += "  ; zero first byte so subsequent strlen works even if fgets returns null\n";
+    ir += "  store i8 0, i8* %init_buf\n";
+    ir += "  br label %loop\n";
+    ir += "\n";
+    ir += "loop:\n";
+    ir += "  %buf = phi i8* [ %init_buf, %entry ], [ %grown_buf, %grow ]\n";
+    ir += "  %cap = phi i64 [ %init_cap, %entry ], [ %new_cap, %grow ]\n";
+    ir += "  %len = phi i64 [ 0, %entry ], [ %total_len, %grow ]\n";
+    ir += "  %remain = sub i64 %cap, %len\n";
+    ir += "  %remain_i32 = trunc i64 %remain to i32\n";
+    ir += "  %write_ptr = getelementptr inbounds i8, i8* %buf, i64 %len\n";
+    ir += "  %fgets_ret = call i8* @fgets(i8* %write_ptr, i32 %remain_i32, i8* %stdin_fp)\n";
+    ir += "  %fgets_null = icmp eq i8* %fgets_ret, null\n";
+    ir += "  br i1 %fgets_null, label %done_eof, label %check_newline\n";
+    ir += "\n";
+    ir += "check_newline:\n";
+    ir += "  %chunk_len = call i64 @strlen(i8* %write_ptr)\n";
+    ir += "  %total_len = add i64 %len, %chunk_len\n";
+    ir += "  ; If the last byte is '\\n', we got a complete line.\n";
+    ir += "  %last_idx = sub i64 %total_len, 1\n";
+    ir += "  %last_ptr = getelementptr inbounds i8, i8* %buf, i64 %last_idx\n";
+    ir += "  %last_byte = load i8, i8* %last_ptr\n";
+    ir += "  %is_newline = icmp eq i8 %last_byte, 10\n";
+    ir += "  br i1 %is_newline, label %strip_newline, label %grow\n";
+    ir += "\n";
+    ir += "grow:\n";
+    ir += "  %new_cap = mul i64 %cap, 2\n";
+    ir += "  %grown_buf = call i8* @GC_realloc(i8* %buf, i64 %new_cap)\n";
+    ir += "  br label %loop\n";
+    ir += "\n";
+    ir += "strip_newline:\n";
+    ir += "  store i8 0, i8* %last_ptr\n";
+    ir += "  ; Also strip preceding \\r if present (CRLF line ending).\n";
+    ir += "  %after_strip_len = sub i64 %total_len, 1\n";
+    ir += "  %has_prev = icmp ugt i64 %after_strip_len, 0\n";
+    ir += "  br i1 %has_prev, label %check_cr, label %done_line\n";
+    ir += "\n";
+    ir += "check_cr:\n";
+    ir += "  %cr_idx = sub i64 %after_strip_len, 1\n";
+    ir += "  %cr_ptr = getelementptr inbounds i8, i8* %buf, i64 %cr_idx\n";
+    ir += "  %cr_byte = load i8, i8* %cr_ptr\n";
+    ir += "  %is_cr = icmp eq i8 %cr_byte, 13\n";
+    ir += "  br i1 %is_cr, label %strip_cr, label %done_line\n";
+    ir += "\n";
+    ir += "strip_cr:\n";
+    ir += "  store i8 0, i8* %cr_ptr\n";
+    ir += "  br label %done_line\n";
+    ir += "\n";
+    ir += "done_line:\n";
+    ir += "  ret i8* %buf\n";
+    ir += "\n";
+    ir += "done_eof:\n";
+    ir += "  ; On EOF with zero bytes read, return empty string.\n";
+    ir += "  ret i8* %init_buf\n";
+    ir += "}\n\n";
+    return ir;
+  }
 }

@@ -3060,6 +3060,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     irParts.push(this.fsGen.generateReaddirSyncHelper());
     irParts.push(this.fsGen.generateStatSyncHelper());
     irParts.push(this.fsGen.generateStdinReadHelper());
+    irParts.push(this.fsGen.generateStdinReadLineHelper());
     irParts.push(this.pathGen.generateNormalizeHelper());
     irParts.push(this.pathGen.generateRelativeHelper());
     irParts.push(this.pathGen.generateParseHelper());

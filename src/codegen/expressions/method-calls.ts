@@ -514,7 +514,7 @@ export class MethodCallGenerator {
     }
 
     if (isProcessStdinRead(expr)) {
-      return handleProcessStdinRead(this.ctx);
+      return handleProcessStdinRead(this.ctx, expr);
     }
 
     // Handle Math.* methods (delegated to MathGenerator)
