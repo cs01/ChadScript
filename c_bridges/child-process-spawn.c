@@ -16,6 +16,13 @@ extern void GC_free(void *);
 
 typedef void (*cs_data_cb)(const char *data);
 typedef void (*cs_exit_cb)(double exit_status);
+// Tagged-callback variants: first argument is a user-supplied tag string
+// (typically a session id) letting apps demux events across many concurrent
+// spawns without juggling module-level state. The tag is stored on
+// SpawnHandle; ChadScript closures cannot capture env through a raw function
+// pointer, so the tag threading lives at the bridge level.
+typedef void (*cs_data_cb2)(const char *tag, const char *data);
+typedef void (*cs_exit_cb2)(const char *tag, double exit_status);
 
 // SpawnHandle — opaque handle returned by cs_spawn. Lifetime managed by refcount.
 // Each outstanding libuv handle (proc, stdin_pipe, stdout_pipe, stderr_pipe) holds
@@ -26,6 +33,13 @@ typedef struct {
     cs_data_cb on_stdout;
     cs_data_cb on_stderr;
     cs_exit_cb on_exit;
+    // Tagged variants — used when tagged != 0. Cannot coexist in one call
+    // (the bridge picks one shape based on which spawn variant was invoked).
+    cs_data_cb2 on_stdout2;
+    cs_data_cb2 on_stderr2;
+    cs_exit_cb2 on_exit2;
+    const char *tag;           // user-supplied demux id; NULL for untagged
+    int tagged;                // 1 = use cb2 pointers, 0 = use cb pointers
     uv_process_t *proc;
     uv_pipe_t *stdin_pipe;
     uv_pipe_t *stdout_pipe;
@@ -50,7 +64,11 @@ static void handle_unref(SpawnHandle *h) {
 static void spawn_maybe_fire_exit(SpawnHandle *h) {
     if (h->completions_remaining <= 0 && !h->exit_fired) {
         h->exit_fired = 1;
-        if (h->on_exit) h->on_exit(h->exit_status);
+        if (h->tagged) {
+            if (h->on_exit2) h->on_exit2(h->tag, h->exit_status);
+        } else {
+            if (h->on_exit) h->on_exit(h->exit_status);
+        }
     }
 }
 
@@ -80,8 +98,13 @@ static void spawn_read_cb_impl(uv_stream_t *stream, ssize_t nread, const uv_buf_
         char *data = (char *)GC_malloc_atomic((size_t)nread + 1);
         memcpy(data, buf->base, (size_t)nread);
         data[nread] = '\0';
-        if (is_stdout && h->on_stdout) h->on_stdout(data);
-        else if (!is_stdout && h->on_stderr) h->on_stderr(data);
+        if (h->tagged) {
+            if (is_stdout && h->on_stdout2) h->on_stdout2(h->tag, data);
+            else if (!is_stdout && h->on_stderr2) h->on_stderr2(h->tag, data);
+        } else {
+            if (is_stdout && h->on_stdout) h->on_stdout(data);
+            else if (!is_stdout && h->on_stderr) h->on_stderr(data);
+        }
     }
     if (buf->base) free(buf->base);
     if (nread < 0) {
@@ -116,11 +139,12 @@ static void spawn_exit_cb(uv_process_t *proc, int64_t exit_status, int term_sign
     uv_close((uv_handle_t *)proc, spawn_proc_close_cb);
 }
 
-// cs_spawn: spawn a child with bidirectional piped stdio + streaming callbacks.
-// Returns an opaque handle usable with cs_spawn_write/end_stdin/kill; NULL on
-// failure (on_exit is invoked with -1 before returning).
-void *cs_spawn(const char *command, const char **args, int argc,
-               cs_data_cb on_stdout, cs_data_cb on_stderr, cs_exit_cb on_exit) {
+// Internal: shared spawn setup. Exactly one of (on_stdout/on_stderr/on_exit)
+// and (on_stdout2/on_stderr2/on_exit2) must be non-NULL — tagged is 0/1.
+static void *cs_spawn_impl(const char *tag, int tagged,
+                           const char *command, const char **args, int argc,
+                           cs_data_cb on_stdout, cs_data_cb on_stderr, cs_exit_cb on_exit,
+                           cs_data_cb2 on_stdout2, cs_data_cb2 on_stderr2, cs_exit_cb2 on_exit2) {
     uv_loop_t *loop = uv_default_loop();
 
     uv_process_t *proc = (uv_process_t *)GC_malloc_uncollectable(sizeof(uv_process_t));
@@ -136,6 +160,11 @@ void *cs_spawn(const char *command, const char **args, int argc,
     h->on_stdout = on_stdout;
     h->on_stderr = on_stderr;
     h->on_exit = on_exit;
+    h->on_stdout2 = on_stdout2;
+    h->on_stderr2 = on_stderr2;
+    h->on_exit2 = on_exit2;
+    h->tag = tag;
+    h->tagged = tagged;
     h->proc = proc;
     h->stdin_pipe = stdin_pipe;
     h->stdout_pipe = stdout_pipe;
@@ -191,7 +220,11 @@ void *cs_spawn(const char *command, const char **args, int argc,
 
     if (r != 0) {
         fprintf(stderr, "cs_spawn: uv_spawn failed: %s\n", uv_strerror(r));
-        if (on_exit) on_exit(-1.0);
+        if (tagged) {
+            if (on_exit2) on_exit2(tag, -1.0);
+        } else {
+            if (on_exit) on_exit(-1.0);
+        }
         GC_free(proc);
         GC_free(stdin_pipe);
         GC_free(stdout_pipe);
@@ -202,6 +235,26 @@ void *cs_spawn(const char *command, const char **args, int argc,
     uv_read_start((uv_stream_t *)stdout_pipe, spawn_alloc_cb, spawn_stdout_read_cb);
     uv_read_start((uv_stream_t *)stderr_pipe, spawn_alloc_cb, spawn_stderr_read_cb);
     return h;
+}
+
+// cs_spawn: original untagged entry point. Callbacks receive (data) / (code).
+void *cs_spawn(const char *command, const char **args, int argc,
+               cs_data_cb on_stdout, cs_data_cb on_stderr, cs_exit_cb on_exit) {
+    return cs_spawn_impl(NULL, 0, command, args, argc,
+                         on_stdout, on_stderr, on_exit,
+                         NULL, NULL, NULL);
+}
+
+// cs_spawn_tagged: callbacks receive (tag, data) / (tag, code). Tag is
+// stored by pointer (caller must keep it alive — typically a GC-owned
+// ChadScript string literal or field). Enables multi-session demux.
+void *cs_spawn_tagged(const char *tag,
+                      const char *command, const char **args, int argc,
+                      cs_data_cb2 on_stdout2, cs_data_cb2 on_stderr2,
+                      cs_exit_cb2 on_exit2) {
+    return cs_spawn_impl(tag, 1, command, args, argc,
+                         NULL, NULL, NULL,
+                         on_stdout2, on_stderr2, on_exit2);
 }
 
 // Write-request context — holds the copied buffer until libuv has flushed.

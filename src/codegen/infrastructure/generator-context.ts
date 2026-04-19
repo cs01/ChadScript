@@ -225,6 +225,7 @@ export interface IChildProcessGenerator {
   generateSpawnSync(expr: MethodCallNode, params: string[]): string;
   generateExec(expr: MethodCallNode, params: string[]): string;
   generateSpawn(expr: MethodCallNode, params: string[]): string;
+  generateSpawnTagged(expr: MethodCallNode, params: string[]): string;
   generateWriteStdin(expr: MethodCallNode, params: string[]): string;
   generateEndStdin(expr: MethodCallNode, params: string[]): string;
   generateKill(expr: MethodCallNode, params: string[]): string;
@@ -2087,6 +2088,7 @@ export class MockGeneratorContext implements IGeneratorContext {
     generateSpawnSync: (_expr: MethodCallNode, _params: string[]): string => "%mock_spawnsync",
     generateExec: (_expr: MethodCallNode, _params: string[]): string => "%mock_exec",
     generateSpawn: (_expr: MethodCallNode, _params: string[]): string => "%mock_spawn",
+    generateSpawnTagged: (_expr: MethodCallNode, _params: string[]): string => "%mock_spawn_tagged",
     generateWriteStdin: (_expr: MethodCallNode, _params: string[]): string => "null",
     generateEndStdin: (_expr: MethodCallNode, _params: string[]): string => "null",
     generateKill: (_expr: MethodCallNode, _params: string[]): string => "null",
