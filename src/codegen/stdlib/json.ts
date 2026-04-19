@@ -498,6 +498,125 @@ export class JsonGenerator {
           lines.push("  store double %value_" + fieldIndex + ", double* %field_ptr_" + fieldIndex);
           lines.push("  br label %" + nextLabel);
           lines.push("");
+        } else if (fieldType === "number[]" || fieldType === "string[]") {
+          // Array-of-primitive field. Materialize a %Array* / %StringArray*
+          // into the field slot from the already-parsed JSON array at %item_N.
+          // Uses raw i8*+bitcast throughout so we don't depend on %Array /
+          // %StringArray type declaration order relative to this parser body.
+          const isStr = fieldType === "string[]";
+          const elemT = isStr ? "i8*" : "double";
+          const arrT = isStr ? "%StringArray" : "%Array";
+          const gFn = isStr ? "@csyyjson_get_str" : "@csyyjson_get_num";
+          const gRet = isStr ? "i8*" : "double";
+          const fi = fieldIndex;
+          lines.push("field_" + fi + "_extract:");
+          lines.push("  %jarr_size_" + fi + " = call i32 @csyyjson_arr_size(i8* %item_" + fi + ")");
+          lines.push("  %jarr_bytes_" + fi + " = mul i32 %jarr_size_" + fi + ", 8");
+          lines.push("  %jarr_bytes64_" + fi + " = sext i32 %jarr_bytes_" + fi + " to i64");
+          lines.push(
+            "  %jarr_data_i8_" + fi + " = call i8* @GC_malloc(i64 %jarr_bytes64_" + fi + ")",
+          );
+          lines.push(
+            "  %jarr_data_" + fi + " = bitcast i8* %jarr_data_i8_" + fi + " to " + elemT + "*",
+          );
+          lines.push("  %jarr_struct_i8_" + fi + " = call i8* @GC_malloc(i64 24)");
+          lines.push(
+            "  %jarr_data_slot_" +
+              fi +
+              " = bitcast i8* %jarr_struct_i8_" +
+              fi +
+              " to " +
+              elemT +
+              "**",
+          );
+          lines.push(
+            "  store " + elemT + "* %jarr_data_" + fi + ", " + elemT + "** %jarr_data_slot_" + fi,
+          );
+          lines.push(
+            "  %jarr_lenptr_i8_" +
+              fi +
+              " = getelementptr i8, i8* %jarr_struct_i8_" +
+              fi +
+              ", i64 8",
+          );
+          lines.push("  %jarr_lenptr_" + fi + " = bitcast i8* %jarr_lenptr_i8_" + fi + " to i32*");
+          lines.push("  store i32 %jarr_size_" + fi + ", i32* %jarr_lenptr_" + fi);
+          lines.push(
+            "  %jarr_capptr_i8_" +
+              fi +
+              " = getelementptr i8, i8* %jarr_struct_i8_" +
+              fi +
+              ", i64 12",
+          );
+          lines.push("  %jarr_capptr_" + fi + " = bitcast i8* %jarr_capptr_i8_" + fi + " to i32*");
+          lines.push("  store i32 %jarr_size_" + fi + ", i32* %jarr_capptr_" + fi);
+          lines.push("  %jarr_i_ptr_" + fi + " = alloca i32");
+          lines.push("  store i32 0, i32* %jarr_i_ptr_" + fi);
+          lines.push("  br label %jarr_cond_" + fi);
+          lines.push("jarr_cond_" + fi + ":");
+          lines.push("  %jarr_i_" + fi + " = load i32, i32* %jarr_i_ptr_" + fi);
+          lines.push("  %jarr_cmp_" + fi + " = icmp slt i32 %jarr_i_" + fi + ", %jarr_size_" + fi);
+          lines.push(
+            "  br i1 %jarr_cmp_" + fi + ", label %jarr_body_" + fi + ", label %jarr_done_" + fi,
+          );
+          lines.push("jarr_body_" + fi + ":");
+          lines.push(
+            "  %jarr_item_" +
+              fi +
+              " = call i8* @csyyjson_arr_get(i8* %item_" +
+              fi +
+              ", i32 %jarr_i_" +
+              fi +
+              ")",
+          );
+          lines.push(
+            "  %jarr_raw_" + fi + " = call " + gRet + " " + gFn + "(i8* %jarr_item_" + fi + ")",
+          );
+          let stVal = "%jarr_raw_" + fi;
+          if (isStr) {
+            lines.push("  %jarr_val_" + fi + " = call i8* @strdup(i8* %jarr_raw_" + fi + ")");
+            stVal = "%jarr_val_" + fi;
+          }
+          lines.push(
+            "  %jarr_slot_" +
+              fi +
+              " = getelementptr " +
+              elemT +
+              ", " +
+              elemT +
+              "* %jarr_data_" +
+              fi +
+              ", i32 %jarr_i_" +
+              fi,
+          );
+          lines.push("  store " + elemT + " " + stVal + ", " + elemT + "* %jarr_slot_" + fi);
+          lines.push("  %jarr_iNext_" + fi + " = add i32 %jarr_i_" + fi + ", 1");
+          lines.push("  store i32 %jarr_iNext_" + fi + ", i32* %jarr_i_ptr_" + fi);
+          lines.push("  br label %jarr_cond_" + fi);
+          lines.push("jarr_done_" + fi + ":");
+          lines.push(
+            "  %value_" + fi + " = bitcast i8* %jarr_struct_i8_" + fi + " to " + arrT + "*",
+          );
+          lines.push(
+            "  %field_ptr_" +
+              fi +
+              " = getelementptr inbounds %" +
+              typeName +
+              ", %" +
+              typeName +
+              "* %struct_ptr, i32 0, i32 " +
+              fi,
+          );
+          lines.push("  store " + arrT + "* %value_" + fi + ", " + arrT + "** %field_ptr_" + fi);
+          lines.push("  br label %" + nextLabel);
+          lines.push("");
+        } else if (fieldType.endsWith("[]")) {
+          // Arrays of user-defined types not yet supported in nested parse.
+          // Fail loud instead of emitting @parse_json_StackFrame[] broken IR.
+          return this.ctx.emitError(
+            `JSON.parse<${typeName}>: nested array field '${fieldName}: ${fieldType}' is not yet supported (arrays of user types). Workaround: walk the raw JSON via csyyjson helpers, or flatten the nested type.`,
+            { file: "", line: 0, column: 0, offset: 0 },
+          );
         } else {
           lines.push("field_" + fieldIndex + "_extract:");
           lines.push(
