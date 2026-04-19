@@ -1176,6 +1176,15 @@ export class FunctionGenerator {
 
     ir += "  store i32 %argc, i32* @__argc\n";
     ir += "  store i8** %argv, i8*** @__argv\n";
+    // Line-buffer stdout/stderr so prints flush per line even when the
+    // program is long-running (libuv event loop, servers) or has stdout
+    // redirected to a pipe/file. Otherwise libc full-buffers non-TTY
+    // streams and console.log appears silent until exit — especially
+    // painful for programs pinned in uv_run forever. _IOLBF = 1.
+    ir += "  %__so_lb = load i8*, i8** @stdout\n";
+    ir += "  %__so_lb_r = call i32 @setvbuf(i8* %__so_lb, i8* null, i32 1, i64 0)\n";
+    ir += "  %__se_lb = load i8*, i8** @stderr\n";
+    ir += "  %__se_lb_r = call i32 @setvbuf(i8* %__se_lb, i8* null, i32 1, i64 0)\n";
     ir += "  call void @cs_load_dotenv()\n";
 
     if (outputStr.length > 0) {

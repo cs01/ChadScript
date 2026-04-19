@@ -134,6 +134,11 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
 
   ir += "declare i32 @printf(i8*, ...)\n";
   ir += "declare i32 @fprintf(i8*, i8*, ...)\n";
+  // setvbuf: line-buffer stdout/stderr in main so prints flush per line
+  // when the program is long-running (e.g. pinned in uv_run) or has its
+  // stdout redirected to a pipe / file. Without this, libc defaults to
+  // full buffering on non-TTY streams and console.log is silent until exit.
+  ir += "declare i32 @setvbuf(i8*, i8*, i32, i64)\n";
   const isMac =
     config && config.targetOS ? config.targetOS === "darwin" : process.platform === "darwin";
   if (isMac) {
