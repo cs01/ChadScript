@@ -147,17 +147,24 @@ class AsyncAwaitChecker {
     } else if (stype === "block") {
       this.walkBlock(stmt as BlockStatement, insideAsync);
     } else if (stype !== "break" && stype !== "continue") {
-      this.checkExpr(stmt as Expression, insideAsync);
+      // Pass isStmtLevel=true so a bare async call as a statement
+      // (fire-and-forget) is allowed — there's no return value to misuse.
+      this.checkExpr(stmt as Expression, insideAsync, true);
     }
   }
 
-  private checkExpr(expr: Expression, insideAsync: boolean): void {
+  private checkExpr(expr: Expression, insideAsync: boolean, isStmtLevel: boolean = false): void {
     const e = expr as { type: string };
     const etype = e.type;
 
     if (etype === "call") {
       const callExpr = expr as CallNode;
-      if (!insideAsync && this.isAsyncFunc(callExpr.name)) {
+      // Disallow async-without-await UNLESS the call is the whole statement
+      // (fire-and-forget). When it's a sub-expression the Promise pointer
+      // would be used as a string / number / object and crash — that's the
+      // case we want to catch. Bare `asyncFn();` just discards the returned
+      // Promise handle, which is safe (GC'd when nobody's awaiting).
+      if (!insideAsync && !isStmtLevel && this.isAsyncFunc(callExpr.name)) {
         this.reportError(callExpr.name, callExpr.loc);
       }
       for (let i = 0; i < callExpr.args.length; i++) {
