@@ -554,7 +554,7 @@ export class InterfaceLayoutNormalizer {
 // Flipping these on requires first making `getObjectMetadata` (and its
 // consumers) canonical-layout-aware.
 const REORDER_ENABLED = true;
-const INJECT_DEFAULTS_ENABLED = false;
+const INJECT_DEFAULTS_ENABLED = true;
 
 const NORM_VARIABLE_DECL = true;
 const NORM_TYPE_ASSERTION = true;
