@@ -13,6 +13,48 @@ export function handlePromiseStaticMethods(
   const method = expr.method;
   ctx.setUsesPromises(true);
 
+  if (method === "deferred") {
+    // Promise.deferred<T>() — return a fresh unresolved %Promise* that can
+    // be stashed (class field, Map value, etc.) and settled later via
+    // Promise.resolvePending(p, v) / Promise.rejectPending(p, e). Closure-
+    // free alternative to 'new Promise((r,j) => stash(r,j))' which requires
+    // capturing resolve/reject as first-class callables.
+    const result = ctx.nextTemp();
+    ctx.emit(`${result} = call %Promise* @__Promise_new()`);
+    ctx.setVariableType(result, "%Promise*");
+    return result;
+  }
+
+  if (method === "resolvePending" || method === "rejectPending") {
+    if (expr.args.length < 1) {
+      return ctx.emitError(`Promise.${method}() requires a Promise handle argument`, expr.loc);
+    }
+    const isResolve = method === "resolvePending";
+    const bridgeFn = isResolve ? "@__Promise_resolve" : "@__Promise_reject";
+    const promisePtr = ctx.generateExpression(expr.args[0], params);
+    let valuePtr = "null";
+    if (expr.args.length > 1) {
+      const raw = ctx.generateExpression(expr.args[1], params);
+      const lt = ctx.getVariableType(raw) || "double";
+      if (lt === "i8*") {
+        valuePtr = raw;
+      } else if (lt === "double" || lt === "i64" || lt === "i32" || lt === "i8") {
+        // Box scalar into pointer-sized GC slot so the bridge's i8* param
+        // can round-trip back out via the promise's value slot.
+        const allocMem = ctx.nextTemp();
+        ctx.emit(`${allocMem} = call i8* @GC_malloc(i64 8)`);
+        const doublePtr = ctx.nextTemp();
+        ctx.emit(`${doublePtr} = bitcast i8* ${allocMem} to double*`);
+        ctx.emit(`store double ${ctx.ensureDouble(raw)}, double* ${doublePtr}`);
+        valuePtr = allocMem;
+      } else {
+        valuePtr = raw;
+      }
+    }
+    ctx.emit(`call void ${bridgeFn}(%Promise* ${promisePtr}, i8* ${valuePtr})`);
+    return "0.0";
+  }
+
   if (method === "resolve") {
     let valuePtr: string;
     if (expr.args.length > 0) {

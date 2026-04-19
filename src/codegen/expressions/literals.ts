@@ -1,6 +1,8 @@
 import {
   Expression,
   ArrayNode,
+  ArrowFunctionNode,
+  BlockStatement,
   ObjectNode,
   MapNode,
   SetNode,
@@ -44,6 +46,12 @@ export interface LiteralGeneratorContext {
     generateObjectLiteral(expr: Expression, params: string[]): string;
   };
   emitError(message: string, loc?: SourceLocation): never;
+
+  // Promise-executor binding stack — enables new Promise((resolve, reject) => {...})
+  // to inline its body with calls to resolve/reject routed to bridges.
+  pushPromiseExecutor(resolveName: string, rejectName: string, promisePtr: string): void;
+  popPromiseExecutor(): void;
+  generateBlock(block: BlockStatement, params: string[]): string | null;
 }
 
 /**
@@ -221,11 +229,40 @@ export class LiteralExpressionGenerator {
    * Generate new Promise(executor) expression
    * The executor is a function (resolve, reject) => { ... }
    */
-  generateNewPromise(_args: Expression[], _params: string[]): string {
+  generateNewPromise(args: Expression[], params: string[]): string {
     this.ctx.setUsesPromises(true);
     const promiseResult = this.ctx.nextTemp();
     this.ctx.emit(`${promiseResult} = call %Promise* @__Promise_new()`);
     this.ctx.setVariableType(promiseResult, "%Promise*");
+
+    // Execute the executor arrow inline: (resolve, reject) => { ... }.
+    // Calls to resolve/reject inside the body are rewritten to direct
+    // @__Promise_resolve / @__Promise_reject bridge calls via the
+    // promise-executor binding stack (see calls.ts intercept).
+    //
+    // Covers the synchronous-resolve pattern (new Promise(r => r(v))).
+    // The stash pattern (user holds resolve/reject past executor return)
+    // requires real closure capture — use Promise.deferred() for that.
+    if (args.length > 0) {
+      const arrowNode = args[0] as { type: string } as unknown as ArrowFunctionNode;
+      if ((args[0] as { type: string }).type === "arrow_function") {
+        const arrow = args[0] as ArrowFunctionNode;
+        const resolveName = arrow.params.length > 0 ? arrow.params[0] : "__resolve";
+        const rejectName = arrow.params.length > 1 ? arrow.params[1] : "__reject";
+
+        this.ctx.pushPromiseExecutor(resolveName, rejectName, promiseResult);
+        const body = arrow.body as unknown as { type: string };
+        if (body.type === "block") {
+          this.ctx.generateBlock(arrow.body as BlockStatement, params);
+        } else {
+          this.ctx.generateExpression(arrow.body as Expression, params);
+        }
+        this.ctx.popPromiseExecutor();
+        // silence unused var lint
+        void arrowNode;
+      }
+    }
+
     return promiseResult;
   }
 
