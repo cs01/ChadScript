@@ -264,6 +264,41 @@ export class InterfaceLayoutNormalizer {
   private visitStatement(stmt: Statement, returnIface?: string | null): void {
     if (!stmt) return;
     const t = (stmt as { type: string }).type;
+    // Guard: Statement arrays (topLevelExpressions, ForStatement.update, etc.)
+    // can legitimately hold expression-shaped nodes. Route them to visitExpression
+    // instead of falling through a broken `.value` read on a struct that has no
+    // `.value` field.
+    if (
+      t === "call" ||
+      t === "method_call" ||
+      t === "binary" ||
+      t === "unary" ||
+      t === "member_access" ||
+      t === "index_access" ||
+      t === "conditional" ||
+      t === "new" ||
+      t === "await" ||
+      t === "type_assertion" ||
+      t === "arrow_function" ||
+      t === "template_literal" ||
+      t === "string" ||
+      t === "number" ||
+      t === "boolean" ||
+      t === "null" ||
+      t === "undefined" ||
+      t === "regex" ||
+      t === "variable" ||
+      t === "array" ||
+      t === "object" ||
+      t === "map" ||
+      t === "set" ||
+      t === "this" ||
+      t === "super" ||
+      t === "spread"
+    ) {
+      this.visitExpression(stmt as unknown as Expression);
+      return;
+    }
     if (t === "variable_declaration") {
       const v = stmt as VariableDeclaration;
       const declaredIface = this.resolveInterfaceName(v.declaredType);
@@ -309,7 +344,17 @@ export class InterfaceLayoutNormalizer {
       const f = stmt as ForStatement;
       if (f.init) this.visitStatement(f.init as Statement, returnIface);
       if (f.condition) this.visitExpression(f.condition);
-      if (f.update) this.visitStatement(f.update as Statement, returnIface);
+      // update can be AssignmentStatement or Expression (e.g. `i++`, `foo()`).
+      // Dispatch on its type discriminant — an Expression here crashes the
+      // Statement walker's fallback because CallNode etc. have no `.value`.
+      if (f.update) {
+        const ut = (f.update as { type: string }).type;
+        if (ut === "assignment") {
+          this.visitStatement(f.update as Statement, returnIface);
+        } else {
+          this.visitExpression(f.update as Expression);
+        }
+      }
       this.visitBlock(f.body, returnIface);
       return;
     }
@@ -351,9 +396,9 @@ export class InterfaceLayoutNormalizer {
       if (th.argument) this.visitExpression(th.argument);
       return;
     }
-    // Expression-as-statement forms — recurse into any `.value` Expression field.
-    const maybeExpr = stmt as unknown as { value?: Expression };
-    if (maybeExpr.value) this.visitExpression(maybeExpr.value);
+    // break, continue, and any unrecognized statement have nothing to recurse
+    // into. Do NOT fall back to a `.value` read — most statement structs don't
+    // have that field and GEP reads past the struct, returning garbage bytes.
   }
 
   private visitBlock(block: BlockStatement | undefined | null, returnIface?: string | null): void {
@@ -499,10 +544,10 @@ export class InterfaceLayoutNormalizer {
 // where an input's source order happens to differ and breaks.
 // Flipping these on requires first making `getObjectMetadata` (and its
 // consumers) canonical-layout-aware.
-const REORDER_ENABLED = false;
+const REORDER_ENABLED = true;
 const INJECT_DEFAULTS_ENABLED = false;
 
-const NORM_VARIABLE_DECL = false;
+const NORM_VARIABLE_DECL = true;
 const NORM_TYPE_ASSERTION = false;
 const NORM_RETURN = false;
 const NORM_CLASS_FIELD = false;
