@@ -419,6 +419,9 @@ export class AssignmentGenerator {
     value: string,
     memberAccessValue: MemberAccessAssignmentNode,
   ): void {
+    if (value.startsWith("__lambda_")) {
+      value = `@${value}`;
+    }
     if (fiTsType) {
       const enumResult = this.isEnumType(fiTsType);
       if (enumResult) {

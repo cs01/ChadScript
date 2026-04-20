@@ -435,7 +435,8 @@ function transformCallExpression(
     };
   } else if (
     ts.isCallExpression(node.expression) ||
-    ts.isParenthesizedExpression(node.expression)
+    ts.isParenthesizedExpression(node.expression) ||
+    ts.isElementAccessExpression(node.expression)
   ) {
     const callee = transformExpression(node.expression, checker);
     return {
