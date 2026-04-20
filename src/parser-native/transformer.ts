@@ -525,13 +525,17 @@ function transformExpression(node: TreeSitterNode): Expression {
     case "binary_expression":
       return transformBinaryExpression(node);
 
-    case "unary_expression":
-      // void expressions evaluate to undefined (not a unary op in our AST)
+    case "unary_expression": {
+      // Block-wrapped: parser-native's switch_case iteration drops the trailing
+      // return when a bare case body has [var_decl, if_no_else, return]. Wrapping
+      // the case in {} produces a single statement_block child that preserves all
+      // three statements. See #597 for the full diagnostic.
       const voidOpChild = getChild(node, 0);
       if (voidOpChild && (voidOpChild as NodeBase).type === "void") {
         return { type: "variable", name: "undefined" };
       }
       return transformUnaryExpression(node);
+    }
 
     case "update_expression":
       return transformUpdateExpression(node);
@@ -1650,7 +1654,7 @@ function transformStatement(node: TreeSitterNode): Statement | null {
       return transformSwitchStatement(node);
 
     case "statement_block":
-      return null;
+      return transformStatementBlock(node);
 
     case "empty_statement":
       return null;
