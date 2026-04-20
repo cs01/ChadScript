@@ -197,20 +197,30 @@ export class TypeInference {
   }
 
   private enrichResolvedType(rt: ResolvedType): ResolvedType {
+    // Literal lists ALL 11 ResolvedType fields in declaration order so the
+    // native struct layout matches the interface exactly. Missing one shifts
+    // GEP offsets in downstream consumers and breaks stage 1 self-compile
+    // with "'%N' defined with type 'double' but expected 'ptr'" — see
+    // memory/enrichresolvedtype-native-layout-drift.md for the diagnostic
+    // trail. Optional fields get populated below.
+    const sourceKind = this.classifySourceKind(rt.base);
+    let elementInterface: string | undefined = undefined;
+    if (rt.arrayDepth > 0 && (sourceKind === "interface" || sourceKind === "class")) {
+      elementInterface = rt.base;
+    }
     const rich: ResolvedType = {
       base: rt.base,
       qualifiers: rt.qualifiers,
       arrayDepth: rt.arrayDepth,
       typeParams: rt.typeParams,
+      id: rt.id,
       cachedLlvmType: rt.cachedLlvmType,
+      elementInterface: elementInterface,
+      sourceKind: sourceKind,
+      members: undefined,
+      fields: undefined,
+      arrayStorage: undefined,
     };
-    rich.sourceKind = this.classifySourceKind(rich.base);
-    if (rich.arrayDepth > 0) {
-      const elemKind = rich.sourceKind;
-      if (elemKind === "interface" || elemKind === "class") {
-        rich.elementInterface = rich.base;
-      }
-    }
     const fields = this.computeFieldsForType(rich);
     if (fields) rich.fields = fields;
     return rich;
