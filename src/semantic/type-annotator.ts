@@ -242,12 +242,28 @@ class TypeAnnotator {
       this.visitExpr(ta.expression);
     }
 
-    // After recursion, annotate this expression. Skip unknown-base and
-    // missing sourceKind — they represent resolver gaps, not authoritative
-    // info. typeOf's fallback still covers them on demand.
+    // After recursion, annotate this expression — but ONLY for truly-static
+    // shapes. Array / map / set / object / new / binary / conditional all
+    // recurse through variable / symbol-table lookups whose answers depend
+    // on codegen-time state the annotator doesn't yet see; caching them
+    // would freeze a pre-codegen wrong answer. Typed-literal and
+    // template_literal results are stable (always same base). Everything
+    // else gets resolved live by typeOf's fallback.
+    if (!this.isStableExprType(e.type)) return;
     const resolved = this.sink.resolveExpressionTypeRich(expr);
     if (resolved && resolved.base && resolved.base !== "unknown") {
       this.sink.appendExpressionType(expr, resolved);
     }
+  }
+
+  private isStableExprType(t: string): boolean {
+    return (
+      t === "number" ||
+      t === "string" ||
+      t === "template_literal" ||
+      t === "boolean" ||
+      t === "null" ||
+      t === "regex"
+    );
   }
 }
