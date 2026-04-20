@@ -67,7 +67,7 @@ export interface ArrayAllocatorContext {
   readonly symbolTable: SymbolTable;
   emitError(message: string, loc?: SourceLocation, suggestion?: string): never;
   getAst(): AST | undefined;
-  resolveExpressionTypeRich(expr: Expression): ResolvedType | null;
+  typeOf(expr: Expression): ResolvedType | null;
   getArrayStorageStrategy(expr: Expression): "inlined" | "pointer";
 }
 
@@ -391,7 +391,7 @@ export class ArrayAllocator {
     // as an indexed-object-array element — the result is still an array,
     // not an element. Short-circuit null so no legacy branch misclassifies
     // it as element-info either.
-    const rich = this.ctx.resolveExpressionTypeRich(indexExpr.object);
+    const rich = this.ctx.typeOf(indexExpr.object);
     if (rich && rich.arrayDepth === 1 && rich.fields) {
       return { keys: rich.fields.keys, types: rich.fields.types, tsTypes: rich.fields.tsTypes };
     }
