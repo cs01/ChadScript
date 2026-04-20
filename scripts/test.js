@@ -80,6 +80,7 @@ const testFiles = [
   "tests/compiler.test.ts",
   "tests/unit/symbol-table.test.ts",
   "tests/unit/type-system.test.ts",
+  "tests/unit/ir-operand.test.ts",
   "tests/network.test.ts",
   "tests/http-routes.test.ts",
   "tests/http-headers.test.ts",

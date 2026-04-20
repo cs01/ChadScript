@@ -1,5 +1,6 @@
 import { Expression, MethodCallNode, VariableNode, ArrowFunctionNode } from "../../../ast/types.js";
 import type { MethodCallGeneratorContext } from "../method-calls.js";
+import { userGlobalRef } from "../../infrastructure/ir-operand.js";
 
 interface ExprBase {
   type: string;
@@ -183,9 +184,9 @@ export function handlePromiseThen(
           scopeVarsTyped.names,
           scopeVarsTyped.types,
         );
-        onRejected = `@${ctx.mangleUserName(callbackName)}`;
+        onRejected = userGlobalRef(ctx, callbackName);
       } else if (callbackBase.type === "variable") {
-        onRejected = `@${ctx.mangleUserName((callback as VariableNode).name)}`;
+        onRejected = userGlobalRef(ctx, (callback as VariableNode).name);
       }
     }
   } else {
@@ -200,9 +201,9 @@ export function handlePromiseThen(
           scopeVarsTyped.names,
           scopeVarsTyped.types,
         );
-        onFulfilled = `@${ctx.mangleUserName(callbackName)}`;
+        onFulfilled = userGlobalRef(ctx, callbackName);
       } else if (callbackBase.type === "variable") {
-        onFulfilled = `@${ctx.mangleUserName((callback as VariableNode).name)}`;
+        onFulfilled = userGlobalRef(ctx, (callback as VariableNode).name);
       }
     }
     if (expr.args.length > 1) {
@@ -216,9 +217,9 @@ export function handlePromiseThen(
           scopeVarsTyped.names,
           scopeVarsTyped.types,
         );
-        onRejected = `@${ctx.mangleUserName(callbackName)}`;
+        onRejected = userGlobalRef(ctx, callbackName);
       } else if (callbackBase.type === "variable") {
-        onRejected = `@${ctx.mangleUserName((callback as VariableNode).name)}`;
+        onRejected = userGlobalRef(ctx, (callback as VariableNode).name);
       }
     }
   }
@@ -270,9 +271,9 @@ export function handlePromiseFinally(
         scopeVarsTyped.names,
         scopeVarsTyped.types,
       );
-      userCallback = `@${ctx.mangleUserName(callbackName)}`;
+      userCallback = userGlobalRef(ctx, callbackName);
     } else if (callbackBase.type === "variable") {
-      userCallback = `@${ctx.mangleUserName((callback as VariableNode).name)}`;
+      userCallback = userGlobalRef(ctx, (callback as VariableNode).name);
     }
   }
 
