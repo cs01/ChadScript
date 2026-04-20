@@ -25,24 +25,29 @@ function detectInterpretPragma(source: string): boolean {
   return false;
 }
 
-function buildInterpretWrapper(originalSource: string): string {
-  // Phase 1 pragma: embed user source as a JS string literal, evaluate under V8,
-  // print whatever it evaluates to. No console polyfill yet — user source should
-  // be a single expression or end with one. Phase 2 will inject a native print().
-  const encoded = JSON.stringify(originalSource);
+function buildInterpretWrapper(originalSource: string, sourceFilename: string = ""): string {
+  // libnode swap: call cs_v8_eval_script_node, which drives the source via
+  // node::LoadEnvironment inside a Node Environment. That hands the user code
+  // real `require`, `__filename`, `__dirname`, `process.argv`, `setTimeout`,
+  // `fs`, etc. Console output already goes through Node's stdio.
+  const encodedSrc = JSON.stringify(originalSource);
+  const encodedFile = JSON.stringify(sourceFilename);
   return (
-    "declare function cs_v8_eval_string(src: string): string;\n" +
+    "declare function cs_v8_eval_script_node(src: string, filename: string): string;\n" +
     "declare function cs_v8_last_error(): string;\n" +
+    "declare function cs_v8_shutdown_node(): void;\n" +
     "const __chad_src = " +
-    encoded +
+    encodedSrc +
     ";\n" +
-    "const __chad_out = cs_v8_eval_string(__chad_src);\n" +
+    "const __chad_file = " +
+    encodedFile +
+    ";\n" +
+    "const __chad_out = cs_v8_eval_script_node(__chad_src, __chad_file);\n" +
     "const __chad_err = cs_v8_last_error();\n" +
     "if (__chad_err.length > 0) {\n" +
     "  console.log('interpret error: ' + __chad_err);\n" +
-    "} else if (__chad_out.length > 0) {\n" +
-    "  console.log(__chad_out);\n" +
-    "}\n"
+    "}\n" +
+    "cs_v8_shutdown_node();\n"
   );
 }
 
@@ -228,7 +233,7 @@ export function compile(
   if (fs.existsSync(inputFile)) {
     const entrySource = fs.readFileSync(inputFile, "utf8");
     if (detectInterpretPragma(entrySource)) {
-      const wrapper = buildInterpretWrapper(entrySource);
+      const wrapper = buildInterpretWrapper(entrySource, path.resolve(inputFile));
       const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "chad-interpret-"));
       const tmpFile = path.join(tmpDir, path.basename(inputFile));
       fs.writeFileSync(tmpFile, wrapper);

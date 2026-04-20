@@ -82,23 +82,33 @@ bool cs_node_lazy_init() {
     }
 
     // argv seen by Node. "chad" is the embedder-visible process.argv[0].
+    // Use InitializeOncePerProcess (modern API) rather than the deprecated
+    // InitializeNodeWithArgs — the deprecated path skips cppgc, v8, and the
+    // default Node v8 platform, and reassembling those manually is fragile.
+    // kNoDefaultSignalHandling keeps Node from hijacking the chad process's
+    // signal handlers (we still want to CTRL-C out of a long eval).
     std::vector<std::string> args{"chad"};
-    std::vector<std::string> exec_args;
-    std::vector<std::string> errors;
-
-    int rc = node::InitializeNodeWithArgs(&args, &exec_args, &errors);
-    if (rc != 0 || !errors.empty()) {
-        g_init_error = "node::InitializeNodeWithArgs failed";
-        for (auto& e : errors) { g_init_error += ": "; g_init_error += e; }
+    auto init_result = node::InitializeOncePerProcess(
+        args,
+        {node::ProcessInitializationFlags::kNoDefaultSignalHandling,
+         node::ProcessInitializationFlags::kDisableNodeOptionsEnv,
+         node::ProcessInitializationFlags::kDisableCLIOptions});
+    if (init_result->early_return()) {
+        g_init_error = "node::InitializeOncePerProcess early return";
+        for (auto& e : init_result->errors()) {
+            g_init_error += ": ";
+            g_init_error += e;
+        }
         t_last_error = g_init_error;
         return false;
     }
 
-    g_platform = node::MultiIsolatePlatform::Create(/*thread_pool_size=*/4);
-    v8::V8::InitializePlatform(g_platform.get());
-    v8::V8::Initialize();
+    g_platform.reset(init_result->platform());
+    // Ownership: we keep the default platform alive via g_platform. Node's
+    // init_result hands us a raw pointer; we take ownership.
 
-    errors.clear();
+    std::vector<std::string> errors;
+    std::vector<std::string> exec_args = init_result->exec_args();
     g_setup = node::CommonEnvironmentSetup::Create(
         g_platform.get(), &errors, args, exec_args);
     if (!g_setup) {
@@ -111,26 +121,18 @@ bool cs_node_lazy_init() {
     g_isolate = g_setup->isolate();
     g_env = g_setup->env();
 
-    // Bootstrap: minimal script so Node wires up its internals. Real user
-    // code is executed later via node::LoadEnvironment-style eval (see
-    // cs_v8_eval_string below). An empty bootstrap is valid.
-    {
-        v8::Locker locker(g_isolate);
-        v8::Isolate::Scope iscope(g_isolate);
-        v8::HandleScope hs(g_isolate);
-        v8::Local<v8::Context> ctx = g_setup->context();
-        v8::Context::Scope cscope(ctx);
-        v8::MaybeLocal<v8::Value> boot = node::LoadEnvironment(g_env, "");
-        if (boot.IsEmpty()) {
-            g_init_error = "node::LoadEnvironment(bootstrap) returned empty";
-            t_last_error = g_init_error;
-            return false;
-        }
-    }
-
+    // NOTE: We do NOT call LoadEnvironment here. LoadEnvironment can only be
+    // called once per Environment; the pragma path calls it later with the
+    // real user source. The non-pragma JSHandle API uses v8::Script::Run
+    // directly, which does not require LoadEnvironment to have been called.
     g_initialized = true;
     return true;
 }
+
+// Track whether LoadEnvironment has been called — it can only fire once per
+// Environment. JSHandle-only calls won't trip this; pragma eval_script_node
+// sets it.
+bool g_load_env_called = false;
 
 // Runs `src` inside the persistent Node environment. Returns the last
 // expression's value via v8::Script::Run; then drains the libuv event loop so
@@ -236,6 +238,100 @@ char* cs_v8_eval_string(const char* src) {
     }
     v8::String::Utf8Value utf8(g_isolate, str);
     return strdup(*utf8 ? *utf8 : "");
+}
+
+// Run user source via node::LoadEnvironment(env, src). Unlike raw V8 Script::Run,
+// LoadEnvironment wraps the source in Node's CJS wrapper so `require`,
+// `__filename`, `__dirname`, `module`, and `exports` are available. Event loop
+// is drained before returning so setTimeout/fs.promises finish.
+//
+// Returns strdup'd stdout-intended string. Empty string if eval value is
+// undefined/null. nullptr on failure (caller reads cs_v8_last_error).
+//
+// NOTE: LoadEnvironment can only be called once per Environment. For the
+// pragma use case the file is the whole program, so that's fine. If we ever
+// need to eval multiple scripts in sequence we'll need to either (a) recreate
+// the env per call, or (b) fall back to Script::Run for the secondary evals.
+char* cs_v8_eval_script_node(const char* src, const char* filename) {
+    if (!cs_node_lazy_init()) return nullptr;
+    t_last_error.clear();
+
+    v8::Locker locker(g_isolate);
+    v8::Isolate::Scope iscope(g_isolate);
+    v8::HandleScope hs(g_isolate);
+    v8::Local<v8::Context> ctx = g_setup->context();
+    v8::Context::Scope cscope(ctx);
+    v8::TryCatch try_catch(g_isolate);
+
+    // Seed process.argv[1] and __filename/__dirname via a preamble. Node's
+    // LoadEnvironment injects a CJS wrapper; __filename is derived from the
+    // script origin but that's not settable directly here. The cheap, robust
+    // path: set globals before invoking LoadEnvironment on the user source.
+    std::string preamble;
+    if (filename && *filename) {
+        // Escape backslashes + quotes for JS string literal safety.
+        std::string esc;
+        for (const char* p = filename; *p; ++p) {
+            if (*p == '\\' || *p == '"') esc.push_back('\\');
+            esc.push_back(*p);
+        }
+        preamble = "process.argv[1] = \"" + esc + "\";\n";
+        preamble += "try { global.__filename = \"" + esc + "\"; "
+                    "global.__dirname = require('path').dirname(\"" + esc + "\"); } "
+                    "catch (e) {}\n";
+    }
+    std::string full_src = preamble + (src ? src : "");
+
+    v8::MaybeLocal<v8::Value> maybe = node::LoadEnvironment(g_env, full_src.c_str());
+    if (maybe.IsEmpty()) {
+        if (try_catch.HasCaught()) {
+            v8::String::Utf8Value m(g_isolate, try_catch.Exception());
+            t_last_error = "LoadEnvironment threw";
+            if (*m) { t_last_error += ": "; t_last_error += *m; }
+        } else {
+            t_last_error = "LoadEnvironment returned empty";
+        }
+        return nullptr;
+    }
+
+    // Drain microtasks + libuv until the loop is empty (or all handles unref'd).
+    // This is what lets setTimeout, fs.promises, async fetch actually finish.
+    node::SpinEventLoop(g_env);
+
+    v8::Local<v8::Value> result = maybe.ToLocalChecked();
+    if (result->IsUndefined() || result->IsNull()) return strdup("");
+    v8::Local<v8::String> str;
+    if (!result->ToString(ctx).ToLocal(&str)) {
+        t_last_error = "ToString failed on LoadEnvironment result";
+        return strdup("");
+    }
+    v8::String::Utf8Value utf8(g_isolate, str);
+    return strdup(*utf8 ? *utf8 : "");
+}
+
+// Shut down the Node environment cleanly. The pragma wrapper calls this after
+// eval completes so the process can exit — otherwise the isolate + platform
+// static state keeps uv handles pinned and main's return hangs in static
+// destructors. Safe to call more than once.
+void cs_v8_shutdown_node(void) {
+    std::lock_guard<std::mutex> lk(g_init_mu);
+    if (!g_initialized) return;
+    // Drop all outstanding handles first — each v8::Global<Value> pins the
+    // isolate. Release them before the isolate itself goes away.
+    t_handles.clear();
+    if (g_env) {
+        node::Stop(g_env);
+    }
+    g_setup.reset();  // disposes isolate + context + env
+    g_isolate = nullptr;
+    g_env = nullptr;
+    // node::TearDownOncePerProcess disposes V8 + the default platform that
+    // InitializeOncePerProcess installed. Releasing g_platform here before
+    // TearDown is a no-op (we never owned it — init_result->platform() is
+    // the default platform, also owned by Node's per-process state).
+    g_platform.release();
+    node::TearDownOncePerProcess();
+    g_initialized = false;
 }
 
 // ---- JSHandle API ----
