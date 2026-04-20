@@ -157,6 +157,7 @@ import { checkArraysOfFunctions } from "../semantic/array-of-function-checker.js
 import { markIntSpecializedFunctions } from "./infrastructure/int-specialization-detector.js";
 import { checkTypeAssertions } from "../semantic/type-assertion-checker.js";
 import { annotateTypes } from "../semantic/type-annotator.js";
+import { SemaTable } from "../semantic/sema-table.js";
 import { checkUninitializedFields } from "../semantic/uninitialized-field-checker.js";
 import { analyzeEscapes } from "../semantic/escape-analysis.js";
 // binary-type-checker.ts: original top-level-only checker kept for reference; deep version is in safety-checks.ts
@@ -1458,6 +1459,11 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public trampolineEmitter!: TrampolineEmitter;
   public usesTrampolines: number = 0;
   public usesTimers: number = 0;
+  // Sema table: pure-AST class + interface catalog built pre-codegen.
+  // Consumers (esp. TypeInference) can query `isClass(name)` / `isInterface(name)`
+  // etc. without touching mid-codegen SymbolTable state. Empty until
+  // generateParts() runs; migration of call sites happens in follow-up PRs.
+  public semaTable: SemaTable | null = null;
 
   constructor(ast: AST, typeChecker: TypeChecker | null, options: LLVMGeneratorOptions) {
     super();
@@ -3029,6 +3035,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     checkAsyncAwait(this.ast, this.sourceCode);
     this.stackEligibleVars = analyzeEscapes(this.ast);
     markIntSpecializedFunctions(this.ast);
+    // Build pure-AST class + interface catalog so downstream queries
+    // don't need mid-codegen SymbolTable state. Populated once, read-only
+    // thereafter. First consumers migrate in follow-up PRs.
+    this.semaTable = new SemaTable(this.ast);
     // Pre-codegen type annotation — populate typeOf() cache for every
     // expression in the AST. Codegen consumers migrate to typeOf() in
     // follow-up PRs; this first PR is purely additive (populates the cache,
