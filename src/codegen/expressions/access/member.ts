@@ -617,7 +617,10 @@ export class MemberAccessGenerator {
     this.ctx.setCurrentLabel(nullLabel);
     let nullValue: string;
     if (accessType === "double") {
-      nullValue = "0.0";
+      // Quiet NaN sentinel for undefined — `??` in convertToNonNullish treats
+      // NaN as nullish via fcmp ord. Legitimate arithmetic NaN also surfaces
+      // as undefined (acceptable tradeoff; see optional-chain-undefined-sentinel.md).
+      nullValue = "0x7FF8000000000000";
     } else if (accessType === "i1") {
       nullValue = "false";
     } else if (accessType === "i32") {
