@@ -204,7 +204,7 @@ export interface MemberAccessGeneratorContext {
   classGenIsStaticField(className: string, fieldName: string): boolean;
   classGenGetStaticFieldType(className: string, fieldName: string): string;
   mangleUserName(name: string): string;
-  resolveExpressionTypeRich(expr: Expression): ResolvedType | null;
+  typeOf(expr: Expression): ResolvedType | null;
 }
 
 export type MemberAccessHandlerFn = (
@@ -2230,7 +2230,7 @@ export class MemberAccessGenerator {
     // interface/class element — i.e. the object is a depth-1 array. For
     // depth>1 (e.g. `P[][]` indexed once → `P[]`) the result is still an
     // array and the indexed-object-array element-info is not appropriate.
-    const rich = this.ctx.resolveExpressionTypeRich(arrayExpr);
+    const rich = this.ctx.typeOf(arrayExpr);
     if (rich && rich.arrayDepth === 1 && rich.fields) {
       return { keys: rich.fields.keys, types: rich.fields.types, tsTypes: rich.fields.tsTypes };
     }
@@ -2887,7 +2887,7 @@ export class MemberAccessGenerator {
           // returns of a declared interface, this routes through the
           // named-interface path (correct struct layout, metadata propagated
           // for nested access). Unblocks `s.build().inner.v` chains.
-          const rich = this.ctx.resolveExpressionTypeRich(expr.object);
+          const rich = this.ctx.typeOf(expr.object);
           if (rich && rich.arrayDepth === 0 && rich.base) {
             const rt = rich.base;
             if (this.ctx.interfaceStructGen?.hasInterface(rt)) {
