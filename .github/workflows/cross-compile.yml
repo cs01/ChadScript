@@ -25,6 +25,12 @@ jobs:
           sudo apt-get install -y llvm clang lld cmake make gcc g++ \
             autoconf automake libtool linux-headers-generic git \
             libzstd-dev zlib1g-dev libsqlite3-dev libcurl4-openssl-dev file
+          # Rust for librure (rust-lang/regex C ABI). Build-time dep only.
+          # NOTE: this builds librure for the SDK's host arch (linux-x64).
+          # Cross-arch SDKs (e.g. linux-arm64) will need `rustup target add`
+          # — tracked as a follow-up; current cross-compile path is x64-only.
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: Install npm dependencies
         run: npm install
@@ -35,7 +41,7 @@ jobs:
           path: |
             vendor/
             c_bridges/*.o
-          key: vendor-${{ runner.os }}-${{ hashFiles('scripts/build-vendor.sh', 'scripts/vendor-pins.sh', 'c_bridges/*.c') }}
+          key: vendor-rure1-${{ runner.os }}-${{ hashFiles('scripts/build-vendor.sh', 'scripts/vendor-pins.sh', 'c_bridges/*.c') }}
 
       - name: Build vendor libraries
         run: bash scripts/build-vendor.sh
@@ -81,6 +87,11 @@ jobs:
           echo "/usr/local/opt/llvm/bin" >> $GITHUB_PATH
           echo "/opt/homebrew/opt/lld/bin" >> $GITHUB_PATH
           echo "/usr/local/opt/lld/bin" >> $GITHUB_PATH
+          # Rust for librure (rust-lang/regex C ABI). Build-time dep only.
+          if ! command -v cargo >/dev/null 2>&1; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
+            echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          fi
 
       - name: Install npm dependencies
         run: npm install
@@ -91,7 +102,7 @@ jobs:
           path: |
             vendor/
             c_bridges/*.o
-          key: vendor-${{ runner.os }}-${{ hashFiles('scripts/build-vendor.sh', 'scripts/vendor-pins.sh', 'c_bridges/*.c') }}
+          key: vendor-rure1-${{ runner.os }}-${{ hashFiles('scripts/build-vendor.sh', 'scripts/vendor-pins.sh', 'c_bridges/*.c') }}
 
       - name: Build vendor libraries
         run: bash scripts/build-vendor.sh

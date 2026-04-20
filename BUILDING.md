@@ -29,6 +29,18 @@ sudo dnf install cmake autoconf automake libtool nodejs npm
 brew install cmake autoconf automake libtool node
 ```
 
+**Rust toolchain** (only needed when (re)building vendor libraries):
+
+ChadScript's regex engine is `librure` — the C ABI for Rust's `regex`
+crate. Vendor builds compile it from source via cargo. End users
+installing via the release tarball receive a prebuilt `librure.a` and
+do **not** need Rust.
+
+```bash
+# Any OS (one-time, ~60s):
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
+```
+
 ## Build
 
 ```bash
@@ -38,7 +50,7 @@ bash scripts/build-vendor.sh
 npm run build
 ```
 
-`scripts/build-vendor.sh` clones and builds static archives for libgc, cJSON, libuv, tree-sitter, and libwebsockets into `vendor/`. It's idempotent — re-running skips already-built libraries.
+`scripts/build-vendor.sh` clones and builds static archives for libgc, cJSON, libuv, tree-sitter, libwebsockets, and `librure` (Rust regex C ABI) into `vendor/`. It's idempotent — re-running skips already-built libraries.
 
 ## Run
 

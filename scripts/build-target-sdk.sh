@@ -54,6 +54,9 @@ cp "$VENDOR_DIR/picohttpparser/picohttpparser.o" "$SDK_DIR/vendor/"
 if [ -f "$VENDOR_DIR/tree-sitter/libtree-sitter.a" ]; then
   cp "$VENDOR_DIR/tree-sitter/libtree-sitter.a" "$SDK_DIR/vendor/"
 fi
+if [ -f "$VENDOR_DIR/rure/librure.a" ]; then
+  cp "$VENDOR_DIR/rure/librure.a" "$SDK_DIR/vendor/"
+fi
 
 # Copy tree-sitter TypeScript objects if they exist
 if [ -d "$REPO_DIR/build" ]; then

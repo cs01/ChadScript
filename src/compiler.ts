@@ -172,6 +172,7 @@ const PICOHTTPPARSER_PATH = process.env.CHADSCRIPT_PICOHTTPPARSER_PATH || "./ven
 const YYJSON_PATH = process.env.CHADSCRIPT_YYJSON_PATH || "./vendor/yyjson";
 const LIBUV_PATH = process.env.CHADSCRIPT_LIBUV_PATH || "./vendor/libuv/build";
 const TREESITTER_LIB_PATH = process.env.CHADSCRIPT_TREESITTER_PATH || "./vendor/tree-sitter";
+const RURE_LIB_PATH = process.env.CHADSCRIPT_RURE_PATH || "./vendor/rure";
 // TSX grammar is a strict superset of TypeScript — all .ts code parses identically.
 // The only difference: <Type>expr angle-bracket assertions become JSX, but ChadScript
 // uses `as Type` so there's no impact on existing code.
@@ -382,6 +383,7 @@ export function compile(
   const bridgePath = sdk ? sdk.bridgesPath : LWS_BRIDGE_PATH;
   const picoPath = sdk ? sdk.vendorPath : PICOHTTPPARSER_PATH;
   const treeSitterPath = sdk ? sdk.vendorPath : TREESITTER_LIB_PATH;
+  const rurePath = sdk ? sdk.vendorPath : RURE_LIB_PATH;
 
   const platformLibs = targetIsMac ? "" : " -lm -ldl -lrt -lpthread";
   let linkLibs = `-L${gcPath} -lgc` + platformLibs;
@@ -421,6 +423,16 @@ export function compile(
   }
   if (generator.usesCompression && !generator.usesHttpServer) {
     linkLibs += " -lz -lzstd";
+  }
+  if (generator.usesRegex) {
+    // librure is a static archive built from Rust's `regex` crate via the
+    // `rure` C ABI. On macOS it pulls in Security + CoreFoundation
+    // transitively (rustc default on darwin); on Linux it needs no extra
+    // system libs beyond libpthread/libdl which are already in platformLibs.
+    linkLibs += ` ${rurePath}/librure.a`;
+    if (targetIsMac) {
+      linkLibs += " -framework Security -framework CoreFoundation";
+    }
   }
 
   // Platform-specific library search paths
