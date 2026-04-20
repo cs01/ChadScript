@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-const COUNT = 10000
+const COUNT = 100000
 
 type Item struct {
 	ID     int     `json:"id"`

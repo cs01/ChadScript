@@ -1,4 +1,8 @@
-const COUNT = 10000;
+// Parse 100k JSON objects (~10MB total throughput), then stringify them
+// all back. Exercises the parser/serializer hot paths at a scale where
+// SIMD-friendly engines (yyjson, V8) actually pull away from naive ones.
+
+const COUNT = 100000;
 
 interface Item {
   id: number;

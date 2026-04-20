@@ -96,6 +96,8 @@ $CHAD build "$DIR/matmul/chadscript.ts" -o /tmp/bench-matmul-chad
 $CHAD build "$DIR/stringops/chadscript.ts" -o /tmp/bench-stringops-chad
 $CHAD build "$DIR/binarytrees/chadscript.ts" -o /tmp/bench-binarytrees-chad
 $CHAD build "$DIR/fileio/chadscript.ts" -o /tmp/bench-fileio-chad
+$CHAD build "$DIR/regex_match/chadscript.ts" -o /tmp/bench-regex_match-chad
+$CHAD build "$DIR/map_lookup/chadscript.ts" -o /tmp/bench-map_lookup-chad
 echo "  done"
 
 echo "--- Building C benchmarks ---"
@@ -111,6 +113,8 @@ clang -O2 -o /tmp/bench-matmul-c "$DIR/matmul/bench.c" -lm
 clang -O2 -o /tmp/bench-stringops-c "$DIR/stringops/bench.c"
 clang -O2 -o /tmp/bench-binarytrees-c "$DIR/binarytrees/bench.c"
 clang -O2 -o /tmp/bench-fileio-c "$DIR/fileio/bench.c"
+clang -O2 -o /tmp/bench-regex_match-c "$DIR/regex_match/bench.c"
+clang -O2 -o /tmp/bench-map_lookup-c "$DIR/map_lookup/bench.c"
 echo "  done"
 
 echo "--- Building Go benchmarks ---"
@@ -125,6 +129,8 @@ go build -o /tmp/bench-matmul-go "$DIR/matmul/matmul.go"
 go build -o /tmp/bench-stringops-go "$DIR/stringops/stringops.go"
 go build -o /tmp/bench-binarytrees-go "$DIR/binarytrees/binarytrees.go"
 go build -o /tmp/bench-fileio-go "$DIR/fileio/fileio.go"
+go build -o /tmp/bench-regex_match-go "$DIR/regex_match/regex_match.go"
+go build -o /tmp/bench-map_lookup-go "$DIR/map_lookup/map_lookup.go"
 echo "  done"
 
 echo ""
@@ -199,6 +205,18 @@ bench_compute "fileio" "c" "C" "Time:" /tmp/bench-fileio-c
 bench_compute "fileio" "chadscript" "ChadScript" "Time:" /tmp/bench-fileio-chad
 bench_compute "fileio" "go" "Go" "Time:" /tmp/bench-fileio-go
 bench_compute "fileio" "node" "Node.js" "Time:" node "$DIR/fileio/node.mjs"
+
+echo "=== Regex Match (100K anchored matches, 1 capture group) ==="
+bench_compute "regex_match" "c" "C (POSIX regex.h)" "Time:" /tmp/bench-regex_match-c
+bench_compute "regex_match" "chadscript" "ChadScript" "Time:" /tmp/bench-regex_match-chad
+bench_compute "regex_match" "go" "Go" "Time:" /tmp/bench-regex_match-go
+bench_compute "regex_match" "node" "Node.js" "Time:" node "$DIR/regex_match/node.mjs"
+
+echo "=== Hash Map Lookup (100K entries, 1M get calls) ==="
+bench_compute "map_lookup" "c" "C (FNV-1a open addressing)" "Time:" /tmp/bench-map_lookup-c
+bench_compute "map_lookup" "chadscript" "ChadScript" "Time:" /tmp/bench-map_lookup-chad
+bench_compute "map_lookup" "go" "Go" "Time:" /tmp/bench-map_lookup-go
+bench_compute "map_lookup" "node" "Node.js" "Time:" node "$DIR/map_lookup/node.mjs"
 
 echo ""
 echo "--- Building ChadScript CLI tools ---"
