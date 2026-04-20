@@ -63,7 +63,7 @@ export interface MapAllocatorContext {
     metadata: SymbolMetadata,
   ): void;
   generateExpression(expr: Expression, params: string[]): string;
-  resolveExpressionType(expr: Expression): ResolvedType | null;
+  typeOf(expr: Expression): ResolvedType | null;
   setCurrentDeclaredMapType(type: string | undefined): void;
   setCurrentDeclaredSetType(type: string | undefined): void;
   getCurrentClassName(): string | null;
@@ -105,7 +105,7 @@ export class MapAllocator {
       stmt.value.type !== "new" &&
       stmt.value.type !== "map"
     ) {
-      const resolved = this.ctx.resolveExpressionType(stmt.value);
+      const resolved = this.ctx.typeOf(stmt.value);
       if (resolved && resolved.base.startsWith("Map<")) {
         mapTypeInfoResult = this.parseMapType(resolved.base);
       }
@@ -276,7 +276,7 @@ export class MapAllocator {
       stmt.value.type !== "new" &&
       stmt.value.type !== "set"
     ) {
-      const resolved = this.ctx.resolveExpressionType(stmt.value);
+      const resolved = this.ctx.typeOf(stmt.value);
       if (resolved && resolved.base.startsWith("Set<")) {
         setTypeInfoResult = this.parseSetType(resolved.base);
       }
