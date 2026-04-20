@@ -10,17 +10,21 @@ extern char* cs_v8_eval_string(const char* src);
 extern const char* cs_v8_last_error(void);
 extern void cs_v8_clear_error(void);
 
-extern uint64_t cs_v8_eval_handle(const char* src);
-extern double   cs_v8_handle_to_number(uint64_t h);
-extern char*    cs_v8_handle_to_string(uint64_t h);
-extern void     cs_v8_handle_release(uint64_t h);
-extern uint64_t cs_v8_handle_table_size(void);
-extern double   cs_v8_is_handle(uint64_t v);
-extern uint64_t cs_v8_make_number_handle(double n);
-extern uint64_t cs_v8_make_string_handle(const char* s);
-extern uint64_t cs_v8_handle_get_property(uint64_t obj, const char* name);
-extern uint64_t cs_v8_handle_call(uint64_t fn, uint64_t this_or_zero,
-                                  int32_t n_args, const uint64_t* args);
+// Handles cross the ABI as `double` — this matches ChadScript's `number` FFI
+// lowering (values travel in the float return register). See h2d/d2h in
+// v8-bridge.cc for the lossless conversion (tag at bit 32, fits in 53-bit
+// exact-integer range).
+extern double cs_v8_eval_handle(const char* src);
+extern double cs_v8_handle_to_number(double h);
+extern char*  cs_v8_handle_to_string(double h);
+extern void   cs_v8_handle_release(double h);
+extern double cs_v8_handle_table_size(void);
+extern double cs_v8_is_handle(double v);
+extern double cs_v8_make_number_handle(double n);
+extern double cs_v8_make_string_handle(const char* s);
+extern double cs_v8_handle_get_property(double obj, const char* name);
+extern double cs_v8_handle_call(double fn, double this_or_zero,
+                                int32_t n_args, const double* args);
 
 static int g_pass = 0;
 static int g_fail = 0;
@@ -85,7 +89,7 @@ int main(void) {
 
     printf("\n-- JSHandle v0 --\n");
 
-    uint64_t h_num = cs_v8_eval_handle("6 * 7");
+    double h_num = cs_v8_eval_handle("6 * 7");
     check("eval_handle returns non-zero", h_num != 0, NULL);
     check("eval_handle returns tagged handle", cs_v8_is_handle(h_num) == 1.0, NULL);
     check("handle_to_number reads 42", cs_v8_handle_to_number(h_num) == 42.0, NULL);
@@ -95,7 +99,7 @@ int main(void) {
           h_num_str != NULL && strcmp(h_num_str, "42") == 0, h_num_str);
     free(h_num_str);
 
-    uint64_t h_str = cs_v8_eval_handle("'v8 live'");
+    double h_str = cs_v8_eval_handle("'v8 live'");
     char* h_str_val = cs_v8_handle_to_string(h_str);
     check("handle_to_string of string == 'v8 live'",
           h_str_val != NULL && strcmp(h_str_val, "v8 live") == 0, h_str_val);
@@ -106,13 +110,13 @@ int main(void) {
           && strstr(cs_v8_last_error(), "does not hold a number") != NULL,
           cs_v8_last_error());
 
-    uint64_t h_obj = cs_v8_eval_handle("({name: 'chad', count: 3})");
+    double h_obj = cs_v8_eval_handle("({name: 'chad', count: 3})");
     char* h_obj_str = cs_v8_handle_to_string(h_obj);
     check("handle_to_string of object contains '[object Object]' or serialization",
           h_obj_str != NULL, h_obj_str);
     free(h_obj_str);
 
-    uint64_t table_before = cs_v8_handle_table_size();
+    double table_before = cs_v8_handle_table_size();
     check("handle table has 3 entries before releases", table_before == 3, NULL);
 
     cs_v8_handle_release(h_num);
@@ -129,7 +133,7 @@ int main(void) {
     for (int i = 0; i < 10000; i++) {
         char buf[32];
         snprintf(buf, sizeof(buf), "%d", i);
-        uint64_t h = cs_v8_eval_handle(buf);
+        double h = cs_v8_eval_handle(buf);
         if (h == 0) { churn_ok = 0; break; }
         if (cs_v8_handle_to_number(h) != (double)i) { churn_ok = 0; break; }
         cs_v8_handle_release(h);
@@ -145,36 +149,36 @@ int main(void) {
 
     printf("\n-- JSHandle v1: make, get_property, call --\n");
 
-    uint64_t h_n = cs_v8_make_number_handle(3.14);
+    double h_n = cs_v8_make_number_handle(3.14);
     check("make_number_handle round-trip",
           cs_v8_handle_to_number(h_n) == 3.14, NULL);
     cs_v8_handle_release(h_n);
 
-    uint64_t h_s = cs_v8_make_string_handle("round trip");
+    double h_s = cs_v8_make_string_handle("round trip");
     char* s_back = cs_v8_handle_to_string(h_s);
     check("make_string_handle round-trip",
           s_back != NULL && strcmp(s_back, "round trip") == 0, s_back);
     free(s_back);
     cs_v8_handle_release(h_s);
 
-    uint64_t h_obj2 = cs_v8_eval_handle("({name: 'chad', count: 3})");
-    uint64_t h_name = cs_v8_handle_get_property(h_obj2, "name");
+    double h_obj2 = cs_v8_eval_handle("({name: 'chad', count: 3})");
+    double h_name = cs_v8_handle_get_property(h_obj2, "name");
     char* name_str = cs_v8_handle_to_string(h_name);
     check("get_property 'name' == 'chad'",
           name_str != NULL && strcmp(name_str, "chad") == 0, name_str);
     free(name_str);
 
-    uint64_t h_count = cs_v8_handle_get_property(h_obj2, "count");
+    double h_count = cs_v8_handle_get_property(h_obj2, "count");
     check("get_property 'count' == 3",
           cs_v8_handle_to_number(h_count) == 3.0, NULL);
 
-    uint64_t h_missing = cs_v8_handle_get_property(h_obj2, "nonexistent");
+    double h_missing = cs_v8_handle_get_property(h_obj2, "nonexistent");
     check("get_property of missing key returns non-zero handle to undefined",
           h_missing != 0, NULL);
     cs_v8_handle_release(h_missing);
 
-    uint64_t h_num_handle_for_get = cs_v8_make_number_handle(42);
-    uint64_t bad_get = cs_v8_handle_get_property(h_num_handle_for_get, "foo");
+    double h_num_handle_for_get = cs_v8_make_number_handle(42);
+    double bad_get = cs_v8_handle_get_property(h_num_handle_for_get, "foo");
     check("get_property on non-object returns 0 + error",
           bad_get == 0 &&
           strstr(cs_v8_last_error(), "not") != NULL,
@@ -184,21 +188,21 @@ int main(void) {
     cs_v8_handle_release(h_name);
     cs_v8_handle_release(h_count);
 
-    uint64_t h_double = cs_v8_eval_handle("(function(x) { return x * 2; })");
-    uint64_t arg = cs_v8_make_number_handle(21);
-    uint64_t h_result = cs_v8_handle_call(h_double, 0, 1, &arg);
+    double h_double = cs_v8_eval_handle("(function(x) { return x * 2; })");
+    double arg = cs_v8_make_number_handle(21);
+    double h_result = cs_v8_handle_call(h_double, 0, 1, &arg);
     check("call function (x => x*2)(21) == 42",
           cs_v8_handle_to_number(h_result) == 42.0, NULL);
     cs_v8_handle_release(h_double);
     cs_v8_handle_release(arg);
     cs_v8_handle_release(h_result);
 
-    uint64_t h_greeter = cs_v8_eval_handle(
+    double h_greeter = cs_v8_eval_handle(
         "({prefix: 'hi ', greet(n) { return this.prefix + n; }})"
     );
-    uint64_t h_greet = cs_v8_handle_get_property(h_greeter, "greet");
-    uint64_t h_who = cs_v8_make_string_handle("world");
-    uint64_t h_greeting = cs_v8_handle_call(h_greet, h_greeter, 1, &h_who);
+    double h_greet = cs_v8_handle_get_property(h_greeter, "greet");
+    double h_who = cs_v8_make_string_handle("world");
+    double h_greeting = cs_v8_handle_call(h_greet, h_greeter, 1, &h_who);
     char* greeting = cs_v8_handle_to_string(h_greeting);
     check("method call with this-binding: greeter.greet('world') == 'hi world'",
           greeting != NULL && strcmp(greeting, "hi world") == 0, greeting);
@@ -208,19 +212,19 @@ int main(void) {
     cs_v8_handle_release(h_who);
     cs_v8_handle_release(h_greeting);
 
-    uint64_t h_not_fn = cs_v8_eval_handle("({notCallable: true})");
-    uint64_t dummy = cs_v8_make_number_handle(1);
-    uint64_t bad_call = cs_v8_handle_call(h_not_fn, 0, 1, &dummy);
+    double h_not_fn = cs_v8_eval_handle("({notCallable: true})");
+    double dummy = cs_v8_make_number_handle(1);
+    double bad_call = cs_v8_handle_call(h_not_fn, 0, 1, &dummy);
     check("call on non-function returns 0 + error",
           bad_call == 0 && strstr(cs_v8_last_error(), "function") != NULL,
           cs_v8_last_error());
     cs_v8_handle_release(h_not_fn);
     cs_v8_handle_release(dummy);
 
-    uint64_t h_thrower = cs_v8_eval_handle(
+    double h_thrower = cs_v8_eval_handle(
         "(function() { throw new Error('js side crash'); })"
     );
-    uint64_t thrown_result = cs_v8_handle_call(h_thrower, 0, 0, NULL);
+    double thrown_result = cs_v8_handle_call(h_thrower, 0, 0, NULL);
     check("call that throws returns 0 + error contains 'crash'",
           thrown_result == 0 &&
           strstr(cs_v8_last_error(), "crash") != NULL,

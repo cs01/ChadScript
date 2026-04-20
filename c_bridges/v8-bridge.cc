@@ -17,13 +17,24 @@ static bool g_initialized = false;
 static thread_local std::string t_last_error;
 
 // JSHandle v0: thread-local handle table. Phase 2 will add Boehm finalizers;
-// for now handles are explicitly released. High byte is JS_HANDLE_TAG so the
-// id is cheaply distinguishable from a primitive/pointer.
-static constexpr uint64_t JS_HANDLE_TAG = 0xC4AD000000000000ULL;
-static constexpr uint64_t JS_HANDLE_TAG_MASK = 0xFFFF000000000000ULL;
+// for now handles are explicitly released. The public ABI uses `double` to
+// match ChadScript's lowering of `number` FFI — integer-register returns
+// wouldn't be read from the float register the TS side expects. We set the
+// tag at bit 32 (0x100000000) so handle ids live in 33 bits, well under
+// IEEE 754's 53-bit exact-integer range: uint64_t <-> double is lossless.
+static constexpr uint64_t JS_HANDLE_TAG = 0x100000000ULL;
+static constexpr uint64_t JS_HANDLE_TAG_MASK = 0xFFFFFFFF00000000ULL;
 
 static thread_local uint64_t t_next_handle_id = 1;
 static thread_local std::unordered_map<uint64_t, v8::Global<v8::Value>> t_handles;
+
+// Convert handle to/from double at the ABI boundary. Handles fit in 33 bits
+// (tag at bit 32 + monotonic counter below) so both conversions are lossless.
+static inline double h2d(uint64_t h) { return (double)h; }
+static inline uint64_t d2h(double d) {
+    if (d < 0.0 || !std::isfinite(d)) return 0;
+    return (uint64_t)d;
+}
 
 static uint64_t store_handle(v8::Isolate* iso, v8::Local<v8::Value> value) {
     uint64_t id = JS_HANDLE_TAG | (t_next_handle_id++);
@@ -209,8 +220,10 @@ char* cs_v8_eval_string(const char* src) {
 }
 
 // ---- JSHandle API (Phase 2 foundation) ----
+// ABI note: handles cross the boundary as `double` so ChadScript's `number`
+// FFI lowering reads the correct return register. See h2d/d2h above.
 
-uint64_t cs_v8_eval_handle(const char* src) {
+double cs_v8_eval_handle(const char* src) {
     cs_v8_lazy_init();
     t_last_error.clear();
     v8::Isolate::Scope isolate_scope(g_isolate);
@@ -225,25 +238,26 @@ uint64_t cs_v8_eval_handle(const char* src) {
     if (!v8::String::NewFromUtf8(g_isolate, src, v8::NewStringType::kNormal)
              .ToLocal(&source)) {
         t_last_error = "failed to allocate source string";
-        return 0;
+        return 0.0;
     }
 
     v8::Local<v8::Script> script;
     if (!v8::Script::Compile(context, source).ToLocal(&script)) {
         set_error_from_trycatch(g_isolate, context, try_catch, "compile failed");
-        return 0;
+        return 0.0;
     }
 
     v8::Local<v8::Value> result;
     if (!script->Run(context).ToLocal(&result)) {
         set_error_from_trycatch(g_isolate, context, try_catch, "run failed");
-        return 0;
+        return 0.0;
     }
 
-    return store_handle(g_isolate, result);
+    return h2d(store_handle(g_isolate, result));
 }
 
-double cs_v8_handle_to_number(uint64_t handle) {
+double cs_v8_handle_to_number(double handle_d) {
+    uint64_t handle = d2h(handle_d);
     t_last_error.clear();
     if (!is_handle(handle)) {
         t_last_error = "not a JSHandle";
@@ -271,7 +285,8 @@ double cs_v8_handle_to_number(uint64_t handle) {
     return out;
 }
 
-char* cs_v8_handle_to_string(uint64_t handle) {
+char* cs_v8_handle_to_string(double handle_d) {
+    uint64_t handle = d2h(handle_d);
     t_last_error.clear();
     if (!is_handle(handle)) {
         t_last_error = "not a JSHandle";
@@ -296,7 +311,8 @@ char* cs_v8_handle_to_string(uint64_t handle) {
     return strdup(*utf8 ? *utf8 : "");
 }
 
-void cs_v8_handle_release(uint64_t handle) {
+void cs_v8_handle_release(double handle_d) {
+    uint64_t handle = d2h(handle_d);
     if (!is_handle(handle)) return;
     auto it = t_handles.find(handle);
     if (it != t_handles.end()) {
@@ -305,15 +321,16 @@ void cs_v8_handle_release(uint64_t handle) {
     }
 }
 
-uint64_t cs_v8_handle_table_size(void) {
-    return (uint64_t)t_handles.size();
+double cs_v8_handle_table_size(void) {
+    return (double)t_handles.size();
 }
 
-double cs_v8_is_handle(uint64_t value) {
+double cs_v8_is_handle(double value_d) {
+    uint64_t value = d2h(value_d);
     return is_handle(value) ? 1.0 : 0.0;
 }
 
-uint64_t cs_v8_make_number_handle(double n) {
+double cs_v8_make_number_handle(double n) {
     cs_v8_lazy_init();
     t_last_error.clear();
     v8::Isolate::Scope isolate_scope(g_isolate);
@@ -321,10 +338,10 @@ uint64_t cs_v8_make_number_handle(double n) {
     v8::Local<v8::Context> ctx = v8::Context::New(g_isolate);
     v8::Context::Scope context_scope(ctx);
     v8::Local<v8::Value> val = v8::Number::New(g_isolate, n);
-    return store_handle(g_isolate, val);
+    return h2d(store_handle(g_isolate, val));
 }
 
-uint64_t cs_v8_make_string_handle(const char* s) {
+double cs_v8_make_string_handle(const char* s) {
     cs_v8_lazy_init();
     t_last_error.clear();
     v8::Isolate::Scope isolate_scope(g_isolate);
@@ -335,21 +352,22 @@ uint64_t cs_v8_make_string_handle(const char* s) {
     if (!v8::String::NewFromUtf8(g_isolate, s ? s : "", v8::NewStringType::kNormal)
              .ToLocal(&str)) {
         t_last_error = "failed to allocate string";
-        return 0;
+        return 0.0;
     }
-    return store_handle(g_isolate, str);
+    return h2d(store_handle(g_isolate, str));
 }
 
-uint64_t cs_v8_handle_get_property(uint64_t obj_handle, const char* name) {
+double cs_v8_handle_get_property(double obj_handle_d, const char* name) {
+    uint64_t obj_handle = d2h(obj_handle_d);
     t_last_error.clear();
     if (!is_handle(obj_handle)) {
         t_last_error = "get_property: not a JSHandle";
-        return 0;
+        return 0.0;
     }
     auto it = t_handles.find(obj_handle);
     if (it == t_handles.end()) {
         t_last_error = "get_property: JSHandle released or invalid";
-        return 0;
+        return 0.0;
     }
     v8::Isolate::Scope isolate_scope(g_isolate);
     v8::HandleScope hs(g_isolate);
@@ -360,37 +378,39 @@ uint64_t cs_v8_handle_get_property(uint64_t obj_handle, const char* name) {
     v8::Local<v8::Value> obj_val = it->second.Get(g_isolate);
     if (!obj_val->IsObject()) {
         t_last_error = "get_property: handle does not hold an object";
-        return 0;
+        return 0.0;
     }
     v8::Local<v8::Object> obj = obj_val.As<v8::Object>();
     v8::Local<v8::String> key;
     if (!v8::String::NewFromUtf8(g_isolate, name ? name : "",
                                  v8::NewStringType::kNormal).ToLocal(&key)) {
         t_last_error = "get_property: failed to allocate key";
-        return 0;
+        return 0.0;
     }
     v8::Local<v8::Value> prop;
     if (!obj->Get(ctx, key).ToLocal(&prop)) {
         set_error_from_trycatch(g_isolate, ctx, try_catch,
                                 "get_property: Get threw");
-        return 0;
+        return 0.0;
     }
-    return store_handle(g_isolate, prop);
+    return h2d(store_handle(g_isolate, prop));
 }
 
-uint64_t cs_v8_handle_call(uint64_t fn_handle,
-                           uint64_t this_handle_or_zero,
-                           int32_t n_args,
-                           const uint64_t* arg_handles) {
+double cs_v8_handle_call(double fn_handle_d,
+                         double this_handle_or_zero_d,
+                         int32_t n_args,
+                         const double* arg_handles) {
+    uint64_t fn_handle = d2h(fn_handle_d);
+    uint64_t this_handle_or_zero = d2h(this_handle_or_zero_d);
     t_last_error.clear();
     if (!is_handle(fn_handle)) {
         t_last_error = "call: fn is not a JSHandle";
-        return 0;
+        return 0.0;
     }
     auto fn_it = t_handles.find(fn_handle);
     if (fn_it == t_handles.end()) {
         t_last_error = "call: fn JSHandle released or invalid";
-        return 0;
+        return 0.0;
     }
 
     v8::Isolate::Scope isolate_scope(g_isolate);
@@ -402,7 +422,7 @@ uint64_t cs_v8_handle_call(uint64_t fn_handle,
     v8::Local<v8::Value> fn_val = fn_it->second.Get(g_isolate);
     if (!fn_val->IsFunction()) {
         t_last_error = "call: handle does not hold a function";
-        return 0;
+        return 0.0;
     }
     v8::Local<v8::Function> fn = fn_val.As<v8::Function>();
 
@@ -411,12 +431,12 @@ uint64_t cs_v8_handle_call(uint64_t fn_handle,
         recv = v8::Undefined(g_isolate);
     } else if (!is_handle(this_handle_or_zero)) {
         t_last_error = "call: this is not a JSHandle";
-        return 0;
+        return 0.0;
     } else {
         auto this_it = t_handles.find(this_handle_or_zero);
         if (this_it == t_handles.end()) {
             t_last_error = "call: this JSHandle released or invalid";
-            return 0;
+            return 0.0;
         }
         recv = this_it->second.Get(g_isolate);
     }
@@ -424,15 +444,15 @@ uint64_t cs_v8_handle_call(uint64_t fn_handle,
     std::vector<v8::Local<v8::Value>> args;
     args.reserve(n_args < 0 ? 0 : (size_t)n_args);
     for (int i = 0; i < n_args; i++) {
-        uint64_t ah = arg_handles[i];
+        uint64_t ah = d2h(arg_handles[i]);
         if (!is_handle(ah)) {
             t_last_error = "call: arg is not a JSHandle";
-            return 0;
+            return 0.0;
         }
         auto ait = t_handles.find(ah);
         if (ait == t_handles.end()) {
             t_last_error = "call: arg JSHandle released or invalid";
-            return 0;
+            return 0.0;
         }
         args.push_back(ait->second.Get(g_isolate));
     }
@@ -440,9 +460,9 @@ uint64_t cs_v8_handle_call(uint64_t fn_handle,
     v8::Local<v8::Value> result;
     if (!fn->Call(ctx, recv, n_args, args.data()).ToLocal(&result)) {
         set_error_from_trycatch(g_isolate, ctx, try_catch, "call: threw");
-        return 0;
+        return 0.0;
     }
-    return store_handle(g_isolate, result);
+    return h2d(store_handle(g_isolate, result));
 }
 
 }
