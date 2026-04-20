@@ -545,6 +545,18 @@ else
     exit 1
   fi
   cp "$NODE_LIB_SRC" "$NODE_DIR/lib/"
+  # Linker expects a plain `libnode.dylib`/`libnode.so` for `-lnode`; the
+  # built file is versioned (e.g. libnode.127.dylib). Create an unversioned
+  # symlink so `-lnode` resolves.
+  (
+    cd "$NODE_DIR/lib"
+    NODE_LIB_FILE=$(basename "$NODE_LIB_SRC")
+    if [ "$NODE_PLATFORM" = "darwin" ]; then
+      ln -sf "$NODE_LIB_FILE" libnode.dylib
+    else
+      ln -sf "$NODE_LIB_FILE" libnode.so
+    fi
+  )
   # Headers: node embedding API + V8 + libuv. Copy each tree preserving layout.
   rm -rf "$NODE_DIR/include"
   mkdir -p "$NODE_DIR/include"

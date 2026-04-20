@@ -205,6 +205,7 @@ const YYJSON_PATH = process.env.CHADSCRIPT_YYJSON_PATH || "./vendor/yyjson";
 const LIBUV_PATH = process.env.CHADSCRIPT_LIBUV_PATH || "./vendor/libuv/build";
 const TREESITTER_LIB_PATH = process.env.CHADSCRIPT_TREESITTER_PATH || "./vendor/tree-sitter";
 const RURE_LIB_PATH = process.env.CHADSCRIPT_RURE_PATH || "./vendor/rure";
+const NODE_LIB_PATH = process.env.CHADSCRIPT_NODE_PATH || "./vendor/node";
 // TSX grammar is a strict superset of TypeScript — all .ts code parses identically.
 // The only difference: <Type>expr angle-bracket assertions become JSX, but ChadScript
 // uses `as Type` so there's no impact on existing code.
@@ -494,9 +495,20 @@ export function compile(
     }
   }
   if (generator.getUsesV8()) {
-    const brewV8 = process.arch === "arm64" ? "/opt/homebrew/opt/v8" : "/usr/local/opt/v8";
-    linkLibs += ` -L${brewV8}/lib -lv8 -lv8_libplatform -lv8_libbase`;
-    linkLibs += ` -Wl,-rpath,${brewV8}/lib`;
+    // libnode swap: link Node.js shared lib instead of raw V8. libnode
+    // statically bundles v8_libplatform + v8_libbase, so only `-lnode` is
+    // needed. rpath resolves libnode.*.dylib/.so next to the compiled binary.
+    const nodeLibDir = sdk ? `${sdk.vendorPath}/node/lib` : `${NODE_LIB_PATH}/lib`;
+    linkLibs += ` -L${nodeLibDir} -lnode`;
+    if (targetIsMac) {
+      linkLibs += ` -Wl,-rpath,@loader_path/../vendor/node/lib`;
+      linkLibs += ` -Wl,-rpath,@loader_path`;
+      linkLibs += ` -Wl,-rpath,${path.resolve(nodeLibDir)}`;
+    } else {
+      linkLibs += ` -Wl,-rpath,\\$ORIGIN/../vendor/node/lib`;
+      linkLibs += ` -Wl,-rpath,\\$ORIGIN`;
+      linkLibs += ` -Wl,-rpath,${path.resolve(nodeLibDir)}`;
+    }
     if (hostIsMac) {
       linkLibs += " -lc++";
     } else {
@@ -611,8 +623,13 @@ export function compile(
   }
 
   if (generator.getUsesV8()) {
+    // libnode swap: the bridge is now node-bridge.o (embeds libnode).
+    // Keep v8-bridge.o fallback for any half-migrated vendor dir.
+    const nodeBridgeObj = `${bridgePath}/node-bridge.o`;
     const v8BridgeObj = `${bridgePath}/v8-bridge.o`;
-    if (fs.existsSync(v8BridgeObj)) {
+    if (fs.existsSync(nodeBridgeObj)) {
+      extraObjs += ` ${nodeBridgeObj}`;
+    } else if (fs.existsSync(v8BridgeObj)) {
       extraObjs += ` ${v8BridgeObj}`;
     }
   }
