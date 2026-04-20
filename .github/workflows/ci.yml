@@ -126,7 +126,15 @@ jobs:
               return f' (\u2191{pct:.0f}%)'
           compute = {k: b for k, b in d['benchmarks'].items() if b.get('category') != 'cli'}
           cli = {k: b for k, b in d['benchmarks'].items() if b.get('category') == 'cli'}
-          for k, b in sorted(compute.items(), key=lambda x: x[1]['name']):
+          def rank_sort_key(b):
+              r = b['results']
+              lower = b.get('lower_is_better', True)
+              chad_v = r.get('chadscript', {}).get('value')
+              if chad_v is None:
+                  return (99, b['name'])
+              vals = sorted([v['value'] for v in r.values()], reverse=not lower)
+              return (vals.index(chad_v) + 1, b['name'])
+          for k, b in sorted(compute.items(), key=lambda x: rank_sort_key(x[1])):
               r = b['results']
               def g(lang):
                   v = r.get(lang, {}).get('label', '—')
@@ -137,7 +145,7 @@ jobs:
               cli_names = {'grep': 'grep', 'ripgrep': 'ripgrep', 'node': 'Node.js', 'xxd': 'xxd'}
               lines.append('')
               lines.append('### CLI Tool Benchmarks\n')
-              for k, b in sorted(cli.items(), key=lambda x: x[1]['name']):
+              for k, b in sorted(cli.items(), key=lambda x: rank_sort_key(x[1])):
                   r = b['results']
                   competitors = [l for l in r if l != 'chadscript']
                   chad_v = r.get('chadscript', {}).get('label', '—')
