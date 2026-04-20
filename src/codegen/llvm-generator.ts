@@ -156,6 +156,7 @@ import { checkUnionTypes } from "../semantic/union-type-checker.js";
 import { checkArraysOfFunctions } from "../semantic/array-of-function-checker.js";
 import { markIntSpecializedFunctions } from "./infrastructure/int-specialization-detector.js";
 import { checkTypeAssertions } from "../semantic/type-assertion-checker.js";
+import { annotateTypes } from "../semantic/type-annotator.js";
 import { checkUninitializedFields } from "../semantic/uninitialized-field-checker.js";
 import { analyzeEscapes } from "../semantic/escape-analysis.js";
 // binary-type-checker.ts: original top-level-only checker kept for reference; deep version is in safety-checks.ts
@@ -1769,6 +1770,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   // early partial answers don't lock out later authoritative ones.
   typeOf(expr: Expression): ResolvedType | null {
     if (!expr || typeof expr !== "object") return null;
+    // Prefer the pre-populated annotator cache (parallel arrays in
+    // BaseGenerator). Fall back to on-demand resolution for expressions
+    // that the annotator skipped (unknown base or types that only resolve
+    // mid-codegen once the symbol table is refined).
+    const nodes = this.expressionTypeNodes;
+    for (let i = 0; i < nodes.length; i++) {
+      if (nodes[i] === expr) return this.expressionTypeValues[i];
+    }
     return this.typeInference.resolveExpressionTypeRich(expr);
   }
 
@@ -3020,6 +3029,11 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     checkAsyncAwait(this.ast, this.sourceCode);
     this.stackEligibleVars = analyzeEscapes(this.ast);
     markIntSpecializedFunctions(this.ast);
+    // Pre-codegen type annotation — populate typeOf() cache for every
+    // expression in the AST. Codegen consumers migrate to typeOf() in
+    // follow-up PRs; this first PR is purely additive (populates the cache,
+    // no reads yet). Skips expressions with unknown/missing base.
+    annotateTypes(this.ast, this);
 
     const irParts: string[] = [];
 

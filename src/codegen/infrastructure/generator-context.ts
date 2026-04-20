@@ -638,10 +638,12 @@ export interface IGeneratorContext {
   readonly actualClassTypes: Map<string, string>;
 
   /**
-   * Expression type cache - maps expressions to their resolved types
-   * Caches type inference results to avoid repeated computation
+   * Expression type cache — parallel arrays keyed by AST expression identity.
+   * Native Map<object,V> segfaults, so we scan linearly. Populated by the
+   * pre-codegen annotator pass; codegen reads via typeOf/getExpressionType.
    */
-  readonly expressionTypes: Map<Expression, ResolvedType>;
+  readonly expressionTypeNodes: Expression[];
+  readonly expressionTypeValues: ResolvedType[];
 
   /**
    * Get or compute the type of an expression
@@ -650,9 +652,21 @@ export interface IGeneratorContext {
   getExpressionType(expr: Expression): ResolvedType | undefined;
 
   /**
-   * Cache an expression's type for future lookups
+   * Cache an expression's type for future lookups.
    */
   setExpressionType(expr: Expression, type: ResolvedType): void;
+
+  /**
+   * Fast-append variant for the annotator — skips dedup scan.
+   */
+  appendExpressionType(expr: Expression, type: ResolvedType): void;
+
+  /**
+   * Canonical type lookup for any expression. Codegen MUST prefer typeOf()
+   * over re-deriving types from LLVM value names. Returns null for
+   * expressions whose types couldn't be resolved (treat as "unknown").
+   */
+  typeOf(expr: Expression): ResolvedType | null;
 
   setActualClassType(name: string, className: string): void;
 
@@ -1064,7 +1078,8 @@ export class MockGeneratorContext implements IGeneratorContext {
   public variableTypes: Map<string, string>;
   public actualClassTypes: Map<string, string>;
   public jsonObjectMetadata: Map<string, JsonObjectMeta>;
-  public expressionTypes: Map<Expression, ResolvedType>;
+  public expressionTypeNodes: Expression[];
+  public expressionTypeValues: ResolvedType[];
   public globalStrings: string[] = [];
   public currentFunctionReturnType: string = "double";
   public currentFunctionTsReturnType: string | undefined = undefined;
@@ -1110,7 +1125,8 @@ export class MockGeneratorContext implements IGeneratorContext {
     this.variableTypes = new Map();
     this.actualClassTypes = new Map();
     this.jsonObjectMetadata = new Map();
-    this.expressionTypes = new Map();
+    this.expressionTypeNodes = [];
+    this.expressionTypeValues = [];
   }
 
   getClassesCount(): number {
@@ -1135,11 +1151,36 @@ export class MockGeneratorContext implements IGeneratorContext {
   emitWarning(_message: string, _loc?: SourceLocation, _suggestion?: string): void {}
 
   getExpressionType(expr: Expression): ResolvedType | undefined {
-    return this.expressionTypes.get(expr);
+    const nodes = this.expressionTypeNodes;
+    for (let i = 0; i < nodes.length; i++) {
+      if (nodes[i] === expr) return this.expressionTypeValues[i];
+    }
+    return undefined;
   }
 
   setExpressionType(expr: Expression, type: ResolvedType): void {
-    this.expressionTypes.set(expr, type);
+    const nodes = this.expressionTypeNodes;
+    for (let i = 0; i < nodes.length; i++) {
+      if (nodes[i] === expr) {
+        this.expressionTypeValues[i] = type;
+        return;
+      }
+    }
+    this.expressionTypeNodes.push(expr);
+    this.expressionTypeValues.push(type);
+  }
+
+  appendExpressionType(expr: Expression, type: ResolvedType): void {
+    this.expressionTypeNodes.push(expr);
+    this.expressionTypeValues.push(type);
+  }
+
+  typeOf(expr: Expression): ResolvedType | null {
+    const nodes = this.expressionTypeNodes;
+    for (let i = 0; i < nodes.length; i++) {
+      if (nodes[i] === expr) return this.expressionTypeValues[i];
+    }
+    return null;
   }
 
   setActualClassType(name: string, className: string): void {
