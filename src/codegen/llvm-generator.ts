@@ -2221,7 +2221,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       exprNodeType === "index_access" ||
       exprNodeType === "member_access"
     ) {
-      const resolved = value ? this.typeInference.resolveExpressionType(value) : null;
+      const resolved = value ? this.typeOf(value) : null;
       if (resolved) {
         if (resolved.base === "string") {
           return { llvmType: "i8*", kind: SymbolKind_String, defaultValue: "null" };
@@ -2355,7 +2355,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           }
         }
 
-        const resolved = this.typeInference.resolveExpressionType(stmt.value);
+        const resolved = this.typeOf(stmt.value);
         let resolvedBase = "";
         let resolvedDepth = 0;
         if (resolved) {
@@ -2744,7 +2744,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             }
           }
           if (!isStringSet && stmt.value) {
-            const resolved = this.typeInference.resolveExpressionType(stmt.value);
+            const resolved = this.typeOf(stmt.value);
             if (resolved && resolved.base === "Set<string>") {
               isStringSet = true;
             }
@@ -2900,7 +2900,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         if (stmt.declaredType) {
           this.symbolTable.setResolvedType(name, parseTypeString(stmt.declaredType));
         } else if (stmt.value) {
-          const resolved = this.typeInference.resolveExpressionType(stmt.value);
+          const resolved = this.typeOf(stmt.value);
           if (resolved) {
             this.symbolTable.setResolvedType(name, resolved);
           }
