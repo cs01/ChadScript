@@ -473,6 +473,9 @@ echo "  Go Regex Match built"
 go build -o /tmp/bench-map_lookup-go "$DIR/map_lookup/map_lookup.go"
 echo "  Go Map Lookup built"
 
+(cd "$DIR/sqlite" && go build -o /tmp/bench-sqlite-go ./sqlite.go)
+echo "  Go SQLite built"
+
 echo ""
 
 echo "═══════════════════════════════════════════════════"
@@ -493,6 +496,7 @@ echo ""
 
 bench_compute "sqlite" "c" "C (clang -O2 -march=native)" "Time:" /tmp/bench-sqlite-c
 bench_compute "sqlite" "chadscript" "ChadScript (native)" "Time:" /tmp/bench-sqlite-chad
+bench_compute "sqlite" "go" "Go (mattn/go-sqlite3)" "Time:" /tmp/bench-sqlite-go
 bench_compute "sqlite" "node" "Node.js $(node --version)" "Time:" node --experimental-sqlite "$DIR/sqlite/node.mjs"
 
 echo "═══════════════════════════════════════════════════"

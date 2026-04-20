@@ -131,6 +131,7 @@ go build -o /tmp/bench-binarytrees-go "$DIR/binarytrees/binarytrees.go"
 go build -o /tmp/bench-fileio-go "$DIR/fileio/fileio.go"
 go build -o /tmp/bench-regex_match-go "$DIR/regex_match/regex_match.go"
 go build -o /tmp/bench-map_lookup-go "$DIR/map_lookup/map_lookup.go"
+(cd "$DIR/sqlite" && go build -o /tmp/bench-sqlite-go ./sqlite.go)
 echo "  done"
 
 echo ""
@@ -144,6 +145,7 @@ echo ""
 echo "=== SQLite (100K queries) ==="
 bench_compute "sqlite" "c" "C" "Time:" /tmp/bench-sqlite-c
 bench_compute "sqlite" "chadscript" "ChadScript" "Time:" /tmp/bench-sqlite-chad
+bench_compute "sqlite" "go" "Go (mattn)" "Time:" /tmp/bench-sqlite-go
 bench_compute "sqlite" "node" "Node.js" "Time:" node --experimental-sqlite "$DIR/sqlite/node.mjs"
 
 echo "=== Fibonacci (fib 42) ==="
