@@ -307,6 +307,7 @@ jobs:
           cp c_bridges/lws-bridge.o release/lib/
           cp c_bridges/multipart-bridge.o release/lib/
           cp c_bridges/regex-bridge.o release/lib/
+          cp c_bridges/net-bridge.o release/lib/
           cp vendor/rure/librure.a release/lib/
           cp c_bridges/child-process-bridge.o release/lib/
           cp c_bridges/child-process-spawn.o release/lib/
@@ -461,6 +462,7 @@ jobs:
           cp c_bridges/lws-bridge.o release/lib/
           cp c_bridges/multipart-bridge.o release/lib/
           cp c_bridges/regex-bridge.o release/lib/
+          cp c_bridges/net-bridge.o release/lib/
           cp vendor/rure/librure.a release/lib/
           cp c_bridges/child-process-bridge.o release/lib/
           cp c_bridges/child-process-spawn.o release/lib/
@@ -539,6 +541,7 @@ jobs:
             lws-bridge.o \
             multipart-bridge.o \
             regex-bridge.o \
+            net-bridge.o \
             librure.a \
             child-process-bridge.o \
             child-process-spawn.o \

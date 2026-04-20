@@ -667,14 +667,30 @@ export function compileNative(inputFile: string, outputFile: string): void {
     linkLibs = "-lsqlite3 " + linkLibs;
   }
   let usesPostgres: boolean = false;
+  let usesNet: boolean = false;
   for (let i = 0; i < generator.declaredExternFunctions.length; i++) {
-    if (generator.declaredExternFunctions[i].startsWith("cs_pg_")) {
+    const fn = generator.declaredExternFunctions[i];
+    if (fn.startsWith("cs_pg_")) {
       usesPostgres = true;
-      break;
+    } else if (fn.startsWith("cs_net_")) {
+      usesNet = true;
     }
   }
   if (usesPostgres) {
     linkLibs = "-lpq " + linkLibs;
+  }
+  // net-bridge needs libuv. Add it if not already pulled in by a prior use.
+  if (
+    usesNet &&
+    !(
+      generator.getUsesTimers() ||
+      generator.getUsesPromises() ||
+      generator.getUsesCurl() ||
+      generator.getUsesUvHrtime() ||
+      generator.getUsesHttpServer()
+    )
+  ) {
+    linkLibs = "-L" + uvDir + " -luv " + linkLibs;
   }
   if (generator.getUsesHttpServer()) {
     linkLibs = "-lz -lzstd " + linkLibs;
@@ -718,6 +734,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const cpSpawnObj = generator.getUsesSpawn() ? effectiveBridgePath + "/child-process-spawn.o" : "";
   const curlBridgeObj = generator.getUsesCurl() ? effectiveBridgePath + "/curl-bridge.o" : "";
   const pgBridgeObj = usesPostgres ? effectiveBridgePath + "/pg-bridge.o" : "";
+  const netBridgeObj = usesNet ? effectiveBridgePath + "/net-bridge.o" : "";
   const compressBridgeObj = generator.getUsesCompression()
     ? effectiveBridgePath + "/compress-bridge.o"
     : "";
@@ -784,6 +801,8 @@ export function compileNative(inputFile: string, outputFile: string): void {
     curlBridgeObj +
     " " +
     pgBridgeObj +
+    " " +
+    netBridgeObj +
     " " +
     compressBridgeObj +
     " " +

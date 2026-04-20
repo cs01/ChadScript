@@ -393,6 +393,57 @@ declare module "chadscript/argparse" {
   }
 }
 
+declare module "chadscript/net" {
+  // Plain TCP client sockets via libuv. Prerequisite for protocol
+  // drivers (e.g. pure-TS Postgres). Event-driven; use on() + poll()/wait(),
+  // or the pull-style read() helper — not both for the same event kind.
+  export class Socket {
+    // Register a listener. Replaces any previous listener for the same
+    // event (single-slot per kind). Payload is the empty string for
+    // 'connect' and 'close'; 'data' delivers the chunk; 'error' delivers
+    // the libuv error message.
+    on(event: "connect" | "data" | "error" | "close", cb: (data: string) => void): void;
+
+    // Detach the 'data' listener. Used by a future TLS upgrade layer to
+    // swap the plaintext handler for a TLS record demultiplexer.
+    removeDataListener(cb: (data: string) => void): void;
+
+    // Send bytes. Returns true if queued, false if the socket is closed
+    // or in error. Bytes are copied synchronously.
+    write(data: string): boolean;
+
+    // Half-close (FIN). Peer-side reads EOF; our reads keep working
+    // until the peer closes. Idempotent.
+    end(): void;
+
+    // Hard-close. Pending writes are cancelled. Idempotent.
+    destroy(): void;
+
+    // True while the connection is healthy. Flips to false after
+    // 'error' or 'close'.
+    isOpen(): boolean;
+
+    // Tick the libuv loop once (non-blocking) and dispatch queued
+    // events. Returns number of events dispatched.
+    poll(): number;
+
+    // Block for up to timeoutMs ticking the loop until at least one
+    // event shows up (or timeout). Then dispatch. Returns number of
+    // events dispatched.
+    wait(timeoutMs: number): number;
+
+    // Pull-style read: drain the rx byte buffer. Parallel to the
+    // 'data' event — callers pick either style, not both.
+    read(): string;
+    readLen(): number;
+  }
+
+  // Open a TCP connection. Returns immediately; handshake completes
+  // asynchronously. Always returns a Socket — check sock.isOpen() (or
+  // wait for the 'error' event) to see whether the connect succeeded.
+  export function createConnection(host: string, port: number): Socket;
+}
+
 declare module "chadscript/http" {
   export function getHeader(headersRaw: string, name: string): string;
   export function parseQueryString(qs: string): Map<string, string>;
