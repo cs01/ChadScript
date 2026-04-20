@@ -8,10 +8,20 @@ const llvmGrammar = JSON.parse(
 
 export default defineConfig({
   title: 'ChadScript',
-  description: 'Compile TypeScript to native binaries via LLVM',
+  description: 'Funny name. Serious performance. TypeScript compiled to native binaries that tie hand-written C — 250KB, 0.8ms cold start, no runtime.',
 
   base: '/ChadScript/',
   appearance: 'dark',
+
+  head: [
+    ['meta', { property: 'og:title', content: 'ChadScript — funny name, serious performance' }],
+    ['meta', { property: 'og:description', content: 'TypeScript compiled to native code. Ties hand-written C. 250KB binaries, 0.8ms cold start, no runtime, no node_modules.' }],
+    ['meta', { property: 'og:type', content: 'website' }],
+    ['meta', { property: 'og:url', content: 'https://cs01.github.io/ChadScript/' }],
+    ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
+    ['meta', { name: 'twitter:title', content: 'ChadScript — funny name, serious performance' }],
+    ['meta', { name: 'twitter:description', content: 'TypeScript compiled to native code. Ties hand-written C. 250KB binaries, 0.8ms cold start.' }],
+  ],
 
   markdown: {
     languages: [llvmGrammar],

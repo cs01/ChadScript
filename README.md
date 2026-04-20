@@ -1,5 +1,7 @@
 # ChadScript
 
+> *Funny name. Serious performance.*
+
 TypeScript, compiled to native code.
 
 ChadScript compiles a statically analyzable subset of TypeScript to native machine code via LLVM — the same backend behind C, Rust, and Swift. No VM, no interpreter, no runtime. The output is a standalone binary: sub-millisecond startup, ~250KB, zero dependencies.
