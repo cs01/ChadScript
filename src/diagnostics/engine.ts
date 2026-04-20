@@ -239,6 +239,9 @@ export function setGlobalDiagnosticColor(enabled: boolean): void {
   globalColorEnabled = enabled;
 }
 
+export const INTERPRET_PRAGMA_HINT =
+  "If this file needs full JS semantics, add '// @chadscript: interpret' to the top to run it under V8 (slower, full JS).";
+
 export function formatCompileError(
   sourceCode: string,
   message: string,

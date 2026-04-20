@@ -16,6 +16,7 @@ import {
 import { transformBlock } from "./statements.js";
 import { transformExpression } from "./expressions.js";
 import { getLoc } from "../transformer.js";
+import { INTERPRET_PRAGMA_HINT } from "../../diagnostics/engine.js";
 
 export function transformFunctionDeclaration(
   node: ts.FunctionDeclaration,
@@ -133,7 +134,8 @@ export function transformClassDeclaration(
       const memberName = ts.isIdentifier(member.name) ? member.name.text : "?";
       const loc = getLoc(member);
       console.error(
-        `${loc.file}:${loc.line}:${loc.column}: error: '${kind} ${memberName}()' is not supported; use a regular public method instead`,
+        `${loc.file}:${loc.line}:${loc.column}: error: '${kind} ${memberName}()' (getter/setter) is not supported in native mode; use a regular public method instead.\n` +
+          `  help: ${INTERPRET_PRAGMA_HINT}`,
       );
       process.exit(1);
     }

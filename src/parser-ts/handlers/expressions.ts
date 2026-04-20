@@ -27,6 +27,28 @@ import {
 } from "../../ast/types.js";
 import { transformStatement, extractTypeString } from "./statements.js";
 import { getLoc } from "../transformer.js";
+import { INTERPRET_PRAGMA_HINT } from "../../diagnostics/engine.js";
+
+function describeSyntaxKind(kind: ts.SyntaxKind): string {
+  if (kind === ts.SyntaxKind.YieldExpression) return "generator functions (yield)";
+  if (kind === ts.SyntaxKind.TaggedTemplateExpression) return "tagged template literals";
+  if (kind === ts.SyntaxKind.ClassExpression) return "class expressions";
+  if (kind === ts.SyntaxKind.Decorator) return "decorators";
+  if (kind === ts.SyntaxKind.BigIntLiteral) return "bigint literals";
+  if (kind === ts.SyntaxKind.MetaProperty) return "meta properties (new.target, import.meta)";
+  if (kind === ts.SyntaxKind.SpreadElement) return "spread in this position";
+  if (kind === ts.SyntaxKind.CommaListExpression) return "comma expressions";
+  return ts.SyntaxKind[kind];
+}
+
+function unsupportedExpressionError(node: ts.Node, category: string): Error {
+  const feature = describeSyntaxKind(node.kind);
+  const loc = getLoc(node);
+  const msg =
+    `${loc.file}:${loc.line}:${loc.column}: error: ${feature} ${category} — not supported in native mode.\n` +
+    `  help: ${INTERPRET_PRAGMA_HINT}`;
+  return new Error(msg);
+}
 
 export function transformExpression(
   node: ts.Expression,
@@ -145,7 +167,7 @@ export function transformExpression(
       return { type: "undefined", loc: getLoc(node) };
 
     default:
-      throw new Error(`Unsupported expression kind: ${ts.SyntaxKind[node.kind]}`);
+      throw unsupportedExpressionError(node, "expression");
   }
 }
 
@@ -456,7 +478,7 @@ function transformCallExpression(
     };
   }
 
-  throw new Error(`Unsupported call expression: ${ts.SyntaxKind[node.expression.kind]}`);
+  throw unsupportedExpressionError(node.expression, "as a call target");
 }
 
 function transformPropertyAccessExpression(
@@ -612,7 +634,7 @@ function transformNewExpression(
     return { type: "new", className, args, loc: getLoc(node) };
   }
 
-  throw new Error(`Unsupported new expression: ${ts.SyntaxKind[node.expression.kind]}`);
+  throw unsupportedExpressionError(node.expression, "in 'new' position");
 }
 
 function transformTemplateExpression(
