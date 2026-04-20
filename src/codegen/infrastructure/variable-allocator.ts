@@ -199,6 +199,11 @@ export interface VariableAllocatorContext {
   setLastTypeAssertionSourceVar(name: string | null): void;
   setCurrentVarDeclKey(key: string | null): void;
   isStackEligibleKey(key: string): boolean;
+  // New methods pinned at END of interface: adding them mid-interface shifts
+  // native vtable slot positions for everything below — see CLAUDE.md rule #5
+  // and memory/native-method-deletion-breaks-vtable.md.
+  resolveExpressionTypeRich(expr: Expression): ResolvedType | null;
+  typeOf(expr: Expression): ResolvedType | null;
 }
 
 export class VariableAllocator {
@@ -737,6 +742,13 @@ export class VariableAllocator {
 
     const stmtDeclaredType: string = stmt.declaredType || "";
     const strippedDeclType = stripNullable(stmtDeclaredType);
+    // NOTE: stays on flat resolveExpressionType. Switching to typeOf()
+    // returns a freshly-allocated enriched clone; passing that to the
+    // downstream consumer here produces wrong native GEP offsets (likely
+    // Phase C normalizer didn't canonicalize the enrichResolvedType
+    // literal). Calling typeOf() and DISCARDING works; USING the result
+    // breaks. Needs normalizer coverage on enrichResolvedType before
+    // this consumer can migrate.
     const resolved = this.ctx.resolveExpressionType(stmtValue);
     const nodeType = (stmtValue as ExprBase).type;
 
