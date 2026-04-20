@@ -395,7 +395,8 @@ export function compile(
     generator.usesPromises ||
     generator.usesCurl ||
     generator.usesUvHrtime ||
-    generator.usesHttpServer
+    generator.usesHttpServer ||
+    generator.declaredExternFunctions.some((n: string) => n.startsWith("cs_net_"))
   ) {
     linkLibs += ` -L${uvPath} -luv`;
   }
@@ -409,10 +410,13 @@ export function compile(
     linkLibs += " -lsqlite3";
   }
   let usesPostgres = false;
+  let usesNet = false;
   for (let i = 0; i < generator.declaredExternFunctions.length; i++) {
-    if (generator.declaredExternFunctions[i].startsWith("cs_pg_")) {
+    const fn = generator.declaredExternFunctions[i];
+    if (fn.startsWith("cs_pg_")) {
       usesPostgres = true;
-      break;
+    } else if (fn.startsWith("cs_net_")) {
+      usesNet = true;
     }
   }
   if (usesPostgres) {
@@ -485,6 +489,7 @@ export function compile(
   const cpSpawnObj = generator.getUsesSpawn() ? `${bridgePath}/child-process-spawn.o` : "";
   const curlBridgeObj = generator.usesCurl ? `${bridgePath}/curl-bridge.o` : "";
   const pgBridgeObj = usesPostgres ? `${bridgePath}/pg-bridge.o` : "";
+  const netBridgeObj = usesNet ? `${bridgePath}/net-bridge.o` : "";
   const compressBridgeObj = generator.usesCompression ? `${bridgePath}/compress-bridge.o` : "";
   const yamlBridgeObj = generator.usesYaml ? `${bridgePath}/yaml-bridge.o` : "";
   let extraObjs = "";
@@ -650,7 +655,7 @@ export function compile(
   const userObjs = extraLinkObjs.length > 0 ? " " + extraLinkObjs.join(" ") : "";
   const userPaths = extraLinkPaths.map((p) => ` -L${p}`).join("");
   const userLibs = extraLinkLibs.map((l) => ` -l${l}`).join("");
-  const linkCmd = `${linker} ${objFile} ${lwsBridgeObj} ${regexBridgeObj} ${cpBridgeObj} ${osBridgeObj} ${strlenCacheObj} ${timeBridgeObj} ${base64BridgeObj} ${urlBridgeObj} ${uriBridgeObj} ${dotenvBridgeObj} ${watchBridgeObj} ${arenaBridgeObj} ${trampBridgeObj} ${cpSpawnObj} ${curlBridgeObj} ${pgBridgeObj} ${compressBridgeObj} ${yamlBridgeObj} ${stringOpsBridgeObj}${extraObjs}${userObjs} -o ${outputFile}${noPie}${debugFlag}${stripFlag}${staticFlag}${crossTarget}${crossLinker}${suppressLdWarnings}${sanitizeFlags} ${linkLibs}${userPaths}${userLibs}`;
+  const linkCmd = `${linker} ${objFile} ${lwsBridgeObj} ${regexBridgeObj} ${cpBridgeObj} ${osBridgeObj} ${strlenCacheObj} ${timeBridgeObj} ${base64BridgeObj} ${urlBridgeObj} ${uriBridgeObj} ${dotenvBridgeObj} ${watchBridgeObj} ${arenaBridgeObj} ${trampBridgeObj} ${cpSpawnObj} ${curlBridgeObj} ${pgBridgeObj} ${netBridgeObj} ${compressBridgeObj} ${yamlBridgeObj} ${stringOpsBridgeObj}${extraObjs}${userObjs} -o ${outputFile}${noPie}${debugFlag}${stripFlag}${staticFlag}${crossTarget}${crossLinker}${suppressLdWarnings}${sanitizeFlags} ${linkLibs}${userPaths}${userLibs}`;
   logger.info(` ${linkCmd}`);
   const linkStdio = logger.getLevel() >= LogLevel_Verbose ? "inherit" : "pipe";
   execSync(linkCmd, { stdio: linkStdio });

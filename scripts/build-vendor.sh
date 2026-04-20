@@ -480,6 +480,17 @@ else
   echo "==> child-process-spawn already built, skipping"
 fi
 
+# --- net-bridge (TCP client sockets via libuv) ---
+NET_BRIDGE_SRC="$C_BRIDGES_DIR/net-bridge.c"
+NET_BRIDGE_OBJ="$C_BRIDGES_DIR/net-bridge.o"
+if [ ! -f "$NET_BRIDGE_OBJ" ] || [ "$NET_BRIDGE_SRC" -nt "$NET_BRIDGE_OBJ" ]; then
+  echo "==> Building net-bridge..."
+  cc -c -O2 -fPIC -I"$VENDOR_DIR/libuv/include" "$NET_BRIDGE_SRC" -o "$NET_BRIDGE_OBJ"
+  echo "  -> $NET_BRIDGE_OBJ"
+else
+  echo "==> net-bridge already built, skipping"
+fi
+
 # --- trampoline-bridge (C-ABI closure slot table) ---
 TRAMP_SRC="$C_BRIDGES_DIR/trampoline-bridge.c"
 TRAMP_OBJ="$C_BRIDGES_DIR/trampoline-bridge.o"
