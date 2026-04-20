@@ -1170,6 +1170,20 @@ export class CallExpressionGenerator {
       return coerced;
     }
 
+    // FFI null-string coercion: `declare function f(): string` returning NULL
+    // from C should round-trip to TS as the empty string so `result === ""`
+    // works reliably. Only applied to user-declared extern functions (not
+    // internal runtime calls, which rely on NULL sentinels internally).
+    if (returnType === "i8*" && func && func.declare) {
+      const emptyStr = this.ctx.stringGen.doCreateStringConstant("");
+      const isNull = this.ctx.nextTemp();
+      this.ctx.emit(`${isNull} = icmp eq i8* ${temp}, null`);
+      const coerced = this.ctx.nextTemp();
+      this.ctx.emit(`${coerced} = select i1 ${isNull}, i8* ${emptyStr}, i8* ${temp}`);
+      this.ctx.setVariableType(coerced, "i8*");
+      return coerced;
+    }
+
     return temp;
   }
 
