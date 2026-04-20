@@ -58,100 +58,157 @@ export class LibuvGenerator {
     return ir;
   }
 
+  // Per-timer data block stored in timer->data. Widened in PR3 to carry a
+  // trampoline handle for arrow-function closures.
+  //   { i8* fn_ptr, i32 tramp_handle, i32 is_interval }
+  // - fn_ptr: either a bare `void()*` user fn (tramp_handle == -1) or the
+  //   per-shape trampoline `void(i8*)*` (tramp_handle >= 0).
+  // - tramp_handle: slot handle from cs_tramp_alloc; -1 means "no trampoline".
+  // - is_interval: 1 => repeating (free slot on clearTimer); 0 => one-shot
+  //   (free slot on fire).
   generateTimerCallbackWrapper(): string {
-    let ir = "; Timer callback wrapper - calls user function stored in handle->data\n";
+    let ir = "; Timer data block layout (PR3): { fn_ptr, tramp_handle, is_interval }\n";
+    ir += "%__TimerData = type { i8*, i32, i32 }\n\n";
+    ir += "; Timer callback wrapper - dispatches either a bare fn ptr or a\n";
+    ir += "; per-shape trampoline (with env recovered from cs_tramp_get).\n";
     ir += "define void @__uv_timer_callback(%struct.uv_timer_s* %handle) {\n";
     ir += "entry:\n";
-    ir += "  ; Get handle as i8* for uv_handle_get_data\n";
     ir += "  %handle_ptr = bitcast %struct.uv_timer_s* %handle to i8*\n";
-    ir += "  ; Get user callback from handle->data\n";
-    ir += "  %callback_ptr = call i8* @uv_handle_get_data(i8* %handle_ptr)\n";
-    ir += "  ; Cast to function pointer and call\n";
-    ir += "  %callback = bitcast i8* %callback_ptr to void ()*\n";
-    ir += "  call void %callback()\n";
+    ir += "  %data_i8 = call i8* @uv_handle_get_data(i8* %handle_ptr)\n";
+    ir += "  %data = bitcast i8* %data_i8 to %__TimerData*\n";
+    ir +=
+      "  %fn_ptr_slot = getelementptr inbounds %__TimerData, %__TimerData* %data, i32 0, i32 0\n";
+    ir += "  %fn_i8 = load i8*, i8** %fn_ptr_slot\n";
+    ir += "  %h_slot = getelementptr inbounds %__TimerData, %__TimerData* %data, i32 0, i32 1\n";
+    ir += "  %h = load i32, i32* %h_slot\n";
+    ir += "  %is_tramp = icmp sge i32 %h, 0\n";
+    ir += "  br i1 %is_tramp, label %tramp, label %bare\n";
+    ir += "\n";
+    ir += "bare:\n";
+    ir += "  %bare_cb = bitcast i8* %fn_i8 to void ()*\n";
+    ir += "  call void %bare_cb()\n";
+    ir += "  br label %after_call\n";
+    ir += "\n";
+    ir += "tramp:\n";
+    ir += "  %env = call i8* @cs_tramp_get(i32 %h)\n";
+    ir += "  %tramp_cb = bitcast i8* %fn_i8 to void (i8*)*\n";
+    ir += "  call void %tramp_cb(i8* %env)\n";
+    ir += "  br label %after_call\n";
+    ir += "\n";
+    ir += "after_call:\n";
+    ir +=
+      "  ; One-shot timers free their trampoline slot here (setInterval frees in clearTimer).\n";
+    ir += "  %iv_slot = getelementptr inbounds %__TimerData, %__TimerData* %data, i32 0, i32 2\n";
+    ir += "  %iv = load i32, i32* %iv_slot\n";
+    ir += "  %is_oneshot = icmp eq i32 %iv, 0\n";
+    ir += "  %has_tramp = icmp sge i32 %h, 0\n";
+    ir += "  %should_free = and i1 %is_oneshot, %has_tramp\n";
+    ir += "  br i1 %should_free, label %free_slot, label %done\n";
+    ir += "\n";
+    ir += "free_slot:\n";
+    ir += "  call void @cs_tramp_free(i32 %h)\n";
+    ir += "  ; Null the handle so a late clearTimer is a no-op.\n";
+    ir += "  store i32 -1, i32* %h_slot\n";
+    ir += "  br label %done\n";
+    ir += "\n";
+    ir += "done:\n";
     ir += "  ret void\n";
     ir += "}\n\n";
     return ir;
   }
 
   generateSetTimeout(): string {
-    let ir = "; setTimeout(callback, delay_ms) -> timer_id\n";
-    ir += "; Creates a one-shot timer that fires after delay_ms milliseconds\n";
-    ir += "define i8* @__setTimeout(void ()* %callback, double %delay_ms) {\n";
+    let ir = "; setTimeout(fn_ptr, tramp_handle, delay_ms) -> timer_id\n";
+    ir += "; fn_ptr: bare user fn (if handle == -1) or per-shape trampoline.\n";
+    ir += "; tramp_handle: -1 for bare fn path, >= 0 for closure path.\n";
+    ir += "define i8* @__setTimeout(i8* %fn_ptr, i32 %tramp_handle, double %delay_ms) {\n";
     ir += "entry:\n";
-    ir += "  ; Get the default event loop\n";
     ir += "  %loop = call %struct.uv_loop_s* @uv_default_loop()\n";
     ir += "\n";
-    ir += "  ; Allocate timer handle (152 bytes)\n";
     ir += "  %timer_mem = call i8* @GC_malloc(i64 152)\n";
     ir += "  %timer = bitcast i8* %timer_mem to %struct.uv_timer_s*\n";
-    ir += "\n";
-    ir += "  ; Initialize timer\n";
     ir += "  call i32 @uv_timer_init(%struct.uv_loop_s* %loop, %struct.uv_timer_s* %timer)\n";
     ir += "\n";
-    ir += "  ; Store user callback in timer->data\n";
+    ir += "  ; Allocate and populate %__TimerData = { fn_ptr, tramp_handle, 0 }.\n";
+    ir += "  %data_mem = call i8* @GC_malloc(i64 16)\n";
+    ir += "  %data = bitcast i8* %data_mem to %__TimerData*\n";
+    ir += "  %fp_slot = getelementptr inbounds %__TimerData, %__TimerData* %data, i32 0, i32 0\n";
+    ir += "  store i8* %fn_ptr, i8** %fp_slot\n";
+    ir += "  %h_slot = getelementptr inbounds %__TimerData, %__TimerData* %data, i32 0, i32 1\n";
+    ir += "  store i32 %tramp_handle, i32* %h_slot\n";
+    ir += "  %iv_slot = getelementptr inbounds %__TimerData, %__TimerData* %data, i32 0, i32 2\n";
+    ir += "  store i32 0, i32* %iv_slot\n";
+    ir += "\n";
     ir += "  %timer_ptr = bitcast %struct.uv_timer_s* %timer to i8*\n";
-    ir += "  %callback_ptr = bitcast void ()* %callback to i8*\n";
-    ir += "  call void @uv_handle_set_data(i8* %timer_ptr, i8* %callback_ptr)\n";
+    ir += "  call void @uv_handle_set_data(i8* %timer_ptr, i8* %data_mem)\n";
     ir += "\n";
-    ir += "  ; Convert delay to i64\n";
     ir += "  %delay_i64 = fptosi double %delay_ms to i64\n";
-    ir += "\n";
-    ir += "  ; Start timer (timeout, repeat=0 for one-shot)\n";
     ir +=
       "  call i32 @uv_timer_start(%struct.uv_timer_s* %timer, void (%struct.uv_timer_s*)* @__uv_timer_callback, i64 %delay_i64, i64 0)\n";
     ir += "\n";
-    ir += "  ; Return timer handle as timer ID\n";
     ir += "  ret i8* %timer_mem\n";
     ir += "}\n\n";
     return ir;
   }
 
   generateSetInterval(): string {
-    let ir = "; setInterval(callback, interval_ms) -> timer_id\n";
-    ir += "; Creates a repeating timer that fires every interval_ms milliseconds\n";
-    ir += "define i8* @__setInterval(void ()* %callback, double %interval_ms) {\n";
+    let ir = "; setInterval(fn_ptr, tramp_handle, interval_ms) -> timer_id\n";
+    ir += "define i8* @__setInterval(i8* %fn_ptr, i32 %tramp_handle, double %interval_ms) {\n";
     ir += "entry:\n";
-    ir += "  ; Get the default event loop\n";
     ir += "  %loop = call %struct.uv_loop_s* @uv_default_loop()\n";
     ir += "\n";
-    ir += "  ; Allocate timer handle (152 bytes)\n";
     ir += "  %timer_mem = call i8* @GC_malloc(i64 152)\n";
     ir += "  %timer = bitcast i8* %timer_mem to %struct.uv_timer_s*\n";
-    ir += "\n";
-    ir += "  ; Initialize timer\n";
     ir += "  call i32 @uv_timer_init(%struct.uv_loop_s* %loop, %struct.uv_timer_s* %timer)\n";
     ir += "\n";
-    ir += "  ; Store user callback in timer->data\n";
+    ir += "  ; Allocate and populate %__TimerData = { fn_ptr, tramp_handle, 1 }.\n";
+    ir += "  %data_mem = call i8* @GC_malloc(i64 16)\n";
+    ir += "  %data = bitcast i8* %data_mem to %__TimerData*\n";
+    ir += "  %fp_slot = getelementptr inbounds %__TimerData, %__TimerData* %data, i32 0, i32 0\n";
+    ir += "  store i8* %fn_ptr, i8** %fp_slot\n";
+    ir += "  %h_slot = getelementptr inbounds %__TimerData, %__TimerData* %data, i32 0, i32 1\n";
+    ir += "  store i32 %tramp_handle, i32* %h_slot\n";
+    ir += "  %iv_slot = getelementptr inbounds %__TimerData, %__TimerData* %data, i32 0, i32 2\n";
+    ir += "  store i32 1, i32* %iv_slot\n";
+    ir += "\n";
     ir += "  %timer_ptr = bitcast %struct.uv_timer_s* %timer to i8*\n";
-    ir += "  %callback_ptr = bitcast void ()* %callback to i8*\n";
-    ir += "  call void @uv_handle_set_data(i8* %timer_ptr, i8* %callback_ptr)\n";
+    ir += "  call void @uv_handle_set_data(i8* %timer_ptr, i8* %data_mem)\n";
     ir += "\n";
-    ir += "  ; Convert interval to i64\n";
     ir += "  %interval_i64 = fptosi double %interval_ms to i64\n";
-    ir += "\n";
-    ir += "  ; Start timer (timeout=interval, repeat=interval for repeating)\n";
     ir +=
       "  call i32 @uv_timer_start(%struct.uv_timer_s* %timer, void (%struct.uv_timer_s*)* @__uv_timer_callback, i64 %interval_i64, i64 %interval_i64)\n";
     ir += "\n";
-    ir += "  ; Return timer handle as timer ID\n";
     ir += "  ret i8* %timer_mem\n";
     ir += "}\n\n";
     return ir;
   }
 
   generateClearTimer(): string {
-    let ir = "; clearTimeout/clearInterval(timer_id)\n";
-    ir += "; Stops a timer created by setTimeout or setInterval\n";
+    let ir = "; clearTimeout/clearInterval(timer_id) - stops the timer and\n";
+    ir += "; frees the trampoline slot (if any) held by its data block.\n";
     ir += "define void @__clearTimer(i8* %timer_id) {\n";
     ir += "entry:\n";
-    ir += "  ; Check for null\n";
     ir += "  %is_null = icmp eq i8* %timer_id, null\n";
     ir += "  br i1 %is_null, label %done, label %stop_timer\n";
     ir += "\n";
     ir += "stop_timer:\n";
     ir += "  %timer = bitcast i8* %timer_id to %struct.uv_timer_s*\n";
     ir += "  call i32 @uv_timer_stop(%struct.uv_timer_s* %timer)\n";
+    ir += "  ; Free trampoline slot if this timer carried one.\n";
+    ir += "  %data_i8 = call i8* @uv_handle_get_data(i8* %timer_id)\n";
+    ir += "  %data_null = icmp eq i8* %data_i8, null\n";
+    ir += "  br i1 %data_null, label %done, label %maybe_free\n";
+    ir += "\n";
+    ir += "maybe_free:\n";
+    ir += "  %data = bitcast i8* %data_i8 to %__TimerData*\n";
+    ir += "  %h_slot = getelementptr inbounds %__TimerData, %__TimerData* %data, i32 0, i32 1\n";
+    ir += "  %h = load i32, i32* %h_slot\n";
+    ir += "  %has_tramp = icmp sge i32 %h, 0\n";
+    ir += "  br i1 %has_tramp, label %free_slot, label %done\n";
+    ir += "\n";
+    ir += "free_slot:\n";
+    ir += "  call void @cs_tramp_free(i32 %h)\n";
+    ir += "  store i32 -1, i32* %h_slot\n";
     ir += "  br label %done\n";
     ir += "\n";
     ir += "done:\n";
