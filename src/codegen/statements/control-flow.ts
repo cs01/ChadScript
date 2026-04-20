@@ -196,12 +196,16 @@ export class ControlFlowGenerator {
   }
 
   private convertToNonNullish(value: string, valueType: string): string {
-    if (
-      valueType === "i1" ||
-      valueType === "double" ||
-      valueType === "i32" ||
-      valueType === "i64"
-    ) {
+    if (valueType === "double") {
+      // NaN sentinel = undefined. fcmp ord returns true when both operands
+      // are non-NaN (i.e., value is defined). Pairs with the NaN short-circuit
+      // in generateOptionalChain — see optional-chain-undefined-sentinel.md.
+      const temp = this.nextTemp();
+      this.emit(`${temp} = fcmp ord double ${value}, ${value}`);
+      this.ctx.setVariableType(temp, "i1");
+      return temp;
+    }
+    if (valueType === "i1" || valueType === "i32" || valueType === "i64") {
       const condBool = this.ctx.emitIcmp("eq", "i32", "1", "1");
       return condBool;
     }
