@@ -279,12 +279,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   // Type inference helper
   private typeInference: TypeInference;
 
-  // Phase E substrate — authoritative type cache keyed by AST expression node.
-  // Populated on first substantive resolution (known sourceKind, non-empty base);
-  // consumers read via typeOf(expr) to avoid re-derivation at each codegen site.
-  // Cleared per-compilation via reset().
-  private typeCache: Map<object, ResolvedType> = new Map();
-
   // Type resolver (consolidates type resolution logic)
   public typeResolver: TypeResolver;
 
@@ -1775,14 +1769,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   // early partial answers don't lock out later authoritative ones.
   typeOf(expr: Expression): ResolvedType | null {
     if (!expr || typeof expr !== "object") return null;
-    const key = expr as unknown as object;
-    const cached = this.typeCache.get(key);
-    if (cached) return cached;
-    const resolved = this.typeInference.resolveExpressionTypeRich(expr);
-    if (resolved && resolved.base && resolved.sourceKind && resolved.sourceKind !== "unknown") {
-      this.typeCache.set(key, resolved);
-    }
-    return resolved;
+    return this.typeInference.resolveExpressionTypeRich(expr);
   }
 
   getThisPointer(): string | null {

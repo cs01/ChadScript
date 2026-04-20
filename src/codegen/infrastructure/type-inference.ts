@@ -79,8 +79,35 @@ export interface TypeInferenceContext {
 
 export class TypeInference {
   private st: SymbolTable;
+  // Parallel-array memoization for resolveExpressionTypeRich, keyed by AST
+  // expression reference identity. Array+linear-scan (not Map<object>) because
+  // native ChadScript's Map doesn't support object keys. Callers that repeat
+  // queries on the same AST node pay one scan per lookup; the annotator pass
+  // (upcoming) will populate once, then consumers hit cache on every query.
+  // Skipped for context-sensitive shapes (variable/member/index/call/method)
+  // whose resolution depends on symbol-table state that evolves mid-codegen.
+  private richCacheNodes: Expression[] = [];
+  private richCacheTypes: ResolvedType[] = [];
   constructor(private ctx: TypeInferenceContext) {
     this.st = ctx.getSymbolTable();
+  }
+
+  clearCaches(): void {
+    this.richCacheNodes = [];
+    this.richCacheTypes = [];
+  }
+
+  private richCacheLookup(expr: Expression): ResolvedType | null {
+    const nodes = this.richCacheNodes;
+    for (let i = 0; i < nodes.length; i++) {
+      if (nodes[i] === expr) return this.richCacheTypes[i];
+    }
+    return null;
+  }
+
+  private richCacheStore(expr: Expression, rt: ResolvedType): void {
+    this.richCacheNodes.push(expr);
+    this.richCacheTypes.push(rt);
   }
 
   private resolveSimpleLiteralType(eType: string): ResolvedType | null {
@@ -128,11 +155,45 @@ export class TypeInference {
   // etc.) never gain stray enrichment. Fields are eager in P1a; lazy-getter
   // optimization deferred to P1b — callers today only invoke this on the hot path.
   resolveExpressionTypeRich(expr: Expression): ResolvedType | null {
+    if (expr && typeof expr === "object" && this.isCacheableExprType((expr as ExprBase).type)) {
+      const cached = this.richCacheLookup(expr);
+      if (cached) return cached;
+      const baseType = this.resolveExpressionType(expr);
+      if (!baseType) return null;
+      const enriched = this.enrichResolvedType(baseType);
+      this.populateArrayStorage(enriched, expr);
+      if (enriched.base && enriched.sourceKind && enriched.sourceKind !== "unknown") {
+        this.richCacheStore(expr, enriched);
+      }
+      return enriched;
+    }
     const baseType = this.resolveExpressionType(expr);
     if (!baseType) return null;
     const enriched = this.enrichResolvedType(baseType);
     this.populateArrayStorage(enriched, expr);
     return enriched;
+  }
+
+  // Expression shapes whose rich resolution is stable across codegen phases.
+  // Excludes bare "variable" refs and anything that reads through them
+  // (member_access, index_access, call, method_call) because a symbol's type
+  // may be refined mid-codegen (e.g., variable-allocator setting the resolved
+  // type for an await result or a JSON.parse target). Caching those could
+  // freeze an early, less-specific answer.
+  private isCacheableExprType(t: string): boolean {
+    if (!t) return false;
+    if (t === "number") return true;
+    if (t === "string") return true;
+    if (t === "template_literal") return true;
+    if (t === "boolean") return true;
+    if (t === "null") return true;
+    if (t === "regex") return true;
+    if (t === "array") return true;
+    if (t === "map") return true;
+    if (t === "set") return true;
+    if (t === "new") return true;
+    if (t === "object") return true;
+    return false;
   }
 
   private enrichResolvedType(rt: ResolvedType): ResolvedType {
