@@ -14,3 +14,7 @@ PICOHTTPPARSER_COMMIT="f8326098f63eefabfa2b6ec595d90e9ed5ed958a"
 # rust-lang/regex provides the `rure` C ABI staticlib in the regex-capi crate.
 # Pin to a regex release tag so vendor builds are reproducible.
 RUST_REGEX_TAG="1.11.1"
+
+# nodejs/node built from source as a shared library (libnode) for the
+# pragma-interpret embedding path. Pin to a stable v22 LTS tag.
+NODE_TAG="v22.22.2"

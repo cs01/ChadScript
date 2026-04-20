@@ -469,38 +469,120 @@ else
   fi
 fi
 
-# --- v8-bridge (requires brew v8 on macOS, apt libv8-dev on Linux) ---
-V8_BRIDGE_SRC="$C_BRIDGES_DIR/v8-bridge.cc"
-V8_BRIDGE_OBJ="$C_BRIDGES_DIR/v8-bridge.o"
-if [ -f "$V8_BRIDGE_SRC" ]; then
-  V8_INCLUDE=""
-  if [ -d "/opt/homebrew/opt/v8/include" ]; then
-    V8_INCLUDE="/opt/homebrew/opt/v8/include"
-  elif [ -d "/usr/local/opt/v8/include" ]; then
-    V8_INCLUDE="/usr/local/opt/v8/include"
-  elif [ -d "/usr/include/v8" ]; then
-    V8_INCLUDE="/usr/include/v8"
+# --- libnode (Node.js built from source as a shared lib for pragma-interpret) ---
+# We clone nodejs/node at a pinned tag and build a shared libnode. The bridge
+# links against it to get full Node semantics (require, fs, Buffer, setTimeout,
+# async) for files using the `// @chadscript: interpret` pragma. Lean ChadScript
+# binaries never touch libnode — this is gated by the `usesNode` feature flag.
+#
+# First build is slow (30-90 min). Subsequent builds are cached via the
+# `vendor/node/.pinned-version` sentinel. Windows is intentionally unsupported
+# for now — darwin-arm64, darwin-x64, linux-x64 only.
+NODE_DIR="$VENDOR_DIR/node"
+NODE_SRC_DIR="${CHAD_NODE_SRC:-$HOME/git/node}"
+NODE_PINNED_SENTINEL="$NODE_DIR/.pinned-version"
+NODE_SKIP="${CHAD_SKIP_NODE:-0}"
+
+case "$(uname -s)" in
+  Darwin) NODE_PLATFORM="darwin" ;;
+  Linux)  NODE_PLATFORM="linux" ;;
+  *)      NODE_PLATFORM="unsupported" ;;
+esac
+
+if [ "$NODE_SKIP" = "1" ]; then
+  echo "==> libnode skipped (CHAD_SKIP_NODE=1)"
+elif [ "$NODE_PLATFORM" = "unsupported" ]; then
+  echo "==> libnode skipped (unsupported platform: $(uname -s))"
+elif [ -f "$NODE_PINNED_SENTINEL" ] && [ "$(cat "$NODE_PINNED_SENTINEL")" = "$NODE_TAG" ]; then
+  echo "==> libnode already built at $NODE_TAG, skipping"
+else
+  echo "==> Building libnode $NODE_TAG from source (this takes 30-90 minutes on first run)"
+  mkdir -p "$NODE_DIR/lib" "$NODE_DIR/include"
+  if [ ! -d "$NODE_SRC_DIR/.git" ]; then
+    echo "  -> cloning nodejs/node at $NODE_TAG (shallow) into $NODE_SRC_DIR"
+    mkdir -p "$(dirname "$NODE_SRC_DIR")"
+    rm -rf "$NODE_SRC_DIR"
+    git clone --depth 1 --branch "$NODE_TAG" https://github.com/nodejs/node.git "$NODE_SRC_DIR"
+  else
+    echo "  -> reusing node-src at $NODE_SRC_DIR"
   fi
-  if [ -n "$V8_INCLUDE" ]; then
-    if [ ! -f "$V8_BRIDGE_OBJ" ] || [ "$V8_BRIDGE_SRC" -nt "$V8_BRIDGE_OBJ" ]; then
-      echo "==> Building v8-bridge (headers at $V8_INCLUDE)..."
-      V8_CXX="c++"
-      if [ -n "${LLVM_CONFIG:-}" ]; then
-        LLVM_BINDIR=$(dirname "$LLVM_CONFIG")
-        if [ -f "$LLVM_BINDIR/clang++" ]; then
-          V8_CXX="$LLVM_BINDIR/clang++"
-        fi
-      fi
-      $V8_CXX -c -std=c++20 -O2 -fPIC \
-        -DV8_COMPRESS_POINTERS -DV8_ENABLE_SANDBOX \
-        -I"$V8_INCLUDE" "$V8_BRIDGE_SRC" -o "$V8_BRIDGE_OBJ"
-      echo "  -> $V8_BRIDGE_OBJ"
-    else
-      echo "==> v8-bridge already built, skipping"
+  (
+    cd "$NODE_SRC_DIR"
+    # Trim the bloat: no npm, no corepack, no snapshot/code-cache. Keep ICU for
+    # realistic npm-ecosystem semantics. `--shared` produces libnode.dylib/.so
+    # rather than the standalone node binary.
+    if [ ! -f config.status ]; then
+      echo "  -> configure --shared (trimmed)"
+      # `--shared` makes the build produce libnode.dylib/.so instead of a
+      # standalone node binary. We intentionally bundle OpenSSL statically
+      # (default, no --shared-openssl) to avoid a system-openssl runtime dep.
+      ./configure \
+        --shared \
+        --without-npm \
+        --without-corepack \
+        --without-node-snapshot \
+        --without-node-code-cache
+    fi
+    echo "  -> make -j$NPROC (this is the slow part)"
+    make -j"$NPROC"
+  )
+
+  # Extract the shared library + headers into vendor/node/.
+  # Node builds put the dylib under out/Release; layout differs slightly by OS.
+  if [ "$NODE_PLATFORM" = "darwin" ]; then
+    NODE_LIB_SRC=$(ls "$NODE_SRC_DIR/out/Release/libnode."*.dylib 2>/dev/null | head -n 1 || true)
+    if [ -z "$NODE_LIB_SRC" ]; then
+      NODE_LIB_SRC="$NODE_SRC_DIR/out/Release/libnode.dylib"
     fi
   else
-    echo "==> v8-bridge skipped (no v8 headers found — brew install v8)"
+    NODE_LIB_SRC=$(ls "$NODE_SRC_DIR/out/Release/libnode.so."* 2>/dev/null | head -n 1 || true)
+    if [ -z "$NODE_LIB_SRC" ]; then
+      NODE_LIB_SRC="$NODE_SRC_DIR/out/Release/libnode.so"
+    fi
   fi
+  if [ ! -f "$NODE_LIB_SRC" ]; then
+    echo "ERROR: libnode was not produced at $NODE_LIB_SRC" >&2
+    exit 1
+  fi
+  cp "$NODE_LIB_SRC" "$NODE_DIR/lib/"
+  # Headers: node embedding API + V8 + libuv. Copy each tree preserving layout.
+  rm -rf "$NODE_DIR/include"
+  mkdir -p "$NODE_DIR/include"
+  cp -R "$NODE_SRC_DIR/src/"*.h "$NODE_DIR/include/" 2>/dev/null || true
+  mkdir -p "$NODE_DIR/include/v8"
+  cp -R "$NODE_SRC_DIR/deps/v8/include/"* "$NODE_DIR/include/v8/"
+  mkdir -p "$NODE_DIR/include/uv"
+  cp -R "$NODE_SRC_DIR/deps/uv/include/"* "$NODE_DIR/include/uv/"
+
+  echo "$NODE_TAG" > "$NODE_PINNED_SENTINEL"
+  echo "  -> libnode installed at $NODE_DIR (lib/, include/)"
+fi
+
+# --- node-bridge (libnode embedder for `@chadscript: interpret` pragma) ---
+NODE_BRIDGE_SRC="$C_BRIDGES_DIR/node-bridge.cc"
+NODE_BRIDGE_OBJ="$C_BRIDGES_DIR/node-bridge.o"
+if [ -f "$NODE_BRIDGE_SRC" ] && [ -f "$NODE_DIR/lib/"*libnode* 2>/dev/null ] || \
+   { [ -f "$NODE_BRIDGE_SRC" ] && ls "$NODE_DIR/lib/" >/dev/null 2>&1 && [ -n "$(ls "$NODE_DIR/lib/" 2>/dev/null)" ]; }; then
+  if [ ! -f "$NODE_BRIDGE_OBJ" ] || [ "$NODE_BRIDGE_SRC" -nt "$NODE_BRIDGE_OBJ" ]; then
+    echo "==> Building node-bridge..."
+    NODE_CXX="c++"
+    if [ -n "${LLVM_CONFIG:-}" ]; then
+      LLVM_BINDIR=$(dirname "$LLVM_CONFIG")
+      if [ -f "$LLVM_BINDIR/clang++" ]; then
+        NODE_CXX="$LLVM_BINDIR/clang++"
+      fi
+    fi
+    $NODE_CXX -c -std=c++20 -O2 -fPIC \
+      -I"$NODE_DIR/include" \
+      -I"$NODE_DIR/include/v8" \
+      -I"$NODE_DIR/include/uv" \
+      "$NODE_BRIDGE_SRC" -o "$NODE_BRIDGE_OBJ"
+    echo "  -> $NODE_BRIDGE_OBJ"
+  else
+    echo "==> node-bridge already built, skipping"
+  fi
+else
+  echo "==> node-bridge skipped (no libnode or no source)"
 fi
 
 # --- child-process-spawn (async, requires libuv) ---
