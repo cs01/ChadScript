@@ -249,7 +249,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   private treesitterGen: TreeSitterGenerator;
   private httpHandlers: string[];
   private wsHandlers: string[];
-  public usesTimers: number = 0;
   public usesPromises: number = 0;
   public usesSqlite: number = 0;
   public usesCurl: number = 0;
@@ -1463,6 +1462,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   // self-hosted native compiler (see CLAUDE.md rule #5).
   public trampolineEmitter!: TrampolineEmitter;
   public usesTrampolines: number = 0;
+  public usesTimers: number = 0;
 
   constructor(ast: AST, typeChecker: TypeChecker | null, options: LLVMGeneratorOptions) {
     super();

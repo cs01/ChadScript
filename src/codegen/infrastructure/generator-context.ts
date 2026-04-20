@@ -826,9 +826,9 @@ export interface IGeneratorContext {
   getUsesTrampolines(): boolean;
 
   /**
-   * Whether the current compilation uses timers (setTimeout/setInterval)
+   * Whether the current compilation uses timers (setTimeout/setInterval).
+   * Kept at END of field list (CLAUDE.md rule #5) — see bottom of interface.
    */
-  usesTimers: number;
   setUsesTimers(value: boolean): void;
   getUsesTimers(): boolean;
   setUsesTreeSitter(value: boolean): void;
@@ -1032,6 +1032,11 @@ export interface IGeneratorContext {
    * (slot-table bridge for callbacks that need env recovery).
    */
   usesTrampolines: number;
+  /**
+   * Whether the current compilation uses timers (setTimeout/setInterval).
+   * MUST stay at end (CLAUDE.md rule #5).
+   */
+  usesTimers: number;
 }
 
 /**
@@ -1076,7 +1081,6 @@ export class MockGeneratorContext implements IGeneratorContext {
   public typeChecker: TypeChecker | null = null;
   public typeResolver?: TypeResolver;
   public usesPromises: number = 0;
-  public usesTimers: number = 0;
   public usesSqlite: number = 0;
   public usesCurl: number = 0;
   public usesUvHrtime: number = 0;
@@ -1095,6 +1099,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   // New fields for trampoline closures — MUST stay at end (CLAUDE.md rule #5);
   // inserting in the middle shifts GEP indices in the self-hosted compiler.
   public usesTrampolines: number = 0;
+  public usesTimers: number = 0;
 
   private stackEligibleVars: string[] = [];
   public currentVarDeclKey: string | null = null;
