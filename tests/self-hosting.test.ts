@@ -245,22 +245,26 @@ describe("Self-Hosting", { timeout: 600000 }, () => {
       }
     });
 
-    it("Stage 1 → Stage 2: Stage 1 compiles native-compiler.ts", { skip: SKIP_STAGE_2_3 }, async () => {
-      assert.ok(fsSync.existsSync(STAGE1), "Stage 1 binary must exist");
-      if (fsSync.existsSync(STAGE2)) fsSync.unlinkSync(STAGE2);
+    it(
+      "Stage 1 → Stage 2: Stage 1 compiles native-compiler.ts",
+      { skip: SKIP_STAGE_2_3 },
+      async () => {
+        assert.ok(fsSync.existsSync(STAGE1), "Stage 1 binary must exist");
+        if (fsSync.existsSync(STAGE2)) fsSync.unlinkSync(STAGE2);
 
-      await execWithRetry(`${STAGE1} build -v src/chad-native.ts -o ${STAGE2}`, {
-        timeout: 180000,
-        env: NATIVE_ENV,
-      });
+        await execWithRetry(`${STAGE1} build -v src/chad-native.ts -o ${STAGE2}`, {
+          timeout: 180000,
+          env: NATIVE_ENV,
+        });
 
-      assert.ok(fsSync.existsSync(STAGE2), `Stage 2 binary should exist at ${STAGE2}`);
-      const stats = fsSync.statSync(STAGE2);
-      assert.ok(
-        stats.size > 100000,
-        `Stage 2 binary should be substantial (got ${stats.size} bytes)`,
-      );
-    });
+        assert.ok(fsSync.existsSync(STAGE2), `Stage 2 binary should exist at ${STAGE2}`);
+        const stats = fsSync.statSync(STAGE2);
+        assert.ok(
+          stats.size > 100000,
+          `Stage 2 binary should be substantial (got ${stats.size} bytes)`,
+        );
+      },
+    );
 
     it("Stage 2 smoke test: compile and run hello.ts", { skip: SKIP_STAGE_2_3 }, async () => {
       assert.ok(fsSync.existsSync(STAGE2), "Stage 2 binary must exist");
@@ -282,22 +286,26 @@ describe("Self-Hosting", { timeout: 600000 }, () => {
       }
     });
 
-    it("Stage 2 → Stage 3: Stage 2 compiles native-compiler.ts", { skip: SKIP_STAGE_2_3 }, async () => {
-      assert.ok(fsSync.existsSync(STAGE2), "Stage 2 binary must exist");
-      if (fsSync.existsSync(STAGE3)) fsSync.unlinkSync(STAGE3);
+    it(
+      "Stage 2 → Stage 3: Stage 2 compiles native-compiler.ts",
+      { skip: SKIP_STAGE_2_3 },
+      async () => {
+        assert.ok(fsSync.existsSync(STAGE2), "Stage 2 binary must exist");
+        if (fsSync.existsSync(STAGE3)) fsSync.unlinkSync(STAGE3);
 
-      await execWithRetry(`${STAGE2} build -v src/chad-native.ts -o ${STAGE3}`, {
-        timeout: 180000,
-        env: NATIVE_ENV,
-      });
+        await execWithRetry(`${STAGE2} build -v src/chad-native.ts -o ${STAGE3}`, {
+          timeout: 180000,
+          env: NATIVE_ENV,
+        });
 
-      assert.ok(fsSync.existsSync(STAGE3), `Stage 3 binary should exist at ${STAGE3}`);
-      const stats = fsSync.statSync(STAGE3);
-      assert.ok(
-        stats.size > 100000,
-        `Stage 3 binary should be substantial (got ${stats.size} bytes)`,
-      );
-    });
+        assert.ok(fsSync.existsSync(STAGE3), `Stage 3 binary should exist at ${STAGE3}`);
+        const stats = fsSync.statSync(STAGE3);
+        assert.ok(
+          stats.size > 100000,
+          `Stage 3 binary should be substantial (got ${stats.size} bytes)`,
+        );
+      },
+    );
 
     it("Stage 3 smoke test: compile and run hello.ts", { skip: SKIP_STAGE_2_3 }, async () => {
       assert.ok(fsSync.existsSync(STAGE3), "Stage 3 binary must exist");
@@ -319,71 +327,79 @@ describe("Self-Hosting", { timeout: 600000 }, () => {
       }
     });
 
-    it("Bootstrap verification: Stage 1 and Stage 2 produce identical IR", { skip: SKIP_STAGE_2_3 }, async () => {
-      assert.ok(fsSync.existsSync(STAGE1), "Stage 1 binary must exist");
-      assert.ok(fsSync.existsSync(STAGE2), "Stage 2 binary must exist");
+    it(
+      "Bootstrap verification: Stage 1 and Stage 2 produce identical IR",
+      { skip: SKIP_STAGE_2_3 },
+      async () => {
+        assert.ok(fsSync.existsSync(STAGE1), "Stage 1 binary must exist");
+        assert.ok(fsSync.existsSync(STAGE2), "Stage 2 binary must exist");
 
-      const testFile = "tests/fixtures/strings/string-length.js";
-      const s1Out = "/tmp/bootstrap-s1";
-      const s2Out = "/tmp/bootstrap-s2";
-      const s1LL = "/tmp/bootstrap-s1.ll";
-      const s2LL = "/tmp/bootstrap-s2.ll";
+        const testFile = "tests/fixtures/strings/string-length.js";
+        const s1Out = "/tmp/bootstrap-s1";
+        const s2Out = "/tmp/bootstrap-s2";
+        const s1LL = "/tmp/bootstrap-s1.ll";
+        const s2LL = "/tmp/bootstrap-s2.ll";
 
-      try {
-        await execAsync(`${STAGE1} build ${testFile} -o ${s1Out}`, {
-          timeout: 30000,
-          env: NATIVE_ENV,
-        });
-        await execAsync(`${STAGE2} build ${testFile} -o ${s2Out}`, {
-          timeout: 30000,
-          env: NATIVE_ENV,
-        });
+        try {
+          await execAsync(`${STAGE1} build ${testFile} -o ${s1Out}`, {
+            timeout: 30000,
+            env: NATIVE_ENV,
+          });
+          await execAsync(`${STAGE2} build ${testFile} -o ${s2Out}`, {
+            timeout: 30000,
+            env: NATIVE_ENV,
+          });
 
-        const ll1 = await fs.readFile(s1LL, "utf-8");
-        const ll2 = await fs.readFile(s2LL, "utf-8");
+          const ll1 = await fs.readFile(s1LL, "utf-8");
+          const ll2 = await fs.readFile(s2LL, "utf-8");
 
-        assert.strictEqual(ll1, ll2, "Stage 1 and Stage 2 should produce identical LLVM IR");
-      } finally {
-        for (const f of [s1Out, s2Out, s1LL, s2LL]) {
-          try {
-            if (fsSync.existsSync(f)) fsSync.unlinkSync(f);
-          } catch {}
+          assert.strictEqual(ll1, ll2, "Stage 1 and Stage 2 should produce identical LLVM IR");
+        } finally {
+          for (const f of [s1Out, s2Out, s1LL, s2LL]) {
+            try {
+              if (fsSync.existsSync(f)) fsSync.unlinkSync(f);
+            } catch {}
+          }
         }
-      }
-    });
+      },
+    );
 
-    it("Bootstrap verification: Stage 2 and Stage 3 produce identical IR", { skip: SKIP_STAGE_2_3 }, async () => {
-      assert.ok(fsSync.existsSync(STAGE2), "Stage 2 binary must exist");
-      assert.ok(fsSync.existsSync(STAGE3), "Stage 3 binary must exist");
+    it(
+      "Bootstrap verification: Stage 2 and Stage 3 produce identical IR",
+      { skip: SKIP_STAGE_2_3 },
+      async () => {
+        assert.ok(fsSync.existsSync(STAGE2), "Stage 2 binary must exist");
+        assert.ok(fsSync.existsSync(STAGE3), "Stage 3 binary must exist");
 
-      const testFile = "tests/fixtures/strings/string-length.js";
-      const s2Out = "/tmp/bootstrap-s2b";
-      const s3Out = "/tmp/bootstrap-s3";
-      const s2LL = "/tmp/bootstrap-s2b.ll";
-      const s3LL = "/tmp/bootstrap-s3.ll";
+        const testFile = "tests/fixtures/strings/string-length.js";
+        const s2Out = "/tmp/bootstrap-s2b";
+        const s3Out = "/tmp/bootstrap-s3";
+        const s2LL = "/tmp/bootstrap-s2b.ll";
+        const s3LL = "/tmp/bootstrap-s3.ll";
 
-      try {
-        await execAsync(`${STAGE2} build ${testFile} -o ${s2Out}`, {
-          timeout: 30000,
-          env: NATIVE_ENV,
-        });
-        await execAsync(`${STAGE3} build ${testFile} -o ${s3Out}`, {
-          timeout: 30000,
-          env: NATIVE_ENV,
-        });
+        try {
+          await execAsync(`${STAGE2} build ${testFile} -o ${s2Out}`, {
+            timeout: 30000,
+            env: NATIVE_ENV,
+          });
+          await execAsync(`${STAGE3} build ${testFile} -o ${s3Out}`, {
+            timeout: 30000,
+            env: NATIVE_ENV,
+          });
 
-        const ll2 = await fs.readFile(s2LL, "utf-8");
-        const ll3 = await fs.readFile(s3LL, "utf-8");
+          const ll2 = await fs.readFile(s2LL, "utf-8");
+          const ll3 = await fs.readFile(s3LL, "utf-8");
 
-        assert.strictEqual(ll2, ll3, "Stage 2 and Stage 3 should produce identical LLVM IR");
-      } finally {
-        for (const f of [s2Out, s3Out, s2LL, s3LL]) {
-          try {
-            if (fsSync.existsSync(f)) fsSync.unlinkSync(f);
-          } catch {}
+          assert.strictEqual(ll2, ll3, "Stage 2 and Stage 3 should produce identical LLVM IR");
+        } finally {
+          for (const f of [s2Out, s3Out, s2LL, s3LL]) {
+            try {
+              if (fsSync.existsSync(f)) fsSync.unlinkSync(f);
+            } catch {}
+          }
         }
-      }
-    });
+      },
+    );
   });
 
   describe("Stage 1: all fixtures", { concurrency: 4 }, () => {
