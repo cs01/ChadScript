@@ -74,8 +74,13 @@ export class BaseGenerator {
   // Named variables use SymbolTable instead
   public variableTypes: Map<string, string>;
 
-  // Expression type cache - maps expressions to their resolved types
-  public expressionTypes: Map<Expression, ResolvedType>;
+  // Expression type cache — parallel arrays keyed by AST expression identity.
+  // Parallel arrays (not Map<object,V>) because native self-hosted Map lacks
+  // pointer-identity hashing (see native-map-object-key-unsupported.md).
+  // Populated once by the pre-codegen annotator pass; NOT cleared on reset()
+  // because AST lives for the whole compilation.
+  public expressionTypeNodes: Expression[];
+  public expressionTypeValues: ResolvedType[];
 
   // Actual class type tracking - when an interface-typed variable holds a class instance,
   // this maps the variable/register to its actual concrete class name for correct struct access
@@ -104,7 +109,8 @@ export class BaseGenerator {
     this.globalStrings = [];
     this.symbolTable = new SymbolTable();
     this.variableTypes = new Map();
-    this.expressionTypes = new Map();
+    this.expressionTypeNodes = [];
+    this.expressionTypeValues = [];
     this.actualClassTypes = new Map();
   }
 
@@ -128,7 +134,9 @@ export class BaseGenerator {
     this.currentFunctionReturnType = "double";
     this.symbolTable.clearLocals();
     this.variableTypes.clear();
-    this.expressionTypes.clear();
+    // expressionTypeNodes/Values are intentionally NOT cleared — they're
+    // populated once per compilation by the annotator and indexed by AST
+    // node identity, which is stable across function boundaries.
     this.actualClassTypes.clear();
     this.currentDebugLocId = -1;
   }
@@ -609,14 +617,19 @@ export class BaseGenerator {
   }
 
   /**
-   * Get cached type for an expression
+   * Get cached type for an expression (parallel-array linear scan).
    */
   getExpressionType(expr: Expression): ResolvedType | undefined {
-    return this.expressionTypes.get(expr);
+    const nodes = this.expressionTypeNodes;
+    for (let i = 0; i < nodes.length; i++) {
+      if (nodes[i] === expr) return this.expressionTypeValues[i];
+    }
+    return undefined;
   }
 
   /**
-   * Cache type for an expression
+   * Cache type for an expression. O(N) dedup scan — callers that know the
+   * expression is fresh (the annotator) should use appendExpressionType.
    */
   setExpressionType(expr: Expression, type: ResolvedType): void {
     if (type.base === "unknown") {
@@ -624,7 +637,25 @@ export class BaseGenerator {
         `Cannot cache 'unknown' type for expression of type '${expr.type}'. Type resolution failed.`,
       );
     }
-    this.expressionTypes.set(expr, type);
+    const nodes = this.expressionTypeNodes;
+    for (let i = 0; i < nodes.length; i++) {
+      if (nodes[i] === expr) {
+        this.expressionTypeValues[i] = type;
+        return;
+      }
+    }
+    this.expressionTypeNodes.push(expr);
+    this.expressionTypeValues.push(type);
+  }
+
+  /**
+   * Fast append — skips dedup. Use only when caller guarantees the
+   * expression hasn't been annotated yet (the AST annotator walks each
+   * node exactly once in post-order).
+   */
+  appendExpressionType(expr: Expression, type: ResolvedType): void {
+    this.expressionTypeNodes.push(expr);
+    this.expressionTypeValues.push(type);
   }
 
   /**
