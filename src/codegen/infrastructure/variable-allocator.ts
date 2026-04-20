@@ -706,6 +706,12 @@ export class VariableAllocator {
           );
         }
       }
+      // Seed symbol-table with declared type so later method/member access on
+      // this variable resolves via the declared interface even before any
+      // assignment. Fixes #590 — `let sock: Socket; sock = ...; sock.on(...)`.
+      if (stmt.declaredType) {
+        this.ctx.symbolTable.setResolvedType(stmt.name, parseTypeString(stmt.declaredType));
+      }
       return;
     }
 
