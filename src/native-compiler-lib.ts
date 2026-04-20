@@ -439,6 +439,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const BDWGC_PATH = isInstalled ? installedLibDir : "./vendor/bdwgc";
   const LWS_BRIDGE_PATH = isInstalled ? installedLibDir : "./c_bridges";
   const PICOHTTPPARSER_PATH = isInstalled ? installedLibDir : "./vendor/picohttpparser";
+  const RURE_LIB_PATH = isInstalled ? installedLibDir : "./vendor/rure";
   const CHADSCRIPT_PATH = ".";
 
   if (verbose) {
@@ -604,6 +605,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const effectiveGcPath = hasSDK ? sdkVendor : BDWGC_PATH;
   const effectiveBridgePath = hasSDK ? sdkBridges : LWS_BRIDGE_PATH;
   const effectivePicoPath = hasSDK ? sdkVendor : PICOHTTPPARSER_PATH;
+  const effectiveRurePath = hasSDK ? sdkVendor : RURE_LIB_PATH;
 
   const targetIsDarwin = crossCompiling
     ? targetTriple.indexOf("darwin") !== -1
@@ -679,6 +681,15 @@ export function compileNative(inputFile: string, outputFile: string): void {
   }
   if (generator.getUsesCompression() && !generator.getUsesHttpServer()) {
     linkLibs = "-lz -lzstd " + linkLibs;
+  }
+  if (generator.getUsesRegex()) {
+    // librure: static archive built from Rust's `regex` crate (rure C ABI).
+    // On macOS pulls in Security + CoreFoundation transitively (rustc
+    // default for darwin); Linux needs no extras beyond libpthread/libdl.
+    linkLibs = effectiveRurePath + "/librure.a " + linkLibs;
+    if (targetIsDarwin) {
+      linkLibs = "-framework Security -framework CoreFoundation " + linkLibs;
+    }
   }
   const lwsBridgeObj = generator.getUsesHttpServer()
     ? effectiveBridgePath +

@@ -1,4 +1,4 @@
-const COUNT = 10000;
+const COUNT = 100000;
 
 const jsonStrings = [];
 for (let i = 0; i < COUNT; i++) {

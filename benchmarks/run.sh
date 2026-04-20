@@ -189,6 +189,8 @@ assemble_json_old() {
     bench_names[binarytrees]="Binary Trees"
     bench_names[json]="JSON Parse/Stringify"
     bench_names[stringsearch]="String Search"
+    bench_names[regex_match]="Regex Match"
+    bench_names[map_lookup]="Hash Map Lookup"
 
     declare -A bench_descs
     bench_descs[startup]="Time to print 'Hello, World!' and exit. Average of ${STARTUP_RUNS} runs."
@@ -207,6 +209,8 @@ assemble_json_old() {
     bench_descs[binarytrees]="Build/check/discard binary trees of depth 18."
     bench_descs[json]="Parse 10K JSON objects, stringify back."
     bench_descs[stringsearch]="Recursive directory search for 'console.log' in src/. Small corpus (~30 files); grep/ripgrep advantages (mmap, SIMD, parallelism) shine on larger codebases."
+    bench_descs[regex_match]="100K matches of an anchored pattern with one capture group."
+    bench_descs[map_lookup]="100K-entry Map<string,number>, 1M random .get() lookups."
 
     declare -A bench_metrics
     bench_metrics[startup]="ms"
@@ -225,6 +229,8 @@ assemble_json_old() {
     bench_metrics[binarytrees]="s"
     bench_metrics[json]="s"
     bench_metrics[stringsearch]="s"
+    bench_metrics[regex_match]="s"
+    bench_metrics[map_lookup]="s"
 
     declare -A bench_lower
     bench_lower[startup]="true"
@@ -243,6 +249,8 @@ assemble_json_old() {
     bench_lower[binarytrees]="true"
     bench_lower[json]="true"
     bench_lower[stringsearch]="true"
+    bench_lower[regex_match]="true"
+    bench_lower[map_lookup]="true"
 
     for benchfile in "$JSON_DIR"/*.json; do
         [ -f "$benchfile" ] || continue
@@ -372,6 +380,12 @@ echo "  ChadScript JSON built"
 $CHAD build "$DIR/stringsearch/chadscript.ts" -o /tmp/bench-stringsearch-chad
 echo "  ChadScript String Search built"
 
+$CHAD build "$DIR/regex_match/chadscript.ts" -o /tmp/bench-regex_match-chad
+echo "  ChadScript Regex Match built"
+
+$CHAD build "$DIR/map_lookup/chadscript.ts" -o /tmp/bench-map_lookup-chad
+echo "  ChadScript Map Lookup built"
+
 clang -O2 -march=native -o /tmp/bench-startup-c "$DIR/startup/hello.c"
 echo "  C startup built"
 
@@ -411,6 +425,12 @@ echo "  C JSON built"
 clang -O2 -march=native -o /tmp/bench-stringsearch-c "$DIR/stringsearch/bench.c"
 echo "  C String Search built"
 
+clang -O2 -march=native -o /tmp/bench-regex_match-c "$DIR/regex_match/bench.c"
+echo "  C Regex Match built"
+
+clang -O2 -march=native -o /tmp/bench-map_lookup-c "$DIR/map_lookup/bench.c"
+echo "  C Map Lookup built"
+
 go build -o /tmp/bench-startup-go "$DIR/startup/hello.go"
 echo "  Go startup built"
 
@@ -447,6 +467,15 @@ echo "  Go JSON built"
 go build -o /tmp/bench-stringsearch-go "$DIR/stringsearch/stringsearch.go"
 echo "  Go String Search built"
 
+go build -o /tmp/bench-regex_match-go "$DIR/regex_match/regex_match.go"
+echo "  Go Regex Match built"
+
+go build -o /tmp/bench-map_lookup-go "$DIR/map_lookup/map_lookup.go"
+echo "  Go Map Lookup built"
+
+(cd "$DIR/sqlite" && go build -o /tmp/bench-sqlite-go ./sqlite.go)
+echo "  Go SQLite built"
+
 echo ""
 
 echo "═══════════════════════════════════════════════════"
@@ -467,6 +496,7 @@ echo ""
 
 bench_compute "sqlite" "c" "C (clang -O2 -march=native)" "Time:" /tmp/bench-sqlite-c
 bench_compute "sqlite" "chadscript" "ChadScript (native)" "Time:" /tmp/bench-sqlite-chad
+bench_compute "sqlite" "go" "Go (mattn/go-sqlite3)" "Time:" /tmp/bench-sqlite-go
 bench_compute "sqlite" "node" "Node.js $(node --version)" "Time:" node --experimental-sqlite "$DIR/sqlite/node.mjs"
 
 echo "═══════════════════════════════════════════════════"
@@ -580,6 +610,26 @@ bench_compute "stringsearch" "go" "Go" "Time:" /tmp/bench-stringsearch-go
 bench_compute "stringsearch" "node" "Node.js $(node --version)" "Time:" node "$DIR/stringsearch/node.mjs"
 bench_compute "stringsearch" "grep" "grep -r (GNU)" "Time:" bash "$DIR/stringsearch/grep.sh"
 bench_compute "stringsearch" "ripgrep" "ripgrep (rg)" "Time:" bash "$DIR/stringsearch/rg.sh"
+
+echo "═══════════════════════════════════════════════════"
+echo "  Regex Match  (100K anchored matches, one capture group)"
+echo "═══════════════════════════════════════════════════"
+echo ""
+
+bench_compute "regex_match" "c" "C (POSIX regex.h, clang -O2 -march=native)" "Time:" /tmp/bench-regex_match-c
+bench_compute "regex_match" "chadscript" "ChadScript (native)" "Time:" /tmp/bench-regex_match-chad
+bench_compute "regex_match" "go" "Go" "Time:" /tmp/bench-regex_match-go
+bench_compute "regex_match" "node" "Node.js $(node --version)" "Time:" node "$DIR/regex_match/node.mjs"
+
+echo "═══════════════════════════════════════════════════"
+echo "  Hash Map Lookup  (100K entries, 1M get calls)"
+echo "═══════════════════════════════════════════════════"
+echo ""
+
+bench_compute "map_lookup" "c" "C (clang -O2 -march=native, FNV-1a open addressing)" "Time:" /tmp/bench-map_lookup-c
+bench_compute "map_lookup" "chadscript" "ChadScript (native)" "Time:" /tmp/bench-map_lookup-chad
+bench_compute "map_lookup" "go" "Go" "Time:" /tmp/bench-map_lookup-go
+bench_compute "map_lookup" "node" "Node.js $(node --version)" "Time:" node "$DIR/map_lookup/node.mjs"
 
 assemble_json "$JSON_OUT"
 echo ""

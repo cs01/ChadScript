@@ -30,13 +30,16 @@ jobs:
             libzstd-dev zlib1g-dev libsqlite3-dev libcurl4-openssl-dev
           sudo ln -sf /usr/bin/clang-21 /usr/bin/clang
           sudo ln -sf /usr/bin/llvm-config-21 /usr/bin/llvm-config
+          # rustc/cargo for librure (rust-lang/regex C ABI) vendor build.
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
       - run: npm install
       - uses: actions/cache@v4
         with:
           path: |
             vendor/
             c_bridges/*.o
-          key: vendor-${{ runner.os }}-${{ hashFiles('scripts/build-vendor.sh', 'scripts/vendor-pins.sh', 'c_bridges/*.c', 'c_bridges/*.cpp') }}
+          key: vendor-rure1-${{ runner.os }}-${{ hashFiles('scripts/build-vendor.sh', 'scripts/vendor-pins.sh', 'c_bridges/*.c', 'c_bridges/*.cpp') }}
       - run: bash scripts/build-vendor.sh
       - run: npm run build
       - name: Build tree-sitter TSX objects

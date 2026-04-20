@@ -4,7 +4,7 @@
 #include <time.h>
 #include "yyjson.h"
 
-#define COUNT 10000
+#define COUNT 100000
 
 typedef struct {
     int id;

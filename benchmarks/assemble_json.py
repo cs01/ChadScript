@@ -51,8 +51,10 @@ META = {
     "stringops":     {"name": "String Manipulation", "desc": "Concatenate 100K strings, split, toUpperCase, join.", "metric": "s", "lower_is_better": True},
     "fileio":        {"name": "File I/O", "desc": "Write and read ~100MB to /tmp.", "metric": "s", "lower_is_better": True},
     "binarytrees":   {"name": "Binary Trees", "desc": "Build/check/discard binary trees of depth 18.", "metric": "s", "lower_is_better": True},
-    "json":          {"name": "JSON Parse/Stringify", "desc": "Parse 10K JSON objects, stringify back.", "metric": "s", "lower_is_better": True},
+    "json":          {"name": "JSON Parse/Stringify", "desc": "Parse 100K JSON objects, stringify back.", "metric": "s", "lower_is_better": True},
     "stringsearch":  {"name": "String Search", "desc": "Recursive directory search for 'console.log' in src/.", "metric": "s", "lower_is_better": True},
+    "regex_match":   {"name": "Regex Match", "desc": "100K matches of an anchored pattern with one capture group.", "metric": "s", "lower_is_better": True},
+    "map_lookup":    {"name": "Hash Map Lookup", "desc": "100K-entry Map<string,number>, 1M random .get() lookups.", "metric": "s", "lower_is_better": True},
     "cligrep":       {"name": "Recursive Grep", "desc": "cgrep vs grep — search for 'function' across 5x copies of src/.", "metric": "s", "lower_is_better": True, "category": "cli"},
     "clihex":        {"name": "Hex Dump", "desc": "chex vs xxd — hex dump a 5MB binary file.", "metric": "s", "lower_is_better": True, "category": "cli"},
 }

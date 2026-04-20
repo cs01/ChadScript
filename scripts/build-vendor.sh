@@ -145,7 +145,36 @@ else
   echo "==> multipart-bridge already built, skipping"
 fi
 
-# --- regex-bridge ---
+# --- librure (Rust regex via the `rure` C ABI) ---
+# Static archive built from rust-lang/regex's regex-capi crate. Replaces
+# the previous POSIX <regex.h> backend — ~17× faster on real workloads,
+# linear-time guarantee (no ReDoS), JS-shaped Unicode semantics by default.
+# Build dep: rustup/cargo (only required when (re)building vendor libs;
+# end users installing via the release tarball receive a prebuilt librure.a).
+RURE_DIR="$VENDOR_DIR/rure"
+if [ ! -f "$RURE_DIR/librure.a" ]; then
+  echo "==> Building librure (rust-lang/regex@${RUST_REGEX_TAG})..."
+  if ! command -v cargo >/dev/null 2>&1; then
+    echo "ERROR: cargo not found. Install via https://rustup.rs/ then re-run." >&2
+    echo "       (Only contributors building vendor libs need rustc; end" >&2
+    echo "        users installing the release tarball do not.)" >&2
+    exit 1
+  fi
+  mkdir -p "$RURE_DIR"
+  RURE_SRC="$VENDOR_DIR/rust-regex"
+  if [ ! -d "$RURE_SRC" ]; then
+    git clone --depth 1 --branch "$RUST_REGEX_TAG" \
+      https://github.com/rust-lang/regex.git "$RURE_SRC"
+  fi
+  (cd "$RURE_SRC/regex-capi" && cargo build --release)
+  cp "$RURE_SRC/target/release/librure.a" "$RURE_DIR/librure.a"
+  cp "$RURE_SRC/regex-capi/include/rure.h" "$RURE_DIR/rure.h"
+  echo "  -> $RURE_DIR/librure.a ($(wc -c < "$RURE_DIR/librure.a") bytes)"
+else
+  echo "==> librure already built, skipping"
+fi
+
+# --- regex-bridge (chad → librure shim) ---
 REGEX_BRIDGE_SRC="$C_BRIDGES_DIR/regex-bridge.c"
 REGEX_BRIDGE_OBJ="$C_BRIDGES_DIR/regex-bridge.o"
 if [ ! -f "$REGEX_BRIDGE_OBJ" ] || [ "$REGEX_BRIDGE_SRC" -nt "$REGEX_BRIDGE_OBJ" ]; then
