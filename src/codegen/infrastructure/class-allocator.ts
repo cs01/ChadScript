@@ -39,6 +39,7 @@ export interface ClassAllocatorContext {
   ): void;
   generateExpression(expr: Expression, params: string[]): string;
   resolveExpressionType(expr: Expression): ResolvedType | null;
+  typeOf(expr: Expression): ResolvedType | null;
   getVariableType(name: string): string | undefined;
   resolveImportAlias(localName: string): string;
   getAst(): AST | undefined;
@@ -89,7 +90,7 @@ export class ClassAllocator {
       const srcMeta = this.ctx.symbolTable.getClassMetadata(srcName);
       className = srcMeta ? srcMeta.className : "Unknown";
     } else if (valueBase.type === "ternary") {
-      const resolved = stmt.value ? this.ctx.resolveExpressionType(stmt.value) : null;
+      const resolved = stmt.value ? this.ctx.typeOf(stmt.value) : null;
       if (resolved && this.interfaceAlloc.isKnownClass(resolved.base)) {
         className = resolved.base;
       } else {
