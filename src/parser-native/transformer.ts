@@ -526,12 +526,7 @@ function transformExpression(node: TreeSitterNode): Expression {
       return transformBinaryExpression(node);
 
     case "unary_expression":
-      // void expressions evaluate to undefined (not a unary op in our AST)
-      const voidOpChild = getChild(node, 0);
-      if (voidOpChild && (voidOpChild as NodeBase).type === "void") {
-        return { type: "variable", name: "undefined" };
-      }
-      return transformUnaryExpression(node);
+      return transformUnaryExpressionOrVoid(node);
 
     case "update_expression":
       return transformUpdateExpression(node);
@@ -614,6 +609,18 @@ function transformExpression(node: TreeSitterNode): Expression {
     default:
       return { type: "variable", name: "undefined" };
   }
+}
+
+// Extracted to a helper so the "unary_expression" switch case in
+// transformExpression is a single-statement body — avoiding parser-native's
+// tree-sitter iteration dropping the trailing return when a bare case body has
+// [var_decl, if_no_else, return]. See #597 for diagnostic.
+function transformUnaryExpressionOrVoid(node: TreeSitterNode): Expression {
+  const voidOpChild = getChild(node, 0);
+  if (voidOpChild && (voidOpChild as NodeBase).type === "void") {
+    return { type: "variable", name: "undefined" };
+  }
+  return transformUnaryExpression(node);
 }
 
 // ============================================
