@@ -684,6 +684,49 @@ double cs_v8_call8(double fn, double recv, double a0, double a1, double a2,
     return call_fixed(fn, recv, a, 8);
 }
 
+// If the handle points to a Promise, spin the event loop until it settles
+// (fulfilled/rejected) and return a handle to the resolved value (or throw-
+// equivalent: set t_last_error and return 0). If the handle is not a Promise,
+// return it unchanged. Native `await` across the boundary flows through this.
+double cs_v8_handle_await(double handle_d) {
+    uint64_t handle = d2h(handle_d);
+    t_last_error.clear();
+    if (!is_handle(handle)) { t_last_error = "await: not JSHandle"; return 0.0; }
+    auto it = t_handles.find(handle);
+    if (it == t_handles.end()) { t_last_error = "await: released"; return 0.0; }
+    v8::Locker locker(g_isolate);
+    v8::Isolate::Scope iscope(g_isolate);
+    v8::HandleScope hs(g_isolate);
+    v8::Local<v8::Context> ctx = g_setup->context();
+    v8::Context::Scope cscope(ctx);
+    v8::Local<v8::Value> val = it->second.Get(g_isolate);
+    if (!val->IsPromise()) {
+        // Nothing to await — re-store & return same value as a fresh handle
+        // (the caller expects to own it, matching Promise path semantics).
+        return h2d(store_handle(g_isolate, val));
+    }
+    v8::Local<v8::Promise> promise = val.As<v8::Promise>();
+    // Drain microtasks + libuv until the promise is settled. Cap iterations
+    // so a never-resolving promise doesn't spin forever silently.
+    int iters = 0;
+    while (promise->State() == v8::Promise::kPending && iters < 10000) {
+        node::SpinEventLoop(g_env);
+        iters++;
+    }
+    if (promise->State() == v8::Promise::kPending) {
+        t_last_error = "await: promise pending after 10000 iterations";
+        return 0.0;
+    }
+    v8::Local<v8::Value> resolved = promise->Result();
+    if (promise->State() == v8::Promise::kRejected) {
+        v8::String::Utf8Value m(g_isolate, resolved);
+        t_last_error = "await: promise rejected";
+        if (*m) { t_last_error += ": "; t_last_error += *m; }
+        return 0.0;
+    }
+    return h2d(store_handle(g_isolate, resolved));
+}
+
 double cs_v8_handle_to_bool(double handle_d) {
     uint64_t handle = d2h(handle_d);
     t_last_error.clear();
