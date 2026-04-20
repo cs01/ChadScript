@@ -16,6 +16,8 @@ const STAGE0 = "/tmp/chad-stage0";
 const STAGE1 = "/tmp/chad-stage1";
 const STAGE2 = "/tmp/chad-stage2";
 const STAGE3 = "/tmp/chad-stage3";
+// Gates stages 2+3 for non-codegen PRs. Set by CI path filter. Stage 1 always runs.
+const SKIP_STAGE_2_3 = process.env.CHADSCRIPT_SKIP_STAGE_2_3 === "1";
 const FIXTURE_OUT_DIR = "/tmp/self-hosting-fixtures";
 
 const isMac = process.platform === "darwin";
@@ -243,7 +245,7 @@ describe("Self-Hosting", { timeout: 600000 }, () => {
       }
     });
 
-    it("Stage 1 → Stage 2: Stage 1 compiles native-compiler.ts", async () => {
+    it("Stage 1 → Stage 2: Stage 1 compiles native-compiler.ts", { skip: SKIP_STAGE_2_3 }, async () => {
       assert.ok(fsSync.existsSync(STAGE1), "Stage 1 binary must exist");
       if (fsSync.existsSync(STAGE2)) fsSync.unlinkSync(STAGE2);
 
@@ -260,7 +262,7 @@ describe("Self-Hosting", { timeout: 600000 }, () => {
       );
     });
 
-    it("Stage 2 smoke test: compile and run hello.ts", async () => {
+    it("Stage 2 smoke test: compile and run hello.ts", { skip: SKIP_STAGE_2_3 }, async () => {
       assert.ok(fsSync.existsSync(STAGE2), "Stage 2 binary must exist");
 
       const outBinary = "/tmp/hello-stage2";
@@ -280,7 +282,7 @@ describe("Self-Hosting", { timeout: 600000 }, () => {
       }
     });
 
-    it("Stage 2 → Stage 3: Stage 2 compiles native-compiler.ts", async () => {
+    it("Stage 2 → Stage 3: Stage 2 compiles native-compiler.ts", { skip: SKIP_STAGE_2_3 }, async () => {
       assert.ok(fsSync.existsSync(STAGE2), "Stage 2 binary must exist");
       if (fsSync.existsSync(STAGE3)) fsSync.unlinkSync(STAGE3);
 
@@ -297,7 +299,7 @@ describe("Self-Hosting", { timeout: 600000 }, () => {
       );
     });
 
-    it("Stage 3 smoke test: compile and run hello.ts", async () => {
+    it("Stage 3 smoke test: compile and run hello.ts", { skip: SKIP_STAGE_2_3 }, async () => {
       assert.ok(fsSync.existsSync(STAGE3), "Stage 3 binary must exist");
 
       const outBinary = "/tmp/hello-stage3";
@@ -317,7 +319,7 @@ describe("Self-Hosting", { timeout: 600000 }, () => {
       }
     });
 
-    it("Bootstrap verification: Stage 1 and Stage 2 produce identical IR", async () => {
+    it("Bootstrap verification: Stage 1 and Stage 2 produce identical IR", { skip: SKIP_STAGE_2_3 }, async () => {
       assert.ok(fsSync.existsSync(STAGE1), "Stage 1 binary must exist");
       assert.ok(fsSync.existsSync(STAGE2), "Stage 2 binary must exist");
 
@@ -350,7 +352,7 @@ describe("Self-Hosting", { timeout: 600000 }, () => {
       }
     });
 
-    it("Bootstrap verification: Stage 2 and Stage 3 produce identical IR", async () => {
+    it("Bootstrap verification: Stage 2 and Stage 3 produce identical IR", { skip: SKIP_STAGE_2_3 }, async () => {
       assert.ok(fsSync.existsSync(STAGE2), "Stage 2 binary must exist");
       assert.ok(fsSync.existsSync(STAGE3), "Stage 3 binary must exist");
 
@@ -403,7 +405,7 @@ describe("Self-Hosting", { timeout: 600000 }, () => {
     }
   });
 
-  describe("Stage 2: all fixtures", { concurrency: 4 }, () => {
+  describe("Stage 2: all fixtures", { concurrency: 4, skip: SKIP_STAGE_2_3 }, () => {
     const outDir = path.join(FIXTURE_OUT_DIR, "stage2");
 
     before(() => {
