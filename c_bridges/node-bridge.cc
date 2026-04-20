@@ -263,24 +263,36 @@ char* cs_v8_eval_script_node(const char* src, const char* filename) {
     v8::Context::Scope cscope(ctx);
     v8::TryCatch try_catch(g_isolate);
 
-    // Seed process.argv[1] and __filename/__dirname via a preamble. Node's
-    // LoadEnvironment injects a CJS wrapper; __filename is derived from the
-    // script origin but that's not settable directly here. The cheap, robust
-    // path: set globals before invoking LoadEnvironment on the user source.
-    std::string preamble;
+    // Build a preamble that:
+    //   1. Sets process.argv[1] so programs inspecting argv see the user script.
+    //   2. Replaces the builtin `require` with a CJS-style require created via
+    //      `module.createRequire(filename)`. LoadEnvironment's default
+    //      `require` is the internal builtin loader — it only resolves
+    //      `node:foo` modules, not npm packages / relative paths.
+    //   3. Sets __filename / __dirname as globals so user code can read them.
+    std::string esc;
     if (filename && *filename) {
-        // Escape backslashes + quotes for JS string literal safety.
-        std::string esc;
         for (const char* p = filename; *p; ++p) {
             if (*p == '\\' || *p == '"') esc.push_back('\\');
             esc.push_back(*p);
         }
-        preamble = "process.argv[1] = \"" + esc + "\";\n";
-        preamble += "try { global.__filename = \"" + esc + "\"; "
-                    "global.__dirname = require('path').dirname(\"" + esc + "\"); } "
-                    "catch (e) {}\n";
     }
-    std::string full_src = preamble + (src ? src : "");
+    std::string preamble;
+    std::string user_prologue;
+    if (!esc.empty()) {
+        preamble =
+            "process.argv[1] = \"" + esc + "\";\n"
+            "globalThis.__chad_cjs_require = require('module').createRequire(\"" + esc + "\");\n"
+            "globalThis.__filename = \"" + esc + "\";\n"
+            "globalThis.__dirname = require('path').dirname(\"" + esc + "\");\n";
+        // Inside the CJS wrapper LoadEnvironment injects, `require` is a
+        // parameter bound to the internal builtin loader (resolves only
+        // `node:*`). Rebind the local name to our CJS-style one so user code
+        // that calls `require("some-npm-pkg")` hits the real module resolver.
+        user_prologue =
+            "require = globalThis.__chad_cjs_require;\n";
+    }
+    std::string full_src = preamble + user_prologue + (src ? src : "");
 
     v8::MaybeLocal<v8::Value> maybe = node::LoadEnvironment(g_env, full_src.c_str());
     if (maybe.IsEmpty()) {
