@@ -199,14 +199,23 @@ static void net_write_done(uv_write_t *req, int status) {
 
 // Open a TCP connection to host:port. Blocks until the handshake succeeds
 // or fails (drives uv_run in UV_RUN_ONCE mode until a terminal event).
-// Returns an opaque NetSocket* on success, NULL on failure. After a NULL
-// return the caller gets no further use of the socket.
+// Always returns a NetSocket* — on failure the returned socket has
+// connect_failed=1 and closed=1 set, so cs_net_is_open/poll/etc behave
+// like a dead socket. Returning a valid pointer on failure (instead of
+// NULL) matters because the ChadScript FFI converts NULL char* returns
+// into empty-string pointers, which defeat `if (!s)` guards in every
+// other function in this bridge. last_error holds the uv_strerror msg.
 void *cs_net_connect(const char *host, double port) {
-    if (!host) return NULL;
-    int port_i = (int)port;
-
     NetSocket *s = (NetSocket *)GC_malloc(sizeof(NetSocket));
     memset(s, 0, sizeof(*s));
+
+    if (!host) {
+        s->connect_failed = 1;
+        s->closed = 1;
+        s->last_error = (char *)"invalid host";
+        return (void *)s;
+    }
+    int port_i = (int)port;
 
     uv_loop_t *loop = uv_default_loop();
     uv_tcp_init(loop, &s->handle);
@@ -222,9 +231,12 @@ void *cs_net_connect(const char *host, double port) {
         char *copy = (char *)GC_malloc_atomic(n + 1);
         memcpy(copy, msg, n + 1);
         s->last_error = copy;
-        uv_close((uv_handle_t *)&s->handle, NULL);
-        uv_run(loop, UV_RUN_NOWAIT);
-        return NULL;
+        s->connect_failed = 1;
+        uv_close((uv_handle_t *)&s->handle, net_close_cb);
+        while (!s->closed) {
+            if (uv_run(loop, UV_RUN_ONCE) == 0) break;
+        }
+        return (void *)s;
     }
 
     int cr = uv_tcp_connect(&s->connect_req, &s->handle,
@@ -235,9 +247,12 @@ void *cs_net_connect(const char *host, double port) {
         char *copy = (char *)GC_malloc_atomic(n + 1);
         memcpy(copy, msg, n + 1);
         s->last_error = copy;
-        uv_close((uv_handle_t *)&s->handle, NULL);
-        uv_run(loop, UV_RUN_NOWAIT);
-        return NULL;
+        s->connect_failed = 1;
+        uv_close((uv_handle_t *)&s->handle, net_close_cb);
+        while (!s->closed) {
+            if (uv_run(loop, UV_RUN_ONCE) == 0) break;
+        }
+        return (void *)s;
     }
 
     while (!s->connected && !s->connect_failed) {
@@ -248,9 +263,11 @@ void *cs_net_connect(const char *host, double port) {
         if (!s->close_requested && !s->closed) {
             s->close_requested = 1;
             uv_close((uv_handle_t *)&s->handle, net_close_cb);
-            uv_run(loop, UV_RUN_NOWAIT);
+            while (!s->closed) {
+                if (uv_run(loop, UV_RUN_ONCE) == 0) break;
+            }
         }
-        return NULL;
+        return (void *)s;
     }
     return (void *)s;
 }
