@@ -97,7 +97,7 @@ ChadScript compiles through LLVM, the same backend behind C and Rust — so it g
 
 ## It's Fast
 
-Your code goes through the same LLVM optimization passes as C and Rust — not a JIT, not an interpreter. Ties hand-written C on SQLite, JSON, and Monte Carlo. Native execution speed.
+Your code goes through the same LLVM optimization passes as C and Rust — not a JIT, not an interpreter. The optimizations a JIT does at runtime, ChadScript does at compile time — with no startup tax. Ties hand-written C on SQLite, JSON, and Monte Carlo. Native execution speed.
 
 ## It's Familiar
 

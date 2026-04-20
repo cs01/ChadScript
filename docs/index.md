@@ -42,7 +42,7 @@ features:
 
 <div class="story-section">
 <h2 class="story-heading">It ties C.</h2>
-<p class="story-body">Same LLVM optimization passes as C and Rust. No interpreter, no JIT warmup. Each row shows ChadScript's time as a fraction of Node's.</p>
+<p class="story-body">Same LLVM optimization passes as C and Rust. No interpreter, no JIT warmup. The optimizations a JIT does at runtime, ChadScript does at compile time — with no startup tax. Each row shows ChadScript's time as a fraction of Node's.</p>
 
 <div class="bench-bars">
   <div class="bench-row">
