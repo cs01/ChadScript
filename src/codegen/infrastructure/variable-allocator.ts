@@ -148,7 +148,6 @@ export interface VariableAllocatorContext {
     metadata: SymbolMetadata,
   ): void;
   generateExpression(expr: Expression, params: string[]): string;
-  resolveExpressionType(expr: Expression): ResolvedType | null;
   getObjectArrayElementType(expr: Expression): string | null;
   isJSONParseExpression(expr: Expression): boolean;
   getVariableType(name: string): string | undefined;
@@ -740,12 +739,10 @@ export class VariableAllocator {
 
     const stmtDeclaredType: string = stmt.declaredType || "";
     const strippedDeclType = stripNullable(stmtDeclaredType);
-    // Prefer the annotator-populated cache via typeOf when available; fall
-    // through to the resolver for expressions the annotator skipped.
-    let resolved = this.ctx.typeOf(stmtValue);
-    if (resolved === null) {
-      resolved = this.ctx.resolveExpressionType(stmtValue);
-    }
+    // typeOf hits the annotator-populated cache first, then falls through to
+    // the Rich resolver for expressions the annotator skipped — no extra
+    // fallback needed, since Rich wraps the base resolver internally.
+    const resolved = this.ctx.typeOf(stmtValue);
     const nodeType = (stmtValue as ExprBase).type;
 
     let isString: boolean;
