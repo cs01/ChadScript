@@ -188,11 +188,13 @@ export class TypeInference {
     if (t === "boolean") return true;
     if (t === "null") return true;
     if (t === "regex") return true;
-    if (t === "array") return true;
-    if (t === "map") return true;
-    if (t === "set") return true;
-    if (t === "new") return true;
-    if (t === "object") return true;
+    // Only truly-static expression types are cacheable. Anything that
+    // recurses into variable / symbol-table lookups depends on state that's
+    // built mid-codegen — the pre-codegen annotator pass would cache stale
+    // wrong answers. Diagnosed: 342 array + 29 conditional + 26 binary
+    // cases where cached rich returned number[] for string[] / object[]
+    // declarations (VA_DIAG trail in memory). Force live re-resolution
+    // for all other shapes by returning false.
     return false;
   }
 
