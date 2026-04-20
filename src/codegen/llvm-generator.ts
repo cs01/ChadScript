@@ -4243,10 +4243,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return this.typeInference.isArrayExpression(expr);
   }
 
-  public resolveExpressionType(expr: Expression): ResolvedType | null {
-    return this.typeInference.resolveExpressionType(expr);
-  }
-
   public resolveExpressionTypeRich(expr: Expression): ResolvedType | null {
     return this.typeInference.resolveExpressionTypeRich(expr);
   }
