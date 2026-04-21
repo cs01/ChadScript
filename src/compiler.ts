@@ -573,6 +573,7 @@ export function compile(
   const curlBridgeObj = generator.usesCurl ? `${bridgePath}/curl-bridge.o` : "";
   const pgBridgeObj = usesPostgres ? `${bridgePath}/pg-bridge.o` : "";
   const netBridgeObj = usesNet ? `${bridgePath}/net-bridge.o` : "";
+  const scramBridgeObj = usesNet ? `${bridgePath}/scram-bridge.o` : "";
   const compressBridgeObj = generator.usesCompression ? `${bridgePath}/compress-bridge.o` : "";
   const yamlBridgeObj = generator.usesYaml ? `${bridgePath}/yaml-bridge.o` : "";
   let extraObjs = "";
@@ -750,7 +751,7 @@ export function compile(
   const userObjs = extraLinkObjs.length > 0 ? " " + extraLinkObjs.join(" ") : "";
   const userPaths = extraLinkPaths.map((p) => ` -L${p}`).join("");
   const userLibs = extraLinkLibs.map((l) => ` -l${l}`).join("");
-  const linkCmd = `${linker} ${objFile} ${lwsBridgeObj} ${regexBridgeObj} ${cpBridgeObj} ${osBridgeObj} ${strlenCacheObj} ${timeBridgeObj} ${base64BridgeObj} ${urlBridgeObj} ${uriBridgeObj} ${dotenvBridgeObj} ${watchBridgeObj} ${arenaBridgeObj} ${trampBridgeObj} ${cpSpawnObj} ${curlBridgeObj} ${pgBridgeObj} ${netBridgeObj} ${compressBridgeObj} ${yamlBridgeObj} ${stringOpsBridgeObj}${extraObjs}${userObjs} -o ${outputFile}${noPie}${debugFlag}${stripFlag}${staticFlag}${crossTarget}${crossLinker}${suppressLdWarnings}${sanitizeFlags} ${linkLibs}${userPaths}${userLibs}`;
+  const linkCmd = `${linker} ${objFile} ${lwsBridgeObj} ${regexBridgeObj} ${cpBridgeObj} ${osBridgeObj} ${strlenCacheObj} ${timeBridgeObj} ${base64BridgeObj} ${urlBridgeObj} ${uriBridgeObj} ${dotenvBridgeObj} ${watchBridgeObj} ${arenaBridgeObj} ${trampBridgeObj} ${cpSpawnObj} ${curlBridgeObj} ${pgBridgeObj} ${netBridgeObj} ${scramBridgeObj} ${compressBridgeObj} ${yamlBridgeObj} ${stringOpsBridgeObj}${extraObjs}${userObjs} -o ${outputFile}${noPie}${debugFlag}${stripFlag}${staticFlag}${crossTarget}${crossLinker}${suppressLdWarnings}${sanitizeFlags} ${linkLibs}${userPaths}${userLibs}`;
   logger.info(` ${linkCmd}`);
   const linkStdio = logger.getLevel() >= LogLevel_Verbose ? "inherit" : "pipe";
   execSync(linkCmd, { stdio: linkStdio });

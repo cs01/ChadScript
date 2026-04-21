@@ -626,6 +626,23 @@ else
   echo "==> net-bridge already built, skipping"
 fi
 
+# --- scram-bridge (SCRAM-SHA-256 helpers for pg driver) ---
+SCRAM_BRIDGE_SRC="$C_BRIDGES_DIR/scram-bridge.c"
+SCRAM_BRIDGE_OBJ="$C_BRIDGES_DIR/scram-bridge.o"
+if [ ! -f "$SCRAM_BRIDGE_OBJ" ] || [ "$SCRAM_BRIDGE_SRC" -nt "$SCRAM_BRIDGE_OBJ" ]; then
+  echo "==> Building scram-bridge..."
+  OSSL_INC=""
+  if [ -d "/opt/homebrew/opt/openssl/include" ]; then
+    OSSL_INC="-I/opt/homebrew/opt/openssl/include"
+  elif [ -d "/usr/local/opt/openssl/include" ]; then
+    OSSL_INC="-I/usr/local/opt/openssl/include"
+  fi
+  cc -c -O2 -fPIC $OSSL_INC "$SCRAM_BRIDGE_SRC" -o "$SCRAM_BRIDGE_OBJ"
+  echo "  -> $SCRAM_BRIDGE_OBJ"
+else
+  echo "==> scram-bridge already built, skipping"
+fi
+
 # --- trampoline-bridge (C-ABI closure slot table) ---
 TRAMP_SRC="$C_BRIDGES_DIR/trampoline-bridge.c"
 TRAMP_OBJ="$C_BRIDGES_DIR/trampoline-bridge.o"
