@@ -571,6 +571,66 @@ char* cs_llvm_build_mul(const char* lhs_name, const char* rhs_name) {
     return strdup(name);
 }
 
+char* cs_llvm_build_and(const char* lhs_name, const char* rhs_name) {
+    LLVMValueRef lhs = lookup_value(lhs_name);
+    LLVMValueRef rhs = lookup_value(rhs_name);
+    if (!lhs || !rhs) return strdup("");
+    char* name = next_temp();
+    LLVMValueRef result = LLVMBuildAnd(b_builder, lhs, rhs, name + 1);
+    register_value(name, result);
+    return strdup(name);
+}
+
+char* cs_llvm_build_or(const char* lhs_name, const char* rhs_name) {
+    LLVMValueRef lhs = lookup_value(lhs_name);
+    LLVMValueRef rhs = lookup_value(rhs_name);
+    if (!lhs || !rhs) return strdup("");
+    char* name = next_temp();
+    LLVMValueRef result = LLVMBuildOr(b_builder, lhs, rhs, name + 1);
+    register_value(name, result);
+    return strdup(name);
+}
+
+char* cs_llvm_build_xor(const char* lhs_name, const char* rhs_name) {
+    LLVMValueRef lhs = lookup_value(lhs_name);
+    LLVMValueRef rhs = lookup_value(rhs_name);
+    if (!lhs || !rhs) return strdup("");
+    char* name = next_temp();
+    LLVMValueRef result = LLVMBuildXor(b_builder, lhs, rhs, name + 1);
+    register_value(name, result);
+    return strdup(name);
+}
+
+char* cs_llvm_build_shl(const char* lhs_name, const char* rhs_name) {
+    LLVMValueRef lhs = lookup_value(lhs_name);
+    LLVMValueRef rhs = lookup_value(rhs_name);
+    if (!lhs || !rhs) return strdup("");
+    char* name = next_temp();
+    LLVMValueRef result = LLVMBuildShl(b_builder, lhs, rhs, name + 1);
+    register_value(name, result);
+    return strdup(name);
+}
+
+char* cs_llvm_build_ashr(const char* lhs_name, const char* rhs_name) {
+    LLVMValueRef lhs = lookup_value(lhs_name);
+    LLVMValueRef rhs = lookup_value(rhs_name);
+    if (!lhs || !rhs) return strdup("");
+    char* name = next_temp();
+    LLVMValueRef result = LLVMBuildAShr(b_builder, lhs, rhs, name + 1);
+    register_value(name, result);
+    return strdup(name);
+}
+
+char* cs_llvm_build_lshr(const char* lhs_name, const char* rhs_name) {
+    LLVMValueRef lhs = lookup_value(lhs_name);
+    LLVMValueRef rhs = lookup_value(rhs_name);
+    if (!lhs || !rhs) return strdup("");
+    char* name = next_temp();
+    LLVMValueRef result = LLVMBuildLShr(b_builder, lhs, rhs, name + 1);
+    register_value(name, result);
+    return strdup(name);
+}
+
 char* cs_llvm_build_fadd(const char* lhs_name, const char* rhs_name) {
     LLVMValueRef lhs = lookup_value(lhs_name);
     LLVMValueRef rhs = lookup_value(rhs_name);
