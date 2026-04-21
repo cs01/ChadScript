@@ -48,6 +48,13 @@ std::string g_init_error;
 
 thread_local std::string t_last_error;
 
+// Captures the last unhandled promise rejection seen in this thread's
+// Node environment. Set by the v8 PromiseRejectCallback, consumed and
+// cleared by run_script / eval_script_node once SpinEventLoop returns.
+// Separate from t_last_error so a caller that already set an error for
+// a synchronous throw is not overwritten.
+thread_local std::string t_last_unhandled_rejection;
+
 // ---- JSHandle table (same layout as v8-bridge) ----
 
 constexpr uint64_t JS_HANDLE_TAG = 0x100000000ULL;
@@ -121,6 +128,26 @@ bool cs_node_lazy_init() {
     g_isolate = g_setup->isolate();
     g_env = g_setup->env();
 
+    // Wire unhandled-promise-rejection hook. V8 fires this for both
+    // `kPromiseRejectWithNoHandler` (no .catch ever attached by the end of
+    // the microtask queue flush) and `kPromiseHandlerAddedAfterReject`
+    // (a late handler — not actually unhandled). We only record the former
+    // so a later .catch() doesn't look like a failure.
+    g_isolate->SetPromiseRejectCallback(
+        [](v8::PromiseRejectMessage msg) {
+            if (msg.GetEvent() != v8::kPromiseRejectWithNoHandler) return;
+            v8::Isolate* iso = v8::Isolate::GetCurrent();
+            if (!iso) return;
+            v8::HandleScope hs(iso);
+            v8::Local<v8::Value> val = msg.GetValue();
+            std::string s = "unhandled promise rejection";
+            if (!val.IsEmpty()) {
+                v8::String::Utf8Value u(iso, val);
+                if (*u) { s += ": "; s += *u; }
+            }
+            t_last_unhandled_rejection = s;
+        });
+
     // NOTE: We do NOT call LoadEnvironment here. LoadEnvironment can only be
     // called once per Environment; the pragma path calls it later with the
     // real user source. The non-pragma JSHandle API uses v8::Script::Run
@@ -144,6 +171,8 @@ bool run_script(const char* src, v8::Local<v8::Value>* out_result) {
     v8::Local<v8::Context> ctx = g_setup->context();
     v8::Context::Scope cscope(ctx);
     v8::TryCatch try_catch(g_isolate);
+    // Fresh per-call — stale rejection from an earlier eval must not leak.
+    t_last_unhandled_rejection.clear();
 
     v8::Local<v8::String> source;
     if (!v8::String::NewFromUtf8(g_isolate, src ? src : "",
@@ -171,6 +200,16 @@ bool run_script(const char* src, v8::Local<v8::Value>* out_result) {
     // Drain microtasks + libuv. SpinEventLoop runs until there are no more
     // refs or the loop is stopped — that's what makes setTimeout work.
     node::SpinEventLoop(g_env);
+
+    // Surface any unhandled promise rejection captured during this run.
+    // Without this the rejection is swallowed and the caller thinks the
+    // script succeeded. We report it as a run failure so cs_v8_last_error
+    // reads it like any other thrown exception.
+    if (!t_last_unhandled_rejection.empty()) {
+        t_last_error = t_last_unhandled_rejection;
+        t_last_unhandled_rejection.clear();
+        return false;
+    }
 
     *out_result = result;
     return true;
@@ -255,6 +294,7 @@ char* cs_v8_eval_string(const char* src) {
 char* cs_v8_eval_script_node(const char* src, const char* filename) {
     if (!cs_node_lazy_init()) return nullptr;
     t_last_error.clear();
+    t_last_unhandled_rejection.clear();
 
     v8::Locker locker(g_isolate);
     v8::Isolate::Scope iscope(g_isolate);
@@ -309,6 +349,15 @@ char* cs_v8_eval_script_node(const char* src, const char* filename) {
     // Drain microtasks + libuv until the loop is empty (or all handles unref'd).
     // This is what lets setTimeout, fs.promises, async fetch actually finish.
     node::SpinEventLoop(g_env);
+
+    // Surface any unhandled promise rejection captured while the loop ran.
+    // Without this, pragma scripts whose top-level flow is a Promise chain
+    // with no .catch() would exit silently with undefined behavior.
+    if (!t_last_unhandled_rejection.empty()) {
+        t_last_error = t_last_unhandled_rejection;
+        t_last_unhandled_rejection.clear();
+        return nullptr;
+    }
 
     v8::Local<v8::Value> result = maybe.ToLocalChecked();
     if (result->IsUndefined() || result->IsNull()) return strdup("");
