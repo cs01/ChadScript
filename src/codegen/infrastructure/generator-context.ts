@@ -258,6 +258,8 @@ export interface IArrowFunctionGenerator {
     typeHints: { paramTypes?: string[]; returnType?: string } | undefined,
     scopeVarNames: string[] | undefined,
     scopeVarTypes: string[] | undefined,
+    scopeVarInterfaceTypes?: string[],
+    scopeVarConcreteClasses?: string[],
   ): string;
   getClosureInfoForLambda(
     lambdaName: string,

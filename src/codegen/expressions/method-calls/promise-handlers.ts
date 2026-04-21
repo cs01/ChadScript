@@ -169,7 +169,12 @@ export function handlePromiseThen(
 
   const promiseCallbackTypes = { paramTypes: ["string", "any"], returnType: "void" };
   const scopeVarsResult = ctx.symbolTable.getScopeVarsArraysForClosure();
-  const scopeVarsTyped = scopeVarsResult as { names: string[]; types: string[] };
+  const scopeVarsTyped = scopeVarsResult as {
+    names: string[];
+    types: string[];
+    interfaceTypes: string[];
+    concreteClasses: string[];
+  };
 
   if (isCatch) {
     if (expr.args.length > 0) {
@@ -182,6 +187,8 @@ export function handlePromiseThen(
           promiseCallbackTypes,
           scopeVarsTyped.names,
           scopeVarsTyped.types,
+          scopeVarsTyped.interfaceTypes,
+          scopeVarsTyped.concreteClasses,
         );
         onRejected = `@${ctx.mangleUserName(callbackName)}`;
       } else if (callbackBase.type === "variable") {
@@ -199,6 +206,8 @@ export function handlePromiseThen(
           promiseCallbackTypes,
           scopeVarsTyped.names,
           scopeVarsTyped.types,
+          scopeVarsTyped.interfaceTypes,
+          scopeVarsTyped.concreteClasses,
         );
         onFulfilled = `@${ctx.mangleUserName(callbackName)}`;
       } else if (callbackBase.type === "variable") {
@@ -215,6 +224,8 @@ export function handlePromiseThen(
           promiseCallbackTypes,
           scopeVarsTyped.names,
           scopeVarsTyped.types,
+          scopeVarsTyped.interfaceTypes,
+          scopeVarsTyped.concreteClasses,
         );
         onRejected = `@${ctx.mangleUserName(callbackName)}`;
       } else if (callbackBase.type === "variable") {
@@ -257,7 +268,12 @@ export function handlePromiseFinally(
   // finally callbacks take no meaningful args but need void(i8*,i8*)* signature
   const finallyCallbackTypes = { paramTypes: ["string", "string"], returnType: "void" };
   const scopeVarsResult = ctx.symbolTable.getScopeVarsArraysForClosure();
-  const scopeVarsTyped = scopeVarsResult as { names: string[]; types: string[] };
+  const scopeVarsTyped = scopeVarsResult as {
+    names: string[];
+    types: string[];
+    interfaceTypes: string[];
+    concreteClasses: string[];
+  };
 
   if (expr.args.length > 0) {
     const callback = expr.args[0] as Expression;
@@ -269,6 +285,8 @@ export function handlePromiseFinally(
         finallyCallbackTypes,
         scopeVarsTyped.names,
         scopeVarsTyped.types,
+        scopeVarsTyped.interfaceTypes,
+        scopeVarsTyped.concreteClasses,
       );
       userCallback = `@${ctx.mangleUserName(callbackName)}`;
     } else if (callbackBase.type === "variable") {

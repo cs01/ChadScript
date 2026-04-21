@@ -701,8 +701,24 @@ export class FunctionGenerator {
         this.ctx.emit(`store ${capture.llvmType} ${valueReg}, ${capture.llvmType}* ${allocaReg}`);
 
         const kind = this.llvmTypeToSymbolKind(capture.llvmType);
-        this.ctx.defineVariable(capture.name, allocaReg, capture.llvmType, kind, "local");
-        const captureTyped = capture as { name: string; llvmType: string; interfaceType?: string };
+        const captureTyped = capture as {
+          name: string;
+          llvmType: string;
+          interfaceType?: string;
+          concreteClass?: string;
+        };
+        if (captureTyped.concreteClass) {
+          this.ctx.defineVariableWithMetadata(
+            capture.name,
+            allocaReg,
+            capture.llvmType,
+            kind,
+            "local",
+            createClassMetadata({ className: captureTyped.concreteClass }),
+          );
+        } else {
+          this.ctx.defineVariable(capture.name, allocaReg, capture.llvmType, kind, "local");
+        }
         if (captureTyped.interfaceType && capture.llvmType === "%ObjectArray*") {
           this.ctx.setRawInterfaceType(capture.name, captureTyped.interfaceType);
         }

@@ -1522,10 +1522,16 @@ export class SymbolTable {
     return scopeVars;
   }
 
-  getScopeVarsArraysForClosure(): { names: string[]; types: string[]; interfaceTypes: string[] } {
+  getScopeVarsArraysForClosure(): {
+    names: string[];
+    types: string[];
+    interfaceTypes: string[];
+    concreteClasses: string[];
+  } {
     const names: string[] = [];
     const types: string[] = [];
     const interfaceTypes: string[] = [];
+    const concreteClasses: string[] = [];
     for (let i = 0; i < this.symbolKeys.length; i++) {
       const name = this.symbolKeys[i];
       if (!name) {
@@ -1536,9 +1542,18 @@ export class SymbolTable {
         names.push(name);
         types.push(symbol.llvmType);
         interfaceTypes.push(this.interfaceTypes.get(name) || "");
+        let cc = "";
+        if (symbol.concreteClass) cc = symbol.concreteClass;
+        else if (symbol.classMetadata) cc = symbol.classMetadata.className;
+        concreteClasses.push(cc);
       }
     }
-    return { names: names, types: types, interfaceTypes: interfaceTypes };
+    return {
+      names: names,
+      types: types,
+      interfaceTypes: interfaceTypes,
+      concreteClasses: concreteClasses,
+    };
   }
 
   /**

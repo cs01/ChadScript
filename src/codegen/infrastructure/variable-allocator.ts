@@ -107,6 +107,8 @@ interface ArrowFunctionGeneratorLike {
     returnType?: string | { paramTypes?: string[]; returnType?: string },
     scopeVarNames?: string[],
     scopeVarTypes?: string[],
+    scopeVarInterfaceTypes?: string[],
+    scopeVarConcreteClasses?: string[],
   ): string;
   getClosureInfoForLambda(lambdaName: string): ClosureInfoResult | null;
   getLiftedFunctionByName(name: string): { returnType?: string } | undefined;
@@ -1971,13 +1973,20 @@ export class VariableAllocator {
   private allocateArrowFunction(stmt: VariableDeclaration, params: string[]): void {
     if (!stmt.value) return;
     const scopeVarsResult = this.ctx.symbolTable.getScopeVarsArraysForClosure();
-    const scopeVarsTyped = scopeVarsResult as { names: string[]; types: string[] };
+    const scopeVarsTyped = scopeVarsResult as {
+      names: string[];
+      types: string[];
+      interfaceTypes: string[];
+      concreteClasses: string[];
+    };
     const lambdaName = this.ctx.arrowFunctionGen.generateArrowFunction(
       stmt.value,
       params,
       undefined,
       scopeVarsTyped.names,
       scopeVarsTyped.types,
+      scopeVarsTyped.interfaceTypes,
+      scopeVarsTyped.concreteClasses,
     );
 
     const closureInfoResult = this.ctx.arrowFunctionGen.getClosureInfoForLambda(lambdaName);
