@@ -223,7 +223,9 @@ export class ChildProcessGenerator {
     if (argBase.type === "variable") {
       const fnName = this.ctx.mangleUserName((arg as VariableNode).name);
       const bc = this.ctx.nextTemp();
-      this.ctx.emit(`${bc} = bitcast ${bareFnLlvm} @${fnName} to i8*`);
+      this.ctx.emit(
+        `${bc} = bitcast ${this.ctx.emitOperand(this.ctx.emitSymbol(fnName, "@"), bareFnLlvm)} to i8*`,
+      );
       return { fnPtrI8: bc, handle: "-1" };
     }
 
@@ -264,7 +266,9 @@ export class ChildProcessGenerator {
     // `void(payload)` signature and the bridge invokes it directly.
     if (!envPtrRaw) {
       const bc = this.ctx.nextTemp();
-      this.ctx.emit(`${bc} = bitcast ${bareFnLlvm} @${this.ctx.mangleUserName(lambdaName)} to i8*`);
+      this.ctx.emit(
+        `${bc} = bitcast ${this.ctx.emitOperand(this.ctx.emitSymbol(this.ctx.mangleUserName(lambdaName), "@"), bareFnLlvm)} to i8*`,
+      );
       return { fnPtrI8: bc, handle: "-1" };
     }
 
@@ -294,7 +298,7 @@ export class ChildProcessGenerator {
     // Bitcast the lifted lambda's fn ptr to i8* before storing.
     const fnI8 = this.ctx.nextTemp();
     this.ctx.emit(
-      `${fnI8} = bitcast ${liftedFnLlvm} @${this.ctx.mangleUserName(lambdaName)} to i8*`,
+      `${fnI8} = bitcast ${this.ctx.emitOperand(this.ctx.emitSymbol(this.ctx.mangleUserName(lambdaName), "@"), liftedFnLlvm)} to i8*`,
     );
     this.ctx.emit(`store i8* ${fnI8}, i8** ${fpTyped}`);
 
