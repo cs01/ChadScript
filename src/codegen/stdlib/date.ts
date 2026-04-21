@@ -26,8 +26,7 @@ export class DateGenerator {
     // Load ms from %Date struct field 0
     const msPtr = this.ctx.nextTemp();
     this.ctx.emit(`${msPtr} = getelementptr inbounds %Date, %Date* ${datePtr}, i32 0, i32 0`);
-    const msVal = this.ctx.nextTemp();
-    this.ctx.emit(`${msVal} = load double, double* ${msPtr}`);
+    const msVal = this.ctx.emitLoad("double", msPtr);
 
     if (method === "getTime") {
       return msVal;
@@ -35,25 +34,30 @@ export class DateGenerator {
 
     // Convert ms → seconds as i64 for localtime_r / gmtime_r
     const secDbl = this.ctx.nextTemp();
-    this.ctx.emit(`${secDbl} = fdiv nsz arcp contract reassoc afn double ${msVal}, 1.000000e+03`);
+    this.ctx.emit(
+      `${secDbl} = fdiv nsz arcp contract reassoc afn ${this.ctx.emitOperand(msVal, "double")}, 1.000000e+03`,
+    );
     const secI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${secI64} = fptosi double ${secDbl} to i64`);
+    this.ctx.emit(`${secI64} = fptosi ${this.ctx.emitOperand(secDbl, "double")} to i64`);
 
     const timePtr = this.ctx.nextTemp();
     this.ctx.emit(`${timePtr} = alloca i64`);
-    this.ctx.emit(`store i64 ${secI64}, i64* ${timePtr}`);
+    this.ctx.emitStore("i64", secI64, timePtr);
     const tmAlloca = this.ctx.nextTemp();
     this.ctx.emit(`${tmAlloca} = alloca %struct.tm`);
 
     if (method === "toISOString") {
-      this.ctx.emitCall("%struct.tm*", "@gmtime_r", `i64* ${timePtr}, %struct.tm* ${tmAlloca}`);
-      const buf = this.ctx.nextTemp();
-      this.ctx.emit(`${buf} = call i8* @cs_arena_alloc(i64 32)`);
+      this.ctx.emitCall(
+        "%struct.tm*",
+        this.ctx.emitSymbol("gmtime_r", "@"),
+        `${this.ctx.emitOperand(timePtr, "i64*")}, ${this.ctx.emitOperand(tmAlloca, "%struct.tm*")}`,
+      );
+      const buf = this.ctx.emitCall("i8*", this.ctx.emitSymbol("cs_arena_alloc", "@"), "i64 32");
       const fmt = this.ctx.stringGen.doCreateStringConstant("%Y-%m-%dT%H:%M:%SZ");
       this.ctx.emitCall(
         "i64",
-        "@strftime",
-        `i8* ${buf}, i64 32, i8* ${fmt}, %struct.tm* ${tmAlloca}`,
+        this.ctx.emitSymbol("strftime", "@"),
+        `${this.ctx.emitOperand(buf, "i8*")}, i64 32, ${this.ctx.emitOperand(fmt, "i8*")}, ${this.ctx.emitOperand(tmAlloca, "%struct.tm*")}`,
       );
       this.ctx.setVariableType(buf, "i8*");
       return buf;
@@ -61,7 +65,11 @@ export class DateGenerator {
 
     // struct tm fields: 0=sec, 1=min, 2=hour, 3=mday, 4=mon, 5=year
     // getFullYear needs +1900; getMonth is already 0-indexed (matches JS)
-    this.ctx.emitCall("%struct.tm*", "@localtime_r", `i64* ${timePtr}, %struct.tm* ${tmAlloca}`);
+    this.ctx.emitCall(
+      "%struct.tm*",
+      this.ctx.emitSymbol("localtime_r", "@"),
+      `${this.ctx.emitOperand(timePtr, "i64*")}, ${this.ctx.emitOperand(tmAlloca, "%struct.tm*")}`,
+    );
 
     const fieldMap: Record<string, number> = {
       getSeconds: 0,
@@ -81,15 +89,16 @@ export class DateGenerator {
     this.ctx.emit(
       `${fieldPtr} = getelementptr inbounds %struct.tm, %struct.tm* ${tmAlloca}, i32 0, i32 ${fieldIndex}`,
     );
-    const fieldI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${fieldI32} = load i32, i32* ${fieldPtr}`);
+    const fieldI32 = this.ctx.emitLoad("i32", fieldPtr);
     const fieldDbl = this.ctx.nextTemp();
-    this.ctx.emit(`${fieldDbl} = sitofp i32 ${fieldI32} to double`);
+    this.ctx.emit(`${fieldDbl} = sitofp ${this.ctx.emitOperand(fieldI32, "i32")} to double`);
     this.ctx.setVariableType(fieldDbl, "double");
 
     if (method === "getFullYear") {
       const result = this.ctx.nextTemp();
-      this.ctx.emit(`${result} = fadd nsz arcp contract reassoc afn double ${fieldDbl}, 1900.0`);
+      this.ctx.emit(
+        `${result} = fadd nsz arcp contract reassoc afn ${this.ctx.emitOperand(fieldDbl, "double")}, 1900.0`,
+      );
       this.ctx.setVariableType(result, "double");
       return result;
     }
