@@ -4,15 +4,15 @@ SELECT-1 throughput loop, single connection, 10000 iterations, median of 3 runs.
 
 ## Variants
 
-| Variant                               | Command                                         | Notes                       |
-| ------------------------------------- | ----------------------------------------------- | --------------------------- |
-| ChadScript (pure-TS, compiled native) | `chad build bench-chad.ts -o /tmp/b && /tmp/b`  | Simple protocol, text-mode. |
-| pg on Node                            | `node bench-node-pg.mjs`                        | `pg@^8`.                    |
-| postgres.js on Node                   | `node bench-postgres-js.mjs`                    | `postgres@^3`.              |
-| postgres.js on Bun                    | `bun bench-postgres-js.mjs`                     | Same script, Bun runtime.   |
+| Variant                               | Command                                         | Notes                             |
+| ------------------------------------- | ----------------------------------------------- | --------------------------------- |
+| ChadScript (pure-TS, compiled native) | `chad build bench-chad.ts -o /tmp/b && /tmp/b`  | Simple protocol, text-mode.       |
+| pg on Node                            | `node bench-node-pg.mjs`                        | `pg@^8`.                          |
+| postgres.js on Node                   | `node bench-postgres-js.mjs`                    | `postgres@^3`.                    |
+| postgres.js on Bun                    | `bun bench-postgres-js.mjs`                     | Same script, Bun runtime.         |
 | Bun.SQL (native)                      | `bun bench-bun-native.mjs`                      | Bun's first-party C++ pg binding. |
-| C (libpq)                             | `cc bench-c.c ... -lpq -O2 -o /tmp/b && /tmp/b` | Reference ceiling.          |
-| Go (pgx)                              | `cd bench-go && go build -o /tmp/b && /tmp/b`   | `pgx/v5`.                   |
+| C (libpq)                             | `cc bench-c.c ... -lpq -O2 -o /tmp/b && /tmp/b` | Reference ceiling.                |
+| Go (pgx)                              | `cd bench-go && go build -o /tmp/b && /tmp/b`   | `pgx/v5`.                         |
 
 `run-all.sh` drives all of them and prints a summary. Defaults to `PGUSER=csmith PGDATABASE=postgres` — override via env for your pg instance.
 
