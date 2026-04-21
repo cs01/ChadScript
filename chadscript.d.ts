@@ -482,6 +482,34 @@ declare module "chadscript/tls" {
   export function connect(opts: TlsConnectOpts): Socket;
 }
 
+declare module "chadscript/pg" {
+  // Pure-ChadScript Postgres client. Talks wire-protocol v3 directly via
+  // chadscript/net — no libpq, no C deps. Phase 2: trust auth + simple
+  // 'Q' protocol + text-mode rows. md5 / SCRAM auth, extended protocol,
+  // binary codecs and Pool arrive in follow-ups.
+  export interface ClientOpts {
+    host: string;
+    port: number;
+    user: string;
+    database: string;
+  }
+
+  export interface QueryResult {
+    fields: string[];
+    rows: string[][];
+    rowCount: number;
+    command: string;
+  }
+
+  export class Client {
+    constructor(opts: ClientOpts);
+    connect(): boolean;
+    query(sql: string): QueryResult;
+    end(): void;
+    lastError(): string;
+  }
+}
+
 declare module "chadscript/http" {
   export function getHeader(headersRaw: string, name: string): string;
   export function parseQueryString(qs: string): Map<string, string>;
