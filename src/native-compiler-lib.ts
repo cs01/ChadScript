@@ -668,13 +668,23 @@ export function compileNative(inputFile: string, outputFile: string): void {
   }
   let usesPostgres: boolean = false;
   let usesNet: boolean = false;
+  let usesTls: boolean = false;
   for (let i = 0; i < generator.declaredExternFunctions.length; i++) {
     const fn = generator.declaredExternFunctions[i];
     if (fn.startsWith("cs_pg_")) {
       usesPostgres = true;
     } else if (fn.startsWith("cs_net_")) {
       usesNet = true;
+    } else if (fn.startsWith("cs_tls_")) {
+      usesNet = true;
+      usesTls = true;
     }
+  }
+  // net-bridge.o references OpenSSL symbols unconditionally (TLS is inline
+  // with the plain path, gated at runtime on s->ssl != NULL). Any program
+  // that links net-bridge must also link libssl + libcrypto.
+  if (usesNet) {
+    linkLibs = "-lssl -lcrypto " + linkLibs;
   }
   if (usesPostgres) {
     linkLibs = "-lpq " + linkLibs;
@@ -853,7 +863,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
 
   if (useLLD && targetIsDarwin) {
     if (!crossCompiling && isMac) {
-      if (generator.getUsesCrypto()) {
+      if (generator.getUsesCrypto() || usesNet) {
         if (fs.existsSync("/opt/homebrew/opt/openssl/lib"))
           linkLibs = "-L/opt/homebrew/opt/openssl/lib " + linkLibs;
         if (fs.existsSync("/usr/local/opt/openssl/lib"))
@@ -934,7 +944,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
     if (hasSDK && sdkSysroot.length > 0) {
       linkLibs = "--sysroot=" + sdkSysroot + " " + linkLibs;
     } else if (!crossCompiling && isMac) {
-      if (generator.getUsesCrypto()) {
+      if (generator.getUsesCrypto() || usesNet) {
         if (fs.existsSync("/opt/homebrew/opt/openssl/lib"))
           linkLibs = "-L/opt/homebrew/opt/openssl/lib " + linkLibs;
         if (fs.existsSync("/usr/local/opt/openssl/lib"))

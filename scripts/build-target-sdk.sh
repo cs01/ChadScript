@@ -72,7 +72,7 @@ fi
 
 # Copy C bridge object files
 echo "  Copying bridge objects..."
-for bridge in child-process-bridge.o os-bridge.o strlen-cache.o time-bridge.o base64-bridge.o url-bridge.o uri-bridge.o regex-bridge.o dotenv-bridge.o watch-bridge.o lws-bridge.o multipart-bridge.o child-process-spawn.o trampoline-bridge.o arena-bridge.o curl-bridge.o pg-bridge.o compress-bridge.o yaml-bridge.o string-ops-bridge.o llvm-bridge.o llvm-builder-bridge.o lld-bridge.o; do
+for bridge in child-process-bridge.o os-bridge.o strlen-cache.o time-bridge.o base64-bridge.o url-bridge.o uri-bridge.o regex-bridge.o dotenv-bridge.o watch-bridge.o lws-bridge.o multipart-bridge.o child-process-spawn.o trampoline-bridge.o arena-bridge.o curl-bridge.o pg-bridge.o net-bridge.o compress-bridge.o yaml-bridge.o string-ops-bridge.o llvm-bridge.o llvm-builder-bridge.o lld-bridge.o; do
   if [ -f "$C_BRIDGES_DIR/$bridge" ]; then
     cp "$C_BRIDGES_DIR/$bridge" "$SDK_DIR/bridges/"
   fi
