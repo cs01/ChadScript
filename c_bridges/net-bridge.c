@@ -438,6 +438,14 @@ const char *cs_net_last_error(void *sock) {
 // the original buffer can be freed/reused immediately. Drives the loop once
 // in NOWAIT mode so the write has a chance to flush. Returns 1 on success
 // (the write was queued), 0 if the socket is closed/invalid.
+typedef struct { char *data; int32_t len; int32_t cap; } CsU8;
+
+double cs_net_write_bytes(void *sock, CsU8 *arr, double len) {
+    extern double cs_net_write(void *sock, const char *data, double len);
+    if (!arr) return 0.0;
+    return cs_net_write(sock, arr->data, len);
+}
+
 double cs_net_write(void *sock, const char *data, double len) {
     NetSocket *s = (NetSocket *)sock;
     if (!s || s->closed || s->close_requested || !s->connected) return 0.0;
@@ -597,6 +605,37 @@ double cs_net_rx_drain_len(void *sock) {
     NetSocket *s = (NetSocket *)sock;
     if (!s) return 0.0;
     return (double)s->rx_len;
+}
+
+// Tick the default libuv loop up to timeoutMs, returning the total number of
+// pending handles/events processed. Used by Pool to wait on N sockets on one
+// shared loop without picking an anchor socket.
+double cs_net_pump(double timeoutMs) {
+    uv_loop_t *loop = uv_default_loop();
+    if (timeoutMs <= 0.0) {
+        return (double)uv_run(loop, UV_RUN_NOWAIT);
+    }
+    uint64_t deadline = uv_hrtime() + (uint64_t)(timeoutMs * 1e6);
+    int total = 0;
+    while (uv_hrtime() < deadline) {
+        int r = uv_run(loop, UV_RUN_ONCE);
+        total += r;
+        if (r == 0) break;
+    }
+    return (double)total;
+}
+
+double cs_net_rx_drain_into(void *sock, CsU8 *arr, double maxlen) {
+    NetSocket *s = (NetSocket *)sock;
+    if (!s || !arr || s->rx_len == 0) return 0.0;
+    size_t cap = (size_t)maxlen;
+    size_t n = s->rx_len < cap ? s->rx_len : cap;
+    memcpy(arr->data, s->rx_buf, n);
+    if (n < s->rx_len) {
+        memmove(s->rx_buf, s->rx_buf + n, s->rx_len - n);
+    }
+    s->rx_len -= n;
+    return (double)n;
 }
 
 // ---- TLS public API ----

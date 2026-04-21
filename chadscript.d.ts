@@ -412,6 +412,14 @@ declare module "chadscript/net" {
     // or in error. Bytes are copied synchronously.
     write(data: string): boolean;
 
+    // Send arbitrary bytes (embedded NULs OK). `len` gives the exact count
+    // to write — typically data.length for full-buffer sends.
+    writeBytes(data: Uint8Array, len: number): boolean;
+
+    // Drain up to maxlen bytes from the rx buffer into out. Returns the
+    // number of bytes copied. Does not block.
+    readBytes(out: Uint8Array, maxlen: number): number;
+
     // Half-close (FIN). Peer-side reads EOF; our reads keep working
     // until the peer closes. Idempotent.
     end(): void;
@@ -447,6 +455,11 @@ declare module "chadscript/net" {
   // asynchronously. Always returns a Socket — check sock.isOpen() (or
   // wait for the 'error' event) to see whether the connect succeeded.
   export function createConnection(host: string, port: number): Socket;
+
+  // Tick the shared libuv loop up to timeoutMs, returning the total count
+  // of events processed. Useful for Pool implementations that wait on
+  // multiple sockets on one loop without picking an anchor socket.
+  export function pump(timeoutMs: number): number;
 }
 
 declare module "chadscript/tls" {

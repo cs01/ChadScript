@@ -45,6 +45,7 @@
 declare function cs_net_connect(host: string, port: number): string;
 declare function cs_net_last_error(sock: string): string;
 declare function cs_net_write(sock: string, data: string, len: number): number;
+declare function cs_net_write_bytes(sock: string, data: Uint8Array, len: number): number;
 declare function cs_net_poll(sock: string): number;
 declare function cs_net_wait(sock: string, timeoutMs: number): number;
 declare function cs_net_poll_event_kind(sock: string): number;
@@ -56,6 +57,8 @@ declare function cs_net_destroy(sock: string): void;
 declare function cs_net_is_open(sock: string): number;
 declare function cs_net_rx_drain(sock: string): string;
 declare function cs_net_rx_drain_len(sock: string): number;
+declare function cs_net_rx_drain_into(sock: string, out: Uint8Array, maxlen: number): number;
+declare function cs_net_pump(timeoutMs: number): number;
 declare function cs_tls_upgrade(sock: string, servername: string, verify: number): number;
 
 const NET_EVENT_CONNECT: number = 1;
@@ -141,6 +144,17 @@ export class Socket {
     if (this._dead === 1) return false;
     const r = cs_net_write(this._handle, data, data.length);
     return r > 0;
+  }
+
+  writeBytes(data: Uint8Array, len: number): boolean {
+    if (this._dead === 1) return false;
+    const r = cs_net_write_bytes(this._handle, data, len);
+    return r > 0;
+  }
+
+  readBytes(out: Uint8Array, maxlen: number): number {
+    if (this._dead === 1) return 0;
+    return cs_net_rx_drain_into(this._handle, out, maxlen);
   }
 
   // Half-close: send FIN. Peer-side reads will EOF, our reads keep working
@@ -242,4 +256,12 @@ export class Socket {
 export function createConnection(host: string, port: number): Socket {
   const handle: string = cs_net_connect(host, port);
   return new Socket(handle);
+}
+
+// Tick the shared libuv loop once, waiting up to timeoutMs for any event on
+// any socket (or timer/etc). Returns the number of events processed by libuv.
+// Useful for Pool implementations that need to wait on N sockets concurrently
+// without picking a single anchor.
+export function pump(timeoutMs: number): number {
+  return cs_net_pump(timeoutMs);
 }
