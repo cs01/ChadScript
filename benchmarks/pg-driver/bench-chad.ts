@@ -49,9 +49,7 @@ function main(): void {
   const mid = results[1];
   const qps = ITERS / (mid / 1000);
   console.log("chad iters=" + ITERS + " runs=" + RUNS);
-  console.log(
-    "runs_ms=" + results[0] + "," + results[1] + "," + results[2],
-  );
+  console.log("runs_ms=" + results[0] + "," + results[1] + "," + results[2]);
   console.log("median_ms=" + mid + " qps=" + qps);
   console.log("TEST_PASSED");
 }
