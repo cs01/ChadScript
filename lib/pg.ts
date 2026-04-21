@@ -742,3 +742,174 @@ export class Pool {
     }
   }
 }
+
+// ---- Connection string parsing ----
+//
+// Port of perry's src/url.ts. Accepts the two libpq URL shapes:
+//   postgres://[user[:password]@][host][:port][/database][?k=v&...]
+//   postgresql://...
+//
+// Supports IPv6 bracketed hosts ([::1]:5432). Throws on malformed URLs.
+// Unknown query keys are ignored (ClientOpts is minimal 5-field shape;
+// sslmode/application_name/connect_timeout map onto the richer shape
+// once lib/pg.ts grows it — tracked in issue #637).
+
+function _pgHexVal(code: number): number {
+  if (code >= 48 && code <= 57) return code - 48;
+  if (code >= 97 && code <= 102) return code - 87;
+  if (code >= 65 && code <= 70) return code - 55;
+  return -1;
+}
+
+function _pgPercentDecode(s: string): string {
+  const n = s.length;
+  let out = "";
+  let i = 0;
+  while (i < n) {
+    const c = s.charCodeAt(i);
+    if (c === 37 && i + 2 < n) {
+      const h = _pgHexVal(s.charCodeAt(i + 1));
+      const l = _pgHexVal(s.charCodeAt(i + 2));
+      if (h >= 0 && l >= 0) {
+        out = out + String.fromCharCode((h << 4) | l);
+        i = i + 3;
+        continue;
+      }
+    }
+    if (c === 43) {
+      out = out + " ";
+      i = i + 1;
+      continue;
+    }
+    out = out + String.fromCharCode(c);
+    i = i + 1;
+  }
+  return out;
+}
+
+function _pgParseInt(s: string): number {
+  const n = s.length;
+  if (n === 0) return -1;
+  let v = 0;
+  let i = 0;
+  while (i < n) {
+    const c = s.charCodeAt(i);
+    if (c < 48 || c > 57) return -1;
+    v = v * 10 + (c - 48);
+    i = i + 1;
+  }
+  return v;
+}
+
+export function parseConnectionString(url: string): ClientOpts {
+  const trimmed = url.trim();
+  const schemeIdx = trimmed.indexOf("://");
+  if (schemeIdx < 0) {
+    throw new Error(
+      "parseConnectionString: expected URL to start with postgres:// or postgresql://, got: " + url,
+    );
+  }
+  const scheme = trimmed.substring(0, schemeIdx);
+  if (scheme !== "postgres" && scheme !== "postgresql") {
+    throw new Error(
+      "parseConnectionString: expected postgres:// or postgresql:// scheme, got: " + scheme,
+    );
+  }
+
+  let rest = trimmed.substring(schemeIdx + 3);
+
+  let userinfo = "";
+  const atIdx = rest.indexOf("@");
+  if (atIdx >= 0) {
+    userinfo = rest.substring(0, atIdx);
+    rest = rest.substring(atIdx + 1);
+  }
+
+  let query = "";
+  const qIdx = rest.indexOf("?");
+  if (qIdx >= 0) {
+    query = rest.substring(qIdx + 1);
+    rest = rest.substring(0, qIdx);
+  }
+
+  let hostPort = rest;
+  let database = "";
+  const slashIdx = rest.indexOf("/");
+  if (slashIdx >= 0) {
+    hostPort = rest.substring(0, slashIdx);
+    database = _pgPercentDecode(rest.substring(slashIdx + 1));
+  }
+
+  let host = "localhost";
+  let port = 5432;
+  if (hostPort.length > 0) {
+    if (hostPort.charCodeAt(0) === 91) {
+      // '[' → IPv6
+      const closeBracket = hostPort.indexOf("]");
+      if (closeBracket < 0) {
+        throw new Error("parseConnectionString: unclosed IPv6 bracket");
+      }
+      host = hostPort.substring(1, closeBracket);
+      if (closeBracket + 1 < hostPort.length && hostPort.charCodeAt(closeBracket + 1) === 58) {
+        const pv = _pgParseInt(hostPort.substring(closeBracket + 2));
+        if (pv <= 0 || pv > 65535) {
+          throw new Error("parseConnectionString: invalid port in: " + hostPort);
+        }
+        port = pv;
+      }
+    } else {
+      const colonIdx = hostPort.lastIndexOf(":");
+      if (colonIdx >= 0) {
+        host = _pgPercentDecode(hostPort.substring(0, colonIdx));
+        const pv = _pgParseInt(hostPort.substring(colonIdx + 1));
+        if (pv <= 0 || pv > 65535) {
+          throw new Error("parseConnectionString: invalid port in: " + hostPort);
+        }
+        port = pv;
+      } else {
+        host = _pgPercentDecode(hostPort);
+      }
+    }
+  }
+
+  let user = "";
+  let password = "";
+  if (userinfo.length > 0) {
+    const colonIdx = userinfo.indexOf(":");
+    if (colonIdx >= 0) {
+      user = _pgPercentDecode(userinfo.substring(0, colonIdx));
+      password = _pgPercentDecode(userinfo.substring(colonIdx + 1));
+    } else {
+      user = _pgPercentDecode(userinfo);
+    }
+  }
+
+  if (query.length > 0) {
+    const pairs = query.split("&");
+    for (const pair of pairs) {
+      const eqIdx = pair.indexOf("=");
+      if (eqIdx < 0) continue;
+      const k = _pgPercentDecode(pair.substring(0, eqIdx));
+      const v = _pgPercentDecode(pair.substring(eqIdx + 1));
+      if (k === "user") user = v;
+      else if (k === "password") password = v;
+      else if (k === "dbname" || k === "database") database = v;
+      else if (k === "host") host = v;
+      else if (k === "port") {
+        const pv = _pgParseInt(v);
+        if (pv <= 0 || pv > 65535) {
+          throw new Error("parseConnectionString: invalid port query param: " + v);
+        }
+        port = pv;
+      }
+    }
+  }
+
+  return {
+    host: host,
+    port: port,
+    user: user,
+    database: database,
+    password: password,
+  };
+}
