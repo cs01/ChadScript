@@ -398,6 +398,11 @@ export interface IGeneratorContext {
   isObjectArrayExpression(expr: Expression): boolean;
 
   /**
+   * Check if expression evaluates to a Uint8Array (byte buffer).
+   */
+  isUint8ArrayExpression(expr: Expression): boolean;
+
+  /**
    * Check if expression evaluates to an object
    */
   isObjectExpression(expr: Expression): boolean;
@@ -1479,6 +1484,10 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
 
   isObjectArrayExpression(_expr: Expression): boolean {
+    return false; // Simplified mock
+  }
+
+  isUint8ArrayExpression(_expr: Expression): boolean {
     return false; // Simplified mock
   }
 
