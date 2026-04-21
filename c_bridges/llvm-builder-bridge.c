@@ -681,6 +681,26 @@ char* cs_llvm_build_srem(const char* lhs_name, const char* rhs_name) {
     return strdup(name);
 }
 
+char* cs_llvm_build_sdiv(const char* lhs_name, const char* rhs_name) {
+    LLVMValueRef lhs = lookup_value(lhs_name);
+    LLVMValueRef rhs = lookup_value(rhs_name);
+    if (!lhs || !rhs) return strdup("");
+    char* name = next_temp();
+    LLVMValueRef result = LLVMBuildSDiv(b_builder, lhs, rhs, name + 1);
+    register_value(name, result);
+    return strdup(name);
+}
+
+char* cs_llvm_build_udiv(const char* lhs_name, const char* rhs_name) {
+    LLVMValueRef lhs = lookup_value(lhs_name);
+    LLVMValueRef rhs = lookup_value(rhs_name);
+    if (!lhs || !rhs) return strdup("");
+    char* name = next_temp();
+    LLVMValueRef result = LLVMBuildUDiv(b_builder, lhs, rhs, name + 1);
+    register_value(name, result);
+    return strdup(name);
+}
+
 // ============ Casts ============
 
 char* cs_llvm_build_zext(const char* val_name, const char* to_type_str) {
@@ -724,6 +744,33 @@ char* cs_llvm_build_fptosi(const char* val_name, const char* to_type_str) {
     if (!val) return strdup("");
     char* name = next_temp();
     LLVMValueRef result = LLVMBuildFPToSI(b_builder, val, parse_type(to_type_str), name + 1);
+    register_value(name, result);
+    return strdup(name);
+}
+
+char* cs_llvm_build_uitofp(const char* val_name, const char* to_type_str) {
+    LLVMValueRef val = lookup_value(val_name);
+    if (!val) return strdup("");
+    char* name = next_temp();
+    LLVMValueRef result = LLVMBuildUIToFP(b_builder, val, parse_type(to_type_str), name + 1);
+    register_value(name, result);
+    return strdup(name);
+}
+
+char* cs_llvm_build_fptrunc(const char* val_name, const char* to_type_str) {
+    LLVMValueRef val = lookup_value(val_name);
+    if (!val) return strdup("");
+    char* name = next_temp();
+    LLVMValueRef result = LLVMBuildFPTrunc(b_builder, val, parse_type(to_type_str), name + 1);
+    register_value(name, result);
+    return strdup(name);
+}
+
+char* cs_llvm_build_fpext(const char* val_name, const char* to_type_str) {
+    LLVMValueRef val = lookup_value(val_name);
+    if (!val) return strdup("");
+    char* name = next_temp();
+    LLVMValueRef result = LLVMBuildFPExt(b_builder, val, parse_type(to_type_str), name + 1);
     register_value(name, result);
     return strdup(name);
 }
