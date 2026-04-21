@@ -86,19 +86,20 @@ export class ConsoleGenerator {
    */
   private generateNewline(method: string): string {
     const formatStr = this.ctx.createStringConstant("\n");
-    const temp = this.ctx.nextTemp();
 
     if (method === "error" || method === "warn") {
-      // fprintf(stderr, "\n")
-      this.ctx.emit(`${temp} = load i8*, i8** @stderr`);
+      const stderrPtr = this.ctx.emitLoad("i8*", this.ctx.emitSymbol("stderr", "@"));
       const temp2 = this.ctx.nextTemp();
-      this.ctx.emit(`${temp2} = call i32 (i8*, i8*, ...) @fprintf(i8* ${temp}, i8* ${formatStr})`);
+      this.ctx.emit(
+        `${temp2} = call i32 (i8*, i8*, ...) @fprintf(${this.ctx.emitOperand(stderrPtr, "i8*")}, ${this.ctx.emitOperand(formatStr, "i8*")})`,
+      );
       return temp2;
     } else {
-      // printf("\n")
-      this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* ${formatStr})`);
-      const flushTemp = this.ctx.nextTemp();
-      this.ctx.emit(`${flushTemp} = call i32 @fflush(i8* null)`);
+      const temp = this.ctx.nextTemp();
+      this.ctx.emit(
+        `${temp} = call i32 (i8*, ...) @printf(${this.ctx.emitOperand(formatStr, "i8*")})`,
+      );
+      this.ctx.emitCall("i32", this.ctx.emitSymbol("fflush", "@"), "i8* null");
       return temp;
     }
   }
@@ -108,23 +109,25 @@ export class ConsoleGenerator {
    */
   private generateStringPrint(method: string, argValue: string): string {
     const formatStr = this.ctx.createStringConstant("%s\n");
-    const temp = this.ctx.nextTemp();
 
     if (method === "error" || method === "warn") {
-      // fprintf(stderr, "%s\n", value)
-      this.ctx.emit(`${temp} = load i8*, i8** @stderr`);
+      const stderrPtr = this.ctx.emitLoad("i8*", this.ctx.emitSymbol("stderr", "@"));
       const temp2 = this.ctx.nextTemp();
       this.ctx.emit(
-        `${temp2} = call i32 (i8*, i8*, ...) @fprintf(i8* ${temp}, i8* ${formatStr}, i8* ${argValue})`,
+        `${temp2} = call i32 (i8*, i8*, ...) @fprintf(${this.ctx.emitOperand(stderrPtr, "i8*")}, ${this.ctx.emitOperand(formatStr, "i8*")}, ${this.ctx.emitOperand(argValue, "i8*")})`,
       );
-      const flushTemp = this.ctx.nextTemp();
-      this.ctx.emit(`${flushTemp} = call i32 @fflush(i8* ${temp})`);
+      this.ctx.emitCall(
+        "i32",
+        this.ctx.emitSymbol("fflush", "@"),
+        this.ctx.emitOperand(stderrPtr, "i8*"),
+      );
       return temp2;
     } else {
-      // printf("%s\n", value)
-      this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* ${formatStr}, i8* ${argValue})`);
-      const flushTemp = this.ctx.nextTemp();
-      this.ctx.emit(`${flushTemp} = call i32 @fflush(i8* null)`);
+      const temp = this.ctx.nextTemp();
+      this.ctx.emit(
+        `${temp} = call i32 (i8*, ...) @printf(${this.ctx.emitOperand(formatStr, "i8*")}, ${this.ctx.emitOperand(argValue, "i8*")})`,
+      );
+      this.ctx.emitCall("i32", this.ctx.emitSymbol("fflush", "@"), "i8* null");
       return temp;
     }
   }
@@ -135,21 +138,20 @@ export class ConsoleGenerator {
   private generateNumberPrint(method: string, argValue: string): string {
     const dblValue = this.ctx.ensureDouble(argValue);
     const formatStr = this.ctx.createStringConstant("%.15g\n");
-    const temp = this.ctx.nextTemp();
 
     if (method === "error" || method === "warn") {
-      // fprintf(stderr, "%g\n", value)
-      this.ctx.emit(`${temp} = load i8*, i8** @stderr`);
+      const stderrPtr = this.ctx.emitLoad("i8*", this.ctx.emitSymbol("stderr", "@"));
       const temp2 = this.ctx.nextTemp();
       this.ctx.emit(
-        `${temp2} = call i32 (i8*, i8*, ...) @fprintf(i8* ${temp}, i8* ${formatStr}, double ${dblValue})`,
+        `${temp2} = call i32 (i8*, i8*, ...) @fprintf(${this.ctx.emitOperand(stderrPtr, "i8*")}, ${this.ctx.emitOperand(formatStr, "i8*")}, ${this.ctx.emitOperand(dblValue, "double")})`,
       );
       return temp2;
     } else {
-      // printf("%g\n", value)
-      this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* ${formatStr}, double ${dblValue})`);
-      const flushTemp = this.ctx.nextTemp();
-      this.ctx.emit(`${flushTemp} = call i32 @fflush(i8* null)`);
+      const temp = this.ctx.nextTemp();
+      this.ctx.emit(
+        `${temp} = call i32 (i8*, ...) @printf(${this.ctx.emitOperand(formatStr, "i8*")}, ${this.ctx.emitOperand(dblValue, "double")})`,
+      );
+      this.ctx.emitCall("i32", this.ctx.emitSymbol("fflush", "@"), "i8* null");
       return temp;
     }
   }
@@ -161,8 +163,7 @@ export class ConsoleGenerator {
     this.ctx.emit(
       `${bodyPtr} = getelementptr %__FetchResponse, %__FetchResponse* ${argValue}, i32 0, i32 2`,
     );
-    const body = this.ctx.nextTemp();
-    this.ctx.emit(`${body} = load i8*, i8** ${bodyPtr}`);
+    const body = this.ctx.emitLoad("i8*", bodyPtr);
     return this.generateStringPrint(method, body);
   }
 }
