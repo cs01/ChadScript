@@ -10,6 +10,7 @@ SELECT-1 throughput loop, single connection, 10000 iterations, median of 3 runs.
 | pg on Node                            | `node bench-node-pg.mjs`                        | `pg@^8`.                    |
 | postgres.js on Node                   | `node bench-postgres-js.mjs`                    | `postgres@^3`.              |
 | postgres.js on Bun                    | `bun bench-postgres-js.mjs`                     | Same script, Bun runtime.   |
+| Bun.SQL (native)                      | `bun bench-bun-native.mjs`                      | Bun's first-party C++ pg binding. |
 | C (libpq)                             | `cc bench-c.c ... -lpq -O2 -o /tmp/b && /tmp/b` | Reference ceiling.          |
 | Go (pgx)                              | `cd bench-go && go build -o /tmp/b && /tmp/b`   | `pgx/v5`.                   |
 
@@ -32,6 +33,7 @@ median_ms=<N> qps=<N>
 | C (libpq)                         | 58,139     |
 | **ChadScript (pure-TS → native)** | **52,023** |
 | postgres.js on Bun                | 48,780     |
+| Bun.SQL (native)                  | 47,170     |
 | pg on Node                        | 37,594     |
 | postgres.js on Node               | 35,587     |
 | Go (pgx)                          | 32,786     |
