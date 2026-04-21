@@ -731,6 +731,8 @@ export interface IGeneratorContext {
   emitGep(baseType: string, ptr: string, indices: string): string;
   emitIcmp(pred: string, type: string, lhs: string, rhs: string): string;
   emitBitcast(value: string, fromType: string, toType: string): string;
+  emitSymbol(name: string, sigil: string): string;
+  emitOperand(value: string, llvmType: string): string;
 
   getOutput(): string[];
   clearOutput(): void;
@@ -1746,6 +1748,15 @@ export class MockGeneratorContext implements IGeneratorContext {
     this.emit(`${temp} = bitcast ${fromType} ${value} to ${toType}`);
     this.setVariableType(temp, toType);
     return temp;
+  }
+
+  emitSymbol(name: string, sigil: string): string {
+    if (name.length > 0 && (name[0] === "@" || name[0] === "%")) return name;
+    return `${sigil}${name}`;
+  }
+
+  emitOperand(value: string, llvmType: string): string {
+    return `${llvmType} ${value}`;
   }
 
   getOutput(): string[] {

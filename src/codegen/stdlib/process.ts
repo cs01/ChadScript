@@ -54,17 +54,19 @@ export class ProcessGenerator {
       // Optimization: Use constant 0 directly
       this.ctx.emit(`${exitCode} = add i32 0, 0`);
     } else {
-      this.ctx.emit(`${exitCode} = fptosi double ${dblExit} to i32`);
+      this.ctx.emit(`${exitCode} = fptosi ${this.ctx.emitOperand(dblExit, "double")} to i32`);
     }
 
     // Flush stdout before exiting to ensure all output is printed
-    const stdoutPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${stdoutPtr} = load i8*, i8** @stdout`);
-    const flushResult = this.ctx.nextTemp();
-    this.ctx.emit(`${flushResult} = call i32 @fflush(i8* ${stdoutPtr})`);
+    const stdoutPtr = this.ctx.emitLoad("i8*", this.ctx.emitSymbol("stdout", "@"));
+    this.ctx.emitCall(
+      "i32",
+      this.ctx.emitSymbol("fflush", "@"),
+      this.ctx.emitOperand(stdoutPtr, "i8*"),
+    );
 
     // Call exit syscall (noreturn)
-    this.ctx.emit(`call void @exit(i32 ${exitCode})`);
+    this.ctx.emitCallVoid(this.ctx.emitSymbol("exit", "@"), this.ctx.emitOperand(exitCode, "i32"));
 
     return "0.0";
   }
