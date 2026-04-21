@@ -29,8 +29,33 @@ merge when green, delete the remote branch, and remove the local worktree.
 
 **Never push to main directly.** Always go through PRs.
 
-PR descriptions should be **user-centric** — lead with how the change affects users (better error messages,
-fewer crashes, new capabilities), not just technical implementation details.
+## PR title + body format
+
+**Title**: `[topic] change` — topic is the area touched (e.g. `codegen`, `parser-native`, `ci`, `stdlib/net`, `llvm-builder`). Change is the one-line summary of what this PR does. **Never** use internal step/phase names like "phase 3 step 2" or "step4-phase1b" in the title — those mean nothing to anyone reading the PR list.
+
+Good:
+- `[codegen] seed symbol table on typed let-decl without init`
+- `[parser-native] restore trailing return in bare switch case bodies`
+- `[llvm-builder] add 5 remaining opcode wrappers`
+
+Bad:
+- `step4-phase1b: remaining ops`
+- `phase-e step 5 part 3 follow-up`
+
+**Body** must include **Before** and **After** sections describing the user-facing change (or, if purely internal, the behavior difference before vs after). Add `## Description` with any additional context. Example:
+
+```
+## Before
+Compiler failed with "Method 'on' on 'sock' is not supported" when using `let sock: Socket;` followed by a conditional assignment.
+
+## After
+`sock.on(...)` resolves correctly via the declared `Socket` interface regardless of how `sock` is later assigned.
+
+## Description
+Seeds the symbol table with the declared type at decl-without-init sites in variable-allocator. ~6 LOC fix.
+```
+
+If the PR is purely internal (no user-visible effect), state that explicitly in **After**: `No user-facing change. Internal refactor only.`
 
 ## Testing & Commit Workflow
 

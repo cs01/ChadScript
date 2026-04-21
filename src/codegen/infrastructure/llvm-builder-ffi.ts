@@ -63,6 +63,8 @@ export declare function cs_llvm_build_add(lhs: string, rhs: string): string;
 export declare function cs_llvm_build_sub(lhs: string, rhs: string): string;
 export declare function cs_llvm_build_mul(lhs: string, rhs: string): string;
 export declare function cs_llvm_build_srem(lhs: string, rhs: string): string;
+export declare function cs_llvm_build_sdiv(lhs: string, rhs: string): string;
+export declare function cs_llvm_build_udiv(lhs: string, rhs: string): string;
 
 // ---- Arithmetic (float) ----
 
@@ -100,6 +102,9 @@ export declare function cs_llvm_build_zext(value: string, destType: string): str
 export declare function cs_llvm_build_trunc(value: string, destType: string): string;
 export declare function cs_llvm_build_sitofp(value: string, destType: string): string;
 export declare function cs_llvm_build_fptosi(value: string, destType: string): string;
+export declare function cs_llvm_build_uitofp(value: string, destType: string): string;
+export declare function cs_llvm_build_fptrunc(value: string, destType: string): string;
+export declare function cs_llvm_build_fpext(value: string, destType: string): string;
 export declare function cs_llvm_build_inttoptr(value: string, destType: string): string;
 export declare function cs_llvm_build_ptrtoint(value: string, destType: string): string;
 

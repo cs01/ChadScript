@@ -11,10 +11,10 @@ cd "$(dirname "$0")/.."
 # Patterns the llvm-builder-bridge.c currently covers (keep sorted).
 COVERED=(
   add alloca ashr and bitcast br br_cond call call_void
-  fadd fcmp fdiv fmul fneg fptosi frem fsub
+  fadd fcmp fdiv fmul fneg fpext fptosi fptrunc frem fsub
   gep icmp inttoptr load lshr mul or phi ptrtoint
-  ret ret_void select sext shl sitofp srem store
-  sub trunc unreachable xor zext
+  ret ret_void sdiv select sext shl sitofp srem store
+  sub trunc udiv uitofp unreachable xor zext
 )
 
 # Output: { total, by_instruction, uncovered_samples }
@@ -34,6 +34,12 @@ BEGIN {
   covered["shl"]=1; covered["sitofp"]=1; covered["srem"]=1; covered["store"]=1
   covered["sub"]=1; covered["trunc"]=1; covered["unreachable"]=1
   covered["xor"]=1; covered["zext"]=1
+  # Added in step4-phase1b.
+  covered["sdiv"]=1; covered["udiv"]=1; covered["uitofp"]=1
+  covered["fptrunc"]=1; covered["fpext"]=1
+  # Dynamic-op templates in binary.ts — templates pick add/sub/mul/fadd/fsub/fmul/fdiv
+  # at runtime; all underlying ops are individually covered.
+  covered["${i64Op}"]=1; covered["${llvmOp}"]=1
   # Labels are handled by bb_create + bb_position in bridge.
   covered["label"]=1
 }
