@@ -1,19 +1,22 @@
-// @test-skip
-// Pure-TS Postgres driver — trust auth + simple 'Q' protocol.
-// Skipped in CI because the CI pg server requires MD5 password auth (coming
-// in phase 3). Run locally against a trust-auth pg:
-//   PGUSER=... PGDATABASE=... chad run tests/fixtures/stdlib/pg-simple-query.ts
+// @test-requires-env: PG_TESTS_ENABLED
+// Pure-TS Postgres driver — trust/md5 auth + simple 'Q' protocol.
 
 import { Client } from "chadscript/pg";
 
 function main(): void {
+  // Defaults match the credentials the CI workflow provisions for the
+  // `postgres` service (POSTGRES_USER=postgres POSTGRES_PASSWORD=test
+  // POSTGRES_DB=chadtest). Override via env for local runs against a
+  // different pg instance.
   const user = process.env.PGUSER ?? "postgres";
-  const db = process.env.PGDATABASE ?? "postgres";
+  const db = process.env.PGDATABASE ?? "chadtest";
+  const pw = process.env.PGPASSWORD ?? "test";
   const c = new Client({
     host: "127.0.0.1",
     port: 5432,
     user: user,
     database: db,
+    password: pw,
   });
   if (!c.connect()) {
     console.log("FAIL connect: " + c.lastError());

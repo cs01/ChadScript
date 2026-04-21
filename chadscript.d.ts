@@ -492,6 +492,8 @@ declare module "chadscript/pg" {
     port: number;
     user: string;
     database: string;
+    // Password for cleartext or md5 auth. Leave empty string for trust auth.
+    password: string;
   }
 
   export interface QueryResult {
