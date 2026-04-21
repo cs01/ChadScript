@@ -51,58 +51,67 @@ export class CryptoGenerator {
     let inputLen: string;
     if (isBytes) {
       // %Uint8Array = type { i8*, i32, i32 } — load data ptr and length.
-      const dataGep = this.ctx.nextTemp();
-      this.ctx.emit(`${dataGep} = getelementptr %Uint8Array, %Uint8Array* ${argVal}, i32 0, i32 0`);
-      inputPtr = this.ctx.nextTemp();
-      this.ctx.emit(`${inputPtr} = load i8*, i8** ${dataGep}`);
-      const lenGep = this.ctx.nextTemp();
-      this.ctx.emit(`${lenGep} = getelementptr %Uint8Array, %Uint8Array* ${argVal}, i32 0, i32 1`);
-      const lenI32 = this.ctx.nextTemp();
-      this.ctx.emit(`${lenI32} = load i32, i32* ${lenGep}`);
+      const dataGep = this.ctx.emitGep("%Uint8Array", argVal, "i32 0, i32 0");
+      inputPtr = this.ctx.emitLoad("i8*", dataGep);
+      const lenGep = this.ctx.emitGep("%Uint8Array", argVal, "i32 0, i32 1");
+      const lenI32 = this.ctx.emitLoad("i32", lenGep);
       inputLen = this.ctx.nextTemp();
       this.ctx.emit(`${inputLen} = sext i32 ${lenI32} to i64`);
     } else {
       inputPtr = argVal;
-      inputLen = this.ctx.nextTemp();
-      this.ctx.emit(`${inputLen} = call i64 @strlen(i8* ${inputPtr})`);
+      inputLen = this.ctx.emitCall(
+        "i64",
+        this.ctx.emitSymbol("strlen", "@"),
+        this.ctx.emitOperand(inputPtr, "i8*"),
+      );
     }
 
-    const mdCtx = this.ctx.nextTemp();
-    this.ctx.emit(`${mdCtx} = call i8* @EVP_MD_CTX_new()`);
+    const mdCtx = this.ctx.emitCall("i8*", this.ctx.emitSymbol("EVP_MD_CTX_new", "@"), "");
+    const evpMd = this.ctx.emitCall("i8*", this.ctx.emitSymbol(evpFunc, "@"), "");
 
-    const evpMd = this.ctx.nextTemp();
-    this.ctx.emit(`${evpMd} = call i8* @${evpFunc}()`);
-
-    const initResult = this.ctx.nextTemp();
-    this.ctx.emit(
-      `${initResult} = call i32 @EVP_DigestInit_ex(i8* ${mdCtx}, i8* ${evpMd}, i8* null)`,
+    this.ctx.emitCall(
+      "i32",
+      this.ctx.emitSymbol("EVP_DigestInit_ex", "@"),
+      `${this.ctx.emitOperand(mdCtx, "i8*")}, ${this.ctx.emitOperand(evpMd, "i8*")}, i8* null`,
     );
 
-    const updateResult = this.ctx.nextTemp();
-    this.ctx.emit(
-      `${updateResult} = call i32 @EVP_DigestUpdate(i8* ${mdCtx}, i8* ${inputPtr}, i64 ${inputLen})`,
+    this.ctx.emitCall(
+      "i32",
+      this.ctx.emitSymbol("EVP_DigestUpdate", "@"),
+      `${this.ctx.emitOperand(mdCtx, "i8*")}, ${this.ctx.emitOperand(inputPtr, "i8*")}, ${this.ctx.emitOperand(inputLen, "i64")}`,
     );
 
-    const hashBuf = this.ctx.nextTemp();
-    this.ctx.emit(`${hashBuf} = call i8* @GC_malloc_atomic(i64 64)`);
-
-    const hashLenPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${hashLenPtr} = call i8* @GC_malloc_atomic(i64 4)`);
-    const hashLenI32Ptr = this.ctx.nextTemp();
-    this.ctx.emit(`${hashLenI32Ptr} = bitcast i8* ${hashLenPtr} to i32*`);
-
-    const finalResult = this.ctx.nextTemp();
-    this.ctx.emit(
-      `${finalResult} = call i32 @EVP_DigestFinal_ex(i8* ${mdCtx}, i8* ${hashBuf}, i32* ${hashLenI32Ptr})`,
+    const hashBuf = this.ctx.emitCall(
+      "i8*",
+      this.ctx.emitSymbol("GC_malloc_atomic", "@"),
+      "i64 64",
     );
 
-    this.ctx.emit(`call void @EVP_MD_CTX_free(i8* ${mdCtx})`);
+    const hashLenPtr = this.ctx.emitCall(
+      "i8*",
+      this.ctx.emitSymbol("GC_malloc_atomic", "@"),
+      "i64 4",
+    );
+    const hashLenI32Ptr = this.ctx.emitBitcast(hashLenPtr, "i8*", "i32*");
 
-    const hashLen = this.ctx.nextTemp();
-    this.ctx.emit(`${hashLen} = load i32, i32* ${hashLenI32Ptr}`);
+    this.ctx.emitCall(
+      "i32",
+      this.ctx.emitSymbol("EVP_DigestFinal_ex", "@"),
+      `${this.ctx.emitOperand(mdCtx, "i8*")}, ${this.ctx.emitOperand(hashBuf, "i8*")}, ${this.ctx.emitOperand(hashLenI32Ptr, "i32*")}`,
+    );
 
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call i8* @__bytes_to_hex(i8* ${hashBuf}, i32 ${hashLen})`);
+    this.ctx.emitCallVoid(
+      this.ctx.emitSymbol("EVP_MD_CTX_free", "@"),
+      this.ctx.emitOperand(mdCtx, "i8*"),
+    );
+
+    const hashLen = this.ctx.emitLoad("i32", hashLenI32Ptr);
+
+    const result = this.ctx.emitCall(
+      "i8*",
+      this.ctx.emitSymbol("__bytes_to_hex", "@"),
+      `${this.ctx.emitOperand(hashBuf, "i8*")}, ${this.ctx.emitOperand(hashLen, "i32")}`,
+    );
     this.ctx.setVariableType(result, "i8*");
 
     return result;
@@ -125,50 +134,62 @@ export class CryptoGenerator {
     const countI64 = this.ctx.nextTemp();
     this.ctx.emit(`${countI64} = sext i32 ${countI32} to i64`);
 
-    const buf = this.ctx.nextTemp();
-    this.ctx.emit(`${buf} = call i8* @GC_malloc_atomic(i64 ${countI64})`);
+    const buf = this.ctx.emitCall(
+      "i8*",
+      this.ctx.emitSymbol("GC_malloc_atomic", "@"),
+      this.ctx.emitOperand(countI64, "i64"),
+    );
 
-    const randResult = this.ctx.nextTemp();
-    this.ctx.emit(`${randResult} = call i32 @RAND_bytes(i8* ${buf}, i32 ${countI32})`);
+    this.ctx.emitCall(
+      "i32",
+      this.ctx.emitSymbol("RAND_bytes", "@"),
+      `${this.ctx.emitOperand(buf, "i8*")}, ${this.ctx.emitOperand(countI32, "i32")}`,
+    );
 
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call i8* @__bytes_to_hex(i8* ${buf}, i32 ${countI32})`);
+    const result = this.ctx.emitCall(
+      "i8*",
+      this.ctx.emitSymbol("__bytes_to_hex", "@"),
+      `${this.ctx.emitOperand(buf, "i8*")}, ${this.ctx.emitOperand(countI32, "i32")}`,
+    );
     this.ctx.setVariableType(result, "i8*");
 
     return result;
   }
 
   generateRandomUUID(expr: MethodCallNode, _params: string[]): string {
-    const buf = this.ctx.nextTemp();
-    this.ctx.emit(`${buf} = call i8* @GC_malloc_atomic(i64 16)`);
+    const buf = this.ctx.emitCall("i8*", this.ctx.emitSymbol("GC_malloc_atomic", "@"), "i64 16");
 
-    const randResult = this.ctx.nextTemp();
-    this.ctx.emit(`${randResult} = call i32 @RAND_bytes(i8* ${buf}, i32 16)`);
+    this.ctx.emitCall(
+      "i32",
+      this.ctx.emitSymbol("RAND_bytes", "@"),
+      `${this.ctx.emitOperand(buf, "i8*")}, i32 16`,
+    );
 
     // Set version 4: byte 6 = (byte6 & 0x0F) | 0x40
     const byte6Ptr = this.ctx.nextTemp();
     this.ctx.emit(`${byte6Ptr} = getelementptr inbounds i8, i8* ${buf}, i64 6`);
-    const byte6 = this.ctx.nextTemp();
-    this.ctx.emit(`${byte6} = load i8, i8* ${byte6Ptr}`);
+    const byte6 = this.ctx.emitLoad("i8", byte6Ptr);
     const byte6Masked = this.ctx.nextTemp();
     this.ctx.emit(`${byte6Masked} = and i8 ${byte6}, 15`);
     const byte6Set = this.ctx.nextTemp();
     this.ctx.emit(`${byte6Set} = or i8 ${byte6Masked}, 64`);
-    this.ctx.emit(`store i8 ${byte6Set}, i8* ${byte6Ptr}`);
+    this.ctx.emitStore("i8", byte6Set, byte6Ptr);
 
     // Set variant: byte 8 = (byte8 & 0x3F) | 0x80
     const byte8Ptr = this.ctx.nextTemp();
     this.ctx.emit(`${byte8Ptr} = getelementptr inbounds i8, i8* ${buf}, i64 8`);
-    const byte8 = this.ctx.nextTemp();
-    this.ctx.emit(`${byte8} = load i8, i8* ${byte8Ptr}`);
+    const byte8 = this.ctx.emitLoad("i8", byte8Ptr);
     const byte8Masked = this.ctx.nextTemp();
     this.ctx.emit(`${byte8Masked} = and i8 ${byte8}, 63`);
     const byte8Set = this.ctx.nextTemp();
     this.ctx.emit(`${byte8Set} = or i8 ${byte8Masked}, -128`);
-    this.ctx.emit(`store i8 ${byte8Set}, i8* ${byte8Ptr}`);
+    this.ctx.emitStore("i8", byte8Set, byte8Ptr);
 
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call i8* @__uuid_format(i8* ${buf})`);
+    const result = this.ctx.emitCall(
+      "i8*",
+      this.ctx.emitSymbol("__uuid_format", "@"),
+      this.ctx.emitOperand(buf, "i8*"),
+    );
     this.ctx.setVariableType(result, "i8*");
 
     return result;
@@ -212,20 +233,17 @@ export class CryptoGenerator {
     let keyPtr: string;
     let keyLen32: string;
     if (keyIsBytes) {
-      const kDataGep = this.ctx.nextTemp();
-      this.ctx.emit(
-        `${kDataGep} = getelementptr %Uint8Array, %Uint8Array* ${keyVal}, i32 0, i32 0`,
-      );
-      keyPtr = this.ctx.nextTemp();
-      this.ctx.emit(`${keyPtr} = load i8*, i8** ${kDataGep}`);
-      const kLenGep = this.ctx.nextTemp();
-      this.ctx.emit(`${kLenGep} = getelementptr %Uint8Array, %Uint8Array* ${keyVal}, i32 0, i32 1`);
-      keyLen32 = this.ctx.nextTemp();
-      this.ctx.emit(`${keyLen32} = load i32, i32* ${kLenGep}`);
+      const kDataGep = this.ctx.emitGep("%Uint8Array", keyVal, "i32 0, i32 0");
+      keyPtr = this.ctx.emitLoad("i8*", kDataGep);
+      const kLenGep = this.ctx.emitGep("%Uint8Array", keyVal, "i32 0, i32 1");
+      keyLen32 = this.ctx.emitLoad("i32", kLenGep);
     } else {
       keyPtr = keyVal;
-      const keyLen64 = this.ctx.nextTemp();
-      this.ctx.emit(`${keyLen64} = call i64 @strlen(i8* ${keyPtr})`);
+      const keyLen64 = this.ctx.emitCall(
+        "i64",
+        this.ctx.emitSymbol("strlen", "@"),
+        this.ctx.emitOperand(keyPtr, "i8*"),
+      );
       keyLen32 = this.ctx.nextTemp();
       this.ctx.emit(`${keyLen32} = trunc i64 ${keyLen64} to i32`);
     }
@@ -233,47 +251,45 @@ export class CryptoGenerator {
     let dataPtr: string;
     let dataLen: string;
     if (dataIsBytes) {
-      const dDataGep = this.ctx.nextTemp();
-      this.ctx.emit(
-        `${dDataGep} = getelementptr %Uint8Array, %Uint8Array* ${dataVal}, i32 0, i32 0`,
-      );
-      dataPtr = this.ctx.nextTemp();
-      this.ctx.emit(`${dataPtr} = load i8*, i8** ${dDataGep}`);
-      const dLenGep = this.ctx.nextTemp();
-      this.ctx.emit(
-        `${dLenGep} = getelementptr %Uint8Array, %Uint8Array* ${dataVal}, i32 0, i32 1`,
-      );
-      const dLenI32 = this.ctx.nextTemp();
-      this.ctx.emit(`${dLenI32} = load i32, i32* ${dLenGep}`);
+      const dDataGep = this.ctx.emitGep("%Uint8Array", dataVal, "i32 0, i32 0");
+      dataPtr = this.ctx.emitLoad("i8*", dDataGep);
+      const dLenGep = this.ctx.emitGep("%Uint8Array", dataVal, "i32 0, i32 1");
+      const dLenI32 = this.ctx.emitLoad("i32", dLenGep);
       dataLen = this.ctx.nextTemp();
       this.ctx.emit(`${dataLen} = sext i32 ${dLenI32} to i64`);
     } else {
       dataPtr = dataVal;
-      dataLen = this.ctx.nextTemp();
-      this.ctx.emit(`${dataLen} = call i64 @strlen(i8* ${dataPtr})`);
+      dataLen = this.ctx.emitCall(
+        "i64",
+        this.ctx.emitSymbol("strlen", "@"),
+        this.ctx.emitOperand(dataPtr, "i8*"),
+      );
     }
 
-    const evpMd = this.ctx.nextTemp();
-    this.ctx.emit(`${evpMd} = call i8* @EVP_sha256()`);
+    const evpMd = this.ctx.emitCall("i8*", this.ctx.emitSymbol("EVP_sha256", "@"), "");
 
-    const outBuf = this.ctx.nextTemp();
-    this.ctx.emit(`${outBuf} = call i8* @GC_malloc_atomic(i64 32)`);
+    const outBuf = this.ctx.emitCall("i8*", this.ctx.emitSymbol("GC_malloc_atomic", "@"), "i64 32");
 
-    const outLenMem = this.ctx.nextTemp();
-    this.ctx.emit(`${outLenMem} = call i8* @GC_malloc_atomic(i64 4)`);
-    const outLenPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${outLenPtr} = bitcast i8* ${outLenMem} to i32*`);
+    const outLenMem = this.ctx.emitCall(
+      "i8*",
+      this.ctx.emitSymbol("GC_malloc_atomic", "@"),
+      "i64 4",
+    );
+    const outLenPtr = this.ctx.emitBitcast(outLenMem, "i8*", "i32*");
 
-    const hmacResult = this.ctx.nextTemp();
-    this.ctx.emit(
-      `${hmacResult} = call i8* @HMAC(i8* ${evpMd}, i8* ${keyPtr}, i32 ${keyLen32}, i8* ${dataPtr}, i64 ${dataLen}, i8* ${outBuf}, i32* ${outLenPtr})`,
+    this.ctx.emitCall(
+      "i8*",
+      this.ctx.emitSymbol("HMAC", "@"),
+      `${this.ctx.emitOperand(evpMd, "i8*")}, ${this.ctx.emitOperand(keyPtr, "i8*")}, ${this.ctx.emitOperand(keyLen32, "i32")}, ${this.ctx.emitOperand(dataPtr, "i8*")}, ${this.ctx.emitOperand(dataLen, "i64")}, ${this.ctx.emitOperand(outBuf, "i8*")}, ${this.ctx.emitOperand(outLenPtr, "i32*")}`,
     );
 
-    const outLen = this.ctx.nextTemp();
-    this.ctx.emit(`${outLen} = load i32, i32* ${outLenPtr}`);
+    const outLen = this.ctx.emitLoad("i32", outLenPtr);
 
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call i8* @__bytes_to_hex(i8* ${outBuf}, i32 ${outLen})`);
+    const result = this.ctx.emitCall(
+      "i8*",
+      this.ctx.emitSymbol("__bytes_to_hex", "@"),
+      `${this.ctx.emitOperand(outBuf, "i8*")}, ${this.ctx.emitOperand(outLen, "i32")}`,
+    );
     this.ctx.setVariableType(result, "i8*");
 
     return result;
@@ -292,13 +308,19 @@ export class CryptoGenerator {
     const iterDouble = this.ctx.generateExpression(expr.args[2], params);
     const keylenDouble = this.ctx.generateExpression(expr.args[3], params);
 
-    const passLen = this.ctx.nextTemp();
-    this.ctx.emit(`${passLen} = call i64 @strlen(i8* ${passwordPtr})`);
+    const passLen = this.ctx.emitCall(
+      "i64",
+      this.ctx.emitSymbol("strlen", "@"),
+      this.ctx.emitOperand(passwordPtr, "i8*"),
+    );
     const passLen32 = this.ctx.nextTemp();
     this.ctx.emit(`${passLen32} = trunc i64 ${passLen} to i32`);
 
-    const saltLen = this.ctx.nextTemp();
-    this.ctx.emit(`${saltLen} = call i64 @strlen(i8* ${saltPtr})`);
+    const saltLen = this.ctx.emitCall(
+      "i64",
+      this.ctx.emitSymbol("strlen", "@"),
+      this.ctx.emitOperand(saltPtr, "i8*"),
+    );
     const saltLen32 = this.ctx.nextTemp();
     this.ctx.emit(`${saltLen32} = trunc i64 ${saltLen} to i32`);
 
@@ -312,19 +334,25 @@ export class CryptoGenerator {
     const keylenI64 = this.ctx.nextTemp();
     this.ctx.emit(`${keylenI64} = sext i32 ${keylenI32} to i64`);
 
-    const outBuf = this.ctx.nextTemp();
-    this.ctx.emit(`${outBuf} = call i8* @GC_malloc_atomic(i64 ${keylenI64})`);
-
-    const evpMd = this.ctx.nextTemp();
-    this.ctx.emit(`${evpMd} = call i8* @EVP_sha1()`);
-
-    const pbkdfResult = this.ctx.nextTemp();
-    this.ctx.emit(
-      `${pbkdfResult} = call i32 @PKCS5_PBKDF2_HMAC(i8* ${passwordPtr}, i32 ${passLen32}, i8* ${saltPtr}, i32 ${saltLen32}, i32 ${iterI32}, i8* ${evpMd}, i32 ${keylenI32}, i8* ${outBuf})`,
+    const outBuf = this.ctx.emitCall(
+      "i8*",
+      this.ctx.emitSymbol("GC_malloc_atomic", "@"),
+      this.ctx.emitOperand(keylenI64, "i64"),
     );
 
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call i8* @__bytes_to_hex(i8* ${outBuf}, i32 ${keylenI32})`);
+    const evpMd = this.ctx.emitCall("i8*", this.ctx.emitSymbol("EVP_sha1", "@"), "");
+
+    this.ctx.emitCall(
+      "i32",
+      this.ctx.emitSymbol("PKCS5_PBKDF2_HMAC", "@"),
+      `${this.ctx.emitOperand(passwordPtr, "i8*")}, ${this.ctx.emitOperand(passLen32, "i32")}, ${this.ctx.emitOperand(saltPtr, "i8*")}, ${this.ctx.emitOperand(saltLen32, "i32")}, ${this.ctx.emitOperand(iterI32, "i32")}, ${this.ctx.emitOperand(evpMd, "i8*")}, ${this.ctx.emitOperand(keylenI32, "i32")}, ${this.ctx.emitOperand(outBuf, "i8*")}`,
+    );
+
+    const result = this.ctx.emitCall(
+      "i8*",
+      this.ctx.emitSymbol("__bytes_to_hex", "@"),
+      `${this.ctx.emitOperand(outBuf, "i8*")}, ${this.ctx.emitOperand(keylenI32, "i32")}`,
+    );
     this.ctx.setVariableType(result, "i8*");
 
     return result;
