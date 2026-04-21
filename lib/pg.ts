@@ -288,8 +288,8 @@ export class Client {
     off = off + 2;
     let pi = 0;
     while (pi < nParams) {
-      const p = params[pi];
-      const pl = p.length;
+      const pv = params[pi];
+      const pl = pv.length;
       tx[off] = (pl >> 24) & 0xff;
       tx[off + 1] = (pl >> 16) & 0xff;
       tx[off + 2] = (pl >> 8) & 0xff;
@@ -297,12 +297,13 @@ export class Client {
       off = off + 4;
       let pj = 0;
       while (pj < pl) {
-        tx[off + pj] = p.charCodeAt(pj) & 0xff;
+        tx[off + pj] = pv.charCodeAt(pj) & 0xff;
         pj = pj + 1;
       }
       off = off + pl;
       pi = pi + 1;
     }
+    // (end of bind param loop)
     tx[off] = 0;
     tx[off + 1] = 0; // numResultFormats=0 → all text
     off = off + 2;
@@ -601,6 +602,143 @@ export class Client {
       this._lastError = code + ": " + msg;
     } else {
       this._lastError = msg;
+    }
+  }
+}
+
+// Class-field array element access + method call hits a chad codegen
+// quirk — the element's type is lost across member access, so we dispatch
+// via free helpers that accept a Client parameter.
+
+function _poolConnectOne(c: Client): boolean {
+  return c.connect();
+}
+
+function _poolQuery(c: Client, sql: string): QueryResult {
+  return c.query(sql);
+}
+
+function _poolQueryParams(c: Client, sql: string, params: string[]): QueryResult {
+  return c.queryParams(sql, params);
+}
+
+function _poolClientError(c: Client): string {
+  return c.lastError();
+}
+
+function _poolEndOne(c: Client): void {
+  c.end();
+}
+
+// ---- Pool ----
+//
+// Round-robin over N Clients. Each query() / queryParams() picks the next
+// client, lazily (re)connects it on demand, and runs the query. ChadScript's
+// net stack is synchronous, so this is a connection cache + auto-reconnect +
+// server-side state spread — not a parallelism primitive. Backpressure/
+// async queueing lands as phase 5b once net has cooperative scheduling.
+
+export interface PoolOpts {
+  host: string;
+  port: number;
+  user: string;
+  database: string;
+  password: string;
+  size: number;
+}
+
+export class Pool {
+  private opts: PoolOpts;
+  private clients: Client[];
+  private alive: number[];
+  private cursor: number;
+  private _lastError: string;
+
+  constructor(opts: PoolOpts) {
+    this.opts = opts;
+    this.clients = [];
+    this.alive = [];
+    this.cursor = 0;
+    this._lastError = "";
+    const n = opts.size < 1 ? 1 : opts.size;
+    let i = 0;
+    while (i < n) {
+      const c = new Client({
+        host: opts.host,
+        port: opts.port,
+        user: opts.user,
+        database: opts.database,
+        password: opts.password,
+      });
+      this.clients.push(c);
+      this.alive.push(0);
+      i = i + 1;
+    }
+  }
+
+  lastError(): string {
+    return this._lastError;
+  }
+
+  size(): number {
+    return this.clients.length;
+  }
+
+  private _acquireIdx(): number {
+    const n = this.clients.length;
+    let attempts = 0;
+    while (attempts < n) {
+      const idx = this.cursor % n;
+      this.cursor = this.cursor + 1;
+      const c = this.clients[idx] as Client;
+      if (this.alive[idx] === 0) {
+        if (_poolConnectOne(c)) {
+          this.alive[idx] = 1;
+          return idx;
+        }
+        this._lastError = _poolClientError(c);
+      } else {
+        return idx;
+      }
+      attempts = attempts + 1;
+    }
+    return 0;
+  }
+
+  query(sql: string): QueryResult {
+    const idx = this._acquireIdx();
+    const c = this.clients[idx] as Client;
+    const r = _poolQuery(c, sql);
+    const err = _poolClientError(c);
+    if (err.length > 0) {
+      this.alive[idx] = 0;
+      this._lastError = err;
+    }
+    return r;
+  }
+
+  queryParams(sql: string, params: string[]): QueryResult {
+    const idx = this._acquireIdx();
+    const c = this.clients[idx] as Client;
+    const r = _poolQueryParams(c, sql, params);
+    const err = _poolClientError(c);
+    if (err.length > 0) {
+      this.alive[idx] = 0;
+      this._lastError = err;
+    }
+    return r;
+  }
+
+  end(): void {
+    let i = 0;
+    const n = this.clients.length;
+    while (i < n) {
+      if (this.alive[i] === 1) {
+        const c = this.clients[i] as Client;
+        _poolEndOne(c);
+        this.alive[i] = 0;
+      }
+      i = i + 1;
     }
   }
 }
