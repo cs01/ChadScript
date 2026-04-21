@@ -345,7 +345,11 @@ export class JsonGenerator {
 
     for (let fieldIndex = 0; fieldIndex < fieldCount; fieldIndex++) {
       const fieldType = this.ctx.interfaceStructGenGetFieldTsType(typeName, fieldIndex);
-      if (fieldType === "string") {
+      // Pre-initialize string and any/unknown slots to "" so an absent field
+      // yields a safe empty string instead of a null pointer. length===0 is
+      // the idiomatic absence check; without this, .length / === "null" /
+      // any other string op on an absent `any` field segfaults. (#631)
+      if (fieldType === "string" || fieldType === "any" || fieldType === "unknown") {
         lines.push(
           "  %init_ptr_" +
             fieldIndex +
