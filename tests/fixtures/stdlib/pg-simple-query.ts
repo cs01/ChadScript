@@ -4,9 +4,13 @@
 import { Client } from "chadscript/pg";
 
 function main(): void {
+  // Defaults match the credentials the CI workflow provisions for the
+  // `postgres` service (POSTGRES_USER=postgres POSTGRES_PASSWORD=test
+  // POSTGRES_DB=chadtest). Override via env for local runs against a
+  // different pg instance.
   const user = process.env.PGUSER ?? "postgres";
-  const db = process.env.PGDATABASE ?? "postgres";
-  const pw = process.env.PGPASSWORD ?? "";
+  const db = process.env.PGDATABASE ?? "chadtest";
+  const pw = process.env.PGPASSWORD ?? "test";
   const c = new Client({
     host: "127.0.0.1",
     port: 5432,

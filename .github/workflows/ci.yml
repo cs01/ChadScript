@@ -196,9 +196,6 @@ jobs:
 
     env:
       PG_TESTS_ENABLED: 1
-      PGUSER: postgres
-      PGPASSWORD: test
-      PGDATABASE: chadtest
 
     steps:
       - uses: actions/checkout@v4
@@ -354,9 +351,6 @@ jobs:
 
     env:
       PG_TESTS_ENABLED: 1
-      PGUSER: postgres
-      PGPASSWORD: test
-      PGDATABASE: chadtest
 
     steps:
       - uses: actions/checkout@v4
