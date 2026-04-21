@@ -1,0 +1,9 @@
+{
+  "name": "chadscript-pg-bench",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "pg": "^8.13.0",
+    "postgres": "^3.4.7"
+  }
+}
