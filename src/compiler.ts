@@ -14,6 +14,7 @@ import { TargetInfo, resolveTarget, getHostTarget, isCrossCompiling } from "./ta
 import { loadTargetSDK, ensureTargetSDK, TargetSDK } from "./cross-compile.js";
 import { VERSION } from "./version.js";
 import { setGlobalDiagnosticColor } from "./diagnostics/engine.js";
+import { buildMarshalWrapper, hasInterpretPragma } from "./marshal-wrapper.js";
 
 function detectInterpretPragma(source: string): boolean {
   const lines = source.split("\n", 10);
@@ -1007,7 +1008,28 @@ function compileMultiFile(
       );
     }
 
-    const importPath = resolveImportPath(absPath, imp.source);
+    let importPath = resolveImportPath(absPath, imp.source);
+
+    // Cross-boundary marshal: if the resolved target has the interpret pragma
+    // AND the importer does NOT (importer == native side), synthesize a
+    // replacement `.ts` wrapper that calls JSHandle FFI under the hood, then
+    // recurse on that wrapper instead of the pragma source. The wrapper
+    // exposes the same exports as the pragma file so the native importer's
+    // `import { foo }` resolves without any caller-side changes.
+    if (fs.existsSync(importPath) && !detectInterpretPragma(code)) {
+      const targetSource = fs.readFileSync(importPath, "utf8");
+      if (hasInterpretPragma(targetSource)) {
+        const wrapperSrc = buildMarshalWrapper(path.resolve(importPath), targetSource);
+        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "chad-marshal-"));
+        const tmpFile = path.join(tmpDir, path.basename(importPath));
+        fs.writeFileSync(tmpFile, wrapperSrc);
+        logger.info(
+          `@chadscript: interpret detected in import — synthesizing marshal wrapper for ${importPath}`,
+        );
+        importPath = tmpFile;
+      }
+    }
+
     const importedAST = compileMultiFile(
       importPath,
       compiledFiles,

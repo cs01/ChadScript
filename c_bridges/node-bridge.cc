@@ -517,4 +517,229 @@ double cs_v8_handle_call(double fn_handle_d,
     return h2d(store_handle(g_isolate, result));
 }
 
+// Ensure the Node environment has the CJS-require bootstrap loaded exactly
+// once. Subsequent pragma-module registrations use v8::Script::Run to wrap
+// the user source in a CJS IIFE referencing globalThis.__chad_cjs_require.
+// Returns true on success; on failure t_last_error is set.
+bool ensure_pragma_bootstrap(const char* entry_dir) {
+    static bool loaded = false;
+    if (loaded) return true;
+    if (!cs_node_lazy_init()) return false;
+    std::string esc;
+    const char* dir = (entry_dir && *entry_dir) ? entry_dir : ".";
+    for (const char* p = dir; *p; ++p) {
+        if (*p == '\\' || *p == '"') esc.push_back('\\');
+        esc.push_back(*p);
+    }
+    std::string bootstrap =
+        "globalThis.__chad_cjs_require = require('module').createRequire("
+        "require('path').join(\"" + esc + "\", 'package.json'));\n";
+    v8::Locker locker(g_isolate);
+    v8::Isolate::Scope iscope(g_isolate);
+    v8::HandleScope hs(g_isolate);
+    v8::Local<v8::Context> ctx = g_setup->context();
+    v8::Context::Scope cscope(ctx);
+    v8::TryCatch try_catch(g_isolate);
+    v8::MaybeLocal<v8::Value> maybe = node::LoadEnvironment(g_env, bootstrap.c_str());
+    if (maybe.IsEmpty()) {
+        if (try_catch.HasCaught()) {
+            v8::String::Utf8Value m(g_isolate, try_catch.Exception());
+            t_last_error = "pragma bootstrap threw";
+            if (*m) { t_last_error += ": "; t_last_error += *m; }
+        } else {
+            t_last_error = "pragma bootstrap returned empty";
+        }
+        return false;
+    }
+    g_load_env_called = true;
+    loaded = true;
+    return true;
+}
+
+// Evaluate the pragma-module source inside an on-the-fly CJS wrapper and
+// return a JSHandle to its module.exports object. Multiple modules can be
+// registered — each runs in its own closure with its own module/exports.
+double cs_v8_register_pragma_module(const char* src, const char* filename) {
+    t_last_error.clear();
+    if (!ensure_pragma_bootstrap(filename)) return 0.0;
+
+    v8::Locker locker(g_isolate);
+    v8::Isolate::Scope iscope(g_isolate);
+    v8::HandleScope hs(g_isolate);
+    v8::Local<v8::Context> ctx = g_setup->context();
+    v8::Context::Scope cscope(ctx);
+    v8::TryCatch tc(g_isolate);
+
+    std::string fesc;
+    if (filename && *filename) {
+        for (const char* p = filename; *p; ++p) {
+            if (*p == '\\' || *p == '"') fesc.push_back('\\');
+            fesc.push_back(*p);
+        }
+    }
+
+    // Wrap user source as: (function(module, exports, require, __filename,
+    // __dirname){ USER_SRC; return module.exports; })({exports:{}}, {}, ...)
+    // Since JavaScript requires passing module as arg, we build:
+    //   (function(){ const module={exports:{}}; const exports=module.exports;
+    //     const require=globalThis.__chad_cjs_require;
+    //     const __filename="..."; const __dirname=require('path').dirname(__filename);
+    //     /* USER_SRC */
+    //     return module.exports;
+    //   })()
+    std::string wrapped;
+    wrapped += "(function(){\n";
+    wrapped += "const module={exports:{}};\n";
+    wrapped += "const exports=module.exports;\n";
+    wrapped += "const require=globalThis.__chad_cjs_require;\n";
+    if (!fesc.empty()) {
+        wrapped += "const __filename=\"" + fesc + "\";\n";
+        wrapped += "const __dirname=require('path').dirname(__filename);\n";
+    }
+    wrapped += (src ? src : "");
+    wrapped += "\n;return module.exports;\n})()\n";
+
+    v8::Local<v8::String> source;
+    if (!v8::String::NewFromUtf8(g_isolate, wrapped.c_str(),
+                                 v8::NewStringType::kNormal).ToLocal(&source)) {
+        t_last_error = "register_pragma_module: alloc source failed";
+        return 0.0;
+    }
+    v8::Local<v8::Script> script;
+    if (!v8::Script::Compile(ctx, source).ToLocal(&script)) {
+        v8::String::Utf8Value m(g_isolate, tc.Exception());
+        t_last_error = "register_pragma_module: compile failed";
+        if (*m) { t_last_error += ": "; t_last_error += *m; }
+        return 0.0;
+    }
+    v8::Local<v8::Value> result;
+    if (!script->Run(ctx).ToLocal(&result)) {
+        v8::String::Utf8Value m(g_isolate, tc.Exception());
+        t_last_error = "register_pragma_module: run failed";
+        if (*m) { t_last_error += ": "; t_last_error += *m; }
+        return 0.0;
+    }
+    node::SpinEventLoop(g_env);
+    return h2d(store_handle(g_isolate, result));
+}
+
+// Marshal a bool primitive → JSHandle for the argv array.
+double cs_v8_make_bool_handle(double b) {
+    if (!cs_node_lazy_init()) return 0.0;
+    t_last_error.clear();
+    v8::Locker locker(g_isolate);
+    v8::Isolate::Scope iscope(g_isolate);
+    v8::HandleScope hs(g_isolate);
+    v8::Local<v8::Context> ctx = g_setup->context();
+    v8::Context::Scope cscope(ctx);
+    v8::Local<v8::Value> val = v8::Boolean::New(g_isolate, b != 0.0);
+    return h2d(store_handle(g_isolate, val));
+}
+
+// Fixed-arity call wrappers — ChadScript's FFI cannot pass a raw `double*`
+// array (its `number[]` is a struct). Calling sites up to 8 args cover the
+// vast majority of JS APIs; extend with higher arities if needed.
+static double call_fixed(double fn_h, double recv_h,
+                         const double* args, int32_t n) {
+    return cs_v8_handle_call(fn_h, recv_h, n, args);
+}
+double cs_v8_call0(double fn, double recv) {
+    return call_fixed(fn, recv, nullptr, 0);
+}
+double cs_v8_call1(double fn, double recv, double a0) {
+    double a[] = {a0};
+    return call_fixed(fn, recv, a, 1);
+}
+double cs_v8_call2(double fn, double recv, double a0, double a1) {
+    double a[] = {a0, a1};
+    return call_fixed(fn, recv, a, 2);
+}
+double cs_v8_call3(double fn, double recv, double a0, double a1, double a2) {
+    double a[] = {a0, a1, a2};
+    return call_fixed(fn, recv, a, 3);
+}
+double cs_v8_call4(double fn, double recv, double a0, double a1, double a2,
+                   double a3) {
+    double a[] = {a0, a1, a2, a3};
+    return call_fixed(fn, recv, a, 4);
+}
+double cs_v8_call5(double fn, double recv, double a0, double a1, double a2,
+                   double a3, double a4) {
+    double a[] = {a0, a1, a2, a3, a4};
+    return call_fixed(fn, recv, a, 5);
+}
+double cs_v8_call6(double fn, double recv, double a0, double a1, double a2,
+                   double a3, double a4, double a5) {
+    double a[] = {a0, a1, a2, a3, a4, a5};
+    return call_fixed(fn, recv, a, 6);
+}
+double cs_v8_call7(double fn, double recv, double a0, double a1, double a2,
+                   double a3, double a4, double a5, double a6) {
+    double a[] = {a0, a1, a2, a3, a4, a5, a6};
+    return call_fixed(fn, recv, a, 7);
+}
+double cs_v8_call8(double fn, double recv, double a0, double a1, double a2,
+                   double a3, double a4, double a5, double a6, double a7) {
+    double a[] = {a0, a1, a2, a3, a4, a5, a6, a7};
+    return call_fixed(fn, recv, a, 8);
+}
+
+// If the handle points to a Promise, spin the event loop until it settles
+// (fulfilled/rejected) and return a handle to the resolved value (or throw-
+// equivalent: set t_last_error and return 0). If the handle is not a Promise,
+// return it unchanged. Native `await` across the boundary flows through this.
+double cs_v8_handle_await(double handle_d) {
+    uint64_t handle = d2h(handle_d);
+    t_last_error.clear();
+    if (!is_handle(handle)) { t_last_error = "await: not JSHandle"; return 0.0; }
+    auto it = t_handles.find(handle);
+    if (it == t_handles.end()) { t_last_error = "await: released"; return 0.0; }
+    v8::Locker locker(g_isolate);
+    v8::Isolate::Scope iscope(g_isolate);
+    v8::HandleScope hs(g_isolate);
+    v8::Local<v8::Context> ctx = g_setup->context();
+    v8::Context::Scope cscope(ctx);
+    v8::Local<v8::Value> val = it->second.Get(g_isolate);
+    if (!val->IsPromise()) {
+        // Nothing to await — re-store & return same value as a fresh handle
+        // (the caller expects to own it, matching Promise path semantics).
+        return h2d(store_handle(g_isolate, val));
+    }
+    v8::Local<v8::Promise> promise = val.As<v8::Promise>();
+    // Drain microtasks + libuv until the promise is settled. Cap iterations
+    // so a never-resolving promise doesn't spin forever silently.
+    int iters = 0;
+    while (promise->State() == v8::Promise::kPending && iters < 10000) {
+        node::SpinEventLoop(g_env);
+        iters++;
+    }
+    if (promise->State() == v8::Promise::kPending) {
+        t_last_error = "await: promise pending after 10000 iterations";
+        return 0.0;
+    }
+    v8::Local<v8::Value> resolved = promise->Result();
+    if (promise->State() == v8::Promise::kRejected) {
+        v8::String::Utf8Value m(g_isolate, resolved);
+        t_last_error = "await: promise rejected";
+        if (*m) { t_last_error += ": "; t_last_error += *m; }
+        return 0.0;
+    }
+    return h2d(store_handle(g_isolate, resolved));
+}
+
+double cs_v8_handle_to_bool(double handle_d) {
+    uint64_t handle = d2h(handle_d);
+    t_last_error.clear();
+    if (!is_handle(handle)) { t_last_error = "to_bool: not JSHandle"; return 0.0; }
+    auto it = t_handles.find(handle);
+    if (it == t_handles.end()) { t_last_error = "to_bool: released"; return 0.0; }
+    v8::Locker locker(g_isolate);
+    v8::Isolate::Scope iscope(g_isolate);
+    v8::HandleScope hs(g_isolate);
+    v8::Local<v8::Context> ctx = g_setup->context();
+    v8::Context::Scope cscope(ctx);
+    v8::Local<v8::Value> val = it->second.Get(g_isolate);
+    return val->BooleanValue(g_isolate) ? 1.0 : 0.0;
+}
+
 } // extern "C"
