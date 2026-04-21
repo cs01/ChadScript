@@ -32,6 +32,9 @@ const T_CMD_DONE: number = 67; // 'C'
 const T_READY: number = 90; // 'Z'
 const T_ERROR: number = 69; // 'E'
 const T_AUTH: number = 82; // 'R' AuthenticationRequest
+const T_PARSE_COMPLETE: number = 49; // '1'
+const T_BIND_COMPLETE: number = 50; // '2'
+const T_NO_DATA: number = 110; // 'n'
 
 // Auth sub-type codes (first 4 bytes of AuthenticationRequest body)
 const AUTH_OK: number = 0;
@@ -218,6 +221,151 @@ export class Client {
         result.command = this._parseCString(this._framePayloadOff, this._framePayloadEnd);
       } else if (t === T_ERROR) {
         // _lastError already set in _pumpOneFrame
+      }
+      this._consumeCurrentFrame();
+      if (t === T_READY) return result;
+    }
+    return result;
+  }
+
+  // Extended protocol: Parse + Bind + Describe + Execute + Sync.
+  // params are text-encoded (format 0) — pass numbers as their string form.
+  // Empty string "" is sent as length=0. NULL parameters not yet supported
+  // (needs a sentinel distinct from "").
+  queryParams(sql: string, params: string[]): QueryResult {
+    const result: QueryResult = {
+      fields: [],
+      rows: [],
+      rowCount: 0,
+      command: "",
+    };
+    if (this.connected === 0) {
+      this._lastError = "not connected";
+      return result;
+    }
+
+    const tx = this.tx;
+    let off = 0;
+
+    // ---- Parse 'P' ----
+    const pStart = off;
+    tx[off] = 80; // 'P'
+    off = off + 5;
+    tx[off] = 0; // unnamed prepared stmt
+    off = off + 1;
+    const sqlLen = sql.length;
+    let si = 0;
+    while (si < sqlLen) {
+      tx[off + si] = sql.charCodeAt(si) & 0xff;
+      si = si + 1;
+    }
+    off = off + sqlLen;
+    tx[off] = 0;
+    off = off + 1;
+    tx[off] = 0;
+    tx[off + 1] = 0; // numParamTypes=0 (server infers)
+    off = off + 2;
+    const pLen = off - pStart - 1;
+    tx[pStart + 1] = (pLen >> 24) & 0xff;
+    tx[pStart + 2] = (pLen >> 16) & 0xff;
+    tx[pStart + 3] = (pLen >> 8) & 0xff;
+    tx[pStart + 4] = pLen & 0xff;
+
+    // ---- Bind 'B' ----
+    const bStart = off;
+    tx[off] = 66; // 'B'
+    off = off + 5;
+    tx[off] = 0; // unnamed portal
+    off = off + 1;
+    tx[off] = 0; // unnamed prepared stmt
+    off = off + 1;
+    tx[off] = 0;
+    tx[off + 1] = 0; // numFormatCodes=0 → all text
+    off = off + 2;
+    const nParams = params.length;
+    tx[off] = (nParams >> 8) & 0xff;
+    tx[off + 1] = nParams & 0xff;
+    off = off + 2;
+    let pi = 0;
+    while (pi < nParams) {
+      const p = params[pi];
+      const pl = p.length;
+      tx[off] = (pl >> 24) & 0xff;
+      tx[off + 1] = (pl >> 16) & 0xff;
+      tx[off + 2] = (pl >> 8) & 0xff;
+      tx[off + 3] = pl & 0xff;
+      off = off + 4;
+      let pj = 0;
+      while (pj < pl) {
+        tx[off + pj] = p.charCodeAt(pj) & 0xff;
+        pj = pj + 1;
+      }
+      off = off + pl;
+      pi = pi + 1;
+    }
+    tx[off] = 0;
+    tx[off + 1] = 0; // numResultFormats=0 → all text
+    off = off + 2;
+    const bLen = off - bStart - 1;
+    tx[bStart + 1] = (bLen >> 24) & 0xff;
+    tx[bStart + 2] = (bLen >> 16) & 0xff;
+    tx[bStart + 3] = (bLen >> 8) & 0xff;
+    tx[bStart + 4] = bLen & 0xff;
+
+    // ---- Describe 'D' portal '' ----
+    const dStart = off;
+    tx[off] = 68; // 'D'
+    off = off + 5;
+    tx[off] = 80; // 'P'
+    off = off + 1;
+    tx[off] = 0;
+    off = off + 1;
+    const dLen = off - dStart - 1;
+    tx[dStart + 1] = (dLen >> 24) & 0xff;
+    tx[dStart + 2] = (dLen >> 16) & 0xff;
+    tx[dStart + 3] = (dLen >> 8) & 0xff;
+    tx[dStart + 4] = dLen & 0xff;
+
+    // ---- Execute 'E' portal '' maxRows=0 ----
+    const eStart = off;
+    tx[off] = 69; // 'E'
+    off = off + 5;
+    tx[off] = 0;
+    off = off + 1;
+    tx[off] = 0;
+    tx[off + 1] = 0;
+    tx[off + 2] = 0;
+    tx[off + 3] = 0;
+    off = off + 4;
+    const eLen = off - eStart - 1;
+    tx[eStart + 1] = (eLen >> 24) & 0xff;
+    tx[eStart + 2] = (eLen >> 16) & 0xff;
+    tx[eStart + 3] = (eLen >> 8) & 0xff;
+    tx[eStart + 4] = eLen & 0xff;
+
+    // ---- Sync 'S' ----
+    tx[off] = 83;
+    tx[off + 1] = 0;
+    tx[off + 2] = 0;
+    tx[off + 3] = 0;
+    tx[off + 4] = 4;
+    off = off + 5;
+
+    this.sock.writeBytes(tx, off);
+
+    const deadline = Date.now() + 30000;
+    while (true) {
+      const t = this._pumpOneFrame(deadline);
+      if (t === 0) {
+        this._lastError = "query timeout / closed";
+        return result;
+      }
+      if (t === T_ROW_DESC) {
+        this._parseRowDescInto(result);
+      } else if (t === T_DATA_ROW) {
+        this._parseDataRowInto(result);
+      } else if (t === T_CMD_DONE) {
+        result.command = this._parseCString(this._framePayloadOff, this._framePayloadEnd);
       }
       this._consumeCurrentFrame();
       if (t === T_READY) return result;
