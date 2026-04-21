@@ -196,9 +196,19 @@ jobs:
 
     env:
       PG_TESTS_ENABLED: 1
+      PGPASSWORD: test
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Force pg password to md5 encryption
+        # postgres:16 image defaults to password_encryption=scram-sha-256, so
+        # the `postgres` user is scram-hashed. Our pure-TS pg driver implements
+        # md5 auth (SCRAM is follow-up) — re-hash password as md5.
+        run: |
+          sudo apt-get install -y postgresql-client
+          psql -h localhost -p 5432 -U postgres -d chadtest \
+            -c "SET password_encryption='md5'; ALTER USER postgres PASSWORD 'test';"
 
       - uses: dorny/paths-filter@v3
         id: changes
@@ -399,8 +409,8 @@ jobs:
             fi
             sleep 1
           done
-          psql postgres -c "CREATE USER postgres SUPERUSER PASSWORD 'test';" || echo "postgres user already exists"
-          psql postgres -c "ALTER USER postgres WITH PASSWORD 'test';"
+          psql postgres -c "SET password_encryption='md5'; CREATE USER postgres SUPERUSER PASSWORD 'test';" || echo "postgres user already exists"
+          psql postgres -c "SET password_encryption='md5'; ALTER USER postgres WITH PASSWORD 'test';"
           psql postgres -c "CREATE DATABASE chadtest OWNER postgres;" || echo "chadtest db already exists"
           psql -h localhost -p 5432 -U postgres -d chadtest -c "SELECT 1;" postgresql://postgres:test@localhost:5432/chadtest
 
