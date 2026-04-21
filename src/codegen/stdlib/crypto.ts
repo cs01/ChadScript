@@ -43,10 +43,29 @@ export class CryptoGenerator {
       return this.ctx.emitError(`crypto.${expr.method}() requires 1 argument`, expr.loc);
     }
 
-    const inputPtr = this.ctx.generateExpression(expr.args[0], params);
+    const arg = expr.args[0];
+    const isBytes = this.ctx.isUint8ArrayExpression(arg);
+    const argVal = this.ctx.generateExpression(arg, params);
 
-    const inputLen = this.ctx.nextTemp();
-    this.ctx.emit(`${inputLen} = call i64 @strlen(i8* ${inputPtr})`);
+    let inputPtr: string;
+    let inputLen: string;
+    if (isBytes) {
+      // %Uint8Array = type { i8*, i32, i32 } — load data ptr and length.
+      const dataGep = this.ctx.nextTemp();
+      this.ctx.emit(`${dataGep} = getelementptr %Uint8Array, %Uint8Array* ${argVal}, i32 0, i32 0`);
+      inputPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${inputPtr} = load i8*, i8** ${dataGep}`);
+      const lenGep = this.ctx.nextTemp();
+      this.ctx.emit(`${lenGep} = getelementptr %Uint8Array, %Uint8Array* ${argVal}, i32 0, i32 1`);
+      const lenI32 = this.ctx.nextTemp();
+      this.ctx.emit(`${lenI32} = load i32, i32* ${lenGep}`);
+      inputLen = this.ctx.nextTemp();
+      this.ctx.emit(`${inputLen} = sext i32 ${lenI32} to i64`);
+    } else {
+      inputPtr = argVal;
+      inputLen = this.ctx.nextTemp();
+      this.ctx.emit(`${inputLen} = call i64 @strlen(i8* ${inputPtr})`);
+    }
 
     const mdCtx = this.ctx.nextTemp();
     this.ctx.emit(`${mdCtx} = call i8* @EVP_MD_CTX_new()`);
@@ -183,16 +202,56 @@ export class CryptoGenerator {
       return this.ctx.emitError("crypto.hmacSha256() requires 2 arguments (key, data)", expr.loc);
     }
 
-    const keyPtr = this.ctx.generateExpression(expr.args[0], params);
-    const dataPtr = this.ctx.generateExpression(expr.args[1], params);
+    const keyArg = expr.args[0];
+    const dataArg = expr.args[1];
+    const keyIsBytes = this.ctx.isUint8ArrayExpression(keyArg);
+    const dataIsBytes = this.ctx.isUint8ArrayExpression(dataArg);
+    const keyVal = this.ctx.generateExpression(keyArg, params);
+    const dataVal = this.ctx.generateExpression(dataArg, params);
 
-    const keyLen64 = this.ctx.nextTemp();
-    this.ctx.emit(`${keyLen64} = call i64 @strlen(i8* ${keyPtr})`);
-    const keyLen32 = this.ctx.nextTemp();
-    this.ctx.emit(`${keyLen32} = trunc i64 ${keyLen64} to i32`);
+    let keyPtr: string;
+    let keyLen32: string;
+    if (keyIsBytes) {
+      const kDataGep = this.ctx.nextTemp();
+      this.ctx.emit(
+        `${kDataGep} = getelementptr %Uint8Array, %Uint8Array* ${keyVal}, i32 0, i32 0`,
+      );
+      keyPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${keyPtr} = load i8*, i8** ${kDataGep}`);
+      const kLenGep = this.ctx.nextTemp();
+      this.ctx.emit(`${kLenGep} = getelementptr %Uint8Array, %Uint8Array* ${keyVal}, i32 0, i32 1`);
+      keyLen32 = this.ctx.nextTemp();
+      this.ctx.emit(`${keyLen32} = load i32, i32* ${kLenGep}`);
+    } else {
+      keyPtr = keyVal;
+      const keyLen64 = this.ctx.nextTemp();
+      this.ctx.emit(`${keyLen64} = call i64 @strlen(i8* ${keyPtr})`);
+      keyLen32 = this.ctx.nextTemp();
+      this.ctx.emit(`${keyLen32} = trunc i64 ${keyLen64} to i32`);
+    }
 
-    const dataLen = this.ctx.nextTemp();
-    this.ctx.emit(`${dataLen} = call i64 @strlen(i8* ${dataPtr})`);
+    let dataPtr: string;
+    let dataLen: string;
+    if (dataIsBytes) {
+      const dDataGep = this.ctx.nextTemp();
+      this.ctx.emit(
+        `${dDataGep} = getelementptr %Uint8Array, %Uint8Array* ${dataVal}, i32 0, i32 0`,
+      );
+      dataPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${dataPtr} = load i8*, i8** ${dDataGep}`);
+      const dLenGep = this.ctx.nextTemp();
+      this.ctx.emit(
+        `${dLenGep} = getelementptr %Uint8Array, %Uint8Array* ${dataVal}, i32 0, i32 1`,
+      );
+      const dLenI32 = this.ctx.nextTemp();
+      this.ctx.emit(`${dLenI32} = load i32, i32* ${dLenGep}`);
+      dataLen = this.ctx.nextTemp();
+      this.ctx.emit(`${dataLen} = sext i32 ${dLenI32} to i64`);
+    } else {
+      dataPtr = dataVal;
+      dataLen = this.ctx.nextTemp();
+      this.ctx.emit(`${dataLen} = call i64 @strlen(i8* ${dataPtr})`);
+    }
 
     const evpMd = this.ctx.nextTemp();
     this.ctx.emit(`${evpMd} = call i8* @EVP_sha256()`);
