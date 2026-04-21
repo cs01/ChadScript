@@ -109,10 +109,7 @@ export class MathGenerator {
     }
     const arg = this.ctx.generateExpression(expr.args[0], params);
     const dblArg = this.ctx.ensureDouble(arg);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call double @llvm.sqrt.f64(double ${dblArg})`);
-    this.ctx.setVariableType(result, "double");
-    return result;
+    return this.ctx.emitCall("double", "@llvm.sqrt.f64", this.ctx.emitOperand(dblArg, "double"));
   }
 
   /**
@@ -126,10 +123,8 @@ export class MathGenerator {
     const exp = this.ctx.generateExpression(expr.args[1], params);
     const dblBase = this.ctx.ensureDouble(base);
     const dblExp = this.ctx.ensureDouble(exp);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call double @llvm.pow.f64(double ${dblBase}, double ${dblExp})`);
-    this.ctx.setVariableType(result, "double");
-    return result;
+    const args = `${this.ctx.emitOperand(dblBase, "double")}, ${this.ctx.emitOperand(dblExp, "double")}`;
+    return this.ctx.emitCall("double", "@llvm.pow.f64", args);
   }
 
   /**
@@ -141,10 +136,7 @@ export class MathGenerator {
     }
     const arg = this.ctx.generateExpression(expr.args[0], params);
     const dblArg = this.ctx.ensureDouble(arg);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call double @llvm.floor.f64(double ${dblArg})`);
-    this.ctx.setVariableType(result, "double");
-    return result;
+    return this.ctx.emitCall("double", "@llvm.floor.f64", this.ctx.emitOperand(dblArg, "double"));
   }
 
   /**
@@ -156,10 +148,7 @@ export class MathGenerator {
     }
     const arg = this.ctx.generateExpression(expr.args[0], params);
     const dblArg = this.ctx.ensureDouble(arg);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call double @llvm.ceil.f64(double ${dblArg})`);
-    this.ctx.setVariableType(result, "double");
-    return result;
+    return this.ctx.emitCall("double", "@llvm.ceil.f64", this.ctx.emitOperand(dblArg, "double"));
   }
 
   /**
@@ -171,10 +160,7 @@ export class MathGenerator {
     }
     const arg = this.ctx.generateExpression(expr.args[0], params);
     const dblArg = this.ctx.ensureDouble(arg);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call double @llvm.round.f64(double ${dblArg})`);
-    this.ctx.setVariableType(result, "double");
-    return result;
+    return this.ctx.emitCall("double", "@llvm.round.f64", this.ctx.emitOperand(dblArg, "double"));
   }
 
   /**
@@ -186,10 +172,7 @@ export class MathGenerator {
     }
     const arg = this.ctx.generateExpression(expr.args[0], params);
     const dblArg = this.ctx.ensureDouble(arg);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call double @llvm.fabs.f64(double ${dblArg})`);
-    this.ctx.setVariableType(result, "double");
-    return result;
+    return this.ctx.emitCall("double", "@llvm.fabs.f64", this.ctx.emitOperand(dblArg, "double"));
   }
 
   private generateMax(expr: MethodCallNode, params: string[]): string {
@@ -199,9 +182,8 @@ export class MathGenerator {
     let current = this.ctx.ensureDouble(this.ctx.generateExpression(expr.args[0], params));
     for (let i = 1; i < expr.args.length; i++) {
       const next = this.ctx.ensureDouble(this.ctx.generateExpression(expr.args[i], params));
-      const result = this.ctx.nextTemp();
-      this.ctx.emit(`${result} = call double @llvm.maximum.f64(double ${current}, double ${next})`);
-      current = result;
+      const args = `${this.ctx.emitOperand(current, "double")}, ${this.ctx.emitOperand(next, "double")}`;
+      current = this.ctx.emitCall("double", "@llvm.maximum.f64", args);
     }
     return current;
   }
@@ -212,18 +194,12 @@ export class MathGenerator {
     }
     const arg = this.ctx.generateExpression(expr.args[0], params);
     const dblArg = this.ctx.ensureDouble(arg);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call double @llvm.trunc.f64(double ${dblArg})`);
-    this.ctx.setVariableType(result, "double");
-    return result;
+    return this.ctx.emitCall("double", "@llvm.trunc.f64", this.ctx.emitOperand(dblArg, "double"));
   }
 
   private generateRandom(expr: MethodCallNode): string {
     this.ctx.setUsesMathRandom(true);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call double @drand48()`);
-    this.ctx.setVariableType(result, "double");
-    return result;
+    return this.ctx.emitCall("double", "@drand48", "");
   }
 
   private generateSign(expr: MethodCallNode, params: string[]): string {
@@ -232,18 +208,23 @@ export class MathGenerator {
     }
     const arg = this.ctx.generateExpression(expr.args[0], params);
     const dblArg = this.ctx.ensureDouble(arg);
+    const dblOp = this.ctx.emitOperand(dblArg, "double");
     const isNaN = this.ctx.nextTemp();
-    this.ctx.emit(`${isNaN} = fcmp uno double ${dblArg}, ${dblArg}`);
+    this.ctx.emit(`${isNaN} = fcmp uno ${dblOp}, ${dblArg}`);
     const isPos = this.ctx.nextTemp();
-    this.ctx.emit(`${isPos} = fcmp ogt double ${dblArg}, 0.0`);
+    this.ctx.emit(`${isPos} = fcmp ogt ${dblOp}, 0.0`);
     const isNeg = this.ctx.nextTemp();
-    this.ctx.emit(`${isNeg} = fcmp olt double ${dblArg}, 0.0`);
+    this.ctx.emit(`${isNeg} = fcmp olt ${dblOp}, 0.0`);
     const posVal = this.ctx.nextTemp();
     this.ctx.emit(`${posVal} = select i1 ${isPos}, double 1.0, double 0.0`);
     const negVal = this.ctx.nextTemp();
-    this.ctx.emit(`${negVal} = select i1 ${isNeg}, double -1.0, double ${posVal}`);
+    this.ctx.emit(
+      `${negVal} = select i1 ${isNeg}, double -1.0, ${this.ctx.emitOperand(posVal, "double")}`,
+    );
     const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = select i1 ${isNaN}, double 0x7FF8000000000000, double ${negVal}`);
+    this.ctx.emit(
+      `${result} = select i1 ${isNaN}, double 0x7FF8000000000000, ${this.ctx.emitOperand(negVal, "double")}`,
+    );
     return result;
   }
 
@@ -253,10 +234,7 @@ export class MathGenerator {
     }
     const arg = this.ctx.generateExpression(expr.args[0], params);
     const dblArg = this.ctx.ensureDouble(arg);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call double @llvm.log.f64(double ${dblArg})`);
-    this.ctx.setVariableType(result, "double");
-    return result;
+    return this.ctx.emitCall("double", "@llvm.log.f64", this.ctx.emitOperand(dblArg, "double"));
   }
 
   private generateSin(expr: MethodCallNode, params: string[]): string {
@@ -265,10 +243,7 @@ export class MathGenerator {
     }
     const arg = this.ctx.generateExpression(expr.args[0], params);
     const dblArg = this.ctx.ensureDouble(arg);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call double @llvm.sin.f64(double ${dblArg})`);
-    this.ctx.setVariableType(result, "double");
-    return result;
+    return this.ctx.emitCall("double", "@llvm.sin.f64", this.ctx.emitOperand(dblArg, "double"));
   }
 
   private generateCos(expr: MethodCallNode, params: string[]): string {
@@ -277,10 +252,7 @@ export class MathGenerator {
     }
     const arg = this.ctx.generateExpression(expr.args[0], params);
     const dblArg = this.ctx.ensureDouble(arg);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call double @llvm.cos.f64(double ${dblArg})`);
-    this.ctx.setVariableType(result, "double");
-    return result;
+    return this.ctx.emitCall("double", "@llvm.cos.f64", this.ctx.emitOperand(dblArg, "double"));
   }
 
   private generateMin(expr: MethodCallNode, params: string[]): string {
@@ -290,9 +262,8 @@ export class MathGenerator {
     let current = this.ctx.ensureDouble(this.ctx.generateExpression(expr.args[0], params));
     for (let i = 1; i < expr.args.length; i++) {
       const next = this.ctx.ensureDouble(this.ctx.generateExpression(expr.args[i], params));
-      const result = this.ctx.nextTemp();
-      this.ctx.emit(`${result} = call double @llvm.minimum.f64(double ${current}, double ${next})`);
-      current = result;
+      const args = `${this.ctx.emitOperand(current, "double")}, ${this.ctx.emitOperand(next, "double")}`;
+      current = this.ctx.emitCall("double", "@llvm.minimum.f64", args);
     }
     return current;
   }

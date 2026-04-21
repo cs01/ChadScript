@@ -553,6 +553,15 @@ export class BaseGenerator {
     return temp;
   }
 
+  emitSymbol(name: string, sigil: string): string {
+    if (name.length > 0 && (name[0] === "@" || name[0] === "%")) return name;
+    return `${sigil}${name}`;
+  }
+
+  emitOperand(value: string, llvmType: string): string {
+    return `${llvmType} ${value}`;
+  }
+
   // ============================================
   // Symbol table convenience methods
   // ============================================
