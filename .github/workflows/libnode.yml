@@ -41,6 +41,7 @@ jobs:
     timeout-minutes: 200
     env:
       CHAD_NODE_SRC: ${{ github.workspace }}/node-src
+      CHAD_SKIP_NODE: "0"
     steps:
       - uses: actions/checkout@v4
 

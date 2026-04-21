@@ -481,7 +481,7 @@ fi
 NODE_DIR="$VENDOR_DIR/node"
 NODE_SRC_DIR="${CHAD_NODE_SRC:-$HOME/git/node}"
 NODE_PINNED_SENTINEL="$NODE_DIR/.pinned-version"
-NODE_SKIP="${CHAD_SKIP_NODE:-0}"
+NODE_SKIP="${CHAD_SKIP_NODE:-1}"
 
 case "$(uname -s)" in
   Darwin) NODE_PLATFORM="darwin" ;;
