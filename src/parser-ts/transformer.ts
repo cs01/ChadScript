@@ -33,6 +33,7 @@ import {
   transformTypeAliasDeclaration,
   transformImportDeclaration,
 } from "./handlers/declarations.js";
+import { INTERPRET_PRAGMA_HINT } from "../diagnostics/engine.js";
 
 let currentSourceFile: ts.SourceFile | null = null;
 
@@ -289,7 +290,9 @@ function transformTopLevelStatement(
         ast.topLevelItemTypes!.push(expr.type);
       } else if (expr.type === "unary") {
         throw new Error(
-          "Increment/decrement (++/--) at global scope is not supported. Use x = x + 1 instead, or wrap in a function.",
+          "Increment/decrement (++/--) at global scope is not supported. Use x = x + 1 instead, or wrap in a function.\n" +
+            "  help: " +
+            INTERPRET_PRAGMA_HINT,
         );
       } else if (isAssignmentExpression(exprStmt.expression)) {
         const binExpr = exprStmt.expression as ts.BinaryExpression;
@@ -367,7 +370,9 @@ function transformTopLevelStatement(
           loc.line +
           ":" +
           loc.column +
-          ": error: labeled statements (e.g., 'outer: for') are not supported; use a flag variable with regular break instead",
+          ": error: labeled statements (e.g., 'outer: for') are not supported; use a flag variable with regular break instead.\n" +
+          "  help: " +
+          INTERPRET_PRAGMA_HINT,
       );
       process.exit(1);
       break;

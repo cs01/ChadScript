@@ -270,6 +270,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public usesStringBuilder: number = 0;
   public usesLLVM: number = 0;
   public usesLLD: number = 0;
+  public usesV8: number = 0;
   public usesCompression: number = 0;
   public usesYaml: number = 0;
   private stringBuilderSlen: Map<string, string> = new Map();
@@ -1020,6 +1021,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
   public getUsesLLD(): boolean {
     return this.usesLLD !== 0;
+  }
+  public getUsesV8(): boolean {
+    return this.usesV8 !== 0;
+  }
+  public setUsesV8(value: boolean): void {
+    this.usesV8 = value ? 1 : 0;
   }
   public setUsesCompression(value: boolean): void {
     this.usesCompression = value ? 1 : 0;
@@ -3588,6 +3595,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.declaredExternFunctions.push(func.name);
     if (func.name.startsWith("cs_llvm_")) this.usesLLVM = 1;
     if (func.name.startsWith("cs_lld_")) this.usesLLD = 1;
+    if (func.name.startsWith("cs_v8_")) this.usesV8 = 1;
     return `declare ${retType} @${func.name}(${paramLlvmTypes.join(", ")})\n`;
   }
 

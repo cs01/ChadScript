@@ -1,4 +1,5 @@
 import * as fs from "fs";
+import * as os from "os";
 import * as path from "path";
 import { fileURLToPath } from "url";
 const _libDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "../lib");
@@ -13,6 +14,43 @@ import { TargetInfo, resolveTarget, getHostTarget, isCrossCompiling } from "./ta
 import { loadTargetSDK, ensureTargetSDK, TargetSDK } from "./cross-compile.js";
 import { VERSION } from "./version.js";
 import { setGlobalDiagnosticColor } from "./diagnostics/engine.js";
+import { buildMarshalWrapper, hasInterpretPragma } from "./marshal-wrapper.js";
+
+function detectInterpretPragma(source: string): boolean {
+  const lines = source.split("\n", 10);
+  for (const line of lines) {
+    if (/^\s*\/\/\s*@chadscript\s*:\s*interpret\b/.test(line)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function buildInterpretWrapper(originalSource: string, sourceFilename: string = ""): string {
+  // libnode swap: call cs_v8_eval_script_node, which drives the source via
+  // node::LoadEnvironment inside a Node Environment. That hands the user code
+  // real `require`, `__filename`, `__dirname`, `process.argv`, `setTimeout`,
+  // `fs`, etc. Console output already goes through Node's stdio.
+  const encodedSrc = JSON.stringify(originalSource);
+  const encodedFile = JSON.stringify(sourceFilename);
+  return (
+    "declare function cs_v8_eval_script_node(src: string, filename: string): string;\n" +
+    "declare function cs_v8_last_error(): string;\n" +
+    "declare function cs_v8_shutdown_node(): void;\n" +
+    "const __chad_src = " +
+    encodedSrc +
+    ";\n" +
+    "const __chad_file = " +
+    encodedFile +
+    ";\n" +
+    "const __chad_out = cs_v8_eval_script_node(__chad_src, __chad_file);\n" +
+    "const __chad_err = cs_v8_last_error();\n" +
+    "if (__chad_err.length > 0) {\n" +
+    "  console.log('interpret error: ' + __chad_err);\n" +
+    "}\n" +
+    "cs_v8_shutdown_node();\n"
+  );
+}
 
 function findLLVMTool(name: string): string {
   const candidates = [
@@ -173,6 +211,7 @@ const YYJSON_PATH = process.env.CHADSCRIPT_YYJSON_PATH || "./vendor/yyjson";
 const LIBUV_PATH = process.env.CHADSCRIPT_LIBUV_PATH || "./vendor/libuv/build";
 const TREESITTER_LIB_PATH = process.env.CHADSCRIPT_TREESITTER_PATH || "./vendor/tree-sitter";
 const RURE_LIB_PATH = process.env.CHADSCRIPT_RURE_PATH || "./vendor/rure";
+const NODE_LIB_PATH = process.env.CHADSCRIPT_NODE_PATH || "./vendor/node";
 // TSX grammar is a strict superset of TypeScript — all .ts code parses identically.
 // The only difference: <Type>expr angle-bracket assertions become JSX, but ChadScript
 // uses `as Type` so there's no impact on existing code.
@@ -189,6 +228,20 @@ export function compile(
 ): void {
   // Set the global logger level
   logger.setLevel(logLevel);
+
+  // Phase 1 pragma: if the entry file has `// @chadscript: interpret`, rewrite
+  // it into a wrapper .ts that embeds the original source and eval's it under V8.
+  if (fs.existsSync(inputFile)) {
+    const entrySource = fs.readFileSync(inputFile, "utf8");
+    if (detectInterpretPragma(entrySource)) {
+      const wrapper = buildInterpretWrapper(entrySource, path.resolve(inputFile));
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "chad-interpret-"));
+      const tmpFile = path.join(tmpDir, path.basename(inputFile));
+      fs.writeFileSync(tmpFile, wrapper);
+      logger.info(`@chadscript: interpret detected — routing ${inputFile} through V8`);
+      return compile(tmpFile, outputFile, logLevel);
+    }
+  }
 
   const target = targetOverride || getHostTarget();
   const crossCompiling = isCrossCompiling(target);
@@ -447,6 +500,27 @@ export function compile(
       linkLibs += " -framework Security -framework CoreFoundation";
     }
   }
+  if (generator.getUsesV8()) {
+    // libnode swap: link Node.js shared lib instead of raw V8. libnode
+    // statically bundles v8_libplatform + v8_libbase, so only `-lnode` is
+    // needed. rpath resolves libnode.*.dylib/.so next to the compiled binary.
+    const nodeLibDir = sdk ? `${sdk.vendorPath}/node/lib` : `${NODE_LIB_PATH}/lib`;
+    linkLibs += ` -L${nodeLibDir} -lnode`;
+    if (targetIsMac) {
+      linkLibs += ` -Wl,-rpath,@loader_path/../vendor/node/lib`;
+      linkLibs += ` -Wl,-rpath,@loader_path`;
+      linkLibs += ` -Wl,-rpath,${path.resolve(nodeLibDir)}`;
+    } else {
+      linkLibs += ` -Wl,-rpath,\\$ORIGIN/../vendor/node/lib`;
+      linkLibs += ` -Wl,-rpath,\\$ORIGIN`;
+      linkLibs += ` -Wl,-rpath,${path.resolve(nodeLibDir)}`;
+    }
+    if (hostIsMac) {
+      linkLibs += " -lc++";
+    } else {
+      linkLibs += " -lstdc++";
+    }
+  }
 
   // Platform-specific library search paths
   if (sdk) {
@@ -551,6 +625,18 @@ export function compile(
 
       extraObjs = ` ${tsParserObj} ${tsScannerObj} ${bridgeObj}`;
       linkLibs += ` ${TREESITTER_LIB_PATH}/libtree-sitter.a`;
+    }
+  }
+
+  if (generator.getUsesV8()) {
+    // libnode swap: the bridge is now node-bridge.o (embeds libnode).
+    // Keep v8-bridge.o fallback for any half-migrated vendor dir.
+    const nodeBridgeObj = `${bridgePath}/node-bridge.o`;
+    const v8BridgeObj = `${bridgePath}/v8-bridge.o`;
+    if (fs.existsSync(nodeBridgeObj)) {
+      extraObjs += ` ${nodeBridgeObj}`;
+    } else if (fs.existsSync(v8BridgeObj)) {
+      extraObjs += ` ${v8BridgeObj}`;
     }
   }
 
@@ -922,7 +1008,28 @@ function compileMultiFile(
       );
     }
 
-    const importPath = resolveImportPath(absPath, imp.source);
+    let importPath = resolveImportPath(absPath, imp.source);
+
+    // Cross-boundary marshal: if the resolved target has the interpret pragma
+    // AND the importer does NOT (importer == native side), synthesize a
+    // replacement `.ts` wrapper that calls JSHandle FFI under the hood, then
+    // recurse on that wrapper instead of the pragma source. The wrapper
+    // exposes the same exports as the pragma file so the native importer's
+    // `import { foo }` resolves without any caller-side changes.
+    if (fs.existsSync(importPath) && !detectInterpretPragma(code)) {
+      const targetSource = fs.readFileSync(importPath, "utf8");
+      if (hasInterpretPragma(targetSource)) {
+        const wrapperSrc = buildMarshalWrapper(path.resolve(importPath), targetSource);
+        const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "chad-marshal-"));
+        const tmpFile = path.join(tmpDir, path.basename(importPath));
+        fs.writeFileSync(tmpFile, wrapperSrc);
+        logger.info(
+          `@chadscript: interpret detected in import — synthesizing marshal wrapper for ${importPath}`,
+        );
+        importPath = tmpFile;
+      }
+    }
+
     const importedAST = compileMultiFile(
       importPath,
       compiledFiles,
