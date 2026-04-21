@@ -514,6 +514,28 @@ declare module "chadscript/pg" {
     end(): void;
     lastError(): string;
   }
+
+  export interface PoolOpts {
+    host: string;
+    port: number;
+    user: string;
+    database: string;
+    password: string;
+    // Number of clients in the rotation (minimum 1).
+    size: number;
+  }
+
+  // Round-robin pool over N Clients. Lazily connects each client on first
+  // use, auto-reconnects on error. Synchronous — not a parallelism primitive;
+  // used for connection caching + per-connection server state spread.
+  export class Pool {
+    constructor(opts: PoolOpts);
+    query(sql: string): QueryResult;
+    queryParams(sql: string, params: string[]): QueryResult;
+    end(): void;
+    lastError(): string;
+    size(): number;
+  }
 }
 
 declare module "chadscript/http" {
