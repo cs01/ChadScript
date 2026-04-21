@@ -411,16 +411,25 @@ export function compile(
   }
   let usesPostgres = false;
   let usesNet = false;
+  let usesTls = false;
   for (let i = 0; i < generator.declaredExternFunctions.length; i++) {
     const fn = generator.declaredExternFunctions[i];
     if (fn.startsWith("cs_pg_")) {
       usesPostgres = true;
     } else if (fn.startsWith("cs_net_")) {
       usesNet = true;
+    } else if (fn.startsWith("cs_tls_")) {
+      usesNet = true;
+      usesTls = true;
     }
   }
   if (usesPostgres) {
     linkLibs += " -lpq";
+  }
+  // net-bridge.o references OpenSSL symbols (TLS inline with plain path);
+  // link libssl/libcrypto whenever net is used.
+  if (usesNet) {
+    linkLibs += " -lssl -lcrypto";
   }
   if (generator.usesHttpServer) {
     linkLibs += ` -lz -lzstd`;
@@ -450,7 +459,7 @@ export function compile(
   } else if (targetIsMac && hostIsMac) {
     // Native macOS: use Homebrew paths and Xcode SDK
     const brewPrefix = process.arch === "arm64" ? "/opt/homebrew/opt" : "/usr/local/opt";
-    if (generator.usesCrypto) {
+    if (generator.usesCrypto || usesNet) {
       linkLibs = `-L${brewPrefix}/openssl/lib ` + linkLibs;
     }
     if (generator.usesSqlite) {

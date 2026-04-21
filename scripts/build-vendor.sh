@@ -485,7 +485,14 @@ NET_BRIDGE_SRC="$C_BRIDGES_DIR/net-bridge.c"
 NET_BRIDGE_OBJ="$C_BRIDGES_DIR/net-bridge.o"
 if [ ! -f "$NET_BRIDGE_OBJ" ] || [ "$NET_BRIDGE_SRC" -nt "$NET_BRIDGE_OBJ" ]; then
   echo "==> Building net-bridge..."
-  cc -c -O2 -fPIC -I"$VENDOR_DIR/libuv/include" "$NET_BRIDGE_SRC" -o "$NET_BRIDGE_OBJ"
+  # OpenSSL headers: brew on mac, system on linux (libssl-dev provides /usr/include/openssl).
+  OSSL_INC=""
+  if [ -d "/opt/homebrew/opt/openssl/include" ]; then
+    OSSL_INC="-I/opt/homebrew/opt/openssl/include"
+  elif [ -d "/usr/local/opt/openssl/include" ]; then
+    OSSL_INC="-I/usr/local/opt/openssl/include"
+  fi
+  cc -c -O2 -fPIC -I"$VENDOR_DIR/libuv/include" $OSSL_INC "$NET_BRIDGE_SRC" -o "$NET_BRIDGE_OBJ"
   echo "  -> $NET_BRIDGE_OBJ"
 else
   echo "==> net-bridge already built, skipping"

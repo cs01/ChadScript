@@ -22,10 +22,10 @@
 // - No server-side API (createServer/listen). Client-only today — lws-bridge
 //   already covers HTTP/WS server needs; TCP servers will arrive alongside
 //   a custom-protocol server use-case (Redis-style, Postgres-proxy, etc.).
-// - No TLS. starttls() is a separate bridge (mbedTLS / OpenSSL BIO layer) —
-//   tracked as a followup. removeDataListener() is provided specifically so
-//   a future TLS upgrade can detach the plaintext data handler and hand the
-//   socket to the TLS layer.
+// - TLS upgrade: `sock.upgradeToTLS(servername, verify)` upgrades an already-
+//   connected plain socket to TLS via OpenSSL (STARTTLS pattern). For
+//   implicit-TLS use cases, import from "chadscript/tls" and call
+//   `tls.connect({host, port, servername, rejectUnauthorized})`.
 // - Callbacks are dispatched from poll()/wait() — not interrupt-driven. User
 //   code must periodically call sock.poll() or sock.wait(timeoutMs) from its
 //   own event loop. This is a deliberate tradeoff: keeps the FFI surface
@@ -56,6 +56,7 @@ declare function cs_net_destroy(sock: string): void;
 declare function cs_net_is_open(sock: string): number;
 declare function cs_net_rx_drain(sock: string): string;
 declare function cs_net_rx_drain_len(sock: string): number;
+declare function cs_tls_upgrade(sock: string, servername: string, verify: number): number;
 
 const NET_EVENT_CONNECT: number = 1;
 const NET_EVENT_DATA: number = 2;
@@ -158,6 +159,25 @@ export class Socket {
 
   isOpen(): boolean {
     return cs_net_is_open(this._handle) > 0;
+  }
+
+  // Upgrade this socket's transport to TLS via OpenSSL (STARTTLS pattern).
+  // Drives the handshake synchronously — returns after handshake completes
+  // or fails. Pass verify=1 for default certificate verification (system CA
+  // chain + servername hostname match), verify=0 to skip (dev/self-signed).
+  // After a successful upgrade subsequent write() calls encrypt transparently
+  // and data events deliver decrypted plaintext. Returns true on success,
+  // false on handshake failure.
+  upgradeToTLS(servername: string, verify: number): boolean {
+    if (this._dead === 1) return false;
+    const r = cs_tls_upgrade(this._handle, servername, verify);
+    return r > 0;
+  }
+
+  // Expose the underlying handle so the tls.connect() helper can wrap a
+  // socket returned from cs_tls_connect without duplicating state. Internal.
+  _rawHandle(): string {
+    return this._handle;
   }
 
   // Tick the libuv loop once in non-blocking mode, then dispatch any queued

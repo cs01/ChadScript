@@ -24,6 +24,7 @@ registerStdlib("glob.ts", ChadScript.embedFile("../lib/glob.ts"));
 registerStdlib("compress.ts", ChadScript.embedFile("../lib/compress.ts"));
 registerStdlib("postgres.ts", ChadScript.embedFile("../lib/postgres.ts"));
 registerStdlib("net.ts", ChadScript.embedFile("../lib/net.ts"));
+registerStdlib("tls.ts", ChadScript.embedFile("../lib/tls.ts"));
 const skillContent = ChadScript.embedFile("../lib/skill.md");
 import { ArgumentParser } from "chadscript/argparse";
 

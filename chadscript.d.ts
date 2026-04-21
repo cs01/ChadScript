@@ -436,12 +436,37 @@ declare module "chadscript/net" {
     // 'data' event — callers pick either style, not both.
     read(): string;
     readLen(): number;
+
+    // Upgrade to TLS via OpenSSL (STARTTLS pattern). Drives the handshake
+    // synchronously. verify=1 enables system-CA + hostname validation,
+    // verify=0 skips (dev / self-signed). Returns true on success.
+    upgradeToTLS(servername: string, verify: number): boolean;
   }
 
   // Open a TCP connection. Returns immediately; handshake completes
   // asynchronously. Always returns a Socket — check sock.isOpen() (or
   // wait for the 'error' event) to see whether the connect succeeded.
   export function createConnection(host: string, port: number): Socket;
+}
+
+declare module "chadscript/tls" {
+  import { Socket } from "chadscript/net";
+
+  export interface TlsConnectOpts {
+    host: string;
+    port: number;
+    servername: string;
+    // When true, verify the peer certificate against the system CA chain and
+    // match the cert's SAN/CN against `servername`. When false, skip both
+    // checks (dev only).
+    rejectUnauthorized: boolean;
+  }
+
+  // Open a TLS connection (implicit TLS — TCP connect + handshake combined).
+  // Use this for HTTPS, MQTTS, Postgres sslmode=require (no SSLRequest byte),
+  // etc. For STARTTLS-style protocols, open plain via net.createConnection()
+  // and call sock.upgradeToTLS() after the negotiation byte.
+  export function connect(opts: TlsConnectOpts): Socket;
 }
 
 declare module "chadscript/http" {
