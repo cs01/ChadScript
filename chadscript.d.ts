@@ -507,6 +507,10 @@ declare module "chadscript/pg" {
     constructor(opts: ClientOpts);
     connect(): boolean;
     query(sql: string): QueryResult;
+    // Extended protocol with text-mode parameter binding. Placeholders
+    // in SQL use `$1`, `$2`, ... positional markers. Each param is
+    // sent as its text representation (format code 0).
+    queryParams(sql: string, params: string[]): QueryResult;
     end(): void;
     lastError(): string;
   }
