@@ -14,6 +14,7 @@ import {
 import { IGeneratorContext } from "../infrastructure/generator-context.js";
 import {
   stripNullable,
+  isNullableType,
   mapParamTypeToLLVM,
   mapReturnTypeToLLVM,
 } from "../infrastructure/type-system.js";
@@ -1174,14 +1175,21 @@ export class CallExpressionGenerator {
     // from C should round-trip to TS as the empty string so `result === ""`
     // works reliably. Only applied to user-declared extern functions (not
     // internal runtime calls, which rely on NULL sentinels internally).
+    // SKIP this coercion when the declared return type is `string | null` —
+    // those callers explicitly want to observe NULL as JS null.
     if (returnType === "i8*" && func && func.declare) {
-      const emptyStr = this.ctx.stringGen.doCreateStringConstant("");
-      const isNull = this.ctx.nextTemp();
-      this.ctx.emit(`${isNull} = icmp eq i8* ${temp}, null`);
-      const coerced = this.ctx.nextTemp();
-      this.ctx.emit(`${coerced} = select i1 ${isNull}, i8* ${emptyStr}, i8* ${temp}`);
-      this.ctx.setVariableType(coerced, "i8*");
-      return coerced;
+      const declaredRet = func.returnType || "";
+      if (!isNullableType(declaredRet)) {
+        const emptyStr = this.ctx.stringGen.doCreateStringConstant("");
+        const isNull = this.ctx.nextTemp();
+        this.ctx.emit(`${isNull} = icmp eq i8* ${temp}, null`);
+        const coerced = this.ctx.nextTemp();
+        this.ctx.emit(`${coerced} = select i1 ${isNull}, i8* ${emptyStr}, i8* ${temp}`);
+        this.ctx.setVariableType(coerced, "i8*");
+        return coerced;
+      }
+      this.ctx.setVariableType(temp, "i8*");
+      return temp;
     }
 
     return temp;

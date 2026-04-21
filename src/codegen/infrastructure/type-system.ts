@@ -15,6 +15,18 @@ export function stripNullable(t: string): string {
   return str.trim();
 }
 
+// Returns true when the TS type annotation includes ` | null` (before or after
+// the base type). Used to decide whether to skip NULL-coercion paths (e.g.
+// FFI NULL → "" on user extern returns) so that user code can distinguish
+// "no value" from "empty string" for `string | null` annotations.
+export function isNullableType(t: string): boolean {
+  if (!t) return false;
+  const str = t.trim();
+  if (str.indexOf(" | null") !== -1) return true;
+  if (str.indexOf("null | ") !== -1) return true;
+  return false;
+}
+
 interface TypeQualifiers {
   isNullable: boolean;
   isOptional: boolean;
