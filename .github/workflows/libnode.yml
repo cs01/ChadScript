@@ -38,7 +38,7 @@ jobs:
       matrix:
         os: [macos-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 90
+    timeout-minutes: 200
     env:
       CHAD_NODE_SRC: ${{ github.workspace }}/node-src
     steps:
@@ -95,7 +95,7 @@ jobs:
 
       - name: Build vendor (includes libnode, first run is slow)
         run: bash scripts/build-vendor.sh
-        timeout-minutes: 75
+        timeout-minutes: 180
 
       - run: npm run build
 
