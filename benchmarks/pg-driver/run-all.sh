@@ -34,6 +34,7 @@ run "postgres.js on Node" node bench-postgres-js.mjs
 # bun
 if command -v bun >/dev/null 2>&1; then
     run "postgres.js on Bun" bun bench-postgres-js.mjs
+    run "Bun.SQL native" bun bench-bun-native.mjs
 else
     echo "▸ bun — SKIPPED (bun not in PATH)" | tee -a $OUT
 fi
