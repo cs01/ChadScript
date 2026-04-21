@@ -2638,6 +2638,11 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             continue;
           }
         } else if (isMap) {
+          let declaredKeyType: string | null = null;
+          if (stmt.declaredType) {
+            const parsedDecl = parseMapTypeString(stmt.declaredType);
+            if (parsedDecl) declaredKeyType = parsedDecl.keyType;
+          }
           let isStringMap = false;
           let mapValueType = "string";
           if (stmt.declaredType) {
@@ -2648,14 +2653,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               if (parsed) mapValueType = parsed.valueType;
             }
           }
-          if (!isStringMap && stmt.value) {
+          if (!isStringMap && declaredKeyType === null && stmt.value) {
             const mapNode = stmt.value as MapNode;
             if (mapNode.keyType === "string") {
               isStringMap = true;
               mapValueType = mapNode.valueType || "string";
             }
           }
-          if (!isStringMap && resolvedBase.startsWith("Map<")) {
+          if (!isStringMap && declaredKeyType === null && resolvedBase.startsWith("Map<")) {
             const parsed = parseMapTypeString(resolvedBase);
             if (parsed && parsed.keyType === "string") {
               isStringMap = true;
@@ -2695,7 +2700,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               pointerMapValueType = parsed.valueType;
             }
           }
-          if (!isPointerMap && resolvedBase.startsWith("Map<")) {
+          if (!isPointerMap && declaredKeyType === null && resolvedBase.startsWith("Map<")) {
             const parsed = parseMapTypeString(resolvedBase);
             if (parsed && parsed.keyType !== "string" && parsed.keyType !== "number") {
               isPointerMap = true;
