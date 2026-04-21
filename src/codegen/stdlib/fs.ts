@@ -593,7 +593,11 @@ export class FilesystemGenerator {
     const pathPtr = this.ctx.generateExpression(expr.args[0], params);
     this.ctx.setUsesPromises(true);
     this.ctx.setUsesAsyncFs(true);
-    const temp = this.ctx.emitCall("%Promise*", `@${asyncFnName}`, `i8* ${pathPtr}`);
+    const temp = this.ctx.emitCall(
+      "%Promise*",
+      this.ctx.emitSymbol(asyncFnName, "@"),
+      this.ctx.emitOperand(pathPtr, "i8*"),
+    );
     return temp;
   }
 
@@ -610,7 +614,11 @@ export class FilesystemGenerator {
     const arg2 = this.ctx.generateExpression(expr.args[1], params);
     this.ctx.setUsesPromises(true);
     this.ctx.setUsesAsyncFs(true);
-    const temp = this.ctx.emitCall("%Promise*", `@${asyncFnName}`, `i8* ${arg1}, i8* ${arg2}`);
+    const temp = this.ctx.emitCall(
+      "%Promise*",
+      this.ctx.emitSymbol(asyncFnName, "@"),
+      `${this.ctx.emitOperand(arg1, "i8*")}, ${this.ctx.emitOperand(arg2, "i8*")}`,
+    );
     return temp;
   }
 

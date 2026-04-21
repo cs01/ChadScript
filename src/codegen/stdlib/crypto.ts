@@ -71,7 +71,7 @@ export class CryptoGenerator {
     this.ctx.emit(`${mdCtx} = call i8* @EVP_MD_CTX_new()`);
 
     const evpMd = this.ctx.nextTemp();
-    this.ctx.emit(`${evpMd} = call i8* @${evpFunc}()`);
+    this.ctx.emit(`${evpMd} = call i8* ${this.ctx.emitSymbol(evpFunc, "@")}()`);
 
     const initResult = this.ctx.nextTemp();
     this.ctx.emit(
