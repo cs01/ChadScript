@@ -15,6 +15,7 @@ export interface ClientOpts {
   port: number;
   user: string;
   database: string;
+  password: string; // empty string when using trust auth
 }
 
 export interface QueryResult {
@@ -30,6 +31,13 @@ const T_DATA_ROW: number = 68; // 'D'
 const T_CMD_DONE: number = 67; // 'C'
 const T_READY: number = 90; // 'Z'
 const T_ERROR: number = 69; // 'E'
+const T_AUTH: number = 82; // 'R' AuthenticationRequest
+
+// Auth sub-type codes (first 4 bytes of AuthenticationRequest body)
+const AUTH_OK: number = 0;
+const AUTH_CLEARTEXT: number = 3;
+const AUTH_MD5: number = 5;
+const AUTH_SASL: number = 10;
 
 export class Client {
   private opts: ClientOpts;
@@ -123,13 +131,39 @@ export class Client {
     tx[off] = 0;
     s.writeBytes(tx, total);
 
-    // Drain until Z or E.
-    const deadline = Date.now() + 5000;
+    // Drain until Z or E; handle auth request in-between.
+    const deadline = Date.now() + 15000;
     while (true) {
       const t = this._pumpOneFrame(deadline);
       if (t === 0) {
         this._lastError = "connect timeout / closed";
         return false;
+      }
+      if (t === T_AUTH) {
+        // Inspect first 4 bytes of body to determine auth sub-type.
+        const rx = this.rx;
+        const po = this._framePayloadOff;
+        const sub = (rx[po] << 24) | (rx[po + 1] << 16) | (rx[po + 2] << 8) | rx[po + 3];
+        if (sub === AUTH_OK) {
+          this._consumeCurrentFrame();
+          // continue loop — server will send S/K frames then Z
+        } else if (sub === AUTH_CLEARTEXT) {
+          this._sendCleartextPassword();
+          this._consumeCurrentFrame();
+        } else if (sub === AUTH_MD5) {
+          this._sendMd5Password();
+          this._consumeCurrentFrame();
+        } else if (sub === AUTH_SASL) {
+          this._lastError =
+            "SCRAM-SHA-256 not yet supported — use password_encryption=md5 or trust on the server";
+          this._consumeCurrentFrame();
+          return false;
+        } else {
+          this._lastError = "unsupported auth sub-type " + sub;
+          this._consumeCurrentFrame();
+          return false;
+        }
+        continue;
       }
       this._consumeCurrentFrame();
       if (t === T_ERROR) return false;
@@ -189,6 +223,67 @@ export class Client {
       if (t === T_READY) return result;
     }
     return result;
+  }
+
+  private _sendCleartextPassword(): void {
+    const tx = this.tx;
+    const pw = this.opts.password;
+    const pwLen = pw.length;
+    const len = 4 + pwLen + 1;
+    tx[0] = 112; // 'p'
+    tx[1] = (len >> 24) & 0xff;
+    tx[2] = (len >> 16) & 0xff;
+    tx[3] = (len >> 8) & 0xff;
+    tx[4] = len & 0xff;
+    let i = 0;
+    while (i < pwLen) {
+      tx[5 + i] = pw.charCodeAt(i) & 0xff;
+      i = i + 1;
+    }
+    tx[5 + pwLen] = 0;
+    this.sock.writeBytes(tx, 1 + len);
+  }
+
+  private _sendMd5Password(): void {
+    // inner = md5(password + username) — 32 hex chars
+    const pw = this.opts.password;
+    const user = this.opts.user;
+    const inner = crypto.md5(pw + user);
+
+    // combined = inner (32 ASCII bytes) + salt (4 raw bytes)
+    const rx = this.rx;
+    const po = this._framePayloadOff;
+    const combined = new Uint8Array(36);
+    let i = 0;
+    while (i < 32) {
+      combined[i] = inner.charCodeAt(i) & 0xff;
+      i = i + 1;
+    }
+    combined[32] = rx[po + 4];
+    combined[33] = rx[po + 5];
+    combined[34] = rx[po + 6];
+    combined[35] = rx[po + 7];
+
+    const outer = crypto.md5(combined);
+
+    // Send PasswordMessage: 'p' + len(4) + "md5" + outer + \0
+    const tx = this.tx;
+    const len = 4 + 3 + 32 + 1;
+    tx[0] = 112; // 'p'
+    tx[1] = (len >> 24) & 0xff;
+    tx[2] = (len >> 16) & 0xff;
+    tx[3] = (len >> 8) & 0xff;
+    tx[4] = len & 0xff;
+    tx[5] = 109; // 'm'
+    tx[6] = 100; // 'd'
+    tx[7] = 53; // '5'
+    let j = 0;
+    while (j < 32) {
+      tx[8 + j] = outer.charCodeAt(j) & 0xff;
+      j = j + 1;
+    }
+    tx[8 + 32] = 0;
+    this.sock.writeBytes(tx, 1 + len);
   }
 
   end(): void {
