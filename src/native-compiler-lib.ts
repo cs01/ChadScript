@@ -745,6 +745,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const curlBridgeObj = generator.getUsesCurl() ? effectiveBridgePath + "/curl-bridge.o" : "";
   const pgBridgeObj = usesPostgres ? effectiveBridgePath + "/pg-bridge.o" : "";
   const netBridgeObj = usesNet ? effectiveBridgePath + "/net-bridge.o" : "";
+  const scramBridgeObj = usesNet ? effectiveBridgePath + "/scram-bridge.o" : "";
   const compressBridgeObj = generator.getUsesCompression()
     ? effectiveBridgePath + "/compress-bridge.o"
     : "";
@@ -813,6 +814,8 @@ export function compileNative(inputFile: string, outputFile: string): void {
     pgBridgeObj +
     " " +
     netBridgeObj +
+    " " +
+    scramBridgeObj +
     " " +
     compressBridgeObj +
     " " +

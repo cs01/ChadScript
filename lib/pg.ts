@@ -7,6 +7,18 @@
 
 import { createConnection, Socket } from "chadscript/net";
 
+// SCRAM-SHA-256 helpers implemented in c_bridges/scram-bridge.c (OpenSSL).
+// cs_scram_client_final packs two strings joined by \x01 (SOH):
+// "<client-final-message>\x01<server-signature-b64>".
+declare function cs_scram_random_nonce_b64(): string;
+declare function cs_scram_client_first_bare(user: string, nonce: string): string;
+declare function cs_scram_client_final(
+  password: string,
+  clientFirstBare: string,
+  serverFirst: string,
+): string;
+declare function cs_scram_verify_server_final(serverFinal: string, expectedSigB64: string): number;
+
 const RX_CAP = 65536;
 const TX_CAP = 65536;
 
@@ -41,6 +53,8 @@ const AUTH_OK: number = 0;
 const AUTH_CLEARTEXT: number = 3;
 const AUTH_MD5: number = 5;
 const AUTH_SASL: number = 10;
+const AUTH_SASL_CONTINUE: number = 11;
+const AUTH_SASL_FINAL: number = 12;
 
 export class Client {
   private opts: ClientOpts;
@@ -157,10 +171,10 @@ export class Client {
           this._sendMd5Password();
           this._consumeCurrentFrame();
         } else if (sub === AUTH_SASL) {
-          this._lastError =
-            "SCRAM-SHA-256 not yet supported — use password_encryption=md5 or trust on the server";
-          this._consumeCurrentFrame();
-          return false;
+          if (!this._doScram(deadline)) {
+            return false;
+          }
+          continue;
         } else {
           this._lastError = "unsupported auth sub-type " + sub;
           this._consumeCurrentFrame();
@@ -433,6 +447,201 @@ export class Client {
     }
     tx[8 + 32] = 0;
     this.sock.writeBytes(tx, 1 + len);
+  }
+
+  // Drive a SCRAM-SHA-256 exchange from AuthenticationSASL → AuthenticationOK.
+  // Assumes the current frame buffer holds the AuthenticationSASL message;
+  // consumes it, runs the three-step handshake, and returns with the frame
+  // buffer drained up to (not including) the final AuthenticationOK — which
+  // the outer connect() loop will then see and accept.
+  private _doScram(deadline: number): boolean {
+    const rx = this.rx;
+    const po = this._framePayloadOff;
+    const pe = this._framePayloadEnd;
+
+    // Mechanism list starts at po+4; null-terminated strings, list ends with
+    // an empty string (double NUL). Check that SCRAM-SHA-256 is offered.
+    let off = po + 4;
+    let found = 0;
+    const want = "SCRAM-SHA-256";
+    const wantLen = want.length;
+    while (off < pe && rx[off] !== 0) {
+      let j = off;
+      while (j < pe && rx[j] !== 0) {
+        j = j + 1;
+      }
+      const mechLen = j - off;
+      if (mechLen === wantLen) {
+        let eq = 1;
+        let k = 0;
+        while (k < wantLen) {
+          if (rx[off + k] !== (want.charCodeAt(k) & 0xff)) {
+            eq = 0;
+            k = wantLen;
+          } else {
+            k = k + 1;
+          }
+        }
+        if (eq === 1) {
+          found = 1;
+        }
+      }
+      off = j + 1;
+    }
+    if (found === 0) {
+      this._lastError = "server did not offer SCRAM-SHA-256";
+      this._consumeCurrentFrame();
+      return false;
+    }
+    this._consumeCurrentFrame();
+
+    // ---- Step 1: send SASLInitialResponse ----
+    const clientNonce = cs_scram_random_nonce_b64();
+    const user = this.opts.user;
+    const clientFirstBare = cs_scram_client_first_bare(user, clientNonce);
+    // client-first-message = "n,," + clientFirstBare (gs2-header "n,," = no channel binding).
+    const clientFirst = "n,," + clientFirstBare;
+    const cfLen = clientFirst.length;
+    const mech = "SCRAM-SHA-256";
+    const mechLen2 = mech.length;
+    // PasswordMessage body: mechanism\0 + int32 len + client-first bytes
+    const bodyLen = mechLen2 + 1 + 4 + cfLen;
+    const totalLen = 4 + bodyLen;
+    const tx = this.tx;
+    tx[0] = 112; // 'p'
+    tx[1] = (totalLen >> 24) & 0xff;
+    tx[2] = (totalLen >> 16) & 0xff;
+    tx[3] = (totalLen >> 8) & 0xff;
+    tx[4] = totalLen & 0xff;
+    let oi = 5;
+    let mi = 0;
+    while (mi < mechLen2) {
+      tx[oi + mi] = mech.charCodeAt(mi) & 0xff;
+      mi = mi + 1;
+    }
+    tx[oi + mechLen2] = 0;
+    oi = oi + mechLen2 + 1;
+    tx[oi] = (cfLen >> 24) & 0xff;
+    tx[oi + 1] = (cfLen >> 16) & 0xff;
+    tx[oi + 2] = (cfLen >> 8) & 0xff;
+    tx[oi + 3] = cfLen & 0xff;
+    oi = oi + 4;
+    let ci = 0;
+    while (ci < cfLen) {
+      tx[oi + ci] = clientFirst.charCodeAt(ci) & 0xff;
+      ci = ci + 1;
+    }
+    oi = oi + cfLen;
+    this.sock.writeBytes(tx, oi);
+
+    // ---- Step 2: expect AuthenticationSASLContinue ----
+    const t1 = this._pumpOneFrame(deadline);
+    if (t1 === 0) {
+      this._lastError = "scram: timeout waiting for SASLContinue";
+      return false;
+    }
+    if (t1 === T_ERROR) {
+      this._consumeCurrentFrame();
+      return false;
+    }
+    if (t1 !== T_AUTH) {
+      this._lastError = "scram: expected Authentication frame, got " + t1;
+      this._consumeCurrentFrame();
+      return false;
+    }
+    const rx2 = this.rx;
+    const po2 = this._framePayloadOff;
+    const pe2 = this._framePayloadEnd;
+    const sub2 = (rx2[po2] << 24) | (rx2[po2 + 1] << 16) | (rx2[po2 + 2] << 8) | rx2[po2 + 3];
+    if (sub2 !== AUTH_SASL_CONTINUE) {
+      this._lastError = "scram: expected SASLContinue (11), got " + sub2;
+      this._consumeCurrentFrame();
+      return false;
+    }
+    // server-first-message = payload bytes after the 4-byte sub-code.
+    let serverFirst = "";
+    let sfi = po2 + 4;
+    while (sfi < pe2) {
+      serverFirst = serverFirst + String.fromCharCode(rx2[sfi]);
+      sfi = sfi + 1;
+    }
+    this._consumeCurrentFrame();
+
+    // ---- Step 3: derive + send SASLResponse (client-final-message) ----
+    const packed = cs_scram_client_final(this.opts.password, clientFirstBare, serverFirst);
+    if (packed === "ERR") {
+      this._lastError = "scram: failed to derive client proof";
+      return false;
+    }
+    // The bridge returns "<client-final>\x01<server-sig-b64>"; split on SOH.
+    const packedLen = packed.length;
+    let sepIdx = -1;
+    let si2 = 0;
+    while (si2 < packedLen) {
+      if (packed.charCodeAt(si2) === 1) {
+        sepIdx = si2;
+        si2 = packedLen;
+      } else {
+        si2 = si2 + 1;
+      }
+    }
+    if (sepIdx < 0) {
+      this._lastError = "scram: malformed bridge result";
+      return false;
+    }
+    const clientFinalLen = sepIdx;
+    const serverSigB64 = packed.substring(sepIdx + 1, packedLen);
+
+    const fLen = 4 + clientFinalLen;
+    tx[0] = 112; // 'p'
+    tx[1] = (fLen >> 24) & 0xff;
+    tx[2] = (fLen >> 16) & 0xff;
+    tx[3] = (fLen >> 8) & 0xff;
+    tx[4] = fLen & 0xff;
+    let fi = 0;
+    while (fi < clientFinalLen) {
+      tx[5 + fi] = packed.charCodeAt(fi) & 0xff;
+      fi = fi + 1;
+    }
+    this.sock.writeBytes(tx, 1 + fLen);
+
+    // ---- Step 4: expect AuthenticationSASLFinal and verify signature ----
+    const t2 = this._pumpOneFrame(deadline);
+    if (t2 === 0) {
+      this._lastError = "scram: timeout waiting for SASLFinal";
+      return false;
+    }
+    if (t2 === T_ERROR) {
+      this._consumeCurrentFrame();
+      return false;
+    }
+    if (t2 !== T_AUTH) {
+      this._lastError = "scram: expected Authentication frame, got " + t2;
+      this._consumeCurrentFrame();
+      return false;
+    }
+    const rx3 = this.rx;
+    const po3 = this._framePayloadOff;
+    const pe3 = this._framePayloadEnd;
+    const sub3 = (rx3[po3] << 24) | (rx3[po3 + 1] << 16) | (rx3[po3 + 2] << 8) | rx3[po3 + 3];
+    if (sub3 !== AUTH_SASL_FINAL) {
+      this._lastError = "scram: expected SASLFinal (12), got " + sub3;
+      this._consumeCurrentFrame();
+      return false;
+    }
+    let serverFinal = "";
+    let sfi2 = po3 + 4;
+    while (sfi2 < pe3) {
+      serverFinal = serverFinal + String.fromCharCode(rx3[sfi2]);
+      sfi2 = sfi2 + 1;
+    }
+    this._consumeCurrentFrame();
+
+    if (cs_scram_verify_server_final(serverFinal, serverSigB64) !== 1) {
+      this._lastError = "scram: server signature mismatch";
+      return false;
+    }
+    return true;
   }
 
   end(): void {

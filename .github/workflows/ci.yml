@@ -200,19 +200,24 @@ jobs:
 
     env:
       PG_TESTS_ENABLED: 1
+      PG_SCRAM_TESTS_ENABLED: 1
       PGPASSWORD: test
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Force pg password to md5 encryption
+      - name: Force pg password to md5 encryption (primary postgres user)
         # postgres:16 image defaults to password_encryption=scram-sha-256, so
-        # the `postgres` user is scram-hashed. Our pure-TS pg driver implements
-        # md5 auth (SCRAM is follow-up) — re-hash password as md5.
+        # the `postgres` user is scram-hashed by default. Our pure-TS pg driver
+        # implements both md5 AND SCRAM-SHA-256; we re-hash the default user as
+        # md5 so the md5 fixtures exercise that code path, and create a second
+        # `scramuser` (scram-sha-256 hashed) for the SCRAM fixture.
         run: |
           sudo apt-get install -y postgresql-client
           psql -h localhost -p 5432 -U postgres -d chadtest \
             -c "SET password_encryption='md5'; ALTER USER postgres PASSWORD 'test';"
+          psql -h localhost -p 5432 -U postgres -d chadtest \
+            -c "SET password_encryption='scram-sha-256'; CREATE USER scramuser SUPERUSER PASSWORD 'test';"
 
       - uses: dorny/paths-filter@v3
         id: changes
@@ -271,7 +276,7 @@ jobs:
       - name: Verify vendor libraries
         run: |
           fail=0
-          for lib in vendor/bdwgc/libgc.a vendor/yyjson/libyyjson.a vendor/libuv/build/libuv.a vendor/picohttpparser/picohttpparser.o vendor/rure/librure.a c_bridges/lws-bridge.o c_bridges/multipart-bridge.o c_bridges/regex-bridge.o c_bridges/child-process-bridge.o c_bridges/child-process-spawn.o c_bridges/trampoline-bridge.o c_bridges/os-bridge.o c_bridges/strlen-cache.o c_bridges/time-bridge.o c_bridges/base64-bridge.o c_bridges/url-bridge.o c_bridges/uri-bridge.o c_bridges/dotenv-bridge.o c_bridges/watch-bridge.o c_bridges/arena-bridge.o c_bridges/curl-bridge.o c_bridges/pg-bridge.o c_bridges/compress-bridge.o c_bridges/yaml-bridge.o c_bridges/string-ops-bridge.o c_bridges/llvm-bridge.o c_bridges/llvm-builder-bridge.o c_bridges/lld-bridge.o; do
+          for lib in vendor/bdwgc/libgc.a vendor/yyjson/libyyjson.a vendor/libuv/build/libuv.a vendor/picohttpparser/picohttpparser.o vendor/rure/librure.a c_bridges/lws-bridge.o c_bridges/multipart-bridge.o c_bridges/regex-bridge.o c_bridges/child-process-bridge.o c_bridges/child-process-spawn.o c_bridges/trampoline-bridge.o c_bridges/os-bridge.o c_bridges/strlen-cache.o c_bridges/time-bridge.o c_bridges/base64-bridge.o c_bridges/url-bridge.o c_bridges/uri-bridge.o c_bridges/dotenv-bridge.o c_bridges/watch-bridge.o c_bridges/arena-bridge.o c_bridges/curl-bridge.o c_bridges/pg-bridge.o c_bridges/scram-bridge.o c_bridges/compress-bridge.o c_bridges/yaml-bridge.o c_bridges/string-ops-bridge.o c_bridges/llvm-bridge.o c_bridges/llvm-builder-bridge.o c_bridges/lld-bridge.o; do
             if [ ! -f "$lib" ]; then
               echo "MISSING: $lib"
               fail=1
@@ -338,6 +343,7 @@ jobs:
           cp c_bridges/multipart-bridge.o release/lib/
           cp c_bridges/regex-bridge.o release/lib/
           cp c_bridges/net-bridge.o release/lib/
+          cp c_bridges/scram-bridge.o release/lib/
           cp vendor/rure/librure.a release/lib/
           cp c_bridges/child-process-bridge.o release/lib/
           cp c_bridges/child-process-spawn.o release/lib/
@@ -345,7 +351,7 @@ jobs:
           cp c_bridges/os-bridge.o c_bridges/strlen-cache.o release/lib/
           cp c_bridges/time-bridge.o c_bridges/base64-bridge.o c_bridges/url-bridge.o c_bridges/uri-bridge.o release/lib/
           cp c_bridges/dotenv-bridge.o release/lib/
-          cp c_bridges/watch-bridge.o c_bridges/arena-bridge.o c_bridges/curl-bridge.o c_bridges/pg-bridge.o c_bridges/compress-bridge.o c_bridges/yaml-bridge.o c_bridges/string-ops-bridge.o c_bridges/llvm-bridge.o c_bridges/llvm-builder-bridge.o c_bridges/lld-bridge.o release/lib/
+          cp c_bridges/watch-bridge.o c_bridges/arena-bridge.o c_bridges/curl-bridge.o c_bridges/pg-bridge.o c_bridges/scram-bridge.o c_bridges/compress-bridge.o c_bridges/yaml-bridge.o c_bridges/string-ops-bridge.o c_bridges/llvm-bridge.o c_bridges/llvm-builder-bridge.o c_bridges/lld-bridge.o release/lib/
           tar -czf chadscript-linux-x64.tar.gz -C release chad lib
 
       - name: Upload artifact
@@ -365,6 +371,7 @@ jobs:
 
     env:
       PG_TESTS_ENABLED: 1
+      PG_SCRAM_TESTS_ENABLED: 1
 
     steps:
       - uses: actions/checkout@v4
@@ -416,6 +423,7 @@ jobs:
           psql postgres -c "SET password_encryption='md5'; CREATE USER postgres SUPERUSER PASSWORD 'test';" || echo "postgres user already exists"
           psql postgres -c "SET password_encryption='md5'; ALTER USER postgres WITH PASSWORD 'test';"
           psql postgres -c "CREATE DATABASE chadtest OWNER postgres;" || echo "chadtest db already exists"
+          psql postgres -c "SET password_encryption='scram-sha-256'; CREATE USER scramuser SUPERUSER PASSWORD 'test';" || echo "scramuser already exists"
           psql -h localhost -p 5432 -U postgres -d chadtest -c "SELECT 1;" postgresql://postgres:test@localhost:5432/chadtest
 
       - name: Install npm dependencies
@@ -438,7 +446,7 @@ jobs:
       - name: Verify vendor libraries
         run: |
           fail=0
-          for lib in vendor/bdwgc/libgc.a vendor/yyjson/libyyjson.a vendor/libuv/build/libuv.a vendor/picohttpparser/picohttpparser.o vendor/rure/librure.a c_bridges/lws-bridge.o c_bridges/multipart-bridge.o c_bridges/regex-bridge.o c_bridges/child-process-bridge.o c_bridges/child-process-spawn.o c_bridges/trampoline-bridge.o c_bridges/os-bridge.o c_bridges/strlen-cache.o c_bridges/time-bridge.o c_bridges/base64-bridge.o c_bridges/url-bridge.o c_bridges/uri-bridge.o c_bridges/dotenv-bridge.o c_bridges/watch-bridge.o c_bridges/arena-bridge.o c_bridges/curl-bridge.o c_bridges/pg-bridge.o c_bridges/compress-bridge.o c_bridges/yaml-bridge.o c_bridges/string-ops-bridge.o c_bridges/llvm-bridge.o c_bridges/llvm-builder-bridge.o c_bridges/lld-bridge.o; do
+          for lib in vendor/bdwgc/libgc.a vendor/yyjson/libyyjson.a vendor/libuv/build/libuv.a vendor/picohttpparser/picohttpparser.o vendor/rure/librure.a c_bridges/lws-bridge.o c_bridges/multipart-bridge.o c_bridges/regex-bridge.o c_bridges/child-process-bridge.o c_bridges/child-process-spawn.o c_bridges/trampoline-bridge.o c_bridges/os-bridge.o c_bridges/strlen-cache.o c_bridges/time-bridge.o c_bridges/base64-bridge.o c_bridges/url-bridge.o c_bridges/uri-bridge.o c_bridges/dotenv-bridge.o c_bridges/watch-bridge.o c_bridges/arena-bridge.o c_bridges/curl-bridge.o c_bridges/pg-bridge.o c_bridges/scram-bridge.o c_bridges/compress-bridge.o c_bridges/yaml-bridge.o c_bridges/string-ops-bridge.o c_bridges/llvm-bridge.o c_bridges/llvm-builder-bridge.o c_bridges/lld-bridge.o; do
             if [ ! -f "$lib" ]; then
               echo "MISSING: $lib"
               fail=1
@@ -509,6 +517,7 @@ jobs:
           cp c_bridges/multipart-bridge.o release/lib/
           cp c_bridges/regex-bridge.o release/lib/
           cp c_bridges/net-bridge.o release/lib/
+          cp c_bridges/scram-bridge.o release/lib/
           cp vendor/rure/librure.a release/lib/
           cp c_bridges/child-process-bridge.o release/lib/
           cp c_bridges/child-process-spawn.o release/lib/
@@ -516,7 +525,7 @@ jobs:
           cp c_bridges/os-bridge.o c_bridges/strlen-cache.o release/lib/
           cp c_bridges/time-bridge.o c_bridges/base64-bridge.o c_bridges/url-bridge.o c_bridges/uri-bridge.o release/lib/
           cp c_bridges/dotenv-bridge.o release/lib/
-          cp c_bridges/watch-bridge.o c_bridges/arena-bridge.o c_bridges/curl-bridge.o c_bridges/pg-bridge.o c_bridges/compress-bridge.o c_bridges/yaml-bridge.o c_bridges/string-ops-bridge.o c_bridges/llvm-bridge.o c_bridges/llvm-builder-bridge.o c_bridges/lld-bridge.o release/lib/
+          cp c_bridges/watch-bridge.o c_bridges/arena-bridge.o c_bridges/curl-bridge.o c_bridges/pg-bridge.o c_bridges/scram-bridge.o c_bridges/compress-bridge.o c_bridges/yaml-bridge.o c_bridges/string-ops-bridge.o c_bridges/llvm-bridge.o c_bridges/llvm-builder-bridge.o c_bridges/lld-bridge.o release/lib/
           tar -czf chadscript-macos-arm64.tar.gz -C release chad lib
 
       - name: Upload artifact
@@ -588,6 +597,7 @@ jobs:
             multipart-bridge.o \
             regex-bridge.o \
             net-bridge.o \
+            scram-bridge.o \
             librure.a \
             child-process-bridge.o \
             child-process-spawn.o \
