@@ -423,11 +423,17 @@ class TypeAnnotator {
       }
       return;
     }
-    // Member access on a class/interface-typed object. Only cache when the
-    // resolved type is itself class/interface (avoids disagreeing with
-    // symbol-table-allocated storage for primitives/arrays/Map/Set).
-    // Issue #658 gate-loosen step 2.
+    // Member access on a class/interface-typed object. Issue #658 step 2.
     if (e.type === "member_access") {
+      const resolved = this.sink.resolveExpressionTypeRich(expr);
+      if (resolved && this.isSafeVariableAnnotationType(resolved)) {
+        this.sink.appendExpressionType(expr, resolved);
+      }
+      return;
+    }
+    // call / method_call / conditional (ternary) when result is class/interface.
+    // Issue #658 gate-loosen steps 5-7.
+    if (e.type === "call" || e.type === "method_call" || e.type === "conditional") {
       const resolved = this.sink.resolveExpressionTypeRich(expr);
       if (resolved && this.isSafeVariableAnnotationType(resolved)) {
         this.sink.appendExpressionType(expr, resolved);
