@@ -1,7 +1,8 @@
 import { recordEvent } from "./sink.js";
-import { CAT_TYPE_TRACE } from "./categories.js";
+import { CAT_TYPE_TRACE, CAT_TYPE_DIVERGENCE } from "./categories.js";
 
 let diagTypeTraceEnabled = false;
+let diagTypeDivergenceEnabled = false;
 let diagSeq = 0;
 
 export function enableTypeTrace(): void {
@@ -10,6 +11,14 @@ export function enableTypeTrace(): void {
 
 export function isTypeTraceEnabled(): boolean {
   return diagTypeTraceEnabled;
+}
+
+export function enableTypeDivergence(): void {
+  diagTypeDivergenceEnabled = true;
+}
+
+export function isTypeDivergenceEnabled(): boolean {
+  return diagTypeDivergenceEnabled;
 }
 
 // JSON-string-escape a value. Used instead of JSON.stringify on record types
@@ -145,6 +154,34 @@ export function traceTypeRich(exprType: string, result: string | null): void {
     jsonEscapeString(exprType) +
     ',"result":' +
     resultJson +
+    ',"sites":' +
+    sitesToJsonArray(sites) +
+    "}";
+  recordEvent(line);
+}
+
+export function traceTypeDivergence(
+  kind: string,
+  cacheType: string | null,
+  liveType: string | null,
+): void {
+  if (!diagTypeDivergenceEnabled) return;
+  const sites = captureSites(2);
+  const i = diagSeq;
+  diagSeq = diagSeq + 1;
+  const cacheJson = cacheType === null ? "null" : jsonEscapeString(cacheType);
+  const liveJson = liveType === null ? "null" : jsonEscapeString(liveType);
+  const line =
+    '{"cat":' +
+    jsonEscapeString(CAT_TYPE_DIVERGENCE) +
+    ',"i":' +
+    i.toString() +
+    ',"kind":' +
+    jsonEscapeString(kind) +
+    ',"cacheType":' +
+    cacheJson +
+    ',"liveType":' +
+    liveJson +
     ',"sites":' +
     sitesToJsonArray(sites) +
     "}";

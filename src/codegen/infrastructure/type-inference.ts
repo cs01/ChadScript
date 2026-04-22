@@ -40,7 +40,11 @@ import type {
   ArrayStorageStrategy,
 } from "./type-system.js";
 import type { TypeContext } from "./type-context.js";
-import { traceTypeRich } from "../../diagnostics/tracers.js";
+import {
+  traceTypeRich,
+  traceTypeDivergence,
+  isTypeDivergenceEnabled,
+} from "../../diagnostics/tracers.js";
 
 interface ExprBase {
   type: string;
@@ -76,6 +80,7 @@ export interface TypeInferenceContext {
   typeResolver?: TypeResolver;
   typeResolverGetInterface(name: string): InterfaceDeclaration | null;
   typeResolverGetInterfaceProperty(interfaceName: string, propName: string): InterfaceField | null;
+  getExpressionType?(expr: Expression): ResolvedType | undefined;
 }
 
 export class TypeInference {
@@ -162,11 +167,13 @@ export class TypeInference {
       const cached = this.richCacheLookup(expr);
       if (cached) {
         traceTypeRich(exprTypeTag, cached.base || null);
+        this.checkDivergence(expr, exprTypeTag, cached);
         return cached;
       }
       const baseType = this.resolveExpressionType(expr);
       if (!baseType) {
         traceTypeRich(exprTypeTag, null);
+        this.checkDivergence(expr, exprTypeTag, null);
         return null;
       }
       const enriched = this.enrichResolvedType(baseType);
@@ -175,17 +182,34 @@ export class TypeInference {
         this.richCacheStore(expr, enriched);
       }
       traceTypeRich(exprTypeTag, enriched.base || null);
+      this.checkDivergence(expr, exprTypeTag, enriched);
       return enriched;
     }
     const baseType = this.resolveExpressionType(expr);
     if (!baseType) {
       traceTypeRich(exprTypeTag, null);
+      this.checkDivergence(expr, exprTypeTag, null);
       return null;
     }
     const enriched = this.enrichResolvedType(baseType);
     this.populateArrayStorage(enriched, expr);
     traceTypeRich(exprTypeTag, enriched.base || null);
+    this.checkDivergence(expr, exprTypeTag, enriched);
     return enriched;
+  }
+
+  // Compare the live resolver's answer against the annotator's typeOf cache.
+  // Fires only when --diag-trace=type-divergence is on. Used to pick which
+  // expression kinds are safe to route through the cache (gate loosening).
+  private checkDivergence(expr: Expression, kind: string, live: ResolvedType | null): void {
+    if (!isTypeDivergenceEnabled()) return;
+    if (!expr || typeof expr !== "object") return;
+    if (!this.ctx.getExpressionType) return;
+    const cached = this.ctx.getExpressionType(expr);
+    const cacheBase = cached ? cached.base || null : null;
+    const liveBase = live ? live.base || null : null;
+    if (cacheBase === liveBase) return;
+    traceTypeDivergence(kind, cacheBase, liveBase);
   }
 
   // Expression shapes whose rich resolution is stable across codegen phases.

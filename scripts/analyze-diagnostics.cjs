@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Analyze type-trace JSONL produced by --diag-trace=type-trace.
+// Analyze type-trace / type-divergence JSONL produced by --diag-trace.
 // Usage: node scripts/analyze-diagnostics.cjs [path]
 const fs = require("fs");
 const path = process.argv[2] || "chad-diagnostics.jsonl";
@@ -130,3 +130,29 @@ ${[...richSiteCount.entries()]
   .map(([site, c, n]) => `  ${n}/${c} (${pct(n, c)})  ${site}`)
   .join("\n")}
 `);
+
+const divergence = events.filter((e) => e.cat === "type-divergence");
+if (divergence.length > 0) {
+  const byKind = countBy(divergence, (d) => d.kind || "?");
+  const byPair = countBy(divergence, (d) => `${d.kind}  ${d.cacheType} -> ${d.liveType}`);
+  const bySite = countBy(divergence, (d) => d.site);
+  const cacheNull = divergence.filter((d) => d.cacheType === null).length;
+  const liveNull = divergence.filter((d) => d.liveType === null).length;
+  const bothSet = divergence.filter((d) => d.cacheType !== null && d.liveType !== null).length;
+  console.log(`# Diagnostics type-divergence analysis
+
+Total type-divergence events: ${divergence.length}
+  cache=null, live set:   ${cacheNull}  (annotator missed, live answered)
+  cache set, live=null:   ${liveNull}  (annotator answered, live failed)
+  both set, disagree:     ${bothSet}
+
+## Divergences by expression kind (gate-loosen candidates — low counts = safe)
+${fmt(byKind)}
+
+## Top divergent (kind, cache -> live) pairs
+${fmt(byPair)}
+
+## Top divergence call sites
+${fmt(bySite)}
+`);
+}
