@@ -423,6 +423,23 @@ class TypeAnnotator {
       }
       return;
     }
+    // Member access whose resolved type is a concrete class. Interfaces
+    // excluded — the previous attempt (#662) included them, which passed
+    // arm64 CI + macOS but segfaulted on x86-64 Stage 0→1 self-hosting
+    // (reverted in #666). Root cause TBD; class-only is the safe subset
+    // reproduced stable across both arches via scripts/linux-x64.sh.
+    // Issue #658 gate-loosen step 2 (partial).
+    if (e.type === "member_access") {
+      const resolved = this.sink.resolveExpressionTypeRich(expr);
+      if (
+        resolved &&
+        resolved.sourceKind === "class" &&
+        this.isSafeVariableAnnotationType(resolved)
+      ) {
+        this.sink.appendExpressionType(expr, resolved);
+      }
+      return;
+    }
     // let/const decl bindings and interface-typed params are intentionally
     // skipped. Decl bindings can be refined mid-codegen (JSON.parse target
     // type, await result specialization); caching the declared type would
