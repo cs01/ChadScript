@@ -434,6 +434,15 @@ class TypeAnnotator {
       }
       return;
     }
+    // Index access element type when it resolves to class/interface
+    // (e.g. Node[] indexed -> Node). Issue #658 gate-loosen step 4.
+    if (e.type === "index_access") {
+      const resolved = this.sink.resolveExpressionTypeRich(expr);
+      if (resolved && this.isSafeVariableAnnotationType(resolved)) {
+        this.sink.appendExpressionType(expr, resolved);
+      }
+      return;
+    }
     // let/const decl bindings and interface-typed params are intentionally
     // skipped. Decl bindings can be refined mid-codegen (JSON.parse target
     // type, await result specialization); caching the declared type would
