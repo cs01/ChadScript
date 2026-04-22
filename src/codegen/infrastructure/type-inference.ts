@@ -201,15 +201,48 @@ export class TypeInference {
   // Compare the live resolver's answer against the annotator's typeOf cache.
   // Fires only when --diag-trace=type-divergence is on. Used to pick which
   // expression kinds are safe to route through the cache (gate loosening).
+  //
+  // Three distinct cacheStatus outcomes are reported so downstream tooling
+  // can slice by kind:
+  //   - "hit"       : cache has an entry whose base matches live.base.
+  //                   NO event fired.
+  //   - "hit-diff"  : cache has an entry but base disagrees with live.
+  //                   Gate-loosening this (kind,sourceKind) would be unsafe.
+  //   - "miss"      : cache has no entry. Event fires with cacheBase=null
+  //                   so aggregators can count per-kind coverage gaps (i.e.
+  //                   candidates for annotator expansion).
   private checkDivergence(expr: Expression, kind: string, live: ResolvedType | null): void {
     if (!isTypeDivergenceEnabled()) return;
     if (!expr || typeof expr !== "object") return;
     if (!this.ctx.getExpressionType) return;
     const cached = this.ctx.getExpressionType(expr);
-    const cacheBase = cached ? cached.base || null : null;
     const liveBase = live ? live.base || null : null;
+    const liveSourceKind = live ? live.sourceKind || null : null;
+    const liveArrayDepth = live ? live.arrayDepth || 0 : 0;
+    const liveElementInterface = live ? live.elementInterface || null : null;
+    if (cached === undefined) {
+      traceTypeDivergence(
+        kind,
+        null,
+        liveBase,
+        "miss",
+        liveSourceKind,
+        liveArrayDepth,
+        liveElementInterface,
+      );
+      return;
+    }
+    const cacheBase = cached.base || null;
     if (cacheBase === liveBase) return;
-    traceTypeDivergence(kind, cacheBase, liveBase);
+    traceTypeDivergence(
+      kind,
+      cacheBase,
+      liveBase,
+      "hit-diff",
+      liveSourceKind,
+      liveArrayDepth,
+      liveElementInterface,
+    );
   }
 
   // Expression shapes whose rich resolution is stable across codegen phases.

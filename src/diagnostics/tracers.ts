@@ -164,6 +164,10 @@ export function traceTypeDivergence(
   kind: string,
   cacheType: string | null,
   liveType: string | null,
+  cacheStatus: string,
+  liveSourceKind: string | null,
+  liveArrayDepth: number,
+  liveElementInterface: string | null,
 ): void {
   if (!diagTypeDivergenceEnabled) return;
   const sites = captureSites(2);
@@ -171,6 +175,9 @@ export function traceTypeDivergence(
   diagSeq = diagSeq + 1;
   const cacheJson = cacheType === null ? "null" : jsonEscapeString(cacheType);
   const liveJson = liveType === null ? "null" : jsonEscapeString(liveType);
+  const sourceKindJson = liveSourceKind === null ? "null" : jsonEscapeString(liveSourceKind);
+  const elemIfaceJson =
+    liveElementInterface === null ? "null" : jsonEscapeString(liveElementInterface);
   const line =
     '{"cat":' +
     jsonEscapeString(CAT_TYPE_DIVERGENCE) +
@@ -178,10 +185,18 @@ export function traceTypeDivergence(
     i.toString() +
     ',"kind":' +
     jsonEscapeString(kind) +
+    ',"cacheStatus":' +
+    jsonEscapeString(cacheStatus) +
     ',"cacheType":' +
     cacheJson +
     ',"liveType":' +
     liveJson +
+    ',"liveSourceKind":' +
+    sourceKindJson +
+    ',"liveArrayDepth":' +
+    liveArrayDepth.toString() +
+    ',"liveElementInterface":' +
+    elemIfaceJson +
     ',"sites":' +
     sitesToJsonArray(sites) +
     "}";
