@@ -110,7 +110,10 @@ ${fmt(orphanSetSite)}
 ## Orphan-set ratio per site (set-count >= 50)
 ${orphanRatioBySite
   .slice(0, 30)
-  .map((r) => `  ${String(r.orphans).padStart(7)}/${String(r.count).padStart(7)} (${pct(r.orphans, r.count)})  ${r.site}`)
+  .map(
+    (r) =>
+      `  ${String(r.orphans).padStart(7)}/${String(r.count).padStart(7)} (${pct(r.orphans, r.count)})  ${r.site}`,
+  )
   .join("\n")}
 
 ## Orphan GETs (read returns non-null but never set in trace — comes from symbolTable)
