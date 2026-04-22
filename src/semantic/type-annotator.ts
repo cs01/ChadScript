@@ -434,13 +434,11 @@ class TypeAnnotator {
 
   // A ResolvedType from a parameter declaration is safe to install in the
   // annotator cache for variable reads only when the LLVM representation is
-  // fully determined by the base name. Classes qualify: the concrete class
-  // is authoritative for method dispatch. Interfaces do NOT: class-dispatch
-  // in method-calls needs to see the concrete implementing class, so
-  // live-resolution must still run. Primitives, arrays, typed-arrays, Map,
-  // and Set have a family of LLVM layouts that codegen chooses from at
-  // symbol-definition time, so the declared answer can disagree with the
-  // symbol table's allocated storage and produce wrong IR.
+  // fully determined by the base name. Classes and interfaces qualify.
+  // Primitives, arrays, typed-arrays, Map, and Set have a family of LLVM
+  // layouts that codegen chooses from at symbol-definition time, so the
+  // declared answer can disagree with the symbol table's allocated storage
+  // and produce wrong IR.
   private isSafeVariableAnnotationType(rt: ResolvedType): boolean {
     if (rt.arrayDepth > 0) return false;
     if (rt.qualifiers.isNullable) return false;
@@ -449,11 +447,7 @@ class TypeAnnotator {
     if (b === "null" || b === "void" || b === "unknown" || b === "any") return false;
     if (b.startsWith("Map<") || b.startsWith("Set<") || b.startsWith("Array<")) return false;
     if (b === "Uint8Array" || b === "ArrayBuffer" || b === "Int32Array") return false;
-    // Only annotate when the declared type resolves to a concrete class.
-    // Interface-typed params (e.g. IGeneratorContext) need live-resolution at
-    // codegen time so method-call dispatch sees the concrete implementing
-    // class instead of the interface answer (which breaks class-dispatch).
-    if (rt.sourceKind !== "class") return false;
+    if (rt.sourceKind !== "class" && rt.sourceKind !== "interface") return false;
     return true;
   }
 
