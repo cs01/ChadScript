@@ -1794,6 +1794,18 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return this.typeInference.resolveExpressionTypeRich(expr);
   }
 
+  // Sink method for the pre-codegen annotator: convert a declared-type
+  // string (e.g. "string", "Node[]", "Foo") to a ResolvedType. Rejects
+  // unions, nullable types, and anything that doesn't map to a single
+  // concrete shape — callers should gate by `isSafelyAnnotatable` first.
+  resolveDeclaredTypeString(typeStr: string): ResolvedType | null {
+    if (!typeStr) return null;
+    const t = typeStr.trim();
+    if (t.length === 0) return null;
+    if (t.indexOf("|") !== -1) return null;
+    return this.typeContext.resolve(t);
+  }
+
   getThisPointer(): string | null {
     return this.thisPointer;
   }

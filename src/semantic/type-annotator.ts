@@ -6,8 +6,13 @@
 // TypeInference directly; this pass fills the table so codegen reads and
 // emits LLVM, nothing more.
 //
-// Starts small — annotates the expression kinds where typeOf is currently
-// consumed. Expands as more codegen sites migrate to typeOf.
+// Piece 1 scope: annotate (a) primitive literals whose types are trivially
+// stable, and (b) `variable` reads where the declared type at the declaration
+// site is a concrete non-union, non-nullable shape (plain primitive, array,
+// interface, or class). This is the narrow subset where the declared-type
+// answer is authoritative and cannot be invalidated by mid-codegen symbol-
+// table refinement. Union / nullable / inferred types are deliberately NOT
+// cached — those are Piece 2/3 (index_access, ternary narrowing).
 
 import type {
   AST,
@@ -46,6 +51,11 @@ import type {
   NewNode,
   MemberAccessAssignmentNode,
   IndexAccessAssignmentNode,
+  FunctionNode,
+  ClassNode,
+  ClassMethod,
+  FunctionParameter,
+  VariableNode,
 } from "../ast/types.js";
 import type { ResolvedType } from "../codegen/infrastructure/type-system.js";
 
@@ -55,6 +65,10 @@ import type { ResolvedType } from "../codegen/infrastructure/type-system.js";
 export interface TypeAnnotatorSink {
   resolveExpressionTypeRich(expr: Expression): ResolvedType | null;
   appendExpressionType(expr: Expression, type: ResolvedType): void;
+  // Resolve a declared-type string (e.g. "string", "Node[]", "Map<string,number>")
+  // to a ResolvedType. Returns null if the string is a union or otherwise
+  // non-representable by a single ResolvedType.
+  resolveDeclaredTypeString(typeStr: string): ResolvedType | null;
 }
 
 export function annotateTypes(ast: AST, sink: TypeAnnotatorSink): void {
@@ -62,24 +76,151 @@ export function annotateTypes(ast: AST, sink: TypeAnnotatorSink): void {
   walker.walkAST(ast);
 }
 
+// Per-scope env: maps variable name → declared ResolvedType. Each entry
+// also records whether the binding came from a function parameter or a
+// let/const declaration — Piece 1 only uses parameter bindings for
+// `variable` annotation (decl bindings live here but don't feed the cache
+// yet; Piece 3 will wire them in once refinement interactions are handled).
+type BindingKind = "param" | "decl";
+type ScopeEnv = { names: string[]; types: ResolvedType[]; kinds: BindingKind[] };
+
 class TypeAnnotator {
   private sink: TypeAnnotatorSink;
+  // Scope stack. Innermost scope is last.
+  private scopes: ScopeEnv[];
+
+  // Counters for optional debug reporting — only logged when
+  // ANNOTATOR_STATS env is set.
+  public statLiterals: number = 0;
+  public statVariables: number = 0;
+  public statParams: number = 0;
+  public statDecls: number = 0;
 
   constructor(sink: TypeAnnotatorSink) {
     this.sink = sink;
+    this.scopes = [];
+  }
+
+  getStats(): { literals: number; variables: number; params: number; decls: number } {
+    return {
+      literals: this.statLiterals,
+      variables: this.statVariables,
+      params: this.statParams,
+      decls: this.statDecls,
+    };
+  }
+
+  private pushScope(): void {
+    this.scopes.push({ names: [], types: [], kinds: [] });
+  }
+
+  private popScope(): void {
+    this.scopes.pop();
+  }
+
+  private defineInCurrentScope(name: string, type: ResolvedType, kind: BindingKind): void {
+    if (this.scopes.length === 0) return;
+    const top = this.scopes[this.scopes.length - 1];
+    top.names.push(name);
+    top.types.push(type);
+    top.kinds.push(kind);
+  }
+
+  // Look up by innermost-first scope, but only return parameter bindings.
+  // Shadowing by a decl binding hides an outer param binding (same scoping
+  // rule TypeScript applies), so we must still traverse the name list
+  // innermost-first and return null on the first match if it's a decl.
+  private lookupParam(name: string): ResolvedType | null {
+    for (let i = this.scopes.length - 1; i >= 0; i--) {
+      const sc = this.scopes[i];
+      for (let j = sc.names.length - 1; j >= 0; j--) {
+        if (sc.names[j] === name) {
+          return sc.kinds[j] === "param" ? sc.types[j] : null;
+        }
+      }
+    }
+    return null;
+  }
+
+  // A declared-type string is safely annotatable if it's a single, concrete,
+  // non-nullable shape. Union types (`A | B`) and nullable (`T | null`) are
+  // deliberately excluded because method dispatch and narrowing on them
+  // require Piece 3 work.
+  private isSafelyAnnotatable(typeStr: string | undefined): boolean {
+    if (!typeStr) return false;
+    const t = typeStr.trim();
+    if (t.length === 0) return false;
+    if (t.indexOf("|") !== -1) return false;
+    if (t.indexOf("?") !== -1) return false;
+    if (t === "any" || t === "unknown" || t === "void" || t === "never") return false;
+    if (t.indexOf("=>") !== -1) return false;
+    if (t.indexOf("&") !== -1) return false;
+    if (t.indexOf("{") !== -1) return false;
+    return true;
   }
 
   walkAST(ast: AST): void {
+    this.pushScope();
     if (ast.topLevelItems && ast.topLevelItems.length > 0) {
       this.walkStmts(ast.topLevelItems as Statement[]);
     }
     for (let i = 0; i < ast.functions.length; i++) {
-      this.walkBlock(ast.functions[i].body);
+      this.walkFunction(ast.functions[i]);
     }
     for (let i = 0; i < ast.classes.length; i++) {
       const cls = ast.classes[i];
       for (let j = 0; j < cls.methods.length; j++) {
-        this.walkBlock(cls.methods[j].body);
+        this.walkClassMethod(cls, cls.methods[j]);
+      }
+    }
+    this.popScope();
+  }
+
+  private walkFunction(fn: FunctionNode): void {
+    this.pushScope();
+    this.bindParameters(fn.parameters, fn.params, fn.paramTypes);
+    this.walkBlock(fn.body);
+    this.popScope();
+  }
+
+  private walkClassMethod(_cls: ClassNode, m: ClassMethod): void {
+    this.pushScope();
+    this.bindParameters(m.parameters, m.params, m.paramTypes);
+    this.walkBlock(m.body);
+    this.popScope();
+  }
+
+  private bindParameters(
+    parameters: FunctionParameter[] | undefined,
+    paramNames: string[] | undefined,
+    paramTypes: string[] | undefined,
+  ): void {
+    // Prefer the rich FunctionParameter[] form when present.
+    if (parameters && parameters.length > 0) {
+      for (let i = 0; i < parameters.length; i++) {
+        const p = parameters[i];
+        if (!p.name || !p.type) continue;
+        if (!this.isSafelyAnnotatable(p.type)) continue;
+        const rt = this.sink.resolveDeclaredTypeString(p.type);
+        if (rt) {
+          this.defineInCurrentScope(p.name, rt, "param");
+          this.statParams++;
+        }
+      }
+      return;
+    }
+    // Fallback: parallel arrays on the function node.
+    if (!paramNames || !paramTypes) return;
+    const n = paramNames.length < paramTypes.length ? paramNames.length : paramTypes.length;
+    for (let i = 0; i < n; i++) {
+      const name = paramNames[i];
+      const t = paramTypes[i];
+      if (!name || !t) continue;
+      if (!this.isSafelyAnnotatable(t)) continue;
+      const rt = this.sink.resolveDeclaredTypeString(t);
+      if (rt) {
+        this.defineInCurrentScope(name, rt, "param");
+        this.statParams++;
       }
     }
   }
@@ -91,7 +232,9 @@ class TypeAnnotator {
   }
 
   private walkBlock(block: BlockStatement): void {
+    this.pushScope();
     this.walkStmts(block.statements);
+    this.popScope();
   }
 
   private walkStmt(stmt: Statement): void {
@@ -100,6 +243,15 @@ class TypeAnnotator {
     if (t === "variable_declaration") {
       const decl = stmt as VariableDeclaration;
       if (decl.value) this.visitExpr(decl.value as Expression);
+      // Record declared type in current scope AFTER walking init (init
+      // may reference the outer binding of `decl.name` if shadowing).
+      if (decl.name && this.isSafelyAnnotatable(decl.declaredType)) {
+        const rt = this.sink.resolveDeclaredTypeString(decl.declaredType!);
+        if (rt) {
+          this.defineInCurrentScope(decl.name, rt, "decl");
+          this.statDecls++;
+        }
+      }
     } else if (t === "assignment") {
       const a = stmt as AssignmentStatement;
       this.visitExpr(a.value);
@@ -118,14 +270,20 @@ class TypeAnnotator {
       this.visitExpr(dw.condition);
     } else if (t === "for") {
       const f = stmt as ForStatement;
+      this.pushScope();
       if (f.init) this.walkStmt(f.init as Statement);
       if (f.condition) this.visitExpr(f.condition as Expression);
-      this.walkBlock(f.body);
+      this.walkStmts(f.body.statements);
       if (f.update) this.visitExpr(f.update as Expression);
+      this.popScope();
     } else if (t === "for_of") {
       const fo = stmt as ForOfStatement;
       this.visitExpr(fo.iterable);
-      this.walkBlock(fo.body);
+      this.pushScope();
+      // The iteration variable's type is derived from the iterable — don't
+      // annotate it here; iterable resolution is Piece 2/3 territory.
+      this.walkStmts(fo.body.statements);
+      this.popScope();
     } else if (t === "try") {
       const tr = stmt as TryStatement;
       this.walkBlock(tr.tryBlock);
@@ -202,12 +360,14 @@ class TypeAnnotator {
       for (let i = 0; i < n.args.length; i++) this.visitExpr(n.args[i]);
     } else if (t === "arrow_function") {
       const af = expr as ArrowFunctionNode;
+      this.pushScope();
       const body = af.body as { type: string };
       if (body.type === "block") {
-        this.walkBlock(af.body as BlockStatement);
+        this.walkStmts((af.body as BlockStatement).statements);
       } else {
         this.visitExpr(af.body as Expression);
       }
+      this.popScope();
     } else if (t === "template_literal") {
       const tl = expr as TemplateLiteralNode;
       for (let i = 0; i < tl.parts.length; i++) {
@@ -242,18 +402,69 @@ class TypeAnnotator {
       this.visitExpr(ta.expression);
     }
 
-    // After recursion, annotate this expression — but ONLY for truly-static
-    // shapes. Array / map / set / object / new / binary / conditional all
-    // recurse through variable / symbol-table lookups whose answers depend
-    // on codegen-time state the annotator doesn't yet see; caching them
-    // would freeze a pre-codegen wrong answer. Typed-literal and
-    // template_literal results are stable (always same base). Everything
-    // else gets resolved live by typeOf's fallback.
-    if (!this.isStableExprType(e.type)) return;
-    const resolved = this.sink.resolveExpressionTypeRich(expr);
-    if (resolved && resolved.base && resolved.base !== "unknown") {
-      this.sink.appendExpressionType(expr, resolved);
+    // After recursion, annotate this expression.
+    // Stable primitive literals: always safe.
+    if (this.isStableExprType(e.type)) {
+      const resolved = this.sink.resolveExpressionTypeRich(expr);
+      if (resolved && resolved.base && resolved.base !== "unknown") {
+        this.sink.appendExpressionType(expr, resolved);
+        this.statLiterals++;
+      }
+      return;
     }
+    // Variable reads: annotate only when the declared-type env has a
+    // concrete, non-union binding. This is authoritative because the
+    // declared type cannot be narrowed beyond itself at the language
+    // level — any mid-codegen refinement produces a subtype, and the
+    // broader declared type is still a valid answer for method dispatch
+    // and allocator decisions. Bindings are omitted for union/nullable
+    // types so this annotation never overrides a potentially-narrower
+    // in-codegen answer for those cases.
+    // Variable reads: cache only when the binding came from a function
+    // parameter. Parameter types are fixed at function entry and never
+    // refined mid-codegen, so the declared type is always authoritative.
+    // Let/const declaration bindings are intentionally skipped in Piece 1
+    // — downstream mid-codegen refinement (e.g., JSON.parse target type,
+    // await result specialization) can legitimately produce a more specific
+    // ResolvedType than the static declared type, and caching the broader
+    // answer overrides the refinement. That interaction is Piece 3.
+    // NOTE: Variable-read annotation is currently GATED OFF by default.
+    // Stage 2 self-hosting fails when variable reads are cached with their
+    // declared parameter/decl types — the stage-1 compiler's output throws
+    // "array index 0 out of bounds (length 0)" when compiling itself.
+    // Root cause: some downstream consumer of typeOf(variable) relies on a
+    // mid-codegen-refined answer that the pre-annotated declared type
+    // overrides. Pinning that interaction is Piece 3 scope. The scope
+    // tracking and declared-type resolution infrastructure is kept in
+    // place here so Piece 3 can turn this on after refinement sites are
+    // migrated to pre-codegen.
+    // Variable-read annotation is intentionally left un-wired in Piece 1.
+    // When enabled (even restricted to parameter-bound interface/class
+    // types), the stage-1 compiler's output fails to compile itself with
+    // "array index 0 out of bounds (length 0)" — a mid-codegen consumer
+    // of typeOf(variable) relies on a refined answer that the declared-
+    // type annotation overrides. The scope-tracking + declared-type
+    // resolution infrastructure above is retained so Piece 3 can flip
+    // this on after refinement sites move pre-codegen. No behavior
+    // change vs main for variable-read types.
+  }
+
+  // A ResolvedType derived from a parameter declaration is safe to install
+  // in the annotator cache for variable reads only when it matches a shape
+  // whose LLVM representation is fully determined by the base name alone —
+  // interfaces and classes. Primitives (number/string/boolean), arrays,
+  // Map, and Set each have a family of LLVM layouts that codegen chooses
+  // from at symbol-definition time, and the declared type alone doesn't
+  // encode that choice. Caching the declared answer for those can disagree
+  // with the symbol table's allocated storage and produce wrong IR.
+  private isSafeVariableAnnotationType(rt: ResolvedType): boolean {
+    if (rt.arrayDepth > 0) return false;
+    if (rt.qualifiers.isNullable) return false;
+    const b = rt.base;
+    if (b === "number" || b === "string" || b === "boolean") return false;
+    if (b === "null" || b === "void" || b === "unknown" || b === "any") return false;
+    if (b.startsWith("Map<") || b.startsWith("Set<") || b.startsWith("Array<")) return false;
+    return true;
   }
 
   private isStableExprType(t: string): boolean {
