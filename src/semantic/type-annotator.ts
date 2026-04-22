@@ -423,6 +423,17 @@ class TypeAnnotator {
       }
       return;
     }
+    // Member access on a class/interface-typed object. Only cache when the
+    // resolved type is itself class/interface (avoids disagreeing with
+    // symbol-table-allocated storage for primitives/arrays/Map/Set).
+    // Issue #658 gate-loosen step 2.
+    if (e.type === "member_access") {
+      const resolved = this.sink.resolveExpressionTypeRich(expr);
+      if (resolved && this.isSafeVariableAnnotationType(resolved)) {
+        this.sink.appendExpressionType(expr, resolved);
+      }
+      return;
+    }
     // let/const decl bindings and interface-typed params are intentionally
     // skipped. Decl bindings can be refined mid-codegen (JSON.parse target
     // type, await result specialization); caching the declared type would
