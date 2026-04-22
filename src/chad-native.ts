@@ -118,6 +118,20 @@ parser.addScopedOption(
   "",
   "build,run",
 );
+parser.addScopedOption(
+  "diag-trace",
+  "",
+  "Enable diagnostic trace categories (csv), e.g. 'type-trace'",
+  "",
+  "build,run,ir",
+);
+parser.addScopedOption(
+  "diag-trace-out",
+  "",
+  "Output path for diagnostic trace JSONL (default: chad-diagnostics.jsonl)",
+  "",
+  "build,run,ir",
+);
 parser.addPositional("input", "Input .ts or .js file");
 
 parser.parse(process.argv);

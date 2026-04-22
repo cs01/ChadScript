@@ -49,6 +49,7 @@ import type { JsonObjectMeta } from "../expressions/access/member.js";
 import type { DiagnosticEngine } from "../../diagnostics/engine.js";
 import { TypeContext } from "./type-context.js";
 import { classifyTerminator } from "./terminator-classifier.js";
+import { traceTypeSet, traceTypeGet } from "../../diagnostics/tracers.js";
 
 interface ExprBase {
   type: string;
@@ -1624,10 +1625,15 @@ export class MockGeneratorContext implements IGeneratorContext {
   getVariableType(name: string): string | undefined {
     // Check named variables in SymbolTable first
     const symbolType = this.symbolTable.getType(name);
-    if (symbolType) return symbolType;
+    if (symbolType) {
+      traceTypeGet(name, symbolType);
+      return symbolType;
+    }
 
     // Fall back to temporary register types
-    return this.variableTypes.get(name);
+    const t = this.variableTypes.get(name);
+    traceTypeGet(name, t);
+    return t;
   }
 
   hasVariableType(name: string): boolean {
@@ -1635,6 +1641,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
 
   setVariableType(name: string, type: string): void {
+    traceTypeSet(name, type);
     this.variableTypes.set(name, type);
   }
 

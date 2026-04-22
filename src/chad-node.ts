@@ -32,6 +32,9 @@ import * as fs from "fs";
 import { execSync, spawn as spawnProc, ChildProcess } from "child_process";
 import { installTargetSDK, listInstalledSDKs, getSDKBaseDir } from "./cross-compile.js";
 import { VERSION } from "./version.js";
+import { enableSink, flushDiagnostics } from "./diagnostics/sink.js";
+import { parseCategories, CAT_TYPE_TRACE } from "./diagnostics/categories.js";
+import { enableTypeTrace } from "./diagnostics/tracers.js";
 
 const parser = new ArgumentParser("chad", "compile TypeScript to native binaries via LLVM");
 parser.setColorEnabled(process.stdout.isTTY === true);
@@ -95,6 +98,20 @@ parser.addScopedOption(
   "Extra library paths, -L flags (comma-separated)",
   "",
   "build,run",
+);
+parser.addScopedOption(
+  "diag-trace",
+  "",
+  "Enable diagnostic trace categories (csv), e.g. 'type-trace'",
+  "",
+  "build,run,ir",
+);
+parser.addScopedOption(
+  "diag-trace-out",
+  "",
+  "Output path for diagnostic trace JSONL (default: chad-diagnostics.jsonl)",
+  "",
+  "build,run,ir",
 );
 parser.addPositional("input", "Input .ts or .js file");
 
@@ -302,6 +319,19 @@ if (parser.getFlag("verbose")) logLevel = LogLevel_Verbose;
 if (parser.getFlag("debug")) logLevel = LogLevel_Debug;
 if (parser.getFlag("trace")) logLevel = LogLevel_Trace;
 
+const diagTraceCsv = parser.getOption("diag-trace");
+if (diagTraceCsv) {
+  const cats = parseCategories(diagTraceCsv);
+  const outPath = parser.getOption("diag-trace-out") || "chad-diagnostics.jsonl";
+  enableSink(outPath);
+  process.on("exit", () => {
+    flushDiagnostics();
+  });
+  for (const c of cats) {
+    if (c === CAT_TYPE_TRACE) enableTypeTrace();
+  }
+}
+
 if (parser.getFlag("skip-semantic-analysis")) setSkipSemanticAnalysis(true);
 if (parser.getFlag("keep-temps")) setKeepTemps(true);
 const diagFormat = parser.getOption("diagnostics");
@@ -396,9 +426,12 @@ if (diagFormat === "json") {
     compile(inputFile, outputFile, logLevel);
   } catch (error) {
     logger.error((error as Error).message);
+    flushDiagnostics();
     process.exit(1);
   }
 }
+
+flushDiagnostics();
 
 if (command === "run") {
   const bin = path.resolve(outputFile);

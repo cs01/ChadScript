@@ -25,6 +25,7 @@ import {
   SymbolKind_UrlSearchParams,
 } from "./symbol-table.js";
 import type { ResolvedType } from "./type-system.js";
+import { traceTypeSet, traceTypeGet } from "../../diagnostics/tracers.js";
 
 export {
   SymbolTable,
@@ -589,13 +590,21 @@ export class BaseGenerator {
    * Checks SymbolTable for named variables, then variableTypes for temporary registers
    */
   getVariableType(name: string): string | undefined {
-    if (!name) return undefined;
+    if (!name) {
+      traceTypeGet(name, undefined);
+      return undefined;
+    }
     // Check named variables in SymbolTable first
     const symbolType = this.symbolTable.getType(name);
-    if (symbolType) return symbolType;
+    if (symbolType) {
+      traceTypeGet(name, symbolType);
+      return symbolType;
+    }
 
     // Fall back to temporary register types
-    return this.variableTypes.get(name);
+    const t = this.variableTypes.get(name);
+    traceTypeGet(name, t);
+    return t;
   }
 
   /**
@@ -614,6 +623,7 @@ export class BaseGenerator {
         `Cannot set type 'unknown' for register '${name}'. Type inference failed in the codegen pipeline.`,
       );
     }
+    traceTypeSet(name, type);
     this.variableTypes.set(name, type);
   }
 

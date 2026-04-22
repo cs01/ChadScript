@@ -40,6 +40,7 @@ import type {
   ArrayStorageStrategy,
 } from "./type-system.js";
 import type { TypeContext } from "./type-context.js";
+import { traceTypeRich } from "../../diagnostics/tracers.js";
 
 interface ExprBase {
   type: string;
@@ -155,22 +156,35 @@ export class TypeInference {
   // etc.) never gain stray enrichment. Fields are eager in P1a; lazy-getter
   // optimization deferred to P1b — callers today only invoke this on the hot path.
   resolveExpressionTypeRich(expr: Expression): ResolvedType | null {
+    const exprTypeTag: string =
+      expr && typeof expr === "object" ? (expr as ExprBase).type || "" : "";
     if (expr && typeof expr === "object" && this.isCacheableExprType((expr as ExprBase).type)) {
       const cached = this.richCacheLookup(expr);
-      if (cached) return cached;
+      if (cached) {
+        traceTypeRich(exprTypeTag, cached.base || null);
+        return cached;
+      }
       const baseType = this.resolveExpressionType(expr);
-      if (!baseType) return null;
+      if (!baseType) {
+        traceTypeRich(exprTypeTag, null);
+        return null;
+      }
       const enriched = this.enrichResolvedType(baseType);
       this.populateArrayStorage(enriched, expr);
       if (enriched.base && enriched.sourceKind && enriched.sourceKind !== "unknown") {
         this.richCacheStore(expr, enriched);
       }
+      traceTypeRich(exprTypeTag, enriched.base || null);
       return enriched;
     }
     const baseType = this.resolveExpressionType(expr);
-    if (!baseType) return null;
+    if (!baseType) {
+      traceTypeRich(exprTypeTag, null);
+      return null;
+    }
     const enriched = this.enrichResolvedType(baseType);
     this.populateArrayStorage(enriched, expr);
+    traceTypeRich(exprTypeTag, enriched.base || null);
     return enriched;
   }
 
