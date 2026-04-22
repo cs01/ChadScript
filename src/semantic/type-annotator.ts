@@ -423,11 +423,20 @@ class TypeAnnotator {
       }
       return;
     }
-    // Member access on a class/interface-typed object. Only cache when the
-    // resolved type is itself class/interface (avoids disagreeing with
-    // symbol-table-allocated storage for primitives/arrays/Map/Set).
-    // Issue #658 gate-loosen step 2.
+    // Member access on a class/interface-typed object. Issue #658 step 2.
     if (e.type === "member_access") {
+      const resolved = this.sink.resolveExpressionTypeRich(expr);
+      if (resolved && this.isSafeVariableAnnotationType(resolved)) {
+        this.sink.appendExpressionType(expr, resolved);
+      }
+      return;
+    }
+    // Binary/unary operator results whose resolved type is class/interface.
+    // Primitives excluded because LLVM layout is chosen at emit time
+    // (narrow-integer specialization, boolean i1 vs double, etc.) and the
+    // declared answer can disagree with the emitted temp's type. Issue #658
+    // gate-loosen step 3.
+    if (e.type === "binary" || e.type === "unary") {
       const resolved = this.sink.resolveExpressionTypeRich(expr);
       if (resolved && this.isSafeVariableAnnotationType(resolved)) {
         this.sink.appendExpressionType(expr, resolved);
