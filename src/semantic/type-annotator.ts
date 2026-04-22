@@ -412,51 +412,35 @@ class TypeAnnotator {
       }
       return;
     }
-    // Variable reads: annotate only when the declared-type env has a
-    // concrete, non-union binding. This is authoritative because the
-    // declared type cannot be narrowed beyond itself at the language
-    // level — any mid-codegen refinement produces a subtype, and the
-    // broader declared type is still a valid answer for method dispatch
-    // and allocator decisions. Bindings are omitted for union/nullable
-    // types so this annotation never overrides a potentially-narrower
-    // in-codegen answer for those cases.
-    // Variable reads: cache only when the binding came from a function
-    // parameter. Parameter types are fixed at function entry and never
-    // refined mid-codegen, so the declared type is always authoritative.
-    // Let/const declaration bindings are intentionally skipped in Piece 1
-    // — downstream mid-codegen refinement (e.g., JSON.parse target type,
-    // await result specialization) can legitimately produce a more specific
-    // ResolvedType than the static declared type, and caching the broader
-    // answer overrides the refinement. That interaction is Piece 3.
-    // NOTE: Variable-read annotation is currently GATED OFF by default.
-    // Stage 2 self-hosting fails when variable reads are cached with their
-    // declared parameter/decl types — the stage-1 compiler's output throws
-    // "array index 0 out of bounds (length 0)" when compiling itself.
-    // Root cause: some downstream consumer of typeOf(variable) relies on a
-    // mid-codegen-refined answer that the pre-annotated declared type
-    // overrides. Pinning that interaction is Piece 3 scope. The scope
-    // tracking and declared-type resolution infrastructure is kept in
-    // place here so Piece 3 can turn this on after refinement sites are
-    // migrated to pre-codegen.
-    // Variable-read annotation is intentionally left un-wired in Piece 1.
-    // When enabled (even restricted to parameter-bound interface/class
-    // types), the stage-1 compiler's output fails to compile itself with
-    // "array index 0 out of bounds (length 0)" — a mid-codegen consumer
-    // of typeOf(variable) relies on a refined answer that the declared-
-    // type annotation overrides. The scope-tracking + declared-type
-    // resolution infrastructure above is retained so Piece 3 can flip
-    // this on after refinement sites move pre-codegen. No behavior
-    // change vs main for variable-read types.
+    // Variable reads bound to function parameters. Parameter types fixed at
+    // function entry, never refined mid-codegen. Issue #658 gate-loosen step 1.
+    if (e.type === "variable") {
+      const v = expr as VariableNode;
+      const bound = this.lookupParam(v.name);
+      if (bound && this.isSafeVariableAnnotationType(bound)) {
+        this.sink.appendExpressionType(expr, bound);
+        this.statVariables++;
+      }
+      return;
+    }
+    // let/const decl bindings and interface-typed params are intentionally
+    // skipped. Decl bindings can be refined mid-codegen (JSON.parse target
+    // type, await result specialization); caching the declared type would
+    // override the refinement. Interface params need live-resolution so
+    // method-call dispatch sees the concrete implementing class instead of
+    // the interface answer (which breaks class-dispatch's vtable lookup —
+    // see isSafeVariableAnnotationType).
   }
 
-  // A ResolvedType derived from a parameter declaration is safe to install
-  // in the annotator cache for variable reads only when it matches a shape
-  // whose LLVM representation is fully determined by the base name alone —
-  // interfaces and classes. Primitives (number/string/boolean), arrays,
-  // Map, and Set each have a family of LLVM layouts that codegen chooses
-  // from at symbol-definition time, and the declared type alone doesn't
-  // encode that choice. Caching the declared answer for those can disagree
-  // with the symbol table's allocated storage and produce wrong IR.
+  // A ResolvedType from a parameter declaration is safe to install in the
+  // annotator cache for variable reads only when the LLVM representation is
+  // fully determined by the base name. Classes qualify: the concrete class
+  // is authoritative for method dispatch. Interfaces do NOT: class-dispatch
+  // in method-calls needs to see the concrete implementing class, so
+  // live-resolution must still run. Primitives, arrays, typed-arrays, Map,
+  // and Set have a family of LLVM layouts that codegen chooses from at
+  // symbol-definition time, so the declared answer can disagree with the
+  // symbol table's allocated storage and produce wrong IR.
   private isSafeVariableAnnotationType(rt: ResolvedType): boolean {
     if (rt.arrayDepth > 0) return false;
     if (rt.qualifiers.isNullable) return false;
@@ -464,6 +448,12 @@ class TypeAnnotator {
     if (b === "number" || b === "string" || b === "boolean") return false;
     if (b === "null" || b === "void" || b === "unknown" || b === "any") return false;
     if (b.startsWith("Map<") || b.startsWith("Set<") || b.startsWith("Array<")) return false;
+    if (b === "Uint8Array" || b === "ArrayBuffer" || b === "Int32Array") return false;
+    // Only annotate when the declared type resolves to a concrete class.
+    // Interface-typed params (e.g. IGeneratorContext) need live-resolution at
+    // codegen time so method-call dispatch sees the concrete implementing
+    // class instead of the interface answer (which breaks class-dispatch).
+    if (rt.sourceKind !== "class") return false;
     return true;
   }
 
