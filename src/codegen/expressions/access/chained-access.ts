@@ -1,4 +1,4 @@
-import { MemberAccessNode, InterfaceDeclaration, VariableNode } from "../../../ast/types.js";
+import { MemberAccessNode, InterfaceDeclaration, VariableNode, InterfaceField } from "../../../ast/types.js";
 import { stripOptional, stripNullable, tsTypeToLlvm } from "../../infrastructure/type-system.js";
 import type { MemberAccessGeneratorContext } from "./member.js";
 
@@ -32,7 +32,7 @@ export function handleNestedInterfaceField(
     const types: string[] = [];
     const allFields = ctx.getAllInterfaceFields(nestedInterfaceDef);
     for (let fi = 0; fi < allFields.length; fi++) {
-      const f = allFields[fi] as { name: string; type: string };
+      const f = allFields[fi] as InterfaceField;
       keys.push(stripOptional(f.name));
       tsTypes.push(f.type);
       types.push(tsTypeToLlvm(f.type));

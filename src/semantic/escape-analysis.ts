@@ -21,6 +21,7 @@ import type {
   ThrowStatement,
   TryStatement,
   SwitchStatement,
+  SwitchCase,
   FunctionNode,
   ClassNode,
   ClassMethod,
@@ -32,6 +33,7 @@ import type {
   IndexAccessNode,
   ArrayNode,
   ObjectNode,
+  ObjectProperty,
   ArrowFunctionNode,
   TemplateLiteralNode,
   ConditionalExpressionNode,
@@ -41,6 +43,7 @@ import type {
   TypeAssertionNode,
   NewNode,
   SpreadElementNode,
+  VariableNode,
 } from "../ast/types.js";
 
 export function varDeclKey(decl: VariableDeclaration): string {
@@ -152,7 +155,7 @@ class EscapeAnalyzer {
     if (s.type === "switch") {
       const sw = stmt as SwitchStatement;
       for (let i = 0; i < sw.cases.length; i++) {
-        const c = sw.cases[i] as { test: Expression | null; consequent: Statement[] };
+        const c = sw.cases[i] as SwitchCase;
         if (this.blockContainsArrow(c.consequent)) return true;
       }
       return false;
@@ -228,7 +231,7 @@ class EscapeAnalyzer {
     if (e.type === "object") {
       const o = expr as ObjectNode;
       for (let i = 0; i < o.properties.length; i++) {
-        const prop = o.properties[i] as { key: string; value: Expression };
+        const prop = o.properties[i] as ObjectProperty;
         if (this.exprContainsArrow(prop.value)) return true;
       }
       return false;
@@ -320,7 +323,7 @@ class EscapeAnalyzer {
     } else if (s.type === "switch") {
       const sw = stmt as SwitchStatement;
       for (let i = 0; i < sw.cases.length; i++) {
-        const c = sw.cases[i] as { test: Expression | null; consequent: Statement[] };
+        const c = sw.cases[i] as SwitchCase;
         this.collectCandidates(c.consequent);
       }
     } else if (s.type === "block") {
@@ -342,7 +345,7 @@ class EscapeAnalyzer {
       if (decl.value) {
         const v = decl.value as ExprBase;
         if (v.type === "variable") {
-          const varRef = decl.value as { type: string; name: string };
+          const varRef = decl.value as VariableNode;
           this.escapedNames.push(varRef.name);
         } else {
           this.walkExprEscaping(decl.value);
@@ -352,7 +355,7 @@ class EscapeAnalyzer {
       const a = stmt as AssignmentStatement;
       const v = a.value as ExprBase;
       if (v.type === "variable") {
-        const varRef = a.value as { type: string; name: string };
+        const varRef = a.value as VariableNode;
         this.escapedNames.push(varRef.name);
       } else {
         this.walkExprEscaping(a.value);
@@ -398,7 +401,7 @@ class EscapeAnalyzer {
       const sw = stmt as SwitchStatement;
       this.walkExprNonEscaping(sw.discriminant);
       for (let i = 0; i < sw.cases.length; i++) {
-        const c = sw.cases[i] as { test: Expression | null; consequent: Statement[] };
+        const c = sw.cases[i] as SwitchCase;
         if (c.test) this.walkExprNonEscaping(c.test);
         for (let j = 0; j < c.consequent.length; j++) {
           this.scanStmtForEscapes(c.consequent[j]);
@@ -415,7 +418,7 @@ class EscapeAnalyzer {
   private walkExprEscaping(expr: Expression): void {
     const e = expr as ExprBase;
     if (e.type === "variable") {
-      const v = expr as { type: string; name: string };
+      const v = expr as VariableNode;
       this.escapedNames.push(v.name);
       return;
     }
@@ -444,7 +447,7 @@ class EscapeAnalyzer {
     }
     if (e.type === "variable") {
       if (isEscaping) {
-        const v = expr as { type: string; name: string };
+        const v = expr as VariableNode;
         this.escapedNames.push(v.name);
       }
       return;
@@ -515,7 +518,7 @@ class EscapeAnalyzer {
     if (e.type === "object") {
       const o = expr as ObjectNode;
       for (let i = 0; i < o.properties.length; i++) {
-        const prop = o.properties[i] as { key: string; value: Expression };
+        const prop = o.properties[i] as ObjectProperty;
         this.walkExprEscaping(prop.value);
       }
       return;
@@ -588,7 +591,7 @@ class EscapeAnalyzer {
       return;
     }
     if (e.type === "spread_element") {
-      const s = expr as { type: string; argument: Expression };
+      const s = expr as SpreadElementNode;
       this.walkExprEscaping(s.argument);
       return;
     }
@@ -646,7 +649,7 @@ class EscapeAnalyzer {
       const sw = stmt as SwitchStatement;
       this.walkExprEscaping(sw.discriminant);
       for (let i = 0; i < sw.cases.length; i++) {
-        const c = sw.cases[i] as { test: Expression | null; consequent: Statement[] };
+        const c = sw.cases[i] as SwitchCase;
         if (c.test) this.walkExprEscaping(c.test);
         for (let j = 0; j < c.consequent.length; j++) {
           this.scanArrowStmtForEscapes(c.consequent[j]);

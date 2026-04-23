@@ -8,6 +8,7 @@ import {
   VariableNode,
   MemberAccessNode,
   IndexAccessNode,
+  ClassField,
 } from "../../ast/types.js";
 import { InterfaceAllocator } from "./interface-allocator.js";
 import type { MapAllocator } from "./map-allocator.js";
@@ -264,7 +265,7 @@ export class ClassAllocator {
         if (!cls || !cls.fields) continue;
         if (cls.name !== className) continue;
         for (let k = 0; k < cls.fields.length; k++) {
-          const field = cls.fields[k] as { name: string; fieldType: string; tsType?: string };
+          const field = cls.fields[k] as ClassField;
           if (field.name === memberExpr.property) {
             const rawType = field.tsType || field.fieldType;
             const tsType = stripNullable(rawType);

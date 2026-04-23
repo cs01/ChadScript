@@ -20,6 +20,8 @@ import {
   MapNode,
   SetNode,
   ArrowFunctionNode,
+  FunctionParameter,
+  EnumDeclaration,
 } from "../../ast/types.js";
 import { SymbolTable, SymbolKind, SymbolKind_Array } from "./symbol-table.js";
 import type { TypeChecker } from "../../typescript/type-checker.js";
@@ -1204,11 +1206,7 @@ export class TypeInference {
       // Type assertion must match real struct field order: { name, members, isString }
       if (this.ctx.ast && this.ctx.ast.enums) {
         for (let ei = 0; ei < this.ctx.ast.enums.length; ei++) {
-          const en = this.ctx.ast.enums[ei] as {
-            name: string;
-            members: { name: string; value: number; stringValue?: string }[];
-            isString?: boolean;
-          };
+          const en = this.ctx.ast.enums[ei] as EnumDeclaration;
           if (en.name === varName) {
             if (en.isString) {
               return this.ctx.typeContext.stringType;
@@ -1387,7 +1385,7 @@ export class TypeInference {
     if (!iface) return null;
     const allFields = this.getAllFieldsForInterface(iface);
     for (let i = 0; i < allFields.length; i++) {
-      const f = allFields[i] as { name: string; type: string };
+      const f = allFields[i] as InterfaceField;
       let fieldName = f.name;
       if (fieldName.endsWith("?")) {
         fieldName = fieldName.slice(0, fieldName.length - 1);
@@ -1506,7 +1504,7 @@ export class TypeInference {
     const func = this.getFunction(currentFunc);
     if (func && func.parameters) {
       for (let i = 0; i < func.parameters.length; i++) {
-        const p = func.parameters[i] as { name: string; type?: string };
+        const p = func.parameters[i] as FunctionParameter;
         if (p.name === paramName && p.type) {
           return p.type;
         }
@@ -1600,7 +1598,7 @@ export class TypeInference {
     if (iface) {
       const field = this.getInterfaceProperty(typeName, fieldName);
       if (field) {
-        const fieldTyped = field as { name: string; type: string };
+        const fieldTyped = field as InterfaceField;
         return fieldTyped.type;
       }
     }
@@ -1618,7 +1616,7 @@ export class TypeInference {
     if (inner.length === 0) return null;
     const fields = this.parseInlineObjectFields(inner);
     for (let i = 0; i < fields.length; i++) {
-      const field = fields[i] as { name: string; type: string };
+      const field = fields[i] as InterfaceField;
       const cleanName = field.name.replace(/\?$/, "");
       if (cleanName === fieldName) {
         return field.type;

@@ -182,7 +182,7 @@ export class InterfaceAllocator {
       const inlineFields = this.parseInlineObjectType(interfaceName);
       if (inlineFields) {
         for (let i = 0; i < inlineFields.length; i++) {
-          const field = inlineFields[i] as { name: string; type: string };
+          const field = inlineFields[i] as InterfaceField;
           keys.push(stripOptional(field.name));
           types.push(this.convertTsType(field.type));
           tsTypes.push(field.type);
@@ -193,7 +193,7 @@ export class InterfaceAllocator {
       const interfaceDef = interfaceDefResult as InterfaceDeclaration;
       const allFields = this.getAllInterfaceFields(interfaceDef);
       for (let i = 0; i < allFields.length; i++) {
-        const field = allFields[i] as { name: string; type: string };
+        const field = allFields[i] as InterfaceField;
         keys.push(stripOptional(field.name));
         types.push(this.convertTsType(field.type));
         tsTypes.push(field.type);
@@ -295,7 +295,7 @@ export class InterfaceAllocator {
     const iface = ifaceResult as InterfaceDeclaration;
     const allFields = this.getAllInterfaceFields(iface);
     for (let i = 0; i < allFields.length; i++) {
-      const f = allFields[i] as { name: string; type: string };
+      const f = allFields[i] as InterfaceField;
       if (f.name === fieldName) {
         return f.type;
       }
@@ -313,7 +313,7 @@ export class InterfaceAllocator {
         const types: string[] = [];
         const tsTypes: string[] = [];
         for (let i = 0; i < inlineFields.length; i++) {
-          const field = inlineFields[i] as { name: string; type: string };
+          const field = inlineFields[i] as InterfaceField;
           keys.push(stripOptional(field.name));
           types.push(this.convertTsType(field.type));
           tsTypes.push(field.type);
@@ -330,7 +330,7 @@ export class InterfaceAllocator {
       const tsTypes: string[] = [];
       const allFields = this.getAllInterfaceFields(interfaceDef);
       for (let i = 0; i < allFields.length; i++) {
-        const field = allFields[i] as { name: string; type: string };
+        const field = allFields[i] as InterfaceField;
         keys.push(stripOptional(field.name));
         types.push(this.convertTsType(field.type));
         tsTypes.push(field.type);
@@ -396,14 +396,14 @@ export class InterfaceAllocator {
     const commonFields: CommonField[] = [];
 
     for (let fi = 0; fi < firstFields.length; fi++) {
-      const field = firstFields[fi] as { name: string; type: string };
+      const field = firstFields[fi] as InterfaceField;
       let isCommon = true;
       for (let ii = 0; ii < interfaces.length; ii++) {
         const ifaceTyped = interfaces[ii] as InterfaceDeclaration;
         const ifaceFields = this.getAllInterfaceFields(ifaceTyped);
         let found = false;
         for (let fj = 0; fj < ifaceFields.length; fj++) {
-          const f = ifaceFields[fj] as { name: string; type: string };
+          const f = ifaceFields[fj] as InterfaceField;
           if (f.name === field.name && this.areTypesCompatible(f.type, field.type)) {
             found = true;
             break;
@@ -466,7 +466,7 @@ export class InterfaceAllocator {
     const tsTypes: string[] = [];
     const allFields = this.getAllInterfaceFields(interfaceDef);
     for (let i = 0; i < allFields.length; i++) {
-      const field = allFields[i] as { name: string; type: string };
+      const field = allFields[i] as InterfaceField;
       keys.push(stripOptional(field.name));
       types.push(this.convertTsType(field.type));
       tsTypes.push(field.type);

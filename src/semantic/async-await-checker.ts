@@ -15,6 +15,26 @@ import type {
   ThrowStatement,
   CallNode,
   SourceLocation,
+  AssignmentStatement,
+  AwaitExpressionNode,
+  BinaryNode,
+  UnaryNode,
+  MethodCallNode,
+  MemberAccessNode,
+  IndexAccessNode,
+  ArrayNode,
+  ObjectNode,
+  TemplateLiteralNode,
+  ConditionalExpressionNode,
+  ArrowFunctionNode,
+  NewNode,
+  TypeAssertionNode,
+  SpreadElementNode,
+  MemberAccessAssignmentNode,
+  IndexAccessAssignmentNode,
+  MapNode,
+  SetNode,
+  MapEntry,
 } from "../ast/types.js";
 import { formatCompileError } from "../diagnostics/engine.js";
 
@@ -79,7 +99,7 @@ class AsyncAwaitChecker {
         this.checkExpr(decl.value as Expression, insideAsync);
       }
     } else if (stype === "assignment") {
-      const assign = stmt as { type: string; name: string; value: Expression };
+      const assign = stmt as AssignmentStatement;
       this.checkExpr(assign.value, insideAsync);
     } else if (stype === "if") {
       const ifStmt = stmt as IfStatement;
@@ -171,45 +191,40 @@ class AsyncAwaitChecker {
         this.checkExpr(callExpr.args[i], insideAsync);
       }
     } else if (etype === "await") {
-      const awaitExpr = expr as { type: string; argument: Expression };
+      const awaitExpr = expr as AwaitExpressionNode;
       this.checkExpr(awaitExpr.argument, true);
     } else if (etype === "binary") {
-      const binExpr = expr as { type: string; op: string; left: Expression; right: Expression };
+      const binExpr = expr as BinaryNode;
       this.checkExpr(binExpr.left, insideAsync);
       this.checkExpr(binExpr.right, insideAsync);
     } else if (etype === "unary") {
-      const unaryExpr = expr as { type: string; op: string; operand: Expression };
+      const unaryExpr = expr as UnaryNode;
       this.checkExpr(unaryExpr.operand, insideAsync);
     } else if (etype === "method_call") {
-      const mcExpr = expr as {
-        type: string;
-        object: Expression;
-        method: string;
-        args: Expression[];
-      };
+      const mcExpr = expr as MethodCallNode;
       this.checkExpr(mcExpr.object, insideAsync);
       for (let i = 0; i < mcExpr.args.length; i++) {
         this.checkExpr(mcExpr.args[i], insideAsync);
       }
     } else if (etype === "member_access") {
-      const maExpr = expr as { type: string; object: Expression };
+      const maExpr = expr as MemberAccessNode;
       this.checkExpr(maExpr.object, insideAsync);
     } else if (etype === "index_access") {
-      const iaExpr = expr as { type: string; object: Expression; index: Expression };
+      const iaExpr = expr as IndexAccessNode;
       this.checkExpr(iaExpr.object, insideAsync);
       this.checkExpr(iaExpr.index, insideAsync);
     } else if (etype === "array") {
-      const arrExpr = expr as { type: string; elements: Expression[] };
+      const arrExpr = expr as ArrayNode;
       for (let i = 0; i < arrExpr.elements.length; i++) {
         this.checkExpr(arrExpr.elements[i], insideAsync);
       }
     } else if (etype === "object") {
-      const objExpr = expr as { type: string; properties: { key: string; value: Expression }[] };
+      const objExpr = expr as ObjectNode;
       for (let i = 0; i < objExpr.properties.length; i++) {
         this.checkExpr(objExpr.properties[i].value, insideAsync);
       }
     } else if (etype === "template_literal") {
-      const tlExpr = expr as { type: string; parts: (string | Expression)[] };
+      const tlExpr = expr as TemplateLiteralNode;
       for (let i = 0; i < tlExpr.parts.length; i++) {
         const part = tlExpr.parts[i];
         const partTyped = part as { type: string };
@@ -218,22 +233,12 @@ class AsyncAwaitChecker {
         }
       }
     } else if (etype === "conditional") {
-      const condExpr = expr as {
-        type: string;
-        condition: Expression;
-        consequent: Expression;
-        alternate: Expression;
-      };
+      const condExpr = expr as ConditionalExpressionNode;
       this.checkExpr(condExpr.condition, insideAsync);
       this.checkExpr(condExpr.consequent, insideAsync);
       this.checkExpr(condExpr.alternate, insideAsync);
     } else if (etype === "arrow_function") {
-      const arrow = expr as {
-        type: string;
-        params: string[];
-        body: Expression | BlockStatement;
-        async?: boolean;
-      };
+      const arrow = expr as ArrowFunctionNode;
       const arrowAsync = arrow.async === true;
       const bodyTyped = arrow.body as { type: string };
       if (bodyTyped.type === "block") {
@@ -242,43 +247,33 @@ class AsyncAwaitChecker {
         this.checkExpr(arrow.body as Expression, arrowAsync);
       }
     } else if (etype === "new") {
-      const newExpr = expr as { type: string; className: string; args: Expression[] };
+      const newExpr = expr as NewNode;
       for (let i = 0; i < newExpr.args.length; i++) {
         this.checkExpr(newExpr.args[i], insideAsync);
       }
     } else if (etype === "type_assertion") {
-      const taExpr = expr as { type: string; expression: Expression };
+      const taExpr = expr as TypeAssertionNode;
       this.checkExpr(taExpr.expression, insideAsync);
     } else if (etype === "spread_element") {
-      const seExpr = expr as { type: string; argument: Expression };
+      const seExpr = expr as AwaitExpressionNode;
       this.checkExpr(seExpr.argument, insideAsync);
     } else if (etype === "member_access_assignment") {
-      const maaExpr = expr as {
-        type: string;
-        object: Expression;
-        property: string;
-        value: Expression;
-      };
+      const maaExpr = expr as MemberAccessAssignmentNode;
       this.checkExpr(maaExpr.object, insideAsync);
       this.checkExpr(maaExpr.value, insideAsync);
     } else if (etype === "index_access_assignment") {
-      const iaaExpr = expr as {
-        type: string;
-        object: Expression;
-        index: Expression;
-        value: Expression;
-      };
+      const iaaExpr = expr as IndexAccessAssignmentNode;
       this.checkExpr(iaaExpr.object, insideAsync);
       this.checkExpr(iaaExpr.index, insideAsync);
       this.checkExpr(iaaExpr.value, insideAsync);
     } else if (etype === "map") {
-      const mapExpr = expr as { type: string; entries: { key: Expression; value: Expression }[] };
+      const mapExpr = expr as MapNode;
       for (let i = 0; i < mapExpr.entries.length; i++) {
         this.checkExpr(mapExpr.entries[i].key, insideAsync);
         this.checkExpr(mapExpr.entries[i].value, insideAsync);
       }
     } else if (etype === "set") {
-      const setExpr = expr as { type: string; values: Expression[] };
+      const setExpr = expr as SetNode;
       for (let i = 0; i < setExpr.values.length; i++) {
         this.checkExpr(setExpr.values[i], insideAsync);
       }

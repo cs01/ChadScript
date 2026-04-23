@@ -190,14 +190,8 @@ export class AssignmentGenerator {
     memberAccessValue: MemberAccessAssignmentNode,
     params: string[],
   ): void {
-    const objMetaResult = this.ctx.symbolTable.getObjectInfo(object.name);
-    if (!objMetaResult) return;
-    const objMeta = objMetaResult as {
-      ptr: string;
-      keys: string[];
-      types: string[];
-      tsTypes: string[];
-    };
+    const objMeta = this.ctx.symbolTable.getObjectInfo(object.name);
+    if (!objMeta) return;
 
     const value = this.ctx.generateExpression(memberAccessValue.value, params);
     const propIndex = objMeta.keys.indexOf(property);

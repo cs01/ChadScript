@@ -22,6 +22,7 @@ import type {
   MethodCallNode,
   FunctionNode,
   SourceLocation,
+  BooleanNode,
 } from "../ast/types.js";
 import { formatCompileError } from "../diagnostics/engine.js";
 
@@ -185,7 +186,7 @@ function binWalkBlk(block: BlockStatement, src: string): void {
 
 function mrIsLiteralTrue(expr: Expression): boolean {
   if (!expr) return false;
-  if (expr.type === "boolean") return (expr as { type: string; value: boolean }).value === true;
+  if (expr.type === "boolean") return (expr as BooleanNode).value === true;
   return false;
 }
 
@@ -210,7 +211,7 @@ function mrIsNever(stmt: Statement, neverNames: string[]): boolean {
       if (neverNames[i] === mc.method) return true;
     }
     if (mc.object && mc.object.type === "variable") {
-      const obj = mc.object as { type: string; name: string };
+      const obj = mc.object as VariableNode;
       const full = obj.name + "." + mc.method;
       for (let i = 0; i < neverNames.length; i++) {
         if (neverNames[i] === full) return true;

@@ -50,6 +50,7 @@ import {
   MapNode,
   SetNode,
   TypeAssertionNode,
+  VariableNode,
 } from "../ast/types.js";
 
 let destructureCounter = 0;
@@ -353,7 +354,7 @@ function handleExpressionStatement(node: TreeSitterNode, ast: AST): void {
   const e = expr as ExprBase;
 
   if (e.type === "member_access_assignment" || e.type === "index_access_assignment") {
-    const memberExprTyped = expr as { type: string; object: Expression; property: string };
+    const memberExprTyped = expr as MemberAccessNode;
     const assignment: AssignmentStatement = {
       type: "assignment",
       name:
@@ -379,10 +380,10 @@ function handleExpressionStatement(node: TreeSitterNode, ast: AST): void {
       "Increment/decrement (++/--) at global scope is not supported. Use x = x + 1 instead, or wrap in a function.",
     );
   } else if (e.type === "binary") {
-    const binExprTyped = expr as { type: string; op: string; left: Expression; right: Expression };
+    const binExprTyped = expr as BinaryNode;
     if (binExprTyped.op === "=") {
       const leftExprBase = binExprTyped.left as ExprBase;
-      const leftExprVar = binExprTyped.left as { type: string; name: string };
+      const leftExprVar = binExprTyped.left as VariableNode;
       const assignment: AssignmentStatement = {
         type: "assignment",
         name: leftExprBase.type === "variable" ? leftExprVar.name : "__unknown__",
@@ -1109,7 +1110,7 @@ function transformArrayExpression(node: TreeSitterNode): ArrayNode {
             elements.push({ type: "spread:" + argBase.text } as unknown as Expression);
           } else {
             const argExpr = transformExpression(arg);
-            const argExprTyped = argExpr as { type: string; name?: string };
+            const argExprTyped = argExpr as VariableNode;
             if (argExprTyped.type === "variable" && argExprTyped.name) {
               elements.push({ type: "spread:" + argExprTyped.name } as unknown as Expression);
             } else {
@@ -1154,8 +1155,8 @@ function transformObjectExpression(node: TreeSitterNode): ObjectNode {
           if (inner) {
             const expr = transformExpression(inner);
             const eKey = expr as ExprBase;
-            const exprStr = expr as { type: string; value: string };
-            const exprVar = expr as { type: string; name: string };
+            const exprStr = expr as StringNode;
+            const exprVar = expr as VariableNode;
             if (eKey.type === "string") {
               key = exprStr.value || "";
             } else if (eKey.type === "variable") {
@@ -1349,7 +1350,7 @@ function transformTemplateString(node: TreeSitterNode): Expression {
   if (!hasSubstitutions && parts.length <= 1) {
     let text = "";
     if (parts.length === 1) {
-      const firstPart = parts[0] as { type: string; value?: string };
+      const firstPart = parts[0] as StringNode;
       if (firstPart.type === "string") {
         text = firstPart.value || "";
       }
@@ -1504,7 +1505,7 @@ function transformAssignmentExpression(node: TreeSitterNode): Expression {
       const obj = transformExpression(leftNode);
       const objBase = obj as ExprBase;
       if (objBase.type === "member_access") {
-        const objTyped = obj as { type: string; object: Expression; property: string };
+        const objTyped = obj as MemberAccessNode;
         return {
           type: "member_access_assignment",
           object: objTyped.object,
@@ -1516,7 +1517,7 @@ function transformAssignmentExpression(node: TreeSitterNode): Expression {
       const obj = transformExpression(leftNode);
       const objBase = obj as ExprBase;
       if (objBase.type === "index_access") {
-        const objTyped = obj as { type: string; object: Expression; index: Expression };
+        const objTyped = obj as IndexAccessNode;
         return {
           type: "index_access_assignment",
           object: objTyped.object,
@@ -1570,7 +1571,7 @@ function transformAugmentedAssignmentExpression(node: TreeSitterNode): Expressio
       };
     } else if (ln.type === "member_expression") {
       if (leftBase.type === "member_access") {
-        const leftTyped = left as { type: string; object: Expression; property: string };
+        const leftTyped = left as MemberAccessNode;
         return {
           type: "member_access_assignment",
           object: leftTyped.object,
@@ -1580,7 +1581,7 @@ function transformAugmentedAssignmentExpression(node: TreeSitterNode): Expressio
       }
     } else if (ln.type === "subscript_expression") {
       if (leftBase.type === "index_access") {
-        const leftTyped = left as { type: string; object: Expression; index: Expression };
+        const leftTyped = left as IndexAccessNode;
         return {
           type: "index_access_assignment",
           object: leftTyped.object,

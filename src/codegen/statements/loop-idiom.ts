@@ -5,6 +5,9 @@ import {
   BinaryNode,
   MemberAccessNode,
   AssignmentStatement,
+  VariableNode,
+  NumberNode,
+  IndexAccessNode,
 } from "../../ast/types.js";
 import { IGeneratorContext } from "../infrastructure/generator-context.js";
 
@@ -18,7 +21,7 @@ interface PushLoopPattern {
 
 function getIdentifierName(expr: Expression): string | null {
   if (expr.type !== "variable") return null;
-  return (expr as { type: string; name: string }).name;
+  return (expr as VariableNode).name;
 }
 
 function isIdentifier(expr: Expression, name: string): boolean {
@@ -32,10 +35,10 @@ function isIncrementOf(assign: AssignmentStatement, varName: string): boolean {
   if (bin.op !== "+") return false;
   const leftIsVar = isIdentifier(bin.left, varName);
   const rightIsOne =
-    bin.right.type === "number" && (bin.right as { type: string; value: number }).value === 1;
+    bin.right.type === "number" && (bin.right as NumberNode).value === 1;
   const rightIsVar = isIdentifier(bin.right, varName);
   const leftIsOne =
-    bin.left.type === "number" && (bin.left as { type: string; value: number }).value === 1;
+    bin.left.type === "number" && (bin.left as NumberNode).value === 1;
   return (leftIsVar && rightIsOne) || (rightIsVar && leftIsOne);
 }
 
@@ -49,7 +52,7 @@ function detectStringMethodBatch(
   if (call.method !== "toUpperCase" && call.method !== "toLowerCase") return null;
   if (call.args.length !== 0) return null;
   if (call.object.type !== "index_access") return null;
-  const idx = call.object as { type: string; object: Expression; index: Expression };
+  const idx = call.object as IndexAccessNode;
   if (getIdentifierName(idx.object) !== sourceArrayName) return null;
   if (!isIdentifier(idx.index, counterName)) return null;
   return call.method as "toUpperCase" | "toLowerCase";

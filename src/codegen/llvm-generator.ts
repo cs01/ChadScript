@@ -38,6 +38,9 @@ import {
   StringNode,
   MemberAccessNode,
   EnumDeclaration,
+  NumberNode,
+  BooleanNode,
+  ClassField,
 } from "../ast/types.js";
 import {
   BaseGenerator,
@@ -148,7 +151,7 @@ import { PromiseGenerator } from "./stdlib/promise.js";
 import { TreeSitterGenerator } from "./stdlib/treesitter.js";
 import { ExpressionGenerator } from "./expressions/orchestrator.js";
 import type { TypeChecker } from "../typescript/type-checker.js";
-import { InterfaceStructGenerator } from "./types/interface-struct-generator.js";
+import { InterfaceStructGenerator, InterfaceFieldInfo } from "./types/interface-struct-generator.js";
 import { JsonObjectMeta } from "./expressions/access/member.js";
 import type { TargetInfo } from "../target-types.js";
 import { checkClosureMutations } from "../semantic/closure-mutation-checker.js";
@@ -1351,7 +1354,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         const tOut: string[] = [];
         const covered: string[] = [];
         for (let fi = 0; fi < info.fields.length; fi++) {
-          const f = info.fields[fi] as { name: string; llvmType: string };
+          const f = info.fields[fi] as InterfaceFieldInfo;
           kOut.push(f.name);
           tOut.push(f.llvmType);
           covered.push(f.name);
@@ -1900,7 +1903,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           const types: string[] = [];
           const allFields = this.getAllInterfaceFields(iface);
           for (let i = 0; i < allFields.length; i++) {
-            const field = allFields[i] as { name: string; type: string };
+            const field = allFields[i] as InterfaceField;
             keys.push(stripOptional(field.name));
             tsTypes.push(field.type);
             types.push(this.tsTypeToLlvmJsonWithEnums(field.type));
@@ -2047,7 +2050,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         const types: string[] = [];
         const allFields = this.getAllInterfaceFields(interfaceDef);
         for (let i = 0; i < allFields.length; i++) {
-          const field = allFields[i] as { name: string; type: string };
+          const field = allFields[i] as InterfaceField;
           keys.push(stripOptional(field.name));
           tsTypes.push(field.type);
           types.push(this.tsTypeToLlvmJsonWithEnums(field.type));
@@ -2310,12 +2313,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     i64Eligible: string[],
   ): { llvmType: string; value: string } | null {
     if (stmt.kind !== "const" || stmt.value === null) return null;
-    const val = stmt.value as {
-      type: string;
-      value?: number | string | boolean;
-      loc?: SourceLocation;
-      isFloat?: boolean;
-    };
+    const val = stmt.value as (NumberNode | BooleanNode | StringNode);
     if (val.type === "number" && typeof val.value === "number") {
       let isI64 = false;
       for (let ei = 0; ei < i64Eligible.length; ei++) {
@@ -3197,12 +3195,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         const liftedFuncs = this.exprGen.arrowFunctionGen.getLiftedFunctions();
         for (let fi = 0; fi < liftedFuncs.length; fi++) {
           const func = liftedFuncs[fi];
-          const lf = func as {
-            name: string;
-            params: string[];
-            body: BlockStatement;
-            returnType?: string;
-          };
+          const lf = func as FunctionNode;
           if (lf.name === handlerName && lf.returnType) {
             handlerReturnType = lf.returnType;
             break;
@@ -3978,7 +3971,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
                   if (part === "null" || part === "undefined") continue;
                   const ifaceInfo = this.interfaceStructGen.getInterfaceStruct(part);
                   if (ifaceInfo && ifaceInfo.fields) {
-                    const firstField = ifaceInfo.fields[0] as { name: string; tsType: string };
+                    const firstField = ifaceInfo.fields[0] as InterfaceFieldInfo;
                     if (firstField && firstField.name === "type") {
                       const expectedType = firstField.tsType.replace(/['"]/g, "");
                       if (expectedType === discriminantValue) {
@@ -4390,7 +4383,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         if (!cls || !cls.fields) continue;
         if (cls.name !== className) continue;
         for (let k = 0; k < cls.fields.length; k++) {
-          const field = cls.fields[k] as { name: string; fieldType: string; tsType?: string };
+          const field = cls.fields[k] as ClassField;
           if (field.name === memberExpr.property) {
             const rawType = field.tsType || field.fieldType;
             const tsType = stripNullable(rawType);

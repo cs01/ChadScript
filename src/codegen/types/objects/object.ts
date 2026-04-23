@@ -1,9 +1,15 @@
-import { Expression, ObjectNode, ObjectProperty } from "../../../ast/types.js";
+import { Expression, ObjectNode, ObjectProperty, InterfaceField } from "../../../ast/types.js";
 import { IGeneratorContext } from "../../infrastructure/generator-context.js";
 import type { InterfaceStructGenerator } from "../interface-struct-generator.js";
 import { tsTypeToLlvm } from "../../infrastructure/type-system.js";
 
 interface ObjectGeneratorContext extends IGeneratorContext {}
+
+interface ObjectField {
+  key: string;
+  llvmType: string;
+  value: string;
+}
 
 export class ObjectGenerator {
   constructor(private ctx: ObjectGeneratorContext) {}
@@ -61,7 +67,7 @@ export class ObjectGenerator {
     return this.generateInlineObject(objExpr, params);
   }
 
-  private parseInlineInterfaceFields(typeStr: string): { name: string; type: string }[] {
+  private parseInlineInterfaceFields(typeStr: string): InterfaceField[] {
     if (!typeStr.startsWith("{") || !typeStr.endsWith("}")) {
       return [];
     }
@@ -106,10 +112,10 @@ export class ObjectGenerator {
       propMap.set(prop.key, prop.value);
     }
 
-    const orderedFields: { key: string; llvmType: string; value: string }[] = [];
+    const orderedFields: ObjectField[] = [];
 
     for (let fieldIdx = 0; fieldIdx < fields.length; fieldIdx++) {
-      const field = fields[fieldIdx] as { name: string; type: string };
+      const field = fields[fieldIdx] as InterfaceField;
       const llvmType = this.tsTypeToLlvm(field.type);
       const valueExpr = propMap.get(field.name);
       let finalValue: string;
@@ -157,7 +163,7 @@ export class ObjectGenerator {
 
     const llvmTypes: string[] = [];
     for (let i = 0; i < orderedFields.length; i++) {
-      const ft = orderedFields[i] as { key: string; llvmType: string; value: string };
+      const ft = orderedFields[i] as ObjectField;
       llvmTypes.push(ft.llvmType);
     }
     const structFields = llvmTypes.join(", ");
@@ -167,7 +173,7 @@ export class ObjectGenerator {
     const objPtr = this.allocateStruct(structType, structSizeBytes);
 
     for (let i = 0; i < orderedFields.length; i++) {
-      const field = orderedFields[i] as { key: string; llvmType: string; value: string };
+      const field = orderedFields[i] as ObjectField;
       const fieldPtr = this.nextTemp();
       this.emit(
         `${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${objPtr}, i32 0, i32 ${i}`,
@@ -220,7 +226,7 @@ export class ObjectGenerator {
       }
     }
 
-    const orderedFields: { key: string; llvmType: string; value: string }[] = [];
+    const orderedFields: ObjectField[] = [];
 
     for (let fieldIdx = 0; fieldIdx < fieldCount; fieldIdx++) {
       const fieldName = this.ctx.interfaceStructGenGetFieldName(interfaceName, fieldIdx);
@@ -326,7 +332,7 @@ export class ObjectGenerator {
     const objPtr = this.allocateStruct(structType, structSize);
 
     for (let i = 0; i < orderedFields.length; i++) {
-      const field = orderedFields[i] as { key: string; llvmType: string; value: string };
+      const field = orderedFields[i] as ObjectField;
       const fieldPtr = this.nextTemp();
       this.emit(
         `${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${objPtr}, i32 0, i32 ${i}`,
@@ -359,7 +365,7 @@ export class ObjectGenerator {
   }
 
   private generateInlineObject(objExpr: ObjectNode, params: string[]): string {
-    const fieldTypes: { key: string; llvmType: string; value: string }[] = [];
+    const fieldTypes: ObjectField[] = [];
 
     for (let i = 0; i < objExpr.properties.length; i++) {
       const prop = objExpr.properties[i] as ObjectProperty;
@@ -419,7 +425,7 @@ export class ObjectGenerator {
 
     const llvmTypes: string[] = [];
     for (let i = 0; i < fieldTypes.length; i++) {
-      const ft = fieldTypes[i] as { key: string; llvmType: string; value: string };
+      const ft = fieldTypes[i] as ObjectField;
       llvmTypes.push(ft.llvmType);
     }
     const structFields = llvmTypes.join(", ");
@@ -429,7 +435,7 @@ export class ObjectGenerator {
     const objPtr = this.allocateStruct(structType, structSizeBytes);
 
     for (let i = 0; i < fieldTypes.length; i++) {
-      const field = fieldTypes[i] as { key: string; llvmType: string; value: string };
+      const field = fieldTypes[i] as ObjectField;
       const fieldPtr = this.nextTemp();
       this.emit(
         `${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${objPtr}, i32 0, i32 ${i}`,

@@ -33,6 +33,11 @@ interface ExprBase {
   type: string;
 }
 
+interface MapValueTypeInfo {
+  valueType: string;
+  objectMetadata?: ObjectMetadata;
+}
+
 export class ForOfGenerator {
   constructor(
     private ctx: IGeneratorContext,
@@ -55,14 +60,7 @@ export class ForOfGenerator {
       return this.ctx.emitError("Expected for...of statement", stmt.loc);
     }
 
-    const forOfStmt = stmt as {
-      type: string;
-      variableKind: string;
-      variableName: string;
-      destructuredNames: string[] | null;
-      iterable: Expression;
-      body: BlockStatement;
-    };
+    const forOfStmt = stmt as ForOfStatement;
 
     const objectArrayInfo = this.getObjectArrayInfo(forOfStmt.iterable);
     if (objectArrayInfo) {
@@ -276,14 +274,7 @@ export class ForOfGenerator {
       return this.ctx.emitError("Expected for...of statement", stmt.loc);
     }
 
-    const forOfStmt = stmt as {
-      type: string;
-      variableKind: string;
-      variableName: string;
-      destructuredNames: string[] | null;
-      iterable: Expression;
-      body: BlockStatement;
-    };
+    const forOfStmt = stmt as ForOfStatement;
 
     const iterableValue = this.ctx.generateExpression(forOfStmt.iterable, params);
 
@@ -509,10 +500,7 @@ export class ForOfGenerator {
     this.ctx.defineVariable(keyName, keyAlloca, "i8*", SymbolKind_String, "local");
 
     if (valueTypeInfo) {
-      const vti = valueTypeInfo as {
-        valueType: string;
-        objectMetadata: ObjectMetadata | undefined;
-      };
+      const vti = valueTypeInfo as MapValueTypeInfo;
       if (vti.objectMetadata) {
         this.ctx.defineVariableWithMetadata(
           valueName,
@@ -661,7 +649,7 @@ export class ForOfGenerator {
         for (let i = 0; i < fields.length; i++) {
           const fRaw = fields[i];
           if (!fRaw) continue;
-          const f = fRaw as { name: string; type: string };
+          const f = fRaw as InterfaceField;
           if (!f.name || !f.type) continue;
           elementKeys.push(f.name);
           elementTsTypes.push(f.type);
@@ -693,7 +681,7 @@ export class ForOfGenerator {
       for (let i = 0; i < allFields.length; i++) {
         const fRaw = allFields[i];
         if (!fRaw) continue;
-        const f = fRaw as { name: string; type: string };
+        const f = fRaw as InterfaceField;
         if (!f.name || !f.type) continue;
         elementKeys.push(f.name);
         elementTsTypes.push(f.type);
@@ -737,7 +725,7 @@ export class ForOfGenerator {
     for (let i = 0; i < allFields.length; i++) {
       const fRaw = allFields[i];
       if (!fRaw) continue;
-      const f = fRaw as { name: string; type: string };
+      const f = fRaw as InterfaceField;
       if (!f.name) continue;
       if (f.name === fieldName) {
         return f.type;
@@ -826,7 +814,7 @@ export class ForOfGenerator {
                 for (let i = 0; i < fields.length; i++) {
                   const fRaw = fields[i];
                   if (!fRaw) continue;
-                  const f = fRaw as { name: string; type: string };
+                  const f = fRaw as InterfaceField;
                   if (!f.name || !f.type) continue;
                   elementKeys.push(f.name);
                   elementTsTypes.push(f.type);
@@ -860,7 +848,7 @@ export class ForOfGenerator {
               const elementTypes: string[] = [];
               const elementTsTypes: string[] = [];
               for (let i = 0; i < fields.length; i++) {
-                const f = fields[i] as { name: string; type: string };
+                const f = fields[i] as InterfaceField;
                 elementKeys.push(f.name);
                 elementTsTypes.push(f.type);
                 if (f.type === "string") {
@@ -891,7 +879,7 @@ export class ForOfGenerator {
               for (let i = 0; i < allFields.length; i++) {
                 const fRaw = allFields[i];
                 if (!fRaw) continue;
-                const f = fRaw as { name: string; type: string };
+                const f = fRaw as InterfaceField;
                 if (!f.name || !f.type) continue;
                 elementKeys.push(f.name);
                 elementTsTypes.push(f.type);
@@ -1152,7 +1140,7 @@ export class ForOfGenerator {
         for (let i = 0; i < allFields.length; i++) {
           const fRaw = allFields[i];
           if (!fRaw) continue;
-          const f = fRaw as { name: string; type: string };
+          const f = fRaw as InterfaceField;
           if (!f.name) continue;
           const fieldName = f.name.replace("?", "");
           if (fieldName === ma.property) {
@@ -1186,15 +1174,15 @@ export class ForOfGenerator {
     for (let i = 0; i < chainedAllFields.length; i++) {
       const fRaw = chainedAllFields[i];
       if (!fRaw) continue;
-      const f = fRaw as { name: string; type: string };
+      const f = fRaw as InterfaceField;
       if (!f.name) continue;
       const fieldName = f.name.replace("?", "");
       if (fieldName === propName) {
-        fieldDefResult = f as { name: string; type: string };
+        fieldDefResult = f as InterfaceField;
         break;
       }
     }
-    const fieldDef = fieldDefResult as { name: string; type: string };
+    const fieldDef = fieldDefResult as InterfaceField;
     if (!fieldDefResult || !fieldDef.type.endsWith("[]")) {
       return null;
     }
@@ -1210,7 +1198,7 @@ export class ForOfGenerator {
         for (let i = 0; i < fields.length; i++) {
           const fRaw = fields[i];
           if (!fRaw) continue;
-          const f = fRaw as { name: string; type: string };
+          const f = fRaw as InterfaceField;
           if (!f.name || !f.type) continue;
           elementKeys.push(f.name);
           elementTsTypes.push(f.type);
@@ -1253,7 +1241,7 @@ export class ForOfGenerator {
       const elementTypes: string[] = [];
       const elementTsTypes: string[] = [];
       for (let i = 0; i < elementAllFields.length; i++) {
-        const f = elementAllFields[i] as { name: string; type: string };
+        const f = elementAllFields[i] as InterfaceField;
         elementKeys.push(f.name);
         elementTsTypes.push(f.type);
         if (f.type === "string") {
@@ -1299,7 +1287,7 @@ export class ForOfGenerator {
         for (let i = 0; i < fields.length; i++) {
           const fRaw = fields[i];
           if (!fRaw) continue;
-          const f = fRaw as { name: string; type: string };
+          const f = fRaw as InterfaceField;
           if (!f.name || !f.type) continue;
           elementKeys.push(f.name);
           elementTsTypes.push(f.type);
@@ -1335,7 +1323,7 @@ export class ForOfGenerator {
       const elementTypes: string[] = [];
       const elementTsTypes: string[] = [];
       for (let i = 0; i < elementAllFields.length; i++) {
-        const f = elementAllFields[i] as { name: string; type: string };
+        const f = elementAllFields[i] as InterfaceField;
         elementKeys.push(f.name);
         elementTsTypes.push(f.type);
         if (f.type === "string") {
@@ -1408,13 +1396,13 @@ export class ForOfGenerator {
     const firstInterface = memberInterfaces[0];
     const firstInterfaceAllFields = this.ctx.getAllInterfaceFields(firstInterface);
     for (let i = 0; i < firstInterfaceAllFields.length; i++) {
-      const f = firstInterfaceAllFields[i] as { name: string; type: string };
+      const f = firstInterfaceAllFields[i] as InterfaceField;
       firstFields.set(f.name, f.type);
     }
 
     const commonFields: CommonField[] = [];
     for (let _ffi = 0; _ffi < firstInterfaceAllFields.length; _ffi++) {
-      const firstField = firstInterfaceAllFields[_ffi] as { name: string; type: string };
+      const firstField = firstInterfaceAllFields[_ffi] as InterfaceField;
       const fieldName = firstField.name;
       const fieldType = firstField.type;
       let isCommon = true;
@@ -1424,13 +1412,13 @@ export class ForOfGenerator {
         const otherAllFields = this.ctx.getAllInterfaceFields(otherIface);
         let otherFieldResult: InterfaceField | null = null;
         for (let j = 0; j < otherAllFields.length; j++) {
-          const f = otherAllFields[j] as { name: string; type: string };
+          const f = otherAllFields[j] as InterfaceField;
           if (f.name === fieldName) {
             otherFieldResult = f;
             break;
           }
         }
-        const otherField = otherFieldResult as { name: string; type: string };
+        const otherField = otherFieldResult as InterfaceField;
         if (!otherFieldResult) {
           isCommon = false;
           break;
@@ -1598,7 +1586,7 @@ export class ForOfGenerator {
 
   private getMapValueTypeInfo(
     iterable: Expression,
-  ): { valueType: string; objectMetadata?: ObjectMetadata } | null {
+  ): MapValueTypeInfo | null {
     const e = iterable as ExprBase;
 
     let valueType: string | null = null;

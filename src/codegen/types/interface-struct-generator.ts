@@ -1,4 +1,4 @@
-import { InterfaceDeclaration } from "../../ast/types.js";
+import { InterfaceDeclaration, InterfaceField } from "../../ast/types.js";
 import { canonicalTypeToLlvm } from "../infrastructure/type-system.js";
 
 const BUILTIN_TYPES = [
@@ -119,7 +119,7 @@ export class InterfaceStructGenerator {
       const pFieldsLen = pFields.length;
       if (pFieldsLen === 0) continue;
       for (let j = 0; j < pFieldsLen; j++) {
-        const f = pFields[j] as { name: string; type: string };
+        const f = pFields[j] as InterfaceField;
         let fieldName = f.name;
         if (fieldName.endsWith("?")) {
           fieldName = fieldName.slice(0, fieldName.length - 1);
@@ -143,7 +143,7 @@ export class InterfaceStructGenerator {
     }
     const fields = this.getInterfaceFields(idx);
     for (let i = 0; i < fields.length; i++) {
-      const f = fields[i] as { name: string; type: string };
+      const f = fields[i] as InterfaceField;
       let fieldName = f.name;
       if (fieldName.endsWith("?")) {
         fieldName = fieldName.slice(0, fieldName.length - 1);
@@ -200,7 +200,7 @@ export class InterfaceStructGenerator {
     if (!iface) return -1;
     const ifaceTyped = iface as InterfaceStructInfo;
     for (let i = 0; i < ifaceTyped.fields.length; i++) {
-      const field = ifaceTyped.fields[i] as { name: string; tsType: string; llvmType: string };
+      const field = ifaceTyped.fields[i] as InterfaceFieldInfo;
       if (field.name === fieldName) {
         return i;
       }
@@ -214,7 +214,7 @@ export class InterfaceStructGenerator {
     if (!iface) return undefined;
     const ifaceTyped = iface as InterfaceStructInfo;
     for (let i = 0; i < ifaceTyped.fields.length; i++) {
-      const field = ifaceTyped.fields[i] as { name: string; tsType: string; llvmType: string };
+      const field = ifaceTyped.fields[i] as InterfaceFieldInfo;
       if (field.name === fieldName) {
         return field.llvmType;
       }
@@ -249,7 +249,7 @@ export class InterfaceStructGenerator {
   private getFieldTypesString(info: InterfaceStructInfo): string {
     const types: string[] = [];
     for (let i = 0; i < info.fields.length; i++) {
-      const field = info.fields[i] as { name: string; tsType: string; llvmType: string };
+      const field = info.fields[i] as InterfaceFieldInfo;
       types.push(field.llvmType);
     }
     return types.join(", ");
@@ -269,7 +269,7 @@ export class InterfaceStructGenerator {
     if (!info) return 0;
     let size = 0;
     for (let i = 0; i < info.fields.length; i++) {
-      const field = info.fields[i] as { name: string; tsType: string; llvmType: string };
+      const field = info.fields[i] as InterfaceFieldInfo;
       if (field.llvmType === "double") size += 8;
       else size += 8;
     }

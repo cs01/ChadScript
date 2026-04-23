@@ -18,6 +18,7 @@ import { ConditionalExpressionGenerator } from "./conditionals.js";
 import { TemplateLiteralGenerator } from "./templates.js";
 import { MethodCallGenerator } from "./method-calls.js";
 import type { SymbolTable } from "../infrastructure/symbol-table.js";
+import type { ClosureInfo, CapturedVariable } from "../infrastructure/closure-analyzer.js";
 import {
   dispatchPrimitiveLiteral,
   dispatchComplexLiteral,
@@ -214,7 +215,7 @@ export class ExpressionGenerator {
   }
 
   private generateAwaitExpression(expr: AwaitExpressionNode, params: string[]): string {
-    const arg = expr.argument as { type: string; name?: string };
+    const arg = expr.argument as CallNode;
     if (arg.type === "call" && arg.name === "fetch") {
       const syncResult = this.callGen.generateSyncFetch(expr.argument as CallNode, params);
       this.ctx.setVariableType(syncResult, "i8*");
@@ -229,12 +230,7 @@ export class ExpressionGenerator {
   }
 
   private generateArrowFunctionExpression(expr: ArrowFunctionNode, params: string[]): string {
-    const scopeVarsResult = this.ctx.symbolTable.getScopeVarsArraysForClosure();
-    const scopeVarsTyped = scopeVarsResult as {
-      names: string[];
-      types: string[];
-      interfaceTypes: string[];
-    };
+    const scopeVarsTyped = this.ctx.symbolTable.getScopeVarsArraysForClosure();
     let typeHints: { paramTypes?: string[]; returnType?: string } | undefined = undefined;
     const cbParamTypes = this.ctx.getExpectedCallbackParamTypes();
     const cbParamType = this.ctx.getExpectedCallbackParamType();
@@ -261,10 +257,7 @@ export class ExpressionGenerator {
 
     const closureInfoResult = this.arrowFunctionGen.getClosureInfoForLambda(lambdaName);
     if (closureInfoResult) {
-      const closureInfo = closureInfoResult as {
-        captures: { name: string; llvmType: string }[];
-        envStructName: string;
-      };
+      const closureInfo = closureInfoResult as ClosureInfo;
       const captures = closureInfo.captures;
       const envStructName = closureInfo.envStructName;
       const structSize = captures.length * 8;
@@ -274,7 +267,7 @@ export class ExpressionGenerator {
       this.ctx.emit(`${envTypedPtr} = bitcast i8* ${envRawPtr} to ${envStructName}*`);
 
       for (let i = 0; i < captures.length; i++) {
-        const cap = captures[i] as { name: string; llvmType: string };
+        const cap = captures[i] as CapturedVariable;
         const allocaReg = this.ctx.symbolTable.getAlloca(cap.name);
         if (!allocaReg) {
           return this.ctx.emitError(

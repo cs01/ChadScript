@@ -282,7 +282,7 @@ export class ArrayAllocator {
       const inlineFields = this.interfaceAlloc.parseInlineObjectType(elementType);
       if (inlineFields) {
         for (let i = 0; i < inlineFields.length; i++) {
-          const field = inlineFields[i] as { name: string; type: string };
+          const field = inlineFields[i] as InterfaceField;
           elementKeys.push(stripOptional(field.name));
           elementTypes.push(this.interfaceAlloc.convertTsType(field.type));
           elementTsTypes.push(field.type);
@@ -294,7 +294,7 @@ export class ArrayAllocator {
         const interfaceDef = interfaceDefResult as InterfaceDeclaration;
         const allFields = this.interfaceAlloc.getAllInterfaceFields(interfaceDef);
         for (let i = 0; i < allFields.length; i++) {
-          const field = allFields[i] as { name: string; type: string };
+          const field = allFields[i] as InterfaceField;
           elementKeys.push(stripOptional(field.name));
           elementTypes.push(this.interfaceAlloc.convertTsType(field.type));
           elementTsTypes.push(field.type);
@@ -521,12 +521,7 @@ export class ArrayAllocator {
     }
 
     if (memberObjBase.type === "member_access" || memberObjBase.type === "this") {
-      const memberAccessTyped = memberAccess as {
-        type: string;
-        object: Expression;
-        property: string;
-      };
-      const elementType = this.resolveNestedMemberArrayType(memberAccessTyped as MemberAccessNode);
+      const elementType = this.resolveNestedMemberArrayType(memberAccess as MemberAccessNode);
       if (elementType) {
         return this.interfaceAlloc.getTypeInfoForElementType(elementType);
       }

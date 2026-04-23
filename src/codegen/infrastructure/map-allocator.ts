@@ -253,12 +253,7 @@ export class MapAllocator {
     if (!setTypeInfoResult && stmt.value) {
       const valueBase = stmt.value as { type: string };
       if (valueBase.type === "new") {
-        const newExpr = stmt.value as {
-          type: string;
-          className: string;
-          args: Expression[];
-          typeArgs?: string[];
-        };
+        const newExpr = stmt.value as NewNode;
         if (newExpr.className === "Set" && newExpr.typeArgs && newExpr.typeArgs.length > 0) {
           setTypeInfoResult = { valueType: newExpr.typeArgs[0] };
         }
@@ -414,7 +409,7 @@ export class MapAllocator {
     const tsTypes: string[] = [];
     const allFields = this.interfaceAlloc.getAllInterfaceFields(interfaceDef);
     for (let i = 0; i < allFields.length; i++) {
-      const field = allFields[i] as { name: string; type: string };
+      const field = allFields[i] as InterfaceField;
       keys.push(stripOptional(field.name));
       types.push(this.interfaceAlloc.convertTsType(field.type));
       tsTypes.push(field.type);

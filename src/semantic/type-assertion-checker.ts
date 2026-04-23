@@ -30,6 +30,22 @@ import type {
   ObjectProperty,
   MapEntry,
   MethodCallNode,
+  BinaryNode,
+  UnaryNode,
+  CallNode,
+  MemberAccessNode,
+  IndexAccessNode,
+  ArrayNode,
+  ObjectNode,
+  AwaitExpressionNode,
+  NewNode,
+  TemplateLiteralNode,
+  SpreadElementNode,
+  MemberAccessAssignmentNode,
+  IndexAccessAssignmentNode,
+  MapNode,
+  SetNode,
+  ConditionalExpressionNode,
 } from "../ast/types.js";
 import { formatCompileError } from "../diagnostics/engine.js";
 
@@ -140,16 +156,16 @@ class TypeAssertionChecker {
       this.checkExpr(ta.expression);
     } else if (etype === "binary") {
       // BinaryNode: { type, op, left, right }
-      const bin = expr as { type: string; op: string; left: Expression; right: Expression };
+      const bin = expr as BinaryNode;
       this.checkExpr(bin.left);
       this.checkExpr(bin.right);
     } else if (etype === "unary") {
       // UnaryNode: { type, op, operand }
-      const unary = expr as { type: string; op: string; operand: Expression };
+      const unary = expr as UnaryNode;
       this.checkExpr(unary.operand);
     } else if (etype === "call") {
       // CallNode: { type, name, args }
-      const call = expr as { type: string; name: string; args: Expression[] };
+      const call = expr as CallNode;
       for (let i = 0; i < call.args.length; i++) {
         this.checkExpr(call.args[i]);
       }
@@ -160,40 +176,35 @@ class TypeAssertionChecker {
         this.checkExpr(mc.args[i]);
       }
     } else if (etype === "member_access") {
-      const ma = expr as { type: string; object: Expression };
+      const ma = expr as MemberAccessNode;
       this.checkExpr(ma.object);
     } else if (etype === "index_access") {
       // IndexAccessNode: { type, object, index }
-      const ia = expr as { type: string; object: Expression; index: Expression };
+      const ia = expr as IndexAccessNode;
       this.checkExpr(ia.object);
       this.checkExpr(ia.index);
     } else if (etype === "array") {
-      const arr = expr as { type: string; elements: Expression[] };
+      const arr = expr as ArrayNode;
       for (let i = 0; i < arr.elements.length; i++) {
         this.checkExpr(arr.elements[i]);
       }
     } else if (etype === "object") {
-      const obj = expr as { type: string; properties: ObjectProperty[] };
+      const obj = expr as ObjectNode;
       for (let i = 0; i < obj.properties.length; i++) {
         const prop = obj.properties[i] as ObjectProperty;
         this.checkExpr(prop.value);
       }
     } else if (etype === "conditional") {
-      const cond = expr as {
-        type: string;
-        condition: Expression;
-        consequent: Expression;
-        alternate: Expression;
-      };
+      const cond = expr as ConditionalExpressionNode;
       this.checkExpr(cond.condition);
       this.checkExpr(cond.consequent);
       this.checkExpr(cond.alternate);
     } else if (etype === "await") {
-      const aw = expr as { type: string; argument: Expression };
+      const aw = expr as AwaitExpressionNode;
       this.checkExpr(aw.argument);
     } else if (etype === "new") {
       // NewNode: { type, className, args }
-      const newExpr = expr as { type: string; className: string; args: Expression[] };
+      const newExpr = expr as NewNode;
       for (let i = 0; i < newExpr.args.length; i++) {
         this.checkExpr(newExpr.args[i]);
       }
@@ -206,7 +217,7 @@ class TypeAssertionChecker {
         this.checkExpr(arrow.body as Expression);
       }
     } else if (etype === "template_literal") {
-      const tl = expr as { type: string; parts: (string | Expression)[] };
+      const tl = expr as TemplateLiteralNode;
       for (let i = 0; i < tl.parts.length; i++) {
         const part = tl.parts[i];
         const partTyped = part as { type: string };
@@ -215,38 +226,28 @@ class TypeAssertionChecker {
         }
       }
     } else if (etype === "spread_element") {
-      const se = expr as { type: string; argument: Expression };
+      const se = expr as SpreadElementNode;
       this.checkExpr(se.argument);
     } else if (etype === "member_access_assignment") {
       // MemberAccessAssignmentNode: { type, object, property, value }
-      const maa = expr as {
-        type: string;
-        object: Expression;
-        property: string;
-        value: Expression;
-      };
+      const maa = expr as MemberAccessAssignmentNode;
       this.checkExpr(maa.object);
       this.checkExpr(maa.value);
     } else if (etype === "index_access_assignment") {
       // IndexAccessAssignmentNode: { type, object, index, value }
-      const iaa = expr as {
-        type: string;
-        object: Expression;
-        index: Expression;
-        value: Expression;
-      };
+      const iaa = expr as IndexAccessAssignmentNode;
       this.checkExpr(iaa.object);
       this.checkExpr(iaa.index);
       this.checkExpr(iaa.value);
     } else if (etype === "map") {
-      const mapExpr = expr as { type: string; entries: MapEntry[] };
+      const mapExpr = expr as MapNode;
       for (let i = 0; i < mapExpr.entries.length; i++) {
         const entry = mapExpr.entries[i] as MapEntry;
         this.checkExpr(entry.key);
         this.checkExpr(entry.value);
       }
     } else if (etype === "set") {
-      const setExpr = expr as { type: string; values: Expression[] };
+      const setExpr = expr as SetNode;
       for (let i = 0; i < setExpr.values.length; i++) {
         this.checkExpr(setExpr.values[i]);
       }

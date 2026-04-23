@@ -5,6 +5,12 @@ interface ExprBase {
   type: string;
 }
 
+interface ScopeVarsArrays {
+  names: string[];
+  types: string[];
+  interfaceTypes: string[];
+}
+
 export function handlePromiseStaticMethods(
   ctx: MethodCallGeneratorContext,
   expr: MethodCallNode,
@@ -169,7 +175,7 @@ export function handlePromiseThen(
 
   const promiseCallbackTypes = { paramTypes: ["string", "any"], returnType: "void" };
   const scopeVarsResult = ctx.symbolTable.getScopeVarsArraysForClosure();
-  const scopeVarsTyped = scopeVarsResult as { names: string[]; types: string[] };
+  const scopeVarsTyped = scopeVarsResult as ScopeVarsArrays;
 
   if (isCatch) {
     if (expr.args.length > 0) {
@@ -257,7 +263,7 @@ export function handlePromiseFinally(
   // finally callbacks take no meaningful args but need void(i8*,i8*)* signature
   const finallyCallbackTypes = { paramTypes: ["string", "string"], returnType: "void" };
   const scopeVarsResult = ctx.symbolTable.getScopeVarsArraysForClosure();
-  const scopeVarsTyped = scopeVarsResult as { names: string[]; types: string[] };
+  const scopeVarsTyped = scopeVarsResult as ScopeVarsArrays;
 
   if (expr.args.length > 0) {
     const callback = expr.args[0] as Expression;

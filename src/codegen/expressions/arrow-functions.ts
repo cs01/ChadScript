@@ -194,7 +194,7 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
       const envDef = envDefRaw as EnvStructDef;
       const fieldTypesArr: string[] = [];
       for (let i = 0; i < envDef.fields.length; i++) {
-        const envField = envDef.fields[i] as { name: string; llvmType: string };
+        const envField = envDef.fields[i] as CapturedVariable;
         fieldTypesArr.push(envField.llvmType + "*");
       }
       const fieldTypes = fieldTypesArr.join(", ");
@@ -232,25 +232,7 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
       }
     }
     if (funcResult) {
-      // Type assertion must include ALL fields from FunctionNode + closureInfo
-      // in exact struct order. LiftedFunction extends FunctionNode, so
-      // closureInfo is the final field. Omitting middle fields causes GEP to
-      // read the wrong offset in native code.
-      const func = funcResult as {
-        name: string;
-        params: string[];
-        body: BlockStatement;
-        returnType: string;
-        paramTypes: string[];
-        async: boolean;
-        parameters: FunctionParameter[];
-        loc: SourceLocation;
-        declare: boolean;
-        typeParameters: string[];
-        intSpecialized: boolean;
-        closureInfo: ClosureInfo;
-      };
-      return func.closureInfo;
+      return funcResult.closureInfo;
     }
     return undefined;
   }

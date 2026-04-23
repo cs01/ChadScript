@@ -24,8 +24,16 @@ import {
   ArrayNode,
   ForStatement,
   CallNode,
+  IfStatement,
+  VariableDeclaration,
+  NewNode,
 } from "../../ast/types.js";
 import { ForOfGenerator } from "./for-of.js";
+
+interface TypeGuardResult {
+  varName: string;
+  narrowedMetadata: { keys: string[]; types: string[]; tsTypes?: string[] };
+}
 import { IGeneratorContext } from "../infrastructure/generator-context.js";
 import { SymbolKind_Number, SymbolKind_String } from "../infrastructure/symbol-table.js";
 import type { FieldInfo } from "../infrastructure/type-resolver/types.js";
@@ -225,12 +233,7 @@ export class ControlFlowGenerator {
       return this.ctx.emitError("Expected if statement", stmt.loc);
     }
 
-    const ifStmt = stmt as {
-      type: string;
-      condition: Expression;
-      thenBlock: BlockStatement;
-      elseBlock: BlockStatement | null;
-    };
+    const ifStmt = stmt as IfStatement;
 
     const thenLabel = this.nextLabel("then");
     const elseLabel = this.nextLabel("else");
@@ -250,10 +253,7 @@ export class ControlFlowGenerator {
     this.ctx.setCurrentLabel(thenLabel);
 
     if (typeGuard) {
-      const tg = typeGuard as {
-        varName: string;
-        narrowedMetadata: { keys: string[]; types: string[]; tsTypes?: string[] };
-      };
+      const tg = typeGuard as TypeGuardResult;
       this.ctx.symbolTable.narrowType(tg.varName, tg.narrowedMetadata);
     }
 
@@ -262,10 +262,7 @@ export class ControlFlowGenerator {
     this.ctx.symbolTable.popScope();
 
     if (typeGuard) {
-      const tg = typeGuard as {
-        varName: string;
-        narrowedMetadata: { keys: string[]; types: string[]; tsTypes?: string[] };
-      };
+      const tg = typeGuard as TypeGuardResult;
       this.ctx.symbolTable.restoreType(tg.varName);
     }
 
@@ -387,25 +384,13 @@ export class ControlFlowGenerator {
       return this.ctx.emitError("Expected for statement", stmt.loc);
     }
 
-    const forStmt = stmt as {
-      type: string;
-      init: Statement | null;
-      condition: Expression | null;
-      update: Statement | null;
-      body: BlockStatement;
-    };
+    const forStmt = stmt as ForStatement;
 
     // Generate init if present
     if (forStmt.init) {
       const initBase = forStmt.init as { type: string };
       if (initBase.type === "variable_declaration") {
-        const initVarDecl = forStmt.init as {
-          type: string;
-          kind: string;
-          name: string;
-          value: Expression | null;
-          declaredType?: string;
-        };
+        const initVarDecl = forStmt.init as VariableDeclaration;
         if (!initVarDecl.value) {
           return this.ctx.emitError("Variable declaration in for loop must have an initializer");
         }
@@ -558,11 +543,7 @@ export class ControlFlowGenerator {
     let msgVal: string = "null";
 
     if (throwStmt.argument) {
-      const argTyped = throwStmt.argument as {
-        type: string;
-        className?: string;
-        args?: Expression[];
-      };
+      const argTyped = throwStmt.argument as NewNode;
       if (
         argTyped.type === "new" &&
         argTyped.className === "Error" &&
@@ -611,13 +592,7 @@ export class ControlFlowGenerator {
     if (stmt.type !== "try") {
       return this.ctx.emitError("Expected try statement", stmt.loc);
     }
-    const tryStmt = stmt as {
-      type: string;
-      tryBlock: BlockStatement;
-      catchParam: string | null;
-      catchBody: BlockStatement | null;
-      finallyBlock: BlockStatement | null;
-    };
+    const tryStmt = stmt as TryStatement;
 
     const frameRaw = this.ctx.emitCall("i8*", "@GC_malloc", "i64 216");
     const frame = this.ctx.emitBitcast(frameRaw, "i8*", "%ExceptionFrame*");
@@ -812,14 +787,14 @@ export class ControlFlowGenerator {
     const commonFields: CommonField[] = [];
 
     for (let fi = 0; fi < firstAllFields.length; fi++) {
-      const field = firstAllFields[fi] as { name: string; type: string };
+      const field = firstAllFields[fi] as InterfaceField;
       let isCommon = true;
       for (let ii = 0; ii < interfaces.length; ii++) {
         const ifaceTyped = interfaces[ii] as InterfaceDeclaration;
         const ifaceAllFields = this.ctx.getAllInterfaceFields(ifaceTyped);
         let found = false;
         for (let fj = 0; fj < ifaceAllFields.length; fj++) {
-          const f = ifaceAllFields[fj] as { name: string; type: string };
+          const f = ifaceAllFields[fj] as InterfaceField;
           if (f.name === field.name && this.areTypesCompatible(f.type, field.type)) {
             found = true;
             break;
@@ -901,10 +876,7 @@ export class ControlFlowGenerator {
     return this.ctx.isEnumType(checkType);
   }
 
-  private detectTypeGuard(condition: Expression): {
-    varName: string;
-    narrowedMetadata: { keys: string[]; types: string[]; tsTypes?: string[] };
-  } | null {
+  private detectTypeGuard(condition: Expression): TypeGuardResult | null {
     if (!condition) return null;
 
     const result = this.ctx.typeResolverDetectTypeGuard(condition);
@@ -981,7 +953,7 @@ export class ControlFlowGenerator {
     const types: string[] = [];
     const tsTypes: string[] = [];
     for (let i = 0; i < ifaceAllFields.length; i++) {
-      const f = ifaceAllFields[i] as { name: string; type: string };
+      const f = ifaceAllFields[i] as InterfaceField;
       keys.push(stripOptional(f.name));
       types.push(this.fieldTypeToLlvm(f.type));
       tsTypes.push(f.type);
@@ -1004,7 +976,7 @@ export class ControlFlowGenerator {
 
     const ifaceKeys: string[] = [];
     for (let fi = 0; fi < ifaceAllFields.length; fi++) {
-      const f = ifaceAllFields[fi] as { name: string; type: string };
+      const f = ifaceAllFields[fi] as InterfaceField;
       ifaceKeys.push(f.name);
     }
     for (let ki = 0; ki < currentKeys.length; ki++) {
@@ -1024,7 +996,7 @@ export class ControlFlowGenerator {
     discriminantValue: string,
   ): string | null {
     for (let i = 0; i < fields.length; i++) {
-      const f = fields[i] as { name: string; type: string };
+      const f = fields[i] as InterfaceField;
       if (f.name === "type") {
         const fieldType = f.type;
         if (fieldType === `'${discriminantValue}'` || fieldType === `"${discriminantValue}"`) {

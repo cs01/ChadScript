@@ -10,8 +10,15 @@ import {
   TypeAliasDeclaration,
   UnaryNode,
   NumberNode,
+  BooleanNode,
+  StringNode,
 } from "../../../ast/types.js";
 import { IGeneratorContext } from "../../infrastructure/generator-context.js";
+
+interface MethodInfo {
+  method: ClassMethod;
+  ownerClass: string;
+}
 import {
   SymbolKind,
   SymbolKind_Number,
@@ -105,7 +112,7 @@ export class ClassGenerator {
     }
 
     if (init.type === "boolean" && llvmType === "double") {
-      const boolNode = init as { type: "boolean"; value: boolean; loc?: object };
+      const boolNode = init as BooleanNode;
       return boolNode.value ? "1.000000e+00" : "0.000000e+00";
     }
 
@@ -118,7 +125,7 @@ export class ClassGenerator {
     }
 
     if (init.type === "string" && llvmType === "i8*") {
-      const strNode = init as { type: "string"; value: string; loc?: object };
+      const strNode = init as StringNode;
       const strVal = strNode.value;
       const strId = this.ctx.nextString();
       let escaped = "";
@@ -368,11 +375,7 @@ export class ClassGenerator {
         }
       }
       if (index !== -1) {
-        const foundField = fields[index] as {
-          name: string;
-          fieldType: "double" | "string" | "string[]" | "number[]" | "boolean[]" | "boolean";
-          tsType: string;
-        };
+        const foundField = fields[index] as ClassField;
         return { index, type: foundField.fieldType || "double", tsType: foundField.tsType };
       }
     }
@@ -403,7 +406,7 @@ export class ClassGenerator {
   getMethodInfo(
     className: string,
     methodName: string,
-  ): { method: ClassMethod; ownerClass: string } | null {
+  ): MethodInfo | null {
     let classNodeResult: ClassNode | null = null;
     const ast = this.ctx.getAst();
     if (ast && ast.classes) {
@@ -1212,7 +1215,7 @@ export class ClassGenerator {
     if (!methodInfoResult) {
       return this.ctx.emitError(`Method ${methodName} not found in class ${className}`);
     }
-    const methodInfo = methodInfoResult as { method: ClassMethod; ownerClass: string };
+    const methodInfo = methodInfoResult as MethodInfo;
     const method = methodInfo.method as ClassMethod;
     const methodOwnerClass = methodInfo.ownerClass;
 
@@ -1379,7 +1382,7 @@ export class ClassGenerator {
     if (!methodInfoResult) {
       return this.ctx.emitError(`Static method ${methodName} not found in class ${className}`);
     }
-    const methodInfo = methodInfoResult as { method: ClassMethod; ownerClass: string };
+    const methodInfo = methodInfoResult as MethodInfo;
     const method = methodInfo.method as ClassMethod;
     const methodOwnerClass = methodInfo.ownerClass;
 
@@ -1648,7 +1651,7 @@ export class ClassGenerator {
       const tsTypes: string[] = [];
       const allFields = this.ctx.getAllInterfaceFields(interfaceDef);
       for (let fi = 0; fi < allFields.length; fi++) {
-        const f = allFields[fi] as { name: string; type: string };
+        const f = allFields[fi] as CommonField;
         keys.push(stripOptional(f.name));
         types.push(this.fieldTypeToLlvm(f.type));
         tsTypes.push(f.type);
@@ -1726,7 +1729,7 @@ export class ClassGenerator {
         const types: string[] = [];
         const tsTypes: string[] = [];
         for (let fi = 0; fi < inlineFields.length; fi++) {
-          const f = inlineFields[fi] as { name: string; type: string };
+          const f = inlineFields[fi] as CommonField;
           keys.push(stripOptional(f.name));
           types.push(this.fieldTypeToLlvm(f.type));
           tsTypes.push(f.type);
@@ -1877,14 +1880,14 @@ export class ClassGenerator {
     const commonFields: CommonField[] = [];
 
     for (let fi = 0; fi < firstFields.length; fi++) {
-      const field = firstFields[fi] as { name: string; type: string };
+      const field = firstFields[fi] as CommonField;
       let isCommon = true;
       for (let ii = 0; ii < interfaces.length; ii++) {
         const ifaceTyped = interfaces[ii] as InterfaceDeclaration;
         const ifaceFields = this.ctx.getAllInterfaceFields(ifaceTyped);
         let found = false;
         for (let fj = 0; fj < ifaceFields.length; fj++) {
-          const f = ifaceFields[fj] as { name: string; type: string };
+          const f = ifaceFields[fj] as CommonField;
           if (f.name === field.name && this.areTypesCompatible(f.type, field.type)) {
             found = true;
             break;

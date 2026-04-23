@@ -3,6 +3,7 @@ import type {
   MethodCallNode,
   VariableNode,
   MemberAccessNode,
+  FunctionParameter,
 } from "../../../ast/types.js";
 import { parseMapTypeString } from "../../infrastructure/type-system.js";
 import type { MethodCallGeneratorContext } from "../method-calls.js";
@@ -33,7 +34,7 @@ function getParameterMapInfo(
     if (fName === currentFunc) {
       const f = ctx.getAstFunctionAt(i);
       if (f && f.parameters) {
-        funcParams = f.parameters as { name: string; type?: string }[];
+        funcParams = f.parameters as FunctionParameter[];
       }
       break;
     }
@@ -63,7 +64,7 @@ function getParameterMapInfo(
   if (!funcParams) return null;
 
   for (let i = 0; i < funcParams.length; i++) {
-    const p = funcParams[i] as { name: string; type?: string };
+    const p = funcParams[i] as FunctionParameter;
     if (p.name === varName && p.type) {
       return parseMapTypeString(p.type);
     }

@@ -10,6 +10,7 @@ import {
   ClassMethod,
   ArrowFunctionNode,
   Expression,
+  ObjectNode,
 } from "../../ast/types.js";
 import { IGeneratorContext } from "../infrastructure/generator-context.js";
 import {
@@ -276,10 +277,7 @@ export class CallExpressionGenerator {
     let bodyVal = "null";
 
     if (expr.args.length >= 2) {
-      const optArg = expr.args[1] as {
-        type: string;
-        properties?: { key: string; value: unknown }[];
-      };
+      const optArg = expr.args[1] as ObjectNode;
       if (optArg.type === "object" && optArg.properties) {
         for (const prop of optArg.properties) {
           if (prop.key === "method") {
@@ -288,7 +286,7 @@ export class CallExpressionGenerator {
             bodyVal = this.ctx.generateExpression(prop.value as CallNode, params);
           } else if (prop.key === "headers") {
             headersVal = this.generateFetchHeaders(
-              prop.value as { type: string; properties?: { key: string; value: unknown }[] },
+              prop.value as ObjectNode,
               params,
             );
           }
@@ -1996,7 +1994,7 @@ export class CallExpressionGenerator {
   }
 
   private generateFetchHeaders(
-    headersObj: { type: string; properties?: { key: string; value: unknown }[] },
+    headersObj: ObjectNode,
     params: string[],
   ): string {
     if (
