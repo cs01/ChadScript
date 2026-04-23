@@ -334,7 +334,7 @@ describe("Self-Hosting", { timeout: 600000 }, () => {
         assert.ok(fsSync.existsSync(STAGE1), "Stage 1 binary must exist");
         assert.ok(fsSync.existsSync(STAGE2), "Stage 2 binary must exist");
 
-        const testFile = "tests/fixtures/strings/string-length.js";
+        const testFile = "tests/fixtures/strings/string-length.ts";
         const s1Out = "/tmp/bootstrap-s1";
         const s2Out = "/tmp/bootstrap-s2";
         const s1LL = "/tmp/bootstrap-s1.ll";
@@ -371,7 +371,7 @@ describe("Self-Hosting", { timeout: 600000 }, () => {
         assert.ok(fsSync.existsSync(STAGE2), "Stage 2 binary must exist");
         assert.ok(fsSync.existsSync(STAGE3), "Stage 3 binary must exist");
 
-        const testFile = "tests/fixtures/strings/string-length.js";
+        const testFile = "tests/fixtures/strings/string-length.ts";
         const s2Out = "/tmp/bootstrap-s2b";
         const s3Out = "/tmp/bootstrap-s3";
         const s2LL = "/tmp/bootstrap-s2b.ll";
