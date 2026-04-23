@@ -167,6 +167,7 @@ import { checkAsyncAwait } from "../semantic/async-await-checker.js";
 import { checkAmbiguousInits } from "../semantic/ambiguous-init-checker.js";
 import { checkUntypedParams } from "../semantic/untyped-param-checker.js";
 import { checkMixedOperators } from "../semantic/mixed-operator-checker.js";
+import { checkInlineCasts } from "../semantic/inline-cast-checker.js";
 import {
   checkBinaryTypesDeep,
   checkMissingReturns,
@@ -3063,6 +3064,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     checkAmbiguousInits(this.ast, this.sourceCode);
     checkUntypedParams(this.ast, this.sourceCode);
     checkMixedOperators(this.ast, this.sourceCode);
+    checkInlineCasts(this.ast, this.sourceCode);
     this.stackEligibleVars = analyzeEscapes(this.ast);
     markIntSpecializedFunctions(this.ast);
     // Build pure-AST class + interface catalog so downstream queries

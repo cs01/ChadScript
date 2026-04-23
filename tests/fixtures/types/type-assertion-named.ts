@@ -8,12 +8,6 @@ function getField(): InterfaceField {
   return f;
 }
 
-function checkInlineAssertion(obj: InterfaceField): void {
-  const inlined = obj as { name: string; type: string };
-  console.log(inlined.name);
-  console.log(inlined.type);
-}
-
 function checkNamedAssertion(obj: InterfaceField): void {
   const named = obj as InterfaceField;
   console.log(named.name);
@@ -21,7 +15,6 @@ function checkNamedAssertion(obj: InterfaceField): void {
 }
 
 const field = getField();
-checkInlineAssertion(field);
 checkNamedAssertion(field);
 
 if (field.name === "hello" && field.type === "string") {
