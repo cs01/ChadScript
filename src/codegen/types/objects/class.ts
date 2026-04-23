@@ -403,10 +403,7 @@ export class ClassGenerator {
     return null;
   }
 
-  getMethodInfo(
-    className: string,
-    methodName: string,
-  ): MethodInfo | null {
+  getMethodInfo(className: string, methodName: string): MethodInfo | null {
     let classNodeResult: ClassNode | null = null;
     const ast = this.ctx.getAst();
     if (ast && ast.classes) {

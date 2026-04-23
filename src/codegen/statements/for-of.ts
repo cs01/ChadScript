@@ -1584,9 +1584,7 @@ export class ForOfGenerator {
     return false;
   }
 
-  private getMapValueTypeInfo(
-    iterable: Expression,
-  ): MapValueTypeInfo | null {
+  private getMapValueTypeInfo(iterable: Expression): MapValueTypeInfo | null {
     const e = iterable as ExprBase;
 
     let valueType: string | null = null;

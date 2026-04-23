@@ -1988,9 +1988,7 @@ export class MemberAccessGenerator {
     return "double";
   }
 
-  private getKnownTypeProperties(
-    typeName: string,
-  ): ObjectMetadata | null {
+  private getKnownTypeProperties(typeName: string): ObjectMetadata | null {
     let baseName = typeName;
     if (baseName.indexOf(" | ") !== -1) {
       const parts = baseName.split(" | ");
@@ -2021,9 +2019,7 @@ export class MemberAccessGenerator {
     return null;
   }
 
-  private getBuiltinAstTypeFields(
-    name: string,
-  ): ObjectMetadata | null {
+  private getBuiltinAstTypeFields(name: string): ObjectMetadata | null {
     if (name === "AssignmentStatement") {
       return {
         keys: ["type", "name", "value"],
@@ -2130,9 +2126,7 @@ export class MemberAccessGenerator {
     return null;
   }
 
-  private getInterfaceInfo(
-    interfaceName: string,
-  ): ObjectMetadata | null {
+  private getInterfaceInfo(interfaceName: string): ObjectMetadata | null {
     const ifaceProps = this.ctx.getInterfaceProperties(interfaceName);
     if (ifaceProps) {
       return {
@@ -2148,9 +2142,7 @@ export class MemberAccessGenerator {
     return null;
   }
 
-  private getTypeAliasInfo(
-    typeName: string,
-  ): ObjectMetadata | null {
+  private getTypeAliasInfo(typeName: string): ObjectMetadata | null {
     const typeAliasPropsRaw = this.getTypeAliasCommonProperties(typeName);
     if (!typeAliasPropsRaw) return null;
     const typeAliasProps = typeAliasPropsRaw as { properties: InterfaceProperty[] };
@@ -2215,9 +2207,7 @@ export class MemberAccessGenerator {
     return null;
   }
 
-  private getObjectArrayElementInfo(
-    arrayExpr: Expression,
-  ): ObjectMetadata | null {
+  private getObjectArrayElementInfo(arrayExpr: Expression): ObjectMetadata | null {
     // Canonical path: only fires when the INDEX will yield a scalar
     // interface/class element — i.e. the object is a depth-1 array. For
     // depth>1 (e.g. `P[][]` indexed once → `P[]`) the result is still an
@@ -3321,7 +3311,10 @@ export class MemberAccessGenerator {
       if (builtinFields) {
         fields = [];
         for (let bfi = 0; bfi < builtinFields.keys.length; bfi++) {
-          fields.push({ name: builtinFields.keys[bfi], type: builtinFields.tsTypes ? builtinFields.tsTypes[bfi] : "" });
+          fields.push({
+            name: builtinFields.keys[bfi],
+            type: builtinFields.tsTypes ? builtinFields.tsTypes[bfi] : "",
+          });
         }
       } else {
         const ifaceProps = this.ctx.getInterfaceProperties(assertedType);

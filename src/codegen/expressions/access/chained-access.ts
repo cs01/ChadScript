@@ -1,4 +1,9 @@
-import { MemberAccessNode, InterfaceDeclaration, VariableNode, InterfaceField } from "../../../ast/types.js";
+import {
+  MemberAccessNode,
+  InterfaceDeclaration,
+  VariableNode,
+  InterfaceField,
+} from "../../../ast/types.js";
 import { stripOptional, stripNullable, tsTypeToLlvm } from "../../infrastructure/type-system.js";
 import type { MemberAccessGeneratorContext } from "./member.js";
 

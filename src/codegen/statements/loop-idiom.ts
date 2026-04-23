@@ -34,11 +34,9 @@ function isIncrementOf(assign: AssignmentStatement, varName: string): boolean {
   const bin = assign.value as BinaryNode;
   if (bin.op !== "+") return false;
   const leftIsVar = isIdentifier(bin.left, varName);
-  const rightIsOne =
-    bin.right.type === "number" && (bin.right as NumberNode).value === 1;
+  const rightIsOne = bin.right.type === "number" && (bin.right as NumberNode).value === 1;
   const rightIsVar = isIdentifier(bin.right, varName);
-  const leftIsOne =
-    bin.left.type === "number" && (bin.left as NumberNode).value === 1;
+  const leftIsOne = bin.left.type === "number" && (bin.left as NumberNode).value === 1;
   return (leftIsVar && rightIsOne) || (rightIsVar && leftIsOne);
 }
 

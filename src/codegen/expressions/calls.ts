@@ -285,10 +285,7 @@ export class CallExpressionGenerator {
           } else if (prop.key === "body") {
             bodyVal = this.ctx.generateExpression(prop.value as CallNode, params);
           } else if (prop.key === "headers") {
-            headersVal = this.generateFetchHeaders(
-              prop.value as ObjectNode,
-              params,
-            );
+            headersVal = this.generateFetchHeaders(prop.value as ObjectNode, params);
           }
         }
       }
@@ -1993,10 +1990,7 @@ export class CallExpressionGenerator {
     return structRaw;
   }
 
-  private generateFetchHeaders(
-    headersObj: ObjectNode,
-    params: string[],
-  ): string {
+  private generateFetchHeaders(headersObj: ObjectNode, params: string[]): string {
     if (
       headersObj.type !== "object" ||
       !headersObj.properties ||

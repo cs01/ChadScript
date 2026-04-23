@@ -1927,9 +1927,7 @@ export class MockGeneratorContext implements IGeneratorContext {
     return this.nextTemp();
   }
 
-  getInterfaceFromAST(
-    name: string,
-  ): InterfaceDeclaration | null {
+  getInterfaceFromAST(name: string): InterfaceDeclaration | null {
     if (!this.ast) return null;
     for (let i = 0; i < this.ast.interfaces.length; i++) {
       const iface = this.ast.interfaces[i] as InterfaceDeclaration;
