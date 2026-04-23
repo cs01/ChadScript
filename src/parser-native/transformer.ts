@@ -2541,10 +2541,10 @@ function extractParams(paramsNode: TreeSitterNode, outNames: string[], outTypes:
         }
       }
       outNames.push(paramName);
-      outTypes.push(typeNode ? extractTypeString(typeNode) : "number");
+      outTypes.push(typeNode ? extractTypeString(typeNode) : "");
     } else if (p.type === "identifier") {
       outNames.push(p.text);
-      outTypes.push("number");
+      outTypes.push("");
     } else {
       let restName = "";
       let restType = "number[]";

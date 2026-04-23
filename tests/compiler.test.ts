@@ -130,9 +130,9 @@ describe(`ChadScript Compiler (${compilerLabel})`, () => {
 
   describe("LLVM IR Generation", () => {
     it("should generate valid LLVM IR structure", async () => {
-      const fixturePath = "tests/fixtures/arithmetic/simple-add.js"; // Use relative path
+      const fixturePath = "tests/fixtures/arithmetic/simple-add.ts"; // Use relative path
       const outputDir = path.join(".build", path.dirname(fixturePath));
-      const baseName = path.basename(fixturePath, ".js");
+      const baseName = path.basename(fixturePath, ".ts");
       const llFile = path.join(outputDir, `${baseName}.ll`);
 
       // Clean up
@@ -532,9 +532,9 @@ httpServe(${port}, handleRequest, wsHandler);
 
   describe("Cross-compilation", () => {
     it("should emit linux stderr symbol when targeting linux", async () => {
-      const fixture = "tests/fixtures/arithmetic/simple-add.js";
+      const fixture = "tests/fixtures/arithmetic/simple-add.ts";
       const outputDir = path.join(".build", path.dirname(fixture));
-      const baseName = path.basename(fixture, ".js");
+      const baseName = path.basename(fixture, ".ts");
       const llFile = path.join(outputDir, `${baseName}.ll`);
 
       try {
@@ -553,9 +553,9 @@ httpServe(${port}, handleRequest, wsHandler);
     });
 
     it("should emit macOS stderr symbol when targeting macOS", async () => {
-      const fixture = "tests/fixtures/arithmetic/simple-add.js";
+      const fixture = "tests/fixtures/arithmetic/simple-add.ts";
       const outputDir = path.join(".build", path.dirname(fixture));
-      const baseName = path.basename(fixture, ".js");
+      const baseName = path.basename(fixture, ".ts");
       const llFile = path.join(outputDir, `${baseName}.ll`);
 
       try {
@@ -577,9 +577,9 @@ httpServe(${port}, handleRequest, wsHandler);
     });
 
     it("should emit target triple in IR when --target is used", async () => {
-      const fixture = "tests/fixtures/arithmetic/simple-add.js";
+      const fixture = "tests/fixtures/arithmetic/simple-add.ts";
       const outputDir = path.join(".build", path.dirname(fixture));
-      const baseName = path.basename(fixture, ".js");
+      const baseName = path.basename(fixture, ".ts");
       const llFile = path.join(outputDir, `${baseName}.ll`);
 
       try {
@@ -630,9 +630,9 @@ httpServe(${port}, handleRequest, wsHandler);
 
     if (compilerLabel === "native") {
       it("native binary should emit correct datalayout when cross-compiling", async () => {
-        const fixture = "tests/fixtures/arithmetic/simple-add.js";
+        const fixture = "tests/fixtures/arithmetic/simple-add.ts";
         const outputDir = path.join(".build", path.dirname(fixture));
-        const baseName = path.basename(fixture, ".js");
+        const baseName = path.basename(fixture, ".ts");
         const llFile = path.join(outputDir, `${baseName}.ll`);
 
         try {
