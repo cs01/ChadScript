@@ -24,12 +24,15 @@ import type {
 } from "../ast/types.js";
 import { formatCompileError } from "../diagnostics/engine.js";
 
-type LlvmKind = "ptr" | "double" | "i1" | "unknown";
+const KIND_PTR = "ptr";
+const KIND_DOUBLE = "double";
+const KIND_I1 = "i1";
+const KIND_UNKNOWN = "unknown";
 
-function declaredTypeToKind(t: string): LlvmKind {
-  if (t === "number") return "double";
-  if (t === "boolean") return "i1";
-  return "ptr"; // string, class, interface, array, Map, Set, etc.
+function declaredTypeToKind(t: string): string {
+  if (t === "number") return KIND_DOUBLE;
+  if (t === "boolean") return KIND_I1;
+  return KIND_PTR; // string, class, interface, array, Map, Set, etc.
 }
 
 export function checkMixedOperators(ast: AST, sourceCode: string): void {
@@ -38,7 +41,7 @@ export function checkMixedOperators(ast: AST, sourceCode: string): void {
 }
 
 class MixedOperatorChecker {
-  private scope: Map<string, LlvmKind> = new Map();
+  private scope: Map<string, string> = new Map();
 
   constructor(private sourceCode: string) {}
 
@@ -148,7 +151,7 @@ class MixedOperatorChecker {
       if (bin.op === "||" || bin.op === "??") {
         const leftKind = this.exprKind(bin.left);
         const rightKind = this.exprKind(bin.right);
-        if (leftKind !== "unknown" && rightKind !== "unknown" && leftKind !== rightKind) {
+        if (leftKind !== KIND_UNKNOWN && rightKind !== KIND_UNKNOWN && leftKind !== rightKind) {
           this.report(bin.op, leftKind, rightKind, bin.loc);
         }
       }
@@ -172,30 +175,29 @@ class MixedOperatorChecker {
     }
   }
 
-  private exprKind(expr: Expression): LlvmKind {
-    if (!expr) return "unknown";
+  private exprKind(expr: Expression): string {
+    if (!expr) return KIND_UNKNOWN;
     const e = expr as { type: string };
-    if (e.type === "number") return "double";
-    if (e.type === "string") return "ptr";
-    if (e.type === "boolean") return "i1";
+    if (e.type === "number") return KIND_DOUBLE;
+    if (e.type === "string") return KIND_PTR;
+    if (e.type === "boolean") return KIND_I1;
     if (e.type === "variable") {
       const v = expr as VariableNode;
-      if (v.name === "null" || v.name === "undefined") return "unknown";
+      if (v.name === "null" || v.name === "undefined") return KIND_UNKNOWN;
       const known = this.scope.get(v.name);
-      return known !== undefined ? known : "unknown";
+      return known !== undefined ? known : KIND_UNKNOWN;
     }
-    // null/undefined literals from TS parser — skip, they're pointer-compatible
-    if (e.type === "null" || e.type === "undefined") return "unknown";
-    return "unknown";
+    if (e.type === "null" || e.type === "undefined") return KIND_UNKNOWN;
+    return KIND_UNKNOWN;
   }
 
   private report(
     op: string,
-    leftKind: LlvmKind,
-    rightKind: LlvmKind,
+    leftKind: string,
+    rightKind: string,
     loc: SourceLocation | undefined,
   ): void {
-    const kindLabel = (k: LlvmKind): string => {
+    const kindLabel = (k: string): string => {
       if (k === "ptr") return "string/object (i8*)";
       if (k === "double") return "number (double)";
       if (k === "i1") return "boolean (i1)";
