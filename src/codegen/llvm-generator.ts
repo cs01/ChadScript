@@ -164,6 +164,7 @@ import { analyzeEscapes } from "../semantic/escape-analysis.js";
 import { checkEnumDeclarations } from "../semantic/enum-checker.js";
 import { normalizeInterfaceLayouts } from "../semantic/interface-layout-normalizer.js";
 import { checkAsyncAwait } from "../semantic/async-await-checker.js";
+import { checkAmbiguousInits } from "../semantic/ambiguous-init-checker.js";
 import {
   checkBinaryTypesDeep,
   checkMissingReturns,
@@ -3057,6 +3058,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     checkMissingReturns(this.ast, this.sourceCode);
     checkArgumentCounts(this.ast, this.sourceCode);
     checkAsyncAwait(this.ast, this.sourceCode);
+    checkAmbiguousInits(this.ast, this.sourceCode);
     this.stackEligibleVars = analyzeEscapes(this.ast);
     markIntSpecializedFunctions(this.ast);
     // Build pure-AST class + interface catalog so downstream queries
