@@ -1,8 +1,8 @@
 // @test-exit-code: 43
-function findFirst(threshold) {
+function findFirst(threshold: number) {
   let result = 0;
   for (let i = 1; i <= 100; i = i + 1) {
-    if (i > threshold) {
+    if (i > threshold: number) {
       result = i;
       break;
     }

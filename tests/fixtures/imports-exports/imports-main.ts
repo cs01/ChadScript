@@ -3,7 +3,7 @@
 
 import { add, multiply } from "../arithmetic/math-lib.js";
 
-function compute(x, y) {
+function compute(x: number, y: number) {
   let sum = add(x, y);
   let product = multiply(x, y);
   return add(sum, product);

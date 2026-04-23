@@ -1,6 +1,6 @@
 // @test-exit-code: 15
 // Test: Function with multiple parameters
-function sum(a, b, c, d, e) {
+function sum(a: number, b: number, c: number, d: number, e: number) {
   return a + b + c + d + e;
 }
 

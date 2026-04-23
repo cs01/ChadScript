@@ -1,5 +1,5 @@
 // @test-exit-code: 10
-function double(x) {
+function double(x: number) {
   return x + x;
 }
 

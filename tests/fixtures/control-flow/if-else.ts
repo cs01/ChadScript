@@ -1,7 +1,7 @@
 // @test-exit-code: 15
-function max(a, b) {
+function max(a: number, b: number) {
   let result = 0;
-  if (a > b) {
+  if (a > b: number) {
     result = a;
   } else {
     result = b;

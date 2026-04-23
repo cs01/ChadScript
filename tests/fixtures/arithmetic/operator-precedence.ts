@@ -1,6 +1,6 @@
 // @test-exit-code: 14
 // Test: Operator precedence (multiplication before addition)
-function compute(a, b, c) {
+function compute(a: number, b: number, c: number) {
   return a + b * c;
 }
 

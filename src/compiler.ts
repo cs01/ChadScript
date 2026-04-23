@@ -229,18 +229,11 @@ export function compile(
   // Set the global logger level
   logger.setLevel(logLevel);
 
-  // Phase 1 pragma: if the entry file has `// @chadscript: interpret`, rewrite
-  // it into a wrapper .ts that embeds the original source and eval's it under V8.
-  if (fs.existsSync(inputFile)) {
-    const entrySource = fs.readFileSync(inputFile, "utf8");
-    if (detectInterpretPragma(entrySource)) {
-      const wrapper = buildInterpretWrapper(entrySource, path.resolve(inputFile));
-      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "chad-interpret-"));
-      const tmpFile = path.join(tmpDir, path.basename(inputFile));
-      fs.writeFileSync(tmpFile, wrapper);
-      logger.info(`@chadscript: interpret detected — routing ${inputFile} through V8`);
-      return compile(tmpFile, outputFile, logLevel);
-    }
+  if (!inputFile.endsWith(".ts")) {
+    process.stderr.write(
+      `error: ChadScript only accepts .ts files; .js and other extensions are not supported\n  = help: rename '${inputFile}' to '${inputFile.replace(/\.[^.]+$/, ".ts")}' and add type annotations\n\n`,
+    );
+    process.exit(1);
   }
 
   const target = targetOverride || getHostTarget();

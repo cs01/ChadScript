@@ -1,22 +1,22 @@
 // @test-exit-code: 15
-function test(a, b, c) {
+function test(a: number, b: number, c: number) {
   let result = 0;
 
   // Test === (strict equality)
-  if (a === b) {
+  if (a === b: number) {
     result = result + 10; // Should add 10
   }
 
-  if (a === c) {
+  if (a === c: number) {
     result = result + 100; // Should NOT add
   }
 
   // Test !== (strict inequality)
-  if (a !== c) {
+  if (a !== c: number) {
     result = result + 5; // Should add 5
   }
 
-  if (a !== b) {
+  if (a !== b: number) {
     result = result + 100; // Should NOT add
   }
 

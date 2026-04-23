@@ -1,26 +1,26 @@
 // @test-exit-code: 0
 // Test all Math functions
-function testSqrt(x) {
+function testSqrt(x: number) {
   return Math.sqrt(x);
 }
 
-function testPow(base, exp) {
+function testPow(base: number, exp: number) {
   return Math.pow(base, exp);
 }
 
-function testFloor(x) {
+function testFloor(x: number) {
   return Math.floor(x);
 }
 
-function testCeil(x) {
+function testCeil(x: number) {
   return Math.ceil(x);
 }
 
-function testRound(x) {
+function testRound(x: number) {
   return Math.round(x);
 }
 
-function testAbs(x) {
+function testAbs(x: number) {
   return Math.abs(x);
 }
 

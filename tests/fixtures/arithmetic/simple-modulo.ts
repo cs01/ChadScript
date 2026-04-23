@@ -1,5 +1,5 @@
 // @test-exit-code: 2
-function modulo(a, b) {
+function modulo(a: number, b: number) {
   return a % b;
 }
 

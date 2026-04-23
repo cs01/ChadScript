@@ -1,22 +1,22 @@
 // @test-exit-code: 0
 // Test all bitwise operators
-function testXor(a, b) {
+function testXor(a: number, b: number) {
   return a ^ b;
 }
 
-function testLeftShift(a, b) {
+function testLeftShift(a: number, b: number) {
   return a << b;
 }
 
-function testRightShift(a, b) {
+function testRightShift(a: number, b: number) {
   return a >> b;
 }
 
-function testAnd(a, b) {
+function testAnd(a: number, b: number) {
   return a & b;
 }
 
-function testOr(a, b) {
+function testOr(a: number, b: number) {
   return a | b;
 }
 

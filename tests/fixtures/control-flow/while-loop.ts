@@ -1,5 +1,5 @@
 // @test-exit-code: 15
-function countDown(n) {
+function countDown(n: number) {
   let i = n;
   let sum = 0;
   while (i > 0) {

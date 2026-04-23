@@ -1,5 +1,5 @@
 // @test-exit-code: 3
-function isGreaterThan2(x) {
+function isGreaterThan2(x: number) {
   let result = 0;
   if (x > 2) {
     result = 1;

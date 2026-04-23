@@ -1,6 +1,6 @@
 // @test-exit-code: 12
 // Test: Simple addition
-function add(a, b) {
+function add(a: number, b: number) {
   return a + b;
 }
 

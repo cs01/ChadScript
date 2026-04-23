@@ -1,6 +1,6 @@
 // @test-exit-code: 32
 // Test: Complex arithmetic expression
-function complex(a, b, c, d) {
+function complex(a: number, b: number, c: number, d: number) {
   return a * b + c - d;
 }
 

@@ -1,5 +1,5 @@
 // @test-exit-code: 1
-function isGreaterThan5(x) {
+function isGreaterThan5(x: number) {
   return x > 5;
 }
 
