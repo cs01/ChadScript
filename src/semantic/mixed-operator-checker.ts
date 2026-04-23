@@ -15,6 +15,7 @@ import type {
   BinaryNode,
   VariableNode,
   FunctionNode,
+  ClassMethod,
   SourceLocation,
   ReturnStatement,
   AssignmentStatement,
@@ -60,7 +61,7 @@ class MixedOperatorChecker {
     for (let i = 0; i < ast.classes.length; i++) {
       const cls = ast.classes[i];
       for (let j = 0; j < cls.methods.length; j++) {
-        this.checkFunction(cls.methods[j] as unknown as FunctionNode);
+        this.checkClassMethod(cls.methods[j]);
       }
     }
   }
@@ -75,6 +76,18 @@ class MixedOperatorChecker {
       }
     }
     if (fn.body) this.walkBlock(fn.body);
+  }
+
+  private checkClassMethod(method: ClassMethod): void {
+    this.scope.clear();
+    if (method.params && method.paramTypes) {
+      for (let i = 0; i < method.params.length; i++) {
+        if (i >= method.paramTypes.length) break;
+        const pt = method.paramTypes[i];
+        if (pt) this.scope.set(method.params[i], declaredTypeToKind(pt));
+      }
+    }
+    if (method.body) this.walkBlock(method.body);
   }
 
   private walkBlock(block: BlockStatement): void {
