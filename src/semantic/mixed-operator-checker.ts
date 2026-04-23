@@ -66,6 +66,8 @@ class MixedOperatorChecker {
   }
 
   private checkFunction(fn: FunctionNode): void {
+    const savedScope = new Map(this.scope);
+    this.scope.clear();
     if (fn.params && fn.paramTypes) {
       for (let i = 0; i < fn.params.length; i++) {
         if (i >= fn.paramTypes.length) break;
@@ -74,6 +76,7 @@ class MixedOperatorChecker {
       }
     }
     if (fn.body) this.walkBlock(fn.body);
+    this.scope = savedScope;
   }
 
   private walkBlock(block: BlockStatement): void {
