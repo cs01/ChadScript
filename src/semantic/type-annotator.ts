@@ -440,6 +440,31 @@ class TypeAnnotator {
       }
       return;
     }
+    // Type assertions (`x as Foo`). Result type is the literal AST string
+    // `assertedType` — independent of symbol-table state and stable across
+    // codegen phases. Real-world data (#658 comment 2026-04-22): 1611
+    // codegen-time miss events on chad-native.ts; zero hit-diff after
+    // admission would be observable in any cell already in the cache. Gated
+    // through isSafeVariableAnnotationType so only sourceKind=class|interface
+    // with arrayDepth=0 land in the cache — matches the safe subset the
+    // member_access admission uses.
+    if (e.type === "type_assertion") {
+      const ta = expr as TypeAssertionNode;
+      if (!this.isSafelyAnnotatable(ta.assertedType)) return;
+      const resolved = this.sink.resolveExpressionTypeRich(expr);
+      // Class-only — interface assertions destabilized stage 2 self-hosting
+      // (same arch-divergence class as #662; native dispatch through interface
+      // cache mismatched live-resolve). Re-evaluate after Tier 3 #11
+      // (interface concretization pass).
+      if (
+        resolved &&
+        resolved.sourceKind === "class" &&
+        this.isSafeVariableAnnotationType(resolved)
+      ) {
+        this.sink.appendExpressionType(expr, resolved);
+      }
+      return;
+    }
     // let/const decl bindings and interface-typed params are intentionally
     // skipped. Decl bindings can be refined mid-codegen (JSON.parse target
     // type, await result specialization); caching the declared type would
