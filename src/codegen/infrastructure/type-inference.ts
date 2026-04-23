@@ -239,11 +239,30 @@ export class TypeInference {
         liveSourceKind,
         liveArrayDepth,
         liveElementInterface,
+        null,
+        0,
+        null,
       );
       return;
     }
     const cacheBase = cached.base || null;
-    if (cacheBase === liveBase) return;
+    const cacheSourceKind = cached.sourceKind || null;
+    const cacheArrayDepth = cached.arrayDepth || 0;
+    const cacheElementInterface = cached.elementInterface || null;
+    // Agreement requires all four tuple components to match. Base-only
+    // agreement was the original check but missed real divergences — e.g.
+    // cached `{base: "object", sourceKind: "interface"}` vs live
+    // `{base: "object", sourceKind: "class"}` looks equal by base but
+    // resolves to different dispatch strategies. Widening the tuple catches
+    // those before they corrupt codegen. Tier 1 #4 of issue #658.
+    if (
+      cacheBase === liveBase &&
+      cacheSourceKind === liveSourceKind &&
+      cacheArrayDepth === liveArrayDepth &&
+      cacheElementInterface === liveElementInterface
+    ) {
+      return;
+    }
     traceTypeDivergence(
       kind,
       cacheBase,
@@ -252,6 +271,9 @@ export class TypeInference {
       liveSourceKind,
       liveArrayDepth,
       liveElementInterface,
+      cacheSourceKind,
+      cacheArrayDepth,
+      cacheElementInterface,
     );
   }
 
