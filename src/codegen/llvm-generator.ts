@@ -151,7 +151,10 @@ import { PromiseGenerator } from "./stdlib/promise.js";
 import { TreeSitterGenerator } from "./stdlib/treesitter.js";
 import { ExpressionGenerator } from "./expressions/orchestrator.js";
 import type { TypeChecker } from "../typescript/type-checker.js";
-import { InterfaceStructGenerator, InterfaceFieldInfo } from "./types/interface-struct-generator.js";
+import {
+  InterfaceStructGenerator,
+  InterfaceFieldInfo,
+} from "./types/interface-struct-generator.js";
 import { JsonObjectMeta } from "./expressions/access/member.js";
 import type { TargetInfo } from "../target-types.js";
 import { checkClosureMutations } from "../semantic/closure-mutation-checker.js";

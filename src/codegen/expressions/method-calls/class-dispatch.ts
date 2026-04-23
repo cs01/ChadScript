@@ -906,7 +906,12 @@ export function handleObjectMethods(
       if (!objMetaRaw) {
         return null;
       }
-      const objMeta = objMetaRaw;
+      const objMeta = objMetaRaw as {
+        ptr: string;
+        keys: string[];
+        types: string[];
+        tsTypes: string[] | undefined;
+      };
       isObjectMethod = objMeta.keys.indexOf(method) !== -1;
     }
   } else if (exprObjBase.type === "object") {
