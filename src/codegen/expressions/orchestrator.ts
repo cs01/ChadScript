@@ -230,7 +230,12 @@ export class ExpressionGenerator {
   }
 
   private generateArrowFunctionExpression(expr: ArrowFunctionNode, params: string[]): string {
-    const scopeVarsTyped = this.ctx.symbolTable.getScopeVarsArraysForClosure();
+    const scopeVarsResult = this.ctx.symbolTable.getScopeVarsArraysForClosure();
+    const scopeVarsTyped = scopeVarsResult as {
+      names: string[];
+      types: string[];
+      interfaceTypes: string[];
+    };
     let typeHints: { paramTypes?: string[]; returnType?: string } | undefined = undefined;
     const cbParamTypes = this.ctx.getExpectedCallbackParamTypes();
     const cbParamType = this.ctx.getExpectedCallbackParamType();

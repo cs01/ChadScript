@@ -232,7 +232,25 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
       }
     }
     if (funcResult) {
-      return funcResult.closureInfo;
+      // Type assertion must include ALL fields from FunctionNode + closureInfo
+      // in exact struct order. LiftedFunction extends FunctionNode, so
+      // closureInfo is the final field. Omitting middle fields causes GEP to
+      // read the wrong offset in native code.
+      const func = funcResult as {
+        name: string;
+        params: string[];
+        body: BlockStatement;
+        returnType: string;
+        paramTypes: string[];
+        async: boolean;
+        parameters: FunctionParameter[];
+        loc: SourceLocation;
+        declare: boolean;
+        typeParameters: string[];
+        intSpecialized: boolean;
+        closureInfo: ClosureInfo;
+      };
+      return func.closureInfo;
     }
     return undefined;
   }
