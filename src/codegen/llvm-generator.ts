@@ -2313,8 +2313,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     i64Eligible: string[],
   ): { llvmType: string; value: string } | null {
     if (stmt.kind !== "const" || stmt.value === null) return null;
-    const val = stmt.value as (NumberNode | BooleanNode | StringNode);
-    if (val.type === "number" && typeof val.value === "number") {
+    const valType = (stmt.value as { type: string }).type;
+    if (valType === "number") {
+      const numVal = stmt.value as NumberNode;
+      if (typeof numVal.value !== "number") return null;
       let isI64 = false;
       for (let ei = 0; ei < i64Eligible.length; ei++) {
         if (i64Eligible[ei] === stmt.name) {
@@ -2322,17 +2324,18 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           break;
         }
       }
-      if (isI64 && val.value % 1 === 0 && val.isFloat !== true) {
-        return { llvmType: "i64", value: String(Math.trunc(val.value)) };
+      if (isI64 && numVal.value % 1 === 0 && numVal.isFloat !== true) {
+        return { llvmType: "i64", value: String(Math.trunc(numVal.value)) };
       }
-      const s = String(val.value);
+      const s = String(numVal.value);
       if (s.indexOf(".") === -1 && s.indexOf("e") === -1 && s.indexOf("E") === -1) {
         return { llvmType: "double", value: s + ".0" };
       }
       return { llvmType: "double", value: s };
     }
-    if (val.type === "boolean") {
-      return { llvmType: "double", value: val.value === true ? "0x3FF0000000000000" : "0.0" };
+    if (valType === "boolean") {
+      const boolVal = stmt.value as BooleanNode;
+      return { llvmType: "double", value: boolVal.value === true ? "0x3FF0000000000000" : "0.0" };
     }
     return null;
   }
