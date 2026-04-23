@@ -73,21 +73,25 @@ class MixedOperatorChecker {
         if (pt) this.scope.set(fn.params[i], declaredTypeToKind(pt));
       }
     }
-    this.walkBlock(fn.body);
+    if (fn.body) this.walkBlock(fn.body);
   }
 
   private walkBlock(block: BlockStatement): void {
+    if (!block || !block.statements) return;
     this.walkStatements(block.statements);
   }
 
   private walkStatements(stmts: Statement[]): void {
+    if (!stmts) return;
     for (let i = 0; i < stmts.length; i++) {
       this.walkStatement(stmts[i]);
     }
   }
 
   private walkStatement(stmt: Statement): void {
+    if (!stmt) return;
     const t = (stmt as { type: string }).type;
+    if (!t) return;
 
     if (t === "variable_declaration") {
       const decl = stmt as VariableDeclaration;
