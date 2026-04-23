@@ -44,6 +44,8 @@ import {
   traceTypeRich,
   traceTypeDivergence,
   isTypeDivergenceEnabled,
+  traceResolverSideEffect,
+  isResolverPurityEnabled,
 } from "../../diagnostics/tracers.js";
 
 interface ExprBase {
@@ -81,6 +83,14 @@ export interface TypeInferenceContext {
   typeResolverGetInterface(name: string): InterfaceDeclaration | null;
   typeResolverGetInterfaceProperty(interfaceName: string, propName: string): InterfaceField | null;
   getExpressionType?(expr: Expression): ResolvedType | undefined;
+  // Mutable counters consulted by the resolver-purity diagnostic (Tier 1 #2
+  // of issue #658). Resolvers must be pure observers; the tracker snapshots
+  // these before/after each resolveExpressionType call and emits an event
+  // whenever a counter moves. Optional so consumers without this state
+  // (mocks, narrow tests) keep compiling.
+  output?: string[];
+  variableTypes?: Map<string, string>;
+  actualClassTypes?: Map<string, string>;
 }
 
 export class TypeInference {
@@ -170,7 +180,7 @@ export class TypeInference {
         this.checkDivergence(expr, exprTypeTag, cached);
         return cached;
       }
-      const baseType = this.resolveExpressionType(expr);
+      const baseType = this.purityWrappedResolve(expr, exprTypeTag);
       if (!baseType) {
         traceTypeRich(exprTypeTag, null);
         this.checkDivergence(expr, exprTypeTag, null);
@@ -185,7 +195,7 @@ export class TypeInference {
       this.checkDivergence(expr, exprTypeTag, enriched);
       return enriched;
     }
-    const baseType = this.resolveExpressionType(expr);
+    const baseType = this.purityWrappedResolve(expr, exprTypeTag);
     if (!baseType) {
       traceTypeRich(exprTypeTag, null);
       this.checkDivergence(expr, exprTypeTag, null);
@@ -243,6 +253,35 @@ export class TypeInference {
       liveArrayDepth,
       liveElementInterface,
     );
+  }
+
+  // Wrap resolveExpressionType with the purity-tracking diagnostic
+  // (Tier 1 #2 of issue #658). Resolvers should be pure observers — never
+  // mutate symbol-table entries, variableTypes, output IR, or actualClass
+  // mappings. When --diag-trace=resolver-purity is on, snapshot each counter
+  // before+after the resolve call and emit an event whenever any counter
+  // moves. Output = concrete list of impure resolver sites to fix.
+  private purityWrappedResolve(expr: Expression, kind: string): ResolvedType | null {
+    if (!isResolverPurityEnabled()) {
+      return this.resolveExpressionType(expr);
+    }
+    const symBefore = this.st.getSymbolKeysCount();
+    const outBefore = this.ctx.output ? this.ctx.output.length : 0;
+    const varBefore = this.ctx.variableTypes ? this.ctx.variableTypes.size : 0;
+    const clsBefore = this.ctx.actualClassTypes ? this.ctx.actualClassTypes.size : 0;
+    const result = this.resolveExpressionType(expr);
+    const symAfter = this.st.getSymbolKeysCount();
+    const outAfter = this.ctx.output ? this.ctx.output.length : 0;
+    const varAfter = this.ctx.variableTypes ? this.ctx.variableTypes.size : 0;
+    const clsAfter = this.ctx.actualClassTypes ? this.ctx.actualClassTypes.size : 0;
+    const dSym = symAfter - symBefore;
+    const dOut = outAfter - outBefore;
+    const dVar = varAfter - varBefore;
+    const dCls = clsAfter - clsBefore;
+    if (dSym !== 0 || dOut !== 0 || dVar !== 0 || dCls !== 0) {
+      traceResolverSideEffect(kind, dSym, dVar, dOut, dCls);
+    }
+    return result;
   }
 
   // Expression shapes whose rich resolution is stable across codegen phases.

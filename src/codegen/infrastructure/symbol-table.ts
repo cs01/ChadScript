@@ -841,6 +841,12 @@ export class SymbolTable {
   /**
    * Clear only local symbols (preserve globals)
    */
+  // Number of live symbol keys. Used by the resolver-purity diagnostic
+  // (Tier 1 #2 of issue #658) to detect resolver calls that mutate state.
+  getSymbolKeysCount(): number {
+    return this.symbolKeysCount;
+  }
+
   clearLocals(): void {
     if (this.symbolKeysCount === 0) {
       return;

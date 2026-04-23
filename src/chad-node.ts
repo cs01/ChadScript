@@ -33,8 +33,17 @@ import { execSync, spawn as spawnProc, ChildProcess } from "child_process";
 import { installTargetSDK, listInstalledSDKs, getSDKBaseDir } from "./cross-compile.js";
 import { VERSION } from "./version.js";
 import { enableSink, flushDiagnostics } from "./diagnostics/sink.js";
-import { parseCategories, CAT_TYPE_TRACE, CAT_TYPE_DIVERGENCE } from "./diagnostics/categories.js";
-import { enableTypeTrace, enableTypeDivergence } from "./diagnostics/tracers.js";
+import {
+  parseCategories,
+  CAT_TYPE_TRACE,
+  CAT_TYPE_DIVERGENCE,
+  CAT_RESOLVER_PURITY,
+} from "./diagnostics/categories.js";
+import {
+  enableTypeTrace,
+  enableTypeDivergence,
+  enableResolverPurity,
+} from "./diagnostics/tracers.js";
 
 const parser = new ArgumentParser("chad", "compile TypeScript to native binaries via LLVM");
 parser.setColorEnabled(process.stdout.isTTY === true);
@@ -330,6 +339,7 @@ if (diagTraceCsv) {
   for (const c of cats) {
     if (c === CAT_TYPE_TRACE) enableTypeTrace();
     if (c === CAT_TYPE_DIVERGENCE) enableTypeDivergence();
+    if (c === CAT_RESOLVER_PURITY) enableResolverPurity();
   }
 }
 

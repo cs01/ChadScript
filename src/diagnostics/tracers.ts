@@ -1,8 +1,9 @@
 import { recordEvent } from "./sink.js";
-import { CAT_TYPE_TRACE, CAT_TYPE_DIVERGENCE } from "./categories.js";
+import { CAT_TYPE_TRACE, CAT_TYPE_DIVERGENCE, CAT_RESOLVER_PURITY } from "./categories.js";
 
 let diagTypeTraceEnabled = false;
 let diagTypeDivergenceEnabled = false;
+let diagResolverPurityEnabled = false;
 let diagSeq = 0;
 
 export function enableTypeTrace(): void {
@@ -19,6 +20,14 @@ export function enableTypeDivergence(): void {
 
 export function isTypeDivergenceEnabled(): boolean {
   return diagTypeDivergenceEnabled;
+}
+
+export function enableResolverPurity(): void {
+  diagResolverPurityEnabled = true;
+}
+
+export function isResolverPurityEnabled(): boolean {
+  return diagResolverPurityEnabled;
 }
 
 // JSON-string-escape a value. Used instead of JSON.stringify on record types
@@ -197,6 +206,43 @@ export function traceTypeDivergence(
     liveArrayDepth.toString() +
     ',"liveElementInterface":' +
     elemIfaceJson +
+    ',"sites":' +
+    sitesToJsonArray(sites) +
+    "}";
+  recordEvent(line);
+}
+
+// Resolver side-effect tracker (Tier 1 #2 of issue #658). Wraps each
+// `resolveExpressionTypeRich` call. Snapshots key context state before the
+// resolver runs and emits an event whenever any monitored counter moves —
+// resolvers are supposed to be pure observers of the symbol table, not
+// mutators of it. Output = concrete list of impure resolver sites to fix.
+export function traceResolverSideEffect(
+  kind: string,
+  symbolDelta: number,
+  varTypesDelta: number,
+  outputDelta: number,
+  actualClassDelta: number,
+): void {
+  if (!diagResolverPurityEnabled) return;
+  const sites = captureSites(2);
+  const i = diagSeq;
+  diagSeq = diagSeq + 1;
+  const line =
+    '{"cat":' +
+    jsonEscapeString(CAT_RESOLVER_PURITY) +
+    ',"i":' +
+    i.toString() +
+    ',"kind":' +
+    jsonEscapeString(kind) +
+    ',"symbolDelta":' +
+    symbolDelta.toString() +
+    ',"varTypesDelta":' +
+    varTypesDelta.toString() +
+    ',"outputDelta":' +
+    outputDelta.toString() +
+    ',"actualClassDelta":' +
+    actualClassDelta.toString() +
     ',"sites":' +
     sitesToJsonArray(sites) +
     "}";
