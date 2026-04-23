@@ -191,26 +191,27 @@ class MixedOperatorChecker {
     return KIND_UNKNOWN;
   }
 
+  private kindLabel(k: string): string {
+    if (k === KIND_PTR) return "string/object (i8*)";
+    if (k === KIND_DOUBLE) return "number (double)";
+    if (k === KIND_I1) return "boolean (i1)";
+    return "unknown";
+  }
+
   private report(
     op: string,
     leftKind: string,
     rightKind: string,
     loc: SourceLocation | undefined,
   ): void {
-    const kindLabel = (k: string): string => {
-      if (k === "ptr") return "string/object (i8*)";
-      if (k === "double") return "number (double)";
-      if (k === "i1") return "boolean (i1)";
-      return "unknown";
-    };
     const output = formatCompileError(
       this.sourceCode,
       "type mismatch in '" +
         op +
         "': left operand is " +
-        kindLabel(leftKind) +
+        this.kindLabel(leftKind) +
         ", right operand is " +
-        kindLabel(rightKind),
+        this.kindLabel(rightKind),
       loc,
       "both sides of '" + op + "' must have the same LLVM representation",
       ["use a ternary with explicit types: 'left !== null ? left : right'"],
