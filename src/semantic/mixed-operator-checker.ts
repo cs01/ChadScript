@@ -41,9 +41,11 @@ export function checkMixedOperators(ast: AST, sourceCode: string): void {
 }
 
 class MixedOperatorChecker {
-  private scope: Map<string, string> = new Map();
+  private scope: Map<string, string>;
 
-  constructor(private sourceCode: string) {}
+  constructor(private sourceCode: string) {
+    this.scope = new Map();
+  }
 
   check(ast: AST): void {
     const items = ast.topLevelItems;
