@@ -3,20 +3,20 @@ function test(a: number, b: number, c: number) {
   let result = 0;
 
   // Test === (strict equality)
-  if (a === b: number) {
+  if (a === b) {
     result = result + 10; // Should add 10
   }
 
-  if (a === c: number) {
+  if (a === c) {
     result = result + 100; // Should NOT add
   }
 
   // Test !== (strict inequality)
-  if (a !== c: number) {
+  if (a !== c) {
     result = result + 5; // Should add 5
   }
 
-  if (a !== b: number) {
+  if (a !== b) {
     result = result + 100; // Should NOT add
   }
 
