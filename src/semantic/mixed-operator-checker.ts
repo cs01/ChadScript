@@ -235,9 +235,7 @@ class MixedOperatorChecker {
         this.kindLabel(rightKind),
       loc,
       "both sides of '" + op + "' must have the same LLVM representation",
-      [
-        "ensure both sides have the same type, e.g. convert to string: 'String(left) || String(right)'",
-      ],
+      ["ensure both sides produce the same LLVM type (both string, both number, or both boolean)"],
     );
     process.stderr.write(output);
     process.exit(1);
