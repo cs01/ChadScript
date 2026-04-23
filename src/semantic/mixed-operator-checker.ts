@@ -66,6 +66,7 @@ class MixedOperatorChecker {
   private checkFunction(fn: FunctionNode): void {
     if (fn.params && fn.paramTypes) {
       for (let i = 0; i < fn.params.length; i++) {
+        if (i >= fn.paramTypes.length) break;
         const pt = fn.paramTypes[i];
         if (pt) this.scope.set(fn.params[i], declaredTypeToKind(pt));
       }
