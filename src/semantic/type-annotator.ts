@@ -431,12 +431,21 @@ class TypeAnnotator {
     // Issue #658 gate-loosen step 2 (partial).
     if (e.type === "member_access") {
       const resolved = this.sink.resolveExpressionTypeRich(expr);
-      if (
-        resolved &&
-        resolved.sourceKind === "class" &&
-        this.isSafeVariableAnnotationType(resolved)
-      ) {
-        this.sink.appendExpressionType(expr, resolved);
+      if (resolved) {
+        if (
+          resolved.sourceKind === "class" &&
+          this.isSafeVariableAnnotationType(resolved)
+        ) {
+          this.sink.appendExpressionType(expr, resolved);
+        } else if (this.isSafePrimitiveMemberAccess(resolved)) {
+          // Issue #658 step 4. Narrowest safe primitive cell — `.length` /
+          // `.size` on arrays/strings/maps/sets. Resolved base is "number",
+          // sourceKind=primitive, arrayDepth=0. Stable LLVM type (double),
+          // independent of source-collection layout. Per #658 data: 459
+          // codegen-time miss events on chad-native; zero hit-diff predicted
+          // because resolver is pure (#672) and result kind is closed-form.
+          this.sink.appendExpressionType(expr, resolved);
+        }
       }
       return;
     }
@@ -481,6 +490,19 @@ class TypeAnnotator {
   // layouts that codegen chooses from at symbol-definition time, so the
   // declared answer can disagree with the symbol table's allocated storage
   // and produce wrong IR.
+  // Narrow primitive admission for member_access only. Restricted to
+  // base="number", arrayDepth=0, sourceKind=primitive, no nullable. Covers
+  // `.length` / `.size`. Avoids string/boolean to keep the cell narrow —
+  // boolean has i1↔double crossings in interface structs and string has
+  // null-vs-empty edge cases.
+  private isSafePrimitiveMemberAccess(rt: ResolvedType): boolean {
+    if (rt.sourceKind !== "primitive") return false;
+    if (rt.arrayDepth > 0) return false;
+    if (rt.qualifiers.isNullable) return false;
+    if (rt.base !== "number") return false;
+    return true;
+  }
+
   private isSafeVariableAnnotationType(rt: ResolvedType): boolean {
     if (rt.arrayDepth > 0) return false;
     if (rt.qualifiers.isNullable) return false;
