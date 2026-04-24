@@ -3064,7 +3064,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     checkAmbiguousInits(this.ast, this.sourceCode);
     checkUntypedParams(this.ast, this.sourceCode);
     checkMixedOperators(this.ast, this.sourceCode);
-    checkInlineCasts(this.ast, this.sourceCode);
+    checkInlineCasts(this.ast, this.sourceCode, this.filename);
     this.stackEligibleVars = analyzeEscapes(this.ast);
     markIntSpecializedFunctions(this.ast);
     // Build pure-AST class + interface catalog so downstream queries

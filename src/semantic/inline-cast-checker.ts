@@ -25,7 +25,88 @@ import type {
 } from "../ast/types.js";
 import { formatCompileError } from "../diagnostics/engine.js";
 
-export function checkInlineCasts(ast: AST, sourceCode: string): void {
+// Grandfather list — files that already contained inline `as { ... }` casts
+// when this checker landed. The rule is at full ERROR severity for everyone
+// else; existing offenders are skipped only because we can't migrate 430
+// casts in one PR. Each migration PR removes a path from this list. The
+// list only ever shrinks. When it's empty, delete this constant and the
+// `isGrandfathered` check.
+//
+// Adding a new entry requires a separate PR with explicit reviewer signoff;
+// we never want this list to grow.
+const GRANDFATHERED_FILES: string[] = [
+  "src/analysis/semantic-analyzer.ts",
+  "src/ast/visitor.ts",
+  "src/chad-node.ts",
+  "src/codegen/expressions/access/chained-access.ts",
+  "src/codegen/expressions/access/index.ts",
+  "src/codegen/expressions/access/member.ts",
+  "src/codegen/expressions/arrow-functions.ts",
+  "src/codegen/expressions/calls.ts",
+  "src/codegen/expressions/literals.ts",
+  "src/codegen/expressions/method-calls.ts",
+  "src/codegen/expressions/method-calls/class-dispatch.ts",
+  "src/codegen/expressions/method-calls/map-dispatch.ts",
+  "src/codegen/expressions/method-calls/object-static.ts",
+  "src/codegen/expressions/method-calls/promise-handlers.ts",
+  "src/codegen/expressions/method-calls/string-dispatch.ts",
+  "src/codegen/expressions/orchestrator.ts",
+  "src/codegen/expressions/templates.ts",
+  "src/codegen/infrastructure/array-allocator.ts",
+  "src/codegen/infrastructure/assignment-generator.ts",
+  "src/codegen/infrastructure/class-allocator.ts",
+  "src/codegen/infrastructure/closure-analyzer.ts",
+  "src/codegen/infrastructure/function-generator.ts",
+  "src/codegen/infrastructure/generator-context.ts",
+  "src/codegen/infrastructure/int-specialization-detector.ts",
+  "src/codegen/infrastructure/interface-allocator.ts",
+  "src/codegen/infrastructure/map-allocator.ts",
+  "src/codegen/infrastructure/type-inference.ts",
+  "src/codegen/infrastructure/type-resolver/type-resolver.ts",
+  "src/codegen/infrastructure/variable-allocator.ts",
+  "src/codegen/llvm-generator.ts",
+  "src/codegen/statements/control-flow.ts",
+  "src/codegen/statements/for-of.ts",
+  "src/codegen/statements/loop-idiom.ts",
+  "src/codegen/stdlib/embed.ts",
+  "src/codegen/stdlib/json.ts",
+  "src/codegen/stdlib/response.ts",
+  "src/codegen/types/collections/array.ts",
+  "src/codegen/types/collections/array/combine.ts",
+  "src/codegen/types/collections/array/literal.ts",
+  "src/codegen/types/interface-struct-generator.ts",
+  "src/codegen/types/objects/class.ts",
+  "src/codegen/types/objects/object.ts",
+  "src/compiler.ts",
+  "src/diagnostics/tracers.ts",
+  "src/native-compiler-lib.ts",
+  "src/parser-native/transformer.ts",
+  "src/semantic/ambiguous-init-checker.ts",
+  "src/semantic/array-of-function-checker.ts",
+  "src/semantic/async-await-checker.ts",
+  "src/semantic/binary-type-checker.ts",
+  "src/semantic/closure-mutation-checker.ts",
+  "src/semantic/escape-analysis.ts",
+  "src/semantic/inline-cast-checker.ts",
+  "src/semantic/interface-layout-normalizer.ts",
+  "src/semantic/mixed-operator-checker.ts",
+  "src/semantic/safety-checks.ts",
+  "src/semantic/type-annotator.ts",
+  "src/semantic/type-assertion-checker.ts",
+  "src/semantic/uninitialized-field-checker.ts",
+  "src/semantic/union-type-checker.ts",
+];
+
+function isGrandfathered(filename: string): boolean {
+  if (!filename) return false;
+  for (let i = 0; i < GRANDFATHERED_FILES.length; i++) {
+    if (filename.endsWith(GRANDFATHERED_FILES[i])) return true;
+  }
+  return false;
+}
+
+export function checkInlineCasts(ast: AST, sourceCode: string, filename?: string): void {
+  if (filename && isGrandfathered(filename)) return;
   const checker = new InlineCastChecker(sourceCode);
   checker.check(ast);
 }
