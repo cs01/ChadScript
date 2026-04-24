@@ -168,6 +168,7 @@ import { checkAmbiguousInits } from "../semantic/ambiguous-init-checker.js";
 import { checkUntypedParams } from "../semantic/untyped-param-checker.js";
 import { checkOrFallback } from "../semantic/or-fallback-checker.js";
 import { checkMixedOperators } from "../semantic/mixed-operator-checker.js";
+import { checkDuplicateDeclarations } from "../semantic/duplicate-decl-checker.js";
 import {
   checkBinaryTypesDeep,
   checkMissingReturns,
@@ -3065,6 +3066,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     checkUntypedParams(this.ast, this.sourceCode);
     checkOrFallback(this.ast, this.sourceCode, this.filename);
     checkMixedOperators(this.ast, this.sourceCode);
+    checkDuplicateDeclarations(this.ast, this.sourceCode);
     this.stackEligibleVars = analyzeEscapes(this.ast);
     markIntSpecializedFunctions(this.ast);
     // Build pure-AST class + interface catalog so downstream queries
