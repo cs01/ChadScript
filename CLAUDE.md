@@ -314,13 +314,30 @@ for (let i = 0; i < items.length; i++) {} // only when index is needed
 - Use named AST types from `src/ast/types.ts` for type assertions instead of inline `as { ... }` structs
 - There are several MASSIVE files. Where possible, do not add to them. Make a new file, and leave a comment in the other file to not touch it anymore, and to progressively break it down into smaller files.
 
+## Investigating Suspected Bugs
+
+**Tiny synthetic experiments beat speculative code changes.** When a PR causes a Stage 0→1 segfault and the cause is unclear, the productive move is a 10-line fixture targeting one specific suspected pattern, compiled with the actual native compiler — not a new sema rule based on a guess.
+
+The Apr 2026 sweep showed five "Patterns That Crash" prose rules were either already enforced or wrong about the actual bug class. Every PR built on those rules (#679, #681, #682) failed Stage 0→1 in ways that could have been ruled out in minutes by an EXP-style fixture.
+
+Workflow:
+1. Form one falsifiable hypothesis ("X causes Y").
+2. Write a `<50` LOC `.ts` fixture that should trigger Y if X is the cause.
+3. Compile with `.build/chad build /tmp/fixture.ts -o /tmp/out` and run.
+4. Output deterministically tells you yes/no.
+5. Only then write a sema rule, and only with that fixture as the positive test.
+
+The `/tmp/exp[1-8]-*.ts` series in this branch's history is the format. Don't ship a checker for a bug class you can't reproduce in `< 20` LOC.
+
 ## Patterns That Crash Native Code
 
-1. **`new` in class field initializers** — codegen handles simple `new X()` in field initializers (both explicit and default constructors), but complex nested class instantiation may have edge cases. Prefer initializing in constructors for safety.
-2. **Type assertions must match real struct field order AND count** — `as { type, left, right }` on a struct that's `{ type, op, left, right }` causes GEP to read wrong fields. Fields must be a PREFIX of the real struct in EXACT order. **Watch out for `extends`**: if `Child extends Parent`, the struct has ALL of Parent's fields first, then Child's. A type assertion on a Child must include Parent's fields too — even optional ones the object literal doesn't set (the compiler allocates slots for them anyway, filled with null/0).
-3. **`alloca` for collection structs stored in class fields** — `%Set`, `%StringSet`, `%Map`, and similar structs must be heap-allocated via `GC_malloc`, not `alloca`. Stack-allocated structs become dangling pointers when stored in a class field after the constructor returns. Use `emitCall("i8*", "@GC_malloc", "i64 N") + emitBitcast(...)` instead of `emit("... = alloca %Foo")`.
-4. **Never invent a subset/partial type for a type assertion** — always use the real AST type from `src/ast/types.ts`. An invented `type FunctionMeta = { name, returnType, parameters }` silently generates wrong GEP indices when its field order doesn't match the actual struct. The `object-method.js` SIGSEGV was caused by exactly this: `FunctionMeta.parameters` sat at index 2, but `FunctionNode.parameters` is at index 6, so every access read the wrong field. The real type always works — TypeScript's structural typing lets you access any subset of fields safely without redefining a partial interface.
-5. **`||` fallback makes member access opaque** — `const x = foo.bar || { field: [] }` stores the result as `i8*` (opaque pointer) because the `||` merges two different types. Subsequent `.field` access on `x` does NOT generate a GEP — it just returns `x` itself. Fix: use a ternary that preserves the typed path: `const y = foo.bar ? foo.bar.field : []`. This applies to any `||` or `??` where the fallback is an inline object literal.
+These rules used to be honor-system prose; the project is moving them into enforced sema passes one at a time. Each item below links to the checker (if shipped) or the synthetic repro fixture (if just observed).
+
+1. **`alloca` for collection structs stored in class fields** — `%Set`, `%StringSet`, `%Map`, and similar structs must be heap-allocated via `GC_malloc`, not `alloca`. Stack-allocated structs become dangling pointers when stored in a class field after the constructor returns. Use `emitCall("i8*", "@GC_malloc", "i64 N") + emitBitcast(...)` instead of `emit("... = alloca %Foo")`. (Not yet enforced.)
+
+2. **`||` / `??` fallback to object literal opacifies the result type.** `const x = foo.bar || { field: [] }` followed by `x.field` reads garbage memory. **Enforced** by `src/semantic/or-fallback-checker.ts`. Synthetic repro: `tests/fixtures/errors/or-fallback-object-literal.ts`.
+
+> The previous "Patterns That Crash" list also included rules about inline `as { ... }` casts, partial AST types like `FunctionMeta`, and "type assertions must include every parent-extends field." Synthetic experiments (Apr 2026) showed those rules were either already caught by `src/semantic/type-assertion-checker.ts` (the prefix verifier) or were not actually the bug class they claimed to be — the parser auto-fills missing fields for both `let x: Foo = {...}` and `{...} as Foo`. Removed to avoid steering future work toward false leads. The actual unaccounted-for hazard is **inline `as { ... }` on an `object`/opaque-typed source** (no source interface for the prefix checker to compare against) — synthetic repro at `/tmp/exp7-fresh-inline.ts`, sema rule pending.
 
 ## Stage 0 Compatibility
 
