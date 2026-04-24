@@ -32,6 +32,7 @@ import {
   parseMapTypeString,
   createResolvedType,
   tsTypeToLlvm,
+  isObjectArrayTsType,
 } from "./type-system.js";
 import type {
   ResolvedType,
@@ -1882,7 +1883,7 @@ export class TypeInference {
     }
     if (e.type === "call") {
       const rt = this.getCallReturnType(expr);
-      if (rt && rt.endsWith("[]") && rt !== "string[]" && rt !== "number[]" && rt !== "boolean[]") {
+      if (rt && isObjectArrayTsType(rt)) {
         return true;
       }
       return false;
@@ -1931,11 +1932,8 @@ export class TypeInference {
         const className = this.ctx.getCurrentClassName();
         if (className) {
           const method = this.getClassMethod(className, methodExpr.method);
-          if (method && method.returnType) {
-            const rt = stripNullable(method.returnType);
-            if (rt.endsWith("[]") && rt !== "string[]" && rt !== "number[]" && rt !== "boolean[]") {
-              return true;
-            }
+          if (method && method.returnType && isObjectArrayTsType(method.returnType)) {
+            return true;
           }
         }
       }
@@ -1952,11 +1950,19 @@ export class TypeInference {
         }
         if (className) {
           const method = this.getClassMethod(className, methodExpr.method);
-          if (method && method.returnType) {
-            const rt = stripNullable(method.returnType);
-            if (rt.endsWith("[]") && rt !== "string[]" && rt !== "number[]" && rt !== "boolean[]") {
-              return true;
-            }
+          if (method && method.returnType && isObjectArrayTsType(method.returnType)) {
+            return true;
+          }
+        }
+      }
+      if (methodObjBase.type === "member_access") {
+        const memberTypeName = this.resolveNestedMemberAccessTsType(
+          methodExpr.object as MemberAccessNode,
+        );
+        if (memberTypeName) {
+          const method = this.getClassMethod(memberTypeName, methodExpr.method);
+          if (method && method.returnType && isObjectArrayTsType(method.returnType)) {
+            return true;
           }
         }
       }
@@ -2185,11 +2191,8 @@ export class TypeInference {
         const className = this.ctx.getCurrentClassName();
         if (className) {
           const method = this.getClassMethod(className, methodExpr.method);
-          if (method && method.returnType) {
-            const rt = stripNullable(method.returnType);
-            if (rt.endsWith("[]") && rt !== "string[]" && rt !== "number[]" && rt !== "boolean[]") {
-              return rt.slice(0, -2);
-            }
+          if (method && method.returnType && isObjectArrayTsType(method.returnType)) {
+            return stripNullable(method.returnType).slice(0, -2);
           }
         }
       }
@@ -2206,11 +2209,8 @@ export class TypeInference {
         }
         if (className) {
           const method = this.getClassMethod(className, methodExpr.method);
-          if (method && method.returnType) {
-            const rt = stripNullable(method.returnType);
-            if (rt.endsWith("[]") && rt !== "string[]" && rt !== "number[]" && rt !== "boolean[]") {
-              return rt.slice(0, -2);
-            }
+          if (method && method.returnType && isObjectArrayTsType(method.returnType)) {
+            return stripNullable(method.returnType).slice(0, -2);
           }
         }
       }
