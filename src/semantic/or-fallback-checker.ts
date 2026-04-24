@@ -146,6 +146,13 @@ class OrFallbackChecker {
       for (let i = 0; i < sw.cases.length; i++) {
         this.walkStatements((sw.cases[i] as SwitchCase).consequent);
       }
+    } else {
+      // Fallback: bare expression statements (e.g. `stack.push(...)`).
+      // Without this fallback, the walker silently skipped `||` fallbacks
+      // inside method-call arguments — which is exactly how the symbol-table
+      // crash at `objectMetadata || { keys: [], types: [] }` slipped past
+      // the checker on first ship. Don't remove.
+      this.walkExpr(stmt as Expression);
     }
   }
 
