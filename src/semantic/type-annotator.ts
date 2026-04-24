@@ -432,10 +432,7 @@ class TypeAnnotator {
     if (e.type === "member_access") {
       const resolved = this.sink.resolveExpressionTypeRich(expr);
       if (resolved) {
-        if (
-          resolved.sourceKind === "class" &&
-          this.isSafeVariableAnnotationType(resolved)
-        ) {
+        if (resolved.sourceKind === "class" && this.isSafeVariableAnnotationType(resolved)) {
           this.sink.appendExpressionType(expr, resolved);
         } else if (this.isSafePrimitiveMemberAccess(resolved)) {
           // Issue #658 step 4. Narrowest safe primitive cell — `.length` /
