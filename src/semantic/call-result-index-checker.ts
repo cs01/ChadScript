@@ -51,12 +51,12 @@ import type {
 } from "../ast/types.js";
 import { formatCompileError } from "../diagnostics/engine.js";
 
-const GRANDFATHERED_FILES: string[] = [];
+const CALL_RESULT_INDEX_GRANDFATHERED: string[] = [];
 
 function isGrandfathered(filename: string): boolean {
   if (!filename) return false;
-  for (let i = 0; i < GRANDFATHERED_FILES.length; i++) {
-    if (filename.endsWith(GRANDFATHERED_FILES[i])) return true;
+  for (let i = 0; i < CALL_RESULT_INDEX_GRANDFATHERED.length; i++) {
+    if (filename.endsWith(CALL_RESULT_INDEX_GRANDFATHERED[i])) return true;
   }
   return false;
 }
