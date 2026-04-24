@@ -1,0 +1,17 @@
+#!/bin/sh
+# Block pushes that would fail CI's format-check job.
+# Same command CI runs — if it passes here, it passes there.
+
+if ! command -v npx >/dev/null 2>&1; then
+  echo "pre-push: npx not found, skipping format check"
+  exit 0
+fi
+
+echo "pre-push: running prettier --check"
+if ! npx --no-install prettier --check . 2>&1; then
+  echo ""
+  echo "pre-push: format check FAILED — push aborted."
+  echo "  fix:   npm run format"
+  echo "  skip:  git push --no-verify  (do not — CI will fail)"
+  exit 1
+fi
