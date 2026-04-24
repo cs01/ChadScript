@@ -1,5 +1,5 @@
 // @test-description: duplicate module-level declarations produce compile error
-// @test-exit-code: 1
+// @test-compile-error: duplicate module-level declaration
 
 const FOO: number = 42;
 const FOO: number = 99;
