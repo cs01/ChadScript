@@ -314,6 +314,21 @@ for (let i = 0; i < items.length; i++) {} // only when index is needed
 - Use named AST types from `src/ast/types.ts` for type assertions instead of inline `as { ... }` structs
 - There are several MASSIVE files. Where possible, do not add to them. Make a new file, and leave a comment in the other file to not touch it anymore, and to progressively break it down into smaller files.
 
+## Investigating Suspected Bugs
+
+**Tiny synthetic experiments beat speculative code changes.** When a PR causes a Stage 0→1 segfault and the cause is unclear, the productive move is a 10-line fixture targeting one specific suspected pattern, compiled with the actual native compiler — not a new sema rule based on a guess.
+
+The Apr 2026 sweep showed five "Patterns That Crash" prose rules were either already enforced or wrong about the actual bug class. Every PR built on those rules (#679, #681, #682) failed Stage 0→1 in ways that could have been ruled out in minutes by an EXP-style fixture.
+
+Workflow:
+1. Form one falsifiable hypothesis ("X causes Y").
+2. Write a `<50` LOC `.ts` fixture that should trigger Y if X is the cause.
+3. Compile with `.build/chad build /tmp/fixture.ts -o /tmp/out` and run.
+4. Output deterministically tells you yes/no.
+5. Only then write a sema rule, and only with that fixture as the positive test.
+
+The `/tmp/exp[1-8]-*.ts` series in this branch's history is the format. Don't ship a checker for a bug class you can't reproduce in `< 20` LOC.
+
 ## Patterns That Crash Native Code
 
 These rules used to be honor-system prose; the project is moving them into enforced sema passes one at a time. Each item below links to the checker (if shipped) or the synthetic repro fixture (if just observed).
