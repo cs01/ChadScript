@@ -47,6 +47,7 @@ export interface ClassAllocatorContext {
   classGenGetClassFields(className: string): { name: string; fieldType: string }[];
   classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
   readonly symbolTable: SymbolTable;
+  getObjectArrayElementType(expr: Expression): string | null;
 }
 
 export class ClassAllocator {
@@ -208,6 +209,10 @@ export class ClassAllocator {
       ) {
         return objArrayMeta.elementInterfaceName;
       }
+    } else if (objBase.type === "method_call") {
+      const methodExpr = indexExpr.object as MethodCallNode;
+      const elemType = this.ctx.getObjectArrayElementType(methodExpr);
+      if (elemType && this.interfaceAlloc.isKnownClass(elemType)) return elemType;
     } else if (objBase.type === "member_access") {
       const memberAccess = indexExpr.object as MemberAccessNode;
       const memberObjBase = memberAccess.object as ExprBase;
