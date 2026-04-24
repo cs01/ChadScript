@@ -2817,6 +2817,17 @@ export class TypeInference {
       if (resolved && resolved.arrayDepth === 1 && resolved.base === "string") {
         return true;
       }
+      // Authoritative fallback: the LLVM type the symbol was bound with.
+      // resolveExpressionType + symbol.kind can disagree with the actual
+      // emitted LLVM type when codegen bound the variable as %StringArray*
+      // but the kind was inferred as ObjectArray. The symbol's llvmType is
+      // what handleSlice etc. will see, so dispatch must agree with it.
+      // Fixes a slice-mis-dispatch on `funcParams` in arrow-functions.ts
+      // surfaced after PR #689 made emitError actually print diagnostics.
+      if (e.type === "variable") {
+        const varName = (expr as VariableNode).name;
+        if (this.st.getType(varName) === "%StringArray*") return true;
+      }
       return false;
     }
     if (e.type === "array") {
