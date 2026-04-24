@@ -27,6 +27,14 @@ export function isNullableType(t: string): boolean {
   return false;
 }
 
+// TODO: replace string pattern matching with structured ResolvedType check — fragile against Array<T> syntax and novel primitives
+export function isObjectArrayTsType(tsType: string): boolean {
+  const rt = stripNullable(tsType);
+  if (!rt.endsWith("[]")) return false;
+  const elem = rt.slice(0, rt.length - 2);
+  return elem !== "string" && elem !== "number" && elem !== "boolean";
+}
+
 interface TypeQualifiers {
   isNullable: boolean;
   isOptional: boolean;

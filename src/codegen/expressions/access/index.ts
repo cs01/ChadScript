@@ -126,8 +126,15 @@ export class IndexAccessGenerator {
       }
     }
 
-    // Handle string[index] - returns character code as i32, then convert to double
-    return this.generateStringCharIndex(expr, params);
+    if (this.ctx.isStringExpression(expr.object)) {
+      return this.generateStringCharIndex(expr, params);
+    }
+
+    this.ctx.emitError(
+      "cannot determine element type of subscripted expression",
+      (expr as { loc?: SourceLocation }).loc,
+      "bind the expression to a typed variable first, e.g. `const arr: T[] = expr; arr[i]`",
+    );
   }
 
   private generateProcessArgvIndex(expr: IndexAccessNode, params: string[]): string {
