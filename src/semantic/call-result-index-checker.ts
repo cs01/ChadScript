@@ -53,7 +53,7 @@ import { formatCompileError } from "../diagnostics/engine.js";
 
 const CALL_RESULT_INDEX_GRANDFATHERED: string[] = [];
 
-function isGrandfathered(filename: string): boolean {
+function isCallResultIndexGrandfathered(filename: string): boolean {
   if (!filename) return false;
   for (let i = 0; i < CALL_RESULT_INDEX_GRANDFATHERED.length; i++) {
     if (filename.endsWith(CALL_RESULT_INDEX_GRANDFATHERED[i])) return true;
@@ -62,7 +62,7 @@ function isGrandfathered(filename: string): boolean {
 }
 
 export function checkCallResultIndex(ast: AST, sourceCode: string, filename?: string): void {
-  if (filename && isGrandfathered(filename)) return;
+  if (filename && isCallResultIndexGrandfathered(filename)) return;
   const checker = new CallResultIndexChecker(sourceCode);
   checker.check(ast);
 }
