@@ -1795,6 +1795,18 @@ export class TypeInference {
           }
         }
       }
+      if (methodObjBase.type === "member_access") {
+        const memberTypeName = this.resolveNestedMemberAccessTsType(
+          methodExpr.object as MemberAccessNode,
+        );
+        if (memberTypeName) {
+          const method = this.getClassMethod(memberTypeName, methodExpr.method);
+          if (method && method.returnType) {
+            const rt = stripNullable(method.returnType);
+            if (rt.endsWith("[]")) return true;
+          }
+        }
+      }
       return false;
     }
     if (e.type === "call") {
@@ -2952,6 +2964,17 @@ export class TypeInference {
         const className = this.st.getClassName((methodExpr.object as VariableNode).name);
         if (className) {
           const method = this.getClassMethod(className, methodExpr.method);
+          if (method && method.returnType === "string[]") {
+            return true;
+          }
+        }
+      }
+      if (objBase.type === "member_access") {
+        const memberTypeName = this.resolveNestedMemberAccessTsType(
+          methodExpr.object as MemberAccessNode,
+        );
+        if (memberTypeName) {
+          const method = this.getClassMethod(memberTypeName, methodExpr.method);
           if (method && method.returnType === "string[]") {
             return true;
           }
