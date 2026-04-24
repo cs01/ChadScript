@@ -2226,6 +2226,17 @@ export class TypeInference {
           }
         }
       }
+      if (methodObjBase.type === "member_access") {
+        const memberTypeName = this.resolveNestedMemberAccessTsType(
+          methodExpr.object as MemberAccessNode,
+        );
+        if (memberTypeName) {
+          const method = this.getClassMethod(memberTypeName, methodExpr.method);
+          if (method && method.returnType && isObjectArrayTsType(method.returnType)) {
+            return stripNullable(method.returnType).slice(0, -2);
+          }
+        }
+      }
     }
     if (e.type === "index_access") {
       const resolved = this.resolveExpressionType(expr);
