@@ -167,6 +167,7 @@ import { checkAsyncAwait } from "../semantic/async-await-checker.js";
 import { checkAmbiguousInits } from "../semantic/ambiguous-init-checker.js";
 import { checkUntypedParams } from "../semantic/untyped-param-checker.js";
 import { checkOrFallback } from "../semantic/or-fallback-checker.js";
+import { checkCallResultIndex } from "../semantic/call-result-index-checker.js";
 import { checkMixedOperators } from "../semantic/mixed-operator-checker.js";
 import {
   checkBinaryTypesDeep,
@@ -3064,6 +3065,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     checkAmbiguousInits(this.ast, this.sourceCode);
     checkUntypedParams(this.ast, this.sourceCode);
     checkOrFallback(this.ast, this.sourceCode, this.filename);
+    checkCallResultIndex(this.ast, this.sourceCode, this.filename);
     checkMixedOperators(this.ast, this.sourceCode);
     this.stackEligibleVars = analyzeEscapes(this.ast);
     markIntSpecializedFunctions(this.ast);
