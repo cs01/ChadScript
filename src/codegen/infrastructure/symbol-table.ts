@@ -529,7 +529,10 @@ export class SymbolTable {
       this.narrowedTypes.set(name, []);
     }
     const stack = this.narrowedTypes.get(name)!;
-    stack.push(symbol.objectMetadata || { keys: [], types: [] });
+    const prev: ObjectMetadata = symbol.objectMetadata
+      ? symbol.objectMetadata
+      : { keys: [], types: [] };
+    stack.push(prev);
 
     symbol.objectMetadata = narrowedMetadata;
     symbol.kind = SymbolKind_Object;

@@ -253,7 +253,7 @@ export class FunctionGenerator {
       this.ctx.setCurrentFunctionTsReturnType(theReturnType);
     }
 
-    const funcBody = func.body || { statements: [] };
+    const funcBody: BlockStatement = func.body ? func.body : { type: "block", statements: [] };
     if (
       !funcIsAsync &&
       !returnTypeIsString &&

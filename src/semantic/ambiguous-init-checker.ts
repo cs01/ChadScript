@@ -101,6 +101,11 @@ class AmbiguousInitChecker {
         this.walkStatements(c.consequent);
       }
     }
+    // Note: no catch-all needed. This checker only inspects
+    // variable_declaration statements, which can only appear inside the
+    // statement types listed above (block contexts) — never inside bare
+    // expression statements. Other checkers (e.g. or-fallback) DO need a
+    // catch-all because they look inside arbitrary expressions.
   }
 
   private checkDecl(decl: VariableDeclaration): void {
