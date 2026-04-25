@@ -2945,11 +2945,11 @@ export class MemberAccessGenerator {
           if (interfaceDefResult) {
             const interfaceDef = interfaceDefResult as InterfaceInfo;
             const innerIfaceProps = interfaceDef.properties;
-            if (!innerIfaceProps) {
-              return innerPtr;
-            }
-            if (innerIfaceProps.length === 0) {
-              return innerPtr;
+            if (!innerIfaceProps || innerIfaceProps.length === 0) {
+              return this.ctx.emitError(
+                `cannot access property '${prop}' on interface '${innerTypeName}' — interface has no fields`,
+                expr.loc,
+              );
             }
             let propIndex: number = -1;
             for (let i = 0; i < innerIfaceProps.length; i++) {
@@ -2984,7 +2984,15 @@ export class MemberAccessGenerator {
                   return this.loadFieldValue(fieldPtr, fieldInfo);
                 }
               }
+              return this.ctx.emitError(
+                `cannot resolve field '${prop}' on interface '${innerTypeName}' — no implementing class found`,
+                expr.loc,
+              );
             }
+            return this.ctx.emitError(
+              `property '${prop}' does not exist on interface '${innerTypeName}'`,
+              expr.loc,
+            );
           }
           return innerPtr;
         }
