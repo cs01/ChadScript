@@ -17,6 +17,7 @@ interface ExprBase {
 }
 
 import { IGeneratorContext } from "../infrastructure/generator-context.js";
+import { isAnyArrayTsType } from "../infrastructure/type-system.js";
 
 export class JsonGenerator {
   private generatedKeys: string[];
@@ -643,7 +644,7 @@ export class JsonGenerator {
           lines.push("  store " + arrT + "* %value_" + fi + ", " + arrT + "** %field_ptr_" + fi);
           lines.push("  br label %" + nextLabel);
           lines.push("");
-        } else if (fieldType.endsWith("[]")) {
+        } else if (isAnyArrayTsType(fieldType)) {
           // Arrays of user-defined types not yet supported in nested parse.
           // Fail loud instead of emitting @parse_json_StackFrame[] broken IR.
           return this.ctx.emitError(

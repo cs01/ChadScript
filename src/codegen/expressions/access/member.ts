@@ -33,6 +33,7 @@ import {
   parseMapTypeString,
   canonicalTypeToLlvm,
   isObjectArrayTsType,
+  isAnyArrayTsType,
 } from "../../infrastructure/type-system.js";
 import type { ResolvedType } from "../../infrastructure/type-system.js";
 import type {
@@ -1875,7 +1876,7 @@ export class MemberAccessGenerator {
         return elementType;
       }
       const paramType = this.getParameterTypeFromAST(varName);
-      if (paramType && paramType.endsWith("[]")) {
+      if (paramType && isAnyArrayTsType(paramType)) {
         const elemType = paramType.slice(0, -2);
         if (this.ctx.classGenGetClassFields(elemType).length > 0) {
           return elemType;
@@ -1909,7 +1910,7 @@ export class MemberAccessGenerator {
                 .replace(/ \| null/g, "")
                 .trim();
             }
-            if (tsType.endsWith("[]")) {
+            if (isAnyArrayTsType(tsType)) {
               const elemType = tsType.substring(0, tsType.length - 2);
               if (this.ctx.classGenGetClassFields(elemType).length > 0) {
                 return elemType;
@@ -2238,7 +2239,7 @@ export class MemberAccessGenerator {
       const memberAccess = arrayExpr as MemberAccessNode;
       const memberAccessObjBase = memberAccess.object as ExprBase;
       const arrayType = this.resolveMemberAccessType(memberAccess);
-      if (arrayType && arrayType.endsWith("[]")) {
+      if (arrayType && isAnyArrayTsType(arrayType)) {
         const elementType = arrayType.slice(0, -2);
         const interfaceInfoRaw = this.getInterfaceInfo(elementType);
         if (interfaceInfoRaw) {
@@ -2256,7 +2257,7 @@ export class MemberAccessGenerator {
         const paramType = this.getParameterTypeFromAST(varName);
         if (paramType) {
           const fieldType = this.getInterfaceFieldType(paramType, propName);
-          if (fieldType && fieldType.endsWith("[]")) {
+          if (fieldType && isAnyArrayTsType(fieldType)) {
             const fields = this.parseInlineObjectType(fieldType);
             if (fields) {
               const keys: string[] = [];
@@ -2287,7 +2288,7 @@ export class MemberAccessGenerator {
           const idx = objKeys.indexOf(propName);
           if (idx !== -1) {
             const fieldType = objTsTypes[idx];
-            if (fieldType && fieldType.endsWith("[]")) {
+            if (fieldType && isAnyArrayTsType(fieldType)) {
               const fields = this.parseInlineObjectType(fieldType);
               if (fields) {
                 const keys: string[] = [];
@@ -2317,7 +2318,7 @@ export class MemberAccessGenerator {
         const className = this.ctx.getCurrentClassName();
         if (className) {
           const fieldInfo = this.ctx.classGenGetFieldInfo(className, memberAccess.property);
-          if (fieldInfo && fieldInfo.tsType && fieldInfo.tsType.endsWith("[]")) {
+          if (fieldInfo && fieldInfo.tsType && isAnyArrayTsType(fieldInfo.tsType)) {
             const elementType = fieldInfo.tsType.slice(0, -2);
             const interfaceInfo = this.getInterfaceInfo(elementType);
             if (interfaceInfo) return interfaceInfo;
@@ -2328,7 +2329,7 @@ export class MemberAccessGenerator {
         const nestedType = this.resolveExpressionType(memberAccess.object);
         if (nestedType) {
           const fieldInfo = this.ctx.classGenGetFieldInfo(nestedType, memberAccess.property);
-          if (fieldInfo && fieldInfo.tsType && fieldInfo.tsType.endsWith("[]")) {
+          if (fieldInfo && fieldInfo.tsType && isAnyArrayTsType(fieldInfo.tsType)) {
             const elementType = fieldInfo.tsType.slice(0, -2);
             const interfaceInfo = this.getInterfaceInfo(elementType);
             if (interfaceInfo) return interfaceInfo;
@@ -2354,7 +2355,7 @@ export class MemberAccessGenerator {
         }
       }
       const paramType = this.getParameterTypeFromAST(varName);
-      if (paramType && paramType.endsWith("[]")) {
+      if (paramType && isAnyArrayTsType(paramType)) {
         const elemType = paramType.slice(0, -2);
         const interfaceInfo = this.getInterfaceInfo(elemType);
         if (interfaceInfo) {
@@ -2383,7 +2384,7 @@ export class MemberAccessGenerator {
       }
       if (className) {
         const retType = this.ctx.getMethodReturnType(className, mc.method);
-        if (retType && retType.endsWith("[]")) {
+        if (retType && isAnyArrayTsType(retType)) {
           const elemType = retType.slice(0, -2);
           const interfaceInfo = this.getInterfaceInfo(elemType);
           if (interfaceInfo) return interfaceInfo;
@@ -2399,7 +2400,7 @@ export class MemberAccessGenerator {
           const fn = ast.functions[fi] as FunctionNode;
           if (fn && fn.name === fnName && fn.returnType) {
             const rt = fn.returnType;
-            if (rt.endsWith("[]")) {
+            if (isAnyArrayTsType(rt)) {
               const elemType = rt.slice(0, -2);
               const interfaceInfo = this.getInterfaceInfo(elemType);
               if (interfaceInfo) return interfaceInfo;
@@ -3416,7 +3417,7 @@ export class MemberAccessGenerator {
     if (
       field.type &&
       ["string", "number", "boolean"].indexOf(field.type) === -1 &&
-      !field.type.endsWith("[]")
+      !isAnyArrayTsType(field.type)
     ) {
       this.storeInterfaceMetadata(value, field.type);
     }
@@ -3505,7 +3506,7 @@ export class MemberAccessGenerator {
     if (
       propTsType &&
       ["string", "number", "boolean"].indexOf(propTsType) === -1 &&
-      !propTsType.endsWith("[]")
+      !isAnyArrayTsType(propTsType)
     ) {
       this.storeInterfaceMetadata(value, propTsType);
     }
@@ -3591,7 +3592,7 @@ export class MemberAccessGenerator {
     if (
       propTsType &&
       ["string", "number", "boolean"].indexOf(propTsType) === -1 &&
-      !propTsType.endsWith("[]")
+      !isAnyArrayTsType(propTsType)
     ) {
       this.storeInterfaceMetadata(value, propTsType);
     }

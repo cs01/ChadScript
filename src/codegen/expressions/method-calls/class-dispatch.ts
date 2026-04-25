@@ -15,7 +15,11 @@ import {
 } from "../../../ast/types.js";
 import type { MethodCallGeneratorContext } from "../method-calls.js";
 import type { FieldInfo } from "../../infrastructure/type-resolver/types.js";
-import { mapParamTypeToLLVM, mapReturnTypeToLLVM } from "../../infrastructure/type-system.js";
+import {
+  mapParamTypeToLLVM,
+  mapReturnTypeToLLVM,
+  isAnyArrayTsType,
+} from "../../infrastructure/type-system.js";
 
 export interface InterfaceDefInfo {
   properties: { name: string; type: string }[];
@@ -754,7 +758,7 @@ export function handleClassMethods(
                 .replace(/ \| null/g, "")
                 .trim();
             }
-            if (tsType.endsWith("[]")) {
+            if (isAnyArrayTsType(tsType)) {
               tsType = tsType.substring(0, tsType.length - 2);
             }
             const classesLenIA = ctx.getAstClassesLength();
