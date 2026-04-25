@@ -13,6 +13,7 @@ import {
   CallNode,
 } from "../../ast/types.js";
 import { IGeneratorContext } from "../infrastructure/generator-context.js";
+import { emitAdd, emitSext, emitTrunc, emitAlloca } from "../infrastructure/ir-builders.js";
 import {
   SymbolKind_Number,
   SymbolKind_String,
@@ -225,8 +226,7 @@ export class ForOfGenerator {
       this.emit(`${dataArray} = load double*, double** ${dataPtr}`);
     }
 
-    const indexI64 = this.nextTemp();
-    this.emit(`${indexI64} = sext i32 ${currentIndex} to i64`);
+    const indexI64 = emitSext(this.ctx, currentIndex, "i32", "i64");
     const elemPtr = this.nextTemp();
     if (isStringSet || isStringArray || isObjectArray) {
       this.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataArray}, i64 ${indexI64}`);
@@ -257,8 +257,7 @@ export class ForOfGenerator {
 
     this.ctx.emitLabel(updateLabel);
     const loadedIndex = this.ctx.emitLoad("i32", indexAlloca);
-    const nextIndex = this.nextTemp();
-    this.emit(`${nextIndex} = add i32 ${loadedIndex}, 1`);
+    const nextIndex = emitAdd(this.ctx, "i32", loadedIndex, "1");
     this.ctx.emitStore("i32", nextIndex, indexAlloca);
     this.ctx.emitBr(condLabel);
 
@@ -340,8 +339,7 @@ export class ForOfGenerator {
 
     const elemPtrRaw = this.ctx.emitBitcast(dataArray, "double*", "i8**");
 
-    const indexI64 = this.nextTemp();
-    this.emit(`${indexI64} = sext i32 ${currentIndex} to i64`);
+    const indexI64 = emitSext(this.ctx, currentIndex, "i32", "i64");
     const elemPtrPtr = this.nextTemp();
     this.emit(`${elemPtrPtr} = getelementptr inbounds i8*, i8** ${elemPtrRaw}, i64 ${indexI64}`);
     const elemValue = this.ctx.emitLoad("i8*", elemPtrPtr);
@@ -361,8 +359,7 @@ export class ForOfGenerator {
 
     this.ctx.emitLabel(updateLabel);
     const loadedIndex = this.ctx.emitLoad("i32", indexAlloca);
-    const nextIndex = this.nextTemp();
-    this.emit(`${nextIndex} = add i32 ${loadedIndex}, 1`);
+    const nextIndex = emitAdd(this.ctx, "i32", loadedIndex, "1");
     this.ctx.emitStore("i32", nextIndex, indexAlloca);
     this.ctx.emitBr(condLabel);
 
@@ -375,8 +372,7 @@ export class ForOfGenerator {
     const strValue = this.ctx.generateExpression(stmt.iterable, params);
 
     const strLen = this.ctx.emitCall("i64", "@strlen", `i8* ${strValue}`);
-    const lenI32 = this.nextTemp();
-    this.emit(`${lenI32} = trunc i64 ${strLen} to i32`);
+    const lenI32 = emitTrunc(this.ctx, strLen, "i64", "i32");
 
     const indexAlloca = this.ctx.nextAllocaReg("__forof_idx");
     this.emit(`${indexAlloca} = alloca i32`);
@@ -404,8 +400,7 @@ export class ForOfGenerator {
     this.ctx.setCurrentLabel(bodyLabel);
 
     const charBuf = this.ctx.emitCall("i8*", "@cs_arena_alloc", "i64 2");
-    const idxI64 = this.nextTemp();
-    this.emit(`${idxI64} = sext i32 ${currentIndex} to i64`);
+    const idxI64 = emitSext(this.ctx, currentIndex, "i32", "i64");
     const charPtr = this.nextTemp();
     this.emit(`${charPtr} = getelementptr inbounds i8, i8* ${strValue}, i64 ${idxI64}`);
     const charVal = this.ctx.emitLoad("i8", charPtr);
@@ -428,8 +423,7 @@ export class ForOfGenerator {
 
     this.ctx.emitLabel(updateLabel);
     const loadedIndex = this.ctx.emitLoad("i32", indexAlloca);
-    const nextIndex = this.nextTemp();
-    this.emit(`${nextIndex} = add i32 ${loadedIndex}, 1`);
+    const nextIndex = emitAdd(this.ctx, "i32", loadedIndex, "1");
     this.ctx.emitStore("i32", nextIndex, indexAlloca);
     this.ctx.emitBr(condLabel);
 
@@ -565,8 +559,7 @@ export class ForOfGenerator {
     const dataRaw = this.ctx.emitLoad("i8*", dataFieldPtr);
     const dataCast = this.ctx.emitBitcast(dataRaw, "i8*", "i8**");
 
-    const indexI64 = this.nextTemp();
-    this.emit(`${indexI64} = sext i32 ${currentIndex} to i64`);
+    const indexI64 = emitSext(this.ctx, currentIndex, "i32", "i64");
     const elemPtr = this.nextTemp();
     this.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataCast}, i64 ${indexI64}`);
     const entryRaw = this.ctx.emitLoad("i8*", elemPtr);
@@ -600,8 +593,7 @@ export class ForOfGenerator {
 
     this.ctx.emitLabel(updateLabel);
     const loadedIndex = this.ctx.emitLoad("i32", indexAlloca);
-    const nextIndex = this.nextTemp();
-    this.emit(`${nextIndex} = add i32 ${loadedIndex}, 1`);
+    const nextIndex = emitAdd(this.ctx, "i32", loadedIndex, "1");
     this.ctx.emitStore("i32", nextIndex, indexAlloca);
     this.ctx.emitBr(condLabel);
 

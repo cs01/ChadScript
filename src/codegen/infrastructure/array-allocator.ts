@@ -27,6 +27,7 @@ import {
   createObjectMetadataWithInterface,
 } from "./symbol-table.js";
 import { stripOptional, parseArrayTypeString, isAnyArrayTsType } from "./type-system.js";
+import { emitInttoptr } from "./ir-builders.js";
 import type { ResolvedType } from "./type-system.js";
 import type { FieldInfo } from "./type-resolver/types.js";
 import type { UnionCommonFields } from "./type-resolver/index.js";
@@ -69,6 +70,7 @@ export interface ArrayAllocatorContext {
   getAst(): AST | undefined;
   typeOf(expr: Expression): ResolvedType | null;
   getArrayStorageStrategy(expr: Expression): "inlined" | "pointer";
+  setVariableType(name: string, type: string): void;
 }
 
 export class ArrayAllocator {
@@ -96,9 +98,7 @@ export class ArrayAllocator {
     const valueType = this.ctx.getVariableType(value);
     let pointerValue = value;
     if (valueType === "i32") {
-      const ptrValue = this.ctx.nextTemp();
-      this.ctx.emit(`${ptrValue} = inttoptr i32 ${value} to %StringArray*`);
-      pointerValue = ptrValue;
+      pointerValue = emitInttoptr(this.ctx, value, "i32", "%StringArray*");
     } else if (valueType !== "%StringArray*") {
       const typedPtr = this.ctx.nextTemp();
       this.ctx.emit(`${typedPtr} = bitcast i8* ${pointerValue} to %StringArray*`);

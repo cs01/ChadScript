@@ -6,6 +6,13 @@ import {
   CallNode,
 } from "../../../../ast/types.js";
 import { IGeneratorContext } from "./context.js";
+import {
+  emitAnd,
+  emitFptosi,
+  emitMul,
+  emitPtrtoint,
+  emitZext,
+} from "../../../infrastructure/ir-builders.js";
 
 /**
  * Array literal generation
@@ -119,14 +126,12 @@ export function generateArrayLiteral(
   if (isBooleanArray) {
     const sizePtr = gen.nextTemp();
     gen.emit(`${sizePtr} = getelementptr %Uint8Array, %Uint8Array* null, i32 1`);
-    const structSize = gen.nextTemp();
-    gen.emit(`${structSize} = ptrtoint %Uint8Array* ${sizePtr} to i64`);
+    const structSize = emitPtrtoint(gen, sizePtr, "%Uint8Array*", "i64");
     const arrayMem = gen.emitCall("i8*", "@GC_malloc", `i64 ${structSize}`);
     const arrayPtr = gen.emitBitcast(arrayMem, "i8*", "%Uint8Array*");
 
     const dataCount = length === 0 ? 1 : length;
-    const dataSize = gen.nextTemp();
-    gen.emit(`${dataSize} = mul i64 ${dataCount}, 1`);
+    const dataSize = emitMul(gen, "i64", `${dataCount}`, "1");
     const dataMem = gen.emitCall("i8*", "@cs_arena_alloc", `i64 ${dataSize}`);
 
     for (let i = 0; i < arrExpr.elements.length; i++) {
@@ -137,14 +142,11 @@ export function generateArrayLiteral(
       const elemType = gen.getVariableType(elemValue);
       let i8Val: string;
       if (elemType === "i1") {
-        i8Val = gen.nextTemp();
-        gen.emit(`${i8Val} = zext i1 ${elemValue} to i8`);
+        i8Val = emitZext(gen, elemValue, "i1", "i8");
       } else {
         const dblElem = gen.ensureDouble(elemValue);
-        const rawI8 = gen.nextTemp();
-        gen.emit(`${rawI8} = fptosi double ${dblElem} to i8`);
-        i8Val = gen.nextTemp();
-        gen.emit(`${i8Val} = and i8 ${rawI8}, 1`);
+        const rawI8 = emitFptosi(gen, dblElem, "i8");
+        i8Val = emitAnd(gen, "i8", rawI8, "1");
       }
       const elemPtr = gen.nextTemp();
       gen.emit(`${elemPtr} = getelementptr inbounds i8, i8* ${dataMem}, i32 ${i}`);
@@ -176,16 +178,14 @@ export function generateArrayLiteral(
     // Compute sizeof(%StringArray) dynamically for portability
     const sizePtr = gen.nextTemp();
     gen.emit(`${sizePtr} = getelementptr %StringArray, %StringArray* null, i32 1`);
-    const structSize = gen.nextTemp();
-    gen.emit(`${structSize} = ptrtoint %StringArray* ${sizePtr} to i64`);
+    const structSize = emitPtrtoint(gen, sizePtr, "%StringArray*", "i64");
     const arrayMem = gen.emitCall("i8*", "@GC_malloc", `i64 ${structSize}`);
     const arrayPtr = gen.emitBitcast(arrayMem, "i8*", "%StringArray*");
 
     // Allocate data array on heap (i8** with length elements)
     // GC_malloc for pointer array (GC needs to scan for string pointers)
     const dataCount = length === 0 ? 1 : length; // Allocate at least 1 element
-    const dataSize = gen.nextTemp();
-    gen.emit(`${dataSize} = mul i64 ${dataCount}, 8`);
+    const dataSize = emitMul(gen, "i64", `${dataCount}`, "8");
     const dataMem = gen.emitCall("i8*", "@GC_malloc", `i64 ${dataSize}`);
     const dataPtr = gen.emitBitcast(dataMem, "i8*", "i8**");
 
@@ -225,15 +225,13 @@ export function generateArrayLiteral(
 
     const sizePtr = gen.nextTemp();
     gen.emit(`${sizePtr} = getelementptr %ObjectArray, %ObjectArray* null, i32 1`);
-    const structSize = gen.nextTemp();
-    gen.emit(`${structSize} = ptrtoint %ObjectArray* ${sizePtr} to i64`);
+    const structSize = emitPtrtoint(gen, sizePtr, "%ObjectArray*", "i64");
     const arrayMem = gen.emitCall("i8*", "@GC_malloc", `i64 ${structSize}`);
     const arrayPtr = gen.emitBitcast(arrayMem, "i8*", "%ObjectArray*");
 
     const dataCount = length === 0 ? 1 : length;
     if (contiguousStride > 0) {
-      const dataSize = gen.nextTemp();
-      gen.emit(`${dataSize} = mul i64 ${dataCount}, ${contiguousStride}`);
+      const dataSize = emitMul(gen, "i64", `${dataCount}`, `${contiguousStride}`);
       const dataMem = gen.emitCall("i8*", "@GC_malloc_atomic", `i64 ${dataSize}`);
 
       for (let i = 0; i < arrExpr.elements.length; i++) {
@@ -242,8 +240,7 @@ export function generateArrayLiteral(
             ? firstElemValue
             : gen.generateExpression(arrExpr.elements[i], params);
         const elemCast = gen.emitBitcast(elemValue, gen.getVariableType(elemValue) || "i8*", "i8*");
-        const offset = gen.nextTemp();
-        gen.emit(`${offset} = mul i64 ${i}, ${contiguousStride}`);
+        const offset = emitMul(gen, "i64", `${i}`, `${contiguousStride}`);
         const dest = gen.nextTemp();
         gen.emit(`${dest} = getelementptr inbounds i8, i8* ${dataMem}, i64 ${offset}`);
         gen.emit(
@@ -257,8 +254,7 @@ export function generateArrayLiteral(
       );
       gen.emitStore("i8*", dataMem, dataPtrField);
     } else {
-      const dataSize = gen.nextTemp();
-      gen.emit(`${dataSize} = mul i64 ${dataCount}, 8`);
+      const dataSize = emitMul(gen, "i64", `${dataCount}`, "8");
       const dataMem = gen.emitCall("i8*", "@GC_malloc", `i64 ${dataSize}`);
       const dataPtr = gen.emitBitcast(dataMem, "i8*", "i8**");
 
@@ -300,16 +296,14 @@ export function generateArrayLiteral(
     // Compute sizeof(%Array) dynamically for portability
     const sizePtr = gen.nextTemp();
     gen.emit(`${sizePtr} = getelementptr %Array, %Array* null, i32 1`);
-    const structSize = gen.nextTemp();
-    gen.emit(`${structSize} = ptrtoint %Array* ${sizePtr} to i64`);
+    const structSize = emitPtrtoint(gen, sizePtr, "%Array*", "i64");
     const arrayMem = gen.emitCall("i8*", "@GC_malloc", `i64 ${structSize}`);
     const arrayPtr = gen.emitBitcast(arrayMem, "i8*", "%Array*");
 
     // Allocate data array on heap (double* with length elements)
     // GC_malloc_atomic for numeric array (no pointers inside)
     const dataCount = length === 0 ? 1 : length; // Allocate at least 1 element
-    const dataSize = gen.nextTemp();
-    gen.emit(`${dataSize} = mul i64 ${dataCount}, 8`);
+    const dataSize = emitMul(gen, "i64", `${dataCount}`, "8");
     const dataMem = gen.emitCall("i8*", "@cs_arena_alloc", `i64 ${dataSize}`);
     const dataPtr = gen.emitBitcast(dataMem, "i8*", "double*");
 

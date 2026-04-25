@@ -3,6 +3,7 @@
 
 import { Expression, MethodCallNode, VariableNode } from "../../../../ast/types.js";
 import { IGeneratorContext } from "./context.js";
+import { emitAdd, emitFcmp, emitSub, emitZext } from "../../../infrastructure/ir-builders.js";
 
 interface ExprBase {
   type: string;
@@ -134,8 +135,7 @@ function generateDefaultNumericSort(gen: ArraySortContext, arrayPtr: string): st
 
   const dataI8 = gen.nextTemp();
   gen.emit(`${dataI8} = bitcast double* ${dataPtr} to i8*`);
-  const lenI64 = gen.nextTemp();
-  gen.emit(`${lenI64} = zext i32 ${length} to i64`);
+  const lenI64 = emitZext(gen, length, "i32", "i64");
 
   gen.emit(
     `call void @qsort(i8* ${dataI8}, i64 ${lenI64}, i64 8, i32 (i8*, i8*)* @__cmp_double_asc)`,
@@ -162,8 +162,7 @@ function generateDefaultStringSort(gen: ArraySortContext, arrayPtr: string): str
 
   const dataI8 = gen.nextTemp();
   gen.emit(`${dataI8} = bitcast i8** ${dataPtr} to i8*`);
-  const lenI64 = gen.nextTemp();
-  gen.emit(`${lenI64} = zext i32 ${length} to i64`);
+  const lenI64 = emitZext(gen, length, "i32", "i64");
 
   gen.emit(
     `call void @qsort(i8* ${dataI8}, i64 ${lenI64}, i64 8, i32 (i8*, i8*)* @__cmp_string_asc)`,
@@ -207,8 +206,7 @@ function generateNumericSortWithFn(
   const jPtr = gen.nextTemp();
   gen.emit(`${jPtr} = alloca i32`);
 
-  const lenMinus1 = gen.nextTemp();
-  gen.emit(`${lenMinus1} = sub i32 ${length}, 1`);
+  const lenMinus1 = emitSub(gen, "i32", length, "1");
 
   gen.emit(`br label %${checkLabel}`);
 
@@ -222,8 +220,7 @@ function generateNumericSortWithFn(
   gen.emit(`${outerBody}:`);
   gen.emit(`store i32 0, i32* ${jPtr}`);
 
-  const remaining = gen.nextTemp();
-  gen.emit(`${remaining} = sub i32 ${lenMinus1}, ${i}`);
+  const remaining = emitSub(gen, "i32", lenMinus1, i);
 
   gen.emit(`br label %${innerCheck}`);
 
@@ -240,8 +237,7 @@ function generateNumericSortWithFn(
   const valA = gen.nextTemp();
   gen.emit(`${valA} = load double, double* ${ptrA}`);
 
-  const jPlus1 = gen.nextTemp();
-  gen.emit(`${jPlus1} = add i32 ${j}, 1`);
+  const jPlus1 = emitAdd(gen, "i32", j, "1");
   const ptrB = gen.nextTemp();
   gen.emit(`${ptrB} = getelementptr inbounds double, double* ${dataPtr}, i32 ${jPlus1}`);
   const valB = gen.nextTemp();
@@ -252,8 +248,7 @@ function generateNumericSortWithFn(
     ? `i8* ${envPtr}, double ${valA}, double ${valB}`
     : `double ${valA}, double ${valB}`;
   gen.emit(`${cmpResult} = call double @${compareFn}(${cmpArgs})`);
-  const shouldSwap = gen.nextTemp();
-  gen.emit(`${shouldSwap} = fcmp ogt double ${cmpResult}, 0.0`);
+  const shouldSwap = emitFcmp(gen, "ogt", cmpResult, "0.0");
   gen.emit(`br i1 ${shouldSwap}, label %${swapLabel}, label %${noSwapLabel}`);
 
   gen.emit(`${swapLabel}:`);
@@ -265,14 +260,12 @@ function generateNumericSortWithFn(
   gen.emit(`br label %${innerNext}`);
 
   gen.emit(`${innerNext}:`);
-  const nextJ = gen.nextTemp();
-  gen.emit(`${nextJ} = add i32 ${j}, 1`);
+  const nextJ = emitAdd(gen, "i32", j, "1");
   gen.emit(`store i32 ${nextJ}, i32* ${jPtr}`);
   gen.emit(`br label %${innerCheck}`);
 
   gen.emit(`${outerNext}:`);
-  const nextI = gen.nextTemp();
-  gen.emit(`${nextI} = add i32 ${i}, 1`);
+  const nextI = emitAdd(gen, "i32", i, "1");
   gen.emit(`store i32 ${nextI}, i32* ${iPtr}`);
   gen.emit(`br label %${checkLabel}`);
 
@@ -319,8 +312,7 @@ function generateStringSortWithFn(
   const jPtr = gen.nextTemp();
   gen.emit(`${jPtr} = alloca i32`);
 
-  const lenMinus1 = gen.nextTemp();
-  gen.emit(`${lenMinus1} = sub i32 ${length}, 1`);
+  const lenMinus1 = emitSub(gen, "i32", length, "1");
 
   gen.emit(`br label %${checkLabel}`);
 
@@ -334,8 +326,7 @@ function generateStringSortWithFn(
   gen.emit(`${outerBody}:`);
   gen.emit(`store i32 0, i32* ${jPtr}`);
 
-  const remaining = gen.nextTemp();
-  gen.emit(`${remaining} = sub i32 ${lenMinus1}, ${i}`);
+  const remaining = emitSub(gen, "i32", lenMinus1, i);
 
   gen.emit(`br label %${innerCheck}`);
 
@@ -352,8 +343,7 @@ function generateStringSortWithFn(
   const valA = gen.nextTemp();
   gen.emit(`${valA} = load i8*, i8** ${ptrA}`);
 
-  const jPlus1 = gen.nextTemp();
-  gen.emit(`${jPlus1} = add i32 ${j}, 1`);
+  const jPlus1 = emitAdd(gen, "i32", j, "1");
   const ptrB = gen.nextTemp();
   gen.emit(`${ptrB} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${jPlus1}`);
   const valB = gen.nextTemp();
@@ -362,8 +352,7 @@ function generateStringSortWithFn(
   const cmpResult = gen.nextTemp();
   const cmpArgs = envPtr ? `i8* ${envPtr}, i8* ${valA}, i8* ${valB}` : `i8* ${valA}, i8* ${valB}`;
   gen.emit(`${cmpResult} = call double @${compareFn}(${cmpArgs})`);
-  const shouldSwap = gen.nextTemp();
-  gen.emit(`${shouldSwap} = fcmp ogt double ${cmpResult}, 0.0`);
+  const shouldSwap = emitFcmp(gen, "ogt", cmpResult, "0.0");
   gen.emit(`br i1 ${shouldSwap}, label %${swapLabel}, label %${noSwapLabel}`);
 
   gen.emit(`${swapLabel}:`);
@@ -375,14 +364,12 @@ function generateStringSortWithFn(
   gen.emit(`br label %${innerNext}`);
 
   gen.emit(`${innerNext}:`);
-  const nextJ = gen.nextTemp();
-  gen.emit(`${nextJ} = add i32 ${j}, 1`);
+  const nextJ = emitAdd(gen, "i32", j, "1");
   gen.emit(`store i32 ${nextJ}, i32* ${jPtr}`);
   gen.emit(`br label %${innerCheck}`);
 
   gen.emit(`${outerNext}:`);
-  const nextI = gen.nextTemp();
-  gen.emit(`${nextI} = add i32 ${i}, 1`);
+  const nextI = emitAdd(gen, "i32", i, "1");
   gen.emit(`store i32 ${nextI}, i32* ${iPtr}`);
   gen.emit(`br label %${checkLabel}`);
 
@@ -431,8 +418,7 @@ function generateObjectSortWithFn(
   const jAlloc = gen.nextTemp();
   gen.emit(`${jAlloc} = alloca i32`);
 
-  const lenMinus1 = gen.nextTemp();
-  gen.emit(`${lenMinus1} = sub i32 ${length}, 1`);
+  const lenMinus1 = emitSub(gen, "i32", length, "1");
 
   gen.emit(`br label %${checkLabel}`);
 
@@ -445,8 +431,7 @@ function generateObjectSortWithFn(
 
   gen.emit(`${outerBody}:`);
   gen.emit(`store i32 0, i32* ${jAlloc}`);
-  const remaining = gen.nextTemp();
-  gen.emit(`${remaining} = sub i32 ${lenMinus1}, ${i}`);
+  const remaining = emitSub(gen, "i32", lenMinus1, i);
   gen.emit(`br label %${innerCheck}`);
 
   gen.emit(`${innerCheck}:`);
@@ -462,8 +447,7 @@ function generateObjectSortWithFn(
   const valA = gen.nextTemp();
   gen.emit(`${valA} = load i8*, i8** ${ptrA}`);
 
-  const jPlus1 = gen.nextTemp();
-  gen.emit(`${jPlus1} = add i32 ${j}, 1`);
+  const jPlus1 = emitAdd(gen, "i32", j, "1");
   const ptrB = gen.nextTemp();
   gen.emit(`${ptrB} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${jPlus1}`);
   const valB = gen.nextTemp();
@@ -472,8 +456,7 @@ function generateObjectSortWithFn(
   const cmpResult = gen.nextTemp();
   const cmpArgs = envPtr ? `i8* ${envPtr}, i8* ${valA}, i8* ${valB}` : `i8* ${valA}, i8* ${valB}`;
   gen.emit(`${cmpResult} = call double @${compareFn}(${cmpArgs})`);
-  const shouldSwap = gen.nextTemp();
-  gen.emit(`${shouldSwap} = fcmp ogt double ${cmpResult}, 0.0`);
+  const shouldSwap = emitFcmp(gen, "ogt", cmpResult, "0.0");
   gen.emit(`br i1 ${shouldSwap}, label %${swapLabel}, label %${noSwapLabel}`);
 
   gen.emit(`${swapLabel}:`);
@@ -485,14 +468,12 @@ function generateObjectSortWithFn(
   gen.emit(`br label %${innerNext}`);
 
   gen.emit(`${innerNext}:`);
-  const nextJ = gen.nextTemp();
-  gen.emit(`${nextJ} = add i32 ${j}, 1`);
+  const nextJ = emitAdd(gen, "i32", j, "1");
   gen.emit(`store i32 ${nextJ}, i32* ${jAlloc}`);
   gen.emit(`br label %${innerCheck}`);
 
   gen.emit(`${outerNext}:`);
-  const nextI = gen.nextTemp();
-  gen.emit(`${nextI} = add i32 ${i}, 1`);
+  const nextI = emitAdd(gen, "i32", i, "1");
   gen.emit(`store i32 ${nextI}, i32* ${iAlloc}`);
   gen.emit(`br label %${checkLabel}`);
 

@@ -53,6 +53,7 @@ import {
 } from "./type-system.js";
 import { findI64EligibleVariables } from "./integer-analysis.js";
 import type { LiftedFunction } from "../expressions/arrow-functions.js";
+import { emitFptosi } from "./ir-builders.js";
 
 export interface FunctionGeneratorContext {
   reset(): void;
@@ -118,6 +119,7 @@ export interface FunctionGeneratorContext {
   getUsesMathRandom(): boolean;
   getAllInterfaceFields(iface: InterfaceDeclaration): InterfaceField[];
   markContiguousObjectArray(name: string, numFields: number): void;
+  setVariableType(name: string, type: string): void;
 }
 
 export class FunctionGenerator {
@@ -665,8 +667,7 @@ export class FunctionGenerator {
           } else if (paramAbiIsI64) {
             this.ctx.emit(`store i64 %arg${i}, i64* ${allocaReg}`);
           } else {
-            const i64Val = this.ctx.nextTemp();
-            this.ctx.emit(`${i64Val} = fptosi double %arg${i} to i64`);
+            const i64Val = emitFptosi(this.ctx, `%arg${i}`, "i64");
             this.ctx.emit(`store i64 ${i64Val}, i64* ${allocaReg}`);
           }
         } else {
@@ -1070,8 +1071,7 @@ export class FunctionGenerator {
     this.ctx.emit(`br i1 ${cmpReg}, label %${hasArgLabel}, label %${noArgLabel}`);
 
     this.ctx.emit(`${hasArgLabel}:`);
-    const i64Val = this.ctx.nextTemp();
-    this.ctx.emit(`${i64Val} = fptosi double %arg${paramIndex} to i64`);
+    const i64Val = emitFptosi(this.ctx, `%arg${paramIndex}`, "i64");
     this.ctx.emit(`store i64 ${i64Val}, i64* ${allocaReg}`);
     this.ctx.emit(`br label %${doneLabel}`);
 
@@ -1079,8 +1079,7 @@ export class FunctionGenerator {
     if (paramInfo.defaultValue) {
       const defaultReg = this.ctx.generateExpression(paramInfo.defaultValue, params);
       const coerced = this.ctx.ensureDouble(defaultReg);
-      const defI64 = this.ctx.nextTemp();
-      this.ctx.emit(`${defI64} = fptosi double ${coerced} to i64`);
+      const defI64 = emitFptosi(this.ctx, coerced, "i64");
       this.ctx.emit(`store i64 ${defI64}, i64* ${allocaReg}`);
     } else {
       this.ctx.emit(`store i64 0, i64* ${allocaReg}`);
