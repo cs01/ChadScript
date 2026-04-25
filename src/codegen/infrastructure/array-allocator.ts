@@ -26,7 +26,7 @@ import {
   createObjectMetadata,
   createObjectMetadataWithInterface,
 } from "./symbol-table.js";
-import { stripOptional, parseArrayTypeString } from "./type-system.js";
+import { stripOptional, parseArrayTypeString, isAnyArrayTsType } from "./type-system.js";
 import type { ResolvedType } from "./type-system.js";
 import type { FieldInfo } from "./type-resolver/types.js";
 import type { UnionCommonFields } from "./type-resolver/index.js";
@@ -145,7 +145,7 @@ export class ArrayAllocator {
     const allocaReg = this.ctx.nextAllocaReg(stmt.name);
 
     let elementType = this.ctx.getObjectArrayElementType(stmt.value!);
-    if (!elementType && stmt.declaredType && stmt.declaredType.endsWith("[]")) {
+    if (!elementType && stmt.declaredType && isAnyArrayTsType(stmt.declaredType)) {
       elementType = stmt.declaredType.slice(0, -2);
     }
 
@@ -426,7 +426,7 @@ export class ArrayAllocator {
         const tsTypes = objMeta.tsTypes as string[];
         if (tsTypes.length > 0) {
           const firstType = tsTypes[0];
-          if (firstType && firstType.endsWith("[]")) {
+          if (firstType && isAnyArrayTsType(firstType)) {
             const elementType = firstType.slice(0, -2);
             return this.interfaceAlloc.getTypeInfoForElementType(elementType);
           }
@@ -451,7 +451,7 @@ export class ArrayAllocator {
     if (idxObjBase.type === "method_call") {
       const methodCall = indexExpr.object as MethodCallNode;
       const returnType = this.getMethodCallReturnType(methodCall);
-      if (returnType && returnType.endsWith("[]")) {
+      if (returnType && isAnyArrayTsType(returnType)) {
         const elementType = returnType.slice(0, -2).trim();
         return this.interfaceAlloc.getTypeInfoForElementType(elementType);
       }
@@ -467,7 +467,7 @@ export class ArrayAllocator {
           const fn = funcs[i];
           if (fn.name === callExpr.name && fn.returnType) {
             const rt = fn.returnType;
-            if (rt.endsWith("[]")) {
+            if (isAnyArrayTsType(rt)) {
               const elementType = rt.slice(0, -2).trim();
               return this.interfaceAlloc.getTypeInfoForElementType(elementType);
             }

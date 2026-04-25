@@ -17,7 +17,7 @@ import {
   SymbolMetadata,
   createClassMetadata,
 } from "./symbol-table.js";
-import { stripNullable } from "./type-system.js";
+import { stripNullable, isAnyArrayTsType } from "./type-system.js";
 import type { FieldInfo } from "./type-resolver/types.js";
 import type { ResolvedType } from "./type-system.js";
 
@@ -218,7 +218,7 @@ export class ClassAllocator {
               .replace(/ \| null/g, "")
               .trim();
           }
-          if (tsType.endsWith("[]")) {
+          if (isAnyArrayTsType(tsType)) {
             const elemType = tsType.substring(0, tsType.length - 2);
             if (this.interfaceAlloc.isKnownClass(elemType)) return elemType;
           }

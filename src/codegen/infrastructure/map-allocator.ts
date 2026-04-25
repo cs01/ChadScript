@@ -26,7 +26,12 @@ import {
   createObjectMetadataWithInterface,
   createInterfacePointerAllocaMetadata,
 } from "./symbol-table.js";
-import { stripOptional, parseMapTypeString, parseSetTypeString } from "./type-system.js";
+import {
+  stripOptional,
+  parseMapTypeString,
+  parseSetTypeString,
+  isAnyArrayTsType,
+} from "./type-system.js";
 import type { FieldInfo } from "./type-resolver/types.js";
 import type { ResolvedType } from "./type-system.js";
 
@@ -382,7 +387,7 @@ export class MapAllocator {
     if (!valueType) return null;
     if (valueType === "string" || valueType === "number" || valueType === "boolean") return null;
 
-    if (valueType.endsWith("[]")) {
+    if (isAnyArrayTsType(valueType)) {
       return valueType;
     }
 
@@ -397,7 +402,7 @@ export class MapAllocator {
     params: string[],
     interfaceName: string,
   ): void {
-    if (interfaceName.endsWith("[]")) {
+    if (isAnyArrayTsType(interfaceName)) {
       this.allocateMapGetArray(stmt, params, interfaceName);
       return;
     }

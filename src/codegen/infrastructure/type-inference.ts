@@ -33,6 +33,7 @@ import {
   createResolvedType,
   tsTypeToLlvm,
   isObjectArrayTsType,
+  isAnyArrayTsType,
 } from "./type-system.js";
 import type {
   ResolvedType,
@@ -1778,7 +1779,7 @@ export class TypeInference {
           const method = this.getClassMethod(className, methodExpr.method);
           if (method && method.returnType) {
             const rt = stripNullable(method.returnType);
-            if (rt.endsWith("[]")) return true;
+            if (isAnyArrayTsType(rt)) return true;
           }
         }
       }
@@ -1791,7 +1792,7 @@ export class TypeInference {
           const method = this.getClassMethod(className, methodExpr.method);
           if (method && method.returnType) {
             const rt = stripNullable(method.returnType);
-            if (rt.endsWith("[]")) return true;
+            if (isAnyArrayTsType(rt)) return true;
           }
         }
       }
@@ -1803,7 +1804,7 @@ export class TypeInference {
           const method = this.getClassMethod(memberTypeName, methodExpr.method);
           if (method && method.returnType) {
             const rt = stripNullable(method.returnType);
-            if (rt.endsWith("[]")) return true;
+            if (isAnyArrayTsType(rt)) return true;
           }
         }
       }
@@ -1849,14 +1850,14 @@ export class TypeInference {
         const paramType = this.getParameterType(varName);
         if (paramType) {
           const fieldType = this.getFieldTypeFromType(paramType, memberExpr.property);
-          if (fieldType && fieldType.endsWith("[]")) {
+          if (fieldType && isAnyArrayTsType(fieldType)) {
             return true;
           }
         }
         const ifaceType = this.st.getInterfaceType(varName);
         if (ifaceType && ifaceType.length > 0) {
           const fieldType = this.getFieldTypeFromType(ifaceType, memberExpr.property);
-          if (fieldType && fieldType.endsWith("[]")) {
+          if (fieldType && isAnyArrayTsType(fieldType)) {
             return true;
           }
         }
@@ -2636,7 +2637,7 @@ export class TypeInference {
       const method = this.getClassMethod(className, methodExpr.method);
       if (method && method.returnType) {
         const rt = stripNullable(method.returnType);
-        if (rt.endsWith("[]")) {
+        if (isAnyArrayTsType(rt)) {
           const elementTypeName = rt.slice(0, -2).trim();
           if (
             elementTypeName === "string" ||

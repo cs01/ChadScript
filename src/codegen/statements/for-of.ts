@@ -612,7 +612,7 @@ export class ForOfGenerator {
 
   private parseInlineObjectType(typeStr: string): { name: string; type: string }[] | null {
     let str = typeStr.trim();
-    if (str.endsWith("[]")) {
+    if (isAnyArrayTsType(str)) {
       str = str.slice(0, -2).trim();
     }
     if (!str.startsWith("{") || !str.endsWith("}")) {

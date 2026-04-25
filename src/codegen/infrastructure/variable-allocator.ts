@@ -49,7 +49,12 @@ import {
 import { TypeResolver, UnionCommonFields } from "./type-resolver/index.js";
 import type { FieldInfo } from "./type-resolver/types.js";
 import { stripOptional, stripNullable, tsTypeToLlvmJson } from "./type-system.js";
-import { parseTypeString, isObjectArrayTsType, type ResolvedType } from "./type-system.js";
+import {
+  parseTypeString,
+  isObjectArrayTsType,
+  isAnyArrayTsType,
+  type ResolvedType,
+} from "./type-system.js";
 import { InterfaceAllocator } from "./interface-allocator.js";
 import { MapAllocator } from "./map-allocator.js";
 import { ClassAllocator } from "./class-allocator.js";
@@ -1249,7 +1254,7 @@ export class VariableAllocator {
       }
       if (mcClassName) {
         const rt = this.ctx.getMethodReturnType(mcClassName, mc.method);
-        if (rt && !rt.endsWith("[]")) {
+        if (rt && !isAnyArrayTsType(rt)) {
           objectInterfaceType = stripNullable(rt);
         }
       }
@@ -1260,7 +1265,7 @@ export class VariableAllocator {
         const funcs = ast.functions || [];
         for (let i = 0; i < funcs.length; i++) {
           const fn = funcs[i];
-          if (fn.name === ce.name && fn.returnType && !fn.returnType.endsWith("[]")) {
+          if (fn.name === ce.name && fn.returnType && !isAnyArrayTsType(fn.returnType)) {
             objectInterfaceType = stripNullable(fn.returnType);
             break;
           }
@@ -1281,7 +1286,7 @@ export class VariableAllocator {
             const propType = objMeta.tsTypes[keyIdx];
             if (
               propType &&
-              !propType.endsWith("[]") &&
+              !isAnyArrayTsType(propType) &&
               propType !== "string" &&
               propType !== "number" &&
               propType !== "boolean"
@@ -1310,7 +1315,7 @@ export class VariableAllocator {
         const fieldType = field.type;
         if (
           fieldType &&
-          !fieldType.endsWith("[]") &&
+          !isAnyArrayTsType(fieldType) &&
           fieldType !== "string" &&
           fieldType !== "number" &&
           fieldType !== "boolean"

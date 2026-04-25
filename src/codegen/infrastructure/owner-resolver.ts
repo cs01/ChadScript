@@ -1,5 +1,5 @@
 import type { Expression, VariableNode, MemberAccessNode } from "../../ast/types.js";
-import { stripNullable } from "./type-system.js";
+import { stripNullable, isAnyArrayTsType } from "./type-system.js";
 
 interface ExprBase {
   type: string;
@@ -35,7 +35,7 @@ export function resolveOwnerClass(
     const tsType = getFieldTsType(ownerClass, ma.property);
     if (!tsType) return null;
     const stripped = stripNullable(tsType);
-    if (stripped.endsWith("[]") || stripped.startsWith("Map<") || stripped.startsWith("Set<")) {
+    if (isAnyArrayTsType(stripped) || stripped.startsWith("Map<") || stripped.startsWith("Set<")) {
       return null;
     }
     if (isClassType(stripped)) return stripped;
