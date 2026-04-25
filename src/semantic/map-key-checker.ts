@@ -7,6 +7,12 @@ import type {
   FunctionNode,
   Statement,
   BlockStatement,
+  IfStatement,
+  WhileStatement,
+  DoWhileStatement,
+  ForStatement,
+  ForOfStatement,
+  TryStatement,
 } from "../ast/types.js";
 import { formatCompileError } from "../diagnostics/engine.js";
 
@@ -109,25 +115,21 @@ function walkStatement(stmt: Statement, sourceCode: string): void {
     }
     checkExpr(decl.value, sourceCode);
   } else if (t === "if") {
-    const ifStmt = stmt as { thenBlock: BlockStatement; elseBlock: BlockStatement | null };
+    const ifStmt = stmt as IfStatement;
     walkBlock(ifStmt.thenBlock, sourceCode);
     if (ifStmt.elseBlock) walkBlock(ifStmt.elseBlock, sourceCode);
-  } else if (t === "while" || t === "do_while") {
-    const loop = stmt as { body: BlockStatement };
-    walkBlock(loop.body, sourceCode);
+  } else if (t === "while") {
+    walkBlock((stmt as WhileStatement).body, sourceCode);
+  } else if (t === "do_while") {
+    walkBlock((stmt as DoWhileStatement).body, sourceCode);
   } else if (t === "for") {
-    const forStmt = stmt as { init: Statement | null; body: BlockStatement };
-    if (forStmt.init) walkStatement(forStmt.init, sourceCode);
+    const forStmt = stmt as ForStatement;
+    if (forStmt.init) walkStatement(forStmt.init as Statement, sourceCode);
     walkBlock(forStmt.body, sourceCode);
   } else if (t === "for_of") {
-    const forOf = stmt as { body: BlockStatement };
-    walkBlock(forOf.body, sourceCode);
+    walkBlock((stmt as ForOfStatement).body, sourceCode);
   } else if (t === "try") {
-    const tryStmt = stmt as {
-      tryBlock: BlockStatement;
-      catchBody: BlockStatement | null;
-      finallyBlock: BlockStatement | null;
-    };
+    const tryStmt = stmt as TryStatement;
     walkBlock(tryStmt.tryBlock, sourceCode);
     if (tryStmt.catchBody) walkBlock(tryStmt.catchBody, sourceCode);
     if (tryStmt.finallyBlock) walkBlock(tryStmt.finallyBlock, sourceCode);
