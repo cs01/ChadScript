@@ -160,7 +160,7 @@ import { annotateTypes } from "../semantic/type-annotator.js";
 import { SemaTable } from "../semantic/sema-table.js";
 import { checkUninitializedFields } from "../semantic/uninitialized-field-checker.js";
 import { analyzeEscapes } from "../semantic/escape-analysis.js";
-// binary-type-checker.ts: original top-level-only checker kept for reference; deep version is in safety-checks.ts
+import { checkBinaryTypes } from "../semantic/binary-type-checker.js";
 import { checkEnumDeclarations } from "../semantic/enum-checker.js";
 import { normalizeInterfaceLayouts } from "../semantic/interface-layout-normalizer.js";
 import { checkAsyncAwait } from "../semantic/async-await-checker.js";
@@ -169,11 +169,7 @@ import { checkUntypedParams } from "../semantic/untyped-param-checker.js";
 import { checkOrFallback } from "../semantic/or-fallback-checker.js";
 import { checkMixedOperators } from "../semantic/mixed-operator-checker.js";
 import { checkDuplicateDeclarations } from "../semantic/duplicate-decl-checker.js";
-import {
-  checkBinaryTypesDeep,
-  checkMissingReturns,
-  checkArgumentCounts,
-} from "../semantic/safety-checks.js";
+import { checkMissingReturns, checkArgumentCounts } from "../semantic/safety-checks.js";
 import { DebugMetadataBuilder } from "./infrastructure/debug-metadata.js";
 
 export interface SemaSymbolData {
@@ -3088,7 +3084,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     checkArraysOfFunctions(this.ast, this.sourceCode);
     checkTypeAssertions(this.ast, this.sourceCode);
     checkUninitializedFields(this.ast, this.sourceCode);
-    checkBinaryTypesDeep(this.ast, this.sourceCode);
+    checkBinaryTypes(this.ast, this.sourceCode);
     checkMissingReturns(this.ast, this.sourceCode);
     checkArgumentCounts(this.ast, this.sourceCode);
     checkAsyncAwait(this.ast, this.sourceCode);

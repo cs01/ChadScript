@@ -6,6 +6,19 @@ import type {
   UnaryNode,
   VariableDeclaration,
   AssignmentStatement,
+  FunctionNode,
+  ClassNode,
+  ClassMethod,
+  IfStatement,
+  WhileStatement,
+  DoWhileStatement,
+  ForStatement,
+  ForOfStatement,
+  TryStatement,
+  SwitchStatement,
+  ReturnStatement,
+  ThrowStatement,
+  BlockStatement,
 } from "../ast/types.js";
 import { formatCompileError } from "../diagnostics/engine.js";
 
@@ -117,23 +130,96 @@ function checkAssignBinary(assign: AssignmentStatement, sourceCode: string): voi
   checkBinaryInExpr(assign.value, sourceCode);
 }
 
+function walkStmt(stmt: unknown, src: string): void {
+  if (!stmt) return;
+  const stype = (stmt as { type: string }).type;
+  if (stype === "variable_declaration") {
+    checkVarDeclBinary(stmt as VariableDeclaration, src);
+  } else if (stype === "assignment") {
+    checkAssignBinary(stmt as AssignmentStatement, src);
+  } else if (stype === "return") {
+    const r = stmt as ReturnStatement;
+    if (r.value) checkBinaryInExpr(r.value as Expression, src);
+  } else if (stype === "throw") {
+    checkBinaryInExpr((stmt as ThrowStatement).argument, src);
+  } else if (stype === "if") {
+    const i = stmt as IfStatement;
+    checkBinaryInExpr(i.condition, src);
+    walkBlock(i.thenBlock, src);
+    if (i.elseBlock) walkBlock(i.elseBlock, src);
+  } else if (stype === "while") {
+    const w = stmt as WhileStatement;
+    checkBinaryInExpr(w.condition, src);
+    walkBlock(w.body, src);
+  } else if (stype === "do_while") {
+    const d = stmt as DoWhileStatement;
+    walkBlock(d.body, src);
+    checkBinaryInExpr(d.condition, src);
+  } else if (stype === "for") {
+    const f = stmt as ForStatement;
+    if (f.init) walkStmt(f.init, src);
+    if (f.condition) checkBinaryInExpr(f.condition, src);
+    if (f.update) {
+      if ((f.update as { type: string }).type === "assignment") walkStmt(f.update, src);
+      else checkBinaryInExpr(f.update as Expression, src);
+    }
+    walkBlock(f.body, src);
+  } else if (stype === "for_of") {
+    const fo = stmt as ForOfStatement;
+    checkBinaryInExpr(fo.iterable, src);
+    walkBlock(fo.body, src);
+  } else if (stype === "try") {
+    const t = stmt as TryStatement;
+    walkBlock(t.tryBlock, src);
+    if (t.catchBody) walkBlock(t.catchBody, src);
+    if (t.finallyBlock) walkBlock(t.finallyBlock, src);
+  } else if (stype === "switch") {
+    const sw = stmt as SwitchStatement;
+    checkBinaryInExpr(sw.discriminant, src);
+    let ci = 0;
+    while (ci < sw.cases.length) {
+      const c = sw.cases[ci];
+      if (c.test) checkBinaryInExpr(c.test as Expression, src);
+      walkStmts(c.consequent, src);
+      ci = ci + 1;
+    }
+  } else if (stype === "block") {
+    walkBlock(stmt as BlockStatement, src);
+  } else if (stype === "binary") {
+    checkBinaryInExpr(stmt as unknown as Expression, src);
+  }
+}
+
+function walkStmts(stmts: unknown[], src: string): void {
+  let i = 0;
+  while (i < stmts.length) {
+    walkStmt(stmts[i], src);
+    i = i + 1;
+  }
+}
+
+function walkBlock(block: BlockStatement, src: string): void {
+  walkStmts(block.statements, src);
+}
+
 export function checkBinaryTypes(ast: AST, sourceCode: string): void {
   const items = ast.topLevelItems;
-  if (!items) return;
-  let i = 0;
-  while (i < items.length) {
-    const item = items[i];
-    if (item) {
-      const s = item as { type: string };
-      const stype = s.type;
-      if (stype === "variable_declaration") {
-        checkVarDeclBinary(item as VariableDeclaration, sourceCode);
-      } else if (stype === "assignment") {
-        checkAssignBinary(item as AssignmentStatement, sourceCode);
-      } else if (stype === "binary") {
-        checkBinaryInExpr(item as unknown as Expression, sourceCode);
-      }
+  if (items) walkStmts(items as unknown[], sourceCode);
+  let fi = 0;
+  while (fi < ast.functions.length) {
+    const fn = ast.functions[fi] as FunctionNode;
+    walkBlock(fn.body, sourceCode);
+    fi = fi + 1;
+  }
+  let ci = 0;
+  while (ci < ast.classes.length) {
+    const cls = ast.classes[ci] as ClassNode;
+    let mi = 0;
+    while (mi < cls.methods.length) {
+      const m = cls.methods[mi] as ClassMethod;
+      walkBlock(m.body, sourceCode);
+      mi = mi + 1;
     }
-    i = i + 1;
+    ci = ci + 1;
   }
 }
