@@ -169,6 +169,7 @@ import { checkAsyncAwait } from "../semantic/async-await-checker.js";
 import { checkAmbiguousInits } from "../semantic/ambiguous-init-checker.js";
 import { checkUntypedParams } from "../semantic/untyped-param-checker.js";
 import { checkOrFallback } from "../semantic/or-fallback-checker.js";
+import { checkMapKeyTypes } from "../semantic/map-key-checker.js";
 import { checkMixedOperators } from "../semantic/mixed-operator-checker.js";
 import { checkDuplicateDeclarations } from "../semantic/duplicate-decl-checker.js";
 import { checkMissingReturns, checkArgumentCounts } from "../semantic/safety-checks.js";
@@ -2767,22 +2768,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             );
             continue;
           }
-          let numMapValueType = "number";
-          if (stmt.declaredType) {
-            const parsed = parseMapTypeString(stmt.declaredType);
-            if (parsed) numMapValueType = parsed.valueType;
-          }
-          if (numMapValueType === "number" && stmt.value && stmt.value.type === "new") {
-            const newNode = stmt.value as NewNode;
-            if (newNode.className === "Map" && newNode.typeArgs && newNode.typeArgs.length === 2) {
-              numMapValueType = newNode.typeArgs[1];
-            }
-          }
-          if (numMapValueType !== "number" && numMapValueType !== "boolean") {
-            this.emitError(
-              `Map<number, ${numMapValueType}> is not supported. Use Map<string, ${numMapValueType}> instead`,
-            );
-          }
           llvmType = "%Map*";
           kind = SymbolKind_Map;
           defaultValue = "null";
@@ -3088,6 +3073,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     checkOrFallback(this.ast, this.sourceCode, this.filename);
     checkMixedOperators(this.ast, this.sourceCode);
     checkDuplicateDeclarations(this.ast, this.sourceCode);
+    checkMapKeyTypes(this.ast, this.sourceCode);
     this.stackEligibleVars = analyzeEscapes(this.ast);
     markIntSpecializedFunctions(this.ast);
     // Build pure-AST class + interface catalog so downstream queries
