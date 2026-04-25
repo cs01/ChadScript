@@ -6,6 +6,7 @@ import type {
 } from "../../../ast/types.js";
 import { parseMapTypeString } from "../../infrastructure/type-system.js";
 import type { MethodCallGeneratorContext } from "../method-calls.js";
+import { emitPtrtoint } from "../../infrastructure/ir-builders.js";
 
 interface ExprBase {
   type: string;
@@ -111,8 +112,7 @@ function unboxStringMapGet(
   valueType: string,
 ): string {
   if (valueType === "number") {
-    const asI64 = ctx.nextTemp();
-    ctx.emit(`${asI64} = ptrtoint i8* ${rawResult} to i64`);
+    const asI64 = emitPtrtoint(ctx, rawResult, "i8*", "i64");
     const asDouble = ctx.nextTemp();
     ctx.emit(`${asDouble} = bitcast i64 ${asI64} to double`);
     ctx.setVariableType(asDouble, "double");

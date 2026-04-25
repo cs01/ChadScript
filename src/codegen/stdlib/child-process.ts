@@ -11,6 +11,7 @@ import {
   Expression,
 } from "../../ast/types.js";
 import { IGeneratorContext } from "../infrastructure/generator-context.js";
+import { emitFptosi } from "../infrastructure/ir-builders.js";
 
 interface ExprBase {
   type: string;
@@ -360,8 +361,7 @@ export class ChildProcessGenerator {
     if (expr.args.length >= 2) {
       const sigVal = this.ctx.generateExpression(expr.args[1], params);
       const sigDbl = this.ctx.ensureDouble(sigVal);
-      const sigInt = this.ctx.nextTemp();
-      this.ctx.emit(`${sigInt} = fptosi double ${sigDbl} to i32`);
+      const sigInt = emitFptosi(this.ctx, sigDbl, "i32");
       signum = `i32 ${sigInt}`;
     }
     this.ctx.emit(`call void @cs_spawn_kill(i8* ${handlePtr}, ${signum})`);

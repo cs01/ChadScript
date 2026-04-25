@@ -1,5 +1,6 @@
 import { Expression, MethodCallNode, MemberAccessNode, VariableNode } from "../../../ast/types.js";
 import type { MethodCallGeneratorContext } from "../method-calls.js";
+import { emitFptosi, emitAdd, emitSitofp } from "../../infrastructure/ir-builders.js";
 
 interface ExprBase {
   type: string;
@@ -14,8 +15,7 @@ export function generateProcessExitInline(
     const arg = expr.args[0];
     const exprResult = ctx.generateExpression(arg as Expression, params);
     const dblResult = ctx.ensureDouble(exprResult);
-    const intTemp = ctx.nextTemp();
-    ctx.emit(`${intTemp} = fptosi double ${dblResult} to i32`);
+    const intTemp = emitFptosi(ctx, dblResult, "i32");
     ctx.emit(`call void @exit(i32 ${intTemp})`);
   } else {
     ctx.emit(`call void @exit(i32 0)`);
@@ -25,8 +25,7 @@ export function generateProcessExitInline(
 }
 
 export function generateProcessCwdInline(ctx: MethodCallGeneratorContext): string {
-  const bufSize = ctx.nextTemp();
-  ctx.emit(`${bufSize} = add i64 0, 4096`);
+  const bufSize = emitAdd(ctx, "i64", "0", "4096");
   const buf = ctx.nextTemp();
   ctx.emit(`${buf} = call i8* @cs_arena_alloc(i64 ${bufSize})`);
   const result = ctx.nextTemp();
@@ -59,16 +58,13 @@ export function handleProcessKill(
   }
   const pidValue = ctx.generateExpression(expr.args[0], params);
   const dblPid = ctx.ensureDouble(pidValue);
-  const pidI32 = ctx.nextTemp();
-  ctx.emit(`${pidI32} = fptosi double ${dblPid} to i32`);
+  const pidI32 = emitFptosi(ctx, dblPid, "i32");
 
   let sigI32 = "15";
   if (expr.args.length >= 2) {
     const sigValue = ctx.generateExpression(expr.args[1], params);
     const dblSig = ctx.ensureDouble(sigValue);
-    const sigTemp = ctx.nextTemp();
-    ctx.emit(`${sigTemp} = fptosi double ${dblSig} to i32`);
-    sigI32 = sigTemp;
+    sigI32 = emitFptosi(ctx, dblSig, "i32");
   }
 
   const result = ctx.nextTemp();
@@ -91,9 +87,7 @@ export function handleProcessUptime(ctx: MethodCallGeneratorContext): string {
 export function handleProcessSyscallI32(ctx: MethodCallGeneratorContext, funcName: string): string {
   const rawResult = ctx.nextTemp();
   ctx.emit(`${rawResult} = call i32 ${funcName}()`);
-  const result = ctx.nextTemp();
-  ctx.emit(`${result} = sitofp i32 ${rawResult} to double`);
-  ctx.setVariableType(result, "double");
+  const result = emitSitofp(ctx, rawResult, "i32");
   return result;
 }
 

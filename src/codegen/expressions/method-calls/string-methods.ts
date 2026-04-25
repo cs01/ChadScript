@@ -7,6 +7,20 @@ import {
   StringNode,
 } from "../../../ast/types.js";
 import type { MethodCallGeneratorContext } from "../method-calls.js";
+import {
+  emitTrunc,
+  emitFptosi,
+  emitSelect,
+  emitSub,
+  emitSext,
+  emitAlloca,
+  emitAdd,
+  emitPhi,
+  emitSitofp,
+  emitFcmp,
+  emitZext,
+  emitAnd,
+} from "../../infrastructure/ir-builders.js";
 
 interface ExprBase {
   type: string;
@@ -15,14 +29,10 @@ interface ExprBase {
 function convertToI32(ctx: MethodCallGeneratorContext, value: string): string {
   const vt = ctx.getVariableType(value);
   if (vt === "i64") {
-    const temp = ctx.nextTemp();
-    ctx.emit(`${temp} = trunc i64 ${value} to i32`);
-    return temp;
+    return emitTrunc(ctx, value, "i64", "i32");
   }
   const dbl = ctx.ensureDouble(value);
-  const temp = ctx.nextTemp();
-  ctx.emit(`${temp} = fptosi double ${dbl} to i32`);
-  return temp;
+  return emitFptosi(ctx, dbl, "i32");
 }
 
 export function handleSubstr(
@@ -58,24 +68,19 @@ export function handleSubstring(
   const startRaw = convertToI32(ctx, ctx.generateExpression(expr.args[0], params));
 
   const startNeg = ctx.emitIcmp("slt", "i32", startRaw, "0");
-  const startClamped = ctx.nextTemp();
-  ctx.emit(`${startClamped} = select i1 ${startNeg}, i32 0, i32 ${startRaw}`);
+  const startClamped = emitSelect(ctx, startNeg, "i32", "0", startRaw);
 
   let length: string | null = null;
   if (expr.args.length === 2) {
     const endRaw = convertToI32(ctx, ctx.generateExpression(expr.args[1], params));
     const endNeg = ctx.emitIcmp("slt", "i32", endRaw, "0");
-    const endClamped = ctx.nextTemp();
-    ctx.emit(`${endClamped} = select i1 ${endNeg}, i32 0, i32 ${endRaw}`);
+    const endClamped = emitSelect(ctx, endNeg, "i32", "0", endRaw);
 
     const needSwap = ctx.emitIcmp("sgt", "i32", startClamped, endClamped);
-    const realStart = ctx.nextTemp();
-    ctx.emit(`${realStart} = select i1 ${needSwap}, i32 ${endClamped}, i32 ${startClamped}`);
-    const realEnd = ctx.nextTemp();
-    ctx.emit(`${realEnd} = select i1 ${needSwap}, i32 ${startClamped}, i32 ${endClamped}`);
+    const realStart = emitSelect(ctx, needSwap, "i32", endClamped, startClamped);
+    const realEnd = emitSelect(ctx, needSwap, "i32", startClamped, endClamped);
 
-    length = ctx.nextTemp();
-    ctx.emit(`${length} = sub i32 ${realEnd}, ${realStart}`);
+    length = emitSub(ctx, "i32", realEnd, realStart);
     return ctx.stringGen.doGenerateSubstr(strPtr, realStart, length);
   }
 
@@ -224,8 +229,7 @@ export function handleStartsWith(
   if (expr.args.length === 2) {
     const position = ctx.generateExpression(expr.args[1], params);
     const posI32 = convertToI32(ctx, position);
-    const posI64 = ctx.nextTemp();
-    ctx.emit(`${posI64} = sext i32 ${posI32} to i64`);
+    const posI64 = emitSext(ctx, posI32, "i32", "i64");
     const offsetPtr = ctx.nextTemp();
     ctx.emit(`${offsetPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${posI64}`);
     strPtr = offsetPtr;
@@ -385,8 +389,7 @@ export function handleStringArrayIndexOf(
   const notfoundLabel = ctx.nextLabel("indexof_notfound");
   const endLabel = ctx.nextLabel("indexof_end");
 
-  const counterPtr = ctx.nextTemp();
-  ctx.emit(`${counterPtr} = alloca i32`);
+  const counterPtr = emitAlloca(ctx, "i32");
 
   const arrIsNull = ctx.emitIcmp("eq", "%StringArray*", arrayPtr, "null");
   ctx.emitBrCond(arrIsNull, notfoundLabel, `${checkLabel}_arrvalid`);
@@ -409,13 +412,10 @@ export function handleStringArrayIndexOf(
 
   ctx.emitLabel(`${checkLabel}_start`);
   const isNeg = ctx.emitIcmp("slt", "i32", fromIndex, "0");
-  const adjusted = ctx.nextTemp();
-  ctx.emit(`${adjusted} = add i32 ${fromIndex}, ${length}`);
-  const resolved = ctx.nextTemp();
-  ctx.emit(`${resolved} = select i1 ${isNeg}, i32 ${adjusted}, i32 ${fromIndex}`);
+  const adjusted = emitAdd(ctx, "i32", fromIndex, length);
+  const resolved = emitSelect(ctx, isNeg, "i32", adjusted, fromIndex);
   const stillNeg = ctx.emitIcmp("slt", "i32", resolved, "0");
-  const clampedFrom = ctx.nextTemp();
-  ctx.emit(`${clampedFrom} = select i1 ${stillNeg}, i32 0, i32 ${resolved}`);
+  const clampedFrom = emitSelect(ctx, stillNeg, "i32", "0", resolved);
   ctx.emitStore("i32", clampedFrom, counterPtr);
 
   ctx.emitBr(checkLabel);
@@ -426,8 +426,7 @@ export function handleStringArrayIndexOf(
   ctx.emitBrCond(cond, bodyLabel, notfoundLabel);
 
   ctx.emitLabel(bodyLabel);
-  const counter64 = ctx.nextTemp();
-  ctx.emit(`${counter64} = sext i32 ${counter} to i64`);
+  const counter64 = emitSext(ctx, counter, "i32", "i64");
   const elemPtr = ctx.emitGep("i8*", dataPtr, `i64 ${counter64}`);
   const elem = ctx.emitLoad("i8*", elemPtr);
 
@@ -440,8 +439,7 @@ export function handleStringArrayIndexOf(
   ctx.emitBrCond(isMatch, foundLabel, `${checkLabel}_next`);
 
   ctx.emitLabel(`${checkLabel}_next`);
-  const nextCounter = ctx.nextTemp();
-  ctx.emit(`${nextCounter} = add i32 ${counter}, 1`);
+  const nextCounter = emitAdd(ctx, "i32", counter, "1");
   ctx.emitStore("i32", nextCounter, counterPtr);
   ctx.emitBr(checkLabel);
 
@@ -453,12 +451,11 @@ export function handleStringArrayIndexOf(
   ctx.emitBr(endLabel);
 
   ctx.emitLabel(endLabel);
-  const resultI32 = ctx.nextTemp();
-  ctx.emit(`${resultI32} = phi i32 [ ${foundIndex}, %${foundLabel} ], [ -1, %${notfoundLabel} ]`);
-
-  const result = ctx.nextTemp();
-  ctx.emit(`${result} = sitofp i32 ${resultI32} to double`);
-  ctx.setVariableType(result, "double");
+  const resultI32 = emitPhi(ctx, "i32", [
+    [foundIndex, foundLabel],
+    ["-1", notfoundLabel],
+  ]);
+  const result = emitSitofp(ctx, resultI32, "i32");
   return result;
 }
 
@@ -468,13 +465,9 @@ export function handleStringArrayIncludes(
   params: string[],
 ): string {
   const indexResult = handleStringArrayIndexOf(ctx, expr, params);
-  const cmp = ctx.nextTemp();
-  ctx.emit(`${cmp} = fcmp oge double ${indexResult}, 0.0`);
-  const cmpI32 = ctx.nextTemp();
-  ctx.emit(`${cmpI32} = zext i1 ${cmp} to i32`);
-  const result = ctx.nextTemp();
-  ctx.emit(`${result} = sitofp i32 ${cmpI32} to double`);
-  ctx.setVariableType(result, "double");
+  const cmp = emitFcmp(ctx, "oge", indexResult, "0.0");
+  const cmpI32 = emitZext(ctx, cmp, "i1", "i32");
+  const result = emitSitofp(ctx, cmpI32, "i32");
   return result;
 }
 
@@ -640,16 +633,11 @@ export function handleNumberIsFinite(
 ): string {
   const value = ctx.generateExpression(expr.args[0], params);
   const dblValue = ctx.ensureDouble(value);
-  const isOrdered = ctx.nextTemp();
-  ctx.emit(`${isOrdered} = fcmp ord double ${dblValue}, 0.0`);
-  const posInf = ctx.nextTemp();
-  ctx.emit(`${posInf} = fcmp one double ${dblValue}, 0x7FF0000000000000`);
-  const negInf = ctx.nextTemp();
-  ctx.emit(`${negInf} = fcmp one double ${dblValue}, 0xFFF0000000000000`);
-  const notInf = ctx.nextTemp();
-  ctx.emit(`${notInf} = and i1 ${posInf}, ${negInf}`);
-  const isFinite = ctx.nextTemp();
-  ctx.emit(`${isFinite} = and i1 ${isOrdered}, ${notInf}`);
+  const isOrdered = emitFcmp(ctx, "ord", dblValue, "0.0");
+  const posInf = emitFcmp(ctx, "one", dblValue, "0x7FF0000000000000");
+  const negInf = emitFcmp(ctx, "one", dblValue, "0xFFF0000000000000");
+  const notInf = emitAnd(ctx, "i1", posInf, negInf);
+  const isFinite = emitAnd(ctx, "i1", isOrdered, notInf);
   const result = ctx.nextTemp();
   ctx.emit(`${result} = uitofp i1 ${isFinite} to double`);
   return result;
@@ -662,8 +650,7 @@ export function handleNumberIsNaN(
 ): string {
   const value = ctx.generateExpression(expr.args[0], params);
   const dblValue = ctx.ensureDouble(value);
-  const isNaN = ctx.nextTemp();
-  ctx.emit(`${isNaN} = fcmp uno double ${dblValue}, ${dblValue}`);
+  const isNaN = emitFcmp(ctx, "uno", dblValue, dblValue);
   const result = ctx.nextTemp();
   ctx.emit(`${result} = uitofp i1 ${isNaN} to double`);
   return result;
@@ -676,21 +663,14 @@ export function handleNumberIsInteger(
 ): string {
   const value = ctx.generateExpression(expr.args[0], params);
   const dblValue = ctx.ensureDouble(value);
-  const isFinite = ctx.nextTemp();
-  ctx.emit(`${isFinite} = fcmp ord double ${dblValue}, 0.0`);
-  const posInf = ctx.nextTemp();
-  ctx.emit(`${posInf} = fcmp one double ${dblValue}, 0x7FF0000000000000`);
-  const negInf = ctx.nextTemp();
-  ctx.emit(`${negInf} = fcmp one double ${dblValue}, 0xFFF0000000000000`);
-  const notInf = ctx.nextTemp();
-  ctx.emit(`${notInf} = and i1 ${posInf}, ${negInf}`);
-  const finiteCheck = ctx.nextTemp();
-  ctx.emit(`${finiteCheck} = and i1 ${isFinite}, ${notInf}`);
+  const isFinite = emitFcmp(ctx, "ord", dblValue, "0.0");
+  const posInf = emitFcmp(ctx, "one", dblValue, "0x7FF0000000000000");
+  const negInf = emitFcmp(ctx, "one", dblValue, "0xFFF0000000000000");
+  const notInf = emitAnd(ctx, "i1", posInf, negInf);
+  const finiteCheck = emitAnd(ctx, "i1", isFinite, notInf);
   const truncated = ctx.emitCall("double", "@llvm.trunc.f64", `double ${dblValue}`);
-  const truncEq = ctx.nextTemp();
-  ctx.emit(`${truncEq} = fcmp oeq double ${dblValue}, ${truncated}`);
-  const isInt = ctx.nextTemp();
-  ctx.emit(`${isInt} = and i1 ${finiteCheck}, ${truncEq}`);
+  const truncEq = emitFcmp(ctx, "oeq", dblValue, truncated);
+  const isInt = emitAnd(ctx, "i1", finiteCheck, truncEq);
   const result = ctx.nextTemp();
   ctx.emit(`${result} = uitofp i1 ${isInt} to double`);
   return result;

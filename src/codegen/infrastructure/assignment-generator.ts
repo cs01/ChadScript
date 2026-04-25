@@ -16,6 +16,7 @@ import type { InterfaceStructGenerator } from "../types/interface-struct-generat
 
 import type { FieldInfo } from "./type-resolver/types.js";
 import { stripNullable, isAnyArrayTsType } from "./type-system.js";
+import { emitFptosi, emitTrunc, emitSext, emitMul, emitInttoptr } from "./ir-builders.js";
 
 interface ObjectInfo {
   ptr: string;
@@ -57,6 +58,7 @@ export interface AssignmentGeneratorContext {
   classGenIsStaticField(className: string, fieldName: string): boolean;
   classGenGetStaticFieldType(className: string, fieldName: string): string;
   mangleUserName(name: string): string;
+  setVariableType(name: string, type: string): void;
 }
 
 export class AssignmentGenerator {
@@ -427,8 +429,7 @@ export class AssignmentGenerator {
       if (isAlreadyPointer) {
         this.ctx.emit(`store i8* ${value}, i8** ${fieldPtr}`);
       } else {
-        const strPtr = this.ctx.nextTemp();
-        this.ctx.emit(`${strPtr} = inttoptr i32 ${value} to i8*`);
+        const strPtr = emitInttoptr(this.ctx, value, "i32", "i8*");
         this.ctx.emit(`store i8* ${strPtr}, i8** ${fieldPtr}`);
       }
     } else if (fiType === "string[]") {
@@ -505,8 +506,7 @@ export class AssignmentGenerator {
       if (isAlreadyPointer) {
         this.ctx.emit(`store i8* ${value}, i8** ${fieldPtr}`);
       } else {
-        const strPtr = this.ctx.nextTemp();
-        this.ctx.emit(`${strPtr} = inttoptr i32 ${value} to i8*`);
+        const strPtr = emitInttoptr(this.ctx, value, "i32", "i8*");
         this.ctx.emit(`store i8* ${strPtr}, i8** ${fieldPtr}`);
       }
     } else if (fiType === "string[]") {
@@ -562,11 +562,9 @@ export class AssignmentGenerator {
     const indexType = this.ctx.getVariableType(indexDouble);
     let index = indexDouble;
     if (indexType === "double" || indexType === undefined) {
-      index = this.ctx.nextTemp();
-      this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
+      index = emitFptosi(this.ctx, indexDouble, "i32");
     } else if (indexType === "i64") {
-      index = this.ctx.nextTemp();
-      this.ctx.emit(`${index} = trunc i64 ${indexDouble} to i32`);
+      index = emitTrunc(this.ctx, indexDouble, "i64", "i32");
     }
 
     const structTypeFields = elementInfo.types.join(", ");
@@ -590,10 +588,8 @@ export class AssignmentGenerator {
 
     let elemTyped: string;
     if (contiguousStride > 0) {
-      const indexI64 = this.ctx.nextTemp();
-      this.ctx.emit(`${indexI64} = sext i32 ${index} to i64`);
-      const offset = this.ctx.nextTemp();
-      this.ctx.emit(`${offset} = mul i64 ${indexI64}, ${contiguousStride}`);
+      const indexI64 = emitSext(this.ctx, index, "i32", "i64");
+      const offset = emitMul(this.ctx, "i64", indexI64, `${contiguousStride}`);
       const elemRaw = this.ctx.nextTemp();
       this.ctx.emit(`${elemRaw} = getelementptr inbounds i8, i8* ${data}, i64 ${offset}`);
       elemTyped = this.ctx.emitBitcast(elemRaw, "i8*", `${structType}*`);
@@ -675,8 +671,7 @@ export class AssignmentGenerator {
     const value = this.ctx.generateExpression(memberAccessValue.value, params);
 
     const dblVal = this.ctx.ensureDouble(value);
-    const valueI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${valueI32} = fptosi double ${dblVal} to i32`);
+    const valueI32 = emitFptosi(this.ctx, dblVal, "i32");
 
     let arrayType = "%StringArray";
     const ownerClass = this.ctx.resolveOwnerClass(arrayExpr.object);

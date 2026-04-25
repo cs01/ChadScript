@@ -1,6 +1,3 @@
-// NOTE: This file uses raw ctx.emit() extensively. Prefer structured IR builders
-// (emitStore, emitLoad, emitCall, etc.) when modifying — see .claude/rules.md.
-
 import {
   Expression,
   IndexAccessNode,
@@ -8,6 +5,14 @@ import {
   MemberAccessNode,
   VariableNode,
 } from "../../../ast/types.js";
+import {
+  emitFptosi,
+  emitInttoptr,
+  emitSext,
+  emitSitofp,
+  emitTrunc,
+  emitZext,
+} from "../../infrastructure/ir-builders.js";
 
 interface ExprBase {
   type: string;
@@ -143,8 +148,7 @@ export class IndexAccessGenerator {
     const indexDouble = this.ctx.generateExpression(expr.index, params);
 
     const dblIndex = this.ctx.ensureDouble(indexDouble);
-    const index = this.ctx.nextTemp();
-    this.ctx.emit(`${index} = fptosi double ${dblIndex} to i32`);
+    const index = emitFptosi(this.ctx, dblIndex, "i32");
 
     // Extract data pointer from StringArray struct (field 0)
     const dataField = this.ctx.nextTemp();
@@ -155,8 +159,7 @@ export class IndexAccessGenerator {
     this.ctx.emit(`${argvPtr} = load i8**, i8*** ${dataField}`);
 
     // Get pointer to i-th argument
-    const indexI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${indexI64} = sext i32 ${index} to i64`);
+    const indexI64 = emitSext(this.ctx, index, "i32", "i64");
 
     const argPtr = this.ctx.nextTemp();
     this.ctx.emit(`${argPtr} = getelementptr inbounds i8*, i8** ${argvPtr}, i64 ${indexI64}`);
@@ -177,13 +180,9 @@ export class IndexAccessGenerator {
   private toI32Index(indexValue: string): string {
     const indexType = this.ctx.getVariableType(indexValue);
     if (indexType === "double") {
-      const temp = this.ctx.nextTemp();
-      this.ctx.emit(`${temp} = fptosi double ${indexValue} to i32`);
-      return temp;
+      return emitFptosi(this.ctx, indexValue, "i32");
     } else if (indexType === "i64") {
-      const temp = this.ctx.nextTemp();
-      this.ctx.emit(`${temp} = trunc i64 ${indexValue} to i32`);
-      return temp;
+      return emitTrunc(this.ctx, indexValue, "i64", "i32");
     }
     return indexValue;
   }
@@ -295,8 +294,7 @@ export class IndexAccessGenerator {
     );
     const data = this.ctx.nextTemp();
     this.ctx.emit(`${data} = load i8*, i8** ${dataPtr}`);
-    const indexI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${indexI64} = sext i32 ${index} to i64`);
+    const indexI64 = emitSext(this.ctx, index, "i32", "i64");
     const offset = this.ctx.nextTemp();
     this.ctx.emit(`${offset} = mul i64 ${indexI64}, ${stride}`);
     const elem = this.ctx.nextTemp();
@@ -386,10 +384,8 @@ export class IndexAccessGenerator {
     this.ctx.emit(`${elemPtr} = getelementptr inbounds i8, i8* ${dataPtr}, i32 ${index}`);
     const byteVal = this.ctx.nextTemp();
     this.ctx.emit(`${byteVal} = load i8, i8* ${elemPtr}`);
-    const intVal = this.ctx.nextTemp();
-    this.ctx.emit(`${intVal} = zext i8 ${byteVal} to i32`);
-    const dblVal = this.ctx.nextTemp();
-    this.ctx.emit(`${dblVal} = sitofp i32 ${intVal} to double`);
+    const intVal = emitZext(this.ctx, byteVal, "i8", "i32");
+    const dblVal = emitSitofp(this.ctx, intVal, "i32");
     this.ctx.setVariableType(dblVal, "double");
     return dblVal;
   }
@@ -414,10 +410,8 @@ export class IndexAccessGenerator {
     this.ctx.emit(`${dataPtr} = load i8*, i8** ${dataFieldPtr}`);
 
     const dblValue = this.ctx.ensureDouble(value);
-    const intValue = this.ctx.nextTemp();
-    this.ctx.emit(`${intValue} = fptosi double ${dblValue} to i32`);
-    const byteValue = this.ctx.nextTemp();
-    this.ctx.emit(`${byteValue} = trunc i32 ${intValue} to i8`);
+    const intValue = emitFptosi(this.ctx, dblValue, "i32");
+    const byteValue = emitTrunc(this.ctx, intValue, "i32", "i8");
 
     const elemPtr = this.ctx.nextTemp();
     this.ctx.emit(`${elemPtr} = getelementptr inbounds i8, i8* ${dataPtr}, i32 ${index}`);
@@ -434,11 +428,9 @@ export class IndexAccessGenerator {
     const indexType = this.ctx.getVariableType(indexDouble);
     let index = indexDouble;
     if (indexType === "double" || !indexType) {
-      index = this.ctx.nextTemp();
-      this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
+      index = emitFptosi(this.ctx, indexDouble, "i32");
     } else if (indexType === "i64") {
-      index = this.ctx.nextTemp();
-      this.ctx.emit(`${index} = trunc i64 ${indexDouble} to i32`);
+      index = emitTrunc(this.ctx, indexDouble, "i64", "i32");
     } else if (indexType !== "i32" && indexType !== "i64") {
       return this.ctx.emitError(
         `String character index must be a number, got type: ${indexType}. Dynamic object property access with string keys is not yet supported.`,
@@ -448,12 +440,10 @@ export class IndexAccessGenerator {
 
     const strLen64 = this.ctx.nextTemp();
     this.ctx.emit(`${strLen64} = call i64 @strlen(i8* ${objPtr})`);
-    const strLen = this.ctx.nextTemp();
-    this.ctx.emit(`${strLen} = trunc i64 ${strLen64} to i32`);
+    const strLen = emitTrunc(this.ctx, strLen64, "i64", "i32");
     this.emitInlineBoundsCheck(index, strLen);
 
-    const indexI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${indexI64} = sext i32 ${index} to i64`);
+    const indexI64 = emitSext(this.ctx, index, "i32", "i64");
 
     const charPtr = this.ctx.nextTemp();
     this.ctx.emit(`${charPtr} = getelementptr inbounds i8, i8* ${objPtr}, i64 ${indexI64}`);
@@ -491,11 +481,9 @@ export class IndexAccessGenerator {
     const indexType = this.ctx.getVariableType(indexDouble);
     let index = indexDouble;
     if (indexType === "i64") {
-      index = this.ctx.nextTemp();
-      this.ctx.emit(`${index} = trunc i64 ${indexDouble} to i32`);
+      index = emitTrunc(this.ctx, indexDouble, "i64", "i32");
     } else if (indexType === "double" || indexType === undefined) {
-      index = this.ctx.nextTemp();
-      this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
+      index = emitFptosi(this.ctx, indexDouble, "i32");
     }
 
     const itemPtr = this.ctx.nextTemp();
@@ -543,10 +531,8 @@ export class IndexAccessGenerator {
     this.ctx.emit(`${numberLabel}:`);
     const numValue = this.ctx.nextTemp();
     this.ctx.emit(`${numValue} = call double @csyyjson_get_num(i8* ${itemPtr})`);
-    const numAsPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${numAsPtr} = fptosi double ${numValue} to i64`);
-    const numPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${numPtr} = inttoptr i64 ${numAsPtr} to i8*`);
+    const numAsPtr = emitFptosi(this.ctx, numValue, "i64");
+    const numPtr = emitInttoptr(this.ctx, numAsPtr, "i64", "i8*");
     this.ctx.emit(`br label %${primEndLabel}`);
 
     // String case
@@ -588,11 +574,9 @@ export class IndexAccessGenerator {
       const indexTy = this.ctx.getVariableType(indexRaw);
       let index = indexRaw;
       if (indexTy === "i64") {
-        index = this.ctx.nextTemp();
-        this.ctx.emit(`${index} = trunc i64 ${indexRaw} to i32`);
+        index = emitTrunc(this.ctx, indexRaw, "i64", "i32");
       } else if (indexTy === "double" || indexTy === undefined) {
-        index = this.ctx.nextTemp();
-        this.ctx.emit(`${index} = fptosi double ${indexRaw} to i32`);
+        index = emitFptosi(this.ctx, indexRaw, "i32");
       }
       const dataSlot = this.ctx.nextTemp();
       this.ctx.emit(
@@ -612,11 +596,9 @@ export class IndexAccessGenerator {
       const indexTy = this.ctx.getVariableType(indexRaw);
       let index = indexRaw;
       if (indexTy === "i64") {
-        index = this.ctx.nextTemp();
-        this.ctx.emit(`${index} = trunc i64 ${indexRaw} to i32`);
+        index = emitTrunc(this.ctx, indexRaw, "i64", "i32");
       } else if (indexTy === "double" || indexTy === undefined) {
-        index = this.ctx.nextTemp();
-        this.ctx.emit(`${index} = fptosi double ${indexRaw} to i32`);
+        index = emitFptosi(this.ctx, indexRaw, "i32");
       }
       const dataSlot = this.ctx.nextTemp();
       this.ctx.emit(
@@ -644,11 +626,9 @@ export class IndexAccessGenerator {
       const idxType = this.ctx.getVariableType(indexDouble);
       let index = indexDouble;
       if (idxType === "i64") {
-        index = this.ctx.nextTemp();
-        this.ctx.emit(`${index} = trunc i64 ${indexDouble} to i32`);
+        index = emitTrunc(this.ctx, indexDouble, "i64", "i32");
       } else if (idxType === "double") {
-        index = this.ctx.nextTemp();
-        this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
+        index = emitFptosi(this.ctx, indexDouble, "i32");
       }
       const dataPtr = this.ctx.nextTemp();
       this.ctx.emit(
@@ -670,11 +650,9 @@ export class IndexAccessGenerator {
     const indexType = this.ctx.getVariableType(indexDouble);
     let index = indexDouble;
     if (indexType === "i64") {
-      index = this.ctx.nextTemp();
-      this.ctx.emit(`${index} = trunc i64 ${indexDouble} to i32`);
+      index = emitTrunc(this.ctx, indexDouble, "i64", "i32");
     } else if (indexType === "double" || indexType === undefined) {
-      index = this.ctx.nextTemp();
-      this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
+      index = emitFptosi(this.ctx, indexDouble, "i32");
     }
 
     const itemPtr = this.ctx.nextTemp();
@@ -719,10 +697,8 @@ export class IndexAccessGenerator {
     this.ctx.emit(`${numberLabel}:`);
     const numValue = this.ctx.nextTemp();
     this.ctx.emit(`${numValue} = call double @csyyjson_get_num(i8* ${itemPtr})`);
-    const numAsPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${numAsPtr} = fptosi double ${numValue} to i64`);
-    const numPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${numPtr} = inttoptr i64 ${numAsPtr} to i8*`);
+    const numAsPtr = emitFptosi(this.ctx, numValue, "i64");
+    const numPtr = emitInttoptr(this.ctx, numAsPtr, "i64", "i8*");
     this.ctx.emit(`br label %${primEndLabel}`);
 
     this.ctx.emit(`${stringLabel}:`);
@@ -814,8 +790,7 @@ export class IndexAccessGenerator {
     const dataPtr = this.ctx.nextTemp();
     this.ctx.emit(`${dataPtr} = load i8**, i8*** ${dataFieldPtr}`);
 
-    const indexI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${indexI64} = sext i32 ${index} to i64`);
+    const indexI64 = emitSext(this.ctx, index, "i32", "i64");
 
     const elementPtr = this.ctx.nextTemp();
     this.ctx.emit(`${elementPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i64 ${indexI64}`);
@@ -846,8 +821,7 @@ export class IndexAccessGenerator {
     const dataAsPtrs = this.ctx.nextTemp();
     this.ctx.emit(`${dataAsPtrs} = bitcast i8* ${data} to i8**`);
 
-    const indexI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${indexI64} = sext i32 ${index} to i64`);
+    const indexI64 = emitSext(this.ctx, index, "i32", "i64");
 
     const elementPtr = this.ctx.nextTemp();
     this.ctx.emit(
@@ -878,8 +852,7 @@ export class IndexAccessGenerator {
     const dataPtr = this.ctx.nextTemp();
     this.ctx.emit(`${dataPtr} = load double*, double** ${dataFieldPtr}`);
 
-    const indexI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${indexI64} = sext i32 ${index} to i64`);
+    const indexI64 = emitSext(this.ctx, index, "i32", "i64");
 
     const elementPtr = this.ctx.nextTemp();
     this.ctx.emit(

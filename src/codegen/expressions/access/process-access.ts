@@ -1,5 +1,6 @@
 import { MemberAccessNode, VariableNode } from "../../../ast/types.js";
 import type { MemberAccessGeneratorContext } from "./member.js";
+import { emitSitofp, emitPtrtoint, emitSub } from "../../infrastructure/ir-builders.js";
 
 interface ExprBase {
   type: string;
@@ -68,16 +69,14 @@ export function handleProcessSimpleProperty(
   if (prop === "pid") {
     const pidI32 = ctx.nextTemp();
     ctx.emit(`${pidI32} = call i32 @getpid()`);
-    const pidDouble = ctx.nextTemp();
-    ctx.emit(`${pidDouble} = sitofp i32 ${pidI32} to double`);
+    const pidDouble = emitSitofp(ctx, pidI32, "i32");
     ctx.setVariableType(pidDouble, "double");
     return pidDouble;
   }
   if (prop === "ppid") {
     const ppidI32 = ctx.nextTemp();
     ctx.emit(`${ppidI32} = call i32 @getppid()`);
-    const ppidDouble = ctx.nextTemp();
-    ctx.emit(`${ppidDouble} = sitofp i32 ${ppidI32} to double`);
+    const ppidDouble = emitSitofp(ctx, ppidI32, "i32");
     ctx.setVariableType(ppidDouble, "double");
     return ppidDouble;
   }
@@ -100,8 +99,7 @@ export function handleProcessPlatform(ctx: MemberAccessGeneratorContext): string
 export function handleProcessArgv(ctx: MemberAccessGeneratorContext): string {
   const sizePtr = ctx.nextTemp();
   ctx.emit(`${sizePtr} = getelementptr %StringArray, %StringArray* null, i32 1`);
-  const structSize = ctx.nextTemp();
-  ctx.emit(`${structSize} = ptrtoint %StringArray* ${sizePtr} to i64`);
+  const structSize = emitPtrtoint(ctx, sizePtr, "%StringArray*", "i64");
   const arrayMem = ctx.nextTemp();
   ctx.emit(`${arrayMem} = call i8* @GC_malloc(i64 ${structSize})`);
   const argvStruct = ctx.nextTemp();
@@ -123,8 +121,7 @@ export function handleProcessArgv(ctx: MemberAccessGeneratorContext): string {
   );
   const argc = ctx.nextTemp();
   ctx.emit(`${argc} = load i32, i32* @__argc`);
-  const argcMinusOne = ctx.nextTemp();
-  ctx.emit(`${argcMinusOne} = sub i32 ${argc}, 1`);
+  const argcMinusOne = emitSub(ctx, "i32", argc, "1");
   ctx.emit(`store i32 ${argcMinusOne}, i32* ${lenField}`);
 
   const capField = ctx.nextTemp();

@@ -2,6 +2,17 @@
 // Uses structured IR builders where possible; raw emit() for inbounds GEP, intrinsics, etc.
 
 import { MethodCallNode, VariableNode } from "../../../../ast/types.js";
+import {
+  emitAdd,
+  emitSub,
+  emitSelect,
+  emitFcmp,
+  emitSitofp,
+  emitFptosi,
+  emitAlloca,
+  emitSext,
+  emitAnd,
+} from "../../../infrastructure/ir-builders.js";
 import { IGeneratorContext } from "./context.js";
 
 /** Build call args, prepending env pointer for inline lambdas with captures.
@@ -36,9 +47,7 @@ export function generateArrayIndexOf(
   if (expr.args.length === 2) {
     const fromRaw = gen.generateExpression(expr.args[1], params);
     const fromDbl = gen.ensureDouble(fromRaw);
-    const tmp = gen.nextTemp();
-    gen.emit(`${tmp} = fptosi double ${fromDbl} to i32`);
-    fromIndex = tmp;
+    fromIndex = emitFptosi(gen, fromDbl, "i32");
   }
 
   let isStringArray = false;
@@ -61,13 +70,10 @@ export function generateArrayIndexOf(
 
 function resolveFromIndex(gen: IGeneratorContext, fromIndex: string, length: string): string {
   const isNeg = gen.emitIcmp("slt", "i32", fromIndex, "0");
-  const adjusted = gen.nextTemp();
-  gen.emit(`${adjusted} = add i32 ${fromIndex}, ${length}`);
-  const resolved = gen.nextTemp();
-  gen.emit(`${resolved} = select i1 ${isNeg}, i32 ${adjusted}, i32 ${fromIndex}`);
+  const adjusted = emitAdd(gen, "i32", fromIndex, length);
+  const resolved = emitSelect(gen, isNeg, "i32", adjusted, fromIndex);
   const stillNeg = gen.emitIcmp("slt", "i32", resolved, "0");
-  const clamped = gen.nextTemp();
-  gen.emit(`${clamped} = select i1 ${stillNeg}, i32 0, i32 ${resolved}`);
+  const clamped = emitSelect(gen, stillNeg, "i32", "0", resolved);
   return clamped;
 }
 
@@ -89,12 +95,10 @@ function generateNumericArrayIndexOf(
 
   const startIndex = fromIndex ? resolveFromIndex(gen, fromIndex, length) : null;
 
-  const resultPtr = gen.nextTemp();
-  gen.emit(`${resultPtr} = alloca i32`);
+  const resultPtr = emitAlloca(gen, "i32");
   gen.emitStore("i32", "-1", resultPtr);
 
-  const loopPtr = gen.nextTemp();
-  gen.emit(`${loopPtr} = alloca i32`);
+  const loopPtr = emitAlloca(gen, "i32");
   gen.emitStore("i32", startIndex ?? "0", loopPtr);
 
   const checkLabel = gen.nextLabel("indexof_check");
@@ -116,8 +120,7 @@ function generateNumericArrayIndexOf(
   const elem = gen.emitLoad("double", elemPtr);
 
   const dblSearch = gen.ensureDouble(searchValue);
-  const eq = gen.nextTemp();
-  gen.emit(`${eq} = fcmp oeq double ${elem}, ${dblSearch}`);
+  const eq = emitFcmp(gen, "oeq", elem, dblSearch);
   gen.emitBrCond(eq, foundLabel, nextLabel);
 
   gen.emitLabel(foundLabel);
@@ -125,16 +128,13 @@ function generateNumericArrayIndexOf(
   gen.emitBr(endLabel);
 
   gen.emitLabel(nextLabel);
-  const nextI = gen.nextTemp();
-  gen.emit(`${nextI} = add i32 ${i}, 1`);
+  const nextI = emitAdd(gen, "i32", i, "1");
   gen.emitStore("i32", nextI, loopPtr);
   gen.emitBr(checkLabel);
 
   gen.emitLabel(endLabel);
   const resultI32 = gen.emitLoad("i32", resultPtr);
-  const result = gen.nextTemp();
-  gen.emit(`${result} = sitofp i32 ${resultI32} to double`);
-  gen.setVariableType(result, "double");
+  const result = emitSitofp(gen, resultI32, "i32");
   return result;
 }
 
@@ -160,12 +160,10 @@ function generateStringArrayIndexOf(
 
   const startIndex = fromIndex ? resolveFromIndex(gen, fromIndex, length) : null;
 
-  const resultPtr = gen.nextTemp();
-  gen.emit(`${resultPtr} = alloca i32`);
+  const resultPtr = emitAlloca(gen, "i32");
   gen.emitStore("i32", "-1", resultPtr);
 
-  const loopPtr = gen.nextTemp();
-  gen.emit(`${loopPtr} = alloca i32`);
+  const loopPtr = emitAlloca(gen, "i32");
   gen.emitStore("i32", startIndex ?? "0", loopPtr);
 
   const checkLabel = gen.nextLabel("indexof_check");
@@ -195,16 +193,13 @@ function generateStringArrayIndexOf(
   gen.emitBr(endLabel);
 
   gen.emitLabel(nextLabel);
-  const nextI = gen.nextTemp();
-  gen.emit(`${nextI} = add i32 ${i}, 1`);
+  const nextI = emitAdd(gen, "i32", i, "1");
   gen.emitStore("i32", nextI, loopPtr);
   gen.emitBr(checkLabel);
 
   gen.emitLabel(endLabel);
   const resultI32 = gen.emitLoad("i32", resultPtr);
-  const result = gen.nextTemp();
-  gen.emit(`${result} = sitofp i32 ${resultI32} to double`);
-  gen.setVariableType(result, "double");
+  const result = emitSitofp(gen, resultI32, "i32");
   return result;
 }
 
@@ -224,9 +219,7 @@ export function generateArrayLastIndexOf(
   if (expr.args.length === 2) {
     const fromRaw = gen.generateExpression(expr.args[1], params);
     const fromDbl = gen.ensureDouble(fromRaw);
-    const tmp = gen.nextTemp();
-    gen.emit(`${tmp} = fptosi double ${fromDbl} to i32`);
-    fromIndex = tmp;
+    fromIndex = emitFptosi(gen, fromDbl, "i32");
   }
 
   let isStringArray = false;
@@ -252,19 +245,14 @@ function resolveLastIndexOfFromIndex(
   fromIndex: string,
   length: string,
 ): string {
-  const lastIdx = gen.nextTemp();
-  gen.emit(`${lastIdx} = sub i32 ${length}, 1`);
+  const lastIdx = emitSub(gen, "i32", length, "1");
   const isNeg = gen.emitIcmp("slt", "i32", fromIndex, "0");
-  const adjusted = gen.nextTemp();
-  gen.emit(`${adjusted} = add i32 ${fromIndex}, ${length}`);
-  const resolved = gen.nextTemp();
-  gen.emit(`${resolved} = select i1 ${isNeg}, i32 ${adjusted}, i32 ${fromIndex}`);
+  const adjusted = emitAdd(gen, "i32", fromIndex, length);
+  const resolved = emitSelect(gen, isNeg, "i32", adjusted, fromIndex);
   const stillNeg = gen.emitIcmp("slt", "i32", resolved, "0");
-  const clamped = gen.nextTemp();
-  gen.emit(`${clamped} = select i1 ${stillNeg}, i32 -1, i32 ${resolved}`);
+  const clamped = emitSelect(gen, stillNeg, "i32", "-1", resolved);
   const pastEnd = gen.emitIcmp("sgt", "i32", clamped, lastIdx);
-  const final = gen.nextTemp();
-  gen.emit(`${final} = select i1 ${pastEnd}, i32 ${lastIdx}, i32 ${clamped}`);
+  const final = emitSelect(gen, pastEnd, "i32", lastIdx, clamped);
   return final;
 }
 
@@ -284,16 +272,13 @@ function generateNumericArrayLastIndexOf(
   const dataPtr = gen.nextTemp();
   gen.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
 
-  const lastIdx = gen.nextTemp();
-  gen.emit(`${lastIdx} = sub i32 ${length}, 1`);
+  const lastIdx = emitSub(gen, "i32", length, "1");
   const startIndex = fromIndex ? resolveLastIndexOfFromIndex(gen, fromIndex, length) : lastIdx;
 
-  const resultPtr = gen.nextTemp();
-  gen.emit(`${resultPtr} = alloca i32`);
+  const resultPtr = emitAlloca(gen, "i32");
   gen.emitStore("i32", "-1", resultPtr);
 
-  const loopPtr = gen.nextTemp();
-  gen.emit(`${loopPtr} = alloca i32`);
+  const loopPtr = emitAlloca(gen, "i32");
   gen.emitStore("i32", startIndex, loopPtr);
 
   const checkLabel = gen.nextLabel("lastindexof_check");
@@ -315,8 +300,7 @@ function generateNumericArrayLastIndexOf(
   const elem = gen.emitLoad("double", elemPtr);
 
   const dblSearch = gen.ensureDouble(searchValue);
-  const eq = gen.nextTemp();
-  gen.emit(`${eq} = fcmp oeq double ${elem}, ${dblSearch}`);
+  const eq = emitFcmp(gen, "oeq", elem, dblSearch);
   gen.emitBrCond(eq, foundLabel, nextLabel);
 
   gen.emitLabel(foundLabel);
@@ -324,16 +308,13 @@ function generateNumericArrayLastIndexOf(
   gen.emitBr(endLabel);
 
   gen.emitLabel(nextLabel);
-  const nextI = gen.nextTemp();
-  gen.emit(`${nextI} = sub i32 ${i}, 1`);
+  const nextI = emitSub(gen, "i32", i, "1");
   gen.emitStore("i32", nextI, loopPtr);
   gen.emitBr(checkLabel);
 
   gen.emitLabel(endLabel);
   const resultI32 = gen.emitLoad("i32", resultPtr);
-  const result = gen.nextTemp();
-  gen.emit(`${result} = sitofp i32 ${resultI32} to double`);
-  gen.setVariableType(result, "double");
+  const result = emitSitofp(gen, resultI32, "i32");
   return result;
 }
 
@@ -357,16 +338,13 @@ function generateStringArrayLastIndexOf(
   const dataPtr = gen.nextTemp();
   gen.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
 
-  const lastIdx = gen.nextTemp();
-  gen.emit(`${lastIdx} = sub i32 ${length}, 1`);
+  const lastIdx = emitSub(gen, "i32", length, "1");
   const startIndex = fromIndex ? resolveLastIndexOfFromIndex(gen, fromIndex, length) : lastIdx;
 
-  const resultPtr = gen.nextTemp();
-  gen.emit(`${resultPtr} = alloca i32`);
+  const resultPtr = emitAlloca(gen, "i32");
   gen.emitStore("i32", "-1", resultPtr);
 
-  const loopPtr = gen.nextTemp();
-  gen.emit(`${loopPtr} = alloca i32`);
+  const loopPtr = emitAlloca(gen, "i32");
   gen.emitStore("i32", startIndex, loopPtr);
 
   const checkLabel = gen.nextLabel("lastindexof_check");
@@ -396,16 +374,13 @@ function generateStringArrayLastIndexOf(
   gen.emitBr(endLabel);
 
   gen.emitLabel(nextLabel);
-  const nextI = gen.nextTemp();
-  gen.emit(`${nextI} = sub i32 ${i}, 1`);
+  const nextI = emitSub(gen, "i32", i, "1");
   gen.emitStore("i32", nextI, loopPtr);
   gen.emitBr(checkLabel);
 
   gen.emitLabel(endLabel);
   const resultI32 = gen.emitLoad("i32", resultPtr);
-  const result = gen.nextTemp();
-  gen.emit(`${result} = sitofp i32 ${resultI32} to double`);
-  gen.setVariableType(result, "double");
+  const result = emitSitofp(gen, resultI32, "i32");
   return result;
 }
 
@@ -470,12 +445,10 @@ function generateNumericArrayFindIndex(
   const dataPtr = gen.nextTemp();
   gen.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
 
-  const resultPtr = gen.nextTemp();
-  gen.emit(`${resultPtr} = alloca i32`);
+  const resultPtr = emitAlloca(gen, "i32");
   gen.emitStore("i32", "-1", resultPtr);
 
-  const loopPtr = gen.nextTemp();
-  gen.emit(`${loopPtr} = alloca i32`);
+  const loopPtr = emitAlloca(gen, "i32");
   gen.emitStore("i32", "0", loopPtr);
 
   const checkLabel = gen.nextLabel("findidx_check");
@@ -501,8 +474,7 @@ function generateNumericArrayFindIndex(
     `@${predicateFn}`,
     buildSearchCallArgs(gen, `double ${elem}`),
   );
-  const isTruthy = gen.nextTemp();
-  gen.emit(`${isTruthy} = fcmp one double ${predicateResult}, 0.0`);
+  const isTruthy = emitFcmp(gen, "one", predicateResult, "0.0");
   gen.emitBrCond(isTruthy, foundLabel, nextLabel);
 
   gen.emitLabel(foundLabel);
@@ -510,16 +482,13 @@ function generateNumericArrayFindIndex(
   gen.emitBr(endLabel);
 
   gen.emitLabel(nextLabel);
-  const nextI = gen.nextTemp();
-  gen.emit(`${nextI} = add i32 ${i}, 1`);
+  const nextI = emitAdd(gen, "i32", i, "1");
   gen.emitStore("i32", nextI, loopPtr);
   gen.emitBr(checkLabel);
 
   gen.emitLabel(endLabel);
   const resultI32 = gen.emitLoad("i32", resultPtr);
-  const result = gen.nextTemp();
-  gen.emit(`${result} = sitofp i32 ${resultI32} to double`);
-  gen.setVariableType(result, "double");
+  const result = emitSitofp(gen, resultI32, "i32");
   return result;
 }
 
@@ -542,12 +511,10 @@ function generateStringArrayFindIndex(
   const dataPtr = gen.nextTemp();
   gen.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
 
-  const resultPtr = gen.nextTemp();
-  gen.emit(`${resultPtr} = alloca i32`);
+  const resultPtr = emitAlloca(gen, "i32");
   gen.emitStore("i32", "-1", resultPtr);
 
-  const loopPtr = gen.nextTemp();
-  gen.emit(`${loopPtr} = alloca i32`);
+  const loopPtr = emitAlloca(gen, "i32");
   gen.emitStore("i32", "0", loopPtr);
 
   const checkLabel = gen.nextLabel("findidx_check");
@@ -573,8 +540,7 @@ function generateStringArrayFindIndex(
     `@${predicateFn}`,
     buildSearchCallArgs(gen, `i8* ${elem}`),
   );
-  const isTruthy = gen.nextTemp();
-  gen.emit(`${isTruthy} = fcmp one double ${predicateResult}, 0.0`);
+  const isTruthy = emitFcmp(gen, "one", predicateResult, "0.0");
   gen.emitBrCond(isTruthy, foundLabel, nextLabel);
 
   gen.emitLabel(foundLabel);
@@ -582,16 +548,13 @@ function generateStringArrayFindIndex(
   gen.emitBr(endLabel);
 
   gen.emitLabel(nextLabel);
-  const nextI = gen.nextTemp();
-  gen.emit(`${nextI} = add i32 ${i}, 1`);
+  const nextI = emitAdd(gen, "i32", i, "1");
   gen.emitStore("i32", nextI, loopPtr);
   gen.emitBr(checkLabel);
 
   gen.emitLabel(endLabel);
   const resultI32 = gen.emitLoad("i32", resultPtr);
-  const result = gen.nextTemp();
-  gen.emit(`${result} = sitofp i32 ${resultI32} to double`);
-  gen.setVariableType(result, "double");
+  const result = emitSitofp(gen, resultI32, "i32");
   return result;
 }
 
@@ -629,13 +592,10 @@ export function generateArrayAt(
 }
 
 function resolveNegativeIndex(gen: IGeneratorContext, indexDouble: string, length: string): string {
-  const indexI32 = gen.nextTemp();
-  gen.emit(`${indexI32} = fptosi double ${indexDouble} to i32`);
+  const indexI32 = emitFptosi(gen, indexDouble, "i32");
   const isNeg = gen.emitIcmp("slt", "i32", indexI32, "0");
-  const adjusted = gen.nextTemp();
-  gen.emit(`${adjusted} = add i32 ${indexI32}, ${length}`);
-  const resolved = gen.nextTemp();
-  gen.emit(`${resolved} = select i1 ${isNeg}, i32 ${adjusted}, i32 ${indexI32}`);
+  const adjusted = emitAdd(gen, "i32", indexI32, length);
+  const resolved = emitSelect(gen, isNeg, "i32", adjusted, indexI32);
   return resolved;
 }
 
@@ -651,8 +611,7 @@ function generateNumericArrayAt(
 
   const inLow = gen.emitIcmp("sge", "i32", resolved, "0");
   const inHigh = gen.emitIcmp("slt", "i32", resolved, length);
-  const inBounds = gen.nextTemp();
-  gen.emit(`${inBounds} = and i1 ${inLow}, ${inHigh}`);
+  const inBounds = emitAnd(gen, "i1", inLow, inHigh);
 
   const validLabel = gen.nextLabel("at_valid");
   const oobLabel = gen.nextLabel("at_oob");
@@ -663,8 +622,7 @@ function generateNumericArrayAt(
   const dataPtrField = gen.nextTemp();
   gen.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
   const dataPtr = gen.emitLoad("double*", dataPtrField);
-  const indexI64 = gen.nextTemp();
-  gen.emit(`${indexI64} = sext i32 ${resolved} to i64`);
+  const indexI64 = emitSext(gen, resolved, "i32", "i64");
   const elemPtr = gen.nextTemp();
   gen.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i64 ${indexI64}`);
   const validVal = gen.emitLoad("double", elemPtr);
@@ -696,8 +654,7 @@ function generateStringArrayAt(
 
   const inLow = gen.emitIcmp("sge", "i32", resolved, "0");
   const inHigh = gen.emitIcmp("slt", "i32", resolved, length);
-  const inBounds = gen.nextTemp();
-  gen.emit(`${inBounds} = and i1 ${inLow}, ${inHigh}`);
+  const inBounds = emitAnd(gen, "i1", inLow, inHigh);
 
   const validLabel = gen.nextLabel("at_valid");
   const oobLabel = gen.nextLabel("at_oob");
@@ -710,8 +667,7 @@ function generateStringArrayAt(
     `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
   );
   const dataPtr = gen.emitLoad("i8**", dataPtrField);
-  const indexI64 = gen.nextTemp();
-  gen.emit(`${indexI64} = sext i32 ${resolved} to i64`);
+  const indexI64 = emitSext(gen, resolved, "i32", "i64");
   const elemPtr = gen.nextTemp();
   gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i64 ${indexI64}`);
   const validVal = gen.emitLoad("i8*", elemPtr);
@@ -742,8 +698,7 @@ function generateObjectArrayAt(
 
   const inLow = gen.emitIcmp("sge", "i32", resolved, "0");
   const inHigh = gen.emitIcmp("slt", "i32", resolved, length);
-  const inBounds = gen.nextTemp();
-  gen.emit(`${inBounds} = and i1 ${inLow}, ${inHigh}`);
+  const inBounds = emitAnd(gen, "i1", inLow, inHigh);
 
   const validLabel = gen.nextLabel("at_valid");
   const oobLabel = gen.nextLabel("at_oob");
@@ -757,8 +712,7 @@ function generateObjectArrayAt(
   );
   const rawDataPtr = gen.emitLoad("i8*", dataPtrField);
   const dataPtr = gen.emitBitcast(rawDataPtr, "i8*", "i8**");
-  const indexI64 = gen.nextTemp();
-  gen.emit(`${indexI64} = sext i32 ${resolved} to i64`);
+  const indexI64 = emitSext(gen, resolved, "i32", "i64");
   const elemPtr = gen.nextTemp();
   gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i64 ${indexI64}`);
   const validVal = gen.emitLoad("i8*", elemPtr);

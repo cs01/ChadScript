@@ -1,6 +1,7 @@
 import { MemberAccessNode, InterfaceDeclaration, VariableNode } from "../../../ast/types.js";
 import { stripOptional, stripNullable, tsTypeToLlvm } from "../../infrastructure/type-system.js";
 import type { MemberAccessGeneratorContext } from "./member.js";
+import { emitSitofp, emitPhi } from "../../infrastructure/ir-builders.js";
 
 interface ExprBase {
   type: string;
@@ -78,13 +79,11 @@ export function extractJsonFieldValue(
   ctx.emitBr(fieldEndLabel);
 
   ctx.emitLabel(fieldEndLabel);
-  const result = ctx.nextTemp();
-  ctx.emit(
-    `${result} = phi i8* [ ${numAsStr}, %${numberLabel} ], [ ${strValue}, %${stringLabel} ], [ null, %${noFieldLabel} ]`,
-  );
-
-  ctx.setVariableType(result, "i8*");
-  return result;
+  return emitPhi(ctx, "i8*", [
+    [numAsStr, numberLabel],
+    [strValue, stringLabel],
+    ["null", noFieldLabel],
+  ]);
 }
 
 export function extractNestedJsonFieldValue(
@@ -111,13 +110,10 @@ export function extractNestedJsonFieldValue(
   ctx.emitBr(fieldEndLabel);
 
   ctx.emitLabel(fieldEndLabel);
-  const result = ctx.nextTemp();
-  ctx.emit(
-    `${result} = phi i8* [ ${numAsStr}, %${numberLabel} ], [ ${strValue}, %${stringLabel} ]`,
-  );
-
-  ctx.setVariableType(result, "i8*");
-  return result;
+  return emitPhi(ctx, "i8*", [
+    [numAsStr, numberLabel],
+    [strValue, stringLabel],
+  ]);
 }
 
 export function handleJsonPropertyAccess(
@@ -132,10 +128,7 @@ export function handleJsonPropertyAccess(
     const jsonObjPtrPtr = ctx.getVariableAlloca(varName)!;
     const jsonObjPtr = ctx.emitLoad("i8*", jsonObjPtrPtr);
     const arraySize = ctx.emitCall("i32", "@csyyjson_arr_size", `i8* ${jsonObjPtr}`);
-    const sizeDouble = ctx.nextTemp();
-    ctx.emit(`${sizeDouble} = sitofp i32 ${arraySize} to double`);
-    ctx.setVariableType(sizeDouble, "double");
-    return sizeDouble;
+    return emitSitofp(ctx, arraySize, "i32");
   }
 
   let tsType: string | undefined;
@@ -178,10 +171,7 @@ export function handleJsonPropertyAccess(
     return numValue;
   } else if (tsType === "boolean") {
     const boolValue = ctx.emitCall("i32", "@csyyjson_is_true", `i8* ${fieldItem}`);
-    const boolAsDouble = ctx.nextTemp();
-    ctx.emit(`${boolAsDouble} = sitofp i32 ${boolValue} to double`);
-    ctx.setVariableType(boolAsDouble, "double");
-    return boolAsDouble;
+    return emitSitofp(ctx, boolValue, "i32");
   } else if (tsType === "string[]" || tsType === "number[]" || tsType === "boolean[]") {
     ctx.setVariableType(fieldItem, "i8*");
     return fieldItem;
@@ -250,10 +240,7 @@ export function handleNestedJsonAccess(
     return numValue;
   } else if (tsType === "boolean") {
     const boolValue = ctx.emitCall("i32", "@csyyjson_is_true", `i8* ${fieldItem}`);
-    const boolAsDouble = ctx.nextTemp();
-    ctx.emit(`${boolAsDouble} = sitofp i32 ${boolValue} to double`);
-    ctx.setVariableType(boolAsDouble, "double");
-    return boolAsDouble;
+    return emitSitofp(ctx, boolValue, "i32");
   } else if (tsType === "string[]" || tsType === "number[]" || tsType === "boolean[]") {
     ctx.setVariableType(fieldItem, "i8*");
     return fieldItem;

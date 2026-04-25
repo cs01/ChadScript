@@ -1,5 +1,6 @@
 import { MethodCallNode } from "../../../ast/types.js";
 import type { MethodCallGeneratorContext } from "../method-calls.js";
+import { emitFptosi, emitTrunc } from "../../infrastructure/ir-builders.js";
 import {
   generateProcessExitInline,
   generateProcessCwdInline,
@@ -203,10 +204,8 @@ export function handleStringFromCharCode(
     return ctx.emitError("String.fromCharCode() requires 1 argument", expr.loc);
   const codeVal = ctx.generateExpression(expr.args[0], params);
   const dblVal = ctx.ensureDouble(codeVal);
-  const intVal = ctx.nextTemp();
-  ctx.emit(`${intVal} = fptosi double ${dblVal} to i32`);
-  const byteVal = ctx.nextTemp();
-  ctx.emit(`${byteVal} = trunc i32 ${intVal} to i8`);
+  const intVal = emitFptosi(ctx, dblVal, "i32");
+  const byteVal = emitTrunc(ctx, intVal, "i32", "i8");
   const buf = ctx.emitCall("i8*", "@cs_arena_alloc", "i64 2");
   ctx.emitStore("i8", byteVal, buf);
   const nullPtr = ctx.emitGep("i8", buf, "i64 1");
@@ -227,10 +226,8 @@ export function handleUint8ArrayFromRawBytes(
     );
   const dataPtr = ctx.generateExpression(expr.args[0], params);
   const lenDbl = ctx.generateExpression(expr.args[1], params);
-  const lenI64 = ctx.nextTemp();
-  ctx.emit(`${lenI64} = fptosi double ${lenDbl} to i64`);
-  const lenI32 = ctx.nextTemp();
-  ctx.emit(`${lenI32} = trunc i64 ${lenI64} to i32`);
+  const lenI64 = emitFptosi(ctx, lenDbl, "i64");
+  const lenI32 = emitTrunc(ctx, lenI64, "i64", "i32");
   const rawPtr = ctx.emitCall("i8*", "@GC_malloc", "i64 16");
   const arrPtr = ctx.emitBitcast(rawPtr, "i8*", "%Uint8Array*");
   const f0 = ctx.nextTemp();
@@ -283,8 +280,7 @@ export function handleTtyIsatty(
     return ctx.emitError("tty.isatty() requires 1 argument (fd)", expr.loc);
   const fdValue = ctx.generateExpression(expr.args[0], params);
   const dblFd = ctx.ensureDouble(fdValue);
-  const fdInt = ctx.nextTemp();
-  ctx.emit(`${fdInt} = fptosi double ${dblFd} to i32`);
+  const fdInt = emitFptosi(ctx, dblFd, "i32");
   const rawResult = ctx.nextTemp();
   ctx.emit(`${rawResult} = call i32 @isatty(i32 ${fdInt})`);
   const boolResult = ctx.nextTemp();

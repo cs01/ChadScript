@@ -5,6 +5,7 @@ interface ExprBase {
 }
 
 import { IGeneratorContext } from "../infrastructure/generator-context.js";
+import { emitSext, emitFptosi, emitTrunc, emitAnd, emitOr } from "../infrastructure/ir-builders.js";
 
 export class CryptoGenerator {
   constructor(private ctx: IGeneratorContext) {}
@@ -59,8 +60,7 @@ export class CryptoGenerator {
       this.ctx.emit(`${lenGep} = getelementptr %Uint8Array, %Uint8Array* ${argVal}, i32 0, i32 1`);
       const lenI32 = this.ctx.nextTemp();
       this.ctx.emit(`${lenI32} = load i32, i32* ${lenGep}`);
-      inputLen = this.ctx.nextTemp();
-      this.ctx.emit(`${inputLen} = sext i32 ${lenI32} to i64`);
+      inputLen = emitSext(this.ctx, lenI32, "i32", "i64");
     } else {
       inputPtr = argVal;
       inputLen = this.ctx.nextTemp();
@@ -127,11 +127,8 @@ export class CryptoGenerator {
     const countDouble = this.ctx.generateExpression(expr.args[0], params);
     const dblCount = this.ctx.ensureDouble(countDouble);
 
-    const countI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${countI32} = fptosi double ${dblCount} to i32`);
-
-    const countI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${countI64} = sext i32 ${countI32} to i64`);
+    const countI32 = emitFptosi(this.ctx, dblCount, "i32");
+    const countI64 = emitSext(this.ctx, countI32, "i32", "i64");
 
     const buf = this.ctx.nextTemp();
     this.ctx.emit(
@@ -166,10 +163,8 @@ export class CryptoGenerator {
     this.ctx.emit(`${byte6Ptr} = getelementptr inbounds i8, i8* ${buf}, i64 6`);
     const byte6 = this.ctx.nextTemp();
     this.ctx.emit(`${byte6} = load i8, i8* ${byte6Ptr}`);
-    const byte6Masked = this.ctx.nextTemp();
-    this.ctx.emit(`${byte6Masked} = and i8 ${byte6}, 15`);
-    const byte6Set = this.ctx.nextTemp();
-    this.ctx.emit(`${byte6Set} = or i8 ${byte6Masked}, 64`);
+    const byte6Masked = emitAnd(this.ctx, "i8", byte6, "15");
+    const byte6Set = emitOr(this.ctx, "i8", byte6Masked, "64");
     this.ctx.emit(`store i8 ${byte6Set}, i8* ${byte6Ptr}`);
 
     // Set variant: byte 8 = (byte8 & 0x3F) | 0x80
@@ -177,10 +172,8 @@ export class CryptoGenerator {
     this.ctx.emit(`${byte8Ptr} = getelementptr inbounds i8, i8* ${buf}, i64 8`);
     const byte8 = this.ctx.nextTemp();
     this.ctx.emit(`${byte8} = load i8, i8* ${byte8Ptr}`);
-    const byte8Masked = this.ctx.nextTemp();
-    this.ctx.emit(`${byte8Masked} = and i8 ${byte8}, 63`);
-    const byte8Set = this.ctx.nextTemp();
-    this.ctx.emit(`${byte8Set} = or i8 ${byte8Masked}, -128`);
+    const byte8Masked = emitAnd(this.ctx, "i8", byte8, "63");
+    const byte8Set = emitOr(this.ctx, "i8", byte8Masked, "-128");
     this.ctx.emit(`store i8 ${byte8Set}, i8* ${byte8Ptr}`);
 
     const result = this.ctx.nextTemp();
@@ -246,8 +239,7 @@ export class CryptoGenerator {
       this.ctx.emit(
         `${keyLen64} = call i64 ${this.ctx.emitSymbol("strlen", "@")}(${this.ctx.emitOperand(keyPtr, "i8*")})`,
       );
-      keyLen32 = this.ctx.nextTemp();
-      this.ctx.emit(`${keyLen32} = trunc i64 ${keyLen64} to i32`);
+      keyLen32 = emitTrunc(this.ctx, keyLen64, "i64", "i32");
     }
 
     let dataPtr: string;
@@ -265,8 +257,7 @@ export class CryptoGenerator {
       );
       const dLenI32 = this.ctx.nextTemp();
       this.ctx.emit(`${dLenI32} = load i32, i32* ${dLenGep}`);
-      dataLen = this.ctx.nextTemp();
-      this.ctx.emit(`${dataLen} = sext i32 ${dLenI32} to i64`);
+      dataLen = emitSext(this.ctx, dLenI32, "i32", "i64");
     } else {
       dataPtr = dataVal;
       dataLen = this.ctx.nextTemp();
@@ -320,25 +311,20 @@ export class CryptoGenerator {
     this.ctx.emit(
       `${passLen} = call i64 ${this.ctx.emitSymbol("strlen", "@")}(${this.ctx.emitOperand(passwordPtr, "i8*")})`,
     );
-    const passLen32 = this.ctx.nextTemp();
-    this.ctx.emit(`${passLen32} = trunc i64 ${passLen} to i32`);
+    const passLen32 = emitTrunc(this.ctx, passLen, "i64", "i32");
 
     const saltLen = this.ctx.nextTemp();
     this.ctx.emit(
       `${saltLen} = call i64 ${this.ctx.emitSymbol("strlen", "@")}(${this.ctx.emitOperand(saltPtr, "i8*")})`,
     );
-    const saltLen32 = this.ctx.nextTemp();
-    this.ctx.emit(`${saltLen32} = trunc i64 ${saltLen} to i32`);
+    const saltLen32 = emitTrunc(this.ctx, saltLen, "i64", "i32");
 
     const iterD = this.ctx.ensureDouble(iterDouble);
-    const iterI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${iterI32} = fptosi double ${iterD} to i32`);
+    const iterI32 = emitFptosi(this.ctx, iterD, "i32");
 
     const keylenD = this.ctx.ensureDouble(keylenDouble);
-    const keylenI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${keylenI32} = fptosi double ${keylenD} to i32`);
-    const keylenI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${keylenI64} = sext i32 ${keylenI32} to i64`);
+    const keylenI32 = emitFptosi(this.ctx, keylenD, "i32");
+    const keylenI64 = emitSext(this.ctx, keylenI32, "i32", "i64");
 
     const outBuf = this.ctx.nextTemp();
     this.ctx.emit(

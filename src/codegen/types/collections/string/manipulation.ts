@@ -3,6 +3,17 @@
 // raw emit() kept for instructions without builders (phi, select, add, sub, alloca, inbounds GEP, etc.).
 
 import { IGeneratorContext } from "../../../infrastructure/generator-context.js";
+import {
+  emitTrunc,
+  emitSext,
+  emitSelect,
+  emitAdd,
+  emitSub,
+  emitOr,
+  emitMul,
+  emitSRem,
+  emitPtrtoint,
+} from "../../../infrastructure/ir-builders.js";
 
 // ============================================
 // STRING MANIPULATION - Substring, slice, repeat, pad, trim operations
@@ -15,52 +26,40 @@ export function generateSubstr(
   length: string | null,
 ): string {
   const strLen = ctx.emitCall("i64", "@strlen", `i8* ${strPtr}`);
-  const strLenI32 = ctx.nextTemp();
-  ctx.emit(`${strLenI32} = trunc i64 ${strLen} to i32`);
+  const strLenI32 = emitTrunc(ctx, strLen, "i64", "i32");
 
   const startIsNeg = ctx.emitIcmp("slt", "i32", startIndex, "0");
-  const negAdjusted = ctx.nextTemp();
-  ctx.emit(`${negAdjusted} = add i32 ${strLenI32}, ${startIndex}`);
-  const afterNeg = ctx.nextTemp();
-  ctx.emit(`${afterNeg} = select i1 ${startIsNeg}, i32 ${negAdjusted}, i32 ${startIndex}`);
+  const negAdjusted = emitAdd(ctx, "i32", strLenI32, startIndex);
+  const afterNeg = emitSelect(ctx, startIsNeg, "i32", negAdjusted, startIndex);
   const stillNeg = ctx.emitIcmp("slt", "i32", afterNeg, "0");
-  const clampedLow = ctx.nextTemp();
-  ctx.emit(`${clampedLow} = select i1 ${stillNeg}, i32 0, i32 ${afterNeg}`);
+  const clampedLow = emitSelect(ctx, stillNeg, "i32", "0", afterNeg);
   const startTooBig = ctx.emitIcmp("sgt", "i32", clampedLow, strLenI32);
-  const startI32 = ctx.nextTemp();
-  ctx.emit(`${startI32} = select i1 ${startTooBig}, i32 ${strLenI32}, i32 ${clampedLow}`);
+  const startI32 = emitSelect(ctx, startTooBig, "i32", strLenI32, clampedLow);
 
   let substrLen: string;
   if (length === null) {
-    substrLen = ctx.nextTemp();
-    ctx.emit(`${substrLen} = sub i32 ${strLenI32}, ${startI32}`);
+    substrLen = emitSub(ctx, "i32", strLenI32, startI32);
   } else {
     substrLen = length;
   }
 
-  const remainingLen = ctx.nextTemp();
-  ctx.emit(`${remainingLen} = sub i32 ${strLenI32}, ${startI32}`);
+  const remainingLen = emitSub(ctx, "i32", strLenI32, startI32);
 
   const isLenTooLarge = ctx.emitIcmp("sgt", "i32", substrLen, remainingLen);
 
-  const clampedLen = ctx.nextTemp();
-  ctx.emit(`${clampedLen} = select i1 ${isLenTooLarge}, i32 ${remainingLen}, i32 ${substrLen}`);
+  const clampedLen = emitSelect(ctx, isLenTooLarge, "i32", remainingLen, substrLen);
 
   const isNegative = ctx.emitIcmp("slt", "i32", clampedLen, "0");
 
-  const finalLen = ctx.nextTemp();
-  ctx.emit(`${finalLen} = select i1 ${isNegative}, i32 0, i32 ${clampedLen}`);
+  const finalLen = emitSelect(ctx, isNegative, "i32", "0", clampedLen);
 
-  const finalLenI64 = ctx.nextTemp();
-  ctx.emit(`${finalLenI64} = sext i32 ${finalLen} to i64`);
+  const finalLenI64 = emitSext(ctx, finalLen, "i32", "i64");
 
-  const allocLen = ctx.nextTemp();
-  ctx.emit(`${allocLen} = add i64 ${finalLenI64}, 1`);
+  const allocLen = emitAdd(ctx, "i64", finalLenI64, "1");
 
   const resultPtr = ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${allocLen}`);
 
-  const startI64 = ctx.nextTemp();
-  ctx.emit(`${startI64} = sext i32 ${startI32} to i64`);
+  const startI64 = emitSext(ctx, startI32, "i32", "i64");
 
   const srcPtr = ctx.nextTemp();
   ctx.emit(`${srcPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${startI64}`);
@@ -80,22 +79,17 @@ export function generateRepeat(ctx: IGeneratorContext, strPtr: string, count: st
   const strLen = ctx.emitCall("i64", "@strlen", `i8* ${strPtr}`);
 
   const isNeg = ctx.emitIcmp("slt", "i32", count, "0");
-  const clampedCount = ctx.nextTemp();
-  ctx.emit(`${clampedCount} = select i1 ${isNeg}, i32 0, i32 ${count}`);
+  const clampedCount = emitSelect(ctx, isNeg, "i32", "0", count);
 
   const maxCount = 1048576;
   const tooBig = ctx.emitIcmp("sgt", "i32", clampedCount, `${maxCount}`);
-  const safeCount = ctx.nextTemp();
-  ctx.emit(`${safeCount} = select i1 ${tooBig}, i32 ${maxCount}, i32 ${clampedCount}`);
+  const safeCount = emitSelect(ctx, tooBig, "i32", `${maxCount}`, clampedCount);
 
-  const countI64 = ctx.nextTemp();
-  ctx.emit(`${countI64} = sext i32 ${safeCount} to i64`);
+  const countI64 = emitSext(ctx, safeCount, "i32", "i64");
 
-  const totalLen = ctx.nextTemp();
-  ctx.emit(`${totalLen} = mul i64 ${strLen}, ${countI64}`);
+  const totalLen = emitMul(ctx, "i64", strLen, countI64);
 
-  const allocLen = ctx.nextTemp();
-  ctx.emit(`${allocLen} = add i64 ${totalLen}, 1`);
+  const allocLen = emitAdd(ctx, "i64", totalLen, "1");
 
   const resultPtr = ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${allocLen}`);
 
@@ -120,8 +114,7 @@ export function generateRepeat(ctx: IGeneratorContext, strPtr: string, count: st
   const strcatResult = ctx.emitCall("i8*", "@strcat", `i8* ${resultPtr}, i8* ${strPtr}`);
   // strcatResult unused but call has side effects
 
-  const nextCounter = ctx.nextTemp();
-  ctx.emit(`${nextCounter} = add i32 ${counterVal}, 1`);
+  const nextCounter = emitAdd(ctx, "i32", counterVal, "1");
   ctx.emitStore("i32", nextCounter, counterPtr);
   ctx.emitBr(loopLabel);
 
@@ -138,19 +131,15 @@ export function generatePadStart(
 ): string {
   const maxPadLen = 1048576;
   const padTooBig = ctx.emitIcmp("sgt", "i32", targetLength, `${maxPadLen}`);
-  const safePadTarget = ctx.nextTemp();
-  ctx.emit(`${safePadTarget} = select i1 ${padTooBig}, i32 ${maxPadLen}, i32 ${targetLength}`);
+  const safePadTarget = emitSelect(ctx, padTooBig, "i32", `${maxPadLen}`, targetLength);
 
   const strLen = ctx.emitCall("i64", "@strlen", `i8* ${strPtr}`);
-  const strLenI32 = ctx.nextTemp();
-  ctx.emit(`${strLenI32} = trunc i64 ${strLen} to i32`);
+  const strLenI32 = emitTrunc(ctx, strLen, "i64", "i32");
 
   const padLen = ctx.emitCall("i64", "@strlen", `i8* ${padString}`);
-  const padLenI32 = ctx.nextTemp();
-  ctx.emit(`${padLenI32} = trunc i64 ${padLen} to i32`);
+  const padLenI32 = emitTrunc(ctx, padLen, "i64", "i32");
 
-  const paddingNeeded = ctx.nextTemp();
-  ctx.emit(`${paddingNeeded} = sub i32 ${safePadTarget}, ${strLenI32}`);
+  const paddingNeeded = emitSub(ctx, "i32", safePadTarget, strLenI32);
 
   const needsPaddingRaw = ctx.emitIcmp("sgt", "i32", paddingNeeded, "0");
   const padNonEmpty = ctx.emitIcmp("sgt", "i32", padLenI32, "0");
@@ -167,19 +156,15 @@ export function generatePadStart(
   ctx.emitBrCond(needsPadding, doPadLabel, noPadLabel);
 
   ctx.emitLabel(noPadLabel);
-  const targetLenI64NoPad = ctx.nextTemp();
-  ctx.emit(`${targetLenI64NoPad} = sext i32 ${safePadTarget} to i64`);
-  const allocLen1 = ctx.nextTemp();
-  ctx.emit(`${allocLen1} = add i64 ${targetLenI64NoPad}, 1`);
+  const targetLenI64NoPad = emitSext(ctx, safePadTarget, "i32", "i64");
+  const allocLen1 = emitAdd(ctx, "i64", targetLenI64NoPad, "1");
   const noPadResult = ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${allocLen1}`);
   const strcpyResult1 = ctx.emitCall("i8*", "@strcpy", `i8* ${noPadResult}, i8* ${strPtr}`);
   ctx.emitBr(endLabel);
 
   ctx.emitLabel(doPadLabel);
-  const targetLenI64Pad = ctx.nextTemp();
-  ctx.emit(`${targetLenI64Pad} = sext i32 ${safePadTarget} to i64`);
-  const allocLen2 = ctx.nextTemp();
-  ctx.emit(`${allocLen2} = add i64 ${targetLenI64Pad}, 1`);
+  const targetLenI64Pad = emitSext(ctx, safePadTarget, "i32", "i64");
+  const allocLen2 = emitAdd(ctx, "i64", targetLenI64Pad, "1");
   const padResult = ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${allocLen2}`);
 
   ctx.emitStore("i8", "0", padResult);
@@ -187,8 +172,7 @@ export function generatePadStart(
   const fullPads = ctx.nextTemp();
   ctx.emit(`${fullPads} = sdiv i32 ${paddingNeeded}, ${padLenI32}`);
 
-  const remainingPad = ctx.nextTemp();
-  ctx.emit(`${remainingPad} = srem i32 ${paddingNeeded}, ${padLenI32}`);
+  const remainingPad = emitSRem(ctx, "i32", paddingNeeded, padLenI32);
 
   const padLoopLabel = ctx.nextLabel("padstart_loop");
   const padLoopBodyLabel = ctx.nextLabel("padstart_loop_body");
@@ -204,8 +188,7 @@ export function generatePadStart(
 
   ctx.emitLabel(padLoopBodyLabel);
   const strcatPad = ctx.emitCall("i8*", "@strcat", `i8* ${padResult}, i8* ${padString}`);
-  const nextPadCounter = ctx.nextTemp();
-  ctx.emit(`${nextPadCounter} = add i32 ${padCounterVal}, 1`);
+  const nextPadCounter = emitAdd(ctx, "i32", padCounterVal, "1");
   ctx.emitStore("i32", nextPadCounter, padCounterPtr);
   ctx.emitBr(padLoopLabel);
 
@@ -250,19 +233,15 @@ export function generatePadEnd(
 ): string {
   const maxPadLen = 1048576;
   const padTooBig = ctx.emitIcmp("sgt", "i32", targetLength, `${maxPadLen}`);
-  const safePadTarget = ctx.nextTemp();
-  ctx.emit(`${safePadTarget} = select i1 ${padTooBig}, i32 ${maxPadLen}, i32 ${targetLength}`);
+  const safePadTarget = emitSelect(ctx, padTooBig, "i32", `${maxPadLen}`, targetLength);
 
   const strLen = ctx.emitCall("i64", "@strlen", `i8* ${strPtr}`);
-  const strLenI32 = ctx.nextTemp();
-  ctx.emit(`${strLenI32} = trunc i64 ${strLen} to i32`);
+  const strLenI32 = emitTrunc(ctx, strLen, "i64", "i32");
 
   const padLen = ctx.emitCall("i64", "@strlen", `i8* ${padString}`);
-  const padLenI32 = ctx.nextTemp();
-  ctx.emit(`${padLenI32} = trunc i64 ${padLen} to i32`);
+  const padLenI32 = emitTrunc(ctx, padLen, "i64", "i32");
 
-  const paddingNeeded = ctx.nextTemp();
-  ctx.emit(`${paddingNeeded} = sub i32 ${safePadTarget}, ${strLenI32}`);
+  const paddingNeeded = emitSub(ctx, "i32", safePadTarget, strLenI32);
 
   const needsPaddingRaw = ctx.emitIcmp("sgt", "i32", paddingNeeded, "0");
   const padNonEmpty = ctx.emitIcmp("sgt", "i32", padLenI32, "0");
@@ -279,19 +258,15 @@ export function generatePadEnd(
   ctx.emitBrCond(needsPadding, doPadLabel, noPadLabel);
 
   ctx.emitLabel(noPadLabel);
-  const strLenI64NoPad = ctx.nextTemp();
-  ctx.emit(`${strLenI64NoPad} = sext i32 ${strLenI32} to i64`);
-  const allocLen1 = ctx.nextTemp();
-  ctx.emit(`${allocLen1} = add i64 ${strLenI64NoPad}, 1`);
+  const strLenI64NoPad = emitSext(ctx, strLenI32, "i32", "i64");
+  const allocLen1 = emitAdd(ctx, "i64", strLenI64NoPad, "1");
   const noPadResult = ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${allocLen1}`);
   const strcpyResult1 = ctx.emitCall("i8*", "@strcpy", `i8* ${noPadResult}, i8* ${strPtr}`);
   ctx.emitBr(endLabel);
 
   ctx.emitLabel(doPadLabel);
-  const targetLenI64Pad = ctx.nextTemp();
-  ctx.emit(`${targetLenI64Pad} = sext i32 ${safePadTarget} to i64`);
-  const allocLen2 = ctx.nextTemp();
-  ctx.emit(`${allocLen2} = add i64 ${targetLenI64Pad}, 1`);
+  const targetLenI64Pad = emitSext(ctx, safePadTarget, "i32", "i64");
+  const allocLen2 = emitAdd(ctx, "i64", targetLenI64Pad, "1");
   const padResult = ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${allocLen2}`);
 
   const strcpyOrig = ctx.emitCall("i8*", "@strcpy", `i8* ${padResult}, i8* ${strPtr}`);
@@ -299,8 +274,7 @@ export function generatePadEnd(
   const fullPads = ctx.nextTemp();
   ctx.emit(`${fullPads} = sdiv i32 ${paddingNeeded}, ${padLenI32}`);
 
-  const remainingPad = ctx.nextTemp();
-  ctx.emit(`${remainingPad} = srem i32 ${paddingNeeded}, ${padLenI32}`);
+  const remainingPad = emitSRem(ctx, "i32", paddingNeeded, padLenI32);
 
   const padLoopLabel = ctx.nextLabel("padend_loop");
   const padLoopBodyLabel = ctx.nextLabel("padend_loop_body");
@@ -316,8 +290,7 @@ export function generatePadEnd(
 
   ctx.emitLabel(padLoopBodyLabel);
   const strcatPad = ctx.emitCall("i8*", "@strcat", `i8* ${padResult}, i8* ${padString}`);
-  const nextPadCounter = ctx.nextTemp();
-  ctx.emit(`${nextPadCounter} = add i32 ${padCounterVal}, 1`);
+  const nextPadCounter = emitAdd(ctx, "i32", padCounterVal, "1");
   ctx.emitStore("i32", nextPadCounter, padCounterPtr);
   ctx.emitBr(padLoopLabel);
 
@@ -359,26 +332,19 @@ export function generateSlice(
   endIndex: string | null,
 ): string {
   const strLen = ctx.emitCall("i64", "@strlen", `i8* ${strPtr}`);
-  const strLenI32 = ctx.nextTemp();
-  ctx.emit(`${strLenI32} = trunc i64 ${strLen} to i32`);
+  const strLenI32 = emitTrunc(ctx, strLen, "i64", "i32");
 
   const startIsNegative = ctx.emitIcmp("slt", "i32", startIndex, "0");
 
-  const adjustedStart1 = ctx.nextTemp();
-  ctx.emit(`${adjustedStart1} = add i32 ${strLenI32}, ${startIndex}`);
+  const adjustedStart1 = emitAdd(ctx, "i32", strLenI32, startIndex);
 
-  const adjustedStart2 = ctx.nextTemp();
-  ctx.emit(
-    `${adjustedStart2} = select i1 ${startIsNegative}, i32 ${adjustedStart1}, i32 ${startIndex}`,
-  );
+  const adjustedStart2 = emitSelect(ctx, startIsNegative, "i32", adjustedStart1, startIndex);
 
   const startTooSmall = ctx.emitIcmp("slt", "i32", adjustedStart2, "0");
-  const clampedStart1 = ctx.nextTemp();
-  ctx.emit(`${clampedStart1} = select i1 ${startTooSmall}, i32 0, i32 ${adjustedStart2}`);
+  const clampedStart1 = emitSelect(ctx, startTooSmall, "i32", "0", adjustedStart2);
 
   const startTooBig = ctx.emitIcmp("sgt", "i32", clampedStart1, strLenI32);
-  const finalStart = ctx.nextTemp();
-  ctx.emit(`${finalStart} = select i1 ${startTooBig}, i32 ${strLenI32}, i32 ${clampedStart1}`);
+  const finalStart = emitSelect(ctx, startTooBig, "i32", strLenI32, clampedStart1);
 
   let finalEnd: string;
   if (endIndex === null) {
@@ -386,35 +352,28 @@ export function generateSlice(
   } else {
     const endIsNegative = ctx.emitIcmp("slt", "i32", endIndex, "0");
 
-    const adjustedEnd1 = ctx.nextTemp();
-    ctx.emit(`${adjustedEnd1} = add i32 ${strLenI32}, ${endIndex}`);
+    const adjustedEnd1 = emitAdd(ctx, "i32", strLenI32, endIndex);
 
-    const adjustedEnd2 = ctx.nextTemp();
-    ctx.emit(`${adjustedEnd2} = select i1 ${endIsNegative}, i32 ${adjustedEnd1}, i32 ${endIndex}`);
+    const adjustedEnd2 = emitSelect(ctx, endIsNegative, "i32", adjustedEnd1, endIndex);
 
     const endTooSmall = ctx.emitIcmp("slt", "i32", adjustedEnd2, "0");
-    const clampedEnd1 = ctx.nextTemp();
-    ctx.emit(`${clampedEnd1} = select i1 ${endTooSmall}, i32 0, i32 ${adjustedEnd2}`);
+    const clampedEnd1 = emitSelect(ctx, endTooSmall, "i32", "0", adjustedEnd2);
 
     const endTooBig = ctx.emitIcmp("sgt", "i32", clampedEnd1, strLenI32);
-    finalEnd = ctx.nextTemp();
-    ctx.emit(`${finalEnd} = select i1 ${endTooBig}, i32 ${strLenI32}, i32 ${clampedEnd1}`);
+    finalEnd = emitSelect(ctx, endTooBig, "i32", strLenI32, clampedEnd1);
   }
 
-  const sliceLen = ctx.nextTemp();
-  ctx.emit(`${sliceLen} = sub i32 ${finalEnd}, ${finalStart}`);
+  const sliceLen = emitSub(ctx, "i32", finalEnd, finalStart);
 
   const lenIsNegative = ctx.emitIcmp("slt", "i32", sliceLen, "0");
-  const finalLen = ctx.nextTemp();
-  ctx.emit(`${finalLen} = select i1 ${lenIsNegative}, i32 0, i32 ${sliceLen}`);
+  const finalLen = emitSelect(ctx, lenIsNegative, "i32", "0", sliceLen);
 
   return generateSubstr(ctx, strPtr, finalStart, finalLen);
 }
 
 export function generateTrim(ctx: IGeneratorContext, strPtr: string): string {
   const strLen = ctx.emitCall("i64", "@strlen", `i8* ${strPtr}`);
-  const strLenI32 = ctx.nextTemp();
-  ctx.emit(`${strLenI32} = trunc i64 ${strLen} to i32`);
+  const strLenI32 = emitTrunc(ctx, strLen, "i64", "i32");
 
   const isEmpty = ctx.emitIcmp("eq", "i32", strLenI32, "0");
 
@@ -451,8 +410,7 @@ export function generateTrim(ctx: IGeneratorContext, strPtr: string): string {
   ctx.emitBrCond(startCond, findStartBodyLabel, findStartEndLabel);
 
   ctx.emitLabel(findStartBodyLabel);
-  const startI64 = ctx.nextTemp();
-  ctx.emit(`${startI64} = sext i32 ${start} to i64`);
+  const startI64 = emitSext(ctx, start, "i32", "i64");
   const charPtr1 = ctx.nextTemp();
   ctx.emit(`${charPtr1} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${startI64}`);
   const char1 = ctx.nextTemp();
@@ -463,18 +421,14 @@ export function generateTrim(ctx: IGeneratorContext, strPtr: string): string {
   const isNewline = ctx.emitIcmp("eq", "i8", char1, "10");
   const isCR = ctx.emitIcmp("eq", "i8", char1, "13");
 
-  const isWS1 = ctx.nextTemp();
-  ctx.emit(`${isWS1} = or i1 ${isSpace}, ${isTab}`);
-  const isWS2 = ctx.nextTemp();
-  ctx.emit(`${isWS2} = or i1 ${isWS1}, ${isNewline}`);
-  const isWhitespace = ctx.nextTemp();
-  ctx.emit(`${isWhitespace} = or i1 ${isWS2}, ${isCR}`);
+  const isWS1 = emitOr(ctx, "i1", isSpace, isTab);
+  const isWS2 = emitOr(ctx, "i1", isWS1, isNewline);
+  const isWhitespace = emitOr(ctx, "i1", isWS2, isCR);
 
   ctx.emitBrCond(isWhitespace, findStartCheckLabel, findStartEndLabel);
 
   ctx.emitLabel(findStartCheckLabel);
-  const nextStart = ctx.nextTemp();
-  ctx.emit(`${nextStart} = add i32 ${start}, 1`);
+  const nextStart = emitAdd(ctx, "i32", start, "1");
   ctx.emitStore("i32", nextStart, startPtr);
   ctx.emitBr(findStartLabel);
 
@@ -494,8 +448,7 @@ export function generateTrim(ctx: IGeneratorContext, strPtr: string): string {
   ctx.emitBr(endLabel);
 
   ctx.emitLabel(findEndLabel);
-  const initEnd = ctx.nextTemp();
-  ctx.emit(`${initEnd} = sub i32 ${strLenI32}, 1`);
+  const initEnd = emitSub(ctx, "i32", strLenI32, "1");
   ctx.emitStore("i32", initEnd, endPtr);
 
   const findEndLoopLabel = ctx.nextLabel("trim_find_end_loop");
@@ -511,8 +464,7 @@ export function generateTrim(ctx: IGeneratorContext, strPtr: string): string {
   ctx.emitBrCond(endCond, findEndBodyLabel, findEndEndLabel);
 
   ctx.emitLabel(findEndBodyLabel);
-  const endI64 = ctx.nextTemp();
-  ctx.emit(`${endI64} = sext i32 ${end} to i64`);
+  const endI64 = emitSext(ctx, end, "i32", "i64");
   const charPtr2 = ctx.nextTemp();
   ctx.emit(`${charPtr2} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${endI64}`);
   const char2 = ctx.nextTemp();
@@ -523,28 +475,22 @@ export function generateTrim(ctx: IGeneratorContext, strPtr: string): string {
   const isNewline2 = ctx.emitIcmp("eq", "i8", char2, "10");
   const isCR2 = ctx.emitIcmp("eq", "i8", char2, "13");
 
-  const isWS3 = ctx.nextTemp();
-  ctx.emit(`${isWS3} = or i1 ${isSpace2}, ${isTab2}`);
-  const isWS4 = ctx.nextTemp();
-  ctx.emit(`${isWS4} = or i1 ${isWS3}, ${isNewline2}`);
-  const isWhitespace2 = ctx.nextTemp();
-  ctx.emit(`${isWhitespace2} = or i1 ${isWS4}, ${isCR2}`);
+  const isWS3 = emitOr(ctx, "i1", isSpace2, isTab2);
+  const isWS4 = emitOr(ctx, "i1", isWS3, isNewline2);
+  const isWhitespace2 = emitOr(ctx, "i1", isWS4, isCR2);
 
   ctx.emitBrCond(isWhitespace2, findEndCheckLabel, findEndEndLabel);
 
   ctx.emitLabel(findEndCheckLabel);
-  const nextEnd = ctx.nextTemp();
-  ctx.emit(`${nextEnd} = sub i32 ${end}, 1`);
+  const nextEnd = emitSub(ctx, "i32", end, "1");
   ctx.emitStore("i32", nextEnd, endPtr);
   ctx.emitBr(findEndLoopLabel);
 
   ctx.emitLabel(findEndEndLabel);
   const finalEnd = ctx.emitLoad("i32", endPtr);
 
-  const trimmedLen = ctx.nextTemp();
-  ctx.emit(`${trimmedLen} = sub i32 ${finalEnd}, ${finalStart}`);
-  const trimmedLenPlus1 = ctx.nextTemp();
-  ctx.emit(`${trimmedLenPlus1} = add i32 ${trimmedLen}, 1`);
+  const trimmedLen = emitSub(ctx, "i32", finalEnd, finalStart);
+  const trimmedLenPlus1 = emitAdd(ctx, "i32", trimmedLen, "1");
 
   const trimmedResult = generateSubstr(ctx, strPtr, finalStart, trimmedLenPlus1);
   ctx.emitBr(endLabel);
@@ -561,8 +507,7 @@ export function generateTrim(ctx: IGeneratorContext, strPtr: string): string {
 
 export function generateTrimStart(ctx: IGeneratorContext, strPtr: string): string {
   const strLen = ctx.emitCall("i64", "@strlen", `i8* ${strPtr}`);
-  const strLenI32 = ctx.nextTemp();
-  ctx.emit(`${strLenI32} = trunc i64 ${strLen} to i32`);
+  const strLenI32 = emitTrunc(ctx, strLen, "i64", "i32");
 
   const isEmpty = ctx.emitIcmp("eq", "i32", strLenI32, "0");
 
@@ -597,8 +542,7 @@ export function generateTrimStart(ctx: IGeneratorContext, strPtr: string): strin
   ctx.emitBrCond(startCond, findStartBodyLabel, findStartEndLabel);
 
   ctx.emitLabel(findStartBodyLabel);
-  const startI64 = ctx.nextTemp();
-  ctx.emit(`${startI64} = sext i32 ${start} to i64`);
+  const startI64 = emitSext(ctx, start, "i32", "i64");
   const charPtr = ctx.nextTemp();
   ctx.emit(`${charPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${startI64}`);
   const ch = ctx.nextTemp();
@@ -609,18 +553,14 @@ export function generateTrimStart(ctx: IGeneratorContext, strPtr: string): strin
   const isNewline = ctx.emitIcmp("eq", "i8", ch, "10");
   const isCR = ctx.emitIcmp("eq", "i8", ch, "13");
 
-  const isWS1 = ctx.nextTemp();
-  ctx.emit(`${isWS1} = or i1 ${isSpace}, ${isTab}`);
-  const isWS2 = ctx.nextTemp();
-  ctx.emit(`${isWS2} = or i1 ${isWS1}, ${isNewline}`);
-  const isWhitespace = ctx.nextTemp();
-  ctx.emit(`${isWhitespace} = or i1 ${isWS2}, ${isCR}`);
+  const isWS1 = emitOr(ctx, "i1", isSpace, isTab);
+  const isWS2 = emitOr(ctx, "i1", isWS1, isNewline);
+  const isWhitespace = emitOr(ctx, "i1", isWS2, isCR);
 
   ctx.emitBrCond(isWhitespace, findStartCheckLabel, findStartEndLabel);
 
   ctx.emitLabel(findStartCheckLabel);
-  const nextStart = ctx.nextTemp();
-  ctx.emit(`${nextStart} = add i32 ${start}, 1`);
+  const nextStart = emitAdd(ctx, "i32", start, "1");
   ctx.emitStore("i32", nextStart, startPtr);
   ctx.emitBr(findStartLabel);
 
@@ -640,8 +580,7 @@ export function generateTrimStart(ctx: IGeneratorContext, strPtr: string): strin
   ctx.emitBr(endLabel);
 
   ctx.emitLabel(substrLabel);
-  const remainLen = ctx.nextTemp();
-  ctx.emit(`${remainLen} = sub i32 ${strLenI32}, ${finalStart}`);
+  const remainLen = emitSub(ctx, "i32", strLenI32, finalStart);
   const trimmedResult = generateSubstr(ctx, strPtr, finalStart, remainLen);
   ctx.emitBr(endLabel);
 
@@ -657,8 +596,7 @@ export function generateTrimStart(ctx: IGeneratorContext, strPtr: string): strin
 
 export function generateTrimEnd(ctx: IGeneratorContext, strPtr: string): string {
   const strLen = ctx.emitCall("i64", "@strlen", `i8* ${strPtr}`);
-  const strLenI32 = ctx.nextTemp();
-  ctx.emit(`${strLenI32} = trunc i64 ${strLen} to i32`);
+  const strLenI32 = emitTrunc(ctx, strLen, "i64", "i32");
 
   const isEmpty = ctx.emitIcmp("eq", "i32", strLenI32, "0");
 
@@ -678,8 +616,7 @@ export function generateTrimEnd(ctx: IGeneratorContext, strPtr: string): string 
 
   ctx.emitLabel(notEmptyLabel);
 
-  const initEnd = ctx.nextTemp();
-  ctx.emit(`${initEnd} = sub i32 ${strLenI32}, 1`);
+  const initEnd = emitSub(ctx, "i32", strLenI32, "1");
   ctx.emitStore("i32", initEnd, endPtr);
 
   const findEndLabel = ctx.nextLabel("trimend_find");
@@ -695,8 +632,7 @@ export function generateTrimEnd(ctx: IGeneratorContext, strPtr: string): string 
   ctx.emitBrCond(endCond, findEndBodyLabel, findEndEndLabel);
 
   ctx.emitLabel(findEndBodyLabel);
-  const endI64 = ctx.nextTemp();
-  ctx.emit(`${endI64} = sext i32 ${end} to i64`);
+  const endI64 = emitSext(ctx, end, "i32", "i64");
   const charPtr = ctx.nextTemp();
   ctx.emit(`${charPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${endI64}`);
   const ch = ctx.nextTemp();
@@ -707,18 +643,14 @@ export function generateTrimEnd(ctx: IGeneratorContext, strPtr: string): string 
   const isNewline = ctx.emitIcmp("eq", "i8", ch, "10");
   const isCR = ctx.emitIcmp("eq", "i8", ch, "13");
 
-  const isWS1 = ctx.nextTemp();
-  ctx.emit(`${isWS1} = or i1 ${isSpace}, ${isTab}`);
-  const isWS2 = ctx.nextTemp();
-  ctx.emit(`${isWS2} = or i1 ${isWS1}, ${isNewline}`);
-  const isWhitespace = ctx.nextTemp();
-  ctx.emit(`${isWhitespace} = or i1 ${isWS2}, ${isCR}`);
+  const isWS1 = emitOr(ctx, "i1", isSpace, isTab);
+  const isWS2 = emitOr(ctx, "i1", isWS1, isNewline);
+  const isWhitespace = emitOr(ctx, "i1", isWS2, isCR);
 
   ctx.emitBrCond(isWhitespace, findEndCheckLabel, findEndEndLabel);
 
   ctx.emitLabel(findEndCheckLabel);
-  const nextEnd = ctx.nextTemp();
-  ctx.emit(`${nextEnd} = sub i32 ${end}, 1`);
+  const nextEnd = emitSub(ctx, "i32", end, "1");
   ctx.emitStore("i32", nextEnd, endPtr);
   ctx.emitBr(findEndLabel);
 
@@ -738,8 +670,7 @@ export function generateTrimEnd(ctx: IGeneratorContext, strPtr: string): string 
   ctx.emitBr(endLabel);
 
   ctx.emitLabel(substrLabel);
-  const trimmedLen = ctx.nextTemp();
-  ctx.emit(`${trimmedLen} = add i32 ${finalEnd}, 1`);
+  const trimmedLen = emitAdd(ctx, "i32", finalEnd, "1");
   const trimmedResult = generateSubstr(ctx, strPtr, "0", trimmedLen);
   ctx.emitBr(endLabel);
 
@@ -779,21 +710,15 @@ export function generateReplace(
   const searchLen = ctx.emitCall("i64", "@strlen", `i8* ${searchPtr}`);
   const replaceLen = ctx.emitCall("i64", "@strlen", `i8* ${replacePtr}`);
 
-  const newLen = ctx.nextTemp();
-  ctx.emit(`${newLen} = sub i64 ${strLen}, ${searchLen}`);
-  const newLen2 = ctx.nextTemp();
-  ctx.emit(`${newLen2} = add i64 ${newLen}, ${replaceLen}`);
-  const allocLen = ctx.nextTemp();
-  ctx.emit(`${allocLen} = add i64 ${newLen2}, 1`);
+  const newLen = emitSub(ctx, "i64", strLen, searchLen);
+  const newLen2 = emitAdd(ctx, "i64", newLen, replaceLen);
+  const allocLen = emitAdd(ctx, "i64", newLen2, "1");
 
   const resultPtr = ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${allocLen}`);
 
-  const prefixLen = ctx.nextTemp();
-  ctx.emit(`${prefixLen} = ptrtoint i8* ${foundPtr} to i64`);
-  const strStart = ctx.nextTemp();
-  ctx.emit(`${strStart} = ptrtoint i8* ${strPtr} to i64`);
-  const prefixBytes = ctx.nextTemp();
-  ctx.emit(`${prefixBytes} = sub i64 ${prefixLen}, ${strStart}`);
+  const prefixLen = emitPtrtoint(ctx, foundPtr, "i8*", "i64");
+  const strStart = emitPtrtoint(ctx, strPtr, "i8*", "i64");
+  const prefixBytes = emitSub(ctx, "i64", prefixLen, strStart);
 
   ctx.emit(
     `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${resultPtr}, i8* ${strPtr}, i64 ${prefixBytes}, i1 false)`,
@@ -807,8 +732,7 @@ export function generateReplace(
 
   const suffixStart = ctx.emitGep("i8", foundPtr, `i64 ${searchLen}`);
   const suffixLen = ctx.emitCall("i64", "@strlen", `i8* ${suffixStart}`);
-  const suffixLenPlus1 = ctx.nextTemp();
-  ctx.emit(`${suffixLenPlus1} = add i64 ${suffixLen}, 1`);
+  const suffixLenPlus1 = emitAdd(ctx, "i64", suffixLen, "1");
 
   const suffixDest = ctx.emitGep("i8", insertPos, `i64 ${replaceLen}`);
   ctx.emit(

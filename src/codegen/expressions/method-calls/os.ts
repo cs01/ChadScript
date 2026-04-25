@@ -4,6 +4,7 @@
 // freemem, uptime delegate to os-bridge.c for cross-platform support.
 
 import type { MethodCallGeneratorContext } from "../method-calls.js";
+import { emitSitofp, emitMul } from "../../infrastructure/ir-builders.js";
 
 // os.hostname() — gethostname into a GC buffer
 export function handleOsHostname(ctx: MethodCallGeneratorContext): string {
@@ -44,8 +45,7 @@ export function handleOsCpus(ctx: MethodCallGeneratorContext): string {
   const scVal = process.platform === "darwin" ? "58" : "84";
   const raw = ctx.nextTemp();
   ctx.emit(`${raw} = call i64 @sysconf(i32 ${scVal})`);
-  const result = ctx.nextTemp();
-  ctx.emit(`${result} = sitofp i64 ${raw} to double`);
+  const result = emitSitofp(ctx, raw, "i64");
   ctx.setVariableType(result, "double");
   return result;
 }
@@ -59,8 +59,7 @@ export function handleOsTotalmem(ctx: MethodCallGeneratorContext): string {
   ctx.emit(`${pages} = call i64 @sysconf(i32 ${pagesVal})`);
   const pageSize = ctx.nextTemp();
   ctx.emit(`${pageSize} = call i64 @sysconf(i32 30)`);
-  const bytes = ctx.nextTemp();
-  ctx.emit(`${bytes} = mul i64 ${pages}, ${pageSize}`);
+  const bytes = emitMul(ctx, "i64", pages, pageSize);
   const result = ctx.nextTemp();
   ctx.emit(`${result} = uitofp i64 ${bytes} to double`);
   ctx.setVariableType(result, "double");

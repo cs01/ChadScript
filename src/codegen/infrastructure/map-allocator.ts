@@ -34,6 +34,7 @@ import {
 } from "./type-system.js";
 import type { FieldInfo } from "./type-resolver/types.js";
 import type { ResolvedType } from "./type-system.js";
+import { emitPtrtoint } from "./ir-builders.js";
 
 interface ExprBase {
   type: string;
@@ -76,6 +77,7 @@ export interface MapAllocatorContext {
   classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
   readonly symbolTable: SymbolTable;
   emitError(message: string, loc?: SourceLocation, suggestion?: string): never;
+  setVariableType(name: string, type: string): void;
 }
 
 export class MapAllocator {
@@ -138,8 +140,7 @@ export class MapAllocator {
     this.ctx.defineVariable(stmt.name, allocaReg, "%Map*", SymbolKind_Map, "local");
     const mapSizePtr = this.ctx.nextTemp();
     this.ctx.emit(`${mapSizePtr} = getelementptr %Map, %Map* null, i32 1`);
-    const mapSizeI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${mapSizeI64} = ptrtoint %Map* ${mapSizePtr} to i64`);
+    const mapSizeI64 = emitPtrtoint(this.ctx, mapSizePtr, "%Map*", "i64");
     const mapMem = this.ctx.nextTemp();
     this.ctx.emit(`${mapMem} = call i8* @GC_malloc(i64 ${mapSizeI64})`);
     this.ctx.emit(`${allocaReg} = bitcast i8* ${mapMem} to %Map*`);
@@ -173,8 +174,7 @@ export class MapAllocator {
     );
     const strMapSizePtr = this.ctx.nextTemp();
     this.ctx.emit(`${strMapSizePtr} = getelementptr %StringMap, %StringMap* null, i32 1`);
-    const strMapSizeI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${strMapSizeI64} = ptrtoint %StringMap* ${strMapSizePtr} to i64`);
+    const strMapSizeI64 = emitPtrtoint(this.ctx, strMapSizePtr, "%StringMap*", "i64");
     const strMapMem = this.ctx.nextTemp();
     this.ctx.emit(`${strMapMem} = call i8* @GC_malloc(i64 ${strMapSizeI64})`);
     this.ctx.emit(`${allocaReg} = bitcast i8* ${strMapMem} to %StringMap*`);
@@ -212,8 +212,7 @@ export class MapAllocator {
     );
     const ptrMapSizePtr = this.ctx.nextTemp();
     this.ctx.emit(`${ptrMapSizePtr} = getelementptr %StringMap, %StringMap* null, i32 1`);
-    const ptrMapSizeI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${ptrMapSizeI64} = ptrtoint %StringMap* ${ptrMapSizePtr} to i64`);
+    const ptrMapSizeI64 = emitPtrtoint(this.ctx, ptrMapSizePtr, "%StringMap*", "i64");
     const ptrMapMem = this.ctx.nextTemp();
     this.ctx.emit(`${ptrMapMem} = call i8* @GC_malloc(i64 ${ptrMapSizeI64})`);
     this.ctx.emit(`${allocaReg} = bitcast i8* ${ptrMapMem} to %StringMap*`);
@@ -298,8 +297,7 @@ export class MapAllocator {
     this.ctx.defineVariable(stmt.name, allocaReg, "%Set*", SymbolKind_Set, "local");
     const setSizePtr = this.ctx.nextTemp();
     this.ctx.emit(`${setSizePtr} = getelementptr %Set, %Set* null, i32 1`);
-    const setSizeI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${setSizeI64} = ptrtoint %Set* ${setSizePtr} to i64`);
+    const setSizeI64 = emitPtrtoint(this.ctx, setSizePtr, "%Set*", "i64");
     const setMem = this.ctx.nextTemp();
     this.ctx.emit(`${setMem} = call i8* @GC_malloc(i64 ${setSizeI64})`);
     this.ctx.emit(`${allocaReg} = bitcast i8* ${setMem} to %Set*`);
@@ -331,8 +329,7 @@ export class MapAllocator {
     );
     const strSetSizePtr = this.ctx.nextTemp();
     this.ctx.emit(`${strSetSizePtr} = getelementptr %StringSet, %StringSet* null, i32 1`);
-    const strSetSizeI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${strSetSizeI64} = ptrtoint %StringSet* ${strSetSizePtr} to i64`);
+    const strSetSizeI64 = emitPtrtoint(this.ctx, strSetSizePtr, "%StringSet*", "i64");
     const strSetMem = this.ctx.nextTemp();
     this.ctx.emit(`${strSetMem} = call i8* @GC_malloc(i64 ${strSetSizeI64})`);
     this.ctx.emit(`${allocaReg} = bitcast i8* ${strSetMem} to %StringSet*`);

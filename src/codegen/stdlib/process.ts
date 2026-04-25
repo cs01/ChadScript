@@ -5,6 +5,7 @@ interface ExprBase {
 }
 
 import { IGeneratorContext } from "../infrastructure/generator-context.js";
+import { emitAdd, emitFptosi } from "../infrastructure/ir-builders.js";
 
 /**
  * Process Method Generator
@@ -47,14 +48,12 @@ export class ProcessGenerator {
     const exitCodeDouble =
       expr.args.length > 0 ? this.ctx.generateExpression(expr.args[0], params) : "0.0";
 
-    // Convert double to i32 for exit code (truncates decimal)
     const dblExit = this.ctx.ensureDouble(exitCodeDouble);
-    const exitCode = this.ctx.nextTemp();
+    let exitCode: string;
     if (exitCodeDouble === "0.0") {
-      // Optimization: Use constant 0 directly
-      this.ctx.emit(`${exitCode} = add i32 0, 0`);
+      exitCode = emitAdd(this.ctx, "i32", "0", "0");
     } else {
-      this.ctx.emit(`${exitCode} = fptosi ${this.ctx.emitOperand(dblExit, "double")} to i32`);
+      exitCode = emitFptosi(this.ctx, dblExit, "i32");
     }
 
     // Flush stdout before exiting to ensure all output is printed

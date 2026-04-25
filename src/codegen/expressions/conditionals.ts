@@ -11,6 +11,7 @@
 
 import { ConditionalExpressionNode, Expression, ArrayNode } from "../../ast/types.js";
 import { IGeneratorContext } from "../infrastructure/generator-context.js";
+import { emitSitofp, emitFcmp } from "../infrastructure/ir-builders.js";
 
 export class ConditionalExpressionGenerator {
   constructor(private ctx: IGeneratorContext) {}
@@ -40,24 +41,20 @@ export class ConditionalExpressionGenerator {
       condValueType === "double" ||
       (condValue.indexOf(".") !== -1 && !condValue.startsWith("%"))
     ) {
-      condBool = this.nextTemp();
-      this.emit(`${condBool} = fcmp one double ${condValue}, 0.0`);
+      condBool = emitFcmp(this.ctx, "one", condValue, "0.0");
     } else if (condValueType && condValueType.indexOf("*") !== -1) {
       condBool = this.nextTemp();
       this.emit(`${condBool} = icmp ne ${condValueType} ${condValue}, null`);
     } else if (condValueType === "i1") {
       condBool = condValue;
     } else if (condValueType === "i32") {
-      const condDouble = this.nextTemp();
-      this.emit(`${condDouble} = sitofp i32 ${condValue} to double`);
-      condBool = this.nextTemp();
-      this.emit(`${condBool} = fcmp one double ${condDouble}, 0.0`);
+      const condDouble = emitSitofp(this.ctx, condValue, "i32");
+      condBool = emitFcmp(this.ctx, "one", condDouble, "0.0");
     } else if (condValueType === "i64") {
       condBool = this.nextTemp();
       this.emit(`${condBool} = icmp ne i64 ${condValue}, 0`);
     } else {
-      condBool = this.nextTemp();
-      this.emit(`${condBool} = fcmp one double ${condValue}, 0.0`);
+      condBool = emitFcmp(this.ctx, "one", condValue, "0.0");
     }
 
     this.emit(`br i1 ${condBool}, label %${trueLabel}, label %${falseLabel}`);
@@ -110,22 +107,18 @@ export class ConditionalExpressionGenerator {
     this.emit(`${trueConvLabel}:`);
     let trueVal = trueValue;
     if (resultType === "double" && trueType === "i32") {
-      trueVal = this.nextTemp();
-      this.emit(`${trueVal} = sitofp i32 ${trueValue} to double`);
+      trueVal = emitSitofp(this.ctx, trueValue, "i32");
     } else if (resultType === "double" && trueType === "i64") {
-      trueVal = this.nextTemp();
-      this.emit(`${trueVal} = sitofp i64 ${trueValue} to double`);
+      trueVal = emitSitofp(this.ctx, trueValue, "i64");
     } else if (resultType === "i8*" && trueType === "double") {
       trueVal = this.nextTemp();
       this.emit(`${trueVal} = call i8* @__double_to_string(double ${trueValue})`);
     } else if (resultType === "i8*" && trueType === "i32") {
-      const asDouble = this.nextTemp();
-      this.emit(`${asDouble} = sitofp i32 ${trueValue} to double`);
+      const asDouble = emitSitofp(this.ctx, trueValue, "i32");
       trueVal = this.nextTemp();
       this.emit(`${trueVal} = call i8* @__double_to_string(double ${asDouble})`);
     } else if (resultType === "i8*" && trueType === "i64") {
-      const asDouble = this.nextTemp();
-      this.emit(`${asDouble} = sitofp i64 ${trueValue} to double`);
+      const asDouble = emitSitofp(this.ctx, trueValue, "i64");
       trueVal = this.nextTemp();
       this.emit(`${trueVal} = call i8* @__double_to_string(double ${asDouble})`);
     } else if (
@@ -142,22 +135,18 @@ export class ConditionalExpressionGenerator {
     this.emit(`${falseConvLabel}:`);
     let falseVal = falseValue;
     if (resultType === "double" && falseType === "i32") {
-      falseVal = this.nextTemp();
-      this.emit(`${falseVal} = sitofp i32 ${falseValue} to double`);
+      falseVal = emitSitofp(this.ctx, falseValue, "i32");
     } else if (resultType === "double" && falseType === "i64") {
-      falseVal = this.nextTemp();
-      this.emit(`${falseVal} = sitofp i64 ${falseValue} to double`);
+      falseVal = emitSitofp(this.ctx, falseValue, "i64");
     } else if (resultType === "i8*" && falseType === "double") {
       falseVal = this.nextTemp();
       this.emit(`${falseVal} = call i8* @__double_to_string(double ${falseValue})`);
     } else if (resultType === "i8*" && falseType === "i32") {
-      const asDouble = this.nextTemp();
-      this.emit(`${asDouble} = sitofp i32 ${falseValue} to double`);
+      const asDouble = emitSitofp(this.ctx, falseValue, "i32");
       falseVal = this.nextTemp();
       this.emit(`${falseVal} = call i8* @__double_to_string(double ${asDouble})`);
     } else if (resultType === "i8*" && falseType === "i64") {
-      const asDouble = this.nextTemp();
-      this.emit(`${asDouble} = sitofp i64 ${falseValue} to double`);
+      const asDouble = emitSitofp(this.ctx, falseValue, "i64");
       falseVal = this.nextTemp();
       this.emit(`${falseVal} = call i8* @__double_to_string(double ${asDouble})`);
     } else if (

@@ -1,4 +1,15 @@
 import { IGeneratorContext } from "../../../infrastructure/generator-context.js";
+import {
+  emitTrunc,
+  emitSext,
+  emitZext,
+  emitSitofp,
+  emitPtrtoint,
+  emitSub,
+  emitAdd,
+  emitSelect,
+  emitAnd,
+} from "../../../infrastructure/ir-builders.js";
 
 // ============================================
 // STRING SEARCH - String search and query operations
@@ -15,12 +26,9 @@ export function generateStartsWith(ctx: IGeneratorContext, strPtr: string, prefi
 
   const resultBool = ctx.emitIcmp("eq", "i32", cmpResult, "0");
 
-  const resultI32 = ctx.nextTemp();
-  ctx.emit(`${resultI32} = zext i1 ${resultBool} to i32`);
+  const resultI32 = emitZext(ctx, resultBool, "i1", "i32");
 
-  const result = ctx.nextTemp();
-  ctx.emit(`${result} = sitofp i32 ${resultI32} to double`);
-  ctx.setVariableType(result, "double");
+  const result = emitSitofp(ctx, resultI32, "i32");
 
   return result;
 }
@@ -31,13 +39,11 @@ function emitCachedStrlen(ctx: IGeneratorContext, strPtr: string): string {
 
 export function generateCharAt(ctx: IGeneratorContext, strPtr: string, index: string): string {
   const strLen = emitCachedStrlen(ctx, strPtr);
-  const strLenI32 = ctx.nextTemp();
-  ctx.emit(`${strLenI32} = trunc i64 ${strLen} to i32`);
+  const strLenI32 = emitTrunc(ctx, strLen, "i64", "i32");
 
   const inBoundsLow = ctx.emitIcmp("sge", "i32", index, "0");
   const inBoundsHigh = ctx.emitIcmp("slt", "i32", index, strLenI32);
-  const inBounds = ctx.nextTemp();
-  ctx.emit(`${inBounds} = and i1 ${inBoundsLow}, ${inBoundsHigh}`);
+  const inBounds = emitAnd(ctx, "i1", inBoundsLow, inBoundsHigh);
 
   const validLabel = ctx.nextLabel("charat_valid");
   const oobLabel = ctx.nextLabel("charat_oob");
@@ -46,8 +52,7 @@ export function generateCharAt(ctx: IGeneratorContext, strPtr: string, index: st
   ctx.emitBrCond(inBounds, validLabel, oobLabel);
 
   ctx.emitLabel(validLabel);
-  const indexI64 = ctx.nextTemp();
-  ctx.emit(`${indexI64} = sext i32 ${index} to i64`);
+  const indexI64 = emitSext(ctx, index, "i32", "i64");
   const charPtr = ctx.nextTemp();
   ctx.emit(`${charPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${indexI64}`);
   const charI8 = ctx.emitLoad("i8", charPtr);
@@ -71,19 +76,15 @@ export function generateCharAt(ctx: IGeneratorContext, strPtr: string, index: st
 
 export function generateStringAt(ctx: IGeneratorContext, strPtr: string, index: string): string {
   const strLen = ctx.emitCall("i64", "@strlen", `i8* ${strPtr}`);
-  const strLenI32 = ctx.nextTemp();
-  ctx.emit(`${strLenI32} = trunc i64 ${strLen} to i32`);
+  const strLenI32 = emitTrunc(ctx, strLen, "i64", "i32");
 
   const isNeg = ctx.emitIcmp("slt", "i32", index, "0");
-  const adjusted = ctx.nextTemp();
-  ctx.emit(`${adjusted} = add i32 ${index}, ${strLenI32}`);
-  const resolved = ctx.nextTemp();
-  ctx.emit(`${resolved} = select i1 ${isNeg}, i32 ${adjusted}, i32 ${index}`);
+  const adjusted = emitAdd(ctx, "i32", index, strLenI32);
+  const resolved = emitSelect(ctx, isNeg, "i32", adjusted, index);
 
   const inBoundsLow = ctx.emitIcmp("sge", "i32", resolved, "0");
   const inBoundsHigh = ctx.emitIcmp("slt", "i32", resolved, strLenI32);
-  const inBounds = ctx.nextTemp();
-  ctx.emit(`${inBounds} = and i1 ${inBoundsLow}, ${inBoundsHigh}`);
+  const inBounds = emitAnd(ctx, "i1", inBoundsLow, inBoundsHigh);
 
   const validLabel = ctx.nextLabel("at_valid");
   const oobLabel = ctx.nextLabel("at_oob");
@@ -92,8 +93,7 @@ export function generateStringAt(ctx: IGeneratorContext, strPtr: string, index: 
   ctx.emitBrCond(inBounds, validLabel, oobLabel);
 
   ctx.emitLabel(validLabel);
-  const indexI64 = ctx.nextTemp();
-  ctx.emit(`${indexI64} = sext i32 ${resolved} to i64`);
+  const indexI64 = emitSext(ctx, resolved, "i32", "i64");
   const charPtr = ctx.nextTemp();
   ctx.emit(`${charPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${indexI64}`);
   const charI8 = ctx.emitLoad("i8", charPtr);
@@ -117,13 +117,11 @@ export function generateStringAt(ctx: IGeneratorContext, strPtr: string, index: 
 
 export function generateCharCodeAt(ctx: IGeneratorContext, strPtr: string, index: string): string {
   const strLen = emitCachedStrlen(ctx, strPtr);
-  const strLenI32 = ctx.nextTemp();
-  ctx.emit(`${strLenI32} = trunc i64 ${strLen} to i32`);
+  const strLenI32 = emitTrunc(ctx, strLen, "i64", "i32");
 
   const inBoundsLow = ctx.emitIcmp("sge", "i32", index, "0");
   const inBoundsHigh = ctx.emitIcmp("slt", "i32", index, strLenI32);
-  const inBounds = ctx.nextTemp();
-  ctx.emit(`${inBounds} = and i1 ${inBoundsLow}, ${inBoundsHigh}`);
+  const inBounds = emitAnd(ctx, "i1", inBoundsLow, inBoundsHigh);
 
   const validLabel = ctx.nextLabel("charcodeat_valid");
   const oobLabel = ctx.nextLabel("charcodeat_oob");
@@ -132,15 +130,12 @@ export function generateCharCodeAt(ctx: IGeneratorContext, strPtr: string, index
   ctx.emitBrCond(inBounds, validLabel, oobLabel);
 
   ctx.emitLabel(validLabel);
-  const indexI64 = ctx.nextTemp();
-  ctx.emit(`${indexI64} = sext i32 ${index} to i64`);
+  const indexI64 = emitSext(ctx, index, "i32", "i64");
   const charPtr = ctx.nextTemp();
   ctx.emit(`${charPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${indexI64}`);
   const charI8 = ctx.emitLoad("i8", charPtr);
-  const charI32 = ctx.nextTemp();
-  ctx.emit(`${charI32} = zext i8 ${charI8} to i32`);
-  const validResult = ctx.nextTemp();
-  ctx.emit(`${validResult} = sitofp i32 ${charI32} to double`);
+  const charI32 = emitZext(ctx, charI8, "i8", "i32");
+  const validResult = emitSitofp(ctx, charI32, "i32");
   ctx.emitBr(endLabel);
 
   ctx.emitLabel(oobLabel);
@@ -173,23 +168,17 @@ export function generateIndexOfChar(
   ctx.emitBr(endLabel);
 
   ctx.emitLabel(foundLabel);
-  const strPtrInt = ctx.nextTemp();
-  ctx.emit(`${strPtrInt} = ptrtoint i8* ${strPtr} to i64`);
-  const foundPtrInt = ctx.nextTemp();
-  ctx.emit(`${foundPtrInt} = ptrtoint i8* ${foundPtr} to i64`);
-  const indexI64 = ctx.nextTemp();
-  ctx.emit(`${indexI64} = sub i64 ${foundPtrInt}, ${strPtrInt}`);
-  const indexI32 = ctx.nextTemp();
-  ctx.emit(`${indexI32} = trunc i64 ${indexI64} to i32`);
+  const strPtrInt = emitPtrtoint(ctx, strPtr, "i8*", "i64");
+  const foundPtrInt = emitPtrtoint(ctx, foundPtr, "i8*", "i64");
+  const indexI64 = emitSub(ctx, "i64", foundPtrInt, strPtrInt);
+  const indexI32 = emitTrunc(ctx, indexI64, "i64", "i32");
   ctx.emitBr(endLabel);
 
   ctx.emitLabel(endLabel);
   const resultI32 = ctx.nextTemp();
   ctx.emit(`${resultI32} = phi i32 [ -1, %${notFoundLabel} ], [ ${indexI32}, %${foundLabel} ]`);
 
-  const result = ctx.nextTemp();
-  ctx.emit(`${result} = sitofp i32 ${resultI32} to double`);
-  ctx.setVariableType(result, "double");
+  const result = emitSitofp(ctx, resultI32, "i32");
 
   return result;
 }
@@ -201,12 +190,10 @@ export function generateIndexOfCharFrom(
   fromIndex: string,
 ): string {
   const strLen = ctx.emitCall("i64", "@strlen", `i8* ${strPtr}`);
-  const strLenI32 = ctx.nextTemp();
-  ctx.emit(`${strLenI32} = trunc i64 ${strLen} to i32`);
+  const strLenI32 = emitTrunc(ctx, strLen, "i64", "i32");
 
   const isNeg = ctx.emitIcmp("slt", "i32", fromIndex, "0");
-  const clamped0 = ctx.nextTemp();
-  ctx.emit(`${clamped0} = select i1 ${isNeg}, i32 0, i32 ${fromIndex}`);
+  const clamped0 = emitSelect(ctx, isNeg, "i32", "0", fromIndex);
   const pastEnd = ctx.emitIcmp("sge", "i32", clamped0, strLenI32);
 
   const searchLabel = ctx.nextLabel("indexof_from_search");
@@ -218,8 +205,7 @@ export function generateIndexOfCharFrom(
   ctx.emitBr(endLabel);
 
   ctx.emitLabel(searchLabel);
-  const offsetI64 = ctx.nextTemp();
-  ctx.emit(`${offsetI64} = zext i32 ${clamped0} to i64`);
+  const offsetI64 = emitZext(ctx, clamped0, "i32", "i64");
   const offsetPtr = ctx.nextTemp();
   ctx.emit(`${offsetPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${offsetI64}`);
   const foundPtr = ctx.emitCall("i8*", "@strchr", `i8* ${offsetPtr}, i32 ${charCode}`);
@@ -233,14 +219,10 @@ export function generateIndexOfCharFrom(
   ctx.emitBr(endLabel);
 
   ctx.emitLabel(foundLabel);
-  const strPtrInt = ctx.nextTemp();
-  ctx.emit(`${strPtrInt} = ptrtoint i8* ${strPtr} to i64`);
-  const foundPtrInt = ctx.nextTemp();
-  ctx.emit(`${foundPtrInt} = ptrtoint i8* ${foundPtr} to i64`);
-  const indexI64 = ctx.nextTemp();
-  ctx.emit(`${indexI64} = sub i64 ${foundPtrInt}, ${strPtrInt}`);
-  const indexI32 = ctx.nextTemp();
-  ctx.emit(`${indexI32} = trunc i64 ${indexI64} to i32`);
+  const strPtrInt = emitPtrtoint(ctx, strPtr, "i8*", "i64");
+  const foundPtrInt = emitPtrtoint(ctx, foundPtr, "i8*", "i64");
+  const indexI64 = emitSub(ctx, "i64", foundPtrInt, strPtrInt);
+  const indexI32 = emitTrunc(ctx, indexI64, "i64", "i32");
   ctx.emitBr(endLabel);
 
   ctx.emitLabel(endLabel);
@@ -249,9 +231,7 @@ export function generateIndexOfCharFrom(
     `${resultI32} = phi i32 [ -1, %${pastEndLabel} ], [ -1, %${notFoundLabel} ], [ ${indexI32}, %${foundLabel} ]`,
   );
 
-  const result = ctx.nextTemp();
-  ctx.emit(`${result} = sitofp i32 ${resultI32} to double`);
-  ctx.setVariableType(result, "double");
+  const result = emitSitofp(ctx, resultI32, "i32");
 
   return result;
 }
@@ -271,23 +251,17 @@ export function generateIndexOf(ctx: IGeneratorContext, strPtr: string, substrin
   ctx.emitBr(endLabel);
 
   ctx.emitLabel(foundLabel);
-  const strPtrInt = ctx.nextTemp();
-  ctx.emit(`${strPtrInt} = ptrtoint i8* ${strPtr} to i64`);
-  const foundPtrInt = ctx.nextTemp();
-  ctx.emit(`${foundPtrInt} = ptrtoint i8* ${foundPtr} to i64`);
-  const indexI64 = ctx.nextTemp();
-  ctx.emit(`${indexI64} = sub i64 ${foundPtrInt}, ${strPtrInt}`);
-  const indexI32 = ctx.nextTemp();
-  ctx.emit(`${indexI32} = trunc i64 ${indexI64} to i32`);
+  const strPtrInt = emitPtrtoint(ctx, strPtr, "i8*", "i64");
+  const foundPtrInt = emitPtrtoint(ctx, foundPtr, "i8*", "i64");
+  const indexI64 = emitSub(ctx, "i64", foundPtrInt, strPtrInt);
+  const indexI32 = emitTrunc(ctx, indexI64, "i64", "i32");
   ctx.emitBr(endLabel);
 
   ctx.emitLabel(endLabel);
   const resultI32 = ctx.nextTemp();
   ctx.emit(`${resultI32} = phi i32 [ -1, %${notFoundLabel} ], [ ${indexI32}, %${foundLabel} ]`);
 
-  const result = ctx.nextTemp();
-  ctx.emit(`${result} = sitofp i32 ${resultI32} to double`);
-  ctx.setVariableType(result, "double");
+  const result = emitSitofp(ctx, resultI32, "i32");
 
   return result;
 }
@@ -299,12 +273,10 @@ export function generateIndexOfFrom(
   fromIndex: string,
 ): string {
   const strLen = ctx.emitCall("i64", "@strlen", `i8* ${strPtr}`);
-  const strLenI32 = ctx.nextTemp();
-  ctx.emit(`${strLenI32} = trunc i64 ${strLen} to i32`);
+  const strLenI32 = emitTrunc(ctx, strLen, "i64", "i32");
 
   const isNeg = ctx.emitIcmp("slt", "i32", fromIndex, "0");
-  const clamped0 = ctx.nextTemp();
-  ctx.emit(`${clamped0} = select i1 ${isNeg}, i32 0, i32 ${fromIndex}`);
+  const clamped0 = emitSelect(ctx, isNeg, "i32", "0", fromIndex);
   const pastEnd = ctx.emitIcmp("sge", "i32", clamped0, strLenI32);
 
   const searchLabel = ctx.nextLabel("indexof_from_search");
@@ -316,8 +288,7 @@ export function generateIndexOfFrom(
   ctx.emitBr(endLabel);
 
   ctx.emitLabel(searchLabel);
-  const offsetI64 = ctx.nextTemp();
-  ctx.emit(`${offsetI64} = zext i32 ${clamped0} to i64`);
+  const offsetI64 = emitZext(ctx, clamped0, "i32", "i64");
   const offsetPtr = ctx.nextTemp();
   ctx.emit(`${offsetPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${offsetI64}`);
   const foundPtr = ctx.emitCall("i8*", "@strstr", `i8* ${offsetPtr}, i8* ${substring}`);
@@ -331,14 +302,10 @@ export function generateIndexOfFrom(
   ctx.emitBr(endLabel);
 
   ctx.emitLabel(foundLabel);
-  const strPtrInt = ctx.nextTemp();
-  ctx.emit(`${strPtrInt} = ptrtoint i8* ${strPtr} to i64`);
-  const foundPtrInt = ctx.nextTemp();
-  ctx.emit(`${foundPtrInt} = ptrtoint i8* ${foundPtr} to i64`);
-  const indexI64 = ctx.nextTemp();
-  ctx.emit(`${indexI64} = sub i64 ${foundPtrInt}, ${strPtrInt}`);
-  const indexI32 = ctx.nextTemp();
-  ctx.emit(`${indexI32} = trunc i64 ${indexI64} to i32`);
+  const strPtrInt = emitPtrtoint(ctx, strPtr, "i8*", "i64");
+  const foundPtrInt = emitPtrtoint(ctx, foundPtr, "i8*", "i64");
+  const indexI64 = emitSub(ctx, "i64", foundPtrInt, strPtrInt);
+  const indexI32 = emitTrunc(ctx, indexI64, "i64", "i32");
   ctx.emitBr(endLabel);
 
   ctx.emitLabel(endLabel);
@@ -347,9 +314,7 @@ export function generateIndexOfFrom(
     `${resultI32} = phi i32 [ -1, %${pastEndLabel} ], [ -1, %${notFoundLabel} ], [ ${indexI32}, %${foundLabel} ]`,
   );
 
-  const result = ctx.nextTemp();
-  ctx.emit(`${result} = sitofp i32 ${resultI32} to double`);
-  ctx.setVariableType(result, "double");
+  const result = emitSitofp(ctx, resultI32, "i32");
 
   return result;
 }
@@ -380,8 +345,7 @@ export function generateLastIndexOfFrom(
   ctx.emitStore("i32", "-1", lastPosPtr);
   ctx.emitStore("i8*", strPtr, curPtrStorage);
 
-  const strPtrInt = ctx.nextTemp();
-  ctx.emit(`${strPtrInt} = ptrtoint i8* ${strPtr} to i64`);
+  const strPtrInt = emitPtrtoint(ctx, strPtr, "i8*", "i64");
 
   const loopLabel = ctx.nextLabel("lastindexof_from_loop");
   const foundLabel = ctx.nextLabel("lastindexof_from_found");
@@ -397,12 +361,9 @@ export function generateLastIndexOfFrom(
   ctx.emitBrCond(isNull, endLabel, foundLabel);
 
   ctx.emitLabel(foundLabel);
-  const foundPtrInt = ctx.nextTemp();
-  ctx.emit(`${foundPtrInt} = ptrtoint i8* ${foundPtr} to i64`);
-  const indexI64 = ctx.nextTemp();
-  ctx.emit(`${indexI64} = sub i64 ${foundPtrInt}, ${strPtrInt}`);
-  const indexI32 = ctx.nextTemp();
-  ctx.emit(`${indexI32} = trunc i64 ${indexI64} to i32`);
+  const foundPtrInt = emitPtrtoint(ctx, foundPtr, "i8*", "i64");
+  const indexI64 = emitSub(ctx, "i64", foundPtrInt, strPtrInt);
+  const indexI32 = emitTrunc(ctx, indexI64, "i64", "i32");
   const pastLimit = ctx.emitIcmp("sgt", "i32", indexI32, fromIndex);
   ctx.emitBrCond(pastLimit, endLabel, withinLabel);
 
@@ -420,9 +381,7 @@ export function generateLastIndexOfFrom(
   ctx.emitLabel(endAllLabel);
   const resultI32 = ctx.nextTemp();
   ctx.emit(`${resultI32} = phi i32 [ -1, %${negLabel} ], [ ${resultI32Search}, %${endLabel} ]`);
-  const result = ctx.nextTemp();
-  ctx.emit(`${result} = sitofp i32 ${resultI32} to double`);
-  ctx.setVariableType(result, "double");
+  const result = emitSitofp(ctx, resultI32, "i32");
 
   return result;
 }
@@ -440,8 +399,7 @@ export function generateLastIndexOf(
   ctx.emit(`${curPtrStorage} = alloca i8*`);
   ctx.emitStore("i8*", strPtr, curPtrStorage);
 
-  const strPtrInt = ctx.nextTemp();
-  ctx.emit(`${strPtrInt} = ptrtoint i8* ${strPtr} to i64`);
+  const strPtrInt = emitPtrtoint(ctx, strPtr, "i8*", "i64");
 
   const loopLabel = ctx.nextLabel("lastindexof_loop");
   const foundLabel = ctx.nextLabel("lastindexof_found");
@@ -456,12 +414,9 @@ export function generateLastIndexOf(
   ctx.emitBrCond(isNull, endLabel, foundLabel);
 
   ctx.emitLabel(foundLabel);
-  const foundPtrInt = ctx.nextTemp();
-  ctx.emit(`${foundPtrInt} = ptrtoint i8* ${foundPtr} to i64`);
-  const indexI64 = ctx.nextTemp();
-  ctx.emit(`${indexI64} = sub i64 ${foundPtrInt}, ${strPtrInt}`);
-  const indexI32 = ctx.nextTemp();
-  ctx.emit(`${indexI32} = trunc i64 ${indexI64} to i32`);
+  const foundPtrInt = emitPtrtoint(ctx, foundPtr, "i8*", "i64");
+  const indexI64 = emitSub(ctx, "i64", foundPtrInt, strPtrInt);
+  const indexI32 = emitTrunc(ctx, indexI64, "i64", "i32");
   ctx.emitStore("i32", indexI32, lastPosPtr);
   const advancedPtr = ctx.nextTemp();
   ctx.emit(`${advancedPtr} = getelementptr inbounds i8, i8* ${foundPtr}, i64 1`);
@@ -470,9 +425,7 @@ export function generateLastIndexOf(
 
   ctx.emitLabel(endLabel);
   const resultI32 = ctx.emitLoad("i32", lastPosPtr);
-  const result = ctx.nextTemp();
-  ctx.emit(`${result} = sitofp i32 ${resultI32} to double`);
-  ctx.setVariableType(result, "double");
+  const result = emitSitofp(ctx, resultI32, "i32");
 
   return result;
 }
@@ -486,12 +439,9 @@ export function generateIncludes(
 
   const isNull = ctx.emitIcmp("ne", "i8*", foundPtr, "null");
 
-  const resultI32 = ctx.nextTemp();
-  ctx.emit(`${resultI32} = zext i1 ${isNull} to i32`);
+  const resultI32 = emitZext(ctx, isNull, "i1", "i32");
 
-  const result = ctx.nextTemp();
-  ctx.emit(`${result} = sitofp i32 ${resultI32} to double`);
-  ctx.setVariableType(result, "double");
+  const result = emitSitofp(ctx, resultI32, "i32");
 
   return result;
 }
@@ -510,16 +460,13 @@ export function generateEndsWith(ctx: IGeneratorContext, strPtr: string, suffix:
   ctx.emitBrCond(suffixLonger, falseLabel, checkLabel);
 
   ctx.emitLabel(checkLabel);
-  const offset = ctx.nextTemp();
-  ctx.emit(`${offset} = sub i64 ${strLen}, ${suffixLen}`);
+  const offset = emitSub(ctx, "i64", strLen, suffixLen);
   const strEnd = ctx.nextTemp();
   ctx.emit(`${strEnd} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${offset}`);
   const cmpResult = ctx.emitCall("i32", "@strcmp", `i8* ${strEnd}, i8* ${suffix}`);
   const matches = ctx.emitIcmp("eq", "i32", cmpResult, "0");
-  const matchesI32 = ctx.nextTemp();
-  ctx.emit(`${matchesI32} = zext i1 ${matches} to i32`);
-  const matchesDouble = ctx.nextTemp();
-  ctx.emit(`${matchesDouble} = sitofp i32 ${matchesI32} to double`);
+  const matchesI32 = emitZext(ctx, matches, "i1", "i32");
+  const matchesDouble = emitSitofp(ctx, matchesI32, "i32");
   ctx.emitBr(endLabel);
 
   ctx.emitLabel(falseLabel);
@@ -540,12 +487,10 @@ export function generateIncludesFrom(
   fromIndex: string,
 ): string {
   const strLen = ctx.emitCall("i64", "@strlen", `i8* ${strPtr}`);
-  const strLenI32 = ctx.nextTemp();
-  ctx.emit(`${strLenI32} = trunc i64 ${strLen} to i32`);
+  const strLenI32 = emitTrunc(ctx, strLen, "i64", "i32");
 
   const isNeg = ctx.emitIcmp("slt", "i32", fromIndex, "0");
-  const clamped0 = ctx.nextTemp();
-  ctx.emit(`${clamped0} = select i1 ${isNeg}, i32 0, i32 ${fromIndex}`);
+  const clamped0 = emitSelect(ctx, isNeg, "i32", "0", fromIndex);
   const pastEnd = ctx.emitIcmp("sge", "i32", clamped0, strLenI32);
 
   const searchLabel = ctx.nextLabel("includes_from_search");
@@ -557,23 +502,19 @@ export function generateIncludesFrom(
   ctx.emitBr(endLabel);
 
   ctx.emitLabel(searchLabel);
-  const offsetI64 = ctx.nextTemp();
-  ctx.emit(`${offsetI64} = zext i32 ${clamped0} to i64`);
+  const offsetI64 = emitZext(ctx, clamped0, "i32", "i64");
   const offsetPtr = ctx.nextTemp();
   ctx.emit(`${offsetPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${offsetI64}`);
   const foundPtr = ctx.emitCall("i8*", "@strstr", `i8* ${offsetPtr}, i8* ${substring}`);
   const isNotNull = ctx.emitIcmp("ne", "i8*", foundPtr, "null");
-  const foundI32 = ctx.nextTemp();
-  ctx.emit(`${foundI32} = zext i1 ${isNotNull} to i32`);
+  const foundI32 = emitZext(ctx, isNotNull, "i1", "i32");
   ctx.emitBr(endLabel);
 
   ctx.emitLabel(endLabel);
   const resultI32 = ctx.nextTemp();
   ctx.emit(`${resultI32} = phi i32 [ 0, %${pastEndLabel} ], [ ${foundI32}, %${searchLabel} ]`);
 
-  const result = ctx.nextTemp();
-  ctx.emit(`${result} = sitofp i32 ${resultI32} to double`);
-  ctx.setVariableType(result, "double");
+  const result = emitSitofp(ctx, resultI32, "i32");
 
   return result;
 }
@@ -585,19 +526,15 @@ export function generateEndsWithPosition(
   endPosition: string,
 ): string {
   const strLen = ctx.emitCall("i64", "@strlen", `i8* ${strPtr}`);
-  const strLenI32 = ctx.nextTemp();
-  ctx.emit(`${strLenI32} = trunc i64 ${strLen} to i32`);
+  const strLenI32 = emitTrunc(ctx, strLen, "i64", "i32");
 
   const isNeg = ctx.emitIcmp("slt", "i32", endPosition, "0");
-  const clamped0 = ctx.nextTemp();
-  ctx.emit(`${clamped0} = select i1 ${isNeg}, i32 0, i32 ${endPosition}`);
+  const clamped0 = emitSelect(ctx, isNeg, "i32", "0", endPosition);
   const pastEnd = ctx.emitIcmp("sgt", "i32", clamped0, strLenI32);
-  const clampedEnd = ctx.nextTemp();
-  ctx.emit(`${clampedEnd} = select i1 ${pastEnd}, i32 ${strLenI32}, i32 ${clamped0}`);
+  const clampedEnd = emitSelect(ctx, pastEnd, "i32", strLenI32, clamped0);
 
   const suffixLen = ctx.emitCall("i64", "@strlen", `i8* ${suffix}`);
-  const suffixLenI32 = ctx.nextTemp();
-  ctx.emit(`${suffixLenI32} = trunc i64 ${suffixLen} to i32`);
+  const suffixLenI32 = emitTrunc(ctx, suffixLen, "i64", "i32");
 
   const suffixLonger = ctx.emitIcmp("sgt", "i32", suffixLenI32, clampedEnd);
 
@@ -607,24 +544,19 @@ export function generateEndsWithPosition(
   ctx.emitBrCond(suffixLonger, falseLabel, checkLabel);
 
   ctx.emitLabel(checkLabel);
-  const startIdx = ctx.nextTemp();
-  ctx.emit(`${startIdx} = sub i32 ${clampedEnd}, ${suffixLenI32}`);
-  const startI64 = ctx.nextTemp();
-  ctx.emit(`${startI64} = zext i32 ${startIdx} to i64`);
+  const startIdx = emitSub(ctx, "i32", clampedEnd, suffixLenI32);
+  const startI64 = emitZext(ctx, startIdx, "i32", "i64");
   const startPtr = ctx.nextTemp();
   ctx.emit(`${startPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${startI64}`);
-  const suffixLenI64 = ctx.nextTemp();
-  ctx.emit(`${suffixLenI64} = zext i32 ${suffixLenI32} to i64`);
+  const suffixLenI64 = emitZext(ctx, suffixLenI32, "i32", "i64");
   const cmpResult = ctx.emitCall(
     "i32",
     "@strncmp",
     `i8* ${startPtr}, i8* ${suffix}, i64 ${suffixLenI64}`,
   );
   const matches = ctx.emitIcmp("eq", "i32", cmpResult, "0");
-  const matchesI32 = ctx.nextTemp();
-  ctx.emit(`${matchesI32} = zext i1 ${matches} to i32`);
-  const matchesDouble = ctx.nextTemp();
-  ctx.emit(`${matchesDouble} = sitofp i32 ${matchesI32} to double`);
+  const matchesI32 = emitZext(ctx, matches, "i1", "i32");
+  const matchesDouble = emitSitofp(ctx, matchesI32, "i32");
   ctx.emitBr(endLabel);
 
   ctx.emitLabel(falseLabel);

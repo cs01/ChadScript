@@ -2,6 +2,7 @@ import { Expression, ObjectNode, ObjectProperty } from "../../../ast/types.js";
 import { IGeneratorContext } from "../../infrastructure/generator-context.js";
 import type { InterfaceStructGenerator } from "../interface-struct-generator.js";
 import { tsTypeToLlvm, isObjectArrayTsType } from "../../infrastructure/type-system.js";
+import { emitZext, emitSitofp, emitFcmp, emitInttoptr } from "../../infrastructure/ir-builders.js";
 
 interface ObjectGeneratorContext extends IGeneratorContext {}
 
@@ -174,8 +175,7 @@ export class ObjectGenerator {
       if (isTreeSitterType) {
         const valI64 = this.nextTemp();
         this.emit(`${valI64} = bitcast double ${field.value} to i64`);
-        const valPtr = this.nextTemp();
-        this.emit(`${valPtr} = inttoptr i64 ${valI64} to ${field.llvmType}`);
+        const valPtr = emitInttoptr(this.ctx, valI64, "i64", field.llvmType);
         this.emit(`store ${field.llvmType} ${valPtr}, ${field.llvmType}* ${fieldPtr}`);
       } else if (field.llvmType === "double") {
         const dblValue = this.ctx.ensureDouble(field.value);
@@ -279,8 +279,7 @@ export class ObjectGenerator {
             finalValue = i1Value;
           } else {
             const dbl = this.ctx.ensureDouble(valueReg);
-            const i1Value = this.nextTemp();
-            this.emit(`${i1Value} = fcmp one double ${dbl}, 0.0`);
+            const i1Value = emitFcmp(this.ctx, "one", dbl, "0.0");
             finalValue = i1Value;
           }
         } else if (fieldLlvmType === "double") {
@@ -293,10 +292,8 @@ export class ObjectGenerator {
             if (!isTreeSitterType) {
               const cmpNull = this.nextTemp();
               this.emit(`${cmpNull} = icmp ne ${valueType} ${valueReg}, null`);
-              const zext = this.nextTemp();
-              this.emit(`${zext} = zext i1 ${cmpNull} to i32`);
-              const asDouble = this.nextTemp();
-              this.emit(`${asDouble} = sitofp i32 ${zext} to double`);
+              const zext = emitZext(this.ctx, cmpNull, "i1", "i32");
+              const asDouble = emitSitofp(this.ctx, zext, "i32");
               finalValue = asDouble;
             }
           } else {
@@ -327,8 +324,7 @@ export class ObjectGenerator {
       if (isTreeSitterType) {
         const valI64 = this.nextTemp();
         this.emit(`${valI64} = bitcast double ${field.value} to i64`);
-        const valPtr = this.nextTemp();
-        this.emit(`${valPtr} = inttoptr i64 ${valI64} to ${field.llvmType}`);
+        const valPtr = emitInttoptr(this.ctx, valI64, "i64", field.llvmType);
         this.emit(`store ${field.llvmType} ${valPtr}, ${field.llvmType}* ${fieldPtr}`);
       } else if (field.llvmType === "double") {
         const dblValue = this.ctx.ensureDouble(field.value);
@@ -394,8 +390,7 @@ export class ObjectGenerator {
           finalValue = i1Value;
         } else {
           const dbl = this.ctx.ensureDouble(valueReg);
-          const i1Value = this.nextTemp();
-          this.emit(`${i1Value} = fcmp one double ${dbl}, 0.0`);
+          const i1Value = emitFcmp(this.ctx, "one", dbl, "0.0");
           finalValue = i1Value;
         }
       } else if (llvmType === "double") {
@@ -432,13 +427,9 @@ export class ObjectGenerator {
       if (isTreeSitterType) {
         const valI64 = this.nextTemp();
         this.emit(`${valI64} = bitcast double ${field.value} to i64`);
-        const valPtr = this.nextTemp();
-        this.emit(`${valPtr} = inttoptr i64 ${valI64} to ${field.llvmType}`);
-        storeValue = valPtr;
+        storeValue = emitInttoptr(this.ctx, valI64, "i64", field.llvmType);
       } else if (valueType === "i32" && field.llvmType.indexOf("*") !== -1) {
-        const ptrValue = this.nextTemp();
-        this.emit(`${ptrValue} = inttoptr i32 ${field.value} to ${field.llvmType}`);
-        storeValue = ptrValue;
+        storeValue = emitInttoptr(this.ctx, field.value, "i32", field.llvmType);
       }
       this.emit(`store ${field.llvmType} ${storeValue}, ${field.llvmType}* ${fieldPtr}`);
     }

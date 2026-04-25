@@ -5,6 +5,7 @@ interface ExprBase {
 }
 
 import { IGeneratorContext } from "../infrastructure/generator-context.js";
+import { emitFcmp, emitSelect } from "../infrastructure/ir-builders.js";
 
 /**
  * Math Method Generator
@@ -208,24 +209,12 @@ export class MathGenerator {
     }
     const arg = this.ctx.generateExpression(expr.args[0], params);
     const dblArg = this.ctx.ensureDouble(arg);
-    const dblOp = this.ctx.emitOperand(dblArg, "double");
-    const isNaN = this.ctx.nextTemp();
-    this.ctx.emit(`${isNaN} = fcmp uno ${dblOp}, ${dblArg}`);
-    const isPos = this.ctx.nextTemp();
-    this.ctx.emit(`${isPos} = fcmp ogt ${dblOp}, 0.0`);
-    const isNeg = this.ctx.nextTemp();
-    this.ctx.emit(`${isNeg} = fcmp olt ${dblOp}, 0.0`);
-    const posVal = this.ctx.nextTemp();
-    this.ctx.emit(`${posVal} = select i1 ${isPos}, double 1.0, double 0.0`);
-    const negVal = this.ctx.nextTemp();
-    this.ctx.emit(
-      `${negVal} = select i1 ${isNeg}, double -1.0, ${this.ctx.emitOperand(posVal, "double")}`,
-    );
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(
-      `${result} = select i1 ${isNaN}, double 0x7FF8000000000000, ${this.ctx.emitOperand(negVal, "double")}`,
-    );
-    return result;
+    const isNaN = emitFcmp(this.ctx, "uno", dblArg, dblArg);
+    const isPos = emitFcmp(this.ctx, "ogt", dblArg, "0.0");
+    const isNeg = emitFcmp(this.ctx, "olt", dblArg, "0.0");
+    const posVal = emitSelect(this.ctx, isPos, "double", "1.0", "0.0");
+    const negVal = emitSelect(this.ctx, isNeg, "double", "-1.0", posVal);
+    return emitSelect(this.ctx, isNaN, "double", "0x7FF8000000000000", negVal);
   }
 
   private generateLog(expr: MethodCallNode, params: string[]): string {

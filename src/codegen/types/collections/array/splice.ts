@@ -1,4 +1,12 @@
 import { Expression, MethodCallNode, SourceLocation, VariableNode } from "../../../../ast/types.js";
+import {
+  emitAdd,
+  emitFptosi,
+  emitMul,
+  emitSelect,
+  emitSub,
+  emitZext,
+} from "../../../infrastructure/ir-builders.js";
 
 interface ExprBase {
   type: string;
@@ -33,8 +41,7 @@ export function generateArraySplice(
   const arrayPtr = gen.generateExpression(expr.object, params);
   const startExpr = gen.generateExpression(expr.args[0], params);
   const startDouble = gen.ensureDouble(startExpr);
-  const startRaw = gen.nextTemp();
-  gen.emit(`${startRaw} = fptosi double ${startDouble} to i32`);
+  const startRaw = emitFptosi(gen, startDouble, "i32");
 
   let isStringArray = false;
   const exprObjBase = expr.object as ExprBase;
@@ -71,43 +78,32 @@ function generateNumericArraySplice(
   gen.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
 
   const startNeg = gen.emitIcmp("slt", "i32", startRaw, "0");
-  const startFromEnd = gen.nextTemp();
-  gen.emit(`${startFromEnd} = add i32 ${length}, ${startRaw}`);
-  const startClamped = gen.nextTemp();
-  gen.emit(`${startClamped} = select i1 ${startNeg}, i32 ${startFromEnd}, i32 ${startRaw}`);
+  const startFromEnd = emitAdd(gen, "i32", length, startRaw);
+  const startClamped = emitSelect(gen, startNeg, "i32", startFromEnd, startRaw);
   const startTooLow = gen.emitIcmp("slt", "i32", startClamped, "0");
-  const startLow = gen.nextTemp();
-  gen.emit(`${startLow} = select i1 ${startTooLow}, i32 0, i32 ${startClamped}`);
+  const startLow = emitSelect(gen, startTooLow, "i32", "0", startClamped);
   const startTooHigh = gen.emitIcmp("sgt", "i32", startLow, length);
-  const start = gen.nextTemp();
-  gen.emit(`${start} = select i1 ${startTooHigh}, i32 ${length}, i32 ${startLow}`);
+  const start = emitSelect(gen, startTooHigh, "i32", length, startLow);
 
   let deleteCount: string;
   if (expr.args.length >= 2) {
     const dcExpr = gen.generateExpression(expr.args[1], params);
     const dcDouble = gen.ensureDouble(dcExpr);
-    const dcRaw = gen.nextTemp();
-    gen.emit(`${dcRaw} = fptosi double ${dcDouble} to i32`);
+    const dcRaw = emitFptosi(gen, dcDouble, "i32");
     const dcNeg = gen.emitIcmp("slt", "i32", dcRaw, "0");
-    const dcClamped = gen.nextTemp();
-    gen.emit(`${dcClamped} = select i1 ${dcNeg}, i32 0, i32 ${dcRaw}`);
-    const remaining = gen.nextTemp();
-    gen.emit(`${remaining} = sub i32 ${length}, ${start}`);
+    const dcClamped = emitSelect(gen, dcNeg, "i32", "0", dcRaw);
+    const remaining = emitSub(gen, "i32", length, start);
     const dcTooMany = gen.emitIcmp("sgt", "i32", dcClamped, remaining);
-    deleteCount = gen.nextTemp();
-    gen.emit(`${deleteCount} = select i1 ${dcTooMany}, i32 ${remaining}, i32 ${dcClamped}`);
+    deleteCount = emitSelect(gen, dcTooMany, "i32", remaining, dcClamped);
   } else {
-    deleteCount = gen.nextTemp();
-    gen.emit(`${deleteCount} = sub i32 ${length}, ${start}`);
+    deleteCount = emitSub(gen, "i32", length, start);
   }
 
   const resultArray = gen.emitCall("i8*", "@GC_malloc", "i64 24");
   const resultArrayTyped = gen.emitBitcast(resultArray, "i8*", "%Array*");
 
-  const dcI64 = gen.nextTemp();
-  gen.emit(`${dcI64} = zext i32 ${deleteCount} to i64`);
-  const resultDataSize = gen.nextTemp();
-  gen.emit(`${resultDataSize} = mul i64 ${dcI64}, 8`);
+  const dcI64 = emitZext(gen, deleteCount, "i32", "i64");
+  const resultDataSize = emitMul(gen, "i64", dcI64, "8");
   const resultDataMem = gen.emitCall("i8*", "@cs_arena_alloc", `i64 ${resultDataSize}`);
   const resultDataPtr = gen.emitBitcast(resultDataMem, "i8*", "double*");
 
@@ -134,10 +130,8 @@ function generateNumericArraySplice(
   );
   gen.emitStore("i32", deleteCount, resultCapField);
 
-  const afterStart = gen.nextTemp();
-  gen.emit(`${afterStart} = add i32 ${start}, ${deleteCount}`);
-  const elemsAfter = gen.nextTemp();
-  gen.emit(`${elemsAfter} = sub i32 ${length}, ${afterStart}`);
+  const afterStart = emitAdd(gen, "i32", start, deleteCount);
+  const elemsAfter = emitSub(gen, "i32", length, afterStart);
 
   const destOffset = gen.nextTemp();
   gen.emit(`${destOffset} = getelementptr inbounds double, double* ${dataPtr}, i32 ${start}`);
@@ -145,16 +139,13 @@ function generateNumericArraySplice(
   const moveSrc = gen.nextTemp();
   gen.emit(`${moveSrc} = getelementptr inbounds double, double* ${dataPtr}, i32 ${afterStart}`);
   const moveSrcI8 = gen.emitBitcast(moveSrc, "double*", "i8*");
-  const moveI64 = gen.nextTemp();
-  gen.emit(`${moveI64} = zext i32 ${elemsAfter} to i64`);
-  const moveBytes = gen.nextTemp();
-  gen.emit(`${moveBytes} = mul i64 ${moveI64}, 8`);
+  const moveI64 = emitZext(gen, elemsAfter, "i32", "i64");
+  const moveBytes = emitMul(gen, "i64", moveI64, "8");
   gen.emit(
     `call void @llvm.memmove.p0i8.p0i8.i64(i8* ${destI8}, i8* ${moveSrcI8}, i64 ${moveBytes}, i1 false)`,
   );
 
-  const newLen = gen.nextTemp();
-  gen.emit(`${newLen} = sub i32 ${length}, ${deleteCount}`);
+  const newLen = emitSub(gen, "i32", length, deleteCount);
   gen.emitStore("i32", newLen, lenPtr);
 
   gen.setVariableType(resultArrayTyped, "%Array*");
@@ -182,43 +173,32 @@ function generateStringArraySplice(
   gen.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
 
   const startNeg = gen.emitIcmp("slt", "i32", startRaw, "0");
-  const startFromEnd = gen.nextTemp();
-  gen.emit(`${startFromEnd} = add i32 ${length}, ${startRaw}`);
-  const startClamped = gen.nextTemp();
-  gen.emit(`${startClamped} = select i1 ${startNeg}, i32 ${startFromEnd}, i32 ${startRaw}`);
+  const startFromEnd = emitAdd(gen, "i32", length, startRaw);
+  const startClamped = emitSelect(gen, startNeg, "i32", startFromEnd, startRaw);
   const startTooLow = gen.emitIcmp("slt", "i32", startClamped, "0");
-  const startLow = gen.nextTemp();
-  gen.emit(`${startLow} = select i1 ${startTooLow}, i32 0, i32 ${startClamped}`);
+  const startLow = emitSelect(gen, startTooLow, "i32", "0", startClamped);
   const startTooHigh = gen.emitIcmp("sgt", "i32", startLow, length);
-  const start = gen.nextTemp();
-  gen.emit(`${start} = select i1 ${startTooHigh}, i32 ${length}, i32 ${startLow}`);
+  const start = emitSelect(gen, startTooHigh, "i32", length, startLow);
 
   let deleteCount: string;
   if (expr.args.length >= 2) {
     const dcExpr = gen.generateExpression(expr.args[1], params);
     const dcDouble = gen.ensureDouble(dcExpr);
-    const dcRaw = gen.nextTemp();
-    gen.emit(`${dcRaw} = fptosi double ${dcDouble} to i32`);
+    const dcRaw = emitFptosi(gen, dcDouble, "i32");
     const dcNeg = gen.emitIcmp("slt", "i32", dcRaw, "0");
-    const dcClamped = gen.nextTemp();
-    gen.emit(`${dcClamped} = select i1 ${dcNeg}, i32 0, i32 ${dcRaw}`);
-    const remaining = gen.nextTemp();
-    gen.emit(`${remaining} = sub i32 ${length}, ${start}`);
+    const dcClamped = emitSelect(gen, dcNeg, "i32", "0", dcRaw);
+    const remaining = emitSub(gen, "i32", length, start);
     const dcTooMany = gen.emitIcmp("sgt", "i32", dcClamped, remaining);
-    deleteCount = gen.nextTemp();
-    gen.emit(`${deleteCount} = select i1 ${dcTooMany}, i32 ${remaining}, i32 ${dcClamped}`);
+    deleteCount = emitSelect(gen, dcTooMany, "i32", remaining, dcClamped);
   } else {
-    deleteCount = gen.nextTemp();
-    gen.emit(`${deleteCount} = sub i32 ${length}, ${start}`);
+    deleteCount = emitSub(gen, "i32", length, start);
   }
 
   const resultArray = gen.emitCall("i8*", "@GC_malloc", "i64 24");
   const resultArrayTyped = gen.emitBitcast(resultArray, "i8*", "%StringArray*");
 
-  const dcI64 = gen.nextTemp();
-  gen.emit(`${dcI64} = zext i32 ${deleteCount} to i64`);
-  const resultDataSize = gen.nextTemp();
-  gen.emit(`${resultDataSize} = mul i64 ${dcI64}, 8`);
+  const dcI64 = emitZext(gen, deleteCount, "i32", "i64");
+  const resultDataSize = emitMul(gen, "i64", dcI64, "8");
   const resultDataMem = gen.emitCall("i8*", "@GC_malloc", `i64 ${resultDataSize}`);
   const resultDataPtr = gen.emitBitcast(resultDataMem, "i8*", "i8**");
 
@@ -245,10 +225,8 @@ function generateStringArraySplice(
   );
   gen.emitStore("i32", deleteCount, resultCapField);
 
-  const afterStart = gen.nextTemp();
-  gen.emit(`${afterStart} = add i32 ${start}, ${deleteCount}`);
-  const elemsAfter = gen.nextTemp();
-  gen.emit(`${elemsAfter} = sub i32 ${length}, ${afterStart}`);
+  const afterStart = emitAdd(gen, "i32", start, deleteCount);
+  const elemsAfter = emitSub(gen, "i32", length, afterStart);
 
   const destOffset = gen.nextTemp();
   gen.emit(`${destOffset} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${start}`);
@@ -256,16 +234,13 @@ function generateStringArraySplice(
   const moveSrc = gen.nextTemp();
   gen.emit(`${moveSrc} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${afterStart}`);
   const moveSrcI8 = gen.emitBitcast(moveSrc, "i8**", "i8*");
-  const moveI64 = gen.nextTemp();
-  gen.emit(`${moveI64} = zext i32 ${elemsAfter} to i64`);
-  const moveBytes = gen.nextTemp();
-  gen.emit(`${moveBytes} = mul i64 ${moveI64}, 8`);
+  const moveI64 = emitZext(gen, elemsAfter, "i32", "i64");
+  const moveBytes = emitMul(gen, "i64", moveI64, "8");
   gen.emit(
     `call void @llvm.memmove.p0i8.p0i8.i64(i8* ${destI8}, i8* ${moveSrcI8}, i64 ${moveBytes}, i1 false)`,
   );
 
-  const newLen = gen.nextTemp();
-  gen.emit(`${newLen} = sub i32 ${length}, ${deleteCount}`);
+  const newLen = emitSub(gen, "i32", length, deleteCount);
   gen.emitStore("i32", newLen, lenPtr);
 
   gen.setVariableType(resultArrayTyped, "%StringArray*");

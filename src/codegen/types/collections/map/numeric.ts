@@ -1,5 +1,15 @@
 import { Expression, MethodCallNode, MapEntry, MapNode } from "../../../../ast/types.js";
 import { IGeneratorContext } from "../../../infrastructure/generator-context.js";
+import {
+  emitAdd,
+  emitSub,
+  emitMul,
+  emitZext,
+  emitSitofp,
+  emitFcmp,
+  emitAlloca,
+  emitPtrtoint,
+} from "../../../infrastructure/ir-builders.js";
 
 const DOUBLE_SIZE = 8;
 
@@ -17,24 +27,19 @@ export function generateMapLiteral(
 
   const sizeofPtr = ctx.nextTemp();
   ctx.emit(`${sizeofPtr} = getelementptr %Map, %Map* null, i32 1`);
-  const structSize = ctx.nextTemp();
-  ctx.emit(`${structSize} = ptrtoint %Map* ${sizeofPtr} to i64`);
+  const structSize = emitPtrtoint(ctx, sizeofPtr, "%Map*", "i64");
   const mapMem = ctx.emitCall("i8*", "@GC_malloc", `i64 ${structSize}`);
   const mapPtr = ctx.emitBitcast(mapMem, "i8*", "%Map*");
 
   const initialCapacity = entries.length > 4 ? entries.length : 4;
 
-  const keysCapI64 = ctx.nextTemp();
-  ctx.emit(`${keysCapI64} = zext i32 ${initialCapacity} to i64`);
-  const keysSize = ctx.nextTemp();
-  ctx.emit(`${keysSize} = mul i64 ${keysCapI64}, ${DOUBLE_SIZE}`);
+  const keysCapI64 = emitZext(ctx, `${initialCapacity}`, "i32", "i64");
+  const keysSize = emitMul(ctx, "i64", keysCapI64, `${DOUBLE_SIZE}`);
   const keysMem = ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${keysSize}`);
   const keysPtr = ctx.emitBitcast(keysMem, "i8*", "double*");
 
-  const valuesCapI64 = ctx.nextTemp();
-  ctx.emit(`${valuesCapI64} = zext i32 ${initialCapacity} to i64`);
-  const valuesSize = ctx.nextTemp();
-  ctx.emit(`${valuesSize} = mul i64 ${valuesCapI64}, ${DOUBLE_SIZE}`);
+  const valuesCapI64 = emitZext(ctx, `${initialCapacity}`, "i32", "i64");
+  const valuesSize = emitMul(ctx, "i64", valuesCapI64, `${DOUBLE_SIZE}`);
   const valuesMem = ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${valuesSize}`);
   const valuesPtr = ctx.emitBitcast(valuesMem, "i8*", "double*");
 
@@ -103,8 +108,7 @@ export function generateMapSet(
   const insertLabel = ctx.nextLabel("map_set_insert");
   const endLabel = ctx.nextLabel("map_set_end");
 
-  const indexReg = ctx.nextTemp();
-  ctx.emit(`${indexReg} = alloca i32`);
+  const indexReg = emitAlloca(ctx, "i32");
   ctx.emitStore("i32", "0", indexReg);
   ctx.emitBr(searchLoopLabel);
 
@@ -120,13 +124,11 @@ export function generateMapSet(
   );
   const keyAtIndex = ctx.emitLoad("double", keyElemPtrSearch);
   const dblKeyValue = ctx.ensureDouble(keyValue);
-  const keyMatch = ctx.nextTemp();
-  ctx.emit(`${keyMatch} = fcmp oeq double ${keyAtIndex}, ${dblKeyValue}`);
+  const keyMatch = emitFcmp(ctx, "oeq", keyAtIndex, dblKeyValue);
   ctx.emitBrCond(keyMatch, foundLabel, `${searchLoopLabel}_next`);
 
   ctx.emitLabel(`${searchLoopLabel}_next`);
-  const nextIndex = ctx.nextTemp();
-  ctx.emit(`${nextIndex} = add i32 ${currentIndex}, 1`);
+  const nextIndex = emitAdd(ctx, "i32", currentIndex, "1");
   ctx.emitStore("i32", nextIndex, indexReg);
   ctx.emitBr(searchLoopLabel);
 
@@ -152,25 +154,19 @@ export function generateMapSet(
   ctx.emitBrCond(needsResize, resizeLabel, doInsertLabel);
 
   ctx.emitLabel(resizeLabel);
-  const newCapacity = ctx.nextTemp();
-  ctx.emit(`${newCapacity} = mul i32 ${currentCapacity}, 2`);
-  const newCapI64 = ctx.nextTemp();
-  ctx.emit(`${newCapI64} = zext i32 ${newCapacity} to i64`);
-  const newKeysSize = ctx.nextTemp();
-  ctx.emit(`${newKeysSize} = mul i64 ${newCapI64}, ${DOUBLE_SIZE}`);
+  const newCapacity = emitMul(ctx, "i32", currentCapacity, "2");
+  const newCapI64 = emitZext(ctx, newCapacity, "i32", "i64");
+  const newKeysSize = emitMul(ctx, "i64", newCapI64, `${DOUBLE_SIZE}`);
   const newKeysMem = ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${newKeysSize}`);
   const newKeysPtr = ctx.emitBitcast(newKeysMem, "i8*", "double*");
   const oldKeysI8 = ctx.emitBitcast(keysPtr, "double*", "i8*");
-  const oldCapI64 = ctx.nextTemp();
-  ctx.emit(`${oldCapI64} = zext i32 ${currentCapacity} to i64`);
-  const oldKeysSize = ctx.nextTemp();
-  ctx.emit(`${oldKeysSize} = mul i64 ${oldCapI64}, ${DOUBLE_SIZE}`);
+  const oldCapI64 = emitZext(ctx, currentCapacity, "i32", "i64");
+  const oldKeysSize = emitMul(ctx, "i64", oldCapI64, `${DOUBLE_SIZE}`);
   ctx.emit(
     `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newKeysMem}, i8* ${oldKeysI8}, i64 ${oldKeysSize}, i1 false)`,
   );
   ctx.emitStore("double*", newKeysPtr, keysFieldPtr);
-  const newValuesSize = ctx.nextTemp();
-  ctx.emit(`${newValuesSize} = mul i64 ${newCapI64}, ${DOUBLE_SIZE}`);
+  const newValuesSize = emitMul(ctx, "i64", newCapI64, `${DOUBLE_SIZE}`);
   const newValuesMem = ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${newValuesSize}`);
   const newValuesPtr = ctx.emitBitcast(newValuesMem, "i8*", "double*");
   const oldValuesI8 = ctx.emitBitcast(valuesPtr, "double*", "i8*");
@@ -196,8 +192,7 @@ export function generateMapSet(
   );
   ctx.emitStore("double", ctx.ensureDouble(valueValue), valueElemPtr);
 
-  const newSize = ctx.nextTemp();
-  ctx.emit(`${newSize} = add i32 ${currentSize}, 1`);
+  const newSize = emitAdd(ctx, "i32", currentSize, "1");
   ctx.emitStore("i32", newSize, sizeFieldPtr);
   ctx.emitBr(endLabel);
 
@@ -230,8 +225,7 @@ export function generateMapGet(
   ctx.emit(`${sizeFieldPtr} = getelementptr inbounds %Map, %Map* ${mapPtr}, i32 0, i32 2`);
   const mapSize = ctx.emitLoad("i32", sizeFieldPtr);
 
-  const resultReg = ctx.nextTemp();
-  ctx.emit(`${resultReg} = alloca double`);
+  const resultReg = emitAlloca(ctx, "double");
   ctx.emitStore("double", "0.0", resultReg);
 
   const loopLabel = ctx.nextLabel("map_has_loop");
@@ -239,8 +233,7 @@ export function generateMapGet(
   const foundLabel = ctx.nextLabel("map_has_found");
   const endLabel = ctx.nextLabel("map_has_end");
 
-  const indexReg = ctx.nextTemp();
-  ctx.emit(`${indexReg} = alloca i32`);
+  const indexReg = emitAlloca(ctx, "i32");
   ctx.emitStore("i32", "0", indexReg);
   ctx.emitBr(loopLabel);
 
@@ -256,8 +249,7 @@ export function generateMapGet(
   );
   const keyValue = ctx.emitLoad("double", keyElemPtr);
   const dblKeyToFind = ctx.ensureDouble(keyToFind);
-  const keyMatch = ctx.nextTemp();
-  ctx.emit(`${keyMatch} = fcmp oeq double ${keyValue}, ${dblKeyToFind}`);
+  const keyMatch = emitFcmp(ctx, "oeq", keyValue, dblKeyToFind);
   ctx.emitBrCond(keyMatch, foundLabel, `${loopLabel}_next`);
 
   ctx.emitLabel(foundLabel);
@@ -270,14 +262,12 @@ export function generateMapGet(
   ctx.emitBr(endLabel);
 
   ctx.emitLabel(`${loopLabel}_next`);
-  const nextIndex = ctx.nextTemp();
-  ctx.emit(`${nextIndex} = add i32 ${currentIndex}, 1`);
+  const nextIndex = emitAdd(ctx, "i32", currentIndex, "1");
   ctx.emitStore("i32", nextIndex, indexReg);
   ctx.emitBr(loopLabel);
 
   ctx.emitLabel(endLabel);
   const result = ctx.emitLoad("double", resultReg);
-  ctx.setVariableType(result, "double");
   return result;
 }
 
@@ -301,8 +291,7 @@ export function generateMapHas(
   ctx.emit(`${sizeFieldPtr} = getelementptr inbounds %Map, %Map* ${mapPtr}, i32 0, i32 2`);
   const mapSize = ctx.emitLoad("i32", sizeFieldPtr);
 
-  const resultReg = ctx.nextTemp();
-  ctx.emit(`${resultReg} = alloca double`);
+  const resultReg = emitAlloca(ctx, "double");
   ctx.emitStore("double", "0.0", resultReg);
 
   const loopLabel = ctx.nextLabel("map_get_loop");
@@ -310,8 +299,7 @@ export function generateMapHas(
   const foundLabel = ctx.nextLabel("map_get_found");
   const endLabel = ctx.nextLabel("map_get_end");
 
-  const indexReg = ctx.nextTemp();
-  ctx.emit(`${indexReg} = alloca i32`);
+  const indexReg = emitAlloca(ctx, "i32");
   ctx.emitStore("i32", "0", indexReg);
   ctx.emitBr(loopLabel);
 
@@ -327,8 +315,7 @@ export function generateMapHas(
   );
   const keyValue = ctx.emitLoad("double", keyElemPtr);
   const dblKeyToFind = ctx.ensureDouble(keyToFind);
-  const keyMatch = ctx.nextTemp();
-  ctx.emit(`${keyMatch} = fcmp oeq double ${keyValue}, ${dblKeyToFind}`);
+  const keyMatch = emitFcmp(ctx, "oeq", keyValue, dblKeyToFind);
   ctx.emitBrCond(keyMatch, foundLabel, `${loopLabel}_next`);
 
   ctx.emitLabel(foundLabel);
@@ -336,14 +323,12 @@ export function generateMapHas(
   ctx.emitBr(endLabel);
 
   ctx.emitLabel(`${loopLabel}_next`);
-  const nextIndex = ctx.nextTemp();
-  ctx.emit(`${nextIndex} = add i32 ${currentIndex}, 1`);
+  const nextIndex = emitAdd(ctx, "i32", currentIndex, "1");
   ctx.emitStore("i32", nextIndex, indexReg);
   ctx.emitBr(loopLabel);
 
   ctx.emitLabel(endLabel);
   const result = ctx.emitLoad("double", resultReg);
-  ctx.setVariableType(result, "double");
   return result;
 }
 
@@ -351,9 +336,7 @@ export function generateMapSize(ctx: IGeneratorContext, mapPtr: string): string 
   const sizeFieldPtr = ctx.nextTemp();
   ctx.emit(`${sizeFieldPtr} = getelementptr inbounds %Map, %Map* ${mapPtr}, i32 0, i32 2`);
   const sizeI32 = ctx.emitLoad("i32", sizeFieldPtr);
-  const size = ctx.nextTemp();
-  ctx.emit(`${size} = sitofp i32 ${sizeI32} to double`);
-  ctx.setVariableType(size, "double");
+  const size = emitSitofp(ctx, sizeI32, "i32");
   return size;
 }
 
@@ -393,8 +376,7 @@ export function generateMapDelete(
   ctx.emit(`${sizeFieldPtr} = getelementptr inbounds %Map, %Map* ${mapPtr}, i32 0, i32 2`);
   const mapSize = ctx.emitLoad("i32", sizeFieldPtr);
 
-  const resultReg = ctx.nextTemp();
-  ctx.emit(`${resultReg} = alloca double`);
+  const resultReg = emitAlloca(ctx, "double");
   ctx.emitStore("double", "0.0", resultReg);
 
   const loopLabel = ctx.nextLabel("map_del_loop");
@@ -404,10 +386,8 @@ export function generateMapDelete(
   const shiftBodyLabel = ctx.nextLabel("map_del_shift_body");
   const endLabel = ctx.nextLabel("map_del_end");
 
-  const indexReg = ctx.nextTemp();
-  ctx.emit(`${indexReg} = alloca i32`);
-  const shiftIdx = ctx.nextTemp();
-  ctx.emit(`${shiftIdx} = alloca i32`);
+  const indexReg = emitAlloca(ctx, "i32");
+  const shiftIdx = emitAlloca(ctx, "i32");
   ctx.emitStore("i32", "0", indexReg);
   ctx.emitBr(loopLabel);
 
@@ -423,14 +403,12 @@ export function generateMapDelete(
   );
   const keyValue = ctx.emitLoad("double", keyElemPtr);
   const dblKeyToFind = ctx.ensureDouble(keyToFind);
-  const keyMatch = ctx.nextTemp();
-  ctx.emit(`${keyMatch} = fcmp oeq double ${keyValue}, ${dblKeyToFind}`);
+  const keyMatch = emitFcmp(ctx, "oeq", keyValue, dblKeyToFind);
   ctx.emitBrCond(keyMatch, foundLabel, `${loopLabel}_next`);
 
   ctx.emitLabel(foundLabel);
   ctx.emitStore("double", "1.0", resultReg);
-  const newSize = ctx.nextTemp();
-  ctx.emit(`${newSize} = sub i32 ${mapSize}, 1`);
+  const newSize = emitSub(ctx, "i32", mapSize, "1");
   ctx.emitStore("i32", newSize, sizeFieldPtr);
   const currentIndex2 = ctx.emitLoad("i32", indexReg);
   ctx.emitStore("i32", currentIndex2, shiftIdx);
@@ -442,8 +420,7 @@ export function generateMapDelete(
   ctx.emitBrCond(shiftCond, shiftBodyLabel, endLabel);
 
   ctx.emitLabel(shiftBodyLabel);
-  const nextI = ctx.nextTemp();
-  ctx.emit(`${nextI} = add i32 ${shiftI}, 1`);
+  const nextI = emitAdd(ctx, "i32", shiftI, "1");
   const nextKeyPtr = ctx.nextTemp();
   ctx.emit(`${nextKeyPtr} = getelementptr inbounds double, double* ${keysPtr}, i32 ${nextI}`);
   const nextKey = ctx.emitLoad("double", nextKeyPtr);
@@ -460,8 +437,7 @@ export function generateMapDelete(
   ctx.emitBr(shiftLabel);
 
   ctx.emitLabel(`${loopLabel}_next`);
-  const nextIndex = ctx.nextTemp();
-  ctx.emit(`${nextIndex} = add i32 ${currentIndex}, 1`);
+  const nextIndex = emitAdd(ctx, "i32", currentIndex, "1");
   ctx.emitStore("i32", nextIndex, indexReg);
   ctx.emitBr(loopLabel);
 
@@ -483,10 +459,8 @@ export function generateMapKeys(ctx: IGeneratorContext, mapPtr: string): string 
   const arrayMem = ctx.emitCall("i8*", "@GC_malloc", "i64 24");
   const arrayPtr = ctx.emitBitcast(arrayMem, "i8*", "%Array*");
 
-  const mapSizeI64 = ctx.nextTemp();
-  ctx.emit(`${mapSizeI64} = zext i32 ${mapSize} to i64`);
-  const dataSize = ctx.nextTemp();
-  ctx.emit(`${dataSize} = mul i64 ${mapSizeI64}, 8`);
+  const mapSizeI64 = emitZext(ctx, mapSize, "i32", "i64");
+  const dataSize = emitMul(ctx, "i64", mapSizeI64, "8");
   const dataMem = ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${dataSize}`);
   const dataPtr = ctx.emitBitcast(dataMem, "i8*", "double*");
 
@@ -504,8 +478,7 @@ export function generateMapKeys(ctx: IGeneratorContext, mapPtr: string): string 
   const bodyLabel = ctx.nextLabel("map_keys_body");
   const endLabel = ctx.nextLabel("map_keys_end");
 
-  const indexReg = ctx.nextTemp();
-  ctx.emit(`${indexReg} = alloca i32`);
+  const indexReg = emitAlloca(ctx, "i32");
   ctx.emitStore("i32", "0", indexReg);
   ctx.emitBr(loopLabel);
 
@@ -521,8 +494,7 @@ export function generateMapKeys(ctx: IGeneratorContext, mapPtr: string): string 
   const dstPtr = ctx.nextTemp();
   ctx.emit(`${dstPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${currentIndex}`);
   ctx.emitStore("double", keyVal, dstPtr);
-  const nextIndex = ctx.nextTemp();
-  ctx.emit(`${nextIndex} = add i32 ${currentIndex}, 1`);
+  const nextIndex = emitAdd(ctx, "i32", currentIndex, "1");
   ctx.emitStore("i32", nextIndex, indexReg);
   ctx.emitBr(loopLabel);
 
@@ -543,10 +515,8 @@ export function generateMapValues(ctx: IGeneratorContext, mapPtr: string): strin
   const arrayMem = ctx.emitCall("i8*", "@GC_malloc", "i64 24");
   const arrayPtr = ctx.emitBitcast(arrayMem, "i8*", "%Array*");
 
-  const mapSizeI64 = ctx.nextTemp();
-  ctx.emit(`${mapSizeI64} = zext i32 ${mapSize} to i64`);
-  const dataSize = ctx.nextTemp();
-  ctx.emit(`${dataSize} = mul i64 ${mapSizeI64}, 8`);
+  const mapSizeI64 = emitZext(ctx, mapSize, "i32", "i64");
+  const dataSize = emitMul(ctx, "i64", mapSizeI64, "8");
   const dataMem = ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${dataSize}`);
   const dataPtr = ctx.emitBitcast(dataMem, "i8*", "double*");
 
@@ -564,8 +534,7 @@ export function generateMapValues(ctx: IGeneratorContext, mapPtr: string): strin
   const bodyLabel = ctx.nextLabel("map_values_body");
   const endLabel = ctx.nextLabel("map_values_end");
 
-  const indexReg = ctx.nextTemp();
-  ctx.emit(`${indexReg} = alloca i32`);
+  const indexReg = emitAlloca(ctx, "i32");
   ctx.emitStore("i32", "0", indexReg);
   ctx.emitBr(loopLabel);
 
@@ -581,8 +550,7 @@ export function generateMapValues(ctx: IGeneratorContext, mapPtr: string): strin
   const dstPtr = ctx.nextTemp();
   ctx.emit(`${dstPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${currentIndex}`);
   ctx.emitStore("double", val, dstPtr);
-  const nextIndex = ctx.nextTemp();
-  ctx.emit(`${nextIndex} = add i32 ${currentIndex}, 1`);
+  const nextIndex = emitAdd(ctx, "i32", currentIndex, "1");
   ctx.emitStore("i32", nextIndex, indexReg);
   ctx.emitBr(loopLabel);
 

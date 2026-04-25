@@ -5,6 +5,7 @@ interface ExprBase {
 }
 
 import { IGeneratorContext } from "../infrastructure/generator-context.js";
+import { emitAdd, emitSelect, emitPhi } from "../infrastructure/ir-builders.js";
 
 /**
  * Path Method Generator
@@ -50,8 +51,7 @@ export class PathGenerator {
       }
     }
 
-    const bufferSize = this.ctx.nextTemp();
-    this.ctx.emit(`${bufferSize} = add i64 0, 4096`);
+    const bufferSize = emitAdd(this.ctx, "i64", "0", "4096");
     const buffer = this.ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${bufferSize}`);
 
     const resolvedPtr = this.ctx.emitCall("i8*", "@realpath", `i8* ${pathPtr}, i8* ${buffer}`);
@@ -71,11 +71,10 @@ export class PathGenerator {
     this.ctx.emitBr(endLabel);
 
     this.ctx.emitLabel(endLabel);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(
-      `${result} = phi i8* [ ${resolvedPtr}, %${successLabel} ], [ ${pathPtr}, %${failLabel} ]`,
-    );
-    this.ctx.setVariableType(result, "i8*");
+    const result = emitPhi(this.ctx, "i8*", [
+      [resolvedPtr, successLabel],
+      [pathPtr, failLabel],
+    ]);
 
     return result;
   }
@@ -93,12 +92,10 @@ export class PathGenerator {
 
     // dirname() modifies its argument, so we need to make a copy
     const pathLen = this.ctx.emitCall("i64", "@strlen", `i8* ${pathPtr}`);
-    const copySize = this.ctx.nextTemp();
-    this.ctx.emit(`${copySize} = add i64 ${pathLen}, 1`);
+    const copySize = emitAdd(this.ctx, "i64", pathLen, "1");
     const pathCopy = this.ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${copySize}`);
     const copyResult = this.ctx.emitCall("i8*", "@strcpy", `i8* ${pathCopy}, i8* ${pathPtr}`);
 
-    // Call dirname: dirname(pathCopy)
     const result = this.ctx.emitCall("i8*", "@dirname", `i8* ${pathCopy}`);
 
     return result;
@@ -112,16 +109,14 @@ export class PathGenerator {
     const pathPtr = this.ctx.generateExpression(expr.args[0], params);
 
     const pathLen = this.ctx.emitCall("i64", "@strlen", `i8* ${pathPtr}`);
-    const copySize = this.ctx.nextTemp();
-    this.ctx.emit(`${copySize} = add i64 ${pathLen}, 1`);
+    const copySize = emitAdd(this.ctx, "i64", pathLen, "1");
     const pathCopy = this.ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${copySize}`);
     const copyResult = this.ctx.emitCall("i8*", "@strcpy", `i8* ${pathCopy}, i8* ${pathPtr}`);
 
     const basenamePtr = this.ctx.emitCall("i8*", "@basename", `i8* ${pathCopy}`);
 
     const resultLen = this.ctx.emitCall("i64", "@strlen", `i8* ${basenamePtr}`);
-    const resultSize = this.ctx.nextTemp();
-    this.ctx.emit(`${resultSize} = add i64 ${resultLen}, 1`);
+    const resultSize = emitAdd(this.ctx, "i64", resultLen, "1");
     const result = this.ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${resultSize}`);
     const strdupResult = this.ctx.emitCall("i8*", "@strcpy", `i8* ${result}, i8* ${basenamePtr}`);
     this.ctx.setVariableType(result, "i8*");
@@ -173,12 +168,10 @@ export class PathGenerator {
     this.ctx.emitBr(endLabel);
 
     this.ctx.emitLabel(endLabel);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(
-      `${result} = phi i8* [ ${emptyStr}, %${noDotLabel} ], [ ${extDup}, %${hasDotLabel} ]`,
-    );
-    this.ctx.setVariableType(result, "i8*");
-    return result;
+    return emitPhi(this.ctx, "i8*", [
+      [emptyStr, noDotLabel],
+      [extDup, hasDotLabel],
+    ]);
   }
 
   generateNormalize(expr: MethodCallNode, params: string[]): string {
@@ -204,10 +197,7 @@ export class PathGenerator {
     this.ctx.emit(`${firstCharPtr} = getelementptr inbounds i8, i8* ${pathPtr}, i64 0`);
     const firstChar = this.ctx.emitLoad("i8", firstCharPtr);
     const isSlash = this.ctx.emitIcmp("eq", "i8", firstChar, "47");
-    // select — no builder
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = select i1 ${isSlash}, double 1.0, double 0.0`);
-    return result;
+    return emitSelect(this.ctx, isSlash, "double", "1.0", "0.0");
   }
 
   generateParse(expr: MethodCallNode, params: string[]): string {

@@ -1,4 +1,5 @@
 import { IGeneratorContext } from "../../../infrastructure/generator-context.js";
+import { emitFptosi, emitAdd } from "../../../infrastructure/ir-builders.js";
 
 // ============================================
 // STRING CONSTANTS - String constant creation and number conversion
@@ -105,8 +106,7 @@ export function convertNumberToFixed(
   precisionValue: string,
 ): string {
   const dblPrecision = ctx.ensureDouble(precisionValue);
-  const precisionI32 = ctx.nextTemp();
-  ctx.emit(`${precisionI32} = fptosi double ${dblPrecision} to i32`);
+  const precisionI32 = emitFptosi(ctx, dblPrecision, "i32");
   const bufferSize = ctx.nextTemp();
   ctx.emit(`${bufferSize} = alloca [64 x i8], align 1`);
   const bufferPtr = ctx.nextTemp();
@@ -121,8 +121,7 @@ export function convertNumberToFixed(
   );
   const strLen = ctx.nextTemp();
   ctx.emit(`${strLen} = call i64 @strlen(i8* ${bufferPtr})`);
-  const heapSize = ctx.nextTemp();
-  ctx.emit(`${heapSize} = add i64 ${strLen}, 1`);
+  const heapSize = emitAdd(ctx, "i64", strLen, "1");
   const heapPtr = ctx.nextTemp();
   ctx.emit(`${heapPtr} = call i8* @cs_arena_alloc(i64 ${heapSize})`);
   const copyResult2 = ctx.nextTemp();

@@ -2,6 +2,7 @@ import { Expression, MemberAccessNode, VariableNode } from "../../../ast/types.j
 import type { MemberAccessGeneratorContext } from "./member.js";
 import type { FieldInfo } from "../../infrastructure/type-resolver/types.js";
 import { isAnyArrayTsType } from "../../infrastructure/type-system.js";
+import { emitSitofp, emitTrunc } from "../../infrastructure/ir-builders.js";
 
 export function handleUrlProperty(
   ctx: MemberAccessGeneratorContext,
@@ -66,9 +67,7 @@ export function getArrayLength(
   );
   const lenI32 = ctx.nextTemp();
   ctx.emit(`${lenI32} = load i32, i32* ${lenPtr}`);
-  const len = ctx.nextTemp();
-  ctx.emit(`${len} = sitofp i32 ${lenI32} to double`);
-  ctx.setVariableType(len, "double");
+  const len = emitSitofp(ctx, lenI32, "i32");
   return len;
 }
 
@@ -82,9 +81,7 @@ export function getStringArrayLength(
   );
   const lenI32 = ctx.nextTemp();
   ctx.emit(`${lenI32} = load i32, i32* ${lenPtr}`);
-  const len = ctx.nextTemp();
-  ctx.emit(`${len} = sitofp i32 ${lenI32} to double`);
-  ctx.setVariableType(len, "double");
+  const len = emitSitofp(ctx, lenI32, "i32");
   return len;
 }
 
@@ -112,9 +109,7 @@ export function getArrayLengthFromPtr(
   );
   const lenI32 = ctx.nextTemp();
   ctx.emit(`${lenI32} = load i32, i32* ${lenPtr}`);
-  const len = ctx.nextTemp();
-  ctx.emit(`${len} = sitofp i32 ${lenI32} to double`);
-  ctx.setVariableType(len, "double");
+  const len = emitSitofp(ctx, lenI32, "i32");
   return len;
 }
 
@@ -126,11 +121,8 @@ export function getStringLength(
   const objPtr = ctx.generateExpression(obj, params);
   const lenI64 = ctx.nextTemp();
   ctx.emit(`${lenI64} = call i64 @strlen(i8* ${objPtr})`);
-  const lenI32 = ctx.nextTemp();
-  ctx.emit(`${lenI32} = trunc i64 ${lenI64} to i32`);
-  const len = ctx.nextTemp();
-  ctx.emit(`${len} = sitofp i32 ${lenI32} to double`);
-  ctx.setVariableType(len, "double");
+  const lenI32 = emitTrunc(ctx, lenI64, "i64", "i32");
+  const len = emitSitofp(ctx, lenI32, "i32");
   return len;
 }
 
@@ -227,9 +219,7 @@ export function handleMemberAccessLength(
       ctx.setUsesJson(true);
       const arraySize = ctx.nextTemp();
       ctx.emit(`${arraySize} = call i32 @csyyjson_arr_size(i8* ${arrayPtr})`);
-      const sizeDouble = ctx.nextTemp();
-      ctx.emit(`${sizeDouble} = sitofp i32 ${arraySize} to double`);
-      ctx.setVariableType(sizeDouble, "double");
+      const sizeDouble = emitSitofp(ctx, arraySize, "i32");
       return sizeDouble;
     }
     if (ctx.symbolTable.isObject(varName)) {
@@ -383,11 +373,8 @@ export function handleLengthProperty(
     }
     const lenI64 = ctx.nextTemp();
     ctx.emit(`${lenI64} = call i64 @strlen(i8* ${resultPtr})`);
-    const lenI32 = ctx.nextTemp();
-    ctx.emit(`${lenI32} = trunc i64 ${lenI64} to i32`);
-    const len = ctx.nextTemp();
-    ctx.emit(`${len} = sitofp i32 ${lenI32} to double`);
-    ctx.setVariableType(len, "double");
+    const lenI32 = emitTrunc(ctx, lenI64, "i64", "i32");
+    const len = emitSitofp(ctx, lenI32, "i32");
     return len;
   }
 
