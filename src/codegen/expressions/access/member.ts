@@ -34,9 +34,6 @@ import {
   canonicalTypeToLlvm,
   isObjectArrayTsType,
   isAnyArrayTsType,
-  classifyArray,
-  arrayKindToLlvm,
-  ArrayKind_None,
 } from "../../infrastructure/type-system.js";
 import type { ResolvedType } from "../../infrastructure/type-system.js";
 import type {
@@ -1528,12 +1525,15 @@ export class MemberAccessGenerator {
       this.ctx.emit(`${value} = load %StringArray*, %StringArray** ${fieldPtr}`);
       this.ctx.setVariableType(value, "%StringArray*");
       return value;
-    } else if (isAnyArrayTsType(propType)) {
-      const propAk = classifyArray(propType);
-      const llvm = arrayKindToLlvm(propAk);
+    } else if (propType === "number[]" || propType === "boolean[]") {
       const value = this.ctx.nextTemp();
-      this.ctx.emit(`${value} = load ${llvm}, ${llvm}* ${fieldPtr}`);
-      this.ctx.setVariableType(value, llvm);
+      this.ctx.emit(`${value} = load %Array*, %Array** ${fieldPtr}`);
+      this.ctx.setVariableType(value, "%Array*");
+      return value;
+    } else if (isAnyArrayTsType(propType)) {
+      const value = this.ctx.nextTemp();
+      this.ctx.emit(`${value} = load %ObjectArray*, %ObjectArray** ${fieldPtr}`);
+      this.ctx.setVariableType(value, "%ObjectArray*");
       return value;
     } else {
       let nestedTypeName = propType;
@@ -1987,8 +1987,7 @@ export class MemberAccessGenerator {
           .replace(/ \| null/g, "")
           .trim();
       }
-      const tsAk = classifyArray(ts);
-      if (tsAk !== ArrayKind_None) return arrayKindToLlvm(tsAk);
+      if (isAnyArrayTsType(ts)) return "%ObjectArray*";
       if (ts.startsWith("Map<")) return ts.startsWith("Map<string,") ? "%StringMap*" : "%Map*";
       if (ts.startsWith("Set<")) return ts === "Set<string>" ? "%StringSet*" : "%Set*";
       const classFields = this.ctx.classGenGetClassFields(ts);
@@ -3250,12 +3249,15 @@ export class MemberAccessGenerator {
                 this.ctx.emit(`${boolVal} = load double, double* ${fieldPtr}`);
                 this.ctx.setVariableType(boolVal, "double");
                 return boolVal;
-              } else if (isAnyArrayTsType(propType)) {
-                const propAk2 = classifyArray(propType);
-                const llvm2 = arrayKindToLlvm(propAk2);
+              } else if (propType === "string[]") {
                 const value = this.ctx.nextTemp();
-                this.ctx.emit(`${value} = load ${llvm2}, ${llvm2}* ${fieldPtr}`);
-                this.ctx.setVariableType(value, llvm2);
+                this.ctx.emit(`${value} = load %StringArray*, %StringArray** ${fieldPtr}`);
+                this.ctx.setVariableType(value, "%StringArray*");
+                return value;
+              } else if (isAnyArrayTsType(propType)) {
+                const value = this.ctx.nextTemp();
+                this.ctx.emit(`${value} = load %Array*, %Array** ${fieldPtr}`);
+                this.ctx.setVariableType(value, "%Array*");
                 return value;
               } else {
                 const value = this.ctx.nextTemp();

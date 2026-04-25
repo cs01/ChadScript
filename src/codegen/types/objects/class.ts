@@ -31,6 +31,7 @@ import {
   classifyArray,
   arrayKindToLlvm,
   ArrayKind_None,
+  isAnyArrayTsType,
 } from "../../infrastructure/type-system.js";
 import type { FieldInfo } from "../../infrastructure/type-resolver/types.js";
 
@@ -174,11 +175,13 @@ export class ClassGenerator {
           return "%StringSet*";
         } else if (ts.startsWith("Set<")) {
           return "%Set*";
+        } else if (isAnyArrayTsType(ts)) {
+          return "%ObjectArray*";
         } else if (ts === "number" || ts === "boolean") {
           return "double";
+        } else if (ts === "number[]" || ts === "boolean[]") {
+          return "%Array*";
         }
-        const tsAk = classifyArray(ts);
-        if (tsAk !== ArrayKind_None) return arrayKindToLlvm(tsAk);
         const classNode = this.findClassNode(ts);
         if (classNode) {
           return "%" + ts + "_struct*";
@@ -198,8 +201,9 @@ export class ClassGenerator {
     } else if (ft === "string[]") {
       return "%StringArray*";
     }
-    const ftAk = classifyArray(ft);
-    if (ftAk !== ArrayKind_None) return arrayKindToLlvm(ftAk);
+    if (isAnyArrayTsType(ft)) {
+      return "%Array*";
+    }
     if (ft === "boolean") {
       return "double";
     } else if (ts) {
@@ -214,9 +218,9 @@ export class ClassGenerator {
       } else if (ts === "number" || ts === "boolean") {
         return "double";
       }
-      const tsAk2 = classifyArray(ts);
-      if (tsAk2 !== ArrayKind_None) return arrayKindToLlvm(tsAk2);
-      {
+      if (isAnyArrayTsType(ts)) {
+        return "%ObjectArray*";
+      } else {
         const classNode = this.findClassNode(ts);
         if (classNode) {
           return "%" + ts + "_struct*";
