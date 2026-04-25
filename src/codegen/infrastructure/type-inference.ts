@@ -2569,7 +2569,7 @@ export class TypeInference {
           for (let i = 0; i < parts.length; i++) {
             const part = parts[i].trim();
             if (part !== "null" && part !== "undefined") {
-              if (part.startsWith("{") && !part.endsWith("[]")) {
+              if (part.startsWith("{") && !isAnyArrayTsType(part)) {
                 return part;
               }
               const iface = this.getInterface(part);
@@ -2578,7 +2578,7 @@ export class TypeInference {
           }
         }
 
-        if (returnType.startsWith("{") && !stripNullable(returnType).endsWith("[]")) {
+        if (returnType.startsWith("{") && !isAnyArrayTsType(returnType)) {
           return returnType;
         }
 
@@ -2605,7 +2605,7 @@ export class TypeInference {
           for (let i = 0; i < parts.length; i++) {
             const part = parts[i].trim();
             if (part !== "null" && part !== "undefined") {
-              if (part.startsWith("{") && !part.endsWith("[]")) {
+              if (part.startsWith("{") && !isAnyArrayTsType(part)) {
                 return part;
               }
               const iface = this.getInterface(part);
@@ -2614,7 +2614,7 @@ export class TypeInference {
           }
         }
 
-        if (returnType.startsWith("{") && !stripNullable(returnType).endsWith("[]")) {
+        if (returnType.startsWith("{") && !isAnyArrayTsType(returnType)) {
           return returnType;
         }
 

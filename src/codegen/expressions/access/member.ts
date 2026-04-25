@@ -3084,7 +3084,7 @@ export class MemberAccessGenerator {
               );
               const llvmFieldType = this.interfaceTsTypeToLlvm(propType);
               const value = this.ctx.nextTemp();
-              if (propType === "string" || propType.endsWith("[]") || propType.startsWith("%")) {
+              if (propType === "string" || isAnyArrayTsType(propType) || propType.startsWith("%")) {
                 this.ctx.emit(`${value} = load i8*, i8** ${fieldPtr}`);
                 this.ctx.setVariableType(value, "i8*");
               } else if (propType === "number" || propType === "boolean") {

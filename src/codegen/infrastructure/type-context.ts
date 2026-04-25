@@ -3,6 +3,7 @@ import {
   createResolvedType,
   createIntegerType,
   parseTypeString,
+  isAnyArrayTsType,
 } from "./type-system.js";
 
 export class TypeContext {
@@ -136,7 +137,7 @@ export class TypeContext {
     const special = this.resolveSpecial(typeStr);
     if (special) return special;
     if (typeStr === "boolean[]") return this.getArrayType("boolean");
-    if (typeStr.endsWith("[]")) {
+    if (isAnyArrayTsType(typeStr)) {
       const parsed = parseTypeString(typeStr);
       if (parsed.arrayDepth > 1) return parsed;
       const elem = typeStr.substring(0, typeStr.length - 2);
