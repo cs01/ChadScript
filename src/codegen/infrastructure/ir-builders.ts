@@ -195,8 +195,11 @@ export function emitLShr(ctx: EmitContext, type: string, lhs: string, rhs: strin
 export function emitPhi(ctx: EmitContext, type: string, branches: Array<[string, string]>): string {
   const temp = ctx.nextTemp();
   const parts: string[] = [];
-  for (const b of branches) {
-    parts.push(`[${b[0]}, %${b[1]}]`);
+  for (let i = 0; i < branches.length; i++) {
+    const pair: string[] = branches[i] as string[];
+    const val: string = pair[0];
+    const label: string = pair[1];
+    parts.push(`[${val}, %${label}]`);
   }
   ctx.emit(`${temp} = phi ${type} ${parts.join(", ")}`);
   ctx.setVariableType(temp, type);

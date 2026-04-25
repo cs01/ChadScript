@@ -1,5 +1,6 @@
 import { Expression, MethodCallNode } from "../../../ast/types.js";
 import type { MethodCallGeneratorContext } from "../method-calls.js";
+import { emitFcmp, emitOr, emitAnd, emitXor, emitPhi } from "../../infrastructure/ir-builders.js";
 
 function emitIndentation(ctx: MethodCallGeneratorContext): void {
   const depth = ctx.emitLoad("i32", "@__describe_depth");
@@ -97,12 +98,7 @@ function handleNumberEquality(
   const dblActual = ctx.ensureDouble(actual);
   const dblExpected = ctx.ensureDouble(expected);
 
-  const cmp = ctx.nextTemp();
-  if (expectEqual) {
-    ctx.emit(`${cmp} = fcmp oeq double ${dblActual}, ${dblExpected}`);
-  } else {
-    ctx.emit(`${cmp} = fcmp une double ${dblActual}, ${dblExpected}`);
-  }
+  const cmp = emitFcmp(ctx, expectEqual ? "oeq" : "une", dblActual, dblExpected);
 
   const passLabel = ctx.nextLabel("assert_pass");
   const failLabel = ctx.nextLabel("assert_fail");
@@ -141,8 +137,7 @@ function handleStringEquality(
 
   const leftNull = ctx.emitIcmp("eq", "i8*", actual, "null");
   const rightNull = ctx.emitIcmp("eq", "i8*", expected, "null");
-  const eitherNull = ctx.nextTemp();
-  ctx.emit(`${eitherNull} = or i1 ${leftNull}, ${rightNull}`);
+  const eitherNull = emitOr(ctx, "i1", leftNull, rightNull);
 
   const nullCheckLabel = ctx.nextLabel("assert_null_check");
   const strcmpLabel = ctx.nextLabel("assert_strcmp");
@@ -152,12 +147,8 @@ function handleStringEquality(
 
   ctx.emitLabel(nullCheckLabel);
   ctx.setCurrentLabel(nullCheckLabel);
-  const bothNull = ctx.nextTemp();
-  ctx.emit(`${bothNull} = and i1 ${leftNull}, ${rightNull}`);
-  const nullCmp = expectEqual ? bothNull : ctx.nextTemp();
-  if (!expectEqual) {
-    ctx.emit(`${nullCmp} = xor i1 ${bothNull}, 1`);
-  }
+  const bothNull = emitAnd(ctx, "i1", leftNull, rightNull);
+  const nullCmp = expectEqual ? bothNull : emitXor(ctx, "i1", bothNull, "1");
   ctx.emitBr(cmpDoneLabel);
 
   ctx.emitLabel(strcmpLabel);
@@ -170,10 +161,10 @@ function handleStringEquality(
 
   ctx.emitLabel(cmpDoneLabel);
   ctx.setCurrentLabel(cmpDoneLabel);
-  const cmpResult = ctx.nextTemp();
-  ctx.emit(
-    `${cmpResult} = phi i1 [ ${nullCmp}, %${nullCheckLabel} ], [ ${strCmp}, %${strcmpLabel} ]`,
-  );
+  const cmpResult = emitPhi(ctx, "i1", [
+    [nullCmp, nullCheckLabel],
+    [strCmp, strcmpLabel],
+  ]);
 
   const passLabel = ctx.nextLabel("assert_pass");
   const failLabel = ctx.nextLabel("assert_fail");
@@ -237,12 +228,13 @@ export function handleAssertOk(
 
     ctx.emitLabel(checkDoneLabel);
     ctx.setCurrentLabel(checkDoneLabel);
-    cmp = ctx.nextTemp();
-    ctx.emit(`${cmp} = phi i1 [ 0, %${isNullLabel} ], [ ${notEmpty}, %${notNullLabel} ]`);
+    cmp = emitPhi(ctx, "i1", [
+      ["0", isNullLabel],
+      [notEmpty, notNullLabel],
+    ]);
   } else {
     const dblValue = ctx.ensureDouble(value);
-    cmp = ctx.nextTemp();
-    ctx.emit(`${cmp} = fcmp one double ${dblValue}, 0.0`);
+    cmp = emitFcmp(ctx, "one", dblValue, "0.0");
   }
 
   const passLabel = ctx.nextLabel("assert_pass");
@@ -352,8 +344,7 @@ function emitArrayDeepEqualNumber(
   const actualElem = ctx.emitLoad("double", actualElemPtr);
   const expectedElemPtr = ctx.emitGep("double", `${expectedData}`, `i32 ${idx}`);
   const expectedElem = ctx.emitLoad("double", expectedElemPtr);
-  const elemCmp = ctx.nextTemp();
-  ctx.emit(`${elemCmp} = fcmp oeq double ${actualElem}, ${expectedElem}`);
+  const elemCmp = emitFcmp(ctx, "oeq", actualElem, expectedElem);
   ctx.emitBrCond(elemCmp, loopMatch, loopMismatch);
 
   ctx.emitLabel(loopMatch);
