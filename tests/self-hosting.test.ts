@@ -35,7 +35,7 @@ const NATIVE_ENV: NodeJS.ProcessEnv = {
 
 const STAGE0_TODO = new Set<string>([]);
 
-const STAGE1_TODO = new Set<string>(["arrays/array-isarray"]);
+const STAGE1_TODO = new Set<string>([]);
 
 function isCrashSignal(signal: string | null): boolean {
   return signal === "SIGSEGV" || signal === "SIGABRT" || signal === "SIGBUS";
