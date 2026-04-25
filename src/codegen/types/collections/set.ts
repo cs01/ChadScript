@@ -1,5 +1,15 @@
 import { Expression, MethodCallNode, SetNode, NumberNode } from "../../../ast/types.js";
 import { IGeneratorContext } from "../../infrastructure/generator-context.js";
+import {
+  emitAdd,
+  emitSub,
+  emitMul,
+  emitZext,
+  emitSitofp,
+  emitSelect,
+  emitFcmp,
+  emitAlloca,
+} from "../../infrastructure/ir-builders.js";
 
 // ============================================
 // SET GENERATOR - Set operations
@@ -43,10 +53,8 @@ export class SetGenerator {
 
     // Allocate values array - use double* for JavaScript semantics
     const doubleSize = this.getDoubleSize();
-    const valuesCapI64 = this.nextTemp();
-    this.emit(`${valuesCapI64} = zext i32 ${initialCapacity} to i64`);
-    const valuesSize = this.nextTemp();
-    this.emit(`${valuesSize} = mul i64 ${valuesCapI64}, ${doubleSize}`);
+    const valuesCapI64 = emitZext(this.ctx, `${initialCapacity}`, "i32", "i64");
+    const valuesSize = emitMul(this.ctx, "i64", valuesCapI64, `${doubleSize}`);
     const valuesMem = this.ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${valuesSize}`);
     const valuesPtr = this.ctx.emitBitcast(valuesMem, "i8*", "double*");
 
@@ -125,8 +133,7 @@ export class SetGenerator {
     const doInsert = this.nextLabel("set_add_insert");
     const endLabel = this.nextLabel("set_add_end");
 
-    const idxReg = this.nextTemp();
-    this.emit(`${idxReg} = alloca i32`);
+    const idxReg = emitAlloca(this.ctx, "i32");
     this.ctx.emitStore("i32", "0", idxReg);
     this.ctx.emitBr(dedupLoop);
 
@@ -139,13 +146,11 @@ export class SetGenerator {
     const elemPtr = this.nextTemp();
     this.emit(`${elemPtr} = getelementptr inbounds double, double* ${valuesPtr}, i32 ${curIdx}`);
     const elemVal = this.ctx.emitLoad("double", elemPtr);
-    const match = this.nextTemp();
-    this.emit(`${match} = fcmp oeq double ${elemVal}, ${dblValue}`);
+    const match = emitFcmp(this.ctx, "oeq", elemVal, dblValue);
     this.ctx.emitBrCond(match, alreadyExists, dedupNext);
 
     this.ctx.emitLabel(dedupNext);
-    const nextIdx = this.nextTemp();
-    this.emit(`${nextIdx} = add i32 ${curIdx}, 1`);
+    const nextIdx = emitAdd(this.ctx, "i32", curIdx, "1");
     this.ctx.emitStore("i32", nextIdx, idxReg);
     this.ctx.emitBr(dedupLoop);
 
@@ -161,22 +166,16 @@ export class SetGenerator {
 
     this.ctx.emitLabel(resizeLabel);
     const isZero = this.ctx.emitIcmp("eq", "i32", currentCap, "0");
-    const doubled = this.nextTemp();
-    this.emit(`${doubled} = mul i32 ${currentCap}, 2`);
-    const newCap = this.nextTemp();
-    this.emit(`${newCap} = select i1 ${isZero}, i32 4, i32 ${doubled}`);
-    const newCapI64 = this.nextTemp();
-    this.emit(`${newCapI64} = zext i32 ${newCap} to i64`);
-    const newMemSize = this.nextTemp();
-    this.emit(`${newMemSize} = mul i64 ${newCapI64}, ${this.getDoubleSize()}`);
+    const doubled = emitMul(this.ctx, "i32", currentCap, "2");
+    const newCap = emitSelect(this.ctx, isZero, "i32", "4", doubled);
+    const newCapI64 = emitZext(this.ctx, newCap, "i32", "i64");
+    const newMemSize = emitMul(this.ctx, "i64", newCapI64, `${this.getDoubleSize()}`);
     const newMem = this.ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${newMemSize}`);
     const newDataPtr = this.ctx.emitBitcast(newMem, "i8*", "double*");
     const oldDataI8 = this.ctx.emitBitcast(valuesPtr, "double*", "i8*");
     const newDataI8 = this.ctx.emitBitcast(newDataPtr, "double*", "i8*");
-    const currentSizeI64 = this.nextTemp();
-    this.emit(`${currentSizeI64} = zext i32 ${currentSize} to i64`);
-    const copySize = this.nextTemp();
-    this.emit(`${copySize} = mul i64 ${currentSizeI64}, ${this.getDoubleSize()}`);
+    const currentSizeI64 = emitZext(this.ctx, currentSize, "i32", "i64");
+    const copySize = emitMul(this.ctx, "i64", currentSizeI64, `${this.getDoubleSize()}`);
     this.emit(
       `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newDataI8}, i8* ${oldDataI8}, i64 ${copySize}, i1 false)`,
     );
@@ -193,8 +192,7 @@ export class SetGenerator {
       `${insertPtr} = getelementptr inbounds double, double* ${dataPtr2}, i32 ${currentSize}`,
     );
     this.ctx.emitStore("double", dblValue, insertPtr);
-    const newSize = this.nextTemp();
-    this.emit(`${newSize} = add i32 ${currentSize}, 1`);
+    const newSize = emitAdd(this.ctx, "i32", currentSize, "1");
     this.ctx.emitStore("i32", newSize, sizeFieldPtr);
     this.ctx.emitBr(endLabel);
 
@@ -224,8 +222,7 @@ export class SetGenerator {
     const setSize = this.ctx.emitLoad("i32", sizeFieldPtr);
 
     // Linear search for value
-    const resultReg = this.nextTemp();
-    this.emit(`${resultReg} = alloca double`);
+    const resultReg = emitAlloca(this.ctx, "double");
     this.ctx.emitStore("double", "0.0", resultReg);
 
     const loopLabel = this.nextLabel("set_has_loop");
@@ -233,8 +230,7 @@ export class SetGenerator {
     const foundLabel = this.nextLabel("set_has_found");
     const endLabel = this.nextLabel("set_has_end");
 
-    const indexReg = this.nextTemp();
-    this.emit(`${indexReg} = alloca i32`);
+    const indexReg = emitAlloca(this.ctx, "i32");
     this.ctx.emitStore("i32", "0", indexReg);
     this.ctx.emitBr(loopLabel);
 
@@ -250,8 +246,7 @@ export class SetGenerator {
     );
     const currentValue = this.ctx.emitLoad("double", valueElemPtr);
     const dblValueToFind = this.ctx.ensureDouble(valueToFind);
-    const valueMatch = this.nextTemp();
-    this.emit(`${valueMatch} = fcmp oeq double ${currentValue}, ${dblValueToFind}`);
+    const valueMatch = emitFcmp(this.ctx, "oeq", currentValue, dblValueToFind);
     this.ctx.emitBrCond(valueMatch, foundLabel, `${loopLabel}_next`);
 
     this.ctx.emitLabel(foundLabel);
@@ -259,14 +254,12 @@ export class SetGenerator {
     this.ctx.emitBr(endLabel);
 
     this.emit(`${loopLabel}_next:`);
-    const nextIndex = this.nextTemp();
-    this.emit(`${nextIndex} = add i32 ${currentIndex}, 1`);
+    const nextIndex = emitAdd(this.ctx, "i32", currentIndex, "1");
     this.ctx.emitStore("i32", nextIndex, indexReg);
     this.ctx.emitBr(loopLabel);
 
     this.ctx.emitLabel(endLabel);
     const result = this.ctx.emitLoad("double", resultReg);
-    this.ctx.setVariableType(result, "double");
     return result;
   }
 
@@ -274,10 +267,7 @@ export class SetGenerator {
     const sizeFieldPtr = this.nextTemp();
     this.emit(`${sizeFieldPtr} = getelementptr inbounds %Set, %Set* ${setPtr}, i32 0, i32 1`);
     const sizeI32 = this.ctx.emitLoad("i32", sizeFieldPtr);
-    const size = this.nextTemp();
-    this.emit(`${size} = sitofp i32 ${sizeI32} to double`);
-    this.ctx.setVariableType(size, "double");
-    return size;
+    return emitSitofp(this.ctx, sizeI32, "i32");
   }
 
   generateSetDelete(expr: MethodCallNode, params: string[]): string {
@@ -297,8 +287,7 @@ export class SetGenerator {
     this.emit(`${sizeFieldPtr} = getelementptr inbounds %Set, %Set* ${setPtr}, i32 0, i32 1`);
     const currentSize = this.ctx.emitLoad("i32", sizeFieldPtr);
 
-    const resultReg = this.nextTemp();
-    this.emit(`${resultReg} = alloca double`);
+    const resultReg = emitAlloca(this.ctx, "double");
     this.ctx.emitStore("double", "0.0", resultReg);
 
     const searchLoop = this.nextLabel("set_del_loop");
@@ -310,8 +299,7 @@ export class SetGenerator {
     const shiftDone = this.nextLabel("set_del_shift_done");
     const endLabel = this.nextLabel("set_del_end");
 
-    const idxReg = this.nextTemp();
-    this.emit(`${idxReg} = alloca i32`);
+    const idxReg = emitAlloca(this.ctx, "i32");
     this.ctx.emitStore("i32", "0", idxReg);
     this.ctx.emitBr(searchLoop);
 
@@ -324,36 +312,31 @@ export class SetGenerator {
     const elemPtr = this.nextTemp();
     this.emit(`${elemPtr} = getelementptr inbounds double, double* ${valuesPtr}, i32 ${curIdx}`);
     const elemVal = this.ctx.emitLoad("double", elemPtr);
-    const match = this.nextTemp();
-    this.emit(`${match} = fcmp oeq double ${elemVal}, ${dblValue}`);
+    const match = emitFcmp(this.ctx, "oeq", elemVal, dblValue);
     this.ctx.emitBrCond(match, foundLabel, searchNext);
 
     this.ctx.emitLabel(searchNext);
-    const nextIdx = this.nextTemp();
-    this.emit(`${nextIdx} = add i32 ${curIdx}, 1`);
+    const nextIdx = emitAdd(this.ctx, "i32", curIdx, "1");
     this.ctx.emitStore("i32", nextIdx, idxReg);
     this.ctx.emitBr(searchLoop);
 
     this.ctx.emitLabel(foundLabel);
     this.ctx.emitStore("double", "1.0", resultReg);
     const foundIdx = this.ctx.emitLoad("i32", idxReg);
-    const lastIdx = this.nextTemp();
-    this.emit(`${lastIdx} = sub i32 ${currentSize}, 1`);
+    const lastIdx = emitSub(this.ctx, "i32", currentSize, "1");
     const needShift = this.ctx.emitIcmp("slt", "i32", foundIdx, lastIdx);
     this.ctx.emitBrCond(needShift, shiftLoop, shiftDone);
 
     this.ctx.emitLabel(shiftLoop);
     const shiftI = this.ctx.emitLoad("i32", idxReg);
-    const shiftSrc = this.nextTemp();
-    this.emit(`${shiftSrc} = add i32 ${shiftI}, 1`);
+    const shiftSrc = emitAdd(this.ctx, "i32", shiftI, "1");
     const srcPtr = this.nextTemp();
     this.emit(`${srcPtr} = getelementptr inbounds double, double* ${valuesPtr}, i32 ${shiftSrc}`);
     const srcVal = this.ctx.emitLoad("double", srcPtr);
     const dstPtr = this.nextTemp();
     this.emit(`${dstPtr} = getelementptr inbounds double, double* ${valuesPtr}, i32 ${shiftI}`);
     this.ctx.emitStore("double", srcVal, dstPtr);
-    const nextShiftI = this.nextTemp();
-    this.emit(`${nextShiftI} = add i32 ${shiftI}, 1`);
+    const nextShiftI = emitAdd(this.ctx, "i32", shiftI, "1");
     this.ctx.emitStore("i32", nextShiftI, idxReg);
     const shiftCond = this.ctx.emitIcmp("slt", "i32", nextShiftI, lastIdx);
     this.ctx.emitBrCond(shiftCond, shiftBody, shiftDone);
@@ -362,14 +345,12 @@ export class SetGenerator {
     this.ctx.emitBr(shiftLoop);
 
     this.ctx.emitLabel(shiftDone);
-    const newSize = this.nextTemp();
-    this.emit(`${newSize} = sub i32 ${currentSize}, 1`);
+    const newSize = emitSub(this.ctx, "i32", currentSize, "1");
     this.ctx.emitStore("i32", newSize, sizeFieldPtr);
     this.ctx.emitBr(endLabel);
 
     this.ctx.emitLabel(endLabel);
     const result = this.ctx.emitLoad("double", resultReg);
-    this.ctx.setVariableType(result, "double");
     return result;
   }
 }
@@ -398,10 +379,8 @@ export class StringSetGenerator {
     const initialCapacity = 4;
     const ptrSize = this.getPtrSize();
 
-    const valuesCapI64 = this.nextTemp();
-    this.emit(`${valuesCapI64} = zext i32 ${initialCapacity} to i64`);
-    const valuesSize = this.nextTemp();
-    this.emit(`${valuesSize} = mul i64 ${valuesCapI64}, ${ptrSize}`);
+    const valuesCapI64 = emitZext(this.ctx, `${initialCapacity}`, "i32", "i64");
+    const valuesSize = emitMul(this.ctx, "i64", valuesCapI64, `${ptrSize}`);
     const valuesMem = this.ctx.emitCall("i8*", "@GC_malloc", `i64 ${valuesSize}`);
     const valuesPtr = this.ctx.emitBitcast(valuesMem, "i8*", "i8**");
 
@@ -449,8 +428,7 @@ export class StringSetGenerator {
     const doInsert = this.nextLabel("strset_add_insert");
     const endLabel = this.nextLabel("strset_add_end");
 
-    const idxReg = this.nextTemp();
-    this.emit(`${idxReg} = alloca i32`);
+    const idxReg = emitAlloca(this.ctx, "i32");
     this.ctx.emitStore("i32", "0", idxReg);
     this.ctx.emitBr(dedupLoop);
 
@@ -468,8 +446,7 @@ export class StringSetGenerator {
     this.ctx.emitBrCond(match, alreadyExists, dedupNext);
 
     this.ctx.emitLabel(dedupNext);
-    const nextIdx = this.nextTemp();
-    this.emit(`${nextIdx} = add i32 ${curIdx}, 1`);
+    const nextIdx = emitAdd(this.ctx, "i32", curIdx, "1");
     this.ctx.emitStore("i32", nextIdx, idxReg);
     this.ctx.emitBr(dedupLoop);
 
@@ -487,22 +464,16 @@ export class StringSetGenerator {
 
     this.ctx.emitLabel(resizeLabel);
     const isZero = this.ctx.emitIcmp("eq", "i32", currentCap, "0");
-    const doubled = this.nextTemp();
-    this.emit(`${doubled} = mul i32 ${currentCap}, 2`);
-    const newCap = this.nextTemp();
-    this.emit(`${newCap} = select i1 ${isZero}, i32 4, i32 ${doubled}`);
-    const newCapI64 = this.nextTemp();
-    this.emit(`${newCapI64} = zext i32 ${newCap} to i64`);
-    const newMemSize = this.nextTemp();
-    this.emit(`${newMemSize} = mul i64 ${newCapI64}, ${this.getPtrSize()}`);
+    const doubled = emitMul(this.ctx, "i32", currentCap, "2");
+    const newCap = emitSelect(this.ctx, isZero, "i32", "4", doubled);
+    const newCapI64 = emitZext(this.ctx, newCap, "i32", "i64");
+    const newMemSize = emitMul(this.ctx, "i64", newCapI64, `${this.getPtrSize()}`);
     const newMem = this.ctx.emitCall("i8*", "@GC_malloc", `i64 ${newMemSize}`);
     const newDataPtr = this.ctx.emitBitcast(newMem, "i8*", "i8**");
     const oldDataI8 = this.ctx.emitBitcast(valuesPtr, "i8**", "i8*");
     const newDataI8 = this.ctx.emitBitcast(newDataPtr, "i8**", "i8*");
-    const currentSizeI64 = this.nextTemp();
-    this.emit(`${currentSizeI64} = zext i32 ${currentSize} to i64`);
-    const copySize = this.nextTemp();
-    this.emit(`${copySize} = mul i64 ${currentSizeI64}, ${this.getPtrSize()}`);
+    const currentSizeI64 = emitZext(this.ctx, currentSize, "i32", "i64");
+    const copySize = emitMul(this.ctx, "i64", currentSizeI64, `${this.getPtrSize()}`);
     this.emit(
       `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newDataI8}, i8* ${oldDataI8}, i64 ${copySize}, i1 false)`,
     );
@@ -519,8 +490,7 @@ export class StringSetGenerator {
     const insertPtr = this.nextTemp();
     this.emit(`${insertPtr} = getelementptr inbounds i8*, i8** ${dataPtr2}, i32 ${currentSize}`);
     this.ctx.emitStore("i8*", valueValue, insertPtr);
-    const newSize = this.nextTemp();
-    this.emit(`${newSize} = add i32 ${currentSize}, 1`);
+    const newSize = emitAdd(this.ctx, "i32", currentSize, "1");
     this.ctx.emitStore("i32", newSize, sizeFieldPtr);
     this.ctx.emitBr(endLabel);
 
@@ -541,8 +511,7 @@ export class StringSetGenerator {
     );
     const setSize = this.ctx.emitLoad("i32", sizeFieldPtr);
 
-    const resultReg = this.nextTemp();
-    this.emit(`${resultReg} = alloca double`);
+    const resultReg = emitAlloca(this.ctx, "double");
     this.ctx.emitStore("double", "0.0", resultReg);
 
     const loopLabel = this.nextLabel("strset_has_loop");
@@ -550,8 +519,7 @@ export class StringSetGenerator {
     const foundLabel = this.nextLabel("strset_has_found");
     const endLabel = this.nextLabel("strset_has_end");
 
-    const indexReg = this.nextTemp();
-    this.emit(`${indexReg} = alloca i32`);
+    const indexReg = emitAlloca(this.ctx, "i32");
     this.ctx.emitStore("i32", "0", indexReg);
     this.ctx.emitBr(loopLabel);
 
@@ -579,16 +547,12 @@ export class StringSetGenerator {
     this.ctx.emitBr(endLabel);
 
     this.emit(`${loopLabel}_next:`);
-    const nextIndex = this.nextTemp();
-    this.emit(`${nextIndex} = add i32 ${currentIndex}, 1`);
+    const nextIndex = emitAdd(this.ctx, "i32", currentIndex, "1");
     this.ctx.emitStore("i32", nextIndex, indexReg);
     this.ctx.emitBr(loopLabel);
 
     this.ctx.emitLabel(endLabel);
-    const result = this.ctx.emitLoad("double", resultReg);
-    this.ctx.setVariableType(result, "double");
-
-    return result;
+    return this.ctx.emitLoad("double", resultReg);
   }
 
   generateStringSetDelete(setPtr: string, valueToDelete: string): string {
@@ -604,8 +568,7 @@ export class StringSetGenerator {
     );
     const currentSize = this.ctx.emitLoad("i32", sizeFieldPtr);
 
-    const resultReg = this.nextTemp();
-    this.emit(`${resultReg} = alloca double`);
+    const resultReg = emitAlloca(this.ctx, "double");
     this.ctx.emitStore("double", "0.0", resultReg);
 
     const searchLoop = this.nextLabel("strset_del_loop");
@@ -617,8 +580,7 @@ export class StringSetGenerator {
     const shiftDone = this.nextLabel("strset_del_shift_done");
     const endLabel = this.nextLabel("strset_del_end");
 
-    const idxReg = this.nextTemp();
-    this.emit(`${idxReg} = alloca i32`);
+    const idxReg = emitAlloca(this.ctx, "i32");
     this.ctx.emitStore("i32", "0", idxReg);
     this.ctx.emitBr(searchLoop);
 
@@ -636,31 +598,27 @@ export class StringSetGenerator {
     this.ctx.emitBrCond(match, foundLabel, searchNext);
 
     this.ctx.emitLabel(searchNext);
-    const nextIdx = this.nextTemp();
-    this.emit(`${nextIdx} = add i32 ${curIdx}, 1`);
+    const nextIdx = emitAdd(this.ctx, "i32", curIdx, "1");
     this.ctx.emitStore("i32", nextIdx, idxReg);
     this.ctx.emitBr(searchLoop);
 
     this.ctx.emitLabel(foundLabel);
     this.ctx.emitStore("double", "1.0", resultReg);
     const foundIdx = this.ctx.emitLoad("i32", idxReg);
-    const lastIdx = this.nextTemp();
-    this.emit(`${lastIdx} = sub i32 ${currentSize}, 1`);
+    const lastIdx = emitSub(this.ctx, "i32", currentSize, "1");
     const needShift = this.ctx.emitIcmp("slt", "i32", foundIdx, lastIdx);
     this.ctx.emitBrCond(needShift, shiftLoop, shiftDone);
 
     this.ctx.emitLabel(shiftLoop);
     const shiftI = this.ctx.emitLoad("i32", idxReg);
-    const shiftSrc = this.nextTemp();
-    this.emit(`${shiftSrc} = add i32 ${shiftI}, 1`);
+    const shiftSrc = emitAdd(this.ctx, "i32", shiftI, "1");
     const srcPtr = this.nextTemp();
     this.emit(`${srcPtr} = getelementptr inbounds i8*, i8** ${valuesPtr}, i32 ${shiftSrc}`);
     const srcVal = this.ctx.emitLoad("i8*", srcPtr);
     const dstPtr = this.nextTemp();
     this.emit(`${dstPtr} = getelementptr inbounds i8*, i8** ${valuesPtr}, i32 ${shiftI}`);
     this.ctx.emitStore("i8*", srcVal, dstPtr);
-    const nextShiftI = this.nextTemp();
-    this.emit(`${nextShiftI} = add i32 ${shiftI}, 1`);
+    const nextShiftI = emitAdd(this.ctx, "i32", shiftI, "1");
     this.ctx.emitStore("i32", nextShiftI, idxReg);
     const shiftCond = this.ctx.emitIcmp("slt", "i32", nextShiftI, lastIdx);
     this.ctx.emitBrCond(shiftCond, shiftBody, shiftDone);
@@ -669,15 +627,12 @@ export class StringSetGenerator {
     this.ctx.emitBr(shiftLoop);
 
     this.ctx.emitLabel(shiftDone);
-    const newSize = this.nextTemp();
-    this.emit(`${newSize} = sub i32 ${currentSize}, 1`);
+    const newSize = emitSub(this.ctx, "i32", currentSize, "1");
     this.ctx.emitStore("i32", newSize, sizeFieldPtr);
     this.ctx.emitBr(endLabel);
 
     this.ctx.emitLabel(endLabel);
-    const result = this.ctx.emitLoad("double", resultReg);
-    this.ctx.setVariableType(result, "double");
-    return result;
+    return this.ctx.emitLoad("double", resultReg);
   }
 
   generateStringSetSize(setPtr: string): string {
@@ -686,9 +641,6 @@ export class StringSetGenerator {
       `${sizeFieldPtr} = getelementptr inbounds %StringSet, %StringSet* ${setPtr}, i32 0, i32 1`,
     );
     const sizeI32 = this.ctx.emitLoad("i32", sizeFieldPtr);
-    const size = this.nextTemp();
-    this.emit(`${size} = sitofp i32 ${sizeI32} to double`);
-    this.ctx.setVariableType(size, "double");
-    return size;
+    return emitSitofp(this.ctx, sizeI32, "i32");
   }
 }

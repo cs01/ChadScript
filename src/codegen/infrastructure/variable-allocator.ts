@@ -59,6 +59,7 @@ import { InterfaceAllocator } from "./interface-allocator.js";
 import { MapAllocator } from "./map-allocator.js";
 import { ClassAllocator } from "./class-allocator.js";
 import { ArrayAllocator } from "./array-allocator.js";
+import { emitFptosi, emitSext, emitSitofp } from "./ir-builders.js";
 
 interface ExprBase {
   type: string;
@@ -139,6 +140,7 @@ export interface VariableAllocatorContext {
   nextAllocaReg(varName: string): string;
   nextLabel(prefix: string): string;
   emit(instruction: string): void;
+  setVariableType(name: string, type: string): void;
   defineVariable(
     name: string,
     allocaReg: string,
@@ -1933,12 +1935,10 @@ export class VariableAllocator {
         this.ctx.defineVariable(stmt.name, allocaReg, "i64", symKind, "local");
         this.ctx.emit(`${allocaReg} = alloca i64`);
         if (valueType === "double") {
-          const converted = this.ctx.nextTemp();
-          this.ctx.emit(`${converted} = fptosi double ${value} to i64`);
+          const converted = emitFptosi(this.ctx, value, "i64");
           this.ctx.emit(`store i64 ${converted}, i64* ${allocaReg}`);
         } else if (valueType === "i32") {
-          const converted = this.ctx.nextTemp();
-          this.ctx.emit(`${converted} = sext i32 ${value} to i64`);
+          const converted = emitSext(this.ctx, value, "i32", "i64");
           this.ctx.emit(`store i64 ${converted}, i64* ${allocaReg}`);
         } else {
           this.ctx.emit(`store i64 ${value}, i64* ${allocaReg}`);
@@ -1947,12 +1947,10 @@ export class VariableAllocator {
         this.ctx.defineVariable(stmt.name, allocaReg, "double", symKind, "local");
         this.ctx.emit(`${allocaReg} = alloca double`);
         if (valueType === "i32") {
-          const converted = this.ctx.nextTemp();
-          this.ctx.emit(`${converted} = sitofp i32 ${value} to double`);
+          const converted = emitSitofp(this.ctx, value, "i32");
           this.ctx.emit(`store double ${converted}, double* ${allocaReg}`);
         } else if (valueType === "i64") {
-          const converted = this.ctx.nextTemp();
-          this.ctx.emit(`${converted} = sitofp i64 ${value} to double`);
+          const converted = emitSitofp(this.ctx, value, "i64");
           this.ctx.emit(`store double ${converted}, double* ${allocaReg}`);
         } else {
           const doubleVal = value === "0" ? "0.0" : value;
