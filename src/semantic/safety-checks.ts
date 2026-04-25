@@ -283,10 +283,16 @@ function mrAllReturn(stmts: Statement[], nn: string[]): boolean {
 export function checkBinaryTypesDeep(ast: AST, sourceCode: string): void {
   const items = ast.topLevelItems;
   if (items) binWalkStmts(items as Statement[], sourceCode);
-  for (let i = 0; i < ast.functions.length; i++) binWalkBlk(ast.functions[i].body, sourceCode);
+  for (let i = 0; i < ast.functions.length; i++) {
+    const fn = ast.functions[i];
+    binWalkBlk(fn.body, sourceCode);
+  }
   for (let i = 0; i < ast.classes.length; i++) {
     const cls = ast.classes[i];
-    for (let j = 0; j < cls.methods.length; j++) binWalkBlk(cls.methods[j].body, sourceCode);
+    for (let j = 0; j < cls.methods.length; j++) {
+      const m = cls.methods[j];
+      binWalkBlk(m.body, sourceCode);
+    }
   }
 }
 
@@ -526,10 +532,16 @@ export function checkArgumentCounts(ast: AST, sourceCode: string): void {
 
   const items = ast.topLevelItems;
   if (items) state.walkStmts(items as Statement[]);
-  for (let i = 0; i < ast.functions.length; i++) state.walkBlk(ast.functions[i].body);
+  for (let i = 0; i < ast.functions.length; i++) {
+    const fn = ast.functions[i];
+    state.walkBlk(fn.body);
+  }
   for (let i = 0; i < ast.classes.length; i++) {
     const cls = ast.classes[i];
-    for (let j = 0; j < cls.methods.length; j++) state.walkBlk(cls.methods[j].body);
+    for (let j = 0; j < cls.methods.length; j++) {
+      const m = cls.methods[j];
+      state.walkBlk(m.body);
+    }
   }
 }
 
