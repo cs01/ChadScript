@@ -32,6 +32,7 @@ import {
   tsTypeToLlvm,
   parseMapTypeString,
   canonicalTypeToLlvm,
+  isObjectArrayTsType,
 } from "../../infrastructure/type-system.js";
 import type { ResolvedType } from "../../infrastructure/type-system.js";
 import type {
@@ -1064,11 +1065,7 @@ export class MemberAccessGenerator {
       return value;
     } else if (fieldType.endsWith("[]")) {
       const resolvedTsType = tsType || fieldType;
-      const isObjectArray =
-        resolvedTsType.endsWith("[]") &&
-        resolvedTsType !== "number[]" &&
-        resolvedTsType !== "string[]" &&
-        resolvedTsType !== "boolean[]";
+      const isObjectArray = isObjectArrayTsType(resolvedTsType);
       const value = this.ctx.nextTemp();
       if (isObjectArray) {
         this.ctx.emit(`${value} = load %ObjectArray*, %ObjectArray** ${fieldPtr}`);
@@ -1130,8 +1127,7 @@ export class MemberAccessGenerator {
       this.ctx.setVariableType(value, "double");
       return value;
     } else if (tsType && tsType.endsWith("[]")) {
-      const isObjectArray =
-        tsType !== "number[]" && tsType !== "string[]" && tsType !== "boolean[]";
+      const isObjectArray = isObjectArrayTsType(tsType);
       const value = this.ctx.nextTemp();
       if (isObjectArray) {
         this.ctx.emit(`${value} = load %ObjectArray*, %ObjectArray** ${fieldPtr}`);

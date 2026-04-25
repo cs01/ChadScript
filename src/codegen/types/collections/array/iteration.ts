@@ -13,6 +13,7 @@ import {
   isStringArrayType,
   isObjectArrayType,
 } from "./context.js";
+import { isObjectArrayTsType } from "../../../infrastructure/type-system.js";
 
 interface ExprBase {
   type: string;
@@ -36,13 +37,7 @@ function resolveObjectArrayElementType(gen: IGeneratorContext, objectExpr: ExprB
     }
     if (className) {
       const tsType = gen.classGenGetFieldTsType(className, memberExpr.property);
-      if (
-        tsType &&
-        tsType.endsWith("[]") &&
-        tsType !== "string[]" &&
-        tsType !== "number[]" &&
-        tsType !== "boolean[]"
-      ) {
+      if (tsType && isObjectArrayTsType(tsType)) {
         return tsType.slice(0, -2);
       }
     }
