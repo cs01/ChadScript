@@ -130,7 +130,7 @@ function checkAssignBinary(assign: AssignmentStatement, sourceCode: string): voi
   checkBinaryInExpr(assign.value, sourceCode);
 }
 
-function walkStmt(stmt: unknown, src: string): void {
+function walkStmt(stmt: object, src: string): void {
   if (!stmt) return;
   const stype = (stmt as { type: string }).type;
   if (stype === "variable_declaration") {
@@ -193,7 +193,7 @@ function walkStmt(stmt: unknown, src: string): void {
 function walkStmts(stmts: unknown[], src: string): void {
   let i = 0;
   while (i < stmts.length) {
-    walkStmt(stmts[i], src);
+    walkStmt(stmts[i] as object, src);
     i = i + 1;
   }
 }
