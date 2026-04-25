@@ -1,6 +1,7 @@
 import { MethodCallNode, VariableNode, InterfaceDeclaration } from "../../../ast/types.js";
 import type { MethodCallGeneratorContext } from "../method-calls.js";
 import { getInterfaceFromAST, type InterfaceDefInfo } from "./class-dispatch.js";
+import { emitPtrtoint, emitMul } from "../../infrastructure/ir-builders.js";
 
 function getObjectFieldInfo(
   ctx: MethodCallGeneratorContext,
@@ -88,13 +89,11 @@ export function generateObjectKeys(
 
   const sizePtr = ctx.nextTemp();
   ctx.emit(`${sizePtr} = getelementptr %StringArray, %StringArray* null, i32 1`);
-  const structSize = ctx.nextTemp();
-  ctx.emit(`${structSize} = ptrtoint %StringArray* ${sizePtr} to i64`);
+  const structSize = emitPtrtoint(ctx, sizePtr, "%StringArray*", "i64");
   const arrayMem = ctx.emitCall("i8*", "@GC_malloc", `i64 ${structSize}`);
   const arrayPtr = ctx.emitBitcast(arrayMem, "i8*", "%StringArray*");
 
-  const dataSize = ctx.nextTemp();
-  ctx.emit(`${dataSize} = mul i64 ${length}, 8`);
+  const dataSize = emitMul(ctx, "i64", `${length}`, "8");
   const dataMem = ctx.emitCall("i8*", "@GC_malloc", `i64 ${dataSize}`);
   const dataPtr = ctx.emitBitcast(dataMem, "i8*", "i8**");
 
@@ -163,13 +162,11 @@ export function generateObjectValues(
   if (allStrings) {
     const sizePtr = ctx.nextTemp();
     ctx.emit(`${sizePtr} = getelementptr %StringArray, %StringArray* null, i32 1`);
-    const structSize = ctx.nextTemp();
-    ctx.emit(`${structSize} = ptrtoint %StringArray* ${sizePtr} to i64`);
+    const structSize = emitPtrtoint(ctx, sizePtr, "%StringArray*", "i64");
     const arrayMem = ctx.emitCall("i8*", "@GC_malloc", `i64 ${structSize}`);
     const arrayPtr = ctx.emitBitcast(arrayMem, "i8*", "%StringArray*");
 
-    const dataSize = ctx.nextTemp();
-    ctx.emit(`${dataSize} = mul i64 ${length}, 8`);
+    const dataSize = emitMul(ctx, "i64", `${length}`, "8");
     const dataMem = ctx.emitCall("i8*", "@GC_malloc", `i64 ${dataSize}`);
     const dataPtr = ctx.emitBitcast(dataMem, "i8*", "i8**");
 
@@ -207,13 +204,11 @@ export function generateObjectValues(
   } else if (allNumbers) {
     const sizePtr = ctx.nextTemp();
     ctx.emit(`${sizePtr} = getelementptr %Array, %Array* null, i32 1`);
-    const structSize = ctx.nextTemp();
-    ctx.emit(`${structSize} = ptrtoint %Array* ${sizePtr} to i64`);
+    const structSize = emitPtrtoint(ctx, sizePtr, "%Array*", "i64");
     const arrayMem = ctx.emitCall("i8*", "@GC_malloc", `i64 ${structSize}`);
     const arrayPtr = ctx.emitBitcast(arrayMem, "i8*", "%Array*");
 
-    const dataSize = ctx.nextTemp();
-    ctx.emit(`${dataSize} = mul i64 ${length}, 8`);
+    const dataSize = emitMul(ctx, "i64", `${length}`, "8");
     const dataMem = ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${dataSize}`);
     const dataPtr = ctx.emitBitcast(dataMem, "i8*", "double*");
 
@@ -245,13 +240,11 @@ export function generateObjectValues(
   } else {
     const sizePtr = ctx.nextTemp();
     ctx.emit(`${sizePtr} = getelementptr %StringArray, %StringArray* null, i32 1`);
-    const structSize = ctx.nextTemp();
-    ctx.emit(`${structSize} = ptrtoint %StringArray* ${sizePtr} to i64`);
+    const structSize = emitPtrtoint(ctx, sizePtr, "%StringArray*", "i64");
     const arrayMem = ctx.emitCall("i8*", "@GC_malloc", `i64 ${structSize}`);
     const arrayPtr = ctx.emitBitcast(arrayMem, "i8*", "%StringArray*");
 
-    const dataSize = ctx.nextTemp();
-    ctx.emit(`${dataSize} = mul i64 ${length}, 8`);
+    const dataSize = emitMul(ctx, "i64", `${length}`, "8");
     const dataMem = ctx.emitCall("i8*", "@GC_malloc", `i64 ${dataSize}`);
     const dataPtr = ctx.emitBitcast(dataMem, "i8*", "i8**");
 
@@ -331,13 +324,11 @@ export function generateObjectEntries(
 
   const sizePtr = ctx.nextTemp();
   ctx.emit(`${sizePtr} = getelementptr %StringArray, %StringArray* null, i32 1`);
-  const structSize = ctx.nextTemp();
-  ctx.emit(`${structSize} = ptrtoint %StringArray* ${sizePtr} to i64`);
+  const structSize = emitPtrtoint(ctx, sizePtr, "%StringArray*", "i64");
   const arrayMem = ctx.emitCall("i8*", "@GC_malloc", `i64 ${structSize}`);
   const arrayPtr = ctx.emitBitcast(arrayMem, "i8*", "%StringArray*");
 
-  const dataSize = ctx.nextTemp();
-  ctx.emit(`${dataSize} = mul i64 ${flatLength}, 8`);
+  const dataSize = emitMul(ctx, "i64", `${flatLength}`, "8");
   const dataMem = ctx.emitCall("i8*", "@GC_malloc", `i64 ${dataSize}`);
   const dataPtr = ctx.emitBitcast(dataMem, "i8*", "i8**");
 

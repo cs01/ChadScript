@@ -11,6 +11,7 @@ import {
 } from "../../ast/types.js";
 
 import { parseMapTypeString, parseSetTypeString } from "../infrastructure/type-system.js";
+import { emitAdd, emitFptosi, emitSext } from "../infrastructure/ir-builders.js";
 import type {
   IStringGenerator,
   IStringMapGenerator,
@@ -82,11 +83,8 @@ export class LiteralExpressionGenerator {
     const isInteger = isFloat !== true && value % 1 === 0;
 
     if (isInteger && value >= -9007199254740991 && value <= 9007199254740991) {
-      const temp = this.ctx.nextTemp();
       const intStr = value.toFixed(0);
-      this.ctx.emit(`${temp} = add i64 ${intStr}, 0`);
-      this.ctx.setVariableType(temp, "i64");
-      return temp;
+      return emitAdd(this.ctx, "i64", intStr, "0");
     } else {
       const s = String(value);
       if (
@@ -108,10 +106,7 @@ export class LiteralExpressionGenerator {
    */
   generateBoolean(value: boolean): string {
     const boolValue = value ? 1 : 0;
-    const temp = this.ctx.nextTemp();
-    this.ctx.emit(`${temp} = add i64 ${boolValue}, 0`);
-    this.ctx.setVariableType(temp, "i64");
-    return temp;
+    return emitAdd(this.ctx, "i64", `${boolValue}`, "0");
   }
 
   /**
@@ -302,14 +297,11 @@ export class LiteralExpressionGenerator {
     const sizeValue = this.ctx.generateExpression(args[0], params);
     const sizeDouble = this.ctx.ensureDouble(sizeValue);
 
-    const sizeI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${sizeI32} = fptosi double ${sizeDouble} to i32`);
+    const sizeI32 = emitFptosi(this.ctx, sizeDouble, "i32");
 
-    const sizeI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${sizeI64} = sext i32 ${sizeI32} to i64`);
+    const sizeI64 = emitSext(this.ctx, sizeI32, "i32", "i64");
 
-    const structSize = this.ctx.nextTemp();
-    this.ctx.emit(`${structSize} = add i64 0, 12`);
+    const structSize = emitAdd(this.ctx, "i64", "0", "12");
     const structRaw = this.ctx.nextTemp();
     this.ctx.emit(`${structRaw} = call i8* @GC_malloc(i64 ${structSize})`);
     const structPtr = this.ctx.nextTemp();
