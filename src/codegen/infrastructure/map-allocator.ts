@@ -126,6 +126,13 @@ export class MapAllocator {
         this.allocatePointerMap(stmt, params, mapTypeInfo);
         return;
       }
+      if (mapTypeInfo.valueType !== "number" && mapTypeInfo.valueType !== "boolean") {
+        this.ctx.emitError(
+          `Map<number, ${mapTypeInfo.valueType}> is not supported. Use Map<string, ${mapTypeInfo.valueType}> instead`,
+          stmt.loc,
+        );
+        return;
+      }
     }
     const allocaReg = this.ctx.nextAllocaReg(stmt.name);
     this.ctx.defineVariable(stmt.name, allocaReg, "%Map*", SymbolKind_Map, "local");
