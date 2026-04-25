@@ -20,7 +20,7 @@ jobs:
       - run: npx prettier --check .
 
   benchmarks:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'benchmark')
     runs-on: ubuntu-22.04
     permissions:
       pull-requests: write
@@ -542,6 +542,7 @@ jobs:
 
   test-artifact:
     needs: [build-linux-glibc, build-macos]
+    if: github.event_name == 'push'
     strategy:
       matrix:
         include:
