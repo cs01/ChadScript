@@ -1,4 +1,5 @@
 // @test-skip
+// passes with node compiler but native compiler fails on 2d object-array indexing
 class Foo {
   value: number;
   constructor(v: number) {

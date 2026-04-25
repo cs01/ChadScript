@@ -1,5 +1,5 @@
 // @test-skip
-// native switch string matching fails in self-hosted stages on linux
+// passes with node compiler but native compiler fails on toplevel switch-string in self-hosted stages
 const s = "b";
 switch (s) {
   case "a":
