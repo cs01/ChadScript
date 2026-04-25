@@ -96,14 +96,14 @@ function checkExpr(expr: Expression | null, sourceCode: string): void {
   emitMapKeyError(vt, e.loc, sourceCode);
 }
 
-function walkBlock(block: BlockStatement, sourceCode: string): void {
+function walkMapCheckBlock(block: BlockStatement, sourceCode: string): void {
   if (!block || !block.statements) return;
   for (let i = 0; i < block.statements.length; i++) {
-    walkStatement(block.statements[i], sourceCode);
+    walkMapCheckStmt(block.statements[i], sourceCode);
   }
 }
 
-function walkStatement(stmt: Statement, sourceCode: string): void {
+function walkMapCheckStmt(stmt: Statement, sourceCode: string): void {
   if (!stmt) return;
   const t = (stmt as { type: string }).type;
   if (!t) return;
@@ -116,25 +116,25 @@ function walkStatement(stmt: Statement, sourceCode: string): void {
     checkExpr(decl.value, sourceCode);
   } else if (t === "if") {
     const ifStmt = stmt as IfStatement;
-    walkBlock(ifStmt.thenBlock, sourceCode);
-    if (ifStmt.elseBlock) walkBlock(ifStmt.elseBlock, sourceCode);
+    walkMapCheckBlock(ifStmt.thenBlock, sourceCode);
+    if (ifStmt.elseBlock) walkMapCheckBlock(ifStmt.elseBlock, sourceCode);
   } else if (t === "while") {
-    walkBlock((stmt as WhileStatement).body, sourceCode);
+    walkMapCheckBlock((stmt as WhileStatement).body, sourceCode);
   } else if (t === "do_while") {
-    walkBlock((stmt as DoWhileStatement).body, sourceCode);
+    walkMapCheckBlock((stmt as DoWhileStatement).body, sourceCode);
   } else if (t === "for") {
     const forStmt = stmt as ForStatement;
-    if (forStmt.init) walkStatement(forStmt.init as Statement, sourceCode);
-    walkBlock(forStmt.body, sourceCode);
+    if (forStmt.init) walkMapCheckStmt(forStmt.init as Statement, sourceCode);
+    walkMapCheckBlock(forStmt.body, sourceCode);
   } else if (t === "for_of") {
-    walkBlock((stmt as ForOfStatement).body, sourceCode);
+    walkMapCheckBlock((stmt as ForOfStatement).body, sourceCode);
   } else if (t === "try") {
     const tryStmt = stmt as TryStatement;
-    walkBlock(tryStmt.tryBlock, sourceCode);
-    if (tryStmt.catchBody) walkBlock(tryStmt.catchBody, sourceCode);
-    if (tryStmt.finallyBlock) walkBlock(tryStmt.finallyBlock, sourceCode);
+    walkMapCheckBlock(tryStmt.tryBlock, sourceCode);
+    if (tryStmt.catchBody) walkMapCheckBlock(tryStmt.catchBody, sourceCode);
+    if (tryStmt.finallyBlock) walkMapCheckBlock(tryStmt.finallyBlock, sourceCode);
   } else if (t === "block") {
-    walkBlock(stmt as BlockStatement, sourceCode);
+    walkMapCheckBlock(stmt as BlockStatement, sourceCode);
   }
 }
 
@@ -152,7 +152,7 @@ export function checkMapKeyTypes(ast: AST, sourceCode: string): void {
 
   for (let i = 0; i < ast.functions.length; i++) {
     const fn = ast.functions[i] as FunctionNode;
-    walkBlock(fn.body, sourceCode);
+    walkMapCheckBlock(fn.body, sourceCode);
   }
 
   for (let i = 0; i < ast.classes.length; i++) {
@@ -164,7 +164,7 @@ export function checkMapKeyTypes(ast: AST, sourceCode: string): void {
       }
     }
     for (let k = 0; k < cls.methods.length; k++) {
-      walkBlock(cls.methods[k].body, sourceCode);
+      walkMapCheckBlock(cls.methods[k].body, sourceCode);
     }
   }
 }
