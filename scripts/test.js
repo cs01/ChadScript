@@ -92,10 +92,15 @@ const env = { ...process.env, CHADC_COMPILER: compilerPath };
 
 console.log(`\nRunning tests with: ${compilerPath}`);
 
-const child = spawn("node", ["--import", "tsx", "--test", ...testFiles], {
-  stdio: "inherit",
-  shell: false,
-  env,
-});
+const reporter = process.env.TEST_REPORTER || "dot";
+const child = spawn(
+  "node",
+  ["--import", "tsx", "--test", `--test-reporter=${reporter}`, ...testFiles],
+  {
+    stdio: "inherit",
+    shell: false,
+    env,
+  },
+);
 
 child.on("exit", (code) => process.exit(code));
