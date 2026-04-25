@@ -1897,6 +1897,9 @@ export class MemberAccessGenerator {
           const cm = this.ctx.symbolTable.getClassInfo(vn);
           if (cm) ownerClassName = cm.className;
         }
+      } else if (memberObjBase.type === "member_access") {
+        const nestedType = this.resolveExpressionType(memberAccess.object);
+        if (nestedType) ownerClassName = nestedType;
       }
       if (ownerClassName) {
         const fieldInfo = this.ctx.classGenGetFieldInfo(ownerClassName, memberAccess.property);
@@ -2325,6 +2328,17 @@ export class MemberAccessGenerator {
           }
         }
       }
+      if (memberAccessObjBase.type === "member_access") {
+        const nestedType = this.resolveExpressionType(memberAccess.object);
+        if (nestedType) {
+          const fieldInfo = this.ctx.classGenGetFieldInfo(nestedType, memberAccess.property);
+          if (fieldInfo && fieldInfo.tsType && fieldInfo.tsType.endsWith("[]")) {
+            const elementType = fieldInfo.tsType.slice(0, -2);
+            const interfaceInfo = this.getInterfaceInfo(elementType);
+            if (interfaceInfo) return interfaceInfo;
+          }
+        }
+      }
     }
     if (arrayExpr.type === "variable") {
       const varName = (arrayExpr as VariableNode).name;
@@ -2367,6 +2381,9 @@ export class MemberAccessGenerator {
         }
       } else if (mcObjBase.type === "this") {
         className = this.ctx.getCurrentClassName();
+      } else if (mcObjBase.type === "member_access") {
+        const nestedType = this.resolveExpressionType(mc.object);
+        if (nestedType) className = nestedType;
       }
       if (className) {
         const retType = this.ctx.getMethodReturnType(className, mc.method);
