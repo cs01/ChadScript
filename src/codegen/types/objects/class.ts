@@ -534,8 +534,6 @@ export class ClassGenerator {
       if (llvmType === "i8*") defaultVal = "null";
       else if (llvmType === "i1") defaultVal = "0";
       else if (llvmType.endsWith("*")) defaultVal = "null";
-      const initVal = this.resolveStaticInitializer(field, llvmType, parts);
-      if (initVal !== null) defaultVal = initVal;
       parts.push(`${globalName} = global ${llvmType} ${defaultVal}\n`);
     }
 
