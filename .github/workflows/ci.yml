@@ -306,19 +306,23 @@ jobs:
           .build/chad build examples/snippets/hello.ts -o /tmp/hello
           /tmp/hello
 
-      - name: Run self-hosting tests
+      - name: Run all tests in parallel
         env:
           CHADSCRIPT_SKIP_STAGE_2_3: ${{ github.event_name == 'pull_request' && steps.changes.outputs.codegen != 'true' && '1' || '' }}
-        run: node --import tsx --test tests/self-hosting.test.ts
+        run: |
+          node --import tsx --test tests/self-hosting.test.ts &
+          PID_SH=$!
+          npm run test:native &
+          PID_NATIVE=$!
+          npm run test:node &
+          PID_NODE=$!
+
+          FAIL=0
+          wait $PID_SH || FAIL=1
+          wait $PID_NATIVE || FAIL=1
+          wait $PID_NODE || FAIL=1
+          exit $FAIL
         timeout-minutes: 15
-
-      - name: Run unit tests (native compiler)
-        run: npm run test:native
-        timeout-minutes: 10
-
-      - name: Run unit tests (node compiler)
-        run: npm run test:node
-        timeout-minutes: 10
 
       - name: Run examples
         run: bash scripts/run-examples.sh
@@ -480,19 +484,23 @@ jobs:
           .build/chad build examples/snippets/hello.ts -o /tmp/hello
           /tmp/hello
 
-      - name: Run self-hosting tests
+      - name: Run all tests in parallel
         env:
           CHADSCRIPT_SKIP_STAGE_2_3: ${{ github.event_name == 'pull_request' && steps.changes.outputs.codegen != 'true' && '1' || '' }}
-        run: node --import tsx --test tests/self-hosting.test.ts
+        run: |
+          node --import tsx --test tests/self-hosting.test.ts &
+          PID_SH=$!
+          npm run test:native &
+          PID_NATIVE=$!
+          npm run test:node &
+          PID_NODE=$!
+
+          FAIL=0
+          wait $PID_SH || FAIL=1
+          wait $PID_NATIVE || FAIL=1
+          wait $PID_NODE || FAIL=1
+          exit $FAIL
         timeout-minutes: 15
-
-      - name: Run unit tests (native compiler)
-        run: npm run test:native
-        timeout-minutes: 10
-
-      - name: Run unit tests (node compiler)
-        run: npm run test:node
-        timeout-minutes: 10
 
       - name: Run examples
         run: bash scripts/run-examples.sh
