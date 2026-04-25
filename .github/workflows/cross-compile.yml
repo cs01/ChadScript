@@ -6,14 +6,14 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - 'c_bridges/**'
-      - 'scripts/build-vendor.sh'
-      - 'scripts/build-target-sdk.sh'
-      - 'scripts/vendor-pins.sh'
-      - 'src/compiler.ts'
-      - 'src/native-compiler-lib.ts'
-      - 'install.sh'
-      - '.github/workflows/cross-compile.yml'
+      - "c_bridges/**"
+      - "scripts/build-vendor.sh"
+      - "scripts/build-target-sdk.sh"
+      - "scripts/vendor-pins.sh"
+      - "src/compiler.ts"
+      - "src/native-compiler-lib.ts"
+      - "install.sh"
+      - ".github/workflows/cross-compile.yml"
 
 jobs:
   # Build target SDK on Ubuntu, then cross-compile from macOS using it
