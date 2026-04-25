@@ -1,6 +1,13 @@
 import { Expression, MethodCallNode } from "../../../ast/types.js";
 import type { MethodCallGeneratorContext } from "../method-calls.js";
-import { emitFcmp, emitOr, emitAnd, emitXor, emitPhi } from "../../infrastructure/ir-builders.js";
+import {
+  emitFcmp,
+  emitOr,
+  emitAnd,
+  emitXor,
+  emitPhi,
+  emitAdd,
+} from "../../infrastructure/ir-builders.js";
 
 function emitIndentation(ctx: MethodCallGeneratorContext): void {
   const depth = ctx.emitLoad("i32", "@__describe_depth");

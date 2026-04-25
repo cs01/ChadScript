@@ -20,6 +20,7 @@ import {
   mapReturnTypeToLLVM,
   isAnyArrayTsType,
 } from "../../infrastructure/type-system.js";
+import { emitSitofp } from "../../infrastructure/ir-builders.js";
 
 export interface InterfaceDefInfo {
   properties: { name: string; type: string }[];
@@ -64,8 +65,7 @@ export function invokeFunctionTypedField(
     let coercedVal = rawVal;
     let paramTy: string;
     if (lt === "i64" || lt === "i32" || lt === "i16" || lt === "i8") {
-      const promoted = ctx.nextTemp();
-      ctx.emit(`${promoted} = sitofp ${lt} ${rawVal} to double`);
+      const promoted = emitSitofp(ctx, rawVal, lt);
       coercedVal = promoted;
       paramTy = "double";
     } else if (lt === "i1") {

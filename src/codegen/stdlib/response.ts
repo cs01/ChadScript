@@ -13,6 +13,7 @@ interface InterfaceStructGenerator {
 }
 
 import type { InterfaceDefInfo } from "../expressions/method-calls/class-dispatch.js";
+import { emitSitofp, emitAnd } from "../infrastructure/ir-builders.js";
 
 interface ResponseGeneratorContext {
   nextTemp(): string;
@@ -292,9 +293,7 @@ export class ResponseGenerator {
     const statusI32 = this.ctx.nextTemp();
     this.ctx.emit(`${statusI32} = load i32, i32* ${statusFieldPtr}`);
 
-    // Convert to double (ChadScript's number type)
-    const statusDouble = this.ctx.nextTemp();
-    this.ctx.emit(`${statusDouble} = sitofp i32 ${statusI32} to double`);
+    const statusDouble = emitSitofp(this.ctx, statusI32, "i32");
     this.ctx.setVariableType(statusDouble, "double");
 
     return statusDouble;
@@ -325,9 +324,7 @@ export class ResponseGenerator {
     const lt300 = this.ctx.nextTemp();
     this.ctx.emit(`${lt300} = icmp slt i32 ${statusI32}, 300`);
 
-    // AND the two conditions
-    const isOk = this.ctx.nextTemp();
-    this.ctx.emit(`${isOk} = and i1 ${gte200}, ${lt300}`);
+    const isOk = emitAnd(this.ctx, "i1", gte200, lt300);
 
     // Convert i1 (boolean) to double (0.0 or 1.0)
     const okDouble = this.ctx.nextTemp();
@@ -366,8 +363,7 @@ export class ResponseGenerator {
     );
     const redirI32 = this.ctx.nextTemp();
     this.ctx.emit(`${redirI32} = load i32, i32* ${redirFieldPtr}`);
-    const redirDouble = this.ctx.nextTemp();
-    this.ctx.emit(`${redirDouble} = sitofp i32 ${redirI32} to double`);
+    const redirDouble = emitSitofp(this.ctx, redirI32, "i32");
     this.ctx.setVariableType(redirDouble, "double");
     return redirDouble;
   }

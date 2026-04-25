@@ -5,6 +5,7 @@ interface ExprBase {
 }
 
 import { IGeneratorContext } from "../infrastructure/generator-context.js";
+import { emitAdd, emitSext, emitSitofp } from "../infrastructure/ir-builders.js";
 
 /**
  * Filesystem Method Generator
@@ -90,8 +91,7 @@ export class FilesystemGenerator {
     const seekStart = this.ctx.emitCall("i32", "@fseek", `i8* ${filePtr}, i64 0, i32 0`);
 
     // Allocate buffer: GC_malloc_atomic(size + 1) for null terminator
-    const bufferSize = this.ctx.nextTemp();
-    this.ctx.emit(`${bufferSize} = add i64 ${fileSize}, 1`);
+    const bufferSize = emitAdd(this.ctx, "i64", fileSize, "1");
     const buffer = this.ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${bufferSize}`);
 
     // Read file: fread(buffer, 1, size, fp)
@@ -278,8 +278,7 @@ export class FilesystemGenerator {
     );
     const lenI32 = this.ctx.nextTemp();
     this.ctx.emit(`${lenI32} = load i32, i32* ${lenField}`);
-    const lenI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${lenI64} = sext i32 ${lenI32} to i64`);
+    const lenI64 = emitSext(this.ctx, lenI32, "i32", "i64");
 
     // fwrite(data, 1, length, fp) — uses struct length, not strlen
     const bytesWritten = this.ctx.nextTemp();
@@ -443,8 +442,7 @@ export class FilesystemGenerator {
     this.ctx.emitLabel(endLabel);
     const phiResult = this.ctx.nextTemp();
     this.ctx.emit(`${phiResult} = phi i32 [ 1, %${existsLabel} ], [ 0, %${notExistsLabel} ]`);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = sitofp i32 ${phiResult} to double`);
+    const result = emitSitofp(this.ctx, phiResult, "i32");
     this.ctx.setVariableType(result, "double");
 
     return result;

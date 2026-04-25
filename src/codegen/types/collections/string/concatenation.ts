@@ -1,6 +1,7 @@
 import { Expression, BinaryNode, UnaryNode } from "../../../../ast/types.js";
 import { IGeneratorContext } from "../../../infrastructure/generator-context.js";
 import { convertNumberToString, createStringConstant } from "./constants.js";
+import { emitAdd, emitFcmp, emitSelect } from "../../../infrastructure/ir-builders.js";
 
 function isConcatComparisonOp(op: string): boolean {
   if (op === "===" || op === "!==" || op === "==" || op === "!=") return true;
@@ -20,18 +21,19 @@ function convertBooleanToString(ctx: IGeneratorContext, boolValue: string): stri
   const trueStr = createStringConstant(ctx, "true");
   const falseStr = createStringConstant(ctx, "false");
   const varType = ctx.getVariableType(boolValue);
-  const cmp = ctx.nextTemp();
   if (varType === "i1") {
-    ctx.emit(`${cmp} = select i1 ${boolValue}, i8* ${trueStr}, i8* ${falseStr}`);
+    const cmp = emitSelect(ctx, boolValue, "i8*", trueStr, falseStr);
     ctx.setVariableType(cmp, "i8*");
     return cmp;
-  } else if (varType === "i64") {
+  }
+  let cmp: string;
+  if (varType === "i64") {
+    cmp = ctx.nextTemp();
     ctx.emit(`${cmp} = icmp ne i64 ${boolValue}, 0`);
   } else {
-    ctx.emit(`${cmp} = fcmp one double ${boolValue}, 0.0`);
+    cmp = emitFcmp(ctx, "one", boolValue, "0.0");
   }
-  const selected = ctx.nextTemp();
-  ctx.emit(`${selected} = select i1 ${cmp}, i8* ${trueStr}, i8* ${falseStr}`);
+  const selected = emitSelect(ctx, cmp, "i8*", trueStr, falseStr);
   ctx.setVariableType(selected, "i8*");
   return selected;
 }
@@ -48,8 +50,7 @@ function nullSafeStr(ctx: IGeneratorContext, value: string, expr: Expression): s
     const nullStr = createStringConstant(ctx, "null");
     const isNull = ctx.nextTemp();
     ctx.emit(`${isNull} = icmp eq i8* ${value}, null`);
-    const safe = ctx.nextTemp();
-    ctx.emit(`${safe} = select i1 ${isNull}, i8* ${nullStr}, i8* ${value}`);
+    const safe = emitSelect(ctx, isNull, "i8*", nullStr, value);
     ctx.setVariableType(safe, "i8*");
     return safe;
   }
@@ -92,10 +93,8 @@ export function generateStringConcatDirect(
   const rightLen = ctx.nextTemp();
   ctx.emit(`${rightLen} = call i64 @strlen(i8* ${rightStr})`);
 
-  const totalLen = ctx.nextTemp();
-  ctx.emit(`${totalLen} = add i64 ${leftLen}, ${rightLen}`);
-  const totalLenPlus1 = ctx.nextTemp();
-  ctx.emit(`${totalLenPlus1} = add i64 ${totalLen}, 1`);
+  const totalLen = emitAdd(ctx, "i64", leftLen, rightLen);
+  const totalLenPlus1 = emitAdd(ctx, "i64", totalLen, "1");
 
   const resultPtr = ctx.nextTemp();
   ctx.emit(`${resultPtr} = call i8* @cs_arena_alloc(i64 ${totalLenPlus1})`);
@@ -108,8 +107,7 @@ export function generateStringConcatDirect(
   const dest = ctx.nextTemp();
   ctx.emit(`${dest} = getelementptr i8, i8* ${resultPtr}, i64 ${leftLen}`);
 
-  const rightLenPlus1 = ctx.nextTemp();
-  ctx.emit(`${rightLenPlus1} = add i64 ${rightLen}, 1`);
+  const rightLenPlus1 = emitAdd(ctx, "i64", rightLen, "1");
   ctx.emit(
     `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${dest}, i8* ${rightStr}, i64 ${rightLenPlus1}, i1 false)`,
   );

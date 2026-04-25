@@ -27,6 +27,15 @@ import {
 } from "../../ast/types.js";
 import { ForOfGenerator } from "./for-of.js";
 import { IGeneratorContext } from "../infrastructure/generator-context.js";
+import {
+  emitSitofp,
+  emitFptosi,
+  emitSext,
+  emitZext,
+  emitInttoptr,
+  emitFcmp,
+  emitSelect,
+} from "../infrastructure/ir-builders.js";
 import { SymbolKind_Number, SymbolKind_String } from "../infrastructure/symbol-table.js";
 import type { FieldInfo } from "../infrastructure/type-resolver/types.js";
 import { stripOptional } from "../infrastructure/type-system.js";
@@ -73,9 +82,7 @@ export class ControlFlowGenerator {
       return value;
     } else if (valueType === "double" || (value.indexOf(".") !== -1 && !value.startsWith("%"))) {
       // Value is a double, use fcmp
-      const condBool = this.nextTemp();
-      this.emit(`${condBool} = fcmp one double ${value}, 0.0`);
-      return condBool;
+      return emitFcmp(this.ctx, "one", value, "0.0");
     } else if (valueType && valueType.indexOf("*") !== -1) {
       const isValidLlvmType =
         !valueType.startsWith("%{") && !valueType.includes("|") && !valueType.includes(":");
@@ -92,16 +99,11 @@ export class ControlFlowGenerator {
     } else {
       // Unknown type - assume double for temp registers
       if (value.startsWith("%")) {
-        const condBool = this.nextTemp();
-        this.emit(`${condBool} = fcmp one double ${value}, 0.0`);
-        return condBool;
+        return emitFcmp(this.ctx, "one", value, "0.0");
       }
       // Literal i32 value - convert to double then compare
-      const condDouble = this.nextTemp();
-      this.emit(`${condDouble} = sitofp i32 ${value} to double`);
-      const condBool = this.nextTemp();
-      this.emit(`${condBool} = fcmp one double ${condDouble}, 0.0`);
-      return condBool;
+      const condDouble = emitSitofp(this.ctx, value, "i32");
+      return emitFcmp(this.ctx, "one", condDouble, "0.0");
     }
   }
 
@@ -175,10 +177,8 @@ export class ControlFlowGenerator {
     this.emit(
       `${emptyStr} = getelementptr inbounds [1 x i8], [1 x i8]* @.str.empty_str, i64 0, i64 0`,
     );
-    const safePtr = this.nextTemp();
-    this.emit(`${safePtr} = select i1 ${notNull}, i8* ${value}, i8* ${emptyStr}`);
-    const firstByte = this.nextTemp();
-    this.emit(`${firstByte} = load i8, i8* ${safePtr}`);
+    const safePtr = emitSelect(this.ctx, notNull, "i8*", value, emptyStr);
+    const firstByte = this.ctx.emitLoad("i8", safePtr);
     return this.ctx.emitIcmp("ne", "i8", firstByte, "0");
   }
 
@@ -200,10 +200,7 @@ export class ControlFlowGenerator {
       // NaN sentinel = undefined. fcmp ord returns true when both operands
       // are non-NaN (i.e., value is defined). Pairs with the NaN short-circuit
       // in generateOptionalChain — see optional-chain-undefined-sentinel.md.
-      const temp = this.nextTemp();
-      this.emit(`${temp} = fcmp ord double ${value}, ${value}`);
-      this.ctx.setVariableType(temp, "i1");
-      return temp;
+      return emitFcmp(this.ctx, "ord", value, value);
     }
     if (valueType === "i1" || valueType === "i32" || valueType === "i64") {
       const condBool = this.ctx.emitIcmp("eq", "i32", "1", "1");
@@ -749,35 +746,22 @@ export class ControlFlowGenerator {
   private coerceToTypeNoPhi(value: string, fromType: string, toType: string): string {
     if (fromType === toType) return value;
     if (toType === "double" && fromType === "i64") {
-      const coerced = this.nextTemp();
-      this.emit(`${coerced} = sitofp i64 ${value} to double`);
-      return coerced;
+      return emitSitofp(this.ctx, value, "i64");
     }
     if (toType === "i64" && fromType === "double") {
-      const coerced = this.nextTemp();
-      this.emit(`${coerced} = fptosi double ${value} to i64`);
-      return coerced;
+      return emitFptosi(this.ctx, value, "i64");
     }
     if (toType.indexOf("*") !== -1 && fromType === "i64") {
-      const coerced = this.nextTemp();
-      this.emit(`${coerced} = inttoptr i64 ${value} to ${toType}`);
-      return coerced;
+      return emitInttoptr(this.ctx, value, "i64", toType);
     }
     if (toType.indexOf("*") !== -1 && fromType === "double") {
-      const cmp = this.nextTemp();
-      this.emit(`${cmp} = fcmp one double ${value}, 0.0`);
-      const zext = this.nextTemp();
-      this.emit(`${zext} = zext i1 ${cmp} to i64`);
-      const coerced = this.nextTemp();
-      this.emit(`${coerced} = inttoptr i64 ${zext} to ${toType}`);
-      return coerced;
+      const cmp = emitFcmp(this.ctx, "one", value, "0.0");
+      const zext = emitZext(this.ctx, cmp, "i1", "i64");
+      return emitInttoptr(this.ctx, zext, "i64", toType);
     }
     if (toType.indexOf("*") !== -1 && fromType === "i32") {
-      const extended = this.nextTemp();
-      this.emit(`${extended} = sext i32 ${value} to i64`);
-      const coerced = this.nextTemp();
-      this.emit(`${coerced} = inttoptr i64 ${extended} to ${toType}`);
-      return coerced;
+      const extended = emitSext(this.ctx, value, "i32", "i64");
+      return emitInttoptr(this.ctx, extended, "i64", toType);
     }
     return value;
   }
@@ -1178,8 +1162,7 @@ export class ControlFlowGenerator {
         } else {
           const dblDiscriminant = this.ctx.ensureDouble(discriminantValue);
           const dblTest = this.ctx.ensureDouble(testValue);
-          const cmpResult = this.nextTemp();
-          this.emit(`${cmpResult} = fcmp oeq double ${dblDiscriminant}, ${dblTest}`);
+          const cmpResult = emitFcmp(this.ctx, "oeq", dblDiscriminant, dblTest);
           const nextLabel = checkIndex < testCaseCount - 1 ? checkLabels[checkIndex] : defaultLabel;
           this.ctx.emitBrCond(cmpResult, caseLabels[i], nextLabel);
         }

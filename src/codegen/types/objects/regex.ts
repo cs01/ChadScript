@@ -1,4 +1,5 @@
 import { IGeneratorContext } from "../../infrastructure/generator-context.js";
+import { emitZext, emitSitofp, emitSub, emitAdd } from "../../infrastructure/ir-builders.js";
 
 // ============================================
 // REGEX GENERATOR - Regex operations
@@ -221,12 +222,8 @@ export class RegexGenerator {
     // Convert to boolean: 0 -> 1 (match), non-zero -> 0 (no match)
     const isMatch = this.ctx.emitIcmp("eq", "i32", execResult, "0");
 
-    const i32Result = this.nextTemp();
-    this.emit(`${i32Result} = zext i1 ${isMatch} to i32`);
-
-    // Convert to double for JavaScript semantics
-    const result = this.nextTemp();
-    this.emit(`${result} = sitofp i32 ${i32Result} to double`);
+    const i32Result = emitZext(this.ctx, isMatch, "i1", "i32");
+    const result = emitSitofp(this.ctx, i32Result, "i32");
     this.ctx.setVariableType(result, "double");
 
     return result;
@@ -268,8 +265,7 @@ export class RegexGenerator {
 
     this.ctx.emitLabel(matchLabel);
     const matchIdx = this.ctx.emitCall("i64", "@cs_pmatch_start", `i8* ${pmatchPtr}, i32 0`);
-    const matchDbl = this.nextTemp();
-    this.emit(`${matchDbl} = sitofp i64 ${matchIdx} to double`);
+    const matchDbl = emitSitofp(this.ctx, matchIdx, "i64");
     this.ctx.emitBr(endLabel);
 
     this.ctx.emitLabel(endLabel);
@@ -334,11 +330,8 @@ export class RegexGenerator {
 
       const rmEo = this.ctx.emitCall("i64", "@cs_pmatch_end", `i8* ${pmatchPtr}, i32 ${i}`);
 
-      const matchLen = this.nextTemp();
-      this.emit(`${matchLen} = sub i64 ${rmEo}, ${rmSo}`);
-
-      const matchLenPlus1 = this.nextTemp();
-      this.emit(`${matchLenPlus1} = add i64 ${matchLen}, 1`);
+      const matchLen = emitSub(this.ctx, "i64", rmEo, rmSo);
+      const matchLenPlus1 = emitAdd(this.ctx, "i64", matchLen, "1");
 
       const substrPtr = this.ctx.emitCall("i8*", "@cs_arena_alloc", `i64 ${matchLenPlus1}`);
 

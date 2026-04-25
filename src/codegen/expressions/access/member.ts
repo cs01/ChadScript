@@ -85,6 +85,7 @@ import {
 } from "./chained-access.js";
 import { accessObjectWithMetadata, accessObjectProperty } from "./struct-access.js";
 import { createStringConstant } from "../../types/collections/string/constants.js";
+import { emitFptosi, emitTrunc, emitSext, emitMul } from "../../infrastructure/ir-builders.js";
 
 interface ExprBase {
   type: string;
@@ -1788,11 +1789,9 @@ export class MemberAccessGenerator {
     const indexType = this.ctx.getVariableType(indexDouble);
     let index = indexDouble;
     if (indexType === "double" || indexType === undefined) {
-      index = this.ctx.nextTemp();
-      this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
+      index = emitFptosi(this.ctx, indexDouble, "i32");
     } else if (indexType === "i64") {
-      index = this.ctx.nextTemp();
-      this.ctx.emit(`${index} = trunc i64 ${indexDouble} to i32`);
+      index = emitTrunc(this.ctx, indexDouble, "i64", "i32");
     }
 
     const structTypeFields = elementInfo.types.join(", ");
@@ -1816,10 +1815,8 @@ export class MemberAccessGenerator {
 
     let elemTyped: string;
     if (contiguousStride > 0) {
-      const indexI64 = this.ctx.nextTemp();
-      this.ctx.emit(`${indexI64} = sext i32 ${index} to i64`);
-      const offset = this.ctx.nextTemp();
-      this.ctx.emit(`${offset} = mul i64 ${indexI64}, ${contiguousStride}`);
+      const indexI64 = emitSext(this.ctx, index, "i32", "i64");
+      const offset = emitMul(this.ctx, "i64", indexI64, `${contiguousStride}`);
       const elemRaw = this.ctx.nextTemp();
       this.ctx.emit(`${elemRaw} = getelementptr inbounds i8, i8* ${data}, i64 ${offset}`);
       elemTyped = this.ctx.emitBitcast(elemRaw, "i8*", `${structType}*`);
@@ -1940,11 +1937,9 @@ export class MemberAccessGenerator {
     const indexType = this.ctx.getVariableType(indexDouble);
     let index = indexDouble;
     if (indexType === "double" || indexType === undefined) {
-      index = this.ctx.nextTemp();
-      this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
+      index = emitFptosi(this.ctx, indexDouble, "i32");
     } else if (indexType === "i64") {
-      index = this.ctx.nextTemp();
-      this.ctx.emit(`${index} = trunc i64 ${indexDouble} to i32`);
+      index = emitTrunc(this.ctx, indexDouble, "i64", "i32");
     }
 
     const dataPtr = this.ctx.nextTemp();
