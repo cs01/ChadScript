@@ -870,6 +870,122 @@ char* cs_llvm_build_select(const char* cond_name, const char* then_name, const c
     return strdup(name);
 }
 
+// ============ Switch ============
+
+char* cs_llvm_build_switch(const char* val_name, const char* default_label, double num_cases_d) {
+    int num_cases = (int)num_cases_d;
+    LLVMValueRef val = lookup_value(val_name);
+    LLVMBasicBlockRef def_bb = lookup_block(default_label);
+    if (!val || !def_bb) return strdup("");
+    LLVMValueRef sw = LLVMBuildSwitch(b_builder, val, def_bb, num_cases);
+    char* name = next_temp();
+    register_value(name, sw);
+    return strdup(name);
+}
+
+void cs_llvm_switch_add_case(const char* switch_name, const char* type_str,
+                              double case_val_d, const char* dest_label) {
+    LLVMValueRef sw = lookup_value(switch_name);
+    LLVMBasicBlockRef dest = lookup_block(dest_label);
+    if (!sw || !dest) return;
+    LLVMTypeRef ty = parse_type(type_str);
+    LLVMValueRef on_val = LLVMConstInt(ty, (unsigned long long)(long long)case_val_d, 1);
+    LLVMAddCase(sw, on_val, dest);
+}
+
+// ============ Memcpy / Memset ============
+
+void cs_llvm_build_memcpy(const char* dst_name, const char* src_name,
+                           const char* len_name, double align_d) {
+    LLVMValueRef dst = lookup_value(dst_name);
+    LLVMValueRef src = lookup_value(src_name);
+    LLVMValueRef len = lookup_value(len_name);
+    if (!dst || !src || !len) return;
+    int align = (int)align_d;
+    if (align < 1) align = 1;
+    LLVMBuildMemCpy(b_builder, dst, align, src, align, len);
+}
+
+void cs_llvm_build_memset(const char* dst_name, const char* val_name,
+                           const char* len_name, double align_d) {
+    LLVMValueRef dst = lookup_value(dst_name);
+    LLVMValueRef val = lookup_value(val_name);
+    LLVMValueRef len = lookup_value(len_name);
+    if (!dst || !val || !len) return;
+    int align = (int)align_d;
+    if (align < 1) align = 1;
+    LLVMBuildMemSet(b_builder, dst, val, len, align);
+}
+
+// ============ FRem / FNeg ============
+
+char* cs_llvm_build_frem(const char* lhs_name, const char* rhs_name) {
+    LLVMValueRef lhs = lookup_value(lhs_name);
+    LLVMValueRef rhs = lookup_value(rhs_name);
+    if (!lhs || !rhs) return strdup("");
+    char* name = next_temp();
+    LLVMValueRef result = LLVMBuildFRem(b_builder, lhs, rhs, name + 1);
+    register_value(name, result);
+    return strdup(name);
+}
+
+char* cs_llvm_build_fneg(const char* val_name) {
+    LLVMValueRef val = lookup_value(val_name);
+    if (!val) return strdup("");
+    char* name = next_temp();
+    LLVMValueRef result = LLVMBuildFNeg(b_builder, val, name + 1);
+    register_value(name, result);
+    return strdup(name);
+}
+
+// ============ Function attributes ============
+
+void cs_llvm_fn_add_attr(const char* fn_name, const char* attr_name) {
+    LLVMValueRef fn = lookup_function(fn_name);
+    if (!fn) return;
+    unsigned kind = LLVMGetEnumAttributeKindForName(attr_name, strlen(attr_name));
+    if (kind == 0) return;
+    LLVMAttributeRef attr = LLVMCreateEnumAttribute(b_context, kind, 0);
+    LLVMAddAttributeAtIndex(fn, LLVMAttributeFunctionIndex, attr);
+}
+
+// ============ Constants ============
+
+char* cs_llvm_const_int(const char* type_str, double val_d) {
+    LLVMTypeRef ty = parse_type(type_str);
+    long long val = (long long)val_d;
+    LLVMValueRef c = LLVMConstInt(ty, (unsigned long long)val, 1);
+    char* name = next_temp();
+    register_value(name, c);
+    return strdup(name);
+}
+
+char* cs_llvm_const_real(double val) {
+    LLVMValueRef c = LLVMConstReal(LLVMDoubleTypeInContext(b_context), val);
+    char* name = next_temp();
+    register_value(name, c);
+    return strdup(name);
+}
+
+char* cs_llvm_const_null(const char* type_str) {
+    LLVMTypeRef ty = parse_type(type_str);
+    LLVMValueRef c = LLVMConstNull(ty);
+    char* name = next_temp();
+    register_value(name, c);
+    return strdup(name);
+}
+
+// ============ Global variables ============
+
+void cs_llvm_add_global_var(const char* name, const char* type_str, double is_const_d) {
+    LLVMTypeRef ty = parse_type(type_str);
+    LLVMValueRef gv = LLVMAddGlobal(b_module, ty, name);
+    LLVMSetLinkage(gv, LLVMPrivateLinkage);
+    if ((int)is_const_d) LLVMSetGlobalConstant(gv, 1);
+    LLVMSetInitializer(gv, LLVMConstNull(ty));
+    register_value(name, gv);
+}
+
 // ============ Output ============
 
 char* cs_llvm_builder_optimize(double level_d) {

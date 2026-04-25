@@ -140,6 +140,26 @@ declare function cs_llvm_build_phi(
   count: number,
 ): string;
 declare function cs_llvm_build_select(cond: string, then_val: string, else_val: string): string;
+declare function cs_llvm_build_switch(
+  val: string,
+  default_label: string,
+  num_cases: number,
+): string;
+declare function cs_llvm_switch_add_case(
+  sw: string,
+  type_str: string,
+  case_val: number,
+  dest: string,
+): void;
+declare function cs_llvm_build_memcpy(dst: string, src: string, len: string, align: number): void;
+declare function cs_llvm_build_memset(dst: string, val: string, len: string, align: number): void;
+declare function cs_llvm_build_frem(lhs: string, rhs: string): string;
+declare function cs_llvm_build_fneg(val: string): string;
+declare function cs_llvm_fn_add_attr(fn_name: string, attr: string): void;
+declare function cs_llvm_const_int(type_str: string, val: number): string;
+declare function cs_llvm_const_real(val: number): string;
+declare function cs_llvm_const_null(type_str: string): string;
+declare function cs_llvm_add_global_var(name: string, type_str: string, is_const: number): void;
 declare function cs_llvm_builder_optimize(level: number): string;
 declare function cs_llvm_builder_emit_object(path: string): string;
 declare function cs_llvm_builder_print(path: string): string;
