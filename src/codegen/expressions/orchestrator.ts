@@ -234,6 +234,7 @@ export class ExpressionGenerator {
       names: string[];
       types: string[];
       interfaceTypes: string[];
+      concreteClasses: string[];
     };
     let typeHints: { paramTypes?: string[]; returnType?: string } | undefined = undefined;
     const cbParamTypes = this.ctx.getExpectedCallbackParamTypes();
@@ -257,6 +258,7 @@ export class ExpressionGenerator {
       scopeVarsTyped.names,
       scopeVarsTyped.types,
       scopeVarsTyped.interfaceTypes,
+      scopeVarsTyped.concreteClasses,
     );
 
     const closureInfoResult = this.arrowFunctionGen.getClosureInfoForLambda(lambdaName);

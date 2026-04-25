@@ -31,6 +31,7 @@ export interface CapturedVariable {
   name: string;
   llvmType: string;
   interfaceType?: string;
+  concreteClass?: string;
 }
 
 export interface ClosureInfo {
@@ -44,6 +45,7 @@ export class ClosureAnalyzer {
   private scopeVarNames: string[] = [];
   private scopeVarTypes: string[] = [];
   private scopeVarInterfaceTypes: string[] = [];
+  private scopeVarConcreteClasses: string[] = [];
 
   constructor() {
     this.declaredVars = new Set();
@@ -56,6 +58,7 @@ export class ClosureAnalyzer {
     scopeVarTypesIn: string[],
     lambdaName: string,
     scopeVarInterfaceTypesIn?: string[],
+    scopeVarConcreteClassesIn?: string[],
   ): ClosureInfo {
     this.declaredVars = new Set();
     this.referencedVarsList = [];
@@ -63,11 +66,15 @@ export class ClosureAnalyzer {
     this.scopeVarNames = [];
     this.scopeVarTypes = [];
     this.scopeVarInterfaceTypes = [];
+    this.scopeVarConcreteClasses = [];
     for (let i = 0; i < scopeVarNamesIn.length; i++) {
       this.scopeVarNames.push(scopeVarNamesIn[i]);
       this.scopeVarTypes.push(scopeVarTypesIn[i]);
       this.scopeVarInterfaceTypes.push(
         scopeVarInterfaceTypesIn ? scopeVarInterfaceTypesIn[i] || "" : "",
+      );
+      this.scopeVarConcreteClasses.push(
+        scopeVarConcreteClassesIn ? scopeVarConcreteClassesIn[i] || "" : "",
       );
     }
 
@@ -88,10 +95,12 @@ export class ClosureAnalyzer {
       if (!this.declaredVars.has(varName) && this.hasScopeVar(varName)) {
         const idx = this.scopeVarNames.indexOf(varName);
         const ifaceType = idx >= 0 ? this.scopeVarInterfaceTypes[idx] : "";
+        const cc = idx >= 0 ? this.scopeVarConcreteClasses[idx] : "";
         captures.push({
           name: varName,
           llvmType: this.getScopeVarType(varName),
           interfaceType: ifaceType || undefined,
+          concreteClass: cc || undefined,
         });
       }
     }
