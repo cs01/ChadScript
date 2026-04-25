@@ -112,6 +112,7 @@ import {
   parseTypeString,
   parseMapTypeString,
   isObjectArrayTsType,
+  isAnyArrayTsType,
   type ResolvedType,
 } from "./infrastructure/type-system.js";
 import { DiagnosticEngine } from "../diagnostics/engine.js";
@@ -1271,7 +1272,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       const fi = this.classGenGetFieldInfo(ownerClass, ma.property);
       if (!fi || !fi.tsType) return null;
       const tsType = stripNullable(fi.tsType);
-      if (tsType.endsWith("[]") || tsType.startsWith("Map<") || tsType.startsWith("Set<")) {
+      if (isAnyArrayTsType(tsType) || tsType.startsWith("Map<") || tsType.startsWith("Set<")) {
         return null;
       }
       if (this.classGen.getClassFields(tsType).length > 0) return tsType;

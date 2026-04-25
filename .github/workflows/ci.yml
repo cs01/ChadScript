@@ -306,23 +306,24 @@ jobs:
           .build/chad build examples/snippets/hello.ts -o /tmp/hello
           /tmp/hello
 
-      - name: Run all tests in parallel
+      - name: Run self-hosting tests
         env:
           CHADSCRIPT_SKIP_STAGE_2_3: ${{ github.event_name == 'pull_request' && steps.changes.outputs.codegen != 'true' && '1' || '' }}
+        run: node --import tsx --test tests/self-hosting.test.ts
+        timeout-minutes: 15
+
+      - name: Run unit tests in parallel
         run: |
-          node --import tsx --test tests/self-hosting.test.ts > /tmp/self-hosting.log 2>&1 &
-          PID_SH=$!
           npm run test:native > /tmp/test-native.log 2>&1 &
           PID_NATIVE=$!
           npm run test:node > /tmp/test-node.log 2>&1 &
           PID_NODE=$!
 
           FAIL=0
-          wait $PID_SH && echo "self-hosting: PASS" || { echo "self-hosting: FAIL"; cat /tmp/self-hosting.log; FAIL=1; }
           wait $PID_NATIVE && echo "test:native: PASS" || { echo "test:native: FAIL"; cat /tmp/test-native.log; FAIL=1; }
           wait $PID_NODE && echo "test:node: PASS" || { echo "test:node: FAIL"; cat /tmp/test-node.log; FAIL=1; }
           exit $FAIL
-        timeout-minutes: 15
+        timeout-minutes: 10
 
       - name: Run examples
         run: bash scripts/run-examples.sh
@@ -484,23 +485,24 @@ jobs:
           .build/chad build examples/snippets/hello.ts -o /tmp/hello
           /tmp/hello
 
-      - name: Run all tests in parallel
+      - name: Run self-hosting tests
         env:
           CHADSCRIPT_SKIP_STAGE_2_3: ${{ github.event_name == 'pull_request' && steps.changes.outputs.codegen != 'true' && '1' || '' }}
+        run: node --import tsx --test tests/self-hosting.test.ts
+        timeout-minutes: 15
+
+      - name: Run unit tests in parallel
         run: |
-          node --import tsx --test tests/self-hosting.test.ts > /tmp/self-hosting.log 2>&1 &
-          PID_SH=$!
           npm run test:native > /tmp/test-native.log 2>&1 &
           PID_NATIVE=$!
           npm run test:node > /tmp/test-node.log 2>&1 &
           PID_NODE=$!
 
           FAIL=0
-          wait $PID_SH && echo "self-hosting: PASS" || { echo "self-hosting: FAIL"; cat /tmp/self-hosting.log; FAIL=1; }
           wait $PID_NATIVE && echo "test:native: PASS" || { echo "test:native: FAIL"; cat /tmp/test-native.log; FAIL=1; }
           wait $PID_NODE && echo "test:node: PASS" || { echo "test:node: FAIL"; cat /tmp/test-node.log; FAIL=1; }
           exit $FAIL
-        timeout-minutes: 15
+        timeout-minutes: 10
 
       - name: Run examples
         run: bash scripts/run-examples.sh

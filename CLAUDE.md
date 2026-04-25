@@ -350,6 +350,34 @@ Self-hosting limitations:
 
 ChadScript merges all imported files into one flat AST. `export default` maps the local import name to the exported name via `importAliases` (resolved in `resolveImportAlias()`). Re-exports synthesize `ImportDeclaration` entries — semantically equivalent to imports.
 
+## Discriminated Dispatch — No Silent Defaults
+
+When dispatching on a discriminated value (ArrayKind, SymbolKind, etc.), ALWAYS use `switch` with
+explicit cases and `throw` on default. NEVER use if/else chains with a silent fallthrough return.
+
+```typescript
+// WRONG — silent fallthrough hides missing cases
+function toLlvm(kind: number): string {
+  if (kind === ArrayKind_Number) return "%Array*";
+  if (kind === ArrayKind_String) return "%StringArray*";
+  return "i8*"; // silent garbage for any new kind
+}
+
+// RIGHT — switch + throw, crashes loud on unhandled case
+function toLlvm(kind: number): string {
+  switch (kind) {
+    case ArrayKind_Number: return "%Array*";
+    case ArrayKind_String: return "%StringArray*";
+    case ArrayKind_Object: return "%ObjectArray*";
+    default: throw new Error(`unknown ArrayKind ${kind}`);
+  }
+}
+```
+
+For TypeScript-only code (not self-hosted), use literal union types + `never` for compile-time
+exhaustiveness: `type ArrayKind = 0 | 1 | 2 | 3 | 4;` with
+`default: { const _: never = kind; throw new Error(...); }`.
+
 ## Enums — Not Supported
 
 Enum declarations emit a compile error with a suggestion to use `as const` objects instead. The semantic

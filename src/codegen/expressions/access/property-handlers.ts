@@ -1,6 +1,7 @@
 import { Expression, MemberAccessNode, VariableNode } from "../../../ast/types.js";
 import type { MemberAccessGeneratorContext } from "./member.js";
 import type { FieldInfo } from "../../infrastructure/type-resolver/types.js";
+import { isAnyArrayTsType } from "../../infrastructure/type-system.js";
 
 export function handleUrlProperty(
   ctx: MemberAccessGeneratorContext,
@@ -174,7 +175,7 @@ export function handleMemberAccessLength(
       ) {
         const arrayPtr = ctx.generateExpression(expr.object, params);
         return getArrayLengthFromPtr(ctx, arrayPtr, "%Array");
-      } else if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.endsWith("[]")) {
+      } else if (fieldInfoResult && fieldInfo.tsType && isAnyArrayTsType(fieldInfo.tsType)) {
         const arrayPtr = ctx.generateExpression(expr.object, params);
         return getArrayLengthFromPtr(ctx, arrayPtr, "%Array");
       }
@@ -191,7 +192,7 @@ export function handleMemberAccessLength(
           } else if (fieldType === "string[]") {
             const stringArrayPtr = ctx.generateExpression(expr.object, params);
             return getStringArrayLength(ctx, stringArrayPtr);
-          } else if (fieldType.endsWith("[]")) {
+          } else if (isAnyArrayTsType(fieldType)) {
             const arrayPtr = ctx.generateExpression(expr.object, params);
             return getArrayLengthFromPtr(ctx, arrayPtr, "%ObjectArray");
           }
@@ -207,7 +208,7 @@ export function handleMemberAccessLength(
         } else if (fieldType === "string[]") {
           const stringArrayPtr = ctx.generateExpression(expr.object, params);
           return getStringArrayLength(ctx, stringArrayPtr);
-        } else if (fieldType.endsWith("[]")) {
+        } else if (isAnyArrayTsType(fieldType)) {
           const arrayPtr = ctx.generateExpression(expr.object, params);
           return getArrayLengthFromPtr(ctx, arrayPtr, "%ObjectArray");
         }
@@ -250,7 +251,7 @@ export function handleMemberAccessLength(
       ) {
         const arrayPtr = ctx.generateExpression(expr.object, params);
         return getArrayLengthFromPtr(ctx, arrayPtr, "%Array");
-      } else if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.endsWith("[]")) {
+      } else if (fieldInfoResult && fieldInfo.tsType && isAnyArrayTsType(fieldInfo.tsType)) {
         const arrayPtr = ctx.generateExpression(expr.object, params);
         return getArrayLengthFromPtr(ctx, arrayPtr, "%Array");
       }
