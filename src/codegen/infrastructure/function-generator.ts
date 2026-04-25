@@ -49,6 +49,7 @@ import {
   tsTypeToLlvm,
   mapParamTypeToLLVM,
   canonicalTypeToLlvm,
+  isAnyArrayTsType,
 } from "./type-system.js";
 import { findI64EligibleVariables } from "./integer-analysis.js";
 import type { LiftedFunction } from "../expressions/arrow-functions.js";
@@ -526,7 +527,7 @@ export class FunctionGenerator {
       } else if (llvmType === "%ObjectArray*") {
         let elementType = "";
         const pt = paramTypes[i] || "";
-        if (pt.endsWith("[]") && pt.length > 2) {
+        if (isAnyArrayTsType(pt)) {
           elementType = pt.substring(0, pt.length - 2);
         }
         if (elementType) {

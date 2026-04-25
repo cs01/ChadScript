@@ -15,7 +15,7 @@ import type { SymbolTable, ClassInfo, ObjectArrayMetadata } from "./symbol-table
 import type { InterfaceStructGenerator } from "../types/interface-struct-generator.js";
 
 import type { FieldInfo } from "./type-resolver/types.js";
-import { stripNullable } from "./type-system.js";
+import { stripNullable, isAnyArrayTsType } from "./type-system.js";
 
 interface ObjectInfo {
   ptr: string;
@@ -650,7 +650,7 @@ export class AssignmentGenerator {
       const ownerClassName = this.ctx.resolveOwnerClass(memberAccess.object);
       if (ownerClassName) {
         const fieldInfo = this.ctx.classGenGetFieldInfo(ownerClassName, memberAccess.property);
-        if (fieldInfo && fieldInfo.tsType && fieldInfo.tsType.endsWith("[]")) {
+        if (fieldInfo && fieldInfo.tsType && isAnyArrayTsType(fieldInfo.tsType)) {
           const elementType = fieldInfo.tsType.slice(0, -2);
           const ifaceProps = this.ctx.getInterfaceProperties(elementType);
           if (ifaceProps) {
