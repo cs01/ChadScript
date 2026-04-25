@@ -46,6 +46,7 @@ export interface ClassAllocatorContext {
   getCurrentClassName(): string | null;
   classGenGetClassFields(className: string): { name: string; fieldType: string }[];
   classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
+  resolveOwnerClass(expr: Expression): string | null;
   readonly symbolTable: SymbolTable;
   getObjectArrayElementType(expr: Expression): string | null;
 }
@@ -132,16 +133,7 @@ export class ClassAllocator {
   }
 
   getMethodCallReturnClassName(methodExpr: MethodCallNode): string | null {
-    const methodObjBase = methodExpr.object as ExprBase;
-    let objClassName: string | null = null;
-    if (methodObjBase.type === "variable") {
-      const varName = (methodExpr.object as VariableNode).name;
-      if (this.ctx.symbolTable.isClass(varName)) {
-        objClassName = this.ctx.symbolTable.getClassName(varName) || null;
-      }
-    } else if (methodObjBase.type === "this") {
-      objClassName = this.ctx.getCurrentClassName() || null;
-    }
+    const objClassName = this.ctx.resolveOwnerClass(methodExpr.object);
     if (!objClassName) return null;
     const ast = this.ctx.getAst();
     if (!ast) return null;
@@ -215,17 +207,7 @@ export class ClassAllocator {
       if (elemType && this.interfaceAlloc.isKnownClass(elemType)) return elemType;
     } else if (objBase.type === "member_access") {
       const memberAccess = indexExpr.object as MemberAccessNode;
-      const memberObjBase = memberAccess.object as ExprBase;
-      let ownerClassName: string | null = null;
-      if (memberObjBase.type === "this") {
-        ownerClassName = this.ctx.getCurrentClassName();
-      } else if (memberObjBase.type === "variable") {
-        const vn = (memberAccess.object as VariableNode).name;
-        if (this.ctx.symbolTable.isClass(vn)) {
-          const cm = this.ctx.symbolTable.getClassInfo(vn);
-          if (cm) ownerClassName = cm.className;
-        }
-      }
+      const ownerClassName = this.ctx.resolveOwnerClass(memberAccess.object);
       if (ownerClassName) {
         const fieldInfo = this.ctx.classGenGetFieldInfo(ownerClassName, memberAccess.property);
         if (fieldInfo && fieldInfo.tsType) {
@@ -251,16 +233,7 @@ export class ClassAllocator {
     const e = expr as ExprBase;
     if (e.type !== "member_access") return null;
     const memberExpr = expr as MemberAccessNode;
-    const objBase = memberExpr.object as ExprBase;
-    let className: string | null = null;
-    if (objBase.type === "variable") {
-      const varName = (memberExpr.object as VariableNode).name;
-      const classMeta = this.ctx.symbolTable.getClassMetadata(varName);
-      if (!classMeta) return null;
-      className = classMeta.className;
-    } else if (objBase.type === "this") {
-      className = this.ctx.getCurrentClassName();
-    }
+    const className = this.ctx.resolveOwnerClass(memberExpr.object);
     if (!className) return null;
     const ast = this.ctx.getAst();
     if (ast && ast.classes) {

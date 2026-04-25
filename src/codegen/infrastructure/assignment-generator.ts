@@ -35,6 +35,7 @@ export interface AssignmentGeneratorContext {
   getVariableType(name: string): string | null;
   classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
   classGenGetClassFields(className: string): { name: string; fieldType: string }[];
+  resolveOwnerClass(expr: Expression): string | null;
   getAst(): AST | undefined;
   expectedArrayElementType: "string" | "number" | "boolean" | "pointer" | null;
   setExpectedArrayElementType(type: "string" | "number" | "boolean" | "pointer" | null): void;
@@ -153,7 +154,7 @@ export class AssignmentGenerator {
         this.handleArrayLengthAssignment(object as MemberAccessNode, memberAccessValue, params);
         return;
       }
-      const resolvedClass = this.resolveClassFromMemberAccess(object as MemberAccessNode);
+      const resolvedClass = this.ctx.resolveOwnerClass(object as MemberAccessNode);
       if (resolvedClass) {
         this.handleChainedMemberAccessAssignment(
           object as MemberAccessNode,
@@ -339,36 +340,6 @@ export class AssignmentGenerator {
           ". Did you forget to declare it with a type annotation?",
       );
     }
-  }
-
-  private resolveClassFromMemberAccess(expr: MemberAccessNode): string | null {
-    const innerObj = expr.object as { type: string };
-    let ownerClass: string | null = null;
-
-    if (innerObj.type === "variable") {
-      const varName = (expr.object as VariableNode).name;
-      if (this.ctx.symbolTable.isClass(varName)) {
-        const classMeta = this.ctx.symbolTable.getClassInfo(varName)!;
-        ownerClass = classMeta.className;
-      }
-    } else if (innerObj.type === "this") {
-      ownerClass = this.ctx.getCurrentClassName();
-    } else if (innerObj.type === "member_access") {
-      ownerClass = this.resolveClassFromMemberAccess(expr.object as MemberAccessNode);
-    }
-
-    if (!ownerClass) return null;
-
-    const fieldInfo = this.ctx.classGenGetFieldInfo(ownerClass, expr.property);
-    if (!fieldInfo) return null;
-    const fi = fieldInfo as FieldInfo;
-    if (!fi.tsType) return null;
-
-    const strippedType = stripNullable(fi.tsType);
-    const classFields = this.ctx.classGenGetClassFields(strippedType);
-    if (classFields.length > 0) return strippedType;
-
-    return null;
   }
 
   private handleChainedMemberAccessAssignment(
@@ -676,21 +647,18 @@ export class AssignmentGenerator {
     }
     if (arrayExpr.type === "member_access") {
       const memberAccess = arrayExpr as MemberAccessNode;
-      const memberObj = memberAccess.object as { type: string };
-      if (memberObj.type === "this") {
-        const className = this.ctx.getCurrentClassName();
-        if (className) {
-          const fieldInfo = this.ctx.classGenGetFieldInfo(className, memberAccess.property);
-          if (fieldInfo && fieldInfo.tsType && fieldInfo.tsType.endsWith("[]")) {
-            const elementType = fieldInfo.tsType.slice(0, -2);
-            const ifaceProps = this.ctx.getInterfaceProperties(elementType);
-            if (ifaceProps) {
-              return {
-                keys: ifaceProps.keys,
-                types: ifaceProps.types,
-                tsTypes: ifaceProps.tsTypes,
-              };
-            }
+      const ownerClassName = this.ctx.resolveOwnerClass(memberAccess.object);
+      if (ownerClassName) {
+        const fieldInfo = this.ctx.classGenGetFieldInfo(ownerClassName, memberAccess.property);
+        if (fieldInfo && fieldInfo.tsType && fieldInfo.tsType.endsWith("[]")) {
+          const elementType = fieldInfo.tsType.slice(0, -2);
+          const ifaceProps = this.ctx.getInterfaceProperties(elementType);
+          if (ifaceProps) {
+            return {
+              keys: ifaceProps.keys,
+              types: ifaceProps.types,
+              tsTypes: ifaceProps.tsTypes,
+            };
           }
         }
       }
@@ -711,10 +679,9 @@ export class AssignmentGenerator {
     this.ctx.emit(`${valueI32} = fptosi double ${dblVal} to i32`);
 
     let arrayType = "%StringArray";
-    const currentClass = this.ctx.getCurrentClassName();
-    const arrayExprObj = arrayExpr.object;
-    if (arrayExprObj.type === "this" && currentClass) {
-      const fieldInfo = this.ctx.classGenGetFieldInfo(currentClass, arrayExpr.property);
+    const ownerClass = this.ctx.resolveOwnerClass(arrayExpr.object);
+    if (ownerClass) {
+      const fieldInfo = this.ctx.classGenGetFieldInfo(ownerClass, arrayExpr.property);
       if (fieldInfo) {
         const fi = fieldInfo as FieldInfo;
         if (fi.type === "string[]") {

@@ -79,30 +79,11 @@ function getThisFieldMapInfo(
   if (e2.type !== "member_access") return null;
   const memberExpr = expr as MemberAccessNode;
 
-  const objBase = memberExpr.object as ExprBase;
-  if (objBase.type === "this") {
-    const classNameForLookup = ctx.getCurrentClassName();
-    if (!classNameForLookup) return null;
-    const fieldInfoResult = ctx.classGenGetFieldInfo(classNameForLookup, memberExpr.property);
-    if (!fieldInfoResult || !fieldInfoResult.tsType) return null;
-
-    return parseMapTypeString(fieldInfoResult.tsType);
-  }
-
-  // Also handle <variable>.<field> where <variable> is a class instance.
-  // Unblocks Map fields accessed through a named instance:
-  //   const s = new S();
-  //   s.pending.set(...);
-  if (objBase.type === "variable") {
-    const varName = (memberExpr.object as VariableNode).name;
-    const classInfo = ctx.symbolTable.getClassInfo(varName);
-    if (!classInfo) return null;
-    const fieldInfoResult = ctx.classGenGetFieldInfo(classInfo.className, memberExpr.property);
-    if (!fieldInfoResult || !fieldInfoResult.tsType) return null;
-    return parseMapTypeString(fieldInfoResult.tsType);
-  }
-
-  return null;
+  const ownerClass = ctx.resolveOwnerClass(memberExpr.object);
+  if (!ownerClass) return null;
+  const fieldInfoResult = ctx.classGenGetFieldInfo(ownerClass, memberExpr.property);
+  if (!fieldInfoResult || !fieldInfoResult.tsType) return null;
+  return parseMapTypeString(fieldInfoResult.tsType);
 }
 
 function getThisFieldMapKeyType(ctx: MethodCallGeneratorContext, expr: Expression): string | null {
@@ -115,19 +96,13 @@ function getThisFieldMapKeyType(ctx: MethodCallGeneratorContext, expr: Expressio
   if (e2.type !== "member_access") return null;
   const memberExpr = expr as MemberAccessNode;
 
-  const objBase = memberExpr.object as ExprBase;
-  if (objBase.type === "this") {
-    const classNameForLookup = ctx.getCurrentClassName();
-    if (!classNameForLookup) return null;
-    const fieldInfoResult = ctx.classGenGetFieldInfo(classNameForLookup, memberExpr.property);
-    if (!fieldInfoResult || !fieldInfoResult.tsType) return null;
-
-    const mapParsed = parseMapTypeString(fieldInfoResult.tsType);
-    if (!mapParsed) return null;
-    return mapParsed.keyType;
-  }
-
-  return null;
+  const ownerClass = ctx.resolveOwnerClass(memberExpr.object);
+  if (!ownerClass) return null;
+  const fieldInfoResult = ctx.classGenGetFieldInfo(ownerClass, memberExpr.property);
+  if (!fieldInfoResult || !fieldInfoResult.tsType) return null;
+  const mapParsed = parseMapTypeString(fieldInfoResult.tsType);
+  if (!mapParsed) return null;
+  return mapParsed.keyType;
 }
 
 function unboxStringMapGet(
