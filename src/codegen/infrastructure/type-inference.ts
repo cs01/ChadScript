@@ -2011,23 +2011,11 @@ export class TypeInference {
         const className = this.st.getClassName((memberExpr.object as VariableNode).name);
         if (className) {
           const fieldType = this.ctx.classGenGetFieldType(className, memberExpr.property);
-          if (
-            fieldType &&
-            fieldType.endsWith("[]") &&
-            fieldType !== "string[]" &&
-            fieldType !== "number[]" &&
-            fieldType !== "boolean[]"
-          ) {
+          if (fieldType && isObjectArrayTsType(fieldType)) {
             return true;
           }
           const tsType = this.ctx.classGenGetFieldTsType(className, memberExpr.property);
-          if (
-            tsType &&
-            tsType.endsWith("[]") &&
-            tsType !== "string[]" &&
-            tsType !== "number[]" &&
-            tsType !== "boolean[]"
-          ) {
+          if (tsType && isObjectArrayTsType(tsType)) {
             return true;
           }
         }
@@ -2036,23 +2024,11 @@ export class TypeInference {
         const className = this.ctx.getCurrentClassName();
         if (className) {
           const fieldType = this.ctx.classGenGetFieldType(className, memberExpr.property);
-          if (
-            fieldType &&
-            fieldType.endsWith("[]") &&
-            fieldType !== "string[]" &&
-            fieldType !== "number[]" &&
-            fieldType !== "boolean[]"
-          ) {
+          if (fieldType && isObjectArrayTsType(fieldType)) {
             return true;
           }
           const tsType = this.ctx.classGenGetFieldTsType(className, memberExpr.property);
-          if (
-            tsType &&
-            tsType.endsWith("[]") &&
-            tsType !== "string[]" &&
-            tsType !== "number[]" &&
-            tsType !== "boolean[]"
-          ) {
+          if (tsType && isObjectArrayTsType(tsType)) {
             return true;
           }
         }
@@ -2062,26 +2038,14 @@ export class TypeInference {
         const paramType = this.getParameterType(varName);
         if (paramType) {
           const fieldType = this.getFieldTypeFromType(paramType, memberExpr.property);
-          if (
-            fieldType &&
-            fieldType.endsWith("[]") &&
-            fieldType !== "string[]" &&
-            fieldType !== "number[]" &&
-            fieldType !== "boolean[]"
-          ) {
+          if (fieldType && isObjectArrayTsType(fieldType)) {
             return true;
           }
         }
         const ifaceType2 = this.st.getInterfaceType(varName);
         if (ifaceType2 && ifaceType2.length > 0) {
           const fieldType = this.getFieldTypeFromType(ifaceType2, memberExpr.property);
-          if (
-            fieldType &&
-            fieldType.endsWith("[]") &&
-            fieldType !== "string[]" &&
-            fieldType !== "number[]" &&
-            fieldType !== "boolean[]"
-          ) {
+          if (fieldType && isObjectArrayTsType(fieldType)) {
             return true;
           }
         }
@@ -2090,12 +2054,7 @@ export class TypeInference {
           for (let ki = 0; ki < objMeta.keys.length; ki++) {
             if (objMeta.keys[ki] === memberExpr.property && objMeta.types[ki]) {
               const ft = objMeta.types[ki];
-              if (
-                ft.endsWith("[]") &&
-                ft !== "string[]" &&
-                ft !== "number[]" &&
-                ft !== "boolean[]"
-              ) {
+              if (isObjectArrayTsType(ft)) {
                 return true;
               }
             }
@@ -2111,13 +2070,7 @@ export class TypeInference {
             const fieldTsType = this.ctx.classGenGetFieldTsType(className, nestedMember.property);
             if (fieldTsType) {
               const fieldType = this.getFieldTypeFromType(fieldTsType, memberExpr.property);
-              if (
-                fieldType &&
-                fieldType.endsWith("[]") &&
-                fieldType !== "string[]" &&
-                fieldType !== "number[]" &&
-                fieldType !== "boolean[]"
-              ) {
+              if (fieldType && isObjectArrayTsType(fieldType)) {
                 return true;
               }
             }
@@ -2126,13 +2079,7 @@ export class TypeInference {
         const nestedType = this.resolveNestedMemberAccessTsType(nestedMember);
         if (nestedType) {
           const fieldType = this.getFieldTypeFromType(nestedType, memberExpr.property);
-          if (
-            fieldType &&
-            fieldType.endsWith("[]") &&
-            fieldType !== "string[]" &&
-            fieldType !== "number[]" &&
-            fieldType !== "boolean[]"
-          ) {
+          if (fieldType && isObjectArrayTsType(fieldType)) {
             return true;
           }
         }
@@ -2141,13 +2088,7 @@ export class TypeInference {
         const assertion = memberExpr.object as TypeAssertionNode;
         if (assertion.assertedType) {
           const fieldType = this.getFieldTypeFromType(assertion.assertedType, memberExpr.property);
-          if (
-            fieldType &&
-            fieldType.endsWith("[]") &&
-            fieldType !== "string[]" &&
-            fieldType !== "number[]" &&
-            fieldType !== "boolean[]"
-          ) {
+          if (fieldType && isObjectArrayTsType(fieldType)) {
             return true;
           }
         }
@@ -2258,26 +2199,14 @@ export class TypeInference {
         const paramType = this.getParameterType(varName);
         if (paramType) {
           const fieldType = this.getFieldTypeFromType(paramType, memberExpr.property);
-          if (
-            fieldType &&
-            fieldType.endsWith("[]") &&
-            fieldType !== "string[]" &&
-            fieldType !== "number[]" &&
-            fieldType !== "boolean[]"
-          ) {
+          if (fieldType && isObjectArrayTsType(fieldType)) {
             return fieldType.slice(0, -2);
           }
         }
         const ifaceType3 = this.st.getInterfaceType(varName);
         if (ifaceType3 && ifaceType3.length > 0) {
           const fieldType = this.getFieldTypeFromType(ifaceType3, memberExpr.property);
-          if (
-            fieldType &&
-            fieldType.endsWith("[]") &&
-            fieldType !== "string[]" &&
-            fieldType !== "number[]" &&
-            fieldType !== "boolean[]"
-          ) {
+          if (fieldType && isObjectArrayTsType(fieldType)) {
             return fieldType.slice(0, -2);
           }
         }
@@ -2287,12 +2216,7 @@ export class TypeInference {
         const fieldType = this.getFieldTypeFromType(objectType, memberExpr.property);
         if (fieldType) {
           const baseFieldType = stripNullable(fieldType);
-          if (
-            baseFieldType.endsWith("[]") &&
-            baseFieldType !== "string[]" &&
-            baseFieldType !== "number[]" &&
-            baseFieldType !== "boolean[]"
-          ) {
+          if (isObjectArrayTsType(baseFieldType)) {
             return baseFieldType.slice(0, -2);
           }
         }

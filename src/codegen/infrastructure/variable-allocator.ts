@@ -49,7 +49,7 @@ import {
 import { TypeResolver, UnionCommonFields } from "./type-resolver/index.js";
 import type { FieldInfo } from "./type-resolver/types.js";
 import { stripOptional, stripNullable, tsTypeToLlvmJson } from "./type-system.js";
-import { parseTypeString, type ResolvedType } from "./type-system.js";
+import { parseTypeString, isObjectArrayTsType, type ResolvedType } from "./type-system.js";
 import { InterfaceAllocator } from "./interface-allocator.js";
 import { MapAllocator } from "./map-allocator.js";
 import { ClassAllocator } from "./class-allocator.js";
@@ -812,14 +812,7 @@ export class VariableAllocator {
     if (!isStringArray && strippedDeclType === "string[]") {
       isStringArray = true;
     }
-    if (
-      !isObjectArray &&
-      strippedDeclType &&
-      strippedDeclType.endsWith("[]") &&
-      strippedDeclType !== "string[]" &&
-      strippedDeclType !== "number[]" &&
-      strippedDeclType !== "boolean[]"
-    ) {
+    if (!isObjectArray && strippedDeclType && isObjectArrayTsType(strippedDeclType)) {
       isObjectArray = true;
     }
     if (!isMap && stmtDeclaredType.startsWith("Map<")) {

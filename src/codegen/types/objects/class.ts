@@ -25,7 +25,11 @@ import {
   createObjectMetadataWithInterfaceAndPointerAlloca,
   createClassMetadata,
 } from "../../infrastructure/symbol-table.js";
-import { stripOptional, canonicalTypeToLlvm } from "../../infrastructure/type-system.js";
+import {
+  stripOptional,
+  canonicalTypeToLlvm,
+  isObjectArrayTsType,
+} from "../../infrastructure/type-system.js";
 import type { FieldInfo } from "../../infrastructure/type-resolver/types.js";
 
 // ============================================
@@ -1517,12 +1521,7 @@ export class ClassGenerator {
     if (returnType === "string") return "i8*";
     if (returnType === "string[]") return "%StringArray*";
     if (returnType === "number[]" || returnType === "boolean[]") return "%Array*";
-    if (
-      returnType.endsWith("[]") &&
-      returnType !== "string[]" &&
-      returnType !== "number[]" &&
-      returnType !== "boolean[]"
-    ) {
+    if (isObjectArrayTsType(returnType)) {
       return "%ObjectArray*";
     }
     if (returnType === "void") return "void";
@@ -1535,12 +1534,7 @@ export class ClassGenerator {
         if (part === "string") return "i8*";
         if (part === "string[]") return "%StringArray*";
         if (part === "number[]" || part === "boolean[]") return "%Array*";
-        if (
-          part.endsWith("[]") &&
-          part !== "string[]" &&
-          part !== "number[]" &&
-          part !== "boolean[]"
-        ) {
+        if (isObjectArrayTsType(part)) {
           return "%ObjectArray*";
         }
       }

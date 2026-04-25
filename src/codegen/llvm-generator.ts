@@ -111,6 +111,7 @@ import {
 import {
   parseTypeString,
   parseMapTypeString,
+  isObjectArrayTsType,
   type ResolvedType,
 } from "./infrastructure/type-system.js";
 import { DiagnosticEngine } from "../diagnostics/engine.js";
@@ -2458,14 +2459,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         if (!isStringArray && stmt.declaredType === "string[]") {
           isStringArray = true;
         }
-        if (
-          !isObjectArray &&
-          stmt.declaredType &&
-          stmt.declaredType.endsWith("[]") &&
-          stmt.declaredType !== "string[]" &&
-          stmt.declaredType !== "number[]" &&
-          stmt.declaredType !== "boolean[]"
-        ) {
+        if (!isObjectArray && stmt.declaredType && isObjectArrayTsType(stmt.declaredType)) {
           isObjectArray = true;
         }
         if (

@@ -1,7 +1,7 @@
 import { Expression, ObjectNode, ObjectProperty } from "../../../ast/types.js";
 import { IGeneratorContext } from "../../infrastructure/generator-context.js";
 import type { InterfaceStructGenerator } from "../interface-struct-generator.js";
-import { tsTypeToLlvm } from "../../infrastructure/type-system.js";
+import { tsTypeToLlvm, isObjectArrayTsType } from "../../infrastructure/type-system.js";
 
 interface ObjectGeneratorContext extends IGeneratorContext {}
 
@@ -123,13 +123,7 @@ export class ObjectGenerator {
       } else {
         const savedExpectedType = this.ctx.getExpectedArrayElementType();
         const tsType = field.type;
-        if (
-          tsType &&
-          tsType.endsWith("[]") &&
-          tsType !== "string[]" &&
-          tsType !== "number[]" &&
-          tsType !== "boolean[]"
-        ) {
+        if (tsType && isObjectArrayTsType(tsType)) {
           this.ctx.setExpectedArrayElementType("pointer");
         } else if (tsType === "string[]") {
           this.ctx.setExpectedArrayElementType("string");
@@ -243,13 +237,7 @@ export class ObjectGenerator {
         const savedExpectedType = this.ctx.getExpectedArrayElementType();
         const savedDeclaredInterface = this.ctx.getCurrentDeclaredInterfaceType();
         const tsType = fieldTsType;
-        if (
-          tsType &&
-          tsType.endsWith("[]") &&
-          tsType !== "string[]" &&
-          tsType !== "number[]" &&
-          tsType !== "boolean[]"
-        ) {
+        if (tsType && isObjectArrayTsType(tsType)) {
           this.ctx.setExpectedArrayElementType("pointer");
         } else if (tsType === "string[]") {
           this.ctx.setExpectedArrayElementType("string");
