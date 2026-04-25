@@ -33,6 +33,11 @@ import {
   parseMapTypeString,
   canonicalTypeToLlvm,
   isObjectArrayTsType,
+  classifyArray,
+  arrayKindToLlvm,
+  isAnyArrayTsType,
+  ArrayKind_None,
+  ArrayKind_Object,
 } from "../../infrastructure/type-system.js";
 import type { ResolvedType } from "../../infrastructure/type-system.js";
 import type {
@@ -1975,9 +1980,8 @@ export class MemberAccessGenerator {
     const ft = fi.type;
     if (ft === "string") return "i8*";
     if (ft === "boolean") return "double";
-    if (ft === "string[]") return "%StringArray*";
-    if (ft === "number[]") return "%Array*";
-    if (ft === "boolean[]") return "%Array*";
+    const ftAk = classifyArray(ft);
+    if (ftAk !== ArrayKind_None) return arrayKindToLlvm(ftAk);
     if (ft === "double" && fi.tsType) {
       let ts = fi.tsType;
       if (ts.indexOf(" | ") !== -1) {
@@ -1986,7 +1990,8 @@ export class MemberAccessGenerator {
           .replace(/ \| null/g, "")
           .trim();
       }
-      if (ts.endsWith("[]")) return "%ObjectArray*";
+      const tsAk = classifyArray(ts);
+      if (tsAk !== ArrayKind_None) return arrayKindToLlvm(tsAk);
       if (ts.startsWith("Map<")) return ts.startsWith("Map<string,") ? "%StringMap*" : "%Map*";
       if (ts.startsWith("Set<")) return ts === "Set<string>" ? "%StringSet*" : "%Set*";
       const classFields = this.ctx.classGenGetClassFields(ts);
