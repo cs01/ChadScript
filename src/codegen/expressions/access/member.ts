@@ -1530,7 +1530,7 @@ export class MemberAccessGenerator {
       this.ctx.emit(`${value} = load %Array*, %Array** ${fieldPtr}`);
       this.ctx.setVariableType(value, "%Array*");
       return value;
-    } else if (isAnyArrayTsType(propType)) {
+    } else if (propType.endsWith("[]")) {
       const value = this.ctx.nextTemp();
       this.ctx.emit(`${value} = load %ObjectArray*, %ObjectArray** ${fieldPtr}`);
       this.ctx.setVariableType(value, "%ObjectArray*");
@@ -1987,7 +1987,7 @@ export class MemberAccessGenerator {
           .replace(/ \| null/g, "")
           .trim();
       }
-      if (isAnyArrayTsType(ts)) return "%ObjectArray*";
+      if (ts.endsWith("[]")) return "%ObjectArray*";
       if (ts.startsWith("Map<")) return ts.startsWith("Map<string,") ? "%StringMap*" : "%Map*";
       if (ts.startsWith("Set<")) return ts === "Set<string>" ? "%StringSet*" : "%Set*";
       const classFields = this.ctx.classGenGetClassFields(ts);
@@ -3254,7 +3254,7 @@ export class MemberAccessGenerator {
                 this.ctx.emit(`${value} = load %StringArray*, %StringArray** ${fieldPtr}`);
                 this.ctx.setVariableType(value, "%StringArray*");
                 return value;
-              } else if (isAnyArrayTsType(propType)) {
+              } else if (propType.endsWith("[]")) {
                 const value = this.ctx.nextTemp();
                 this.ctx.emit(`${value} = load %Array*, %Array** ${fieldPtr}`);
                 this.ctx.setVariableType(value, "%Array*");

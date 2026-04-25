@@ -1969,7 +1969,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           );
           return `@${name} = global ${llvmType} null\n`;
         }
-        if (isAnyArrayTsType(rt)) {
+        if (rt.endsWith("[]")) {
           const elementType = rt.substring(0, rt.length - 2);
           if (elementType === "string") {
             this.globalVariables.set(name, {

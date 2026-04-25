@@ -31,7 +31,6 @@ import {
   classifyArray,
   arrayKindToLlvm,
   ArrayKind_None,
-  isAnyArrayTsType,
 } from "../../infrastructure/type-system.js";
 import type { FieldInfo } from "../../infrastructure/type-resolver/types.js";
 
@@ -175,12 +174,10 @@ export class ClassGenerator {
           return "%StringSet*";
         } else if (ts.startsWith("Set<")) {
           return "%Set*";
-        } else if (isAnyArrayTsType(ts)) {
+        } else if (ts.endsWith("[]")) {
           return "%ObjectArray*";
         } else if (ts === "number" || ts === "boolean") {
           return "double";
-        } else if (ts === "number[]" || ts === "boolean[]") {
-          return "%Array*";
         }
         const classNode = this.findClassNode(ts);
         if (classNode) {
@@ -200,11 +197,9 @@ export class ClassGenerator {
       return "i8*";
     } else if (ft === "string[]") {
       return "%StringArray*";
-    }
-    if (isAnyArrayTsType(ft)) {
+    } else if (ft.endsWith("[]")) {
       return "%Array*";
-    }
-    if (ft === "boolean") {
+    } else if (ft === "boolean") {
       return "double";
     } else if (ts) {
       if (ts.startsWith("Map<string,")) {
@@ -217,8 +212,9 @@ export class ClassGenerator {
         return "%Set*";
       } else if (ts === "number" || ts === "boolean") {
         return "double";
-      }
-      if (isAnyArrayTsType(ts)) {
+      } else if (ts === "number[]" || ts === "boolean[]") {
+        return "%Array*";
+      } else if (ts.endsWith("[]")) {
         return "%ObjectArray*";
       } else {
         const classNode = this.findClassNode(ts);
