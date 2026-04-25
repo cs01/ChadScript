@@ -58,11 +58,20 @@ export function arrayElementType(tsType: string): string {
 }
 
 export function arrayKindToLlvm(kind: number): string {
-  if (kind === ArrayKind_Number) return "%Array*";
-  if (kind === ArrayKind_Boolean) return "%Array*";
-  if (kind === ArrayKind_String) return "%StringArray*";
-  if (kind === ArrayKind_Object) return "%ObjectArray*";
-  return "i8*";
+  switch (kind) {
+    case ArrayKind_Number:
+      return "%Array*";
+    case ArrayKind_Boolean:
+      return "%Array*";
+    case ArrayKind_String:
+      return "%StringArray*";
+    case ArrayKind_Object:
+      return "%ObjectArray*";
+    case ArrayKind_None:
+      throw new Error("arrayKindToLlvm called with ArrayKind_None");
+    default:
+      throw new Error(`arrayKindToLlvm: unknown ArrayKind ${kind}`);
+  }
 }
 
 interface TypeQualifiers {
