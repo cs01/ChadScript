@@ -1,4 +1,3 @@
-// @test-skip
 class Foo {
   value: number;
   constructor(v: number) {

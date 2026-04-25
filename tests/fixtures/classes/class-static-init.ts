@@ -1,5 +1,3 @@
-// @test-skip
-// native compiler's tree-sitter parser doesn't populate field initializers yet
 class Config {
   static version: string = "1.0.0";
   static maxRetries: number = 5;
