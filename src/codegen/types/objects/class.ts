@@ -29,6 +29,10 @@ import {
   stripOptional,
   canonicalTypeToLlvm,
   isObjectArrayTsType,
+  classifyArray,
+  arrayKindToLlvm,
+  ArrayKind_None,
+  ArrayKind_Object,
 } from "../../infrastructure/type-system.js";
 import type { FieldInfo } from "../../infrastructure/type-resolver/types.js";
 
@@ -172,12 +176,10 @@ export class ClassGenerator {
           return "%StringSet*";
         } else if (ts.startsWith("Set<")) {
           return "%Set*";
-        } else if (ts.endsWith("[]")) {
-          return "%ObjectArray*";
-        } else if (ts === "number" || ts === "boolean") {
-          return "double";
-        } else if (ts === "number[]" || ts === "boolean[]") {
-          return "%Array*";
+        } else {
+          const tsAk = classifyArray(ts);
+          if (tsAk !== ArrayKind_None) return arrayKindToLlvm(tsAk);
+          if (ts === "number" || ts === "boolean") return "double";
         }
         const classNode = this.findClassNode(ts);
         if (classNode) {
@@ -212,11 +214,9 @@ export class ClassGenerator {
         return "%Set*";
       } else if (ts === "number" || ts === "boolean") {
         return "double";
-      } else if (ts === "number[]" || ts === "boolean[]") {
-        return "%Array*";
-      } else if (ts.endsWith("[]")) {
-        return "%ObjectArray*";
       } else {
+        const tsAk2 = classifyArray(ts);
+        if (tsAk2 !== ArrayKind_None) return arrayKindToLlvm(tsAk2);
         const classNode = this.findClassNode(ts);
         if (classNode) {
           return "%" + ts + "_struct*";
@@ -1519,11 +1519,8 @@ export class ClassGenerator {
 
   private methodReturnTypeToLlvm(returnType: string): string {
     if (returnType === "string") return "i8*";
-    if (returnType === "string[]") return "%StringArray*";
-    if (returnType === "number[]" || returnType === "boolean[]") return "%Array*";
-    if (isObjectArrayTsType(returnType)) {
-      return "%ObjectArray*";
-    }
+    const retAk = classifyArray(returnType);
+    if (retAk !== ArrayKind_None) return arrayKindToLlvm(retAk);
     if (returnType === "void") return "void";
     if (returnType === "number" || returnType === "boolean") return "double";
     if (this.isEnumType(returnType)) return "double";
@@ -1532,11 +1529,8 @@ export class ClassGenerator {
       for (let i = 0; i < parts.length; i++) {
         const part = parts[i].trim();
         if (part === "string") return "i8*";
-        if (part === "string[]") return "%StringArray*";
-        if (part === "number[]" || part === "boolean[]") return "%Array*";
-        if (isObjectArrayTsType(part)) {
-          return "%ObjectArray*";
-        }
+        const partAk = classifyArray(part);
+        if (partAk !== ArrayKind_None) return arrayKindToLlvm(partAk);
       }
       for (let i = 0; i < parts.length; i++) {
         const part = parts[i].trim();
@@ -1794,9 +1788,8 @@ export class ClassGenerator {
   private fieldTypeToLlvm(fieldType: string): string {
     const prim = this.fieldTypeToLlvmPrimitive(fieldType);
     if (prim) return prim;
-    if (fieldType === "string[]") return "%StringArray*";
-    if (fieldType === "number[]" || fieldType === "boolean[]") return "%Array*";
-    if (fieldType.endsWith("[]")) return "%ObjectArray*";
+    const ak = classifyArray(fieldType);
+    if (ak !== ArrayKind_None) return arrayKindToLlvm(ak);
     if (fieldType.indexOf(" | ") !== -1) {
       const parts = fieldType.split(" | ");
       for (let i = 0; i < parts.length; i++) {

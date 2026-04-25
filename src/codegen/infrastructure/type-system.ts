@@ -27,12 +27,42 @@ export function isNullableType(t: string): boolean {
   return false;
 }
 
-// TODO: replace string pattern matching with structured ResolvedType check — fragile against Array<T> syntax and novel primitives
-export function isObjectArrayTsType(tsType: string): boolean {
+export const ArrayKind_None = 0;
+export const ArrayKind_Number = 1;
+export const ArrayKind_String = 2;
+export const ArrayKind_Boolean = 3;
+export const ArrayKind_Object = 4;
+
+export function classifyArray(tsType: string): number {
   const rt = stripNullable(tsType);
-  if (!rt.endsWith("[]")) return false;
+  if (!rt.endsWith("[]")) return ArrayKind_None;
   const elem = rt.slice(0, rt.length - 2);
-  return elem !== "string" && elem !== "number" && elem !== "boolean";
+  if (elem === "number") return ArrayKind_Number;
+  if (elem === "string") return ArrayKind_String;
+  if (elem === "boolean") return ArrayKind_Boolean;
+  return ArrayKind_Object;
+}
+
+export function isObjectArrayTsType(tsType: string): boolean {
+  return classifyArray(tsType) === ArrayKind_Object;
+}
+
+export function isAnyArrayTsType(tsType: string): boolean {
+  return classifyArray(tsType) !== ArrayKind_None;
+}
+
+export function arrayElementType(tsType: string): string {
+  const rt = stripNullable(tsType);
+  if (!rt.endsWith("[]")) return "";
+  return rt.slice(0, rt.length - 2);
+}
+
+export function arrayKindToLlvm(kind: number): string {
+  if (kind === ArrayKind_Number) return "%Array*";
+  if (kind === ArrayKind_Boolean) return "%Array*";
+  if (kind === ArrayKind_String) return "%StringArray*";
+  if (kind === ArrayKind_Object) return "%ObjectArray*";
+  return "i8*";
 }
 
 interface TypeQualifiers {
