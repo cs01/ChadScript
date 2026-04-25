@@ -113,6 +113,12 @@ import {
   parseMapTypeString,
   isObjectArrayTsType,
   isAnyArrayTsType,
+  classifyArray,
+  arrayKindToLlvm,
+  ArrayKind_None,
+  ArrayKind_String,
+  ArrayKind_Object,
+  arrayElementType,
   type ResolvedType,
 } from "./infrastructure/type-system.js";
 import { DiagnosticEngine } from "../diagnostics/engine.js";
@@ -1969,47 +1975,43 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           );
           return `@${name} = global ${llvmType} null\n`;
         }
-        if (rt.endsWith("[]")) {
-          const elementType = rt.substring(0, rt.length - 2);
-          if (elementType === "string") {
+        const rtAk = classifyArray(rt);
+        if (rtAk !== ArrayKind_None) {
+          const llvm = arrayKindToLlvm(rtAk);
+          if (rtAk === ArrayKind_String) {
             this.globalVariables.set(name, {
-              llvmType: "%StringArray*",
+              llvmType: llvm,
               kind: SymbolKind_StringArray,
               initialized: false,
             });
-            this.defineVariable(
-              name,
-              `@${name}`,
-              "%StringArray*",
-              SymbolKind_StringArray,
-              "global",
-            );
-            return `@${name} = global %StringArray* null\n`;
+            this.defineVariable(name, `@${name}`, llvm, SymbolKind_StringArray, "global");
+            return `@${name} = global ${llvm} null\n`;
           }
-          if (elementType === "number" || elementType === "boolean") {
+          if (rtAk === ArrayKind_Object) {
+            const elemType = arrayElementType(rt);
             this.globalVariables.set(name, {
-              llvmType: "%Array*",
-              kind: SymbolKind_Array,
+              llvmType: llvm,
+              kind: SymbolKind_ObjectArray,
               initialized: false,
             });
-            this.defineVariable(name, `@${name}`, "%Array*", SymbolKind_Array, "global");
-            return `@${name} = global %Array* null\n`;
+            this.defineVariableWithMetadata(
+              name,
+              `@${name}`,
+              llvm,
+              SymbolKind_ObjectArray,
+              "global",
+              createInterfaceMetadata(elemType),
+            );
+            this.symbolTable.setRawInterfaceType(name, elemType);
+            return `@${name} = global ${llvm} null\n`;
           }
           this.globalVariables.set(name, {
-            llvmType: "%ObjectArray*",
-            kind: SymbolKind_ObjectArray,
+            llvmType: llvm,
+            kind: SymbolKind_Array,
             initialized: false,
           });
-          this.defineVariableWithMetadata(
-            name,
-            `@${name}`,
-            "%ObjectArray*",
-            SymbolKind_ObjectArray,
-            "global",
-            createInterfaceMetadata(elementType),
-          );
-          this.symbolTable.setRawInterfaceType(name, elementType);
-          return `@${name} = global %ObjectArray* null\n`;
+          this.defineVariable(name, `@${name}`, llvm, SymbolKind_Array, "global");
+          return `@${name} = global ${llvm} null\n`;
         }
         if (this.isTypeAlias(rt)) {
           const commonProps = this.getTypeAliasCommonProperties(rt);
@@ -2900,7 +2902,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               isArray = false;
             } else if (strippedDeclaredType === "number[]") {
               isArray = true;
-            } else if (strippedDeclaredType.endsWith("[]")) {
+            } else if (isAnyArrayTsType(strippedDeclaredType)) {
               isObjectArray = true;
             }
           }
@@ -3025,7 +3027,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       this.defineVariable(name, `@${name}`, "%Array*", SymbolKind_Array, "global");
       return `@${name} = global %Array* null\n`;
     }
-    if (baseType.endsWith("[]")) {
+    if (isAnyArrayTsType(baseType)) {
       this.globalVariables.set(name, {
         llvmType: "%ObjectArray*",
         kind: SymbolKind_ObjectArray,
