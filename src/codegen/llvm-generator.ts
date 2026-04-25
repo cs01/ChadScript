@@ -2900,7 +2900,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               isArray = false;
             } else if (strippedDeclaredType === "number[]") {
               isArray = true;
-            } else if (isObjectArrayTsType(strippedDeclaredType)) {
+            } else if (strippedDeclaredType.endsWith("[]")) {
               isObjectArray = true;
             }
           }
@@ -3025,7 +3025,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       this.defineVariable(name, `@${name}`, "%Array*", SymbolKind_Array, "global");
       return `@${name} = global %Array* null\n`;
     }
-    if (isObjectArrayTsType(baseType)) {
+    if (baseType.endsWith("[]")) {
       this.globalVariables.set(name, {
         llvmType: "%ObjectArray*",
         kind: SymbolKind_ObjectArray,

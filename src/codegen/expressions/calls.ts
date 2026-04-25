@@ -17,9 +17,6 @@ import {
   isNullableType,
   mapParamTypeToLLVM,
   mapReturnTypeToLLVM,
-  classifyArray,
-  arrayKindToLlvm,
-  ArrayKind_None,
 } from "../infrastructure/type-system.js";
 import { createStringConstant } from "../types/collections/string/constants.js";
 
@@ -1918,8 +1915,8 @@ export class CallExpressionGenerator {
 
   private getFieldLlvmType(field: { name: string; fieldType: string; tsType?: string }): string {
     if (field.fieldType === "string") return "i8*";
-    const ak = classifyArray(field.fieldType);
-    if (ak !== ArrayKind_None) return arrayKindToLlvm(ak);
+    if (field.fieldType === "string[]") return "%StringArray*";
+    if (field.fieldType.endsWith("[]")) return "%Array*";
     if (field.fieldType === "boolean") return "i1";
     if (field.tsType) {
       const collType = this.getFieldLlvmTypeForTsType(field.tsType);
