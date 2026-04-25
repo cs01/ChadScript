@@ -1,5 +1,6 @@
 import type { Expression, MethodCallNode, VariableNode } from "../../../ast/types.js";
 import type { MethodCallGeneratorContext } from "../method-calls.js";
+import { emitSitofp } from "../../infrastructure/ir-builders.js";
 
 interface ExprBase {
   type: string;
@@ -34,10 +35,7 @@ export function dispatchUrlSearchParamsMethod(
   } else if (method === "has") {
     const keyPtr = ctx.generateExpression(expr.args[0], params);
     const i32Result = ctx.emitCall("i32", "@cs_urlsearch_has", `i8* ${queryPtr}, i8* ${keyPtr}`);
-    const dblResult = ctx.nextTemp();
-    ctx.emit(`${dblResult} = sitofp i32 ${i32Result} to double`);
-    ctx.setVariableType(dblResult, "double");
-    return dblResult;
+    return emitSitofp(ctx, i32Result, "i32");
   } else if (method === "set") {
     const keyPtr = ctx.generateExpression(expr.args[0], params);
     const valPtr = ctx.generateExpression(expr.args[1], params);

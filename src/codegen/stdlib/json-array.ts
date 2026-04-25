@@ -1,5 +1,12 @@
 import { Expression, ArrayNode, ObjectNode } from "../../ast/types.js";
 import { IGeneratorContext } from "../infrastructure/generator-context.js";
+import {
+  emitTrunc,
+  emitZext,
+  emitAlloca,
+  emitFptosi,
+  emitAdd,
+} from "../infrastructure/ir-builders.js";
 
 interface ExprBase {
   type: string;
@@ -25,8 +32,7 @@ function buildObjectProperties(
       buildObjectProperties(ctx, prop.value as ObjectNode, params, jsonDoc, childObj);
     } else if (prop.value.type === "boolean") {
       const val = ctx.generateExpression(prop.value, params);
-      const boolI32 = ctx.nextTemp();
-      ctx.emit(`${boolI32} = trunc i64 ${val} to i32`);
+      const boolI32 = emitTrunc(ctx, val, "i64", "i32");
       ctx.emitCallVoid(
         "@csyyjson_obj_add_bool",
         `i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${nameConst}, i32 ${boolI32}`,
@@ -46,8 +52,7 @@ function buildObjectProperties(
           `i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${nameConst}, i8* ${val}`,
         );
       } else if (vt === "i1") {
-        const boolI32 = ctx.nextTemp();
-        ctx.emit(`${boolI32} = zext i1 ${val} to i32`);
+        const boolI32 = emitZext(ctx, val, "i1", "i32");
         ctx.emitCallVoid(
           "@csyyjson_obj_add_bool",
           `i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${nameConst}, i32 ${boolI32}`,
@@ -126,8 +131,7 @@ export function stringifyObjectArrayWithMeta(
   const jsonDoc = ctx.emitCall("i8*", "@csyyjson_create_arr", "");
   const jsonArr = ctx.emitCall("i8*", "@csyyjson_mut_get_root", `i8* ${jsonDoc}`);
 
-  const counterAlloca = ctx.nextTemp();
-  ctx.emit(`${counterAlloca} = alloca i32`);
+  const counterAlloca = emitAlloca(ctx, "i32");
   ctx.emitStore("i32", "0", counterAlloca);
 
   const loopCond = ctx.nextLabel("json_meta_arr_cond");
@@ -162,8 +166,7 @@ export function stringifyObjectArrayWithMeta(
       );
     } else if (tsType === "boolean") {
       const val = ctx.emitLoad("double", fieldPtr);
-      const boolInt = ctx.nextTemp();
-      ctx.emit(`${boolInt} = fptosi double ${val} to i32`);
+      const boolInt = emitFptosi(ctx, val, "i32");
       ctx.emitCallVoid(
         "@csyyjson_obj_add_bool",
         `i8* ${jsonDoc}, i8* ${subObj}, i8* ${nameConst}, i32 ${boolInt}`,
@@ -177,8 +180,7 @@ export function stringifyObjectArrayWithMeta(
     }
   }
 
-  const iNext = ctx.nextTemp();
-  ctx.emit(`${iNext} = add i32 ${i}, 1`);
+  const iNext = emitAdd(ctx, "i32", i, "1");
   ctx.emitStore("i32", iNext, counterAlloca);
   ctx.emitBr(loopCond);
 

@@ -22,6 +22,7 @@ import {
   UnaryNode,
 } from "../../ast/types.js";
 import { IGeneratorContext } from "../infrastructure/generator-context.js";
+import { emitFcmp, emitSelect } from "../infrastructure/ir-builders.js";
 import {
   createStringConstant,
   convertNumberToString,
@@ -40,27 +41,22 @@ export class TemplateLiteralGenerator {
     const trueStr = createStringConstant(this.ctx, "true");
     const falseStr = createStringConstant(this.ctx, "false");
     const varType = this.ctx.getVariableType(boolValue);
-    const cmp = this.ctx.nextTemp();
     if (varType === "i1") {
-      this.ctx.emit(`${cmp} = select i1 ${boolValue}, i8* ${trueStr}, i8* ${falseStr}`);
-      return cmp;
-    } else if (varType === "i64") {
-      this.ctx.emit(`${cmp} = icmp ne i64 ${boolValue}, 0`);
-    } else {
-      this.ctx.emit(`${cmp} = fcmp one double ${boolValue}, 0.0`);
+      return emitSelect(this.ctx, boolValue, "i8*", trueStr, falseStr);
     }
-    const selected = this.ctx.nextTemp();
-    this.ctx.emit(`${selected} = select i1 ${cmp}, i8* ${trueStr}, i8* ${falseStr}`);
-    return selected;
+    let cmp: string;
+    if (varType === "i64") {
+      cmp = this.ctx.emitIcmp("ne", "i64", boolValue, "0");
+    } else {
+      cmp = emitFcmp(this.ctx, "one", boolValue, "0.0");
+    }
+    return emitSelect(this.ctx, cmp, "i8*", trueStr, falseStr);
   }
 
   private nullSafeString(strValue: string): string {
     const nullStr = createStringConstant(this.ctx, "null");
-    const isNull = this.ctx.nextTemp();
-    this.ctx.emit(`${isNull} = icmp eq i8* ${strValue}, null`);
-    const safe = this.ctx.nextTemp();
-    this.ctx.emit(`${safe} = select i1 ${isNull}, i8* ${nullStr}, i8* ${strValue}`);
-    return safe;
+    const isNull = this.ctx.emitIcmp("eq", "i8*", strValue, "null");
+    return emitSelect(this.ctx, isNull, "i8*", nullStr, strValue);
   }
 
   /**
