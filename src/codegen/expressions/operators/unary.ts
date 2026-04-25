@@ -2,6 +2,15 @@ import { Expression, MemberAccessNode, VariableNode, SourceLocation } from "../.
 import type { SymbolTable } from "../../infrastructure/symbol-table.js";
 import type { IStringGenerator } from "../../infrastructure/generator-context.js";
 import type { FieldInfo } from "../../infrastructure/type-resolver/types.js";
+import {
+  emitAdd,
+  emitFcmp,
+  emitSitofp,
+  emitZext,
+  emitSub,
+  emitFptosi,
+  emitXor,
+} from "../../infrastructure/ir-builders.js";
 
 interface ExprBase {
   type: string;
@@ -86,10 +95,8 @@ export class UnaryExpressionGenerator {
       this.ctx.emit(`${originalValue} = load i64, i64* ${allocaReg}`);
       this.ctx.setVariableType(originalValue, "i64");
 
-      const delta = op === "post++" ? 1 : -1;
-      const newValue = this.ctx.nextTemp();
-      this.ctx.emit(`${newValue} = add i64 ${originalValue}, ${delta}`);
-      this.ctx.setVariableType(newValue, "i64");
+      const delta = op === "post++" ? "1" : "-1";
+      const newValue = emitAdd(this.ctx, "i64", originalValue, delta);
 
       this.ctx.emit(`store i64 ${newValue}, i64* ${allocaReg}`);
 
@@ -133,10 +140,8 @@ export class UnaryExpressionGenerator {
       this.ctx.emit(`${originalValue} = load i64, i64* ${allocaReg}`);
       this.ctx.setVariableType(originalValue, "i64");
 
-      const delta = op === "++" ? 1 : -1;
-      const newValue = this.ctx.nextTemp();
-      this.ctx.emit(`${newValue} = add i64 ${originalValue}, ${delta}`);
-      this.ctx.setVariableType(newValue, "i64");
+      const delta = op === "++" ? "1" : "-1";
+      const newValue = emitAdd(this.ctx, "i64", originalValue, delta);
 
       this.ctx.emit(`store i64 ${newValue}, i64* ${allocaReg}`);
 
@@ -169,34 +174,25 @@ export class UnaryExpressionGenerator {
       operandType === "double" ||
       (operand.indexOf(".") !== -1 && !operand.startsWith("%"))
     ) {
-      cmpResult = this.ctx.nextTemp();
-      this.ctx.emit(`${cmpResult} = fcmp oeq double ${operand}, 0.0`);
+      cmpResult = emitFcmp(this.ctx, "oeq", operand, "0.0");
     } else if (operandType && operandType.indexOf("*") !== -1) {
       cmpResult = this.ctx.nextTemp();
       this.ctx.emit(`${cmpResult} = icmp eq ${operandType} ${operand}, null`);
     } else if (operandType === "i32") {
-      const operandDouble = this.ctx.nextTemp();
-      this.ctx.emit(`${operandDouble} = sitofp i32 ${operand} to double`);
-      cmpResult = this.ctx.nextTemp();
-      this.ctx.emit(`${cmpResult} = fcmp oeq double ${operandDouble}, 0.0`);
+      const operandDouble = emitSitofp(this.ctx, operand, "i32");
+      cmpResult = emitFcmp(this.ctx, "oeq", operandDouble, "0.0");
     } else {
-      cmpResult = this.ctx.nextTemp();
-      this.ctx.emit(`${cmpResult} = fcmp oeq double ${operand}, 0.0`);
+      cmpResult = emitFcmp(this.ctx, "oeq", operand, "0.0");
     }
 
-    const i64Result = this.ctx.nextTemp();
-    this.ctx.emit(`${i64Result} = zext i1 ${cmpResult} to i64`);
-    this.ctx.setVariableType(i64Result, "i64");
+    const i64Result = emitZext(this.ctx, cmpResult, "i1", "i64");
     return i64Result;
   }
 
   private generateNegation(operand: string): string {
     const operandType = this.ctx.getVariableType(operand);
     if (operandType === "i64") {
-      const result = this.ctx.nextTemp();
-      this.ctx.emit(`${result} = sub i64 0, ${operand}`);
-      this.ctx.setVariableType(result, "i64");
-      return result;
+      return emitSub(this.ctx, "i64", "0", operand);
     }
     const dblOperand = this.ctx.ensureDouble(operand);
     const result = this.ctx.nextTemp();
@@ -258,12 +254,9 @@ export class UnaryExpressionGenerator {
     if (operandType === "i64") {
       intVal = operand;
     } else {
-      intVal = this.ctx.nextTemp();
-      this.ctx.emit(`${intVal} = fptosi double ${operand} to i64`);
+      intVal = emitFptosi(this.ctx, operand, "i64");
     }
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = xor i64 ${intVal}, -1`);
-    this.ctx.setVariableType(result, "i64");
+    const result = emitXor(this.ctx, "i64", intVal, "-1");
     return result;
   }
 

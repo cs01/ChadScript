@@ -8,6 +8,16 @@ import {
 } from "../../../ast/types.js";
 import type { MethodCallGeneratorContext } from "../method-calls.js";
 import { SymbolKind, SymbolKind_Boolean } from "../../infrastructure/symbol-table.js";
+import {
+  emitPtrtoint,
+  emitAlloca,
+  emitAdd,
+  emitSitofp,
+  emitFcmp,
+  emitTrunc,
+  emitSelect,
+  emitSub,
+} from "../../infrastructure/ir-builders.js";
 
 function emitPrint(
   ctx: MethodCallGeneratorContext,
@@ -69,8 +79,7 @@ function emitArrayPrint(
   arrayPtr: string,
   arrayType: "Array" | "StringArray" | "ObjectArray",
 ): void {
-  const arrCast = ctx.nextTemp();
-  ctx.emit(`${arrCast} = ptrtoint %${arrayType}* ${arrayPtr} to i64`);
+  const arrCast = emitPtrtoint(ctx, arrayPtr, `%${arrayType}*`, "i64");
   const arrIsNull = ctx.emitIcmp("eq", "i64", arrCast, "0");
   const arrNullLabel = ctx.nextLabel("arr_null");
   const arrNonNullLabel = ctx.nextLabel("arr_nonnull");
@@ -95,8 +104,7 @@ function emitArrayPrint(
 
   const isEmpty = ctx.emitIcmp("eq", "i32", len, "0");
 
-  const iAlloca = ctx.nextTemp();
-  ctx.emit(`${iAlloca} = alloca i32`);
+  const iAlloca = emitAlloca(ctx, "i32");
 
   const emptyLabel = ctx.nextLabel("arr_empty");
   const nonEmptyLabel = ctx.nextLabel("arr_nonempty");
@@ -166,8 +174,7 @@ function emitArrayPrint(
 
   ctx.emitLabel(loopLatchLabel);
   const iCurrent = ctx.emitLoad("i32", iAlloca);
-  const iNext = ctx.nextTemp();
-  ctx.emit(`${iNext} = add i32 ${iCurrent}, 1`);
+  const iNext = emitAdd(ctx, "i32", iCurrent, "1");
   ctx.emitStore("i32", iNext, iAlloca);
   const done = ctx.emitIcmp("eq", "i32", iNext, len);
   ctx.emitBrCond(done, endLabel, loopLabel);
@@ -204,8 +211,7 @@ function emitMapPrint(
 
   const headerStr = ctx.stringGen.doCreateStringConstant("Map(");
   emitPrintStrNoNl(ctx, useStderr, headerStr);
-  const sizeDouble = ctx.nextTemp();
-  ctx.emit(`${sizeDouble} = sitofp i32 ${size} to double`);
+  const sizeDouble = emitSitofp(ctx, size, "i32");
   emitPrintNumNoNl(ctx, useStderr, sizeDouble);
   const openStr = ctx.stringGen.doCreateStringConstant(") { ");
   const closeStr = ctx.stringGen.doCreateStringConstant(" }");
@@ -215,10 +221,8 @@ function emitMapPrint(
 
   const isEmpty = ctx.emitIcmp("eq", "i32", size, "0");
 
-  const iAlloca = ctx.nextTemp();
-  ctx.emit(`${iAlloca} = alloca i32`);
-  const printedAlloca = ctx.nextTemp();
-  ctx.emit(`${printedAlloca} = alloca i32`);
+  const iAlloca = emitAlloca(ctx, "i32");
+  const printedAlloca = emitAlloca(ctx, "i32");
 
   const emptyLabel = ctx.nextLabel("map_empty");
   const nonEmptyLabel = ctx.nextLabel("map_nonempty");
@@ -300,8 +304,7 @@ function emitMapPrint(
     ctx.emit(`${valElemPtr} = getelementptr inbounds i8*, i8** ${vals}, i32 ${i}`);
     const val = ctx.emitLoad("i8*", valElemPtr);
     if (valueType === "number") {
-      const asI64 = ctx.nextTemp();
-      ctx.emit(`${asI64} = ptrtoint i8* ${val} to i64`);
+      const asI64 = emitPtrtoint(ctx, val, "i8*", "i64");
       const asDouble = ctx.nextTemp();
       ctx.emit(`${asDouble} = bitcast i64 ${asI64} to double`);
       emitPrintNumNoNl(ctx, useStderr, asDouble);
@@ -316,16 +319,14 @@ function emitMapPrint(
   }
 
   const printedCurrent = ctx.emitLoad("i32", printedAlloca);
-  const printedNext = ctx.nextTemp();
-  ctx.emit(`${printedNext} = add i32 ${printedCurrent}, 1`);
+  const printedNext = emitAdd(ctx, "i32", printedCurrent, "1");
   ctx.emitStore("i32", printedNext, printedAlloca);
 
   ctx.emitBr(latchLabel);
 
   ctx.emitLabel(latchLabel);
   const iCurrent = ctx.emitLoad("i32", iAlloca);
-  const iNext = ctx.nextTemp();
-  ctx.emit(`${iNext} = add i32 ${iCurrent}, 1`);
+  const iNext = emitAdd(ctx, "i32", iCurrent, "1");
   ctx.emitStore("i32", iNext, iAlloca);
   ctx.emitBr(loopLabel);
 
@@ -353,8 +354,7 @@ function emitSetPrint(
 
   const headerStr = ctx.stringGen.doCreateStringConstant("Set(");
   emitPrintStrNoNl(ctx, useStderr, headerStr);
-  const sizeDouble = ctx.nextTemp();
-  ctx.emit(`${sizeDouble} = sitofp i32 ${size} to double`);
+  const sizeDouble = emitSitofp(ctx, size, "i32");
   emitPrintNumNoNl(ctx, useStderr, sizeDouble);
   const openStr = ctx.stringGen.doCreateStringConstant(") { ");
   const closeStr = ctx.stringGen.doCreateStringConstant(" }");
@@ -363,8 +363,7 @@ function emitSetPrint(
 
   const isEmpty = ctx.emitIcmp("eq", "i32", size, "0");
 
-  const iAlloca = ctx.nextTemp();
-  ctx.emit(`${iAlloca} = alloca i32`);
+  const iAlloca = emitAlloca(ctx, "i32");
 
   const emptyLabel = ctx.nextLabel("set_empty");
   const nonEmptyLabel = ctx.nextLabel("set_nonempty");
@@ -421,8 +420,7 @@ function emitSetPrint(
 
   ctx.emitLabel(latchLabel);
   const iCurrent = ctx.emitLoad("i32", iAlloca);
-  const iNext = ctx.nextTemp();
-  ctx.emit(`${iNext} = add i32 ${iCurrent}, 1`);
+  const iNext = emitAdd(ctx, "i32", iCurrent, "1");
   ctx.emitStore("i32", iNext, iAlloca);
   const done = ctx.emitIcmp("eq", "i32", iNext, size);
   ctx.emitBrCond(done, endLabel, loopLabel);
@@ -451,19 +449,13 @@ function ensureI1(ctx: MethodCallGeneratorContext, value: string): string {
   const varType = ctx.getVariableType(value);
   if (varType === "i1") return value;
   if (varType === "double") {
-    const cmp = ctx.nextTemp();
-    ctx.emit(`${cmp} = fcmp one double ${value}, 0.0`);
-    return cmp;
+    return emitFcmp(ctx, "one", value, "0.0");
   }
   if (varType === "i64") {
-    const trunc = ctx.nextTemp();
-    ctx.emit(`${trunc} = trunc i64 ${value} to i1`);
-    return trunc;
+    return emitTrunc(ctx, value, "i64", "i1");
   }
   const dbl = ctx.ensureDouble(value);
-  const cmp = ctx.nextTemp();
-  ctx.emit(`${cmp} = fcmp one double ${dbl}, 0.0`);
-  return cmp;
+  return emitFcmp(ctx, "one", dbl, "0.0");
 }
 
 function emitBooleanPrint(
@@ -474,8 +466,7 @@ function emitBooleanPrint(
   const trueStr = ctx.stringGen.doCreateStringConstant("true");
   const falseStr = ctx.stringGen.doCreateStringConstant("false");
   const boolVal = ensureI1(ctx, value);
-  const sel = ctx.nextTemp();
-  ctx.emit(`${sel} = select i1 ${boolVal}, i8* ${trueStr}, i8* ${falseStr}`);
+  const sel = emitSelect(ctx, boolVal, "i8*", trueStr, falseStr);
   emitPrintStrNoNl(ctx, useStderr, sel);
 }
 
@@ -722,8 +713,7 @@ export function generateConsoleTimeEnd(
   const endNs = ctx.emitCall("i64", "@uv_hrtime", "");
   const startNs = ctx.emitCall("i64", "@__console_timer_load", `i8* ${labelPtr}`);
 
-  const diffNs = ctx.nextTemp();
-  ctx.emit(`${diffNs} = sub i64 ${endNs}, ${startNs}`);
+  const diffNs = emitSub(ctx, "i64", endNs, startNs);
   const diffDbl = ctx.nextTemp();
   ctx.emit(`${diffDbl} = uitofp i64 ${diffNs} to double`);
   const diffMs = ctx.nextTemp();
