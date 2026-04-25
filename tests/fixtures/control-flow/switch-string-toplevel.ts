@@ -1,5 +1,3 @@
-// @test-skip
-// passes with node compiler but native compiler fails on toplevel switch-string in self-hosted stages
 const s = "b";
 switch (s) {
   case "a":
