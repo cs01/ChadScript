@@ -935,6 +935,7 @@ export interface IGeneratorContext {
   classGenGetFieldType(className: string, fieldName: string): string | null;
   classGenGetFieldTsType(className: string, fieldName: string): string | null;
   classGenGetClassFields(className: string): { name: string; fieldType: string }[];
+  resolveOwnerClass(expr: Expression): string | null;
   classGenGenerateNewExpression(className: string, args: Expression[], params: string[]): string;
   classGenGenerateMethodCall(
     instancePtr: string,
@@ -1970,6 +1971,9 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
   classGenGetClassFields(_className: string): { name: string; fieldType: string }[] {
     return [];
+  }
+  resolveOwnerClass(_expr: Expression): string | null {
+    return null;
   }
   classGenGenerateNewExpression(
     _className: string,

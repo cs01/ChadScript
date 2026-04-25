@@ -1252,6 +1252,36 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public classGenGetClassFields(className: string): { name: string; fieldType: string }[] {
     return this.classGen.getClassFields(className);
   }
+  public resolveOwnerClass(expr: Expression): string | null {
+    return this.resolveOwnerClassImpl(expr);
+  }
+  private resolveOwnerClassImpl(expr: Expression): string | null {
+    const base = expr as { type: string };
+    if (base.type === "this") {
+      return this.getCurrentClassName();
+    }
+    if (base.type === "variable") {
+      const name = (expr as VariableNode).name;
+      if (this.symbolTable.isClass(name)) {
+        return this.symbolTable.getClassName(name) || null;
+      }
+      return null;
+    }
+    if (base.type === "member_access") {
+      const ma = expr as MemberAccessNode;
+      const ownerClass = this.resolveOwnerClassImpl(ma.object);
+      if (!ownerClass) return null;
+      const fi = this.classGenGetFieldInfo(ownerClass, ma.property);
+      if (!fi || !fi.tsType) return null;
+      const tsType = stripNullable(fi.tsType);
+      if (tsType.endsWith("[]") || tsType.startsWith("Map<") || tsType.startsWith("Set<")) {
+        return null;
+      }
+      if (this.classGen.getClassFields(tsType).length > 0) return tsType;
+      return null;
+    }
+    return null;
+  }
   public classGenGenerateNewExpression(
     className: string,
     args: Expression[],

@@ -158,6 +158,8 @@ export interface MethodCallGeneratorContext {
   setUsesMultipart(value: boolean): void;
   setUsesTestRunner(value: boolean): void;
   classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
+  classGenGetClassFields(className: string): { name: string; fieldType: string }[];
+  resolveOwnerClass(expr: Expression): string | null;
   classGenGenerateMethodCall(
     instancePtr: string,
     className: string,

@@ -31,12 +31,10 @@ function getThisFieldSetValueType(
   const e = expr as ExprBase;
   if (e.type !== "member_access") return null;
   const memberExpr = expr as MemberAccessNode;
-  const objBase = memberExpr.object as ExprBase;
-  if (objBase.type !== "this") return null;
 
-  const classNameForSet = ctx.getCurrentClassName();
-  if (!classNameForSet) return null;
-  const fieldInfoResult = ctx.classGenGetFieldInfo(classNameForSet, memberExpr.property);
+  const ownerClass = ctx.resolveOwnerClass(memberExpr.object);
+  if (!ownerClass) return null;
+  const fieldInfoResult = ctx.classGenGetFieldInfo(ownerClass, memberExpr.property);
   if (!fieldInfoResult || !fieldInfoResult.tsType) return null;
 
   const setParsed = parseSetTypeString(fieldInfoResult.tsType);
