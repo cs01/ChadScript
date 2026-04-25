@@ -27,7 +27,7 @@ import {
   createClassMetadata,
 } from "../infrastructure/symbol-table.js";
 import type { FieldInfo } from "../infrastructure/type-resolver/types.js";
-import { createResolvedType } from "../infrastructure/type-system.js";
+import { createResolvedType, isAnyArrayTsType } from "../infrastructure/type-system.js";
 
 interface ExprBase {
   type: string;
@@ -648,7 +648,7 @@ export class ForOfGenerator {
       return null;
     }
     const fieldType = tsTypes[idx];
-    if (!fieldType || !fieldType.endsWith("[]")) {
+    if (!fieldType || !isAnyArrayTsType(fieldType)) {
       return null;
     }
     const elementInterface = fieldType.slice(0, -2).trim();
@@ -767,7 +767,7 @@ export class ForOfGenerator {
         const className = this.ctx.getCurrentClassName();
         if (className) {
           const fieldTsType = this.ctx.classGenGetFieldTsType(className, memberAccess.property);
-          if (fieldTsType && fieldTsType.endsWith("[]")) {
+          if (fieldTsType && isAnyArrayTsType(fieldTsType)) {
             const elementTypeName = fieldTsType.slice(0, -2).trim();
             const elemIface = this.ctx.getInterfaceFromAST(elementTypeName);
             if (elemIface) {
@@ -817,7 +817,7 @@ export class ForOfGenerator {
           const idx = keys.indexOf(propName);
           if (idx !== -1) {
             const fieldType = tsTypes[idx];
-            if (fieldType && fieldType.endsWith("[]")) {
+            if (fieldType && isAnyArrayTsType(fieldType)) {
               const fields = this.parseInlineObjectType(fieldType);
               if (fields) {
                 const elementKeys: string[] = [];
@@ -853,7 +853,7 @@ export class ForOfGenerator {
         const paramTypeInfo = this.getParameterTypeFromAST(varName);
         if (paramTypeInfo) {
           const fieldType = this.getInterfaceFieldType(paramTypeInfo, propName);
-          if (fieldType && fieldType.endsWith("[]")) {
+          if (fieldType && isAnyArrayTsType(fieldType)) {
             const fields = this.parseInlineObjectType(fieldType);
             if (fields) {
               const elementKeys: string[] = [];
@@ -937,7 +937,7 @@ export class ForOfGenerator {
           const func = ast.functions[fi];
           if (!func || func.name !== callNode.name) continue;
           const retType = func.returnType;
-          if (retType && retType.endsWith("[]")) {
+          if (retType && isAnyArrayTsType(retType)) {
             const elementTypeName = retType.slice(0, -2).trim();
             const elemIface = this.ctx.getInterfaceFromAST(elementTypeName);
             if (elemIface) {
@@ -1044,7 +1044,7 @@ export class ForOfGenerator {
           const func = ast.functions[i];
           if (!func || func.name !== callNode.name) continue;
           const retType = func.returnType;
-          if (retType && retType.endsWith("[]")) {
+          if (retType && isAnyArrayTsType(retType)) {
             const elemName = retType.slice(0, -2).trim();
             if (this.ctx.classGenGetClassFields(elemName).length > 0) {
               return elemName;
@@ -1066,7 +1066,7 @@ export class ForOfGenerator {
       }
       if (ownerClassName) {
         const fieldTsType = this.ctx.classGenGetFieldTsType(ownerClassName, ma.property);
-        if (fieldTsType && fieldTsType.endsWith("[]")) {
+        if (fieldTsType && isAnyArrayTsType(fieldTsType)) {
           const elemName = fieldTsType.slice(0, -2).trim();
           if (this.ctx.classGenGetClassFields(elemName).length > 0) {
             return elemName;
@@ -1101,7 +1101,7 @@ export class ForOfGenerator {
                 const method = cls.methods[j];
                 if (!method || method.name !== mcNode.method) continue;
                 const retType = method.returnType;
-                if (retType && retType.endsWith("[]")) {
+                if (retType && isAnyArrayTsType(retType)) {
                   const elemName = retType.slice(0, -2).trim();
                   if (this.ctx.classGenGetClassFields(elemName).length > 0) {
                     return elemName;
@@ -1195,7 +1195,7 @@ export class ForOfGenerator {
       }
     }
     const fieldDef = fieldDefResult as { name: string; type: string };
-    if (!fieldDefResult || !fieldDef.type.endsWith("[]")) {
+    if (!fieldDefResult || !isAnyArrayTsType(fieldDef.type)) {
       return null;
     }
 
@@ -1284,7 +1284,7 @@ export class ForOfGenerator {
     }
 
     const returnType = this.getMethodReturnType(objType, methodCall.method);
-    if (!returnType || !returnType.endsWith("[]")) {
+    if (!returnType || !isAnyArrayTsType(returnType)) {
       return null;
     }
 
