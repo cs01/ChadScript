@@ -14,6 +14,15 @@ import {
   isObjectArrayType,
 } from "./context.js";
 import { isObjectArrayTsType } from "../../../infrastructure/type-system.js";
+import {
+  emitAdd,
+  emitSub,
+  emitMul,
+  emitZext,
+  emitSitofp,
+  emitFcmp,
+  emitAlloca,
+} from "../../../infrastructure/ir-builders.js";
 
 interface ExprBase {
   type: string;
@@ -69,8 +78,7 @@ function buildIterCallArgsWithIndex(
 ): string {
   let args = baseArgs;
   if (paramCount >= 2) {
-    const indexAsDouble = gen.nextTemp();
-    gen.emit(`${indexAsDouble} = sitofp i32 ${counter} to double`);
+    const indexAsDouble = emitSitofp(gen, counter, "i32");
     args = `${args}, double ${indexAsDouble}`;
   }
   const envPtr = gen.getLastInlineLambdaEnvPtr();
@@ -154,10 +162,8 @@ function generateNumericArrayFilter(
   const resultArrayPtr = gen.emitBitcast(resultArrayMem, "i8*", "%Array*");
 
   const doubleSize = 8;
-  const lengthI64 = gen.nextTemp();
-  gen.emit(`${lengthI64} = zext i32 ${length} to i64`);
-  const dataSizeI64 = gen.nextTemp();
-  gen.emit(`${dataSizeI64} = mul i64 ${lengthI64}, ${doubleSize}`);
+  const lengthI64 = emitZext(gen, length, "i32", "i64");
+  const dataSizeI64 = emitMul(gen, "i64", lengthI64, String(doubleSize));
   const dataMem = gen.emitCall("i8*", "@cs_arena_alloc", `i64 ${dataSizeI64}`);
   const resultDataPtr = gen.emitBitcast(dataMem, "i8*", "double*");
 
@@ -186,8 +192,7 @@ function generateNumericArrayFilter(
   const addLabel = gen.nextLabel("filter_add");
   const endLabel = gen.nextLabel("filter_end");
 
-  const counterPtr = gen.nextTemp();
-  gen.emit(`${counterPtr} = alloca i32`);
+  const counterPtr = emitAlloca(gen, "i32");
   gen.emitStore("i32", "0", counterPtr);
 
   gen.emitBr(checkLabel);
@@ -208,8 +213,7 @@ function generateNumericArrayFilter(
     buildIterCallArgsWithIndex(gen, `double ${elem}`, counter, paramCount),
   );
 
-  const isTruthy = gen.nextTemp();
-  gen.emit(`${isTruthy} = fcmp one double ${predicateResult}, 0.0`);
+  const isTruthy = emitFcmp(gen, "one", predicateResult, "0.0");
   gen.emitBrCond(isTruthy, addLabel, loopLabel);
 
   gen.emitLabel(addLabel);
@@ -219,14 +223,12 @@ function generateNumericArrayFilter(
     `${resultElemPtr} = getelementptr inbounds double, double* ${resultDataPtr}, i32 ${currentLen}`,
   );
   gen.emitStore("double", elem, resultElemPtr);
-  const newLen = gen.nextTemp();
-  gen.emit(`${newLen} = add i32 ${currentLen}, 1`);
+  const newLen = emitAdd(gen, "i32", currentLen, "1");
   gen.emitStore("i32", newLen, resultLenField);
   gen.emitBr(loopLabel);
 
   gen.emitLabel(loopLabel);
-  const nextCounter = gen.nextTemp();
-  gen.emit(`${nextCounter} = add i32 ${counter}, 1`);
+  const nextCounter = emitAdd(gen, "i32", counter, "1");
   gen.emitStore("i32", nextCounter, counterPtr);
   gen.emitBr(checkLabel);
 
@@ -258,10 +260,8 @@ function generateStringArrayFilter(
   const resultArrayPtr = gen.emitBitcast(resultArrayMem, "i8*", "%StringArray*");
 
   const ptrSize = 8;
-  const lengthI64 = gen.nextTemp();
-  gen.emit(`${lengthI64} = zext i32 ${length} to i64`);
-  const dataSizeI64 = gen.nextTemp();
-  gen.emit(`${dataSizeI64} = mul i64 ${lengthI64}, ${ptrSize}`);
+  const lengthI64 = emitZext(gen, length, "i32", "i64");
+  const dataSizeI64 = emitMul(gen, "i64", lengthI64, String(ptrSize));
   const dataMem = gen.emitCall("i8*", "@GC_malloc", `i64 ${dataSizeI64}`);
   const resultDataPtr = gen.emitBitcast(dataMem, "i8*", "i8**");
 
@@ -289,8 +289,7 @@ function generateStringArrayFilter(
   const addLabel = gen.nextLabel("filter_add");
   const endLabel = gen.nextLabel("filter_end");
 
-  const counterPtr = gen.nextTemp();
-  gen.emit(`${counterPtr} = alloca i32`);
+  const counterPtr = emitAlloca(gen, "i32");
   gen.emitStore("i32", "0", counterPtr);
 
   gen.emitBr(checkLabel);
@@ -312,8 +311,7 @@ function generateStringArrayFilter(
     buildIterCallArgsWithIndex(gen, `i8* ${elem}`, counter, paramCount),
   );
 
-  const isTruthy = gen.nextTemp();
-  gen.emit(`${isTruthy} = fcmp one double ${predicateResult}, 0.0`);
+  const isTruthy = emitFcmp(gen, "one", predicateResult, "0.0");
   gen.emitBrCond(isTruthy, addLabel, loopLabel);
 
   gen.emitLabel(addLabel);
@@ -323,14 +321,12 @@ function generateStringArrayFilter(
     `${resultElemPtr} = getelementptr inbounds i8*, i8** ${resultDataPtr}, i32 ${currentLen}`,
   );
   gen.emit(`store i8* ${elem}, i8** ${resultElemPtr}`);
-  const newLen = gen.nextTemp();
-  gen.emit(`${newLen} = add i32 ${currentLen}, 1`);
+  const newLen = emitAdd(gen, "i32", currentLen, "1");
   gen.emitStore("i32", newLen, resultLenField);
   gen.emitBr(loopLabel);
 
   gen.emitLabel(loopLabel);
-  const nextCounter = gen.nextTemp();
-  gen.emit(`${nextCounter} = add i32 ${counter}, 1`);
+  const nextCounter = emitAdd(gen, "i32", counter, "1");
   gen.emitStore("i32", nextCounter, counterPtr);
   gen.emitBr(checkLabel);
 
@@ -407,8 +403,7 @@ function generateNumericArrayForEach(
   const bodyLabel = gen.nextLabel("foreach_body");
   const endLabel = gen.nextLabel("foreach_end");
 
-  const counterPtr = gen.nextTemp();
-  gen.emit(`${counterPtr} = alloca i32`);
+  const counterPtr = emitAlloca(gen, "i32");
   gen.emitStore("i32", "0", counterPtr);
 
   gen.emitBr(checkLabel);
@@ -429,8 +424,7 @@ function generateNumericArrayForEach(
     buildIterCallArgsWithIndex(gen, `double ${elem}`, counter, paramCount),
   );
 
-  const nextCounter = gen.nextTemp();
-  gen.emit(`${nextCounter} = add i32 ${counter}, 1`);
+  const nextCounter = emitAdd(gen, "i32", counter, "1");
   gen.emitStore("i32", nextCounter, counterPtr);
   gen.emitBr(checkLabel);
 
@@ -461,8 +455,7 @@ function generateStringArrayForEach(
   const bodyLabel = gen.nextLabel("foreach_body");
   const endLabel = gen.nextLabel("foreach_end");
 
-  const counterPtr = gen.nextTemp();
-  gen.emit(`${counterPtr} = alloca i32`);
+  const counterPtr = emitAlloca(gen, "i32");
   gen.emitStore("i32", "0", counterPtr);
 
   gen.emitBr(checkLabel);
@@ -484,8 +477,7 @@ function generateStringArrayForEach(
     buildIterCallArgsWithIndex(gen, `i8* ${elem}`, counter, paramCount),
   );
 
-  const nextCounter = gen.nextTemp();
-  gen.emit(`${nextCounter} = add i32 ${counter}, 1`);
+  const nextCounter = emitAdd(gen, "i32", counter, "1");
   gen.emitStore("i32", nextCounter, counterPtr);
   gen.emitBr(checkLabel);
 
@@ -566,11 +558,8 @@ function generateNumericArrayReduce(
   const bodyLabel = gen.nextLabel("reduce_body");
   const endLabel = gen.nextLabel("reduce_end");
 
-  const accPtr = gen.nextTemp();
-  gen.emit(`${accPtr} = alloca double`);
-
-  const counterPtr = gen.nextTemp();
-  gen.emit(`${counterPtr} = alloca i32`);
+  const accPtr = emitAlloca(gen, "double");
+  const counterPtr = emitAlloca(gen, "i32");
 
   if (initialValue !== null) {
     const dblInit = gen.ensureDouble(initialValue);
@@ -620,14 +609,12 @@ function generateNumericArrayReduce(
   );
   gen.emitStore("double", newAcc, accPtr);
 
-  const nextCounter = gen.nextTemp();
-  gen.emit(`${nextCounter} = add i32 ${counter}, 1`);
+  const nextCounter = emitAdd(gen, "i32", counter, "1");
   gen.emitStore("i32", nextCounter, counterPtr);
   gen.emitBr(checkLabel);
 
   gen.emitLabel(endLabel);
   const finalAcc = gen.emitLoad("double", accPtr);
-  gen.setVariableType(finalAcc, "double");
   return finalAcc;
 }
 
@@ -653,11 +640,8 @@ function generateObjectArrayReduce(
   const bodyLabel = gen.nextLabel("reduce_body");
   const endLabel = gen.nextLabel("reduce_end");
 
-  const accPtr = gen.nextTemp();
-  gen.emit(`${accPtr} = alloca double`);
-
-  const counterPtr = gen.nextTemp();
-  gen.emit(`${counterPtr} = alloca i32`);
+  const accPtr = emitAlloca(gen, "double");
+  const counterPtr = emitAlloca(gen, "i32");
 
   if (initialValue !== null) {
     const dblInit = gen.ensureDouble(initialValue);
@@ -705,14 +689,12 @@ function generateObjectArrayReduce(
   );
   gen.emitStore("double", newAcc, accPtr);
 
-  const nextCounter = gen.nextTemp();
-  gen.emit(`${nextCounter} = add i32 ${counter}, 1`);
+  const nextCounter = emitAdd(gen, "i32", counter, "1");
   gen.emitStore("i32", nextCounter, counterPtr);
   gen.emitBr(checkLabel);
 
   gen.emitLabel(endLabel);
   const finalAcc = gen.emitLoad("double", accPtr);
-  gen.setVariableType(finalAcc, "double");
   return finalAcc;
 }
 
@@ -739,11 +721,8 @@ function generateStringArrayReduce(
   const bodyLabel = gen.nextLabel("reduce_body");
   const endLabel = gen.nextLabel("reduce_end");
 
-  const accPtr = gen.nextTemp();
-  gen.emit(`${accPtr} = alloca i8*`);
-
-  const counterPtr = gen.nextTemp();
-  gen.emit(`${counterPtr} = alloca i32`);
+  const accPtr = emitAlloca(gen, "i8*");
+  const counterPtr = emitAlloca(gen, "i32");
 
   if (initialValue !== null) {
     gen.emit(`store i8* ${initialValue}, i8** ${accPtr}`);
@@ -795,14 +774,12 @@ function generateStringArrayReduce(
   );
   gen.emit(`store i8* ${newAcc}, i8** ${accPtr}`);
 
-  const nextCounter = gen.nextTemp();
-  gen.emit(`${nextCounter} = add i32 ${counter}, 1`);
+  const nextCounter = emitAdd(gen, "i32", counter, "1");
   gen.emitStore("i32", nextCounter, counterPtr);
   gen.emitBr(checkLabel);
 
   gen.emitLabel(endLabel);
   const finalAcc = gen.emitLoad("i8*", accPtr);
-  gen.setVariableType(finalAcc, "i8*");
   return finalAcc;
 }
 
@@ -930,10 +907,8 @@ function generateNumericArrayMap(
   const resultArrayPtr = gen.emitBitcast(resultArrayMem, "i8*", "%Array*");
 
   const doubleSize = 8;
-  const lengthI64 = gen.nextTemp();
-  gen.emit(`${lengthI64} = zext i32 ${length} to i64`);
-  const resultSizeI64 = gen.nextTemp();
-  gen.emit(`${resultSizeI64} = mul i64 ${lengthI64}, ${doubleSize}`);
+  const lengthI64 = emitZext(gen, length, "i32", "i64");
+  const resultSizeI64 = emitMul(gen, "i64", lengthI64, String(doubleSize));
   const resultMem = gen.emitCall("i8*", "@cs_arena_alloc", `i64 ${resultSizeI64}`);
   const resultDataPtr = gen.emitBitcast(resultMem, "i8*", "double*");
 
@@ -955,8 +930,7 @@ function generateNumericArrayMap(
   );
   gen.emitStore("i32", length, resultCapField);
 
-  const counterPtr = gen.nextTemp();
-  gen.emit(`${counterPtr} = alloca i32`);
+  const counterPtr = emitAlloca(gen, "i32");
   gen.emitStore("i32", "0", counterPtr);
 
   const checkLabel = gen.nextLabel("map_check");
@@ -987,8 +961,7 @@ function generateNumericArrayMap(
   );
   gen.emitStore("double", result, resultElemPtr);
 
-  const nextCounter = gen.nextTemp();
-  gen.emit(`${nextCounter} = add i32 ${counter}, 1`);
+  const nextCounter = emitAdd(gen, "i32", counter, "1");
   gen.emitStore("i32", nextCounter, counterPtr);
   gen.emitBr(checkLabel);
 
@@ -1021,10 +994,8 @@ function generateObjectArrayToNumericMap(
   const resultArrayPtr = gen.emitBitcast(resultArrayMem, "i8*", "%Array*");
 
   const doubleSize = 8;
-  const lengthI64 = gen.nextTemp();
-  gen.emit(`${lengthI64} = zext i32 ${length} to i64`);
-  const resultSizeI64 = gen.nextTemp();
-  gen.emit(`${resultSizeI64} = mul i64 ${lengthI64}, ${doubleSize}`);
+  const lengthI64 = emitZext(gen, length, "i32", "i64");
+  const resultSizeI64 = emitMul(gen, "i64", lengthI64, String(doubleSize));
   const resultMem = gen.emitCall("i8*", "@cs_arena_alloc", `i64 ${resultSizeI64}`);
   const resultDataPtr = gen.emitBitcast(resultMem, "i8*", "double*");
 
@@ -1046,8 +1017,7 @@ function generateObjectArrayToNumericMap(
   );
   gen.emitStore("i32", length, resultCapField);
 
-  const counterPtr = gen.nextTemp();
-  gen.emit(`${counterPtr} = alloca i32`);
+  const counterPtr = emitAlloca(gen, "i32");
   gen.emitStore("i32", "0", counterPtr);
 
   const checkLabel = gen.nextLabel("objnummap_check");
@@ -1079,8 +1049,7 @@ function generateObjectArrayToNumericMap(
   );
   gen.emitStore("double", result, resultElemPtr);
 
-  const nextCounter = gen.nextTemp();
-  gen.emit(`${nextCounter} = add i32 ${counter}, 1`);
+  const nextCounter = emitAdd(gen, "i32", counter, "1");
   gen.emitStore("i32", nextCounter, counterPtr);
   gen.emitBr(checkLabel);
 
@@ -1112,10 +1081,8 @@ function generateStringArrayMapImpl(
   const resultArrayPtr = gen.emitBitcast(resultArrayMem, "i8*", "%StringArray*");
 
   const pointerSize = 8;
-  const lengthI64 = gen.nextTemp();
-  gen.emit(`${lengthI64} = zext i32 ${length} to i64`);
-  const resultSizeI64 = gen.nextTemp();
-  gen.emit(`${resultSizeI64} = mul i64 ${lengthI64}, ${pointerSize}`);
+  const lengthI64 = emitZext(gen, length, "i32", "i64");
+  const resultSizeI64 = emitMul(gen, "i64", lengthI64, String(pointerSize));
   const resultMem = gen.emitCall("i8*", "@GC_malloc", `i64 ${resultSizeI64}`);
   const resultDataPtr = gen.emitBitcast(resultMem, "i8*", "i8**");
 
@@ -1137,8 +1104,7 @@ function generateStringArrayMapImpl(
   );
   gen.emitStore("i32", length, resultCapField);
 
-  const counterPtr = gen.nextTemp();
-  gen.emit(`${counterPtr} = alloca i32`);
+  const counterPtr = emitAlloca(gen, "i32");
   gen.emitStore("i32", "0", counterPtr);
 
   const checkLabel = gen.nextLabel("strmap_check");
@@ -1168,8 +1134,7 @@ function generateStringArrayMapImpl(
   gen.emit(`${resultElemPtr} = getelementptr inbounds i8*, i8** ${resultDataPtr}, i32 ${counter}`);
   gen.emit(`store i8* ${result}, i8** ${resultElemPtr}`);
 
-  const nextCounter = gen.nextTemp();
-  gen.emit(`${nextCounter} = add i32 ${counter}, 1`);
+  const nextCounter = emitAdd(gen, "i32", counter, "1");
   gen.emitStore("i32", nextCounter, counterPtr);
   gen.emitBr(checkLabel);
 
@@ -1249,17 +1214,13 @@ function generateNumericArrayReduceRight(
   const bodyLabel = gen.nextLabel("reduceright_body");
   const endLabel = gen.nextLabel("reduceright_end");
 
-  const accPtr = gen.nextTemp();
-  gen.emit(`${accPtr} = alloca double`);
-
-  const counterPtr = gen.nextTemp();
-  gen.emit(`${counterPtr} = alloca i32`);
+  const accPtr = emitAlloca(gen, "double");
+  const counterPtr = emitAlloca(gen, "i32");
 
   if (initialValue !== null) {
     const dblInit = gen.ensureDouble(initialValue);
     gen.emitStore("double", dblInit, accPtr);
-    const lastIdx = gen.nextTemp();
-    gen.emit(`${lastIdx} = sub i32 ${length}, 1`);
+    const lastIdx = emitSub(gen, "i32", length, "1");
     gen.emitStore("i32", lastIdx, counterPtr);
   } else {
     const isEmpty = gen.emitIcmp("eq", "i32", length, "0");
@@ -1279,14 +1240,12 @@ function generateNumericArrayReduceRight(
     gen.emit("call void @exit(i32 1)");
     gen.emit("unreachable");
     gen.emitLabel(okLabel);
-    const lastIdx = gen.nextTemp();
-    gen.emit(`${lastIdx} = sub i32 ${length}, 1`);
+    const lastIdx = emitSub(gen, "i32", length, "1");
     const lastElemPtr = gen.nextTemp();
     gen.emit(`${lastElemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${lastIdx}`);
     const lastElem = gen.emitLoad("double", lastElemPtr);
     gen.emitStore("double", lastElem, accPtr);
-    const startIdx = gen.nextTemp();
-    gen.emit(`${startIdx} = sub i32 ${length}, 2`);
+    const startIdx = emitSub(gen, "i32", length, "2");
     gen.emitStore("i32", startIdx, counterPtr);
   }
 
@@ -1311,14 +1270,12 @@ function generateNumericArrayReduceRight(
   );
   gen.emitStore("double", newAcc, accPtr);
 
-  const nextCounter = gen.nextTemp();
-  gen.emit(`${nextCounter} = sub i32 ${counter}, 1`);
+  const nextCounter = emitSub(gen, "i32", counter, "1");
   gen.emitStore("i32", nextCounter, counterPtr);
   gen.emitBr(checkLabel);
 
   gen.emitLabel(endLabel);
   const finalAcc = gen.emitLoad("double", accPtr);
-  gen.setVariableType(finalAcc, "double");
   return finalAcc;
 }
 
@@ -1344,17 +1301,13 @@ function generateObjectArrayReduceRight(
   const bodyLabel = gen.nextLabel("reduceright_body");
   const endLabel2 = gen.nextLabel("reduceright_end");
 
-  const accPtr = gen.nextTemp();
-  gen.emit(`${accPtr} = alloca double`);
-
-  const counterPtr = gen.nextTemp();
-  gen.emit(`${counterPtr} = alloca i32`);
+  const accPtr = emitAlloca(gen, "double");
+  const counterPtr = emitAlloca(gen, "i32");
 
   if (initialValue !== null) {
     const dblInit = gen.ensureDouble(initialValue);
     gen.emitStore("double", dblInit, accPtr);
-    const lastIdx = gen.nextTemp();
-    gen.emit(`${lastIdx} = sub i32 ${length}, 1`);
+    const lastIdx = emitSub(gen, "i32", length, "1");
     gen.emitStore("i32", lastIdx, counterPtr);
   } else {
     const isEmpty = gen.emitIcmp("eq", "i32", length, "0");
@@ -1375,8 +1328,7 @@ function generateObjectArrayReduceRight(
     gen.emit("unreachable");
     gen.emitLabel(okLabel);
     gen.emitStore("double", "0.0", accPtr);
-    const startIdx = gen.nextTemp();
-    gen.emit(`${startIdx} = sub i32 ${length}, 1`);
+    const startIdx = emitSub(gen, "i32", length, "1");
     gen.emitStore("i32", startIdx, counterPtr);
   }
 
@@ -1402,14 +1354,12 @@ function generateObjectArrayReduceRight(
   );
   gen.emitStore("double", newAcc, accPtr);
 
-  const nextCounter = gen.nextTemp();
-  gen.emit(`${nextCounter} = sub i32 ${counter}, 1`);
+  const nextCounter = emitSub(gen, "i32", counter, "1");
   gen.emitStore("i32", nextCounter, counterPtr);
   gen.emitBr(checkLabel);
 
   gen.emitLabel(endLabel2);
   const finalAcc2 = gen.emitLoad("double", accPtr);
-  gen.setVariableType(finalAcc2, "double");
   return finalAcc2;
 }
 
@@ -1436,16 +1386,12 @@ function generateStringArrayReduceRight(
   const bodyLabel = gen.nextLabel("reduceright_body");
   const endLabel = gen.nextLabel("reduceright_end");
 
-  const accPtr = gen.nextTemp();
-  gen.emit(`${accPtr} = alloca i8*`);
-
-  const counterPtr = gen.nextTemp();
-  gen.emit(`${counterPtr} = alloca i32`);
+  const accPtr = emitAlloca(gen, "i8*");
+  const counterPtr = emitAlloca(gen, "i32");
 
   if (initialValue !== null) {
     gen.emit(`store i8* ${initialValue}, i8** ${accPtr}`);
-    const lastIdx = gen.nextTemp();
-    gen.emit(`${lastIdx} = sub i32 ${length}, 1`);
+    const lastIdx = emitSub(gen, "i32", length, "1");
     gen.emitStore("i32", lastIdx, counterPtr);
   } else {
     const isEmpty = gen.emitIcmp("eq", "i32", length, "0");
@@ -1465,15 +1411,13 @@ function generateStringArrayReduceRight(
     gen.emit("call void @exit(i32 1)");
     gen.emit("unreachable");
     gen.emitLabel(okLabel);
-    const lastIdx = gen.nextTemp();
-    gen.emit(`${lastIdx} = sub i32 ${length}, 1`);
+    const lastIdx = emitSub(gen, "i32", length, "1");
     const lastElemPtr = gen.nextTemp();
     gen.emit(`${lastElemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${lastIdx}`);
     const lastElem = gen.nextTemp();
     gen.emit(`${lastElem} = load i8*, i8** ${lastElemPtr}`);
     gen.emit(`store i8* ${lastElem}, i8** ${accPtr}`);
-    const startIdx = gen.nextTemp();
-    gen.emit(`${startIdx} = sub i32 ${length}, 2`);
+    const startIdx = emitSub(gen, "i32", length, "2");
     gen.emitStore("i32", startIdx, counterPtr);
   }
 
@@ -1500,13 +1444,11 @@ function generateStringArrayReduceRight(
   );
   gen.emit(`store i8* ${newAcc}, i8** ${accPtr}`);
 
-  const nextCounter = gen.nextTemp();
-  gen.emit(`${nextCounter} = sub i32 ${counter}, 1`);
+  const nextCounter = emitSub(gen, "i32", counter, "1");
   gen.emitStore("i32", nextCounter, counterPtr);
   gen.emitBr(checkLabel);
 
   gen.emitLabel(endLabel);
   const finalAcc = gen.emitLoad("i8*", accPtr);
-  gen.setVariableType(finalAcc, "i8*");
   return finalAcc;
 }
