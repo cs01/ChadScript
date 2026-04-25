@@ -3,6 +3,14 @@
 
 import { MethodCallNode, VariableNode } from "../../../../ast/types.js";
 import {
+  emitAdd,
+  emitAlloca,
+  emitFcmp,
+  emitFptosi,
+  emitSelect,
+  emitSitofp,
+} from "../../../infrastructure/ir-builders.js";
+import {
   IGeneratorContext,
   loadArrayMeta,
   isStringArrayType,
@@ -88,12 +96,10 @@ function generateNumericArrayFind(
   const foundLabel = gen.nextLabel("find_found");
   const endLabel = gen.nextLabel("find_end");
 
-  const counterPtr = gen.nextTemp();
-  gen.emit(`${counterPtr} = alloca i32`);
+  const counterPtr = emitAlloca(gen, "i32");
   gen.emitStore("i32", "0", counterPtr);
 
-  const resultPtr = gen.nextTemp();
-  gen.emit(`${resultPtr} = alloca double`);
+  const resultPtr = emitAlloca(gen, "double");
   gen.emitStore("double", "0.0", resultPtr);
 
   gen.emitBr(checkLabel);
@@ -114,8 +120,7 @@ function generateNumericArrayFind(
     buildPredicateCallArgs(gen, `double ${elem}`),
   );
 
-  const isTruthy = gen.nextTemp();
-  gen.emit(`${isTruthy} = fcmp one double ${predicateResult}, 0.0`);
+  const isTruthy = emitFcmp(gen, "one", predicateResult, "0.0");
   gen.emitBrCond(isTruthy, foundLabel, loopLabel);
 
   gen.emitLabel(foundLabel);
@@ -123,14 +128,12 @@ function generateNumericArrayFind(
   gen.emitBr(endLabel);
 
   gen.emitLabel(loopLabel);
-  const nextCounter = gen.nextTemp();
-  gen.emit(`${nextCounter} = add i32 ${counter}, 1`);
+  const nextCounter = emitAdd(gen, "i32", counter, "1");
   gen.emitStore("i32", nextCounter, counterPtr);
   gen.emitBr(checkLabel);
 
   gen.emitLabel(endLabel);
   const result = gen.emitLoad("double", resultPtr);
-  gen.setVariableType(result, "double");
   return result;
 }
 
@@ -158,12 +161,10 @@ function generateStringArrayFind(
   const foundLabel = gen.nextLabel("find_found");
   const endLabel = gen.nextLabel("find_end");
 
-  const counterPtr = gen.nextTemp();
-  gen.emit(`${counterPtr} = alloca i32`);
+  const counterPtr = emitAlloca(gen, "i32");
   gen.emitStore("i32", "0", counterPtr);
 
-  const resultPtr = gen.nextTemp();
-  gen.emit(`${resultPtr} = alloca i8*`);
+  const resultPtr = emitAlloca(gen, "i8*");
   gen.emit(`store i8* null, i8** ${resultPtr}`);
 
   gen.emitBr(checkLabel);
@@ -185,8 +186,7 @@ function generateStringArrayFind(
     buildPredicateCallArgs(gen, `i8* ${elem}`),
   );
 
-  const isTruthy = gen.nextTemp();
-  gen.emit(`${isTruthy} = fcmp one double ${predicateResult}, 0.0`);
+  const isTruthy = emitFcmp(gen, "one", predicateResult, "0.0");
   gen.emitBrCond(isTruthy, foundLabel, loopLabel);
 
   gen.emitLabel(foundLabel);
@@ -194,8 +194,7 @@ function generateStringArrayFind(
   gen.emitBr(endLabel);
 
   gen.emitLabel(loopLabel);
-  const nextCounter = gen.nextTemp();
-  gen.emit(`${nextCounter} = add i32 ${counter}, 1`);
+  const nextCounter = emitAdd(gen, "i32", counter, "1");
   gen.emitStore("i32", nextCounter, counterPtr);
   gen.emitBr(checkLabel);
 
@@ -271,12 +270,10 @@ function generateNumericArraySome(
   const foundLabel = gen.nextLabel("some_found");
   const endLabel = gen.nextLabel("some_end");
 
-  const counterPtr = gen.nextTemp();
-  gen.emit(`${counterPtr} = alloca i32`);
+  const counterPtr = emitAlloca(gen, "i32");
   gen.emitStore("i32", "0", counterPtr);
 
-  const resultPtr = gen.nextTemp();
-  gen.emit(`${resultPtr} = alloca i32`);
+  const resultPtr = emitAlloca(gen, "i32");
   gen.emitStore("i32", "0", resultPtr);
 
   gen.emitBr(checkLabel);
@@ -297,8 +294,7 @@ function generateNumericArraySome(
     buildPredicateCallArgs(gen, `double ${elem}`),
   );
 
-  const isTruthy = gen.nextTemp();
-  gen.emit(`${isTruthy} = fcmp one double ${predicateResult}, 0.0`);
+  const isTruthy = emitFcmp(gen, "one", predicateResult, "0.0");
   gen.emitBrCond(isTruthy, foundLabel, loopLabel);
 
   gen.emitLabel(foundLabel);
@@ -306,16 +302,13 @@ function generateNumericArraySome(
   gen.emitBr(endLabel);
 
   gen.emitLabel(loopLabel);
-  const nextCounter = gen.nextTemp();
-  gen.emit(`${nextCounter} = add i32 ${counter}, 1`);
+  const nextCounter = emitAdd(gen, "i32", counter, "1");
   gen.emitStore("i32", nextCounter, counterPtr);
   gen.emitBr(checkLabel);
 
   gen.emitLabel(endLabel);
   const resultI32 = gen.emitLoad("i32", resultPtr);
-  const result = gen.nextTemp();
-  gen.emit(`${result} = sitofp i32 ${resultI32} to double`);
-  gen.setVariableType(result, "double");
+  const result = emitSitofp(gen, resultI32, "i32");
   return result;
 }
 
@@ -343,12 +336,10 @@ function generateStringArraySome(
   const foundLabel = gen.nextLabel("some_found");
   const endLabel = gen.nextLabel("some_end");
 
-  const counterPtr = gen.nextTemp();
-  gen.emit(`${counterPtr} = alloca i32`);
+  const counterPtr = emitAlloca(gen, "i32");
   gen.emitStore("i32", "0", counterPtr);
 
-  const resultPtr = gen.nextTemp();
-  gen.emit(`${resultPtr} = alloca i32`);
+  const resultPtr = emitAlloca(gen, "i32");
   gen.emitStore("i32", "0", resultPtr);
 
   gen.emitBr(checkLabel);
@@ -370,8 +361,7 @@ function generateStringArraySome(
     buildPredicateCallArgs(gen, `i8* ${elem}`),
   );
 
-  const isTruthy = gen.nextTemp();
-  gen.emit(`${isTruthy} = fcmp one double ${predicateResult}, 0.0`);
+  const isTruthy = emitFcmp(gen, "one", predicateResult, "0.0");
   gen.emitBrCond(isTruthy, foundLabel, loopLabel);
 
   gen.emitLabel(foundLabel);
@@ -379,16 +369,13 @@ function generateStringArraySome(
   gen.emitBr(endLabel);
 
   gen.emitLabel(loopLabel);
-  const nextCounter = gen.nextTemp();
-  gen.emit(`${nextCounter} = add i32 ${counter}, 1`);
+  const nextCounter = emitAdd(gen, "i32", counter, "1");
   gen.emitStore("i32", nextCounter, counterPtr);
   gen.emitBr(checkLabel);
 
   gen.emitLabel(endLabel);
   const resultI32 = gen.emitLoad("i32", resultPtr);
-  const result = gen.nextTemp();
-  gen.emit(`${result} = sitofp i32 ${resultI32} to double`);
-  gen.setVariableType(result, "double");
+  const result = emitSitofp(gen, resultI32, "i32");
   return result;
 }
 
@@ -457,12 +444,10 @@ function generateNumericArrayEvery(
   const failedLabel = gen.nextLabel("every_failed");
   const endLabel = gen.nextLabel("every_end");
 
-  const counterPtr = gen.nextTemp();
-  gen.emit(`${counterPtr} = alloca i32`);
+  const counterPtr = emitAlloca(gen, "i32");
   gen.emitStore("i32", "0", counterPtr);
 
-  const resultPtr = gen.nextTemp();
-  gen.emit(`${resultPtr} = alloca i32`);
+  const resultPtr = emitAlloca(gen, "i32");
   gen.emitStore("i32", "1", resultPtr);
 
   gen.emitBr(checkLabel);
@@ -483,8 +468,7 @@ function generateNumericArrayEvery(
     buildPredicateCallArgs(gen, `double ${elem}`),
   );
 
-  const isFalsy = gen.nextTemp();
-  gen.emit(`${isFalsy} = fcmp oeq double ${predicateResult}, 0.0`);
+  const isFalsy = emitFcmp(gen, "oeq", predicateResult, "0.0");
   gen.emitBrCond(isFalsy, failedLabel, loopLabel);
 
   gen.emitLabel(failedLabel);
@@ -492,16 +476,13 @@ function generateNumericArrayEvery(
   gen.emitBr(endLabel);
 
   gen.emitLabel(loopLabel);
-  const nextCounter = gen.nextTemp();
-  gen.emit(`${nextCounter} = add i32 ${counter}, 1`);
+  const nextCounter = emitAdd(gen, "i32", counter, "1");
   gen.emitStore("i32", nextCounter, counterPtr);
   gen.emitBr(checkLabel);
 
   gen.emitLabel(endLabel);
   const resultI32 = gen.emitLoad("i32", resultPtr);
-  const result = gen.nextTemp();
-  gen.emit(`${result} = sitofp i32 ${resultI32} to double`);
-  gen.setVariableType(result, "double");
+  const result = emitSitofp(gen, resultI32, "i32");
   return result;
 }
 
@@ -529,12 +510,10 @@ function generateStringArrayEvery(
   const failedLabel = gen.nextLabel("every_failed");
   const endLabel = gen.nextLabel("every_end");
 
-  const counterPtr = gen.nextTemp();
-  gen.emit(`${counterPtr} = alloca i32`);
+  const counterPtr = emitAlloca(gen, "i32");
   gen.emitStore("i32", "0", counterPtr);
 
-  const resultPtr = gen.nextTemp();
-  gen.emit(`${resultPtr} = alloca i32`);
+  const resultPtr = emitAlloca(gen, "i32");
   gen.emitStore("i32", "1", resultPtr);
 
   gen.emitBr(checkLabel);
@@ -556,8 +535,7 @@ function generateStringArrayEvery(
     buildPredicateCallArgs(gen, `i8* ${elem}`),
   );
 
-  const isFalsy = gen.nextTemp();
-  gen.emit(`${isFalsy} = fcmp oeq double ${predicateResult}, 0.0`);
+  const isFalsy = emitFcmp(gen, "oeq", predicateResult, "0.0");
   gen.emitBrCond(isFalsy, failedLabel, loopLabel);
 
   gen.emitLabel(failedLabel);
@@ -565,16 +543,13 @@ function generateStringArrayEvery(
   gen.emitBr(endLabel);
 
   gen.emitLabel(loopLabel);
-  const nextCounter = gen.nextTemp();
-  gen.emit(`${nextCounter} = add i32 ${counter}, 1`);
+  const nextCounter = emitAdd(gen, "i32", counter, "1");
   gen.emitStore("i32", nextCounter, counterPtr);
   gen.emitBr(checkLabel);
 
   gen.emitLabel(endLabel);
   const resultI32 = gen.emitLoad("i32", resultPtr);
-  const result = gen.nextTemp();
-  gen.emit(`${result} = sitofp i32 ${resultI32} to double`);
-  gen.setVariableType(result, "double");
+  const result = emitSitofp(gen, resultI32, "i32");
   return result;
 }
 
@@ -588,13 +563,10 @@ function resolveIncludesFromIndex(
   length: string,
 ): string {
   const isNeg = gen.emitIcmp("slt", "i32", fromIndex, "0");
-  const adjusted = gen.nextTemp();
-  gen.emit(`${adjusted} = add i32 ${fromIndex}, ${length}`);
-  const resolved = gen.nextTemp();
-  gen.emit(`${resolved} = select i1 ${isNeg}, i32 ${adjusted}, i32 ${fromIndex}`);
+  const adjusted = emitAdd(gen, "i32", fromIndex, length);
+  const resolved = emitSelect(gen, isNeg, "i32", adjusted, fromIndex);
   const stillNeg = gen.emitIcmp("slt", "i32", resolved, "0");
-  const clamped = gen.nextTemp();
-  gen.emit(`${clamped} = select i1 ${stillNeg}, i32 0, i32 ${resolved}`);
+  const clamped = emitSelect(gen, stillNeg, "i32", "0", resolved);
   return clamped;
 }
 
@@ -614,9 +586,7 @@ export function generateArrayIncludes(
   if (expr.args.length === 2) {
     const fromRaw = gen.generateExpression(expr.args[1], params);
     const fromDbl = gen.ensureDouble(fromRaw);
-    const tmp = gen.nextTemp();
-    gen.emit(`${tmp} = fptosi double ${fromDbl} to i32`);
-    fromIndex = tmp;
+    fromIndex = emitFptosi(gen, fromDbl, "i32");
   }
 
   let isStringArray = false;
@@ -660,8 +630,7 @@ function generateIntArrayIncludes(
   const foundLabel = gen.nextLabel("includes_found");
   const endLabel = gen.nextLabel("includes_end");
 
-  const counterPtr = gen.nextTemp();
-  gen.emit(`${counterPtr} = alloca i32`);
+  const counterPtr = emitAlloca(gen, "i32");
   gen.emitStore("i32", startIndex, counterPtr);
 
   gen.emitBr(checkLabel);
@@ -677,24 +646,21 @@ function generateIntArrayIncludes(
   const elem = gen.emitLoad("double", elemPtr);
 
   const dblSearchValue = gen.ensureDouble(searchValue);
-  const isEqual = gen.nextTemp();
-  gen.emit(`${isEqual} = fcmp oeq double ${elem}, ${dblSearchValue}`);
+  const isEqual = emitFcmp(gen, "oeq", elem, dblSearchValue);
   gen.emitBrCond(isEqual, foundLabel, loopLabel);
 
   gen.emitLabel(foundLabel);
   gen.emitBr(endLabel);
 
   gen.emitLabel(loopLabel);
-  const nextCounter = gen.nextTemp();
-  gen.emit(`${nextCounter} = add i32 ${counter}, 1`);
+  const nextCounter = emitAdd(gen, "i32", counter, "1");
   gen.emitStore("i32", nextCounter, counterPtr);
   gen.emitBr(checkLabel);
 
   gen.emitLabel(endLabel);
   const resultI32 = gen.nextTemp();
   gen.emit(`${resultI32} = phi i32 [ 0, %${checkLabel} ], [ 1, %${foundLabel} ]`);
-  const result = gen.nextTemp();
-  gen.emit(`${result} = sitofp i32 ${resultI32} to double`);
+  const result = emitSitofp(gen, resultI32, "i32");
   return result;
 }
 
@@ -725,8 +691,7 @@ function generateStringArrayIncludes(
   const foundLabel = gen.nextLabel("includes_found");
   const endLabel = gen.nextLabel("includes_end");
 
-  const counterPtr = gen.nextTemp();
-  gen.emit(`${counterPtr} = alloca i32`);
+  const counterPtr = emitAlloca(gen, "i32");
   gen.emitStore("i32", startIndex, counterPtr);
 
   gen.emitBr(checkLabel);
@@ -750,15 +715,13 @@ function generateStringArrayIncludes(
   gen.emitBr(endLabel);
 
   gen.emitLabel(loopLabel);
-  const nextCounter = gen.nextTemp();
-  gen.emit(`${nextCounter} = add i32 ${counter}, 1`);
+  const nextCounter = emitAdd(gen, "i32", counter, "1");
   gen.emitStore("i32", nextCounter, counterPtr);
   gen.emitBr(checkLabel);
 
   gen.emitLabel(endLabel);
   const resultI32 = gen.nextTemp();
   gen.emit(`${resultI32} = phi i32 [ 0, %${checkLabel} ], [ 1, %${foundLabel} ]`);
-  const result = gen.nextTemp();
-  gen.emit(`${result} = sitofp i32 ${resultI32} to double`);
+  const result = emitSitofp(gen, resultI32, "i32");
   return result;
 }
