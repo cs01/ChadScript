@@ -112,6 +112,8 @@ interface ArrowFunctionGeneratorLike {
     returnType?: string | { paramTypes?: string[]; returnType?: string },
     scopeVarNames?: string[],
     scopeVarTypes?: string[],
+    scopeVarInterfaceTypes?: string[],
+    scopeVarConcreteClasses?: string[],
   ): string;
   getClosureInfoForLambda(lambdaName: string): ClosureInfoResult | null;
   getLiftedFunctionByName(name: string): { returnType?: string } | undefined;

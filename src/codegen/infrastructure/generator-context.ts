@@ -259,6 +259,8 @@ export interface IArrowFunctionGenerator {
     typeHints: { paramTypes?: string[]; returnType?: string } | undefined,
     scopeVarNames: string[] | undefined,
     scopeVarTypes: string[] | undefined,
+    scopeVarInterfaceTypes?: string[],
+    scopeVarConcreteClasses?: string[],
   ): string;
   getClosureInfoForLambda(
     lambdaName: string,
@@ -2155,6 +2157,8 @@ export class MockGeneratorContext implements IGeneratorContext {
       _typeHints: { paramTypes?: string[]; returnType?: string } | undefined,
       _scopeVarNames: string[] | undefined,
       _scopeVarTypes: string[] | undefined,
+      _scopeVarInterfaceTypes?: string[],
+      _scopeVarConcreteClasses?: string[],
     ): string => "__mock_lambda",
     getClosureInfoForLambda: (
       _lambdaName: string,

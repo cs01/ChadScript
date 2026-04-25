@@ -73,6 +73,7 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
     scopeVarNames?: string[],
     scopeVarTypes?: string[],
     scopeVarInterfaceTypes?: string[],
+    scopeVarConcreteClasses?: string[],
   ): string {
     const funcName = `__lambda_${this.anonFuncCounter++}`;
 
@@ -129,6 +130,7 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
         scopeVarTypes,
         funcName,
         scopeVarInterfaceTypes,
+        scopeVarConcreteClasses,
       );
       closureCaptures = analyzeResult.captures;
       closureEnvStructName = analyzeResult.envStructName;
