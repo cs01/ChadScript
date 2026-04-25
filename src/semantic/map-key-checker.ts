@@ -13,12 +13,14 @@ import type {
   ForStatement,
   ForOfStatement,
   TryStatement,
+  MapNode,
+  NewNode,
 } from "../ast/types.js";
 import { formatCompileError } from "../diagnostics/engine.js";
 
-function parseMapType(s: string): { keyType: string; valueType: string } | null {
-  if (!s) return null;
-  const trimmed = s.trim();
+function isMapNumberKey(typeStr: string): string | null {
+  if (!typeStr) return null;
+  const trimmed = typeStr.trim();
   if (!trimmed.startsWith("Map<")) return null;
   if (!trimmed.endsWith(">")) return null;
   const inner = trimmed.substring(4, trimmed.length - 1);
@@ -36,10 +38,11 @@ function parseMapType(s: string): { keyType: string; valueType: string } | null 
     }
   }
   if (commaIdx === -1) return null;
-  return {
-    keyType: inner.substring(0, commaIdx).trim(),
-    valueType: inner.substring(commaIdx + 1).trim(),
-  };
+  const keyType = inner.substring(0, commaIdx).trim();
+  if (keyType !== "number") return null;
+  const valueType = inner.substring(commaIdx + 1).trim();
+  if (valueType === "number" || valueType === "boolean") return null;
+  return valueType;
 }
 
 function emitMapKeyError(
@@ -59,41 +62,42 @@ function emitMapKeyError(
 }
 
 function checkTypeStr(typeStr: string, loc: SourceLocation | undefined, sourceCode: string): void {
-  const parsed = parseMapType(typeStr);
-  if (!parsed) return;
-  if (parsed.keyType !== "number") return;
-  if (parsed.valueType === "number" || parsed.valueType === "boolean") return;
-  emitMapKeyError(parsed.valueType, loc, sourceCode);
+  const vt = isMapNumberKey(typeStr);
+  if (vt !== null) {
+    emitMapKeyError(vt, loc, sourceCode);
+  }
+}
+
+function checkMapExpr(expr: Expression, sourceCode: string): void {
+  const m = expr as unknown as MapNode;
+  if (
+    m.keyType === "number" &&
+    m.valueType &&
+    m.valueType !== "number" &&
+    m.valueType !== "boolean"
+  ) {
+    emitMapKeyError(m.valueType, m.loc, sourceCode);
+  }
+}
+
+function checkNewExpr(expr: Expression, sourceCode: string): void {
+  const n = expr as unknown as NewNode;
+  if (n.className !== "Map") return;
+  if (!n.typeArgs || n.typeArgs.length < 2) return;
+  if (n.typeArgs[0] !== "number") return;
+  const vt = n.typeArgs[1];
+  if (vt === "number" || vt === "boolean") return;
+  emitMapKeyError(vt, n.loc, sourceCode);
 }
 
 function checkExpr(expr: Expression | null, sourceCode: string): void {
   if (!expr) return;
-  const e = expr as {
-    type: string;
-    className?: string;
-    typeArgs?: string[];
-    keyType?: string;
-    valueType?: string;
-    loc?: SourceLocation;
-  };
-  if (e.type === "map") {
-    if (
-      e.keyType === "number" &&
-      e.valueType &&
-      e.valueType !== "number" &&
-      e.valueType !== "boolean"
-    ) {
-      emitMapKeyError(e.valueType, e.loc, sourceCode);
-    }
-    return;
+  const exprType = (expr as unknown as MapNode).type;
+  if (exprType === "map") {
+    checkMapExpr(expr, sourceCode);
+  } else if (exprType === "new") {
+    checkNewExpr(expr, sourceCode);
   }
-  if (e.type !== "new") return;
-  if (e.className !== "Map") return;
-  if (!e.typeArgs || e.typeArgs.length < 2) return;
-  if (e.typeArgs[0] !== "number") return;
-  const vt = e.typeArgs[1];
-  if (vt === "number" || vt === "boolean") return;
-  emitMapKeyError(vt, e.loc, sourceCode);
 }
 
 function walkMapCheckBlock(block: BlockStatement, sourceCode: string): void {
@@ -105,7 +109,7 @@ function walkMapCheckBlock(block: BlockStatement, sourceCode: string): void {
 
 function walkMapCheckStmt(stmt: Statement, sourceCode: string): void {
   if (!stmt) return;
-  const t = (stmt as { type: string }).type;
+  const t = (stmt as VariableDeclaration).type;
   if (!t) return;
 
   if (t === "variable_declaration") {
@@ -140,13 +144,12 @@ function walkMapCheckStmt(stmt: Statement, sourceCode: string): void {
 
 export function checkMapKeyTypes(ast: AST, sourceCode: string): void {
   for (let i = 0; i < ast.topLevelStatements.length; i++) {
-    const stmt = ast.topLevelStatements[i] as { type: string };
+    const stmt = ast.topLevelStatements[i] as VariableDeclaration;
     if (stmt.type === "variable_declaration") {
-      const decl = ast.topLevelStatements[i] as unknown as VariableDeclaration;
-      if (decl.declaredType) {
-        checkTypeStr(decl.declaredType, decl.loc, sourceCode);
+      if (stmt.declaredType) {
+        checkTypeStr(stmt.declaredType, stmt.loc, sourceCode);
       }
-      checkExpr(decl.value, sourceCode);
+      checkExpr(stmt.value, sourceCode);
     }
   }
 
