@@ -116,9 +116,8 @@ export class ClassGenerator {
         } else if (ts === "number" || ts === "boolean") {
           return "double";
         }
-        const tsAk1 = classifyArray(ts);
-        if (tsAk1 !== ArrayKind_None) {
-          return arrayKindToLlvm(tsAk1);
+        if (ts.endsWith("[]")) {
+          return "%ObjectArray*";
         }
         const classNode = this.findClassNode(ts);
         if (classNode) {
