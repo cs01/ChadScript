@@ -1881,6 +1881,9 @@ export class CallExpressionGenerator {
         return `%${field.tsType}_struct*`;
       }
     }
+    if (field.fieldType === "i8*" || field.fieldType === "double" || field.fieldType === "i1")
+      return field.fieldType;
+    if (field.fieldType.startsWith("%")) return field.fieldType;
     return "i8*";
   }
 
