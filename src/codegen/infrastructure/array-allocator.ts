@@ -148,6 +148,21 @@ export class ArrayAllocator {
     if (!elementType && stmt.declaredType && isAnyArrayTsType(stmt.declaredType)) {
       elementType = stmt.declaredType.slice(0, -2);
     }
+    if (!elementType && stmt.value && (stmt.value as { type: string }).type === "index_access") {
+      const idxExpr = stmt.value as IndexAccessNode;
+      if (idxExpr.object && (idxExpr.object as { type: string }).type === "variable") {
+        const parentName = (idxExpr.object as VariableNode).name;
+        const parentResolved = this.ctx.symbolTable.getResolvedType(parentName);
+        if (parentResolved && parentResolved.arrayDepth > 1) {
+          elementType = parentResolved.base;
+        } else {
+          const parentRawType = this.ctx.symbolTable.getRawInterfaceType(parentName);
+          if (parentRawType && this.interfaceAlloc.isKnownClass(parentRawType)) {
+            elementType = parentRawType;
+          }
+        }
+      }
+    }
 
     if (elementType) {
       const typeInfo = this.interfaceAlloc.getTypeInfoForElementType(elementType);
