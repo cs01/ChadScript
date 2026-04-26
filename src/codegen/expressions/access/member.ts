@@ -34,6 +34,9 @@ import {
   canonicalTypeToLlvm,
   isObjectArrayTsType,
   isAnyArrayTsType,
+  classifyArray,
+  arrayKindToLlvm,
+  ArrayKind_None,
 } from "../../infrastructure/type-system.js";
 import type { ResolvedType } from "../../infrastructure/type-system.js";
 import type {
@@ -1982,7 +1985,8 @@ export class MemberAccessGenerator {
           .replace(/ \| null/g, "")
           .trim();
       }
-      if (ts.endsWith("[]")) return "%ObjectArray*";
+      const arrKind = classifyArray(ts);
+      if (arrKind !== ArrayKind_None) return arrayKindToLlvm(arrKind);
       if (ts.startsWith("Map<")) return ts.startsWith("Map<string,") ? "%StringMap*" : "%Map*";
       if (ts.startsWith("Set<")) return ts === "Set<string>" ? "%StringSet*" : "%Set*";
       const classFields = this.ctx.classGenGetClassFields(ts);
@@ -3250,9 +3254,11 @@ export class MemberAccessGenerator {
                 this.ctx.setVariableType(value, "%StringArray*");
                 return value;
               } else if (propType.endsWith("[]")) {
+                const arrKind = classifyArray(propType);
+                const llvmType = arrayKindToLlvm(arrKind);
                 const value = this.ctx.nextTemp();
-                this.ctx.emit(`${value} = load %Array*, %Array** ${fieldPtr}`);
-                this.ctx.setVariableType(value, "%Array*");
+                this.ctx.emit(`${value} = load ${llvmType}, ${llvmType}* ${fieldPtr}`);
+                this.ctx.setVariableType(value, llvmType);
                 return value;
               } else {
                 const value = this.ctx.nextTemp();
