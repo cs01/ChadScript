@@ -636,10 +636,17 @@ export class ClassGenerator {
         initType !== "null" &&
         initType !== "array" &&
         initType !== "new" &&
-        initType !== "unary"
+        initType !== "unary" &&
+        initType !== "set" &&
+        initType !== "map"
       )
         continue;
+      const fieldTsType = classField.tsType as string | undefined;
+      if (fieldTsType && fieldTsType.startsWith("Map<")) {
+        this.ctx.setCurrentDeclaredMapType(fieldTsType);
+      }
       const initResult = this.ctx.generateExpression(classField.initializer, constructor.params);
+      this.ctx.setCurrentDeclaredMapType(undefined);
       if (initResult) {
         const fieldPtr = this.nextTemp();
         const llvmType = this.fieldToLlvmType(classField);
@@ -754,10 +761,17 @@ export class ClassGenerator {
           initType !== "null" &&
           initType !== "array" &&
           initType !== "new" &&
-          initType !== "unary"
+          initType !== "unary" &&
+          initType !== "set" &&
+          initType !== "map"
         )
           continue;
+        const fieldTsType2 = cf.tsType as string | undefined;
+        if (fieldTsType2 && fieldTsType2.startsWith("Map<")) {
+          this.ctx.setCurrentDeclaredMapType(fieldTsType2);
+        }
         const initResult = this.ctx.generateExpression(cf.initializer, []);
+        this.ctx.setCurrentDeclaredMapType(undefined);
         if (initResult) {
           const fieldPtr = this.nextTemp();
           const llvmType = fieldLlvmTypes[fi];
