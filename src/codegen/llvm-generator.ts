@@ -113,6 +113,14 @@ import {
   parseMapTypeString,
   isObjectArrayTsType,
   isAnyArrayTsType,
+  classifyArray,
+  arrayKindToLlvm,
+  arrayElementType,
+  ArrayKind_None,
+  ArrayKind_String,
+  ArrayKind_Number,
+  ArrayKind_Boolean,
+  ArrayKind_Object,
   type ResolvedType,
 } from "./infrastructure/type-system.js";
 import { DiagnosticEngine } from "../diagnostics/engine.js";
@@ -1971,47 +1979,43 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           );
           return `@${name} = global ${llvmType} null\n`;
         }
-        if (rt.endsWith("[]")) {
-          const elementType = rt.substring(0, rt.length - 2);
-          if (elementType === "string") {
+        const akRt = classifyArray(rt);
+        if (akRt !== ArrayKind_None) {
+          const elementType = arrayElementType(rt);
+          const llvmType = arrayKindToLlvm(akRt);
+          if (akRt === ArrayKind_String) {
             this.globalVariables.set(name, {
-              llvmType: "%StringArray*",
+              llvmType,
               kind: SymbolKind_StringArray,
               initialized: false,
             });
-            this.defineVariable(
-              name,
-              `@${name}`,
-              "%StringArray*",
-              SymbolKind_StringArray,
-              "global",
-            );
-            return `@${name} = global %StringArray* null\n`;
+            this.defineVariable(name, `@${name}`, llvmType, SymbolKind_StringArray, "global");
+            return `@${name} = global ${llvmType} null\n`;
           }
-          if (elementType === "number" || elementType === "boolean") {
+          if (akRt === ArrayKind_Number || akRt === ArrayKind_Boolean) {
             this.globalVariables.set(name, {
-              llvmType: "%Array*",
+              llvmType,
               kind: SymbolKind_Array,
               initialized: false,
             });
-            this.defineVariable(name, `@${name}`, "%Array*", SymbolKind_Array, "global");
-            return `@${name} = global %Array* null\n`;
+            this.defineVariable(name, `@${name}`, llvmType, SymbolKind_Array, "global");
+            return `@${name} = global ${llvmType} null\n`;
           }
           this.globalVariables.set(name, {
-            llvmType: "%ObjectArray*",
+            llvmType,
             kind: SymbolKind_ObjectArray,
             initialized: false,
           });
           this.defineVariableWithMetadata(
             name,
             `@${name}`,
-            "%ObjectArray*",
+            llvmType,
             SymbolKind_ObjectArray,
             "global",
             createInterfaceMetadata(elementType),
           );
           this.symbolTable.setRawInterfaceType(name, elementType);
-          return `@${name} = global %ObjectArray* null\n`;
+          return `@${name} = global ${llvmType} null\n`;
         }
         if (this.isTypeAlias(rt)) {
           const commonProps = this.getTypeAliasCommonProperties(rt);
@@ -2270,7 +2274,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         const parentGlobal = this.globalVariables.get(parentName);
         if (parentGlobal && parentGlobal.llvmType === "%ObjectArray*") {
           const parentRawType = this.symbolTable.getRawInterfaceType(parentName);
-          if (parentRawType && parentRawType.endsWith("[]")) {
+          if (parentRawType && isAnyArrayTsType(parentRawType)) {
             return {
               llvmType: "%ObjectArray*",
               kind: SymbolKind_ObjectArray,
@@ -2944,15 +2948,27 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               llvmType = "double";
               kind = SymbolKind_Boolean;
               defaultValue = "0.0";
-            } else if (strippedDeclaredType === "string[]") {
-              isStringArray = true;
-            } else if (strippedDeclaredType === "boolean[]") {
-              isUint8Array = true;
-              isArray = false;
-            } else if (strippedDeclaredType === "number[]") {
-              isArray = true;
-            } else if (strippedDeclaredType.endsWith("[]")) {
-              isObjectArray = true;
+            } else {
+              const akDecl = classifyArray(strippedDeclaredType);
+              switch (akDecl) {
+                case ArrayKind_None:
+                  break;
+                case ArrayKind_String:
+                  isStringArray = true;
+                  break;
+                case ArrayKind_Boolean:
+                  isUint8Array = true;
+                  isArray = false;
+                  break;
+                case ArrayKind_Number:
+                  isArray = true;
+                  break;
+                case ArrayKind_Object:
+                  isObjectArray = true;
+                  break;
+                default:
+                  throw new Error(`unknown ArrayKind ${akDecl}`);
+              }
             }
           }
 
@@ -3076,7 +3092,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       this.defineVariable(name, `@${name}`, "%Array*", SymbolKind_Array, "global");
       return `@${name} = global %Array* null\n`;
     }
-    if (baseType.endsWith("[]")) {
+    if (isAnyArrayTsType(baseType)) {
       this.globalVariables.set(name, {
         llvmType: "%ObjectArray*",
         kind: SymbolKind_ObjectArray,

@@ -34,6 +34,9 @@ import {
   canonicalTypeToLlvm,
   isObjectArrayTsType,
   isAnyArrayTsType,
+  classifyArray,
+  arrayKindToLlvm,
+  ArrayKind_None,
 } from "../../infrastructure/type-system.js";
 import type { ResolvedType } from "../../infrastructure/type-system.js";
 import type {
@@ -1065,17 +1068,12 @@ export class MemberAccessGenerator {
       this.ctx.emit(`${value} = load %StringArray*, %StringArray** ${fieldPtr}`);
       this.ctx.setVariableType(value, "%StringArray*");
       return value;
-    } else if (fieldType.endsWith("[]")) {
+    } else if (isAnyArrayTsType(fieldType)) {
       const resolvedTsType = tsType || fieldType;
-      const isObjectArray = isObjectArrayTsType(resolvedTsType);
+      const llvmT = arrayKindToLlvm(classifyArray(resolvedTsType));
       const value = this.ctx.nextTemp();
-      if (isObjectArray) {
-        this.ctx.emit(`${value} = load %ObjectArray*, %ObjectArray** ${fieldPtr}`);
-        this.ctx.setVariableType(value, "%ObjectArray*");
-      } else {
-        this.ctx.emit(`${value} = load %Array*, %Array** ${fieldPtr}`);
-        this.ctx.setVariableType(value, "%Array*");
-      }
+      this.ctx.emit(`${value} = load ${llvmT}, ${llvmT}* ${fieldPtr}`);
+      this.ctx.setVariableType(value, llvmT);
       return value;
     } else if (fieldType === "boolean") {
       const value = this.ctx.nextTemp();
@@ -1128,16 +1126,11 @@ export class MemberAccessGenerator {
       this.ctx.emit(`${value} = load double, double* ${fieldPtr}`);
       this.ctx.setVariableType(value, "double");
       return value;
-    } else if (tsType && tsType.endsWith("[]")) {
-      const isObjectArray = isObjectArrayTsType(tsType);
+    } else if (tsType && isAnyArrayTsType(tsType)) {
+      const llvmT = arrayKindToLlvm(classifyArray(tsType));
       const value = this.ctx.nextTemp();
-      if (isObjectArray) {
-        this.ctx.emit(`${value} = load %ObjectArray*, %ObjectArray** ${fieldPtr}`);
-        this.ctx.setVariableType(value, "%ObjectArray*");
-      } else {
-        this.ctx.emit(`${value} = load %Array*, %Array** ${fieldPtr}`);
-        this.ctx.setVariableType(value, "%Array*");
-      }
+      this.ctx.emit(`${value} = load ${llvmT}, ${llvmT}* ${fieldPtr}`);
+      this.ctx.setVariableType(value, llvmT);
       return value;
     }
     const value = this.ctx.nextTemp();
@@ -1521,20 +1514,11 @@ export class MemberAccessGenerator {
       this.ctx.emit(`${value} = load double, double* ${fieldPtr}`);
       this.ctx.setVariableType(value, "double");
       return value;
-    } else if (propType === "string[]") {
+    } else if (isAnyArrayTsType(propType)) {
+      const llvmT = arrayKindToLlvm(classifyArray(propType));
       const value = this.ctx.nextTemp();
-      this.ctx.emit(`${value} = load %StringArray*, %StringArray** ${fieldPtr}`);
-      this.ctx.setVariableType(value, "%StringArray*");
-      return value;
-    } else if (propType === "number[]" || propType === "boolean[]") {
-      const value = this.ctx.nextTemp();
-      this.ctx.emit(`${value} = load %Array*, %Array** ${fieldPtr}`);
-      this.ctx.setVariableType(value, "%Array*");
-      return value;
-    } else if (propType.endsWith("[]")) {
-      const value = this.ctx.nextTemp();
-      this.ctx.emit(`${value} = load %ObjectArray*, %ObjectArray** ${fieldPtr}`);
-      this.ctx.setVariableType(value, "%ObjectArray*");
+      this.ctx.emit(`${value} = load ${llvmT}, ${llvmT}* ${fieldPtr}`);
+      this.ctx.setVariableType(value, llvmT);
       return value;
     } else {
       let nestedTypeName = propType;
@@ -1982,7 +1966,8 @@ export class MemberAccessGenerator {
           .replace(/ \| null/g, "")
           .trim();
       }
-      if (ts.endsWith("[]")) return "%ObjectArray*";
+      const akTs = classifyArray(ts);
+      if (akTs !== ArrayKind_None) return arrayKindToLlvm(akTs);
       if (ts.startsWith("Map<")) return ts.startsWith("Map<string,") ? "%StringMap*" : "%Map*";
       if (ts.startsWith("Set<")) return ts === "Set<string>" ? "%StringSet*" : "%Set*";
       const classFields = this.ctx.classGenGetClassFields(ts);
@@ -3244,15 +3229,11 @@ export class MemberAccessGenerator {
                 this.ctx.emit(`${boolVal} = load double, double* ${fieldPtr}`);
                 this.ctx.setVariableType(boolVal, "double");
                 return boolVal;
-              } else if (propType === "string[]") {
+              } else if (isAnyArrayTsType(propType)) {
+                const llvmT = arrayKindToLlvm(classifyArray(propType));
                 const value = this.ctx.nextTemp();
-                this.ctx.emit(`${value} = load %StringArray*, %StringArray** ${fieldPtr}`);
-                this.ctx.setVariableType(value, "%StringArray*");
-                return value;
-              } else if (propType.endsWith("[]")) {
-                const value = this.ctx.nextTemp();
-                this.ctx.emit(`${value} = load %Array*, %Array** ${fieldPtr}`);
-                this.ctx.setVariableType(value, "%Array*");
+                this.ctx.emit(`${value} = load ${llvmT}, ${llvmT}* ${fieldPtr}`);
+                this.ctx.setVariableType(value, llvmT);
                 return value;
               } else {
                 const value = this.ctx.nextTemp();

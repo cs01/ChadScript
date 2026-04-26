@@ -113,12 +113,12 @@ export class ClassGenerator {
           return "%StringSet*";
         } else if (ts.startsWith("Set<")) {
           return "%Set*";
-        } else if (ts.endsWith("[]")) {
-          return "%ObjectArray*";
         } else if (ts === "number" || ts === "boolean") {
           return "double";
-        } else if (ts === "number[]" || ts === "boolean[]") {
-          return "%Array*";
+        }
+        const tsAk1 = classifyArray(ts);
+        if (tsAk1 !== ArrayKind_None) {
+          return arrayKindToLlvm(tsAk1);
         }
         const classNode = this.findClassNode(ts);
         if (classNode) {
@@ -138,9 +138,12 @@ export class ClassGenerator {
       return "i8*";
     } else if (ft === "string[]") {
       return "%StringArray*";
-    } else if (ft.endsWith("[]")) {
-      return "%Array*";
-    } else if (ft === "boolean") {
+    }
+    const ftAk = classifyArray(ft);
+    if (ftAk !== ArrayKind_None) {
+      return arrayKindToLlvm(ftAk);
+    }
+    if (ft === "boolean") {
       return "double";
     } else if (ts) {
       if (ts.startsWith("Map<string,")) {
@@ -153,11 +156,12 @@ export class ClassGenerator {
         return "%Set*";
       } else if (ts === "number" || ts === "boolean") {
         return "double";
-      } else if (ts === "number[]" || ts === "boolean[]") {
-        return "%Array*";
-      } else if (ts.endsWith("[]")) {
-        return "%ObjectArray*";
-      } else {
+      }
+      const tsAk2 = classifyArray(ts);
+      if (tsAk2 !== ArrayKind_None) {
+        return arrayKindToLlvm(tsAk2);
+      }
+      {
         const classNode = this.findClassNode(ts);
         if (classNode) {
           return "%" + ts + "_struct*";
