@@ -254,12 +254,45 @@ class TypeAssertionChecker {
     }
   }
 
+  private checkOpaqueSource(ta: TypeAssertionNode, fields: InterfaceField[]): void {
+    const inner = ta.expression as { type: string };
+    if (inner.type !== "type_assertion") return;
+    const innerTa = ta.expression as TypeAssertionNode;
+    const src = innerTa.assertedType;
+    if (src !== "unknown" && src !== "any" && src !== "object") return;
+
+    const fieldNames: string[] = [];
+    for (let i = 0; i < fields.length; i++) {
+      fieldNames.push(this.stripOpt((fields[i] as InterfaceField).name));
+    }
+
+    const output = formatCompileError(
+      this.sourceCode,
+      "inline type assertion 'as { " +
+        fieldNames.join("; ") +
+        " }' on opaque source (via 'as " +
+        src +
+        "') produces wrong GEP indices at runtime",
+      ta.loc,
+      "use 'as NamedInterface' instead of inline '{ ... }' when casting from '" + src + "'",
+      [
+        "inline assertion field positions become GEP indices in native code",
+        "opaque sources have no source interface for the prefix checker to verify against",
+        "declare a named interface with the correct field layout and cast to that",
+      ],
+    );
+    process.stderr.write(output);
+    process.exit(1);
+  }
+
   private validateInlineAssertion(ta: TypeAssertionNode): void {
     const assertedType = ta.assertedType;
     if (!assertedType.startsWith("{")) return;
 
     const parsedFields = this.parseInlineFields(assertedType);
     if (parsedFields.length < 2) return;
+
+    this.checkOpaqueSource(ta, parsedFields);
 
     const assertedNames: string[] = [];
     for (let i = 0; i < parsedFields.length; i++) {
