@@ -1466,6 +1466,10 @@ export class ClassGenerator {
     if (retAk !== ArrayKind_None) return arrayKindToLlvm(retAk);
     if (returnType === "void") return "void";
     if (returnType === "number" || returnType === "boolean") return "double";
+    if (returnType.startsWith("Map<"))
+      return returnType.startsWith("Map<string,") ? "%StringMap*" : "%Map*";
+    if (returnType === "Set<string>") return "%StringSet*";
+    if (returnType.startsWith("Set<")) return "%Set*";
     if (this.isEnumType(returnType)) return "double";
     if (returnType.indexOf(" | ") !== -1) {
       const parts = returnType.split(" | ");
@@ -1733,6 +1737,11 @@ export class ClassGenerator {
     if (prim) return prim;
     const ak = classifyArray(fieldType);
     if (ak !== ArrayKind_None) return arrayKindToLlvm(ak);
+    if (fieldType.startsWith("Map<"))
+      return fieldType.startsWith("Map<string,") ? "%StringMap*" : "%Map*";
+    if (fieldType === "Set<string>") return "%StringSet*";
+    if (fieldType.startsWith("Set<")) return "%Set*";
+    if (this.isEnumType(fieldType)) return "double";
     if (fieldType.indexOf(" | ") !== -1) {
       const parts = fieldType.split(" | ");
       for (let i = 0; i < parts.length; i++) {
