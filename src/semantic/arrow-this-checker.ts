@@ -10,7 +10,6 @@ import type {
   IndexAccessNode,
   ArrayNode,
   ObjectNode,
-  TemplateLiteralNode,
   TypeAssertionNode,
   AwaitExpressionNode,
   NewNode,
@@ -51,12 +50,15 @@ function exprContainsThis(expr: Expression): SourceLocation | undefined {
   const e = expr as { type: string; loc?: SourceLocation };
 
   if (e.type === "this") return e.loc;
-
   if (e.type === "function") return undefined;
 
   if (e.type === "arrow_function") {
     const arrow = expr as unknown as ArrowFunctionNode;
-    return bodyContainsThis(arrow.body);
+    const b = arrow.body as { type: string };
+    if (b.type === "block") {
+      return blockContainsThis(arrow.body as BlockStatement);
+    }
+    return exprContainsThis(arrow.body as Expression);
   }
 
   if (e.type === "method_call") {
@@ -131,19 +133,6 @@ function exprContainsThis(expr: Expression): SourceLocation | undefined {
     for (let i = 0; i < obj.properties.length; i++) {
       const r = exprContainsThis(obj.properties[i].value);
       if (r) return r;
-    }
-    return undefined;
-  }
-
-  if (e.type === "template_literal") {
-    const tl = expr as unknown as TemplateLiteralNode;
-    if (tl.parts) {
-      for (let i = 0; i < tl.parts.length; i++) {
-        if (typeof tl.parts[i] !== "string") {
-          const r = exprContainsThis(tl.parts[i] as Expression);
-          if (r) return r;
-        }
-      }
     }
     return undefined;
   }
@@ -289,28 +278,20 @@ function statementsContainThis(stmts: Statement[]): SourceLocation | undefined {
   return undefined;
 }
 
-function bodyContainsThis(body: Expression | BlockStatement): SourceLocation | undefined {
-  if (!body) return undefined;
-  const b = body as { type: string };
-  if (b.type === "block") {
-    return blockContainsThis(body as BlockStatement);
-  }
-  return exprContainsThis(body as Expression);
-}
-
-function checkArrow(arrow: ArrowFunctionNode, sourceCode: string): void {
-  const loc = bodyContainsThis(arrow.body);
-  if (loc) {
-    emitError(loc, sourceCode);
-  }
-}
-
 function walkExprForArrows(expr: Expression, sourceCode: string): void {
   if (!expr) return;
   const e = expr as { type: string };
 
   if (e.type === "arrow_function") {
-    checkArrow(expr as unknown as ArrowFunctionNode, sourceCode);
+    const arrow = expr as unknown as ArrowFunctionNode;
+    const b = arrow.body as { type: string };
+    let loc: SourceLocation | undefined;
+    if (b.type === "block") {
+      loc = blockContainsThis(arrow.body as BlockStatement);
+    } else {
+      loc = exprContainsThis(arrow.body as Expression);
+    }
+    if (loc) emitError(loc, sourceCode);
     return;
   }
 
@@ -406,18 +387,6 @@ function walkExprForArrows(expr: Expression, sourceCode: string): void {
     if (nw.args) {
       for (let i = 0; i < nw.args.length; i++) {
         walkExprForArrows(nw.args[i], sourceCode);
-      }
-    }
-    return;
-  }
-
-  if (e.type === "template_literal") {
-    const tl = expr as unknown as TemplateLiteralNode;
-    if (tl.parts) {
-      for (let i = 0; i < tl.parts.length; i++) {
-        if (typeof tl.parts[i] !== "string") {
-          walkExprForArrows(tl.parts[i] as Expression, sourceCode);
-        }
       }
     }
     return;
