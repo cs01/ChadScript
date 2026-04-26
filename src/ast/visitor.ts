@@ -44,6 +44,7 @@ import {
   ThrowStatement,
   TryStatement,
   SwitchStatement,
+  SwitchCase,
   FunctionNode,
   ClassNode,
   ClassMethod,
@@ -283,7 +284,7 @@ export class RecursiveASTVisitor {
   visitSwitchStatement(node: SwitchStatement): void {
     this.visitExpression(node.discriminant);
     for (let i = 0; i < node.cases.length; i++) {
-      const c = node.cases[i];
+      const c = node.cases[i] as SwitchCase;
       if (c.test) {
         this.visitExpression(c.test);
       }

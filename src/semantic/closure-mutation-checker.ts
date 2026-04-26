@@ -18,6 +18,7 @@ import type {
   ForOfStatement,
   TryStatement,
   SwitchStatement,
+  SwitchCase,
   ReturnStatement,
   ThrowStatement,
   ArrowFunctionNode,
@@ -172,7 +173,7 @@ class ClosureMutationChecker {
       const switchStmt = stmt as SwitchStatement;
       this.scanExprForCaptures(switchStmt.discriminant, scopeVarNames, capturedNames);
       for (let ci = 0; ci < switchStmt.cases.length; ci++) {
-        const c = switchStmt.cases[ci];
+        const c = switchStmt.cases[ci] as SwitchCase;
         if (c.test !== null && c.test !== undefined) {
           this.scanExprForCaptures(c.test as Expression, scopeVarNames, capturedNames);
         }

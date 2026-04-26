@@ -11,6 +11,7 @@ import type {
   ForOfStatement,
   TryStatement,
   SwitchStatement,
+  SwitchCase,
   ReturnStatement,
   ThrowStatement,
   CallNode,
@@ -130,7 +131,7 @@ class AsyncAwaitChecker {
       const switchStmt = stmt as SwitchStatement;
       this.checkExpr(switchStmt.discriminant, insideAsync);
       for (let ci = 0; ci < switchStmt.cases.length; ci++) {
-        const c = switchStmt.cases[ci];
+        const c = switchStmt.cases[ci] as SwitchCase;
         if (c.test !== null && c.test !== undefined) {
           this.checkExpr(c.test as Expression, insideAsync);
         }

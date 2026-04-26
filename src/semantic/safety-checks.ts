@@ -12,6 +12,7 @@ import type {
   ForOfStatement,
   TryStatement,
   SwitchStatement,
+  SwitchCase,
   ReturnStatement,
   ThrowStatement,
   BlockStatement,
@@ -157,7 +158,7 @@ function binWalkStmt(stmt: Statement, src: string): void {
     const sw = stmt as SwitchStatement;
     checkBinExpr(sw.discriminant, src);
     for (let ci = 0; ci < sw.cases.length; ci++) {
-      const c = sw.cases[ci];
+      const c = sw.cases[ci] as SwitchCase;
       if (c.test) checkBinExpr(c.test as Expression, src);
       binWalkStmts(c.consequent, src);
     }
@@ -245,8 +246,10 @@ function mrAllReturn(stmts: Statement[], nn: string[]): boolean {
       let hasDef = false;
       let allRet = true;
       for (let ci = 0; ci < sw.cases.length; ci++) {
-        if (sw.cases[ci].test === null) hasDef = true;
-        if (!mrAllReturn(sw.cases[ci].consequent, nn)) allRet = false;
+        const sc = sw.cases[ci] as SwitchCase;
+        if (sc.test === null) hasDef = true;
+        if (sc.consequent.length === 0) continue;
+        if (!mrAllReturn(sc.consequent, nn)) allRet = false;
       }
       if (hasDef && allRet) return true;
       continue;
@@ -435,7 +438,7 @@ class ArgCheckState {
       const sw = stmt as SwitchStatement;
       this.checkExpr(sw.discriminant);
       for (let ci = 0; ci < sw.cases.length; ci++) {
-        const c = sw.cases[ci];
+        const c = sw.cases[ci] as SwitchCase;
         if (c.test) this.checkExpr(c.test as Expression);
         this.walkStmts(c.consequent);
       }

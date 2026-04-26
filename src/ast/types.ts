@@ -388,6 +388,7 @@ export type TopLevelItem =
   | WhileStatement
   | DoWhileStatement
   | IfStatement
+  | SwitchStatement
   | TryStatement
   | ThrowStatement
   | CallNode
