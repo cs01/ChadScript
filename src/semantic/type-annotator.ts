@@ -28,6 +28,7 @@ import type {
   ForOfStatement,
   TryStatement,
   SwitchStatement,
+  SwitchCase,
   ReturnStatement,
   ThrowStatement,
   ArrowFunctionNode,
@@ -293,7 +294,7 @@ class TypeAnnotator {
       const sw = stmt as SwitchStatement;
       this.visitExpr(sw.discriminant);
       for (let ci = 0; ci < sw.cases.length; ci++) {
-        const c = sw.cases[ci];
+        const c = sw.cases[ci] as SwitchCase;
         if (c.test) this.visitExpr(c.test as Expression);
         this.walkStmts(c.consequent);
       }

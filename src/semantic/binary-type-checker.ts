@@ -16,6 +16,7 @@ import type {
   ForOfStatement,
   TryStatement,
   SwitchStatement,
+  SwitchCase,
   ReturnStatement,
   ThrowStatement,
   BlockStatement,
@@ -178,7 +179,7 @@ function walkStmt(stmt: object, src: string): void {
     checkBinaryInExpr(sw.discriminant, src);
     let ci = 0;
     while (ci < sw.cases.length) {
-      const c = sw.cases[ci];
+      const c = sw.cases[ci] as SwitchCase;
       if (c.test) checkBinaryInExpr(c.test as Expression, src);
       walkStmts(c.consequent, src);
       ci = ci + 1;

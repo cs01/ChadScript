@@ -12,6 +12,7 @@ import {
   AssignmentStatement,
   CommonField,
   SwitchStatement,
+  SwitchCase,
   SourceLocation,
   Statement,
   InterfaceDeclaration,
@@ -870,7 +871,7 @@ export class FunctionGenerator {
         const switchStmt = block.statements[i] as SwitchStatement;
         if (!switchStmt.cases) continue;
         for (let j = 0; j < switchStmt.cases.length; j++) {
-          const caseItem = switchStmt.cases[j];
+          const caseItem = switchStmt.cases[j] as SwitchCase;
           if (!caseItem) continue;
           if (!caseItem.consequent) continue;
           for (let k = 0; k < caseItem.consequent.length; k++) {

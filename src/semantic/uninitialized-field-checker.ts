@@ -12,6 +12,7 @@ import type {
   ForOfStatement,
   TryStatement,
   SwitchStatement,
+  SwitchCase,
   MemberAccessAssignmentNode,
 } from "../ast/types.js";
 import { formatCompileError } from "../diagnostics/engine.js";
@@ -151,7 +152,7 @@ class UninitializedFieldChecker {
     } else if (s.type === "switch") {
       const sw = stmt as SwitchStatement;
       for (let i = 0; i < sw.cases.length; i++) {
-        this.walkStatements(sw.cases[i].consequent, assigned);
+        this.walkStatements((sw.cases[i] as SwitchCase).consequent, assigned);
       }
     }
   }

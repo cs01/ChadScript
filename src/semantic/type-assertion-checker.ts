@@ -21,6 +21,7 @@ import type {
   ForOfStatement,
   TryStatement,
   SwitchStatement,
+  SwitchCase,
   ReturnStatement,
   ThrowStatement,
   ArrowFunctionNode,
@@ -113,7 +114,7 @@ class TypeAssertionChecker {
       const switchStmt = stmt as SwitchStatement;
       this.checkExpr(switchStmt.discriminant);
       for (let i = 0; i < switchStmt.cases.length; i++) {
-        const c = switchStmt.cases[i];
+        const c = switchStmt.cases[i] as SwitchCase;
         if (c.test) this.checkExpr(c.test as Expression);
         this.walkStatements(c.consequent);
       }

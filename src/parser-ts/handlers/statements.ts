@@ -16,6 +16,8 @@ import {
   IndexAccessNode,
   MemberAccessNode,
   VariableNode,
+  SwitchStatement,
+  SwitchCase,
 } from "../../ast/types.js";
 import { transformExpression } from "./expressions.js";
 import { getLoc } from "../transformer.js";
@@ -84,7 +86,7 @@ export function transformStatement(
       return null;
 
     case ts.SyntaxKind.SwitchStatement:
-      return transformSwitchToIfElse(node as ts.SwitchStatement, checker);
+      return transformSwitchToAst(node as ts.SwitchStatement, checker) as unknown as Statement;
 
     case ts.SyntaxKind.LabeledStatement: {
       const loc = getLoc(node);
@@ -671,83 +673,39 @@ function wrapInBlock(statement: ts.Statement, checker: ts.TypeChecker | undefine
   return { type: "block", statements: transformed ? [transformed] : [] };
 }
 
-function transformSwitchToIfElse(
+function transformSwitchToAst(
   node: ts.SwitchStatement,
   checker: ts.TypeChecker | undefined,
-): IfStatement {
-  const switchExpr = transformExpression(node.expression, checker);
+): SwitchStatement {
+  const discriminant = transformExpression(node.expression, checker);
+  const cases: SwitchCase[] = [];
 
-  const clauses = node.caseBlock.clauses;
-  let result: IfStatement | null = null;
-  let current: IfStatement | null = null;
-  let pendingConditions: Expression[] = [];
-
-  for (const clause of clauses) {
+  for (const clause of node.caseBlock.clauses) {
     if (ts.isCaseClause(clause)) {
-      const caseExpr = transformExpression(clause.expression, checker);
-      const condition: Expression = {
-        type: "binary",
-        op: "===",
-        left: switchExpr,
-        right: caseExpr,
-      };
-
-      const statements: Statement[] = [];
+      const test = transformExpression(clause.expression, checker);
+      const consequent: Statement[] = [];
       for (const stmt of clause.statements) {
-        if (stmt.kind === ts.SyntaxKind.BreakStatement) continue;
-        const transformed = transformStatement(stmt, checker);
-        if (transformed) statements.push(transformed);
-      }
-
-      if (statements.length === 0) {
-        pendingConditions.push(condition);
-      } else {
-        let finalCondition: Expression = condition;
-        for (let k = pendingConditions.length - 1; k >= 0; k--) {
-          finalCondition = {
-            type: "binary",
-            op: "||",
-            left: pendingConditions[k],
-            right: finalCondition,
-          };
-        }
-        pendingConditions = [];
-
-        const ifStmt: IfStatement = {
-          type: "if",
-          condition: finalCondition,
-          thenBlock: { type: "block", statements },
-          elseBlock: null,
-        };
-
-        if (!result) {
-          result = ifStmt;
-          current = ifStmt;
-        } else if (current) {
-          current.elseBlock = { type: "block", statements: [ifStmt] };
-          current = ifStmt;
+        if (stmt.kind === ts.SyntaxKind.BreakStatement) {
+          consequent.push({ type: "break" } as Statement);
+        } else {
+          const transformed = transformStatement(stmt, checker);
+          if (transformed) consequent.push(transformed);
         }
       }
+      cases.push({ test, consequent });
     } else if (ts.isDefaultClause(clause)) {
-      const statements: Statement[] = [];
+      const consequent: Statement[] = [];
       for (const stmt of clause.statements) {
-        if (stmt.kind === ts.SyntaxKind.BreakStatement) continue;
-        const transformed = transformStatement(stmt, checker);
-        if (transformed) statements.push(transformed);
+        if (stmt.kind === ts.SyntaxKind.BreakStatement) {
+          consequent.push({ type: "break" } as Statement);
+        } else {
+          const transformed = transformStatement(stmt, checker);
+          if (transformed) consequent.push(transformed);
+        }
       }
-
-      if (current) {
-        current.elseBlock = { type: "block", statements };
-      }
+      cases.push({ test: null, consequent });
     }
   }
 
-  return (
-    result || {
-      type: "if",
-      condition: { type: "boolean", value: false },
-      thenBlock: { type: "block", statements: [] },
-      elseBlock: null,
-    }
-  );
+  return { type: "switch", discriminant, cases };
 }

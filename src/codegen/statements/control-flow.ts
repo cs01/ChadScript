@@ -54,11 +54,13 @@ export class ControlFlowGenerator {
   private loopContinueLabels: string[];
   private loopBreakLabels: string[];
   private forOfGen: ForOfGenerator;
+  private switchBreakHit: boolean;
 
   constructor(private ctx: IGeneratorContext) {
     this.loopContinueLabels = [];
     this.loopBreakLabels = [];
     this.forOfGen = new ForOfGenerator(ctx, this.loopContinueLabels, this.loopBreakLabels);
+    this.switchBreakHit = false;
   }
 
   // Helper methods delegate to context
@@ -534,6 +536,7 @@ export class ControlFlowGenerator {
     }
     const breakLabel = this.loopBreakLabels[this.loopBreakLabels.length - 1];
     this.ctx.emitBr(breakLabel);
+    this.switchBreakHit = true;
     return "0";
   }
 
@@ -1108,12 +1111,13 @@ export class ControlFlowGenerator {
 
     this.loopContinueLabels.push("");
     this.loopBreakLabels.push(endLabel);
+    this.switchBreakHit = false;
 
     const caseLabels: string[] = [];
     let defaultLabelIndex: number = -1;
 
     for (let i = 0; i < switchStmt.cases.length; i++) {
-      const caseItem = switchStmt.cases[i];
+      const caseItem = switchStmt.cases[i] as SwitchCase;
       if (!caseItem) continue;
       if (caseItem.test === null) {
         defaultLabelIndex = i;
@@ -1128,7 +1132,7 @@ export class ControlFlowGenerator {
     let checkLabels: string[] = [];
     let testCaseCount = 0;
     for (let i = 0; i < switchStmt.cases.length; i++) {
-      const caseItem = switchStmt.cases[i];
+      const caseItem = switchStmt.cases[i] as SwitchCase;
       if (!caseItem) continue;
       if (caseItem.test !== null) {
         testCaseCount++;
@@ -1141,7 +1145,7 @@ export class ControlFlowGenerator {
 
     let checkIndex = 0;
     for (let i = 0; i < switchStmt.cases.length; i++) {
-      const caseItem = switchStmt.cases[i];
+      const caseItem = switchStmt.cases[i] as SwitchCase;
       if (!caseItem) continue;
       if (caseItem.test !== null) {
         if (checkIndex > 0) {
@@ -1170,49 +1174,34 @@ export class ControlFlowGenerator {
       }
     }
 
+    let endReachable = defaultLabelIndex < 0;
+
     for (let i = 0; i < switchStmt.cases.length; i++) {
-      const caseItem = switchStmt.cases[i];
+      const caseItem = switchStmt.cases[i] as SwitchCase;
       if (!caseItem) continue;
       this.ctx.emitLabel(caseLabels[i]);
       this.ctx.setCurrentLabel(caseLabels[i]);
 
-      for (let j = 0; j < caseItem.consequent.length; j++) {
-        const consequentStmt = caseItem.consequent[j];
-        if (!consequentStmt) continue;
-        if (consequentStmt.type === "break") {
-          this.ctx.emitBr(endLabel);
-        } else if (
-          consequentStmt.type === "variable_declaration" ||
-          consequentStmt.type === "return" ||
-          consequentStmt.type === "if" ||
-          consequentStmt.type === "assignment" ||
-          consequentStmt.type === "throw" ||
-          consequentStmt.type === "while" ||
-          consequentStmt.type === "for" ||
-          consequentStmt.type === "for_of" ||
-          consequentStmt.type === "continue" ||
-          consequentStmt.type === "try" ||
-          consequentStmt.type === "switch"
-        ) {
-          this.ctx.generateBlock({ type: "block", statements: [consequentStmt] }, params);
-        } else {
-          this.ctx.generateExpression(consequentStmt as Expression, params);
-        }
+      if (caseItem.consequent.length > 0) {
+        this.ctx.generateBlock({ type: "block", statements: caseItem.consequent }, params);
       }
 
-      const lastStmt = caseItem.consequent[caseItem.consequent.length - 1];
-      if (
-        !lastStmt ||
-        (lastStmt.type !== "break" && lastStmt.type !== "return" && lastStmt.type !== "throw")
-      ) {
+      if (!this.ctx.lastInstructionIsTerminator()) {
         const nextCaseLabel = i < switchStmt.cases.length - 1 ? caseLabels[i + 1] : endLabel;
         this.ctx.emitBr(nextCaseLabel);
+        if (nextCaseLabel === endLabel) endReachable = true;
       }
     }
 
+    if (this.switchBreakHit) endReachable = true;
+
     this.loopContinueLabels.pop();
     this.loopBreakLabels.pop();
+
     this.ctx.emitLabel(endLabel);
+    if (!endReachable) {
+      this.ctx.emitUnreachable();
+    }
 
     return "0";
   }

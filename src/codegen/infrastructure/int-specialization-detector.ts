@@ -54,6 +54,7 @@ import type {
   ThrowStatement,
   TryStatement,
   SwitchStatement,
+  SwitchCase,
   BlockStatement,
 } from "../../ast/types.js";
 import { findI64EligibleVariables } from "./integer-analysis.js";
@@ -514,7 +515,7 @@ function collectEscapedVarRefsStmts(stmts: Statement[], out: string[]): void {
       collectEscapedVarRefsExpr(sw.discriminant, out);
       if (sw.cases) {
         for (let j = 0; j < sw.cases.length; j++) {
-          const cs = sw.cases[j];
+          const cs = sw.cases[j] as SwitchCase;
           if (cs.test) collectEscapedVarRefsExpr(cs.test, out);
           if (cs.consequent) collectEscapedVarRefsStmts(cs.consequent, out);
         }
