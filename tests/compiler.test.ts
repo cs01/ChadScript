@@ -23,6 +23,7 @@ if (!process.env.CHADC_COMPILER) {
 const compilerBase = process.env.CHADC_COMPILER;
 const compiler = `${compilerBase} build`;
 const compilerLabel = compilerBase.includes("chad-node") ? "node" : "native";
+const buildDir = process.env.CHADC_BUILD_DIR || ".build";
 
 describe(`ChadScript Compiler (${compilerLabel})`, () => {
   describe("Compilation and Execution", { concurrency: 32 }, () => {
@@ -32,7 +33,7 @@ describe(`ChadScript Compiler (${compilerLabel})`, () => {
         const fixturePath = testCase.fixture; // Use relative path, not resolved
         // Binaries now go in .build/ directory
         const fixtureDir = path.dirname(testCase.fixture);
-        const outputDir = path.join(".build", fixtureDir);
+        const outputDir = path.join(buildDir, fixtureDir);
         const extension = path.extname(fixturePath);
         const baseName = path.basename(fixturePath, extension);
         const llFile = path.join(outputDir, `${baseName}.ll`);
@@ -51,7 +52,7 @@ describe(`ChadScript Compiler (${compilerLabel})`, () => {
           if (testCase.compileError) {
             await assert.rejects(
               async () => {
-                await execAsync(`${compiler} ${fixturePath}`);
+                await execAsync(`${compiler} ${fixturePath} -o ${exeFile}`);
               },
               (err: any) => {
                 const output = (err.stderr || "") + (err.stdout || "") + (err.message || "");
@@ -69,8 +70,7 @@ describe(`ChadScript Compiler (${compilerLabel})`, () => {
             return;
           }
 
-          // Compile the fixture (no console.log to avoid parallel output issues)
-          await execAsync(`${compiler} ${fixturePath}`);
+          await execAsync(`${compiler} ${fixturePath} -o ${exeFile}`);
 
           // Verify executable was generated (intermediate files are cleaned up by default)
           assert.ok(fsSync.existsSync(exeFile), `Executable should exist at ${exeFile}`);
@@ -131,7 +131,7 @@ describe(`ChadScript Compiler (${compilerLabel})`, () => {
   describe("LLVM IR Generation", () => {
     it("should generate valid LLVM IR structure", async () => {
       const fixturePath = "tests/fixtures/arithmetic/simple-add.ts"; // Use relative path
-      const outputDir = path.join(".build", path.dirname(fixturePath));
+      const outputDir = path.join(buildDir, path.dirname(fixturePath));
       const baseName = path.basename(fixturePath, ".ts");
       const llFile = path.join(outputDir, `${baseName}.ll`);
 
@@ -143,7 +143,7 @@ describe(`ChadScript Compiler (${compilerLabel})`, () => {
       }
 
       try {
-        await execAsync(`${compilerBase} ir ${fixturePath}`);
+        await execAsync(`${compilerBase} ir ${fixturePath} -o ${path.join(outputDir, baseName)}`);
 
         // Read and verify LLVM IR
         const llContent = await fs.readFile(llFile, "utf-8");
