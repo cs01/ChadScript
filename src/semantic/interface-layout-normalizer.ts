@@ -221,20 +221,21 @@ export class InterfaceLayoutNormalizer {
     if (ast.classes) {
       for (let i = 0; i < ast.classes.length; i++) this.visitClass(ast.classes[i]);
     }
-    if (ast.topLevelStatements) {
-      for (let i = 0; i < ast.topLevelStatements.length; i++) {
-        this.visitStatement(ast.topLevelStatements[i]);
-      }
-    }
-    if (ast.topLevelExpressions) {
-      for (let i = 0; i < ast.topLevelExpressions.length; i++) {
-        const e = ast.topLevelExpressions[i];
-        const t = (e as { type: string }).type;
-        if (t === "if" || t === "while" || t === "for" || t === "for_of" || t === "try") {
-          this.visitStatement(e as unknown as Statement);
-        } else {
-          this.visitExpression(e as unknown as Expression);
-        }
+    const items = ast.topLevelItems || [];
+    for (let i = 0; i < items.length; i++) {
+      const t = (items[i] as { type: string }).type;
+      if (
+        t === "variable_declaration" ||
+        t === "assignment" ||
+        t === "if" ||
+        t === "while" ||
+        t === "for" ||
+        t === "for_of" ||
+        t === "try"
+      ) {
+        this.visitStatement(items[i] as unknown as Statement);
+      } else {
+        this.visitExpression(items[i] as unknown as Expression);
       }
     }
   }
