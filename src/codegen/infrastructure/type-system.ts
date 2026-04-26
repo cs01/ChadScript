@@ -221,6 +221,14 @@ export function createFloatType(): ResolvedType {
   return createResolvedType("number", { numericKind: "float" });
 }
 
+export function fieldTypeToLlvmPrimitive(fieldType: string): string | null {
+  if (fieldType === "string") return "i8*";
+  if (fieldType === "number") return "double";
+  if (fieldType === "boolean") return "double";
+  if (fieldType.startsWith("'") || fieldType.startsWith('"')) return "i8*";
+  return null;
+}
+
 export function tsTypeToLlvm(tsType: string): string {
   return canonicalTypeToLlvm(tsType, "default", false, false, "");
 }
