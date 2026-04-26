@@ -36,6 +36,30 @@ import type {
 } from "../ast/types.js";
 import { formatCompileError } from "../diagnostics/engine.js";
 
+const BUILTIN_MODULES = new Set([
+  "fs",
+  "path",
+  "os",
+  "child_process",
+  "process",
+  "console",
+  "assert",
+  "net",
+  "tls",
+  "crypto",
+  "http",
+  "https",
+  "url",
+  "util",
+  "stream",
+  "events",
+  "buffer",
+  "dgram",
+  "dns",
+  "readline",
+  "zlib",
+]);
+
 export function checkUnsupportedPatterns(ast: AST, sourceCode: string): void {
   const imports = ast.imports || [];
   const nonRelativeImports: string[] = [];
@@ -45,7 +69,7 @@ export function checkUnsupportedPatterns(ast: AST, sourceCode: string): void {
     if (!imp) continue;
     const src = imp.source;
     const isRelative = src.startsWith("./") || src.startsWith("../") || src.startsWith("/");
-    if (!isRelative && imp.specifiers && imp.specifiers.length > 0) {
+    if (!isRelative && !BUILTIN_MODULES.has(src) && imp.specifiers && imp.specifiers.length > 0) {
       nonRelativeImports.push(src);
       nonRelativeSpecifiers.push(imp.specifiers);
     }
