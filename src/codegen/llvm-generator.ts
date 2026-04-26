@@ -172,6 +172,7 @@ import { checkOrFallback } from "../semantic/or-fallback-checker.js";
 import { checkMapKeyTypes } from "../semantic/map-key-checker.js";
 import { checkMixedOperators } from "../semantic/mixed-operator-checker.js";
 import { checkDuplicateDeclarations } from "../semantic/duplicate-decl-checker.js";
+import { checkArrowThisCapture } from "../semantic/arrow-this-checker.js";
 import { checkMissingReturns, checkArgumentCounts } from "../semantic/safety-checks.js";
 import { DebugMetadataBuilder } from "./infrastructure/debug-metadata.js";
 
@@ -3139,6 +3140,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     checkMixedOperators(this.ast, this.sourceCode);
     checkDuplicateDeclarations(this.ast, this.sourceCode);
     checkMapKeyTypes(this.ast, this.sourceCode);
+    checkArrowThisCapture(this.ast, this.sourceCode);
     this.stackEligibleVars = analyzeEscapes(this.ast);
     markIntSpecializedFunctions(this.ast);
     // Build pure-AST class + interface catalog so downstream queries
