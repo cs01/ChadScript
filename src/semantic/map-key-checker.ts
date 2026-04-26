@@ -129,10 +129,11 @@ function checkReturnType(
 }
 
 export function checkMapKeyTypes(ast: AST, sourceCode: string): void {
-  for (let i = 0; i < ast.topLevelStatements.length; i++) {
-    const stmt = ast.topLevelStatements[i] as VariableDeclaration;
+  const items = ast.topLevelItems || [];
+  for (let i = 0; i < items.length; i++) {
+    const stmt = items[i] as { type: string };
     if (stmt.type === "variable_declaration") {
-      checkVarDecl(stmt, sourceCode);
+      checkVarDecl(items[i] as VariableDeclaration, sourceCode);
     }
   }
 

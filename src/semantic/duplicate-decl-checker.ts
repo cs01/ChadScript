@@ -1,4 +1,4 @@
-import type { AST, SourceLocation } from "../ast/types.js";
+import type { AST, SourceLocation, VariableDeclaration } from "../ast/types.js";
 import { formatCompileError } from "../diagnostics/engine.js";
 
 export function checkDuplicateDeclarations(ast: AST, sourceCode: string): void {
@@ -32,17 +32,19 @@ export function checkDuplicateDeclarations(ast: AST, sourceCode: string): void {
     seen.set(name, { kind: "function", loc: fn.loc });
   }
 
-  for (let i = 0; i < ast.topLevelStatements.length; i++) {
-    const stmt = ast.topLevelStatements[i];
+  const items = ast.topLevelItems || [];
+  for (let i = 0; i < items.length; i++) {
+    const stmt = items[i] as { type: string };
     if (stmt.type !== "variable_declaration") continue;
-    if (stmt.value === null) continue;
-    const name = stmt.name;
+    const decl = items[i] as VariableDeclaration;
+    if (decl.value === null) continue;
+    const name = decl.name;
     if (importedNames.has(name)) continue;
     const existing = seen.get(name);
     if (existing) {
-      reportDuplicate(sourceCode, name, existing.kind, stmt.kind, stmt.loc);
+      reportDuplicate(sourceCode, name, existing.kind, decl.kind, decl.loc);
     }
-    seen.set(name, { kind: stmt.kind, loc: stmt.loc });
+    seen.set(name, { kind: decl.kind, loc: decl.loc });
   }
 }
 
