@@ -4193,10 +4193,36 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         }
 
         if (this.isAsyncFunction) {
-          const valueAsPtr = this.nextTemp();
-          this.emit(`${valueAsPtr} = bitcast i8* ${lastValue} to i8*`);
+          let resolveValue = lastValue;
+          const valueType = this.getVariableType(lastValue);
+          if (
+            valueType === "double" ||
+            valueType === "i64" ||
+            valueType === "i32" ||
+            valueType === "i1"
+          ) {
+            let asDouble = lastValue;
+            if (valueType === "i64") {
+              asDouble = this.nextTemp();
+              this.emit(`${asDouble} = sitofp i64 ${lastValue} to double`);
+            } else if (valueType === "i32") {
+              asDouble = this.nextTemp();
+              this.emit(`${asDouble} = sitofp i32 ${lastValue} to double`);
+            } else if (valueType === "i1") {
+              const ext = this.nextTemp();
+              this.emit(`${ext} = zext i1 ${lastValue} to i64`);
+              asDouble = this.nextTemp();
+              this.emit(`${asDouble} = sitofp i64 ${ext} to double`);
+            }
+            const boxMem = this.nextTemp();
+            this.emit(`${boxMem} = call i8* @GC_malloc_atomic(i64 8)`);
+            const boxPtr = this.nextTemp();
+            this.emit(`${boxPtr} = bitcast i8* ${boxMem} to double*`);
+            this.emit(`store double ${asDouble}, double* ${boxPtr}`);
+            resolveValue = boxMem;
+          }
           this.emit(
-            `call void @__Promise_resolve(%Promise* ${this.asyncResultPromise}, i8* ${lastValue})`,
+            `call void @__Promise_resolve(%Promise* ${this.asyncResultPromise}, i8* ${resolveValue})`,
           );
           this.emit(`ret %Promise* ${this.asyncResultPromise}`);
         } else {

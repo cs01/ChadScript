@@ -1379,6 +1379,12 @@ export class VariableAllocator {
       if (inner === "Response") {
         return { llvmType: "%__FetchResponse*", symbolKind: SymbolKind_Object };
       }
+      if (inner === "number" || inner === "boolean") {
+        return { llvmType: "double", symbolKind: SymbolKind_Number };
+      }
+      if (inner === "string") {
+        return { llvmType: "i8*", symbolKind: SymbolKind_String };
+      }
       return null;
     }
     return null;
@@ -1494,10 +1500,17 @@ export class VariableAllocator {
         this.ctx.defineVariable(stmt.name, allocaReg, llvmType, symbolKind, "local");
         this.ctx.emit(`${allocaReg} = alloca ${llvmType}`);
         const value = this.ctx.generateExpression(stmt.value!, params);
-        // value from @__Promise_await is i8*; bitcast to the struct pointer.
-        const cast = this.ctx.nextTemp();
-        this.ctx.emit(`${cast} = bitcast i8* ${value} to ${llvmType}`);
-        this.ctx.emit(`store ${llvmType} ${cast}, ${llvmType}* ${allocaReg}`);
+        if (llvmType === "double") {
+          const dblPtr = this.ctx.nextTemp();
+          this.ctx.emit(`${dblPtr} = bitcast i8* ${value} to double*`);
+          const dblVal = this.ctx.nextTemp();
+          this.ctx.emit(`${dblVal} = load double, double* ${dblPtr}`);
+          this.ctx.emit(`store double ${dblVal}, double* ${allocaReg}`);
+        } else {
+          const cast = this.ctx.nextTemp();
+          this.ctx.emit(`${cast} = bitcast i8* ${value} to ${llvmType}`);
+          this.ctx.emit(`store ${llvmType} ${cast}, ${llvmType}* ${allocaReg}`);
+        }
         return;
       }
     }
