@@ -358,7 +358,7 @@ function transformTopLevelStatement(
       const switchAsIf = transformStatement(node, checker) as IfStatement;
       ast.topLevelExpressions.push(switchAsIf);
       ast.topLevelItems!.push(switchAsIf);
-      ast.topLevelItemTypes!.push(switchAsIf.type);
+      ast.topLevelItemTypes!.push("if");
       break;
     }
 

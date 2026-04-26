@@ -266,7 +266,7 @@ function transformTopLevelNode(node: TreeSitterNode, ast: AST): void {
         const s = switchBlock.statements[si];
         ast.topLevelExpressions.push(s as IfStatement);
         ast.topLevelItems!.push(s as TopLevelItem);
-        ast.topLevelItemTypes!.push(s.type);
+        ast.topLevelItemTypes!.push("if");
       }
       break;
 
