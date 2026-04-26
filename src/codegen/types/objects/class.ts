@@ -29,6 +29,7 @@ import {
   classifyArray,
   arrayKindToLlvm,
   ArrayKind_None,
+  fieldTypeToLlvmPrimitive,
 } from "../../infrastructure/type-system.js";
 import type { FieldInfo } from "../../infrastructure/type-resolver/types.js";
 import { emitZext, emitSitofp, emitPtrtoint } from "../../infrastructure/ir-builders.js";
@@ -1724,16 +1725,8 @@ export class ClassGenerator {
     this.ctx.defineVariable(paramName, allocaReg, llvmType, SymbolKind_Object, "local");
   }
 
-  private fieldTypeToLlvmPrimitive(fieldType: string): string | null {
-    if (fieldType === "string") return "i8*";
-    if (fieldType === "number") return "double";
-    if (fieldType === "boolean") return "double";
-    if (fieldType.startsWith("'") || fieldType.startsWith('"')) return "i8*";
-    return null;
-  }
-
   private fieldTypeToLlvm(fieldType: string): string {
-    const prim = this.fieldTypeToLlvmPrimitive(fieldType);
+    const prim = fieldTypeToLlvmPrimitive(fieldType);
     if (prim) return prim;
     const ak = classifyArray(fieldType);
     if (ak !== ArrayKind_None) return arrayKindToLlvm(ak);
