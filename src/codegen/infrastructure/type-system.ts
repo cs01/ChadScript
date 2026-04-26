@@ -229,6 +229,35 @@ export function fieldTypeToLlvmPrimitive(fieldType: string): string | null {
   return null;
 }
 
+export function fieldTypeToLlvm(fieldType: string): string {
+  const prim = fieldTypeToLlvmPrimitive(fieldType);
+  if (prim) return prim;
+  const ak = classifyArray(fieldType);
+  if (ak !== ArrayKind_None) return arrayKindToLlvm(ak);
+  if (fieldType.startsWith("Map<"))
+    return fieldType.startsWith("Map<string,") ? "%StringMap*" : "%Map*";
+  if (fieldType === "Set<string>") return "%StringSet*";
+  if (fieldType.startsWith("Set<")) return "%Set*";
+  if (fieldType.indexOf(" | ") !== -1) {
+    const parts = fieldType.split(" | ");
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i].trim();
+      if (part === "null" || part === "undefined") continue;
+      return fieldTypeToLlvm(part);
+    }
+  }
+  if (fieldType === "any" || fieldType === "unknown" || fieldType === "object") return "i8*";
+  if (fieldType === "null" || fieldType === "undefined" || fieldType === "never") return "i8*";
+  if (fieldType === "void") return "i8*";
+  if (fieldType.startsWith("{")) return "i8*";
+  if (fieldType.indexOf("=>") !== -1 || fieldType.startsWith("(")) return "i8*";
+  if (fieldType === "i8*" || fieldType === "double" || fieldType === "i1") return fieldType;
+  if (fieldType.startsWith("%")) return fieldType;
+  const ch = fieldType.charAt(0);
+  if (ch === ch.toUpperCase() && ch !== ch.toLowerCase()) return "i8*";
+  throw new Error(`fieldTypeToLlvm: unrecognized type '${fieldType}'`);
+}
+
 export function tsTypeToLlvm(tsType: string): string {
   return canonicalTypeToLlvm(tsType, "default", false, false, "");
 }

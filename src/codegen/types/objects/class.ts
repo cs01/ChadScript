@@ -30,6 +30,7 @@ import {
   arrayKindToLlvm,
   ArrayKind_None,
   fieldTypeToLlvmPrimitive,
+  fieldTypeToLlvm,
 } from "../../infrastructure/type-system.js";
 import type { FieldInfo } from "../../infrastructure/type-resolver/types.js";
 import { emitZext, emitSitofp, emitPtrtoint } from "../../infrastructure/ir-builders.js";
@@ -1586,7 +1587,7 @@ export class ClassGenerator {
       for (let fi = 0; fi < allFields.length; fi++) {
         const f = allFields[fi] as { name: string; type: string };
         keys.push(stripOptional(f.name));
-        types.push(this.fieldTypeToLlvm(f.type));
+        types.push(this.fieldTypeToLlvmLocal(f.type));
         tsTypes.push(f.type);
       }
       const isInterfaceStruct = this.ctx.interfaceStructGen?.hasInterface(tsType);
@@ -1664,7 +1665,7 @@ export class ClassGenerator {
         for (let fi = 0; fi < inlineFields.length; fi++) {
           const f = inlineFields[fi] as { name: string; type: string };
           keys.push(stripOptional(f.name));
-          types.push(this.fieldTypeToLlvm(f.type));
+          types.push(this.fieldTypeToLlvmLocal(f.type));
           tsTypes.push(f.type);
         }
         this.ctx.defineVariableWithMetadata(
@@ -1725,25 +1726,9 @@ export class ClassGenerator {
     this.ctx.defineVariable(paramName, allocaReg, llvmType, SymbolKind_Object, "local");
   }
 
-  private fieldTypeToLlvm(fieldType: string): string {
-    const prim = fieldTypeToLlvmPrimitive(fieldType);
-    if (prim) return prim;
-    const ak = classifyArray(fieldType);
-    if (ak !== ArrayKind_None) return arrayKindToLlvm(ak);
-    if (fieldType.startsWith("Map<"))
-      return fieldType.startsWith("Map<string,") ? "%StringMap*" : "%Map*";
-    if (fieldType === "Set<string>") return "%StringSet*";
-    if (fieldType.startsWith("Set<")) return "%Set*";
+  private fieldTypeToLlvmLocal(fieldType: string): string {
     if (this.isEnumType(fieldType)) return "double";
-    if (fieldType.indexOf(" | ") !== -1) {
-      const parts = fieldType.split(" | ");
-      for (let i = 0; i < parts.length; i++) {
-        const part = parts[i].trim();
-        if (part === "null" || part === "undefined") continue;
-        return this.fieldTypeToLlvm(part);
-      }
-    }
-    return "i8*";
+    return fieldTypeToLlvm(fieldType);
   }
 
   private parseInlineObjectFields(typeStr: string): { name: string; type: string }[] {
@@ -1837,7 +1822,7 @@ export class ClassGenerator {
     for (let fi = 0; fi < commonFields.length; fi++) {
       const f = commonFields[fi] as CommonField;
       keys.push(stripOptional(f.name));
-      types.push(this.fieldTypeToLlvm(f.type));
+      types.push(this.fieldTypeToLlvmLocal(f.type));
     }
 
     return {
