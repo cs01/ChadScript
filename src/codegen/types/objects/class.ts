@@ -8,8 +8,6 @@ import {
   InterfaceDeclaration,
   CommonField,
   TypeAliasDeclaration,
-  UnaryNode,
-  NumberNode,
 } from "../../../ast/types.js";
 import { IGeneratorContext } from "../../infrastructure/generator-context.js";
 import {
@@ -90,66 +88,6 @@ export class ClassGenerator {
       allFields.push(classNode.fields[i]);
     }
     return allFields;
-  }
-
-  private formatLlvmDouble(v: number): string {
-    const s = v.toString();
-    if (s.indexOf(".") === -1 && s.indexOf("e") === -1) return s + ".0";
-    return s;
-  }
-
-  private resolveStaticInitializer(
-    field: ClassField,
-    llvmType: string,
-    parts: string[],
-  ): string | null {
-    const init = field.initializer;
-    if (!init) return null;
-
-    if (init.type === "number" && llvmType === "double") {
-      const numNode = init as NumberNode;
-      return this.formatLlvmDouble(numNode.value);
-    }
-
-    if (init.type === "boolean" && llvmType === "double") {
-      const boolNode = init as { type: "boolean"; value: boolean; loc?: object };
-      return boolNode.value ? "1.000000e+00" : "0.000000e+00";
-    }
-
-    if (init.type === "unary") {
-      const unary = init as UnaryNode;
-      if (unary.op === "-" && unary.operand.type === "number") {
-        const innerNum = unary.operand as NumberNode;
-        return this.formatLlvmDouble(-innerNum.value);
-      }
-    }
-
-    if (init.type === "string" && llvmType === "i8*") {
-      const strNode = init as { type: "string"; value: string; loc?: object };
-      const strVal = strNode.value;
-      const strId = this.ctx.nextString();
-      let escaped = "";
-      let byteCount = 0;
-      for (let i = 0; i < strVal.length; i++) {
-        const ch = strVal[i];
-        const code = strVal.charCodeAt(i);
-        if (code < 32 || code > 126 || ch === '"' || ch === "\\") {
-          const hex = code.toString(16).padStart(2, "0").toUpperCase();
-          escaped += "\\" + hex;
-          byteCount += 1;
-        } else {
-          escaped += ch;
-          byteCount += 1;
-        }
-      }
-      const len = byteCount + 1;
-      parts.push(
-        `${strId} = private unnamed_addr constant [${len} x i8] c"${escaped}\\00", align 1\n`,
-      );
-      return `getelementptr inbounds ([${len} x i8], [${len} x i8]* ${strId}, i32 0, i32 0)`;
-    }
-
-    return null;
   }
 
   private fieldToLlvmType(f: ClassField): string {
@@ -534,8 +472,6 @@ export class ClassGenerator {
       if (llvmType === "i8*") defaultVal = "null";
       else if (llvmType === "i1") defaultVal = "0";
       else if (llvmType.endsWith("*")) defaultVal = "null";
-      const initVal = this.resolveStaticInitializer(field, llvmType, parts);
-      if (initVal !== null) defaultVal = initVal;
       parts.push(`${globalName} = global ${llvmType} ${defaultVal}\n`);
     }
 

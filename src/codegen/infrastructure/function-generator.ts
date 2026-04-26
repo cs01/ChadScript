@@ -17,6 +17,7 @@ import {
   InterfaceDeclaration,
   InterfaceField,
   ClassNode,
+  ClassField,
 } from "../../ast/types.js";
 import {
   SymbolKind,
@@ -1105,6 +1106,35 @@ export class FunctionGenerator {
     return "null";
   }
 
+  private staticFieldLlvmType(ft: string): string {
+    if (ft === "string") return "i8*";
+    if (ft === "boolean") return "double";
+    if (ft === "string[]") return "%StringArray*";
+    if (ft === "number[]" || ft === "boolean[]") return "%Array*";
+    return "double";
+  }
+
+  private emitStaticFieldInits(): void {
+    const ast = this.ctx.getAst();
+    if (!ast || !ast.classes) return;
+    for (let ci = 0; ci < ast.classes.length; ci++) {
+      const cls = ast.classes[ci] as ClassNode;
+      if (!cls || !cls.fields) continue;
+      const className = cls.name;
+      for (let fi = 0; fi < cls.fields.length; fi++) {
+        const field = cls.fields[fi] as ClassField;
+        if (!field || !field.isStatic || !field.initializer) continue;
+        const globalName = `@${this.ctx.mangleUserName(className)}_${field.name}`;
+        const llvmType = this.staticFieldLlvmType(field.fieldType);
+        let initVal = this.ctx.generateExpression(field.initializer as Expression, []);
+        if (llvmType === "double") {
+          initVal = this.ctx.ensureDouble(initVal);
+        }
+        this.ctx.emit(`store ${llvmType} ${initVal}, ${llvmType}* ${globalName}`);
+      }
+    }
+  }
+
   generateMain(
     topLevelObjectVariables: Map<string, { ptr: string; keys: string[]; types: string[] }>,
     hasTry?: boolean,
@@ -1129,6 +1159,8 @@ export class FunctionGenerator {
     }
     const mainEligible: string[] = [];
     this.ctx.setI64EligibleVars(mainEligible);
+
+    this.emitStaticFieldInits();
 
     if (topLevelItemsCount > 0) {
       for (let itemIdx = 0; itemIdx < topLevelItemsCount; itemIdx++) {
