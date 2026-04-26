@@ -2262,6 +2262,41 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         }
       }
     }
+    if (exprNodeType === "index_access" && value) {
+      const idxExpr = value as IndexAccessNode;
+      if (idxExpr.object && (idxExpr.object as { type: string }).type === "variable") {
+        const parentName = (idxExpr.object as VariableNode).name;
+        const parentGlobal = this.globalVariables.get(parentName);
+        if (parentGlobal && parentGlobal.llvmType === "%ObjectArray*") {
+          const parentRawType = this.symbolTable.getRawInterfaceType(parentName);
+          if (parentRawType && parentRawType.endsWith("[]")) {
+            return {
+              llvmType: "%ObjectArray*",
+              kind: SymbolKind_ObjectArray,
+              defaultValue: "null",
+            };
+          }
+          const parentResolved = this.symbolTable.getResolvedType(parentName);
+          if (parentResolved && parentResolved.arrayDepth > 0) {
+            const elemBase = parentResolved.base;
+            const isClass =
+              this.classGen !== null && this.classGen.getClassFields(elemBase).length > 0;
+            if (isClass) {
+              if (name) {
+                this.defineVariable(name, `@${name}`, "i8*", SymbolKind_Object, "global");
+                this.symbolTable.setRawInterfaceType(name, elemBase);
+                this.globalVariables.set(name, {
+                  llvmType: "i8*",
+                  kind: SymbolKind_Object,
+                  initialized: false,
+                });
+              }
+              return { llvmType: "i8*", kind: SymbolKind_Object, defaultValue: "null" };
+            }
+          }
+        }
+      }
+    }
     if (
       exprNodeType === "number" ||
       exprNodeType === "boolean" ||
@@ -2310,6 +2345,34 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               "global",
               createInterfaceMetadata(resolved.base),
             );
+            this.symbolTable.setRawInterfaceType(name, resolved.base);
+            this.globalVariables.set(name, {
+              llvmType: "i8*",
+              kind: SymbolKind_Object,
+              initialized: false,
+            });
+          }
+          return { llvmType: "i8*", kind: SymbolKind_Object, defaultValue: "null" };
+        }
+        if (
+          resolved.arrayDepth === 0 &&
+          resolved.base !== "number" &&
+          resolved.base !== "boolean" &&
+          resolved.base !== "string" &&
+          resolved.base !== "void" &&
+          resolved.base !== "null" &&
+          resolved.base !== "undefined" &&
+          resolved.base !== "any" &&
+          resolved.base !== "unknown" &&
+          resolved.base !== "object" &&
+          !resolved.base.startsWith("Map") &&
+          !resolved.base.startsWith("Set") &&
+          !resolved.base.startsWith("Promise") &&
+          this.classGen &&
+          this.classGen.getClassFields(resolved.base).length > 0
+        ) {
+          if (name) {
+            this.defineVariable(name, `@${name}`, "i8*", SymbolKind_Object, "global");
             this.symbolTable.setRawInterfaceType(name, resolved.base);
             this.globalVariables.set(name, {
               llvmType: "i8*",
@@ -2636,6 +2699,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           }
           if (stmt.declaredType) {
             this.symbolTable.setResolvedType(name, parseTypeString(stmt.declaredType));
+          } else if (resolved) {
+            this.symbolTable.setResolvedType(name, resolved);
           }
           continue;
         } else if (isUint8Array) {
