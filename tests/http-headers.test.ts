@@ -14,9 +14,10 @@ if (!process.env.CHADC_COMPILER) {
   );
 }
 const compiler = `${process.env.CHADC_COMPILER} build`;
+const buildDir = process.env.CHADC_BUILD_DIR || ".build";
 
 const SERVER_SOURCE = "tests/fixtures/network/http-headers-test.ts";
-const SERVER_BINARY = ".build/tests/fixtures/network/http-headers-test";
+const SERVER_BINARY = `${buildDir}/tests/fixtures/network/http-headers-test`;
 let PORT = 0;
 
 function sleep(ms: number): Promise<void> {
@@ -44,7 +45,7 @@ describe("HTTP Headers Tests", { concurrency: 1 }, () => {
       });
       srv.on("error", reject);
     });
-    await execAsync(`${compiler} ${SERVER_SOURCE}`, { timeout: 60000 });
+    await execAsync(`${compiler} ${SERVER_SOURCE} -o ${SERVER_BINARY}`, { timeout: 60000 });
     assert.ok(fsSync.existsSync(SERVER_BINARY), "Server binary should exist");
   });
 

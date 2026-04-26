@@ -14,6 +14,7 @@ if (!process.env.CHADC_COMPILER) {
 }
 const compiler = `${process.env.CHADC_COMPILER} build`;
 const isNodeCompiler = process.env.CHADC_COMPILER.includes("chad-node");
+const buildDir = process.env.CHADC_BUILD_DIR || ".build";
 
 function getRandomPort(): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -52,10 +53,12 @@ describe("Network Tests", () => {
 
     try {
       const testFile = "tests/fixtures/network/fetch-integration-test.ts";
-      await execAsync(`${compiler} ${testFile}`);
+      await execAsync(
+        `${compiler} ${testFile} -o ${buildDir}/tests/fixtures/network/fetch-integration-test`,
+      );
 
       const { stdout } = await execAsync(
-        `.build/tests/fixtures/network/fetch-integration-test -p ${port}`,
+        `${buildDir}/tests/fixtures/network/fetch-integration-test -p ${port}`,
       );
 
       assert.ok(stdout.includes("TEST_PASSED"), "fetch() integration test should pass");
@@ -90,9 +93,11 @@ describe("Network Tests", () => {
 
     try {
       const testFile = "tests/fixtures/network/promise-all-fetch-test.ts";
-      await execAsync(`${compiler} ${testFile}`);
+      await execAsync(
+        `${compiler} ${testFile} -o ${buildDir}/tests/fixtures/network/promise-all-fetch-test`,
+      );
       const { stdout } = await execAsync(
-        `.build/tests/fixtures/network/promise-all-fetch-test -p ${port}`,
+        `${buildDir}/tests/fixtures/network/promise-all-fetch-test -p ${port}`,
       );
       assert.ok(stdout.includes("TEST_PASSED"), "Promise.all + fetch test should pass");
     } finally {
@@ -114,9 +119,11 @@ describe("Network Tests", () => {
 
     try {
       const testFile = "tests/fixtures/network/async-fetch-test.ts";
-      await execAsync(`${compiler} ${testFile}`);
+      await execAsync(
+        `${compiler} ${testFile} -o ${buildDir}/tests/fixtures/network/async-fetch-test`,
+      );
       const { stdout } = await execAsync(
-        `.build/tests/fixtures/network/async-fetch-test -p ${port}`,
+        `${buildDir}/tests/fixtures/network/async-fetch-test -p ${port}`,
       );
       assert.ok(stdout.includes("TEST_PASSED"), "async fetch test should pass");
     } finally {
@@ -141,9 +148,11 @@ describe("Network Tests", () => {
 
     try {
       const testFile = "tests/fixtures/network/promise-all-concurrent.ts";
-      await execAsync(`${compiler} ${testFile}`);
+      await execAsync(
+        `${compiler} ${testFile} -o ${buildDir}/tests/fixtures/network/promise-all-concurrent`,
+      );
       const { stdout } = await execAsync(
-        `.build/tests/fixtures/network/promise-all-concurrent -p ${port}`,
+        `${buildDir}/tests/fixtures/network/promise-all-concurrent -p ${port}`,
       );
       assert.ok(stdout.includes("TEST_PASSED"), "Promise.all concurrent test should pass");
     } finally {
@@ -170,9 +179,11 @@ describe("Network Tests", () => {
 
     try {
       const testFile = "tests/fixtures/network/json-parse-and-response-json-test.ts";
-      await execAsync(`${compiler} ${testFile}`);
+      await execAsync(
+        `${compiler} ${testFile} -o ${buildDir}/tests/fixtures/network/json-parse-and-response-json-test`,
+      );
       const { stdout } = await execAsync(
-        `.build/tests/fixtures/network/json-parse-and-response-json-test -p ${port}`,
+        `${buildDir}/tests/fixtures/network/json-parse-and-response-json-test -p ${port}`,
       );
       assert.ok(
         stdout.includes("TEST_PASSED"),
@@ -185,21 +196,22 @@ describe("Network Tests", () => {
 
   it("should run Promise.race with resolved promises", { skip: isNodeCompiler }, async () => {
     const testFile = "tests/fixtures/network/promise-race-test.ts";
-    await execAsync(`${compiler} ${testFile}`);
-    const { stdout } = await execAsync(".build/tests/fixtures/network/promise-race-test");
+    const exeFile = `${buildDir}/tests/fixtures/network/promise-race-test`;
+    await execAsync(`${compiler} ${testFile} -o ${exeFile}`);
+    const { stdout } = await execAsync(exeFile);
     assert.ok(stdout.includes("TEST_PASSED"), "Promise.race test should pass");
   });
 
   it("should run HTTP server using httpServe()", async () => {
     const port = await getRandomPort();
     const testFile = "tests/fixtures/network/http-server-test.ts";
-    await execAsync(`${compiler} ${testFile}`);
+    const serverExe = `${buildDir}/tests/fixtures/network/http-server-test`;
+    await execAsync(`${compiler} ${testFile} -o ${serverExe}`);
 
-    const serverProcess = spawn(
-      ".build/tests/fixtures/network/http-server-test",
-      ["-p", String(port)],
-      { detached: true, stdio: "ignore" },
-    );
+    const serverProcess = spawn(serverExe, ["-p", String(port)], {
+      detached: true,
+      stdio: "ignore",
+    });
 
     async function waitForServer(maxMs = 10000): Promise<void> {
       const start = Date.now();

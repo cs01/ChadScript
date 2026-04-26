@@ -88,7 +88,12 @@ const testFiles = [
 ];
 
 const compilerPath = flag === "--node" ? "node dist/chad-node.js" : ".build/chad";
-const env = { ...process.env, CHADC_COMPILER: compilerPath };
+const compilerLabel = flag === "--node" ? "node" : "native";
+const env = {
+  ...process.env,
+  CHADC_COMPILER: compilerPath,
+  CHADC_BUILD_DIR: `.build/${compilerLabel}`,
+};
 
 console.log(`\nRunning tests with: ${compilerPath}`);
 

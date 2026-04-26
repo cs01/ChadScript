@@ -13,7 +13,9 @@ if (!process.env.CHADC_COMPILER) {
     "CHADC_COMPILER env var is required. Run via: npm test, npm run test:node, or npm run test:native",
   );
 }
-const compiler = `${process.env.CHADC_COMPILER} build`;
+const compilerBase = process.env.CHADC_COMPILER;
+const compiler = `${compilerBase} build`;
+const buildDir = process.env.CHADC_BUILD_DIR || ".build";
 
 interface TestCase {
   name: string;
@@ -134,7 +136,7 @@ describe("Smoke Tests", { concurrency: 8 }, () => {
     it(testCase.description, async () => {
       const fixturePath = testCase.fixture;
       const fixtureDir = path.dirname(testCase.fixture);
-      const outputDir = path.join(".build", fixtureDir);
+      const outputDir = path.join(buildDir, fixtureDir);
       const extension = path.extname(fixturePath);
       const baseName = path.basename(fixturePath, extension);
       const llFile = path.join(outputDir, `${baseName}.ll`);
@@ -146,7 +148,7 @@ describe("Smoke Tests", { concurrency: 8 }, () => {
       } catch (err) {}
 
       try {
-        await execAsync(`${compiler} ${fixturePath}`);
+        await execAsync(`${compiler} ${fixturePath} -o ${exeFile}`);
 
         // Verify executable was generated (intermediate files are cleaned up by default)
         assert.ok(fsSync.existsSync(exeFile), `Executable should exist at ${exeFile}`);
