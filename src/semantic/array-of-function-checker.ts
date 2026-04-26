@@ -80,9 +80,8 @@ class ArrayOfFunctionChecker {
   }
 
   check(ast: AST): void {
-    if (ast.topLevelStatements) {
-      for (const s of ast.topLevelStatements) this.checkTopLevelStmt(s);
-    }
+    const items = ast.topLevelItems || [];
+    for (const s of items) this.checkTopLevelStmt(s as Statement);
     if (ast.functions) {
       for (const f of ast.functions) this.checkFunction(f);
     }
