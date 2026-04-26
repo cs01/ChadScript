@@ -38,7 +38,12 @@ import {
 } from "../infrastructure/ir-builders.js";
 import { SymbolKind_Number, SymbolKind_String } from "../infrastructure/symbol-table.js";
 import type { FieldInfo } from "../infrastructure/type-resolver/types.js";
-import { stripOptional } from "../infrastructure/type-system.js";
+import {
+  stripOptional,
+  classifyArray,
+  ArrayKind_None,
+  arrayKindToLlvm,
+} from "../infrastructure/type-system.js";
 import { setWantsI1 } from "../expressions/condition-generator.js";
 import { tryOptimizeWhileLoopMap } from "./loop-idiom.js";
 
@@ -869,7 +874,21 @@ export class ControlFlowGenerator {
   private fieldTypeToLlvm(fieldType: string): string {
     const prim = this.fieldTypeToLlvmPrimitive(fieldType);
     if (prim) return prim;
+    const ak = classifyArray(fieldType);
+    if (ak !== ArrayKind_None) return arrayKindToLlvm(ak);
+    if (fieldType.startsWith("Map<"))
+      return fieldType.startsWith("Map<string,") ? "%StringMap*" : "%Map*";
+    if (fieldType === "Set<string>") return "%StringSet*";
+    if (fieldType.startsWith("Set<")) return "%Set*";
     if (this.isEnumType(fieldType)) return "double";
+    if (fieldType.indexOf(" | ") !== -1) {
+      const parts = fieldType.split(" | ");
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i].trim();
+        if (part === "null" || part === "undefined") continue;
+        return this.fieldTypeToLlvm(part);
+      }
+    }
     return "i8*";
   }
 

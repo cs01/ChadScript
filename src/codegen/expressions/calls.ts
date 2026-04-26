@@ -1867,6 +1867,7 @@ export class CallExpressionGenerator {
 
   private getFieldLlvmType(field: { name: string; fieldType: string; tsType?: string }): string {
     if (field.fieldType === "string") return "i8*";
+    if (field.fieldType === "number") return "double";
     if (field.fieldType === "string[]") return "%StringArray*";
     const ftAk = classifyArray(field.fieldType);
     if (ftAk !== ArrayKind_None) return arrayKindToLlvm(ftAk);
