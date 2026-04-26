@@ -36,7 +36,7 @@ import type {
 } from "../ast/types.js";
 import { formatCompileError } from "../diagnostics/engine.js";
 
-const BUILTIN_MODULES = new Set([
+const BUILTIN_MODULES = new Set<string>([
   "fs",
   "path",
   "os",
