@@ -51,4 +51,4 @@ Error fixtures in `tests/fixtures/errors/` test expected compile errors.
 
 ## Plan
 
-Full rewrite roadmap: see `.claude/plans/scalable-forging-castle.md`
+Full rewrite roadmap: see `ROADMAP.md`
