@@ -352,7 +352,7 @@ const ast = parseSync(source, { syntax: "typescript", decorators: true });
 
 - [x] try/catch/throw — setjmp/longjmp based exception handling
 - [x] Array destructuring — `const [a, b, c] = arr`
-- [ ] Object destructuring — `const { x, y } = obj`
+- [x] Object destructuring — `const { x, y } = obj`
 - [ ] Spread in arrays — `[...arr, 1, 2]`
 - [ ] Rest parameters — `function foo(...args: number[])`
 - [ ] Default parameters — `function foo(x: number = 10)`
