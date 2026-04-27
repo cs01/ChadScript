@@ -1643,24 +1643,56 @@ function lowerClosureExpr(expr: any): HIRExpr {
 }
 
 function lowerArrayLiteral(expr: any): HIRExpr {
-  const elements = (expr.elements || [])
-    .filter((e: any) => e !== null)
-    .map((e: any) => lowerExpr(e.expression));
+  const rawElements = (expr.elements || []).filter((e: any) => e !== null);
+  const hasSpread = rawElements.some((e: any) => e.spread !== null);
 
-  let elementType: HIRType = expectedArrayElementType || F64;
-  if (elements.length > 0) {
-    if (elements.some((e: HIRExpr) => e.type.kind === "i8ptr")) elementType = I8PTR;
-    else elementType = F64;
+  if (!hasSpread) {
+    const elements = rawElements.map((e: any) => lowerExpr(e.expression));
+    let elementType: HIRType = expectedArrayElementType || F64;
+    if (elements.length > 0) {
+      if (elements.some((e: HIRExpr) => e.type.kind === "i8ptr")) elementType = I8PTR;
+      else elementType = F64;
+    }
+    const coercedElements = elements.map((e: HIRExpr) =>
+      e.type.kind !== elementType.kind ? coerce(e, elementType) : e,
+    );
+    return {
+      kind: "alloc_array",
+      elementType,
+      initialValues: coercedElements,
+      type: { kind: "array", element: elementType },
+    };
   }
 
-  const coercedElements = elements.map((e: HIRExpr) =>
-    e.type.kind !== elementType.kind ? coerce(e, elementType) : e,
-  );
+  const parsed: { spread: boolean; value: HIRExpr }[] = rawElements.map((e: any) => {
+    const lowered = lowerExpr(e.expression);
+    return { spread: e.spread !== null, value: lowered };
+  });
+
+  let elementType: HIRType = expectedArrayElementType || F64;
+  for (const el of parsed) {
+    const t =
+      el.spread && el.value.type.kind === "array"
+        ? (el.value.type as { kind: "array"; element: HIRType }).element
+        : el.value.type;
+    if (t.kind === "i8ptr") {
+      elementType = I8PTR;
+      break;
+    }
+  }
+
+  const coerced: { spread: boolean; value: HIRExpr }[] = parsed.map((el) => {
+    if (el.spread) return el;
+    return {
+      spread: false,
+      value: el.value.type.kind !== elementType.kind ? coerce(el.value, elementType) : el.value,
+    };
+  });
 
   return {
-    kind: "alloc_array",
+    kind: "alloc_array_spread",
     elementType,
-    initialValues: coercedElements,
+    elements: coerced as any,
     type: { kind: "array", element: elementType },
   };
 }

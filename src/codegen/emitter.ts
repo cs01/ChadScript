@@ -497,6 +497,7 @@ function declareExterns(ctx: EmitContext): void {
     ["cs2_num_array_slice", m.ptr, [m.ptr, m.i32, m.i32]],
     ["cs2_num_array_reverse", m.voidTy, [m.ptr]],
     ["cs2_num_array_join", m.ptr, [m.ptr, m.ptr]],
+    ["cs2_num_array_spread", m.voidTy, [m.ptr, m.ptr]],
     ["cs2_str_array_new", m.ptr, [m.i32]],
     ["cs2_str_array_push", m.voidTy, [m.ptr, m.ptr]],
     ["cs2_str_array_pop", m.ptr, [m.ptr]],
@@ -504,6 +505,7 @@ function declareExterns(ctx: EmitContext): void {
     ["cs2_str_array_set", m.voidTy, [m.ptr, m.i32, m.ptr]],
     ["cs2_str_array_length", m.i32, [m.ptr]],
     ["cs2_str_array_join", m.ptr, [m.ptr, m.ptr]],
+    ["cs2_str_array_spread", m.voidTy, [m.ptr, m.ptr]],
     ["cs2_obj_array_new", m.ptr, [m.i32]],
     ["cs2_obj_array_push", m.voidTy, [m.ptr, m.ptr]],
     ["cs2_obj_array_pop", m.ptr, [m.ptr]],
@@ -1078,6 +1080,8 @@ function emitExpr(ctx: EmitContext, expr: HIRExpr): any {
     }
     case "alloc_array":
       return emitAllocArray(ctx, expr as HIRExpr & { kind: "alloc_array" });
+    case "alloc_array_spread":
+      return emitAllocArraySpread(ctx, expr as HIRExpr & { kind: "alloc_array_spread" });
     case "alloc_struct":
       return emitAllocStruct(ctx, expr as HIRExpr & { kind: "alloc_struct" });
     case "field_get":
@@ -1121,6 +1125,31 @@ function emitAllocArray(ctx: EmitContext, expr: HIRExpr & { kind: "alloc_array" 
     const pushDecl = ctx.getDeclaredFunction(pushFn)!;
     for (const valExpr of expr.initialValues) {
       const v = emitExpr(ctx, valExpr);
+      m.buildCall(pushDecl.fnType, pushDecl.fn, [arr, v], "");
+    }
+  }
+
+  return arr;
+}
+
+function emitAllocArraySpread(
+  ctx: EmitContext,
+  expr: HIRExpr & { kind: "alloc_array_spread" },
+): any {
+  const m = ctx.m;
+  const prefix = emitArrayPrefix(expr.elementType);
+  const newDecl = ctx.getDeclaredFunction(`${prefix}_new`)!;
+  const pushDecl = ctx.getDeclaredFunction(`${prefix}_push`)!;
+  const spreadDecl = ctx.getDeclaredFunction(`${prefix}_spread`)!;
+
+  const arr = m.buildCall(newDecl.fnType, newDecl.fn, [m.constInt(m.i32, 4)], "arr");
+
+  for (const el of expr.elements) {
+    if (el.spread) {
+      const src = emitExpr(ctx, el.value);
+      m.buildCall(spreadDecl.fnType, spreadDecl.fn, [arr, src], "");
+    } else {
+      const v = emitExpr(ctx, el.value);
       m.buildCall(pushDecl.fnType, pushDecl.fn, [arr, v], "");
     }
   }

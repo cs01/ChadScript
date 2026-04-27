@@ -110,6 +110,12 @@ export type HIRExpr =
       type: HIRType;
     }
   | {
+      kind: "alloc_array_spread";
+      elementType: HIRType;
+      elements: ({ spread: false; value: HIRExpr } | { spread: true; value: HIRExpr })[];
+      type: HIRType;
+    }
+  | {
       kind: "runtime_call";
       func: string;
       args: HIRExpr[];

@@ -106,6 +106,16 @@ char *cs2_num_array_join(NumArray *arr, const char *sep) {
     return buf;
 }
 
+void cs2_num_array_spread(NumArray *dest, NumArray *src) {
+    int32_t needed = dest->length + src->length;
+    if (needed > dest->capacity) {
+        while (dest->capacity < needed) dest->capacity *= 2;
+        dest->data = (double *)realloc(dest->data, sizeof(double) * dest->capacity);
+    }
+    memcpy(dest->data + dest->length, src->data, sizeof(double) * src->length);
+    dest->length = needed;
+}
+
 typedef struct {
     void **data;
     int32_t length;
@@ -146,6 +156,16 @@ void cs2_obj_array_set(ObjArray *arr, int32_t index, void *value) {
 
 int32_t cs2_obj_array_length(ObjArray *arr) {
     return arr->length;
+}
+
+void cs2_str_array_spread(StrArray *dest, StrArray *src) {
+    int32_t needed = dest->length + src->length;
+    if (needed > dest->capacity) {
+        while (dest->capacity < needed) dest->capacity *= 2;
+        dest->data = (char **)realloc(dest->data, sizeof(char *) * dest->capacity);
+    }
+    memcpy(dest->data + dest->length, src->data, sizeof(char *) * src->length);
+    dest->length = needed;
 }
 
 StrArray *cs2_str_array_new(int32_t capacity) {
