@@ -70,6 +70,7 @@ const PARITY_FIXTURES = [
   "class-basic.ts",
   "class-methods.ts",
   "class-fields.ts",
+  "class-inherit.ts",
 ];
 
 function compileExpectError(fixture: string): string {
