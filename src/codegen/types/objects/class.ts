@@ -128,6 +128,15 @@ export class ClassGenerator {
         if (this.isEnumType(ts)) {
           return "double";
         }
+        if (ts === "string" || ts === "void" || ts === "any" || ts === "unknown" || ts === "object")
+          return "i8*";
+        if (ts === "null" || ts === "undefined" || ts === "never") return "i8*";
+        if (ts.indexOf(" | ") !== -1) return "i8*";
+        if (ts.startsWith("{")) return "i8*";
+        if (ts.startsWith('"')) return "i8*";
+        if (ts.indexOf("=>") !== -1 || ts.startsWith("(")) return "i8*";
+        if (ts === "i8*" || ts === "i1") return ts;
+        if (ts.startsWith("%")) return ts;
         return "i8*";
       }
       if (ft === "double") return "double";
@@ -170,6 +179,15 @@ export class ClassGenerator {
         if (this.isEnumType(ts)) {
           return "double";
         }
+        if (ts === "string" || ts === "void" || ts === "any" || ts === "unknown" || ts === "object")
+          return "i8*";
+        if (ts === "null" || ts === "undefined" || ts === "never") return "i8*";
+        if (ts.indexOf(" | ") !== -1) return "i8*";
+        if (ts.startsWith("{")) return "i8*";
+        if (ts.startsWith('"')) return "i8*";
+        if (ts.indexOf("=>") !== -1 || ts.startsWith("(")) return "i8*";
+        if (ts === "i8*" || ts === "i1") return ts;
+        if (ts.startsWith("%")) return ts;
         return "i8*";
       }
     }
