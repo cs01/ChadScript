@@ -1064,6 +1064,9 @@ function lowerExpr(expr: Expression): HIRExpr {
     }
     case "TemplateLiteral":
       return lowerTemplateLiteral(expr as any);
+    case "ArrowFunctionExpression":
+    case "FunctionExpression":
+      return lowerClosureExpr(expr as any);
     default:
       compileError(`unsupported expression type: ${expr.type}`, expr.span);
   }
@@ -1332,6 +1335,44 @@ function lowerTemplateLiteral(expr: any): HIRExpr {
   }
 
   return result;
+}
+
+function lowerClosureExpr(expr: any): HIRExpr {
+  const fn = lowerArrowOrFnExpr(expr, "");
+  pendingFunctions.push(fn);
+  fnAliases.set(fn.name, fn.name);
+
+  const closureType: HIRType = {
+    kind: "closure",
+    params: fn.params.map((p) => p.type),
+    returnType: fn.returnType,
+  };
+
+  if (fn.captures.length > 0) {
+    const captureTypes = fn.captures.map((cid) => {
+      for (const [, v] of locals) if (v.id === cid) return v.type;
+      if (outerLocals) for (const [, v] of outerLocals) if (v.id === cid) return v.type;
+      return F64;
+    });
+    closureInfoMap.set(fn.name, {
+      captures: fn.captures.map((cid, i) => ({ id: cid, type: captureTypes[i] })),
+      params: fn.params.map((p) => p.type),
+      returnType: fn.returnType,
+    });
+    return {
+      kind: "make_closure",
+      funcName: fn.name,
+      captures: fn.captures.map((cid, i) => ({ id: cid, type: captureTypes[i] })),
+      type: closureType,
+    };
+  }
+
+  return {
+    kind: "make_closure",
+    funcName: fn.name,
+    captures: [],
+    type: closureType,
+  };
 }
 
 function lowerArrayLiteral(expr: any): HIRExpr {

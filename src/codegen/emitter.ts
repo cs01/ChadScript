@@ -264,6 +264,42 @@ function findLocalTypeInStmts(stmts: HIRStmt[], id: number): HIRType | null {
   return null;
 }
 
+function findClosureFuncNames(mod: HIRModule, names: Set<string>): void {
+  function scanExpr(expr: HIRExpr): void {
+    if (expr.kind === "make_closure") names.add(expr.funcName);
+    if ("value" in expr && expr.value && typeof expr.value === "object" && "kind" in expr.value)
+      scanExpr(expr.value as HIRExpr);
+    if ("left" in expr && expr.left) scanExpr(expr.left as HIRExpr);
+    if ("right" in expr && expr.right) scanExpr(expr.right as HIRExpr);
+    if ("args" in expr && Array.isArray(expr.args)) (expr.args as HIRExpr[]).forEach(scanExpr);
+    if ("callee" in expr && expr.callee && typeof expr.callee === "object" && "kind" in expr.callee)
+      scanExpr(expr.callee as HIRExpr);
+    if ("object" in expr && expr.object) scanExpr(expr.object as HIRExpr);
+    if ("condition" in expr && expr.condition) scanExpr(expr.condition as HIRExpr);
+    if ("then" in expr && expr.then && typeof expr.then === "object" && "kind" in expr.then)
+      scanExpr(expr.then as HIRExpr);
+  }
+  function scanStmts(stmts: HIRStmt[]): void {
+    for (const s of stmts) {
+      if (s.kind === "expr") scanExpr(s.expr);
+      if (s.kind === "return" && s.value) scanExpr(s.value);
+      if (s.kind === "let" && s.init) scanExpr(s.init);
+      if (s.kind === "if") {
+        scanExpr(s.condition);
+        scanStmts(s.then);
+        if (s.else) scanStmts(s.else);
+      }
+      if (s.kind === "while") {
+        scanExpr(s.condition);
+        scanStmts(s.body);
+      }
+      if (s.kind === "for") scanStmts(s.body);
+    }
+  }
+  for (const fn of mod.functions) scanStmts(fn.body);
+  scanStmts(mod.init);
+}
+
 export function emitModule(mod: HIRModule, objectPath: string, irPath?: string): void {
   const m = new LLVMModule("chadscript");
   const ctx = new EmitContext(m);
@@ -297,9 +333,15 @@ export function emitModule(mod: HIRModule, objectPath: string, irPath?: string):
     ctx.registerGlobal(g.name, globalVar, g.type);
   }
 
+  const closureFuncs = new Set<string>();
+  for (const fn of mod.functions) {
+    if (fn.captures.length > 0) closureFuncs.add(fn.name);
+  }
+  findClosureFuncNames(mod, closureFuncs);
+
   for (const fn of mod.functions) {
     const paramTypes = fn.params.map((p) => llvmType(ctx, p.type));
-    if (fn.captures.length > 0) paramTypes.unshift(m.ptr);
+    if (closureFuncs.has(fn.name)) paramTypes.unshift(m.ptr);
     const retType = llvmType(ctx, fn.returnType);
     const fnType = m.functionType(retType, paramTypes);
     const llvmFn = m.addFunction(fn.name, fnType);
@@ -311,7 +353,7 @@ export function emitModule(mod: HIRModule, objectPath: string, irPath?: string):
   buildVtables(ctx, mod);
 
   for (const fn of mod.functions) {
-    emitFunction(ctx, fn, capturedByOuter);
+    emitFunction(ctx, fn, capturedByOuter, closureFuncs);
   }
 
   emitMain(ctx, mod);
@@ -540,7 +582,12 @@ function defaultInit(ctx: EmitContext, t: HIRType): any {
   }
 }
 
-function emitFunction(ctx: EmitContext, fn: HIRFunction, capturedByOuter?: CaptureMap): void {
+function emitFunction(
+  ctx: EmitContext,
+  fn: HIRFunction,
+  capturedByOuter?: CaptureMap,
+  closureFuncs?: Set<string>,
+): void {
   const m = ctx.m;
   ctx.resetLocalsAndCaptures();
   ctx.currentReturnType = fn.returnType;
@@ -562,7 +609,7 @@ function emitFunction(ctx: EmitContext, fn: HIRFunction, capturedByOuter?: Captu
     m.setDebugLocation(fn.line, 0, diScope);
   }
 
-  const isClosure = fn.captures.length > 0;
+  const isClosure = closureFuncs?.has(fn.name) || false;
   const captureInfo = capturedByOuter?.get(fn.name);
 
   if (isClosure) {
