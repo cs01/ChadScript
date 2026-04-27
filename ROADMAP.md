@@ -357,7 +357,7 @@ const ast = parseSync(source, { syntax: "typescript", decorators: true });
 - [x] Rest parameters — `function foo(...args: number[])`
 - [x] Default parameters — `function foo(x: number = 10)`
 - [x] Optional chaining — `obj?.prop` (desugar to null check)
-- [ ] Nullish coalescing — `a ?? b`
+- [x] Nullish coalescing — `a ?? b`
 - [ ] **Milestone:** Common TS patterns compile and run correctly
 
 ### Phase 6: NaN-Boxing Escape Hatch (~2 weeks, ~3-4K LOC)
