@@ -4,7 +4,7 @@
 
 TypeScript-to-native compiler. Compiles .ts files to native binaries via: SWC parse → HIR → LLVM C API → clang link → binary.
 
-Key innovation: **unboxed-first with NaN-boxing escape hatch.** Statically-typed values stay as raw f64/i64/i8*. Dynamic types (`any`, unions) get NaN-boxed. Integer narrowing pass narrows `number` to i64 when provably integer-valued.
+Key innovation: **unboxed-first with NaN-boxing escape hatch.** Statically-typed values stay as raw f64/i64/i8\*. Dynamic types (`any`, unions) get NaN-boxed. Integer narrowing pass narrows `number` to i64 when provably integer-valued.
 
 ## Architecture
 
