@@ -312,6 +312,13 @@ function registerFunction(decl: FunctionDeclaration): void {
         ? resolveTypeAnnotation(typeAnn)
         : { kind: "array" as const, element: F64 };
       params.push({ id: i, name, type, isRest: true });
+    } else if (p.pat.type === "AssignmentPattern") {
+      const left = (p.pat as any).left;
+      const right = (p.pat as any).right;
+      const name = left.type === "Identifier" ? left.value : `p${i}`;
+      const type = left.typeAnnotation ? resolveTypeAnnotation(left.typeAnnotation) : BOXED;
+      const defaultValue = lowerExpr(right);
+      params.push({ id: i, name, type, defaultValue });
     } else {
       const type =
         p.pat.type === "Identifier" ? resolveTypeAnnotation(p.pat.typeAnnotation) : BOXED;
@@ -664,6 +671,15 @@ function lowerFunctionDecl(decl: FunctionDeclaration): HIRFunction {
       const id = freshId();
       params.push({ id, name, type, isRest: true });
       locals.set(name, { id, type, mutable: false });
+    } else if (param.pat.type === "AssignmentPattern") {
+      const left = (param.pat as any).left;
+      const right = (param.pat as any).right;
+      const name = left.type === "Identifier" ? left.value : `p${params.length}`;
+      const type = left.typeAnnotation ? resolveTypeAnnotation(left.typeAnnotation) : BOXED;
+      const id = freshId();
+      const defaultValue = lowerExpr(right);
+      params.push({ id, name, type, defaultValue });
+      locals.set(name, { id, type, mutable: true });
     } else if (param.pat.type === "Identifier") {
       const id = freshId();
       const type = resolveTypeAnnotation(param.pat.typeAnnotation);
@@ -721,6 +737,15 @@ function lowerArrowOrFnExpr(expr: any, varName: string): HIRFunction {
       params.push({ id, name, type, isRest: true });
       locals.set(name, { id, type, mutable: false });
       restParamRegistry.set(fnName, params.length - 1);
+    } else if (pat.type === "AssignmentPattern") {
+      const left = pat.left;
+      const right = pat.right;
+      const name = left.type === "Identifier" ? left.value : `p${params.length}`;
+      const type = left.typeAnnotation ? resolveTypeAnnotation(left.typeAnnotation) : BOXED;
+      const id = freshId();
+      const defaultValue = lowerExpr(right);
+      params.push({ id, name, type, defaultValue });
+      locals.set(name, { id, type, mutable: true });
     } else if (pat.type === "Identifier") {
       const id = freshId();
       const type = resolveTypeAnnotation(pat.typeAnnotation);
@@ -2016,13 +2041,19 @@ function lowerCall(expr: CallExpression): HIRExpr {
         type: fnInfo.returnType,
       };
     }
-    const args = expr.arguments.map((a, i) => {
+    const args: HIRExpr[] = expr.arguments.map((a, i) => {
       let arg = lowerExpr(a.expression);
       if (fnInfo.params[i]) {
         arg = coerce(arg, fnInfo.params[i].type);
       }
       return arg;
     });
+    for (let i = args.length; i < fnInfo.params.length; i++) {
+      const p = fnInfo.params[i];
+      if (p.defaultValue) {
+        args.push(coerce(p.defaultValue, p.type));
+      }
+    }
     return {
       kind: "call",
       callee: calleeName,
