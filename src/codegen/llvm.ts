@@ -53,6 +53,7 @@ const LLVMGetInsertBlock = lib.func("LLVMGetInsertBlock", Ref, [Ref]);
 const LLVMConstInt = lib.func("LLVMConstInt", Ref, [Ref, "uint64", Bool]);
 const LLVMConstReal = lib.func("LLVMConstReal", Ref, [Ref, "double"]);
 const LLVMConstNull = lib.func("LLVMConstNull", Ref, [Ref]);
+const LLVMGetUndef = lib.func("LLVMGetUndef", Ref, [Ref]);
 const LLVMConstArray2 = lib.func("LLVMConstArray2", Ref, [Ref, RefArr, "uint64"]);
 const LLVMConstNamedStruct = lib.func("LLVMConstNamedStruct", Ref, [Ref, RefArr, "uint"]);
 const LLVMArrayType2 = lib.func("LLVMArrayType2", Ref, [Ref, "uint64"]);
@@ -359,6 +360,10 @@ export class LLVMModule {
 
   constNull(type: any): any {
     return LLVMConstNull(type);
+  }
+
+  getUndef(type: any): any {
+    return LLVMGetUndef(type);
   }
 
   constArray(elemType: any, values: any[]): any {

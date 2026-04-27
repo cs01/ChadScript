@@ -41,6 +41,9 @@ class EmitContext {
     { fatType: any; iface: import("../hir/types.js").HIRInterface; layoutType: any }
   >();
   private vtables = new Map<string, any>();
+  private closureType: any = null;
+  private capturedLocals = new Map<number, { envAlloc: any; index: number; type: HIRType }>();
+  private envAlloc: any = null;
   private currentFn: any = null;
   currentReturnType: HIRType = { kind: "void" };
   diScope: any = null;
@@ -139,11 +142,126 @@ class EmitContext {
   getVtable(key: string): any {
     return this.vtables.get(key);
   }
+
+  getClosureType(): any {
+    if (!this.closureType) {
+      this.closureType = this.m.structCreateNamed("Closure");
+      this.m.structSetBody(this.closureType, [this.m.ptr, this.m.ptr]);
+    }
+    return this.closureType;
+  }
+
+  setCapturedLocal(id: number, envAlloc: any, index: number, type: HIRType): void {
+    this.capturedLocals.set(id, { envAlloc, index, type });
+  }
+
+  getCapturedLocal(id: number): { envAlloc: any; index: number; type: HIRType } | undefined {
+    return this.capturedLocals.get(id);
+  }
+
+  setEnvAlloc(alloc: any): void {
+    this.envAlloc = alloc;
+  }
+
+  getEnvAlloc(): any {
+    return this.envAlloc;
+  }
+
+  resetLocalsAndCaptures(): void {
+    this.localAllocs.clear();
+    this.localNames.clear();
+    this.capturedLocals.clear();
+    this.envAlloc = null;
+  }
 }
 
 export interface EmitResult {
   objectFile: string;
   irFile?: string;
+}
+
+type CaptureMap = Map<
+  string,
+  { capturedIds: Set<number>; envTypes: { id: number; type: HIRType }[] }
+>;
+
+function buildCaptureMap(mod: HIRModule): CaptureMap {
+  const fnByName = new Map<string, HIRFunction>();
+  for (const fn of mod.functions) fnByName.set(fn.name, fn);
+
+  const result: CaptureMap = new Map();
+
+  for (const fn of mod.functions) {
+    if (fn.captures.length === 0) continue;
+    for (const outerFn of mod.functions) {
+      if (outerFn === fn) continue;
+      const outerIds = new Set<number>();
+      collectLocalIds(outerFn.body, outerIds);
+      for (const p of outerFn.params) outerIds.add(p.id);
+
+      const overlap = fn.captures.filter((cid) => outerIds.has(cid));
+      if (overlap.length > 0) {
+        const existing = result.get(outerFn.name) || {
+          capturedIds: new Set<number>(),
+          envTypes: [],
+        };
+        for (const cid of overlap) {
+          if (!existing.capturedIds.has(cid)) {
+            existing.capturedIds.add(cid);
+            const type = findLocalType(outerFn, cid);
+            existing.envTypes.push({ id: cid, type });
+          }
+        }
+        result.set(outerFn.name, existing);
+      }
+    }
+  }
+
+  return result;
+}
+
+function collectLocalIds(stmts: HIRStmt[], ids: Set<number>): void {
+  for (const stmt of stmts) {
+    if (stmt.kind === "let") ids.add(stmt.id);
+    if (stmt.kind === "if") {
+      collectLocalIds(stmt.then, ids);
+      if (stmt.else) collectLocalIds(stmt.else, ids);
+    }
+    if (stmt.kind === "while") collectLocalIds(stmt.body, ids);
+    if (stmt.kind === "for") {
+      if (stmt.init && stmt.init.kind === "let") ids.add(stmt.init.id);
+      collectLocalIds(stmt.body, ids);
+    }
+  }
+}
+
+function findLocalType(fn: HIRFunction, id: number): HIRType {
+  for (const p of fn.params) if (p.id === id) return p.type;
+  return findLocalTypeInStmts(fn.body, id) || { kind: "f64" };
+}
+
+function findLocalTypeInStmts(stmts: HIRStmt[], id: number): HIRType | null {
+  for (const stmt of stmts) {
+    if (stmt.kind === "let" && stmt.id === id) return stmt.type;
+    if (stmt.kind === "if") {
+      const t = findLocalTypeInStmts(stmt.then, id);
+      if (t) return t;
+      if (stmt.else) {
+        const e = findLocalTypeInStmts(stmt.else, id);
+        if (e) return e;
+      }
+    }
+    if (stmt.kind === "while") {
+      const t = findLocalTypeInStmts(stmt.body, id);
+      if (t) return t;
+    }
+    if (stmt.kind === "for") {
+      if (stmt.init && stmt.init.kind === "let" && stmt.init.id === id) return stmt.init.type;
+      const t = findLocalTypeInStmts(stmt.body, id);
+      if (t) return t;
+    }
+  }
+  return null;
 }
 
 export function emitModule(mod: HIRModule, objectPath: string, irPath?: string): void {
@@ -181,16 +299,19 @@ export function emitModule(mod: HIRModule, objectPath: string, irPath?: string):
 
   for (const fn of mod.functions) {
     const paramTypes = fn.params.map((p) => llvmType(ctx, p.type));
+    if (fn.captures.length > 0) paramTypes.unshift(m.ptr);
     const retType = llvmType(ctx, fn.returnType);
     const fnType = m.functionType(retType, paramTypes);
     const llvmFn = m.addFunction(fn.name, fnType);
     ctx.declareFunction(fn.name, llvmFn, fnType);
   }
 
+  const capturedByOuter = buildCaptureMap(mod);
+
   buildVtables(ctx, mod);
 
   for (const fn of mod.functions) {
-    emitFunction(ctx, fn);
+    emitFunction(ctx, fn, capturedByOuter);
   }
 
   emitMain(ctx, mod);
@@ -374,6 +495,8 @@ function llvmType(ctx: EmitContext, t: HIRType): any {
     case "array":
     case "struct":
       return m.ptr;
+    case "closure":
+      return ctx.getClosureType();
     default: {
       const _: never = t;
       throw new Error(`unknown HIR type: ${JSON.stringify(t)}`);
@@ -407,14 +530,19 @@ function defaultInit(ctx: EmitContext, t: HIRType): any {
     case "array":
     case "ptr":
       return m.constNull(m.ptr);
+    case "closure": {
+      const closureTy = ctx.getClosureType();
+      const nullPtr = m.constNull(m.ptr);
+      return m.constNamedStruct(closureTy, [nullPtr, nullPtr]);
+    }
     default:
       return m.constInt(m.i64, 0);
   }
 }
 
-function emitFunction(ctx: EmitContext, fn: HIRFunction): void {
+function emitFunction(ctx: EmitContext, fn: HIRFunction, capturedByOuter?: CaptureMap): void {
   const m = ctx.m;
-  ctx.resetLocals();
+  ctx.resetLocalsAndCaptures();
   ctx.currentReturnType = fn.returnType;
 
   const decl = ctx.getDeclaredFunction(fn.name)!;
@@ -434,12 +562,58 @@ function emitFunction(ctx: EmitContext, fn: HIRFunction): void {
     m.setDebugLocation(fn.line, 0, diScope);
   }
 
-  for (let i = 0; i < fn.params.length; i++) {
-    const p = fn.params[i];
-    const ty = llvmType(ctx, p.type);
-    const alloc = m.buildAlloca(ty, p.name);
-    m.buildStore(m.getParam(llvmFn, i), alloc);
-    ctx.registerLocal(p.id, p.name, alloc);
+  const isClosure = fn.captures.length > 0;
+  const captureInfo = capturedByOuter?.get(fn.name);
+
+  if (isClosure) {
+    const envParam = m.getParam(llvmFn, 0);
+    const envAlloca = m.buildAlloca(m.ptr, "env");
+    m.buildStore(envParam, envAlloca);
+    ctx.setEnvAlloc(envAlloca);
+
+    for (let i = 0; i < fn.captures.length; i++) {
+      const captureId = fn.captures[i];
+      const captureType = findCaptureType(fn, captureId);
+      ctx.setCapturedLocal(captureId, envAlloca, i, captureType);
+    }
+
+    for (let i = 0; i < fn.params.length; i++) {
+      const p = fn.params[i];
+      const ty = llvmType(ctx, p.type);
+      const alloc = m.buildAlloca(ty, p.name);
+      m.buildStore(m.getParam(llvmFn, i + 1), alloc);
+      ctx.registerLocal(p.id, p.name, alloc);
+    }
+  } else {
+    if (captureInfo) {
+      const fieldTypes = captureInfo.envTypes.map((e) => llvmType(ctx, e.type));
+      const envStructTy = m.structCreateNamed(`env_${fn.name}`);
+      m.structSetBody(envStructTy, fieldTypes);
+      const envSize = m.constInt(m.i64, captureInfo.envTypes.length * 8);
+      const mallocDecl = ctx.getDeclaredFunction("malloc")!;
+      const rawEnv = m.buildCall(mallocDecl.fnType, mallocDecl.fn, [envSize], "env_raw");
+      const envAlloca = m.buildAlloca(m.ptr, "env_ptr");
+      m.buildStore(rawEnv, envAlloca);
+      ctx.setEnvAlloc(envAlloca);
+
+      for (let i = 0; i < captureInfo.envTypes.length; i++) {
+        const e = captureInfo.envTypes[i];
+        ctx.setCapturedLocal(e.id, envAlloca, i, e.type);
+      }
+    }
+
+    for (let i = 0; i < fn.params.length; i++) {
+      const p = fn.params[i];
+      const captured = ctx.getCapturedLocal(p.id);
+      if (captured) {
+        emitCapturedStore(ctx, captured, m.getParam(llvmFn, i), p.type);
+      } else {
+        const ty = llvmType(ctx, p.type);
+        const alloc = m.buildAlloca(ty, p.name);
+        m.buildStore(m.getParam(llvmFn, i), alloc);
+        ctx.registerLocal(p.id, p.name, alloc);
+      }
+    }
   }
 
   for (const stmt of fn.body) {
@@ -451,6 +625,10 @@ function emitFunction(ctx: EmitContext, fn: HIRFunction): void {
       m.buildRetVoid();
     }
   }
+}
+
+function findCaptureType(fn: HIRFunction, captureId: number): HIRType {
+  return findLocalTypeInStmts(fn.body, captureId) || { kind: "f64" };
 }
 
 function emitMain(ctx: EmitContext, mod: HIRModule): void {
@@ -504,12 +682,20 @@ function emitStmt(ctx: EmitContext, stmt: HIRStmt): void {
 
   switch (stmt.kind) {
     case "let": {
-      const ty = llvmType(ctx, stmt.type);
-      const alloc = m.buildAlloca(ty, stmt.name);
-      ctx.registerLocal(stmt.id, stmt.name, alloc);
-      if (stmt.init) {
-        const val = emitExpr(ctx, stmt.init);
-        m.buildStore(val, alloc);
+      const captured = ctx.getCapturedLocal(stmt.id);
+      if (captured) {
+        if (stmt.init) {
+          const val = emitExpr(ctx, stmt.init);
+          emitCapturedStore(ctx, captured, val, stmt.type);
+        }
+      } else {
+        const ty = llvmType(ctx, stmt.type);
+        const alloc = m.buildAlloca(ty, stmt.name);
+        ctx.registerLocal(stmt.id, stmt.name, alloc);
+        if (stmt.init) {
+          const val = emitExpr(ctx, stmt.init);
+          m.buildStore(val, alloc);
+        }
       }
       break;
     }
@@ -711,14 +897,29 @@ function emitExpr(ctx: EmitContext, expr: HIRExpr): any {
       return m.constNull(m.ptr);
     case "local_get": {
       const alloc = ctx.getLocalAlloc(expr.id);
-      const ty = llvmType(ctx, expr.type);
-      return m.buildLoad(ty, alloc, "");
+      if (alloc) {
+        const ty = llvmType(ctx, expr.type);
+        return m.buildLoad(ty, alloc, "");
+      }
+      const captured = ctx.getCapturedLocal(expr.id);
+      if (captured) {
+        return emitCapturedLoad(ctx, captured, expr.type);
+      }
+      throw new Error(`unresolved local id ${expr.id}`);
     }
     case "local_set": {
       const val = emitExpr(ctx, expr.value);
       const alloc = ctx.getLocalAlloc(expr.id);
-      m.buildStore(val, alloc);
-      return val;
+      if (alloc) {
+        m.buildStore(val, alloc);
+        return val;
+      }
+      const captured = ctx.getCapturedLocal(expr.id);
+      if (captured) {
+        emitCapturedStore(ctx, captured, val, expr.type);
+        return val;
+      }
+      throw new Error(`unresolved local id ${expr.id}`);
     }
     case "global_get": {
       const g = ctx.getGlobal(expr.name)!;
@@ -769,6 +970,10 @@ function emitExpr(ctx: EmitContext, expr: HIRExpr): any {
       return emitVtableCall(ctx, expr as HIRExpr & { kind: "vtable_call" });
     case "wrap_interface":
       return emitWrapInterface(ctx, expr as HIRExpr & { kind: "wrap_interface" });
+    case "make_closure":
+      return emitMakeClosure(ctx, expr as HIRExpr & { kind: "make_closure" });
+    case "call_closure":
+      return emitCallClosure(ctx, expr as HIRExpr & { kind: "call_closure" });
     default:
       return m.constInt(m.i64, 0);
   }
@@ -1276,4 +1481,63 @@ function emitMathCall(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_call" }
   });
 
   return m.buildCall(intrinsic.fnType, intrinsic.fn, args, "");
+}
+
+function emitCapturedLoad(
+  ctx: EmitContext,
+  captured: { envAlloc: any; index: number; type: HIRType },
+  exprType: HIRType,
+): any {
+  const m = ctx.m;
+  const envPtr = m.buildLoad(m.ptr, captured.envAlloc, "env");
+  const ty = llvmType(ctx, captured.type);
+  const offset = m.constInt(m.i64, captured.index * 8);
+  const fieldRaw = m.buildGEP(m.i8, envPtr, [offset], "cap_ptr");
+  return m.buildLoad(ty, fieldRaw, "cap_val");
+}
+
+function emitCapturedStore(
+  ctx: EmitContext,
+  captured: { envAlloc: any; index: number; type: HIRType },
+  val: any,
+  _exprType: HIRType,
+): void {
+  const m = ctx.m;
+  const envPtr = m.buildLoad(m.ptr, captured.envAlloc, "env");
+  const offset = m.constInt(m.i64, captured.index * 8);
+  const fieldRaw = m.buildGEP(m.i8, envPtr, [offset], "cap_ptr");
+  m.buildStore(val, fieldRaw);
+}
+
+function emitMakeClosure(ctx: EmitContext, expr: HIRExpr & { kind: "make_closure" }): any {
+  const m = ctx.m;
+  const closureTy = ctx.getClosureType();
+
+  const fnDecl = ctx.getDeclaredFunction(expr.funcName);
+  if (!fnDecl) throw new Error(`undeclared closure function: ${expr.funcName}`);
+  const fnPtr = m.buildBitCast(fnDecl.fn, m.ptr, "fn_ptr");
+
+  const envAlloc = ctx.getEnvAlloc();
+  const envPtr = envAlloc ? m.buildLoad(m.ptr, envAlloc, "env") : m.constNull(m.ptr);
+
+  let closure = m.buildInsertValue(m.getUndef(closureTy), fnPtr, 0, "");
+  closure = m.buildInsertValue(closure, envPtr, 1, "");
+  return closure;
+}
+
+function emitCallClosure(ctx: EmitContext, expr: HIRExpr & { kind: "call_closure" }): any {
+  const m = ctx.m;
+  const closureVal = emitExpr(ctx, expr.callee);
+  const fnPtr = m.buildExtractValue(closureVal, 0, "fn_ptr");
+  const envPtr = m.buildExtractValue(closureVal, 1, "env_ptr");
+
+  const argVals = expr.args.map((a) => emitExpr(ctx, a));
+  const allArgs = [envPtr, ...argVals];
+
+  const paramTypes = [m.ptr, ...expr.args.map((a) => llvmType(ctx, a.type))];
+  const retType = llvmType(ctx, expr.returnType);
+  const fnType = m.functionType(retType, paramTypes);
+  const fnTyped = m.buildBitCast(fnPtr, m.ptr, "fn_typed");
+
+  return m.buildCall(fnType, fnTyped, allArgs, expr.returnType.kind === "void" ? "" : "");
 }

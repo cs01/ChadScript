@@ -7,7 +7,8 @@ export type HIRType =
   | { kind: "ptr"; pointee: string }
   | { kind: "array"; element: HIRType }
   | { kind: "boxed" }
-  | { kind: "struct"; name: string; fields: HIRField[] };
+  | { kind: "struct"; name: string; fields: HIRField[] }
+  | { kind: "closure"; params: HIRType[]; returnType: HIRType };
 
 export interface HIRField {
   name: string;
@@ -129,6 +130,19 @@ export type HIRExpr =
       interfaceName: string;
       methodName: string;
       methodIndex: number;
+      args: HIRExpr[];
+      returnType: HIRType;
+      type: HIRType;
+    }
+  | {
+      kind: "make_closure";
+      funcName: string;
+      captures: { id: number; type: HIRType }[];
+      type: HIRType;
+    }
+  | {
+      kind: "call_closure";
+      callee: HIRExpr;
       args: HIRExpr[];
       returnType: HIRType;
       type: HIRType;

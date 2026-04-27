@@ -84,6 +84,12 @@ let currentClassName: string | null = null;
 let nextAnonId = 0;
 const fnAliases = new Map<string, string>();
 const pendingFunctions: HIRFunction[] = [];
+let outerLocals: Map<string, { id: number; type: HIRType; mutable: boolean }> | null = null;
+let capturedIds = new Set<number>();
+const closureInfoMap = new Map<
+  string,
+  { captures: { id: number; type: HIRType }[]; params: HIRType[]; returnType: HIRType }
+>();
 
 function freshId(): number {
   return nextId++;
@@ -107,6 +113,7 @@ export function lowerModule(ast: Module, source?: string, filename?: string): HI
   globals.clear();
   fnAliases.clear();
   pendingFunctions.length = 0;
+  closureInfoMap.clear();
   nextAnonId = 0;
   isModuleScope = true;
   sourceText = source || "";
@@ -580,8 +587,15 @@ function lowerArrowOrFnExpr(expr: any, varName: string): HIRFunction {
   const fnName = varName || `__anon_${nextAnonId++}`;
   const savedLocals = new Map(locals);
   const savedNextId = nextId;
+  const savedOuterLocals = outerLocals;
+  const savedCapturedIds = capturedIds;
+
+  outerLocals = new Map(savedLocals);
+  capturedIds = new Set<number>();
   locals.clear();
-  nextId = 0;
+  let maxOuterId = 0;
+  for (const [, v] of outerLocals) if (v.id >= maxOuterId) maxOuterId = v.id + 1;
+  nextId = maxOuterId;
 
   const params: HIRParam[] = [];
   for (const p of expr.params) {
@@ -607,11 +621,15 @@ function lowerArrowOrFnExpr(expr: any, varName: string): HIRFunction {
     body = [{ kind: "return", value: coerce(retExpr, returnType) }];
   }
 
+  const captures = Array.from(capturedIds);
+
   functionRegistry.set(fnName, { params, returnType });
 
   locals.clear();
   for (const [k, v] of savedLocals) locals.set(k, v);
   nextId = savedNextId;
+  outerLocals = savedOuterLocals;
+  capturedIds = savedCapturedIds;
 
   return {
     name: fnName,
@@ -619,8 +637,58 @@ function lowerArrowOrFnExpr(expr: any, varName: string): HIRFunction {
     returnType,
     body,
     isAsync: expr.async || false,
-    captures: [],
+    captures,
     line: expr.span ? offsetToLine(expr.span.start) : undefined,
+  };
+}
+
+function lowerNestedFunctionDecl(decl: FunctionDeclaration): HIRFunction {
+  const savedLocals = new Map(locals);
+  const savedNextId = nextId;
+  const savedOuterLocals = outerLocals;
+  const savedCapturedIds = capturedIds;
+
+  outerLocals = new Map(savedLocals);
+  capturedIds = new Set<number>();
+  locals.clear();
+  let maxOuterId = 0;
+  for (const [, v] of outerLocals) if (v.id >= maxOuterId) maxOuterId = v.id + 1;
+  nextId = maxOuterId;
+
+  const params: HIRParam[] = [];
+  for (const param of decl.params) {
+    if (param.pat.type === "Identifier") {
+      const id = freshId();
+      const type = resolveTypeAnnotation(param.pat.typeAnnotation);
+      params.push({ id, name: param.pat.value, type });
+      locals.set(param.pat.value, { id, type, mutable: true });
+    }
+  }
+
+  const returnType = decl.returnType ? resolveTypeAnnotation(decl.returnType) : VOID;
+
+  isModuleScope = false;
+  const body = decl.body ? lowerBlock(decl.body) : [];
+  isModuleScope = true;
+
+  const captures = Array.from(capturedIds);
+
+  functionRegistry.set(decl.identifier.value, { params, returnType });
+
+  locals.clear();
+  for (const [k, v] of savedLocals) locals.set(k, v);
+  nextId = savedNextId;
+  outerLocals = savedOuterLocals;
+  capturedIds = savedCapturedIds;
+
+  return {
+    name: decl.identifier.value,
+    params,
+    returnType,
+    body,
+    isAsync: decl.async,
+    captures,
+    line: decl.span ? offsetToLine(decl.span.start) : undefined,
   };
 }
 
@@ -658,6 +726,15 @@ function resolveTypeAnnotation(ann: any): HIRType {
     const name = ta.typeName.value;
     if (classRegistry.has(name) || interfaceRegistry.has(name)) {
       return { kind: "ptr", pointee: name };
+    }
+  }
+
+  if (ta.type === "TsFunctionType" || ta.type === "TsParenthesizedType") {
+    const fnType = ta.type === "TsParenthesizedType" ? ta.typeAnnotation : ta;
+    if (fnType.type === "TsFunctionType") {
+      const params = (fnType.params || []).map((p: any) => resolveTypeAnnotation(p.typeAnnotation));
+      const ret = fnType.typeAnnotation ? resolveTypeAnnotation(fnType.typeAnnotation) : VOID;
+      return { kind: "closure", params, returnType: ret };
     }
   }
 
@@ -700,6 +777,24 @@ function lowerModuleItem(item: ModuleItem): HIRStmt[] {
       return [withLine({ kind: "break" } as HIRStmt, item)];
     case "ContinueStatement":
       return [withLine({ kind: "continue" } as HIRStmt, item)];
+    case "FunctionDeclaration": {
+      const fn = lowerNestedFunctionDecl(item as FunctionDeclaration);
+      pendingFunctions.push(fn);
+      fnAliases.set(fn.name, fn.name);
+      if (fn.captures.length > 0) {
+        const captureTypes = fn.captures.map((cid) => {
+          for (const [, v] of locals) if (v.id === cid) return v.type;
+          if (outerLocals) for (const [, v] of outerLocals) if (v.id === cid) return v.type;
+          return F64;
+        });
+        closureInfoMap.set(fn.name, {
+          captures: fn.captures.map((cid, i) => ({ id: cid, type: captureTypes[i] })),
+          params: fn.params.map((p) => p.type),
+          returnType: fn.returnType,
+        });
+      }
+      return [];
+    }
     default:
       compileError(`unsupported statement type: ${item.type}`);
   }
@@ -986,6 +1081,26 @@ function lowerIdentifier(id: Identifier): HIRExpr {
   if (local) {
     return { kind: "local_get", id: local.id, type: local.type };
   }
+  if (outerLocals) {
+    const outer = outerLocals.get(id.value);
+    if (outer) {
+      capturedIds.add(outer.id);
+      return { kind: "local_get", id: outer.id, type: outer.type };
+    }
+  }
+
+  const aliasedName = fnAliases.get(id.value);
+  const closureInfo = closureInfoMap.get(aliasedName || id.value);
+  if (closureInfo) {
+    const fnName = aliasedName || id.value;
+    return {
+      kind: "make_closure",
+      funcName: fnName,
+      captures: closureInfo.captures,
+      type: { kind: "closure", params: closureInfo.params, returnType: closureInfo.returnType },
+    };
+  }
+
   const global = globals.get(id.value);
   if (global) {
     return { kind: "global_get", name: id.value, type: global.type };
@@ -1262,6 +1377,14 @@ function lowerAssignment(expr: AssignmentExpression): HIRExpr {
       if (value.type.kind !== local.type.kind) value = coerce(value, local.type);
       return { kind: "local_set", id: local.id, value, type: local.type };
     }
+    if (outerLocals) {
+      const outer = outerLocals.get(expr.left.value);
+      if (outer) {
+        capturedIds.add(outer.id);
+        if (value.type.kind !== outer.type.kind) value = coerce(value, outer.type);
+        return { kind: "local_set", id: outer.id, value, type: outer.type };
+      }
+    }
     const global = globals.get(expr.left.value);
     if (global) {
       if (value.type.kind !== global.type.kind) value = coerce(value, global.type);
@@ -1426,6 +1549,44 @@ function lowerCall(expr: CallExpression): HIRExpr {
   }
 
   if (expr.callee.type === "Identifier") {
+    const local = locals.get(expr.callee.value);
+    if (local && local.type.kind === "closure") {
+      const closureType = local.type as { kind: "closure"; params: HIRType[]; returnType: HIRType };
+      const args = expr.arguments.map((a, i) => {
+        let arg = lowerExpr(a.expression);
+        if (closureType.params[i]) arg = coerce(arg, closureType.params[i]);
+        return arg;
+      });
+      return {
+        kind: "call_closure",
+        callee: { kind: "local_get", id: local.id, type: local.type },
+        args,
+        returnType: closureType.returnType,
+        type: closureType.returnType,
+      };
+    }
+
+    const globalInfo = globals.get(expr.callee.value);
+    if (globalInfo && globalInfo.type.kind === "closure") {
+      const closureType = globalInfo.type as {
+        kind: "closure";
+        params: HIRType[];
+        returnType: HIRType;
+      };
+      const args = expr.arguments.map((a, i) => {
+        let arg = lowerExpr(a.expression);
+        if (closureType.params[i]) arg = coerce(arg, closureType.params[i]);
+        return arg;
+      });
+      return {
+        kind: "call_closure",
+        callee: { kind: "global_get", name: expr.callee.value, type: globalInfo.type },
+        args,
+        returnType: closureType.returnType,
+        type: closureType.returnType,
+      };
+    }
+
     const calleeName = fnAliases.get(expr.callee.value) || expr.callee.value;
     const fnInfo = functionRegistry.get(calleeName);
     if (!fnInfo) {
