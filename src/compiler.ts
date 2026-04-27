@@ -32,7 +32,18 @@ function findLibuv(): { include: string; lib: string } {
   throw new Error("libuv not found — expected vendor/libuv with build/libuv.a and include/");
 }
 
+function findYyjson(): string {
+  const candidates = [join(ROOT, "vendor", "yyjson"), join(ROOT, "..", "..", "vendor", "yyjson")];
+  for (const dir of candidates) {
+    if (existsSync(join(dir, "yyjson.c")) && existsSync(join(dir, "yyjson.h"))) {
+      return dir;
+    }
+  }
+  throw new Error("yyjson not found — expected vendor/yyjson with yyjson.c and yyjson.h");
+}
+
 const TIMER_BRIDGE = join(ROOT, "c_bridges", "v2-timer-bridge.c");
+const JSON_BRIDGE = join(ROOT, "c_bridges", "v2-json-bridge.c");
 
 export function compile(opts: CompileOptions): void {
   const hir = resolveModules(opts.input);
@@ -42,7 +53,9 @@ export function compile(opts: CompileOptions): void {
     join(tmpdir(), `chad2-bridge-${process.pid}-${i}.o`),
   );
   const timerObj = join(tmpdir(), `chad2-timer-${process.pid}.o`);
-  const allObjs = [...bridgeObjs, timerObj];
+  const jsonObj = join(tmpdir(), `chad2-json-${process.pid}.o`);
+  const yyjsonObj = join(tmpdir(), `chad2-yyjson-${process.pid}.o`);
+  const allObjs = [...bridgeObjs, timerObj, jsonObj, yyjsonObj];
   const irPath = opts.emitIR ? opts.output + ".ll" : undefined;
 
   try {
@@ -51,11 +64,18 @@ export function compile(opts: CompileOptions): void {
     if (opts.emitIR) return;
 
     const libuv = findLibuv();
+    const yyjsonDir = findYyjson();
 
     for (let i = 0; i < BRIDGE_SRCS.length; i++) {
       execSync(`clang -c -O2 -o ${bridgeObjs[i]} ${BRIDGE_SRCS[i]}`, { stdio: "inherit" });
     }
     execSync(`clang -c -O2 -I${libuv.include} -o ${timerObj} ${TIMER_BRIDGE}`, {
+      stdio: "inherit",
+    });
+    execSync(`clang -c -O2 -o ${yyjsonObj} ${join(yyjsonDir, "yyjson.c")}`, {
+      stdio: "inherit",
+    });
+    execSync(`clang -c -O2 -I${yyjsonDir} -o ${jsonObj} ${JSON_BRIDGE}`, {
       stdio: "inherit",
     });
     execSync(`clang -g -O2 -o ${opts.output} ${tmpObj} ${allObjs.join(" ")} -L${libuv.lib} -luv`, {

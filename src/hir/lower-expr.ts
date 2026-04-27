@@ -573,6 +573,15 @@ function lowerCall(expr: CallExpression): HIRExpr {
   if (
     expr.callee.type === "MemberExpression" &&
     expr.callee.object.type === "Identifier" &&
+    expr.callee.object.value === "JSON" &&
+    expr.callee.property.type === "Identifier"
+  ) {
+    return lowerJSONCall(expr);
+  }
+
+  if (
+    expr.callee.type === "MemberExpression" &&
+    expr.callee.object.type === "Identifier" &&
     expr.callee.object.value === "String" &&
     expr.callee.property.type === "Identifier" &&
     expr.callee.property.value === "fromCharCode"
@@ -786,6 +795,84 @@ function lowerMathCall(expr: CallExpression): HIRExpr {
     returnType: F64,
     type: F64,
   };
+}
+
+function lowerJSONCall(expr: CallExpression): HIRExpr {
+  const member = expr.callee as MemberExpression;
+  const method = (member.property as Identifier).value;
+
+  switch (method) {
+    case "stringify": {
+      const arg = lowerExpr(expr.arguments[0].expression);
+      const argType = arg.type;
+      let func: string;
+      let args: HIRExpr[];
+
+      switch (argType.kind) {
+        case "f64":
+          func = "cs2_json_stringify_f64";
+          args = [arg];
+          break;
+        case "i64":
+          func = "cs2_json_stringify_i64";
+          args = [arg];
+          break;
+        case "i8ptr":
+          func = "cs2_json_stringify_str";
+          args = [arg];
+          break;
+        case "i1":
+          func = "cs2_json_stringify_bool";
+          args = [arg];
+          break;
+        case "boxed":
+          func = "cs2_json_stringify_boxed";
+          args = [coerce(arg, BOXED)];
+          break;
+        case "array": {
+          const elemType = (argType as { kind: "array"; element: HIRType }).element;
+          switch (elemType.kind) {
+            case "f64":
+            case "i64":
+              func = "cs2_json_stringify_num_array";
+              break;
+            case "i8ptr":
+              func = "cs2_json_stringify_str_array";
+              break;
+            default:
+              throw new Error(
+                `unsupported array element type for JSON.stringify: ${elemType.kind}`,
+              );
+          }
+          args = [arg];
+          break;
+        }
+        default:
+          throw new Error(`unsupported type for JSON.stringify: ${argType.kind}`);
+      }
+
+      return {
+        kind: "runtime_call",
+        func,
+        args,
+        returnType: I8PTR,
+        type: I8PTR,
+      };
+    }
+    case "parse": {
+      let arg = lowerExpr(expr.arguments[0].expression);
+      if (arg.type.kind !== "i8ptr") arg = coerce(arg, I8PTR);
+      return {
+        kind: "runtime_call",
+        func: "cs2_json_parse",
+        args: [arg],
+        returnType: BOXED,
+        type: BOXED,
+      };
+    }
+    default:
+      compileError(`unsupported JSON method: ${method}`, expr.span);
+  }
 }
 
 function lowerStringMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {

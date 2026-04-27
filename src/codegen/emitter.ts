@@ -364,6 +364,15 @@ function declareExterns(ctx: EmitContext): void {
     ["cs2_set_interval", m.ptr, [m.ptr, m.f64]],
     ["cs2_clear_timer", m.voidTy, [m.ptr]],
     ["cs2_run_event_loop", m.i32, []],
+    ["cs2_json_stringify_f64", m.ptr, [m.f64]],
+    ["cs2_json_stringify_i64", m.ptr, [m.i64]],
+    ["cs2_json_stringify_str", m.ptr, [m.ptr]],
+    ["cs2_json_stringify_bool", m.ptr, [m.i32]],
+    ["cs2_json_stringify_null", m.ptr, []],
+    ["cs2_json_stringify_boxed", m.ptr, [m.i64]],
+    ["cs2_json_stringify_num_array", m.ptr, [m.ptr]],
+    ["cs2_json_stringify_str_array", m.ptr, [m.ptr]],
+    ["cs2_json_parse", m.i64, [m.ptr]],
   ];
   for (const [name, ret, params] of bridgeFns) {
     const fnType = m.functionType(ret, params);
