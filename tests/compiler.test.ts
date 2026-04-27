@@ -71,6 +71,9 @@ const PARITY_FIXTURES = [
   "class-methods.ts",
   "class-fields.ts",
   "class-inherit.ts",
+  "for-of.ts",
+  "do-while.ts",
+  "switch.ts",
 ];
 
 function compileExpectError(fixture: string): string {

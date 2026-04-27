@@ -504,6 +504,12 @@ function lowerModuleItem(item: ModuleItem): HIRStmt[] {
       return [lowerWhile(item)];
     case "ForStatement":
       return [lowerFor(item)];
+    case "ForOfStatement":
+      return lowerForOf(item as any);
+    case "DoWhileStatement":
+      return [lowerDoWhile(item as any)];
+    case "SwitchStatement":
+      return [lowerSwitch(item as any)];
     case "BlockStatement":
       return lowerBlock(item);
     case "BreakStatement":
@@ -589,6 +595,131 @@ function lowerFor(stmt: ForStatement): HIRStmt {
     update: stmt.update ? lowerExpr(stmt.update) : undefined,
     body: lowerConsequent(stmt.body),
   };
+}
+
+function lowerDoWhile(stmt: any): HIRStmt {
+  return {
+    kind: "for",
+    init: undefined,
+    condition: undefined,
+    update: undefined,
+    body: [
+      ...lowerConsequent(stmt.body),
+      {
+        kind: "if",
+        condition: {
+          kind: "unary",
+          op: "not",
+          operand: lowerExpr(stmt.test),
+          type: I1,
+        },
+        then: [{ kind: "break" as const }],
+      },
+    ],
+  };
+}
+
+function lowerSwitch(stmt: any): HIRStmt {
+  const discriminant = lowerExpr(stmt.discriminant);
+  const cases: import("./types.js").HIRSwitchCase[] = stmt.cases.map((c: any) => ({
+    test: c.test ? lowerExpr(c.test) : undefined,
+    body: c.consequent.flatMap((s: any) => lowerModuleItem(s)),
+  }));
+  return { kind: "switch", discriminant, cases };
+}
+
+function lowerForOf(stmt: any): HIRStmt[] {
+  const arr = lowerExpr(stmt.right);
+  if (arr.type.kind !== "array") {
+    compileError("for...of requires array type", stmt.span);
+  }
+
+  const elemType = (arr.type as { kind: "array"; element: HIRType }).element;
+  const isStr = elemType.kind === "i8ptr";
+  const lenFn = isStr ? "cs2_str_array_length" : "cs2_num_array_length";
+
+  const iId = freshId();
+  const arrId = freshId();
+  locals.set("__forof_arr", { id: arrId, type: arr.type, mutable: false });
+  locals.set("__forof_i", { id: iId, type: I64, mutable: true });
+
+  const arrStore: HIRStmt = {
+    kind: "let",
+    id: arrId,
+    name: "__forof_arr",
+    type: arr.type,
+    init: arr,
+    mutable: false,
+  };
+  const iInit: HIRStmt = {
+    kind: "let",
+    id: iId,
+    name: "__forof_i",
+    type: I64,
+    init: { kind: "literal_i64", value: 0, type: I64 },
+    mutable: true,
+  };
+
+  const lenExpr: HIRExpr = {
+    kind: "runtime_call",
+    func: lenFn,
+    args: [{ kind: "local_get", id: arrId, type: arr.type }],
+    returnType: I64,
+    type: I64,
+  };
+
+  const condition: HIRExpr = {
+    kind: "binary",
+    op: "lt",
+    left: { kind: "local_get", id: iId, type: I64 },
+    right: lenExpr,
+    type: I1,
+  };
+
+  const indexGet: HIRExpr = {
+    kind: "index_get",
+    array: { kind: "local_get", id: arrId, type: arr.type },
+    index: { kind: "local_get", id: iId, type: I64 },
+    type: elemType,
+  };
+
+  const varDecl = stmt.left;
+  const varName = varDecl.declarations[0].id.value;
+  const elemId = freshId();
+  locals.set(varName, { id: elemId, type: elemType, mutable: false });
+
+  const elemLet: HIRStmt = {
+    kind: "let",
+    id: elemId,
+    name: varName,
+    type: elemType,
+    init: indexGet,
+    mutable: false,
+  };
+  const innerBody = lowerConsequent(stmt.body);
+
+  const update: HIRExpr = {
+    kind: "local_set",
+    id: iId,
+    value: {
+      kind: "binary",
+      op: "add",
+      left: { kind: "local_get", id: iId, type: I64 },
+      right: { kind: "literal_i64", value: 1, type: I64 },
+      type: I64,
+    },
+    type: I64,
+  };
+
+  const forStmt: HIRStmt = {
+    kind: "for",
+    init: undefined,
+    condition,
+    update,
+    body: [elemLet, ...innerBody],
+  };
+
+  return [arrStore, iInit, forStmt];
 }
 
 function lowerExpr(expr: Expression): HIRExpr {

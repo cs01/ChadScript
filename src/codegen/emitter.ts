@@ -502,9 +502,78 @@ function emitStmt(ctx: EmitContext, stmt: HIRStmt): void {
       m.positionAtEnd(deadBlock);
       break;
     }
+    case "switch": {
+      emitSwitch(ctx, stmt);
+      break;
+    }
     default:
       break;
   }
+}
+
+function emitSwitch(ctx: EmitContext, stmt: HIRStmt & { kind: "switch" }): void {
+  const m = ctx.m;
+  const fn = ctx.getCurrentFn();
+  const discVal = emitExpr(ctx, stmt.discriminant);
+  const exitBlock = m.appendBlock(fn, "switch.exit");
+  const discType = stmt.discriminant.type;
+
+  ctx.pushLoop(exitBlock, exitBlock);
+
+  const caseBlocks: any[] = [];
+  for (let i = 0; i < stmt.cases.length; i++) {
+    caseBlocks.push(m.appendBlock(fn, stmt.cases[i].test ? `case.${i}` : "default"));
+  }
+
+  let firstDefault = -1;
+  for (let i = 0; i < stmt.cases.length; i++) {
+    if (!stmt.cases[i].test) {
+      firstDefault = i;
+      break;
+    }
+  }
+
+  for (let i = 0; i < stmt.cases.length; i++) {
+    const c = stmt.cases[i];
+    if (c.test) {
+      let testVal = emitExpr(ctx, c.test);
+      let cmp: any;
+      if (discType.kind === "f64" && c.test.type.kind === "i64") {
+        testVal = m.buildSIToFP(testVal, m.f64, "");
+        cmp = m.buildFCmp(LLVMRealOEQ, discVal, testVal, "");
+      } else if (discType.kind === "f64") {
+        cmp = m.buildFCmp(LLVMRealOEQ, discVal, testVal, "");
+      } else if (discType.kind === "i8ptr") {
+        const strcmp = ctx.getDeclaredFunction("strcmp")!;
+        const result = m.buildCall(strcmp.fnType, strcmp.fn, [discVal, testVal], "");
+        cmp = m.buildICmp(LLVMIntEQ, result, m.constInt(m.i32, 0), "");
+      } else {
+        cmp = m.buildICmp(LLVMIntEQ, discVal, testVal, "");
+      }
+
+      const nextCheck =
+        i + 1 < stmt.cases.length && stmt.cases[i + 1].test
+          ? m.appendBlock(fn, `check.${i + 1}`)
+          : firstDefault >= 0
+            ? caseBlocks[firstDefault]
+            : exitBlock;
+      m.buildCondBr(cmp, caseBlocks[i], nextCheck);
+      if (nextCheck !== caseBlocks[firstDefault] && nextCheck !== exitBlock) {
+        m.positionAtEnd(nextCheck);
+      }
+    }
+  }
+
+  for (let i = 0; i < stmt.cases.length; i++) {
+    m.positionAtEnd(caseBlocks[i]);
+    for (const s of stmt.cases[i].body) emitStmt(ctx, s);
+    if (!stmtTerminates(stmt.cases[i].body)) {
+      m.buildBr(exitBlock);
+    }
+  }
+
+  m.positionAtEnd(exitBlock);
+  ctx.popLoop();
 }
 
 function emitExpr(ctx: EmitContext, expr: HIRExpr): any {
