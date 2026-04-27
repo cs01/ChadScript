@@ -538,7 +538,7 @@ function llvmType(ctx: EmitContext, t: HIRType): any {
     case "struct":
       return m.ptr;
     case "closure":
-      return ctx.getClosureType();
+      return m.ptr;
     default: {
       const _: never = t;
       throw new Error(`unknown HIR type: ${JSON.stringify(t)}`);
@@ -572,11 +572,8 @@ function defaultInit(ctx: EmitContext, t: HIRType): any {
     case "array":
     case "ptr":
       return m.constNull(m.ptr);
-    case "closure": {
-      const closureTy = ctx.getClosureType();
-      const nullPtr = m.constNull(m.ptr);
-      return m.constNamedStruct(closureTy, [nullPtr, nullPtr]);
-    }
+    case "closure":
+      return m.constNull(m.ptr);
     default:
       return m.constInt(m.i64, 0);
   }
@@ -680,7 +677,7 @@ function findCaptureType(fn: HIRFunction, captureId: number): HIRType {
 
 function emitMain(ctx: EmitContext, mod: HIRModule): void {
   const m = ctx.m;
-  ctx.resetLocals();
+  ctx.resetLocalsAndCaptures();
 
   const mainType = m.functionType(m.i32, [m.i32, m.ptr]);
   const mainFn = m.addFunction("main", mainType);
@@ -1567,16 +1564,26 @@ function emitMakeClosure(ctx: EmitContext, expr: HIRExpr & { kind: "make_closure
   const envAlloc = ctx.getEnvAlloc();
   const envPtr = envAlloc ? m.buildLoad(m.ptr, envAlloc, "env") : m.constNull(m.ptr);
 
-  let closure = m.buildInsertValue(m.getUndef(closureTy), fnPtr, 0, "");
-  closure = m.buildInsertValue(closure, envPtr, 1, "");
-  return closure;
+  const mallocDecl = ctx.getDeclaredFunction("malloc")!;
+  const closureSize = m.constInt(m.i64, 16);
+  const rawPtr = m.buildCall(mallocDecl.fnType, mallocDecl.fn, [closureSize], "closure_raw");
+
+  const fnSlot = m.buildGEP(m.i8, rawPtr, [m.constInt(m.i64, 0)], "fn_slot");
+  m.buildStore(fnPtr, fnSlot);
+  const envSlot = m.buildGEP(m.i8, rawPtr, [m.constInt(m.i64, 8)], "env_slot");
+  m.buildStore(envPtr, envSlot);
+
+  return rawPtr;
 }
 
 function emitCallClosure(ctx: EmitContext, expr: HIRExpr & { kind: "call_closure" }): any {
   const m = ctx.m;
-  const closureVal = emitExpr(ctx, expr.callee);
-  const fnPtr = m.buildExtractValue(closureVal, 0, "fn_ptr");
-  const envPtr = m.buildExtractValue(closureVal, 1, "env_ptr");
+  const closurePtr = emitExpr(ctx, expr.callee);
+
+  const fnSlot = m.buildGEP(m.i8, closurePtr, [m.constInt(m.i64, 0)], "fn_slot");
+  const fnPtr = m.buildLoad(m.ptr, fnSlot, "fn_ptr");
+  const envSlot = m.buildGEP(m.i8, closurePtr, [m.constInt(m.i64, 8)], "env_slot");
+  const envPtr = m.buildLoad(m.ptr, envSlot, "env_ptr");
 
   const argVals = expr.args.map((a) => emitExpr(ctx, a));
   const allArgs = [envPtr, ...argVals];
@@ -1584,7 +1591,6 @@ function emitCallClosure(ctx: EmitContext, expr: HIRExpr & { kind: "call_closure
   const paramTypes = [m.ptr, ...expr.args.map((a) => llvmType(ctx, a.type))];
   const retType = llvmType(ctx, expr.returnType);
   const fnType = m.functionType(retType, paramTypes);
-  const fnTyped = m.buildBitCast(fnPtr, m.ptr, "fn_typed");
 
-  return m.buildCall(fnType, fnTyped, allArgs, expr.returnType.kind === "void" ? "" : "");
+  return m.buildCall(fnType, fnPtr, allArgs, expr.returnType.kind === "void" ? "" : "");
 }

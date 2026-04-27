@@ -8,4 +8,3 @@ console.log(double(5));
 console.log(triple(5));
 console.log(double(7));
 console.log(triple(7));
-console.log("TEST_PASSED");

@@ -1093,15 +1093,29 @@ function lowerIdentifier(id: Identifier): HIRExpr {
   }
 
   const aliasedName = fnAliases.get(id.value);
-  const closureInfo = closureInfoMap.get(aliasedName || id.value);
-  if (closureInfo) {
-    const fnName = aliasedName || id.value;
-    return {
-      kind: "make_closure",
-      funcName: fnName,
-      captures: closureInfo.captures,
-      type: { kind: "closure", params: closureInfo.params, returnType: closureInfo.returnType },
-    };
+  if (aliasedName) {
+    const closureInfo = closureInfoMap.get(aliasedName);
+    if (closureInfo) {
+      return {
+        kind: "make_closure",
+        funcName: aliasedName,
+        captures: closureInfo.captures,
+        type: { kind: "closure", params: closureInfo.params, returnType: closureInfo.returnType },
+      };
+    }
+    const fnInfo = functionRegistry.get(aliasedName);
+    if (fnInfo) {
+      return {
+        kind: "make_closure",
+        funcName: aliasedName,
+        captures: [],
+        type: {
+          kind: "closure",
+          params: fnInfo.params.map((p) => p.type),
+          returnType: fnInfo.returnType,
+        },
+      };
+    }
   }
 
   const global = globals.get(id.value);
