@@ -601,6 +601,31 @@ function lowerCall(expr: CallExpression): HIRExpr {
   }
 
   if (expr.callee.type === "Identifier") {
+    const calleeName_ = expr.callee.value;
+    if (calleeName_ === "setTimeout" || calleeName_ === "setInterval") {
+      const callbackExpr = lowerExpr(expr.arguments[0].expression);
+      let delayExpr = lowerExpr(expr.arguments[1].expression);
+      if (delayExpr.type.kind !== "f64") delayExpr = coerce(delayExpr, F64);
+      const func = calleeName_ === "setTimeout" ? "cs2_set_timeout" : "cs2_set_interval";
+      return {
+        kind: "runtime_call",
+        func,
+        args: [callbackExpr, delayExpr],
+        returnType: I8PTR,
+        type: I8PTR,
+      };
+    }
+    if (calleeName_ === "clearTimeout" || calleeName_ === "clearInterval") {
+      const handleExpr = lowerExpr(expr.arguments[0].expression);
+      return {
+        kind: "runtime_call",
+        func: "cs2_clear_timer",
+        args: [handleExpr],
+        returnType: VOID,
+        type: VOID,
+      };
+    }
+
     if (
       genericFunctionTemplates.has(expr.callee.value) &&
       (expr as any).typeArguments?.params?.length

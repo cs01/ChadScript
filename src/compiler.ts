@@ -1,6 +1,6 @@
 import { resolveModules } from "./resolver.js";
 import { emitModule } from "./codegen/emitter.js";
-import { unlinkSync } from "fs";
+import { unlinkSync, existsSync } from "fs";
 import { execSync } from "child_process";
 import { tmpdir } from "os";
 import { join, dirname } from "path";
@@ -20,6 +20,20 @@ const BRIDGE_SRCS = [
   join(ROOT, "c_bridges", "v2-promise-bridge.c"),
 ];
 
+function findLibuv(): { include: string; lib: string } {
+  const candidates = [join(ROOT, "vendor", "libuv"), join(ROOT, "..", "..", "vendor", "libuv")];
+  for (const dir of candidates) {
+    const lib = join(dir, "build", "libuv.a");
+    const inc = join(dir, "include");
+    if (existsSync(lib) && existsSync(inc)) {
+      return { include: inc, lib: join(dir, "build") };
+    }
+  }
+  throw new Error("libuv not found — expected vendor/libuv with build/libuv.a and include/");
+}
+
+const TIMER_BRIDGE = join(ROOT, "c_bridges", "v2-timer-bridge.c");
+
 export function compile(opts: CompileOptions): void {
   const hir = resolveModules(opts.input);
 
@@ -27,6 +41,8 @@ export function compile(opts: CompileOptions): void {
   const bridgeObjs = BRIDGE_SRCS.map((_, i) =>
     join(tmpdir(), `chad2-bridge-${process.pid}-${i}.o`),
   );
+  const timerObj = join(tmpdir(), `chad2-timer-${process.pid}.o`);
+  const allObjs = [...bridgeObjs, timerObj];
   const irPath = opts.emitIR ? opts.output + ".ll" : undefined;
 
   try {
@@ -34,10 +50,15 @@ export function compile(opts: CompileOptions): void {
 
     if (opts.emitIR) return;
 
+    const libuv = findLibuv();
+
     for (let i = 0; i < BRIDGE_SRCS.length; i++) {
       execSync(`clang -c -O2 -o ${bridgeObjs[i]} ${BRIDGE_SRCS[i]}`, { stdio: "inherit" });
     }
-    execSync(`clang -g -O2 -o ${opts.output} ${tmpObj} ${bridgeObjs.join(" ")}`, {
+    execSync(`clang -c -O2 -I${libuv.include} -o ${timerObj} ${TIMER_BRIDGE}`, {
+      stdio: "inherit",
+    });
+    execSync(`clang -g -O2 -o ${opts.output} ${tmpObj} ${allObjs.join(" ")} -L${libuv.lib} -luv`, {
       stdio: "inherit",
     });
     if (process.platform === "darwin") {
@@ -47,7 +68,7 @@ export function compile(opts: CompileOptions): void {
     try {
       unlinkSync(tmpObj);
     } catch {}
-    for (const o of bridgeObjs) {
+    for (const o of allObjs) {
       try {
         unlinkSync(o);
       } catch {}

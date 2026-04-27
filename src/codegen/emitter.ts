@@ -360,6 +360,10 @@ function declareExterns(ctx: EmitContext): void {
     ["cs2_promise_get_bool", m.i32, [m.ptr]],
     ["cs2_promise_get_ptr", m.ptr, [m.ptr]],
     ["cs2_promise_get_str", m.ptr, [m.ptr]],
+    ["cs2_set_timeout", m.ptr, [m.ptr, m.f64]],
+    ["cs2_set_interval", m.ptr, [m.ptr, m.f64]],
+    ["cs2_clear_timer", m.voidTy, [m.ptr]],
+    ["cs2_run_event_loop", m.i32, []],
   ];
   for (const [name, ret, params] of bridgeFns) {
     const fnType = m.functionType(ret, params);
@@ -500,6 +504,9 @@ function emitMain(ctx: EmitContext, mod: HIRModule): void {
   for (const stmt of mod.init) {
     emitStmt(ctx, stmt);
   }
+
+  const runLoop = ctx.getDeclaredFunction("cs2_run_event_loop")!;
+  m.buildCall(runLoop.fnType, runLoop.fn, [], "");
 
   m.buildRet(m.constInt(m.i32, 0));
 }
