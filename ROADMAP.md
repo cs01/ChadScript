@@ -393,36 +393,36 @@ const ast = parseSync(source, { syntax: "typescript", decorators: true });
 
 **Goal:** libuv event loop, setTimeout/setInterval, full async state machine transform.
 
-- [ ] Port libuv integration from v1 (vendor/libuv already built)
-- [ ] `setTimeout(fn, ms)` / `setInterval(fn, ms)` via `uv_timer_start`
-- [ ] `uv_run(UV_RUN_DEFAULT)` in main when async work is pending
-- [ ] `AsyncLoweringPass`: convert async functions to state machines for real I/O yield points
-- [ ] `clearTimeout` / `clearInterval`
-- [ ] **Milestone:** timer-based async code runs correctly, event loop drains before exit
-
-**Why now:** Stdlib (Phase 7) needs async I/O (fs async variants, fetch, child_process.spawn). Without an event loop, async is limited to synchronous execution. libuv already works in v1 — this is a port, not a build.
+- [x] Port libuv integration from v1 (vendor/libuv already built)
+- [x] `setTimeout(fn, ms)` / `setInterval(fn, ms)` via C bridge wrapping libuv
+- [x] `uv_run(UV_RUN_DEFAULT)` in main (always called, no-op when no active handles)
+- [x] `clearTimeout` / `clearInterval`
+- [ ] `AsyncLoweringPass`: convert async functions to state machines for real I/O yield points (deferred)
+- [x] **Milestone:** timer-based async code runs correctly, event loop drains before exit — 85 tests
 
 ### Phase 6.85: Import/Module System (~1-2 weeks, ~1-2K LOC)
 
 **Goal:** Multi-file compilation with ES module imports/exports.
 
-- [ ] `import { x } from "./other.ts"` — named imports from local files
-- [ ] `export function`, `export const`, `export class`, `export interface`
-- [ ] Multi-file compilation: resolve imports, compile all files, link together
+- [x] `import { x } from "./other.ts"` — named imports from local files
+- [x] `import { x as y }` — renamed imports
+- [x] `export function`, `export const`, `export class`, `export interface`
+- [x] Multi-file compilation: AST-merge resolver, compile all files into single binary
 - [ ] Re-exports: `export { x } from "./other.ts"`
-- [ ] **Milestone:** programs split across multiple files compile and run
-
-**Why now:** Stdlib modules need an import mechanism. Without it, everything must be in a single file.
+- [x] **Milestone:** programs split across multiple files compile and run — 84 tests
 
 ### Phase 7: Stdlib + Node Compat (~4-6 weeks, ~8-10K LOC)
 
-**Goal:** Full Node.js API surface. Start with 15-20 core modules (80/20), then expand to long tail. Each new module is just more `runtime_call` targets backed by C bridges — incremental, not architectural.
+**Goal:** Full Node.js API surface. Each new module is just more `runtime_call` targets backed by C bridges — incremental, not architectural.
 
-- [ ] `console` (log, error, warn, time, timeEnd)
+- [x] `console.log` (basic — multi-arg, all types)
+- [x] `setTimeout`, `setInterval`, `clearTimeout`, `clearInterval` (via libuv)
+- [ ] `JSON` (parse, stringify) — reuse yyjson bridge
+- [ ] `console` (error, warn, time, timeEnd)
+- [ ] `process` (argv, env, exit, cwd, stdin/stdout/stderr)
+- [ ] `Math` (extended — random done, add remaining)
 - [ ] `fs` (readFileSync, writeFileSync, existsSync, readdirSync, async variants)
 - [ ] `path` (join, resolve, dirname, basename, extname)
-- [ ] `process` (argv, env, exit, cwd, stdin/stdout/stderr)
-- [ ] `JSON` (parse, stringify) — reuse yyjson bridge
 - [ ] `http` / `fetch` — reuse lws bridge
 - [ ] `child_process` (exec, spawn) — reuse existing bridges
 - [ ] `crypto` (randomBytes, createHash) — reuse existing bridge
@@ -430,7 +430,6 @@ const ast = parseSync(source, { syntax: "typescript", decorators: true });
 - [ ] `RegExp` — reuse PCRE2 bridge
 - [ ] `Map`, `Set` (native implementations)
 - [ ] `Promise.all`, `Promise.race`, `Promise.allSettled`
-- [ ] `setTimeout`, `setInterval` (via libuv)
 - [ ] **Milestone:** Real-world programs compile and run. Express-like server works.
 
 ### Phase 8: Self-Hosting (~2-3 weeks, ~500 LOC new)
