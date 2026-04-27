@@ -15,7 +15,8 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
-    "@swc/core": "^1.15.0"
+    "@swc/core": "^1.15.0",
+    "koffi": "^2.16.1"
   },
   "devDependencies": {
     "prettier": "^3.2.5",

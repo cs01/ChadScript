@@ -7,110 +7,220 @@ import type {
   HIRParam,
   BinaryOp,
 } from "../hir/types.js";
+import {
+  LLVMModule,
+  LLVMIntEQ,
+  LLVMIntNE,
+  LLVMIntSLT,
+  LLVMIntSLE,
+  LLVMIntSGT,
+  LLVMIntSGE,
+  LLVMRealOEQ,
+  LLVMRealONE,
+  LLVMRealOLT,
+  LLVMRealOLE,
+  LLVMRealOGT,
+  LLVMRealOGE,
+  LLVMPrivateLinkage,
+} from "./llvm.js";
 
-export function emitModule(mod: HIRModule): string {
-  const ctx = new EmitContext();
+class EmitContext {
+  readonly m: LLVMModule;
+  private localAllocs = new Map<number, any>();
+  private localNames = new Map<number, string>();
+  private globalValues = new Map<string, { alloc: any; type: HIRType }>();
+  private loopStack: { condBlock: any; exitBlock: any }[] = [];
+  private declaredFunctions = new Map<string, { fn: any; fnType: any }>();
+  private mathIntrinsics = new Map<string, { fn: any; fnType: any }>();
+  private currentFn: any = null;
 
-  ctx.line("declare i32 @puts(i8*)");
-  ctx.line("declare i32 @printf(i8*, ...)");
-  ctx.line("declare i32 @sprintf(i8*, i8*, ...)");
-  ctx.line("declare void @exit(i32)");
-  ctx.line("declare i64 @strlen(i8*)");
-  ctx.line("declare i8* @malloc(i64)");
-  ctx.line("declare i8* @strcpy(i8*, i8*)");
-  ctx.line("declare i8* @strcat(i8*, i8*)");
-  ctx.line("declare double @llvm.floor.f64(double)");
-  ctx.line("declare double @llvm.ceil.f64(double)");
-  ctx.line("declare double @llvm.fabs.f64(double)");
-  ctx.line("declare double @llvm.sqrt.f64(double)");
-  ctx.line("declare double @llvm.pow.f64(double, double)");
-  ctx.line("declare double @llvm.log.f64(double)");
-  ctx.line("declare double @llvm.round.f64(double)");
-  ctx.line("declare double @llvm.maxnum.f64(double, double)");
-  ctx.line("declare double @llvm.minnum.f64(double, double)");
-  ctx.line("");
+  constructor(m: LLVMModule) {
+    this.m = m;
+  }
+
+  registerLocal(id: number, name: string, alloc: any): void {
+    this.localAllocs.set(id, alloc);
+    this.localNames.set(id, name);
+  }
+
+  getLocalAlloc(id: number): any {
+    return this.localAllocs.get(id);
+  }
+
+  resetLocals(): void {
+    this.localAllocs.clear();
+    this.localNames.clear();
+  }
+
+  pushLoop(condBlock: any, exitBlock: any): void {
+    this.loopStack.push({ condBlock, exitBlock });
+  }
+
+  popLoop(): void {
+    this.loopStack.pop();
+  }
+
+  currentLoop(): { condBlock: any; exitBlock: any } {
+    return this.loopStack[this.loopStack.length - 1];
+  }
+
+  setCurrentFn(fn: any): void {
+    this.currentFn = fn;
+  }
+
+  getCurrentFn(): any {
+    return this.currentFn;
+  }
+
+  registerGlobal(name: string, alloc: any, type: HIRType): void {
+    this.globalValues.set(name, { alloc, type });
+  }
+
+  getGlobal(name: string): { alloc: any; type: HIRType } | undefined {
+    return this.globalValues.get(name);
+  }
+
+  declareFunction(name: string, fn: any, fnType: any): void {
+    this.declaredFunctions.set(name, { fn, fnType });
+  }
+
+  getDeclaredFunction(name: string): { fn: any; fnType: any } | undefined {
+    return this.declaredFunctions.get(name);
+  }
+
+  declareMathIntrinsic(name: string, fn: any, fnType: any): void {
+    this.mathIntrinsics.set(name, { fn, fnType });
+  }
+
+  getMathIntrinsic(name: string): { fn: any; fnType: any } | undefined {
+    return this.mathIntrinsics.get(name);
+  }
+}
+
+export interface EmitResult {
+  objectFile: string;
+  irFile?: string;
+}
+
+export function emitModule(mod: HIRModule, objectPath: string, irPath?: string): void {
+  const m = new LLVMModule("chadscript");
+  const ctx = new EmitContext(m);
+
+  declareExterns(ctx);
 
   for (const g of mod.globals) {
-    const t = llvmType(g.type);
-    const init = g.type.kind === "f64" ? "0.0" : g.type.kind === "i8ptr" ? "null" : "0";
-    ctx.line(`@g_${g.name} = global ${t} ${init}`);
+    const ty = llvmType(ctx, g.type);
+    const globalVar = m.addGlobal(`g_${g.name}`, ty);
+    m.setInitializer(globalVar, defaultInit(ctx, g.type));
+    ctx.registerGlobal(g.name, globalVar, g.type);
   }
-  if (mod.globals.length > 0) ctx.line("");
+
+  for (const fn of mod.functions) {
+    const paramTypes = fn.params.map((p) => llvmType(ctx, p.type));
+    const retType = llvmType(ctx, fn.returnType);
+    const fnType = m.functionType(retType, paramTypes);
+    const llvmFn = m.addFunction(fn.name, fnType);
+    ctx.declareFunction(fn.name, llvmFn, fnType);
+  }
 
   for (const fn of mod.functions) {
     emitFunction(ctx, fn);
-    ctx.line("");
   }
 
   emitMain(ctx, mod);
 
-  return ctx.output();
+  if (irPath) {
+    m.printToFile(irPath);
+  }
+
+  m.emitObjectFile(objectPath);
+  m.dispose();
 }
 
-class EmitContext {
-  private lines: string[] = [];
-  private tempCounter = 0;
-  private labelCounter = 0;
-  private stringConstants: Map<string, string> = new Map();
-  private stringConstantDefs: string[] = [];
-  loopStack: { condLabel: string; exitLabel: string }[] = [];
+function declareExterns(ctx: EmitContext): void {
+  const m = ctx.m;
 
-  line(s: string): void {
-    this.lines.push(s);
+  const putsType = m.functionType(m.i32, [m.ptr]);
+  const putsFn = m.addFunction("puts", putsType);
+  ctx.declareFunction("puts", putsFn, putsType);
+
+  const printfType = m.functionType(m.i32, [m.ptr], true);
+  const printfFn = m.addFunction("printf", printfType);
+  ctx.declareFunction("printf", printfFn, printfType);
+
+  const sprintfType = m.functionType(m.i32, [m.ptr, m.ptr], true);
+  const sprintfFn = m.addFunction("sprintf", sprintfType);
+  ctx.declareFunction("sprintf", sprintfFn, sprintfType);
+
+  const exitType = m.functionType(m.voidTy, [m.i32]);
+  const exitFn = m.addFunction("exit", exitType);
+  ctx.declareFunction("exit", exitFn, exitType);
+
+  const strlenType = m.functionType(m.i64, [m.ptr]);
+  const strlenFn = m.addFunction("strlen", strlenType);
+  ctx.declareFunction("strlen", strlenFn, strlenType);
+
+  const mallocType = m.functionType(m.ptr, [m.i64]);
+  const mallocFn = m.addFunction("malloc", mallocType);
+  ctx.declareFunction("malloc", mallocFn, mallocType);
+
+  const strcpyType = m.functionType(m.ptr, [m.ptr, m.ptr]);
+  const strcpyFn = m.addFunction("strcpy", strcpyType);
+  ctx.declareFunction("strcpy", strcpyFn, strcpyType);
+
+  const strcatType = m.functionType(m.ptr, [m.ptr, m.ptr]);
+  const strcatFn = m.addFunction("strcat", strcatType);
+  ctx.declareFunction("strcat", strcatFn, strcatType);
+
+  const strcmpType = m.functionType(m.i32, [m.ptr, m.ptr]);
+  const strcmpFn = m.addFunction("strcmp", strcmpType);
+  ctx.declareFunction("strcmp", strcmpFn, strcmpType);
+
+  const mathIntrinsics1: [string, string][] = [
+    ["llvm.floor.f64", "cs_math_floor"],
+    ["llvm.ceil.f64", "cs_math_ceil"],
+    ["llvm.fabs.f64", "cs_math_abs"],
+    ["llvm.sqrt.f64", "cs_math_sqrt"],
+    ["llvm.log.f64", "cs_math_log"],
+    ["llvm.round.f64", "cs_math_round"],
+  ];
+  const math1Type = m.functionType(m.f64, [m.f64]);
+  for (const [llvmName, csName] of mathIntrinsics1) {
+    const fn = m.addFunction(llvmName, math1Type);
+    ctx.declareMathIntrinsic(csName, fn, math1Type);
   }
 
-  nextTemp(): string {
-    return `%t${this.tempCounter++}`;
-  }
-
-  nextLabel(prefix: string): string {
-    return `${prefix}${this.labelCounter++}`;
-  }
-
-  resetTemps(): void {
-    this.tempCounter = 0;
-    this.labelCounter = 0;
-  }
-
-  getOrCreateString(value: string): string {
-    const existing = this.stringConstants.get(value);
-    if (existing) return existing;
-
-    const name = `@.str.${this.stringConstants.size}`;
-    const escaped = value.replace(/\\/g, "\\5C").replace(/"/g, "\\22").replace(/\n/g, "\\0A");
-    const len = Buffer.byteLength(value, "utf-8") + 1;
-    this.stringConstantDefs.push(
-      `${name} = private unnamed_addr constant [${len} x i8] c"${escaped}\\00"`,
-    );
-    this.stringConstants.set(value, name);
-    return name;
-  }
-
-  output(): string {
-    return [...this.stringConstantDefs, "", ...this.lines].join("\n") + "\n";
+  const mathIntrinsics2: [string, string][] = [
+    ["llvm.pow.f64", "cs_math_pow"],
+    ["llvm.maxnum.f64", "cs_math_max"],
+    ["llvm.minnum.f64", "cs_math_min"],
+  ];
+  const math2Type = m.functionType(m.f64, [m.f64, m.f64]);
+  for (const [llvmName, csName] of mathIntrinsics2) {
+    const fn = m.addFunction(llvmName, math2Type);
+    ctx.declareMathIntrinsic(csName, fn, math2Type);
   }
 }
 
-function llvmType(t: HIRType): string {
+function llvmType(ctx: EmitContext, t: HIRType): any {
+  const m = ctx.m;
   switch (t.kind) {
     case "f64":
-      return "double";
+      return m.f64;
     case "i32":
-      return "i32";
+      return m.i32;
     case "i1":
-      return "i1";
+      return m.i1;
     case "i8ptr":
-      return "i8*";
+      return m.ptr;
     case "void":
-      return "void";
+      return m.voidTy;
     case "boxed":
-      return "double";
+      return m.f64;
     case "ptr":
-      return `%${t.pointee}*`;
     case "array":
-      return "i8*";
     case "struct":
-      return `%${t.name}*`;
+      return m.ptr;
     default: {
       const _: never = t;
       throw new Error(`unknown HIR type: ${JSON.stringify(t)}`);
@@ -118,21 +228,39 @@ function llvmType(t: HIRType): string {
   }
 }
 
+function defaultInit(ctx: EmitContext, t: HIRType): any {
+  const m = ctx.m;
+  switch (t.kind) {
+    case "f64":
+      return m.constReal(m.f64, 0.0);
+    case "i32":
+      return m.constInt(m.i32, 0);
+    case "i1":
+      return m.constInt(m.i1, 0);
+    case "i8ptr":
+      return m.constNull(m.ptr);
+    default:
+      return m.constInt(m.i32, 0);
+  }
+}
+
 function emitFunction(ctx: EmitContext, fn: HIRFunction): void {
-  ctx.resetTemps();
+  const m = ctx.m;
+  ctx.resetLocals();
 
-  const params = fn.params.map((p) => `${llvmType(p.type)} %arg.${p.name}`).join(", ");
-  const retType = llvmType(fn.returnType);
+  const decl = ctx.getDeclaredFunction(fn.name)!;
+  const llvmFn = decl.fn;
+  ctx.setCurrentFn(llvmFn);
 
-  ctx.line(`define ${retType} @${fn.name}(${params}) {`);
-  ctx.line("entry:");
+  const entry = m.appendBlock(llvmFn, "entry");
+  m.positionAtEnd(entry);
 
-  localNames.clear();
-  for (const p of fn.params) {
-    registerLocal(p.id, p.name);
-    const t = llvmType(p.type);
-    ctx.line(`  %${p.name} = alloca ${t}`);
-    ctx.line(`  store ${t} %arg.${p.name}, ${t}* %${p.name}`);
+  for (let i = 0; i < fn.params.length; i++) {
+    const p = fn.params[i];
+    const ty = llvmType(ctx, p.type);
+    const alloc = m.buildAlloca(ty, p.name);
+    m.buildStore(m.getParam(llvmFn, i), alloc);
+    ctx.registerLocal(p.id, p.name, alloc);
   }
 
   for (const stmt of fn.body) {
@@ -141,24 +269,27 @@ function emitFunction(ctx: EmitContext, fn: HIRFunction): void {
 
   if (!blockTerminates(fn.body)) {
     if (fn.returnType.kind === "void") {
-      ctx.line("  ret void");
+      m.buildRetVoid();
     }
   }
-
-  ctx.line("}");
 }
 
 function emitMain(ctx: EmitContext, mod: HIRModule): void {
-  ctx.resetTemps();
-  localNames.clear();
-  ctx.line("define i32 @main(i32 %argc, i8** %argv) {");
-  ctx.line("entry:");
+  const m = ctx.m;
+  ctx.resetLocals();
+
+  const mainType = m.functionType(m.i32, [m.i32, m.ptr]);
+  const mainFn = m.addFunction("main", mainType);
+  ctx.setCurrentFn(mainFn);
+
+  const entry = m.appendBlock(mainFn, "entry");
+  m.positionAtEnd(entry);
 
   for (const g of mod.globals) {
     if (g.init) {
       const val = emitExpr(ctx, g.init);
-      const t = llvmType(g.type);
-      ctx.line(`  store ${t} ${val}, ${t}* @g_${g.name}`);
+      const globalInfo = ctx.getGlobal(g.name)!;
+      m.buildStore(val, globalInfo.alloc);
     }
   }
 
@@ -166,14 +297,7 @@ function emitMain(ctx: EmitContext, mod: HIRModule): void {
     emitStmt(ctx, stmt);
   }
 
-  ctx.line("  ret i32 0");
-  ctx.line("}");
-}
-
-function stmtTerminates(stmts: HIRStmt[]): boolean {
-  if (stmts.length === 0) return false;
-  const last = stmts[stmts.length - 1];
-  return last.kind === "break" || last.kind === "continue" || last.kind === "return";
+  m.buildRet(m.constInt(m.i32, 0));
 }
 
 function blockTerminates(stmts: HIRStmt[]): boolean {
@@ -186,20 +310,24 @@ function blockTerminates(stmts: HIRStmt[]): boolean {
   return false;
 }
 
+function stmtTerminates(stmts: HIRStmt[]): boolean {
+  if (stmts.length === 0) return false;
+  const last = stmts[stmts.length - 1];
+  return last.kind === "break" || last.kind === "continue" || last.kind === "return";
+}
+
 function emitStmt(ctx: EmitContext, stmt: HIRStmt): void {
+  const m = ctx.m;
+
   switch (stmt.kind) {
     case "let": {
-      registerLocal(stmt.id, stmt.name);
-      const t = llvmType(stmt.type);
-      ctx.line(`  %${stmt.name} = alloca ${t}`);
+      const ty = llvmType(ctx, stmt.type);
+      const alloc = m.buildAlloca(ty, stmt.name);
+      ctx.registerLocal(stmt.id, stmt.name, alloc);
       if (stmt.init) {
         const val = emitExpr(ctx, stmt.init);
-        ctx.line(`  store ${t} ${val}, ${t}* %${stmt.name}`);
+        m.buildStore(val, alloc);
       }
-      break;
-    }
-    case "assign": {
-      const val = emitExpr(ctx, stmt.value);
       break;
     }
     case "expr":
@@ -208,97 +336,105 @@ function emitStmt(ctx: EmitContext, stmt: HIRStmt): void {
     case "return": {
       if (stmt.value) {
         const val = emitExpr(ctx, stmt.value);
-        ctx.line(`  ret ${llvmType(stmt.value.type)} ${val}`);
+        m.buildRet(val);
       } else {
-        ctx.line("  ret void");
+        m.buildRetVoid();
       }
       break;
     }
     case "if": {
       const cond = emitExpr(ctx, stmt.condition);
-      const thenLabel = ctx.nextLabel("then");
-      const elseLabel = ctx.nextLabel("else");
-      const mergeLabel = ctx.nextLabel("merge");
+      const fn = ctx.getCurrentFn();
+      const thenBlock = m.appendBlock(fn, "then");
+      const elseBlock = stmt.else ? m.appendBlock(fn, "else") : null;
+      const mergeBlock = m.appendBlock(fn, "merge");
 
-      if (stmt.else) {
-        ctx.line(`  br i1 ${cond}, label %${thenLabel}, label %${elseLabel}`);
-      } else {
-        ctx.line(`  br i1 ${cond}, label %${thenLabel}, label %${mergeLabel}`);
-      }
+      m.buildCondBr(cond, thenBlock, elseBlock || mergeBlock);
 
-      ctx.line(`${thenLabel}:`);
+      m.positionAtEnd(thenBlock);
       for (const s of stmt.then) emitStmt(ctx, s);
       const thenTerminated = blockTerminates(stmt.then);
-      if (!thenTerminated) ctx.line(`  br label %${mergeLabel}`);
+      if (!thenTerminated) m.buildBr(mergeBlock);
 
       let elseTerminated = false;
-      if (stmt.else) {
-        ctx.line(`${elseLabel}:`);
+      if (stmt.else && elseBlock) {
+        m.positionAtEnd(elseBlock);
         for (const s of stmt.else) emitStmt(ctx, s);
         elseTerminated = blockTerminates(stmt.else);
-        if (!elseTerminated) ctx.line(`  br label %${mergeLabel}`);
+        if (!elseTerminated) m.buildBr(mergeBlock);
       }
 
       if (!(thenTerminated && elseTerminated)) {
-        ctx.line(`${mergeLabel}:`);
+        m.positionAtEnd(mergeBlock);
       }
       break;
     }
     case "while": {
-      const condLabel = ctx.nextLabel("while.cond");
-      const bodyLabel = ctx.nextLabel("while.body");
-      const exitLabel = ctx.nextLabel("while.exit");
+      const fn = ctx.getCurrentFn();
+      const condBlock = m.appendBlock(fn, "while.cond");
+      const bodyBlock = m.appendBlock(fn, "while.body");
+      const exitBlock = m.appendBlock(fn, "while.exit");
 
-      ctx.loopStack.push({ condLabel, exitLabel });
-      ctx.line(`  br label %${condLabel}`);
-      ctx.line(`${condLabel}:`);
+      ctx.pushLoop(condBlock, exitBlock);
+      m.buildBr(condBlock);
+
+      m.positionAtEnd(condBlock);
       const cond = emitExpr(ctx, stmt.condition);
-      ctx.line(`  br i1 ${cond}, label %${bodyLabel}, label %${exitLabel}`);
-      ctx.line(`${bodyLabel}:`);
+      m.buildCondBr(cond, bodyBlock, exitBlock);
+
+      m.positionAtEnd(bodyBlock);
       for (const s of stmt.body) emitStmt(ctx, s);
-      if (!stmtTerminates(stmt.body)) ctx.line(`  br label %${condLabel}`);
-      ctx.line(`${exitLabel}:`);
-      ctx.loopStack.pop();
+      if (!stmtTerminates(stmt.body)) m.buildBr(condBlock);
+
+      m.positionAtEnd(exitBlock);
+      ctx.popLoop();
       break;
     }
     case "for": {
       if (stmt.init) emitStmt(ctx, stmt.init);
-      const condLabel = ctx.nextLabel("for.cond");
-      const bodyLabel = ctx.nextLabel("for.body");
-      const updateLabel = ctx.nextLabel("for.update");
-      const exitLabel = ctx.nextLabel("for.exit");
+      const fn = ctx.getCurrentFn();
+      const condBlock = m.appendBlock(fn, "for.cond");
+      const bodyBlock = m.appendBlock(fn, "for.body");
+      const updateBlock = m.appendBlock(fn, "for.update");
+      const exitBlock = m.appendBlock(fn, "for.exit");
 
-      ctx.loopStack.push({ condLabel: updateLabel, exitLabel });
-      ctx.line(`  br label %${condLabel}`);
-      ctx.line(`${condLabel}:`);
+      ctx.pushLoop(updateBlock, exitBlock);
+      m.buildBr(condBlock);
+
+      m.positionAtEnd(condBlock);
       if (stmt.condition) {
         const cond = emitExpr(ctx, stmt.condition);
-        ctx.line(`  br i1 ${cond}, label %${bodyLabel}, label %${exitLabel}`);
+        m.buildCondBr(cond, bodyBlock, exitBlock);
       } else {
-        ctx.line(`  br label %${bodyLabel}`);
+        m.buildBr(bodyBlock);
       }
-      ctx.line(`${bodyLabel}:`);
+
+      m.positionAtEnd(bodyBlock);
       for (const s of stmt.body) emitStmt(ctx, s);
-      if (!stmtTerminates(stmt.body)) ctx.line(`  br label %${updateLabel}`);
-      ctx.line(`${updateLabel}:`);
+      if (!stmtTerminates(stmt.body)) m.buildBr(updateBlock);
+
+      m.positionAtEnd(updateBlock);
       if (stmt.update) emitExpr(ctx, stmt.update);
-      ctx.line(`  br label %${condLabel}`);
-      ctx.line(`${exitLabel}:`);
-      ctx.loopStack.pop();
+      m.buildBr(condBlock);
+
+      m.positionAtEnd(exitBlock);
+      ctx.popLoop();
       break;
     }
     case "break": {
-      const loop = ctx.loopStack[ctx.loopStack.length - 1];
-      ctx.line(`  br label %${loop.exitLabel}`);
-      const deadLabel = ctx.nextLabel("dead");
-      ctx.line(`${deadLabel}:`);
+      const loop = ctx.currentLoop();
+      m.buildBr(loop.exitBlock);
+      const fn = ctx.getCurrentFn();
+      const deadBlock = m.appendBlock(fn, "dead");
+      m.positionAtEnd(deadBlock);
       break;
     }
     case "continue": {
-      const loop = ctx.loopStack[ctx.loopStack.length - 1];
-      ctx.line(`  br label %${loop.condLabel}`);
-      const deadLabel = ctx.nextLabel("dead");
-      ctx.line(`${deadLabel}:`);
+      const loop = ctx.currentLoop();
+      m.buildBr(loop.condBlock);
+      const fn = ctx.getCurrentFn();
+      const deadBlock = m.appendBlock(fn, "dead");
+      m.positionAtEnd(deadBlock);
       break;
     }
     default:
@@ -306,239 +442,209 @@ function emitStmt(ctx: EmitContext, stmt: HIRStmt): void {
   }
 }
 
-function emitExpr(ctx: EmitContext, expr: HIRExpr): string {
+function emitExpr(ctx: EmitContext, expr: HIRExpr): any {
+  const m = ctx.m;
+
   switch (expr.kind) {
-    case "literal_f64": {
-      if (Object.is(expr.value, -0)) return "-0.0";
-      const s = expr.value.toExponential(20);
-      return s;
-    }
+    case "literal_f64":
+      return m.constReal(m.f64, expr.value);
     case "literal_i32":
-      return `${expr.value}`;
+      return m.constInt(m.i32, expr.value);
     case "literal_i1":
-      return expr.value ? "1" : "0";
-    case "literal_string": {
-      const name = ctx.getOrCreateString(expr.value);
-      const len = Buffer.byteLength(expr.value, "utf-8") + 1;
-      const tmp = ctx.nextTemp();
-      ctx.line(
-        `  ${tmp} = getelementptr inbounds [${len} x i8], [${len} x i8]* ${name}, i64 0, i64 0`,
-      );
-      return tmp;
-    }
+      return m.constInt(m.i1, expr.value ? 1 : 0);
+    case "literal_string":
+      return m.buildGlobalStringPtr(expr.value, "str");
     case "literal_null":
-      return "null";
+      return m.constNull(m.ptr);
     case "local_get": {
-      const tmp = ctx.nextTemp();
-      const t = llvmType(expr.type);
-      ctx.line(`  ${tmp} = load ${t}, ${t}* %${getLocalName(expr.id)}`);
-      return tmp;
+      const alloc = ctx.getLocalAlloc(expr.id);
+      const ty = llvmType(ctx, expr.type);
+      return m.buildLoad(ty, alloc, "");
     }
     case "local_set": {
       const val = emitExpr(ctx, expr.value);
-      const t = llvmType(expr.type);
-      ctx.line(`  store ${t} ${val}, ${t}* %${getLocalName(expr.id)}`);
+      const alloc = ctx.getLocalAlloc(expr.id);
+      m.buildStore(val, alloc);
       return val;
     }
     case "global_get": {
-      const tmp = ctx.nextTemp();
-      const t = llvmType(expr.type);
-      ctx.line(`  ${tmp} = load ${t}, ${t}* @g_${expr.name}`);
-      return tmp;
+      const g = ctx.getGlobal(expr.name)!;
+      const ty = llvmType(ctx, expr.type);
+      return m.buildLoad(ty, g.alloc, "");
     }
     case "global_set": {
       const val = emitExpr(ctx, expr.value);
-      const t = llvmType(expr.type);
-      ctx.line(`  store ${t} ${val}, ${t}* @g_${expr.name}`);
+      const g = ctx.getGlobal(expr.name)!;
+      m.buildStore(val, g.alloc);
       return val;
     }
     case "binary":
       return emitBinary(ctx, expr);
     case "unary":
       return emitUnary(ctx, expr);
-    case "call": {
-      const args = expr.args.map((a) => {
-        const val = emitExpr(ctx, a);
-        return `${llvmType(a.type)} ${val}`;
-      });
-      const retType = llvmType(expr.returnType);
-      if (retType === "void") {
-        ctx.line(`  call void @${expr.callee}(${args.join(", ")})`);
-        return "void";
-      }
-      const tmp = ctx.nextTemp();
-      ctx.line(`  ${tmp} = call ${retType} @${expr.callee}(${args.join(", ")})`);
-      return tmp;
-    }
+    case "call":
+      return emitCall(ctx, expr);
     case "runtime_call":
       return emitRuntimeCall(ctx, expr);
     case "conditional": {
       const cond = emitExpr(ctx, expr.condition);
       const thenVal = emitExpr(ctx, expr.then);
       const elseVal = emitExpr(ctx, expr.else);
-      const tmp = ctx.nextTemp();
-      ctx.line(
-        `  ${tmp} = select i1 ${cond}, ${llvmType(expr.type)} ${thenVal}, ${llvmType(expr.type)} ${elseVal}`,
-      );
-      return tmp;
+      return m.buildSelect(cond, thenVal, elseVal, "");
     }
     case "narrow_i32": {
       const val = emitExpr(ctx, expr.value);
-      const i64tmp = ctx.nextTemp();
-      const tmp = ctx.nextTemp();
-      ctx.line(`  ${i64tmp} = fptosi double ${val} to i64`);
-      ctx.line(`  ${tmp} = trunc i64 ${i64tmp} to i32`);
-      return tmp;
+      const i64val = m.buildFPToSI(val, m.i64, "");
+      return m.buildTrunc(i64val, m.i32, "");
     }
     case "widen_f64": {
       const val = emitExpr(ctx, expr.value);
-      const tmp = ctx.nextTemp();
-      ctx.line(`  ${tmp} = sitofp i32 ${val} to double`);
-      return tmp;
+      return m.buildSIToFP(val, m.f64, "");
     }
     default:
-      return "0";
+      return m.constInt(m.i32, 0);
   }
 }
 
-const localNames = new Map<number, string>();
-
-function registerLocal(id: number, name: string): void {
-  localNames.set(id, name);
+function emitCall(ctx: EmitContext, expr: HIRExpr & { kind: "call" }): any {
+  const m = ctx.m;
+  const args = expr.args.map((a) => emitExpr(ctx, a));
+  const decl = ctx.getDeclaredFunction(expr.callee);
+  if (!decl) throw new Error(`undeclared function: ${expr.callee}`);
+  return m.buildCall(decl.fnType, decl.fn, args, expr.returnType.kind === "void" ? "" : "");
 }
 
-function getLocalName(id: number): string {
-  return localNames.get(id) || `local.${id}`;
-}
+function emitBinary(ctx: EmitContext, expr: HIRExpr & { kind: "binary" }): any {
+  const m = ctx.m;
 
-function emitBinary(ctx: EmitContext, expr: HIRExpr & { kind: "binary" }): string {
   if (expr.op === "and" || expr.op === "or") {
     return emitShortCircuit(ctx, expr);
   }
 
+  if (expr.op === "str_eq" || expr.op === "str_ne") {
+    return emitStringCompare(ctx, expr);
+  }
+
   const left = emitExpr(ctx, expr.left);
   const right = emitExpr(ctx, expr.right);
-  const tmp = ctx.nextTemp();
-  const t = llvmType(expr.left.type);
   const isFloat = expr.left.type.kind === "f64";
-  const isInt = expr.left.type.kind === "i32" || expr.left.type.kind === "i1";
 
   switch (expr.op) {
     case "add":
-      ctx.line(`  ${tmp} = ${isFloat ? "fadd" : "add"} ${t} ${left}, ${right}`);
-      break;
+      return isFloat ? m.buildFAdd(left, right, "") : m.buildAdd(left, right, "");
     case "sub":
-      ctx.line(`  ${tmp} = ${isFloat ? "fsub" : "sub"} ${t} ${left}, ${right}`);
-      break;
+      return isFloat ? m.buildFSub(left, right, "") : m.buildSub(left, right, "");
     case "mul":
-      ctx.line(`  ${tmp} = ${isFloat ? "fmul" : "mul"} ${t} ${left}, ${right}`);
-      break;
+      return isFloat ? m.buildFMul(left, right, "") : m.buildMul(left, right, "");
     case "div":
-      ctx.line(`  ${tmp} = ${isFloat ? "fdiv" : "sdiv"} ${t} ${left}, ${right}`);
-      break;
+      return isFloat ? m.buildFDiv(left, right, "") : m.buildSDiv(left, right, "");
     case "rem":
-      ctx.line(`  ${tmp} = ${isFloat ? "frem" : "srem"} ${t} ${left}, ${right}`);
-      break;
+      return isFloat ? m.buildFRem(left, right, "") : m.buildSRem(left, right, "");
     case "eq":
-      ctx.line(`  ${tmp} = ${isFloat ? "fcmp oeq" : "icmp eq"} ${t} ${left}, ${right}`);
-      break;
+      return isFloat
+        ? m.buildFCmp(LLVMRealOEQ, left, right, "")
+        : m.buildICmp(LLVMIntEQ, left, right, "");
     case "ne":
-      ctx.line(`  ${tmp} = ${isFloat ? "fcmp one" : "icmp ne"} ${t} ${left}, ${right}`);
-      break;
+      return isFloat
+        ? m.buildFCmp(LLVMRealONE, left, right, "")
+        : m.buildICmp(LLVMIntNE, left, right, "");
     case "lt":
-      ctx.line(`  ${tmp} = ${isFloat ? "fcmp olt" : "icmp slt"} ${t} ${left}, ${right}`);
-      break;
+      return isFloat
+        ? m.buildFCmp(LLVMRealOLT, left, right, "")
+        : m.buildICmp(LLVMIntSLT, left, right, "");
     case "le":
-      ctx.line(`  ${tmp} = ${isFloat ? "fcmp ole" : "icmp sle"} ${t} ${left}, ${right}`);
-      break;
+      return isFloat
+        ? m.buildFCmp(LLVMRealOLE, left, right, "")
+        : m.buildICmp(LLVMIntSLE, left, right, "");
     case "gt":
-      ctx.line(`  ${tmp} = ${isFloat ? "fcmp ogt" : "icmp sgt"} ${t} ${left}, ${right}`);
-      break;
+      return isFloat
+        ? m.buildFCmp(LLVMRealOGT, left, right, "")
+        : m.buildICmp(LLVMIntSGT, left, right, "");
     case "ge":
-      ctx.line(`  ${tmp} = ${isFloat ? "fcmp oge" : "icmp sge"} ${t} ${left}, ${right}`);
-      break;
+      return isFloat
+        ? m.buildFCmp(LLVMRealOGE, left, right, "")
+        : m.buildICmp(LLVMIntSGE, left, right, "");
     case "bit_and":
-      ctx.line(`  ${tmp} = and ${t} ${left}, ${right}`);
-      break;
+      return m.buildAnd(left, right, "");
     case "bit_or":
-      ctx.line(`  ${tmp} = or ${t} ${left}, ${right}`);
-      break;
+      return m.buildOr(left, right, "");
     case "bit_xor":
-      ctx.line(`  ${tmp} = xor ${t} ${left}, ${right}`);
-      break;
+      return m.buildXor(left, right, "");
     case "shl":
-      ctx.line(`  ${tmp} = shl ${t} ${left}, ${right}`);
-      break;
+      return m.buildShl(left, right, "");
     case "shr":
-      ctx.line(`  ${tmp} = ashr ${t} ${left}, ${right}`);
-      break;
+      return m.buildAShr(left, right, "");
     case "ushr":
-      ctx.line(`  ${tmp} = lshr ${t} ${left}, ${right}`);
-      break;
+      return m.buildLShr(left, right, "");
     default:
       throw new Error(`unhandled binary op: ${expr.op}`);
   }
-
-  return tmp;
 }
 
-function emitShortCircuit(ctx: EmitContext, expr: HIRExpr & { kind: "binary" }): string {
+function emitStringCompare(ctx: EmitContext, expr: HIRExpr & { kind: "binary" }): any {
+  const m = ctx.m;
   const left = emitExpr(ctx, expr.left);
-  const rhsLabel = ctx.nextLabel("sc.rhs");
-  const mergeLabel = ctx.nextLabel("sc.merge");
-  const skipLabel = ctx.nextLabel("sc.skip");
-  const entryLabel = ctx.nextLabel("sc.entry");
-
-  if (expr.op === "and") {
-    ctx.line(`  br i1 ${left}, label %${rhsLabel}, label %${skipLabel}`);
-  } else {
-    ctx.line(`  br i1 ${left}, label %${skipLabel}, label %${rhsLabel}`);
-  }
-
-  ctx.line(`${rhsLabel}:`);
   const right = emitExpr(ctx, expr.right);
-  ctx.line(`  br label %${mergeLabel}`);
-
-  ctx.line(`${skipLabel}:`);
-  ctx.line(`  br label %${mergeLabel}`);
-
-  ctx.line(`${mergeLabel}:`);
-  const result = ctx.nextTemp();
-  if (expr.op === "and") {
-    ctx.line(`  ${result} = phi i1 [ ${right}, %${rhsLabel} ], [ false, %${skipLabel} ]`);
-  } else {
-    ctx.line(`  ${result} = phi i1 [ ${right}, %${rhsLabel} ], [ true, %${skipLabel} ]`);
+  const strcmp = ctx.getDeclaredFunction("strcmp")!;
+  const result = m.buildCall(strcmp.fnType, strcmp.fn, [left, right], "");
+  if (expr.op === "str_eq") {
+    return m.buildICmp(LLVMIntEQ, result, m.constInt(m.i32, 0), "");
   }
-  return result;
+  return m.buildICmp(LLVMIntNE, result, m.constInt(m.i32, 0), "");
 }
 
-function emitUnary(ctx: EmitContext, expr: HIRExpr & { kind: "unary" }): string {
+function emitShortCircuit(ctx: EmitContext, expr: HIRExpr & { kind: "binary" }): any {
+  const m = ctx.m;
+  const fn = ctx.getCurrentFn();
+
+  const left = emitExpr(ctx, expr.left);
+  const leftBlock = m.getInsertBlock();
+
+  const rhsBlock = m.appendBlock(fn, "sc.rhs");
+  const mergeBlock = m.appendBlock(fn, "sc.merge");
+
+  if (expr.op === "and") {
+    m.buildCondBr(left, rhsBlock, mergeBlock);
+  } else {
+    m.buildCondBr(left, mergeBlock, rhsBlock);
+  }
+
+  m.positionAtEnd(rhsBlock);
+  const right = emitExpr(ctx, expr.right);
+  const rhsEndBlock = m.getInsertBlock();
+  m.buildBr(mergeBlock);
+
+  m.positionAtEnd(mergeBlock);
+  const phi = m.buildPhi(m.i1, "");
+
+  if (expr.op === "and") {
+    m.addIncoming(phi, [right, m.constInt(m.i1, 0)], [rhsEndBlock, leftBlock]);
+  } else {
+    m.addIncoming(phi, [right, m.constInt(m.i1, 1)], [rhsEndBlock, leftBlock]);
+  }
+
+  return phi;
+}
+
+function emitUnary(ctx: EmitContext, expr: HIRExpr & { kind: "unary" }): any {
+  const m = ctx.m;
   const operand = emitExpr(ctx, expr.operand);
-  const tmp = ctx.nextTemp();
-  const t = llvmType(expr.operand.type);
 
   switch (expr.op) {
     case "neg":
-      if (expr.operand.type.kind === "f64") {
-        ctx.line(`  ${tmp} = fneg double ${operand}`);
-      } else {
-        ctx.line(`  ${tmp} = sub ${t} 0, ${operand}`);
-      }
-      break;
+      return expr.operand.type.kind === "f64" ? m.buildFNeg(operand, "") : m.buildNeg(operand, "");
     case "not":
-      ctx.line(`  ${tmp} = xor i1 ${operand}, 1`);
-      break;
+      return m.buildXor(operand, m.constInt(m.i1, 1), "");
     case "bit_not":
-      ctx.line(`  ${tmp} = xor ${t} ${operand}, -1`);
-      break;
+      return m.buildNot(operand, "");
     default:
       throw new Error(`unhandled unary op: ${expr.op}`);
   }
-
-  return tmp;
 }
 
-function emitRuntimeCall(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_call" }): string {
+function emitRuntimeCall(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_call" }): any {
+  const m = ctx.m;
+
   if (expr.func.startsWith("cs_math_")) {
     return emitMathCall(ctx, expr);
   }
@@ -550,126 +656,87 @@ function emitRuntimeCall(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_call
   if (expr.func === "cs_console_log") {
     for (let i = 0; i < expr.args.length; i++) {
       if (i > 0) {
-        const spaceFmt = ctx.getOrCreateString(" ");
-        const spaceLen = 2;
-        const spacePtr = ctx.nextTemp();
-        ctx.line(
-          `  ${spacePtr} = getelementptr inbounds [${spaceLen} x i8], [${spaceLen} x i8]* ${spaceFmt}, i64 0, i64 0`,
-        );
-        ctx.line(`  call i32 (i8*, ...) @printf(i8* ${spacePtr})`);
+        const spaceStr = m.buildGlobalStringPtr(" ", "space");
+        const printf = ctx.getDeclaredFunction("printf")!;
+        m.buildCall(printf.fnType, printf.fn, [spaceStr], "");
       }
       const arg = expr.args[i];
       const val = emitExpr(ctx, arg);
       emitPrintValue(ctx, arg, val, i === expr.args.length - 1);
     }
     if (expr.args.length === 0) {
-      const nlFmt = ctx.getOrCreateString("\n");
-      const nlPtr = ctx.nextTemp();
-      ctx.line(`  ${nlPtr} = getelementptr inbounds [2 x i8], [2 x i8]* ${nlFmt}, i64 0, i64 0`);
-      ctx.line(`  call i32 (i8*, ...) @printf(i8* ${nlPtr})`);
+      const nlStr = m.buildGlobalStringPtr("\n", "nl");
+      const printf = ctx.getDeclaredFunction("printf")!;
+      m.buildCall(printf.fnType, printf.fn, [nlStr], "");
     }
-    return "void";
+    return m.constInt(m.i32, 0);
   }
 
-  return "0";
+  return m.constInt(m.i32, 0);
 }
 
-function emitPrintValue(ctx: EmitContext, arg: HIRExpr, val: string, isLast: boolean): void {
+function emitPrintValue(ctx: EmitContext, arg: HIRExpr, val: any, isLast: boolean): void {
+  const m = ctx.m;
   const nl = isLast ? "\n" : "";
+
   if (arg.type.kind === "i8ptr") {
     if (isLast) {
-      ctx.line(`  call i32 @puts(i8* ${val})`);
+      const puts = ctx.getDeclaredFunction("puts")!;
+      m.buildCall(puts.fnType, puts.fn, [val], "");
     } else {
-      const fmt = ctx.getOrCreateString("%s");
-      const fmtLen = 3;
-      const fmtPtr = ctx.nextTemp();
-      ctx.line(
-        `  ${fmtPtr} = getelementptr inbounds [${fmtLen} x i8], [${fmtLen} x i8]* ${fmt}, i64 0, i64 0`,
-      );
-      ctx.line(`  call i32 (i8*, ...) @printf(i8* ${fmtPtr}, i8* ${val})`);
+      const fmt = m.buildGlobalStringPtr("%s", "fmt");
+      const printf = ctx.getDeclaredFunction("printf")!;
+      m.buildCall(printf.fnType, printf.fn, [fmt, val], "");
     }
   } else if (arg.type.kind === "f64") {
-    const fmt = ctx.getOrCreateString(`%.17g${nl}`);
-    const fmtLen = Buffer.byteLength(`%.17g${nl}`, "utf-8") + 1;
-    const fmtPtr = ctx.nextTemp();
-    ctx.line(
-      `  ${fmtPtr} = getelementptr inbounds [${fmtLen} x i8], [${fmtLen} x i8]* ${fmt}, i64 0, i64 0`,
-    );
-    ctx.line(`  call i32 (i8*, ...) @printf(i8* ${fmtPtr}, double ${val})`);
+    const fmt = m.buildGlobalStringPtr(`%.17g${nl}`, "fmt");
+    const printf = ctx.getDeclaredFunction("printf")!;
+    m.buildCall(printf.fnType, printf.fn, [fmt, val], "");
   } else if (arg.type.kind === "i32") {
-    const fmt = ctx.getOrCreateString(`%d${nl}`);
-    const fmtLen = Buffer.byteLength(`%d${nl}`, "utf-8") + 1;
-    const fmtPtr = ctx.nextTemp();
-    ctx.line(
-      `  ${fmtPtr} = getelementptr inbounds [${fmtLen} x i8], [${fmtLen} x i8]* ${fmt}, i64 0, i64 0`,
-    );
-    ctx.line(`  call i32 (i8*, ...) @printf(i8* ${fmtPtr}, i32 ${val})`);
+    const fmt = m.buildGlobalStringPtr(`%d${nl}`, "fmt");
+    const printf = ctx.getDeclaredFunction("printf")!;
+    m.buildCall(printf.fnType, printf.fn, [fmt, val], "");
   } else if (arg.type.kind === "i1") {
-    const trueStr = ctx.getOrCreateString("true");
-    const falseStr = ctx.getOrCreateString("false");
-    const trueLen = Buffer.byteLength("true", "utf-8") + 1;
-    const falseLen = Buffer.byteLength("false", "utf-8") + 1;
-    const truePtr = ctx.nextTemp();
-    const falsePtr = ctx.nextTemp();
-    const selected = ctx.nextTemp();
-    ctx.line(
-      `  ${truePtr} = getelementptr inbounds [${trueLen} x i8], [${trueLen} x i8]* ${trueStr}, i64 0, i64 0`,
-    );
-    ctx.line(
-      `  ${falsePtr} = getelementptr inbounds [${falseLen} x i8], [${falseLen} x i8]* ${falseStr}, i64 0, i64 0`,
-    );
-    ctx.line(`  ${selected} = select i1 ${val}, i8* ${truePtr}, i8* ${falsePtr}`);
+    const trueStr = m.buildGlobalStringPtr("true", "true");
+    const falseStr = m.buildGlobalStringPtr("false", "false");
+    const selected = m.buildSelect(val, trueStr, falseStr, "");
     if (isLast) {
-      ctx.line(`  call i32 @puts(i8* ${selected})`);
+      const puts = ctx.getDeclaredFunction("puts")!;
+      m.buildCall(puts.fnType, puts.fn, [selected], "");
     } else {
-      const fmt = ctx.getOrCreateString("%s");
-      const fmtLen = 3;
-      const fmtPtr = ctx.nextTemp();
-      ctx.line(
-        `  ${fmtPtr} = getelementptr inbounds [${fmtLen} x i8], [${fmtLen} x i8]* ${fmt}, i64 0, i64 0`,
-      );
-      ctx.line(`  call i32 (i8*, ...) @printf(i8* ${fmtPtr}, i8* ${selected})`);
+      const fmt = m.buildGlobalStringPtr("%s", "fmt");
+      const printf = ctx.getDeclaredFunction("printf")!;
+      m.buildCall(printf.fnType, printf.fn, [fmt, selected], "");
     }
   }
 }
 
-function emitToString(ctx: EmitContext, arg: HIRExpr, val: string): string {
+function emitToString(ctx: EmitContext, arg: HIRExpr, val: any): any {
+  const m = ctx.m;
   if (arg.type.kind === "i8ptr") return val;
-  const buf = ctx.nextTemp();
-  ctx.line(`  ${buf} = call i8* @malloc(i64 32)`);
+
+  const malloc = ctx.getDeclaredFunction("malloc")!;
+  const buf = m.buildCall(malloc.fnType, malloc.fn, [m.constInt(m.i64, 32)], "buf");
+
   if (arg.type.kind === "f64") {
-    const fmt = ctx.getOrCreateString("%.17g");
-    const fmtLen = Buffer.byteLength("%.17g", "utf-8") + 1;
-    const fmtPtr = ctx.nextTemp();
-    ctx.line(
-      `  ${fmtPtr} = getelementptr inbounds [${fmtLen} x i8], [${fmtLen} x i8]* ${fmt}, i64 0, i64 0`,
-    );
-    ctx.line(`  call i32 (i8*, i8*, ...) @sprintf(i8* ${buf}, i8* ${fmtPtr}, double ${val})`);
+    const fmt = m.buildGlobalStringPtr("%.17g", "fmt");
+    const sprintf = ctx.getDeclaredFunction("sprintf")!;
+    m.buildCall(sprintf.fnType, sprintf.fn, [buf, fmt, val], "");
   } else if (arg.type.kind === "i32") {
-    const fmt = ctx.getOrCreateString("%d");
-    const fmtLen = 3;
-    const fmtPtr = ctx.nextTemp();
-    ctx.line(
-      `  ${fmtPtr} = getelementptr inbounds [${fmtLen} x i8], [${fmtLen} x i8]* ${fmt}, i64 0, i64 0`,
-    );
-    ctx.line(`  call i32 (i8*, i8*, ...) @sprintf(i8* ${buf}, i8* ${fmtPtr}, i32 ${val})`);
+    const fmt = m.buildGlobalStringPtr("%d", "fmt");
+    const sprintf = ctx.getDeclaredFunction("sprintf")!;
+    m.buildCall(sprintf.fnType, sprintf.fn, [buf, fmt, val], "");
   } else if (arg.type.kind === "i1") {
-    const trueStr = ctx.getOrCreateString("true");
-    const falseStr = ctx.getOrCreateString("false");
-    const truePtr = ctx.nextTemp();
-    const falsePtr = ctx.nextTemp();
-    const selected = ctx.nextTemp();
-    ctx.line(`  ${truePtr} = getelementptr inbounds [5 x i8], [5 x i8]* ${trueStr}, i64 0, i64 0`);
-    ctx.line(
-      `  ${falsePtr} = getelementptr inbounds [6 x i8], [6 x i8]* ${falseStr}, i64 0, i64 0`,
-    );
-    ctx.line(`  ${selected} = select i1 ${val}, i8* ${truePtr}, i8* ${falsePtr}`);
-    return selected;
+    const trueStr = m.buildGlobalStringPtr("true", "true");
+    const falseStr = m.buildGlobalStringPtr("false", "false");
+    return m.buildSelect(val, trueStr, falseStr, "");
   }
+
   return buf;
 }
 
-function emitStringConcat(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_call" }): string {
+function emitStringConcat(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_call" }): any {
+  const m = ctx.m;
   const leftArg = expr.args[0];
   const rightArg = expr.args[1];
   const leftVal = emitExpr(ctx, leftArg);
@@ -678,49 +745,33 @@ function emitStringConcat(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_cal
   const leftStr = emitToString(ctx, leftArg, leftVal);
   const rightStr = emitToString(ctx, rightArg, rightVal);
 
-  const lenL = ctx.nextTemp();
-  const lenR = ctx.nextTemp();
-  const totalLen = ctx.nextTemp();
-  const totalLen1 = ctx.nextTemp();
-  const buf = ctx.nextTemp();
+  const strlen = ctx.getDeclaredFunction("strlen")!;
+  const malloc = ctx.getDeclaredFunction("malloc")!;
+  const strcpy = ctx.getDeclaredFunction("strcpy")!;
+  const strcat = ctx.getDeclaredFunction("strcat")!;
 
-  ctx.line(`  ${lenL} = call i64 @strlen(i8* ${leftStr})`);
-  ctx.line(`  ${lenR} = call i64 @strlen(i8* ${rightStr})`);
-  ctx.line(`  ${totalLen} = add i64 ${lenL}, ${lenR}`);
-  ctx.line(`  ${totalLen1} = add i64 ${totalLen}, 1`);
-  ctx.line(`  ${buf} = call i8* @malloc(i64 ${totalLen1})`);
-  ctx.line(`  call i8* @strcpy(i8* ${buf}, i8* ${leftStr})`);
-  ctx.line(`  call i8* @strcat(i8* ${buf}, i8* ${rightStr})`);
+  const lenL = m.buildCall(strlen.fnType, strlen.fn, [leftStr], "");
+  const lenR = m.buildCall(strlen.fnType, strlen.fn, [rightStr], "");
+  const totalLen = m.buildAdd(lenL, lenR, "");
+  const totalLen1 = m.buildAdd(totalLen, m.constInt(m.i64, 1), "");
+  const buf = m.buildCall(malloc.fnType, malloc.fn, [totalLen1], "");
+  m.buildCall(strcpy.fnType, strcpy.fn, [buf, leftStr], "");
+  m.buildCall(strcat.fnType, strcat.fn, [buf, rightStr], "");
   return buf;
 }
 
-const MATH_INTRINSICS: Record<string, string> = {
-  cs_math_floor: "@llvm.floor.f64",
-  cs_math_ceil: "@llvm.ceil.f64",
-  cs_math_abs: "@llvm.fabs.f64",
-  cs_math_sqrt: "@llvm.sqrt.f64",
-  cs_math_pow: "@llvm.pow.f64",
-  cs_math_log: "@llvm.log.f64",
-  cs_math_round: "@llvm.round.f64",
-  cs_math_max: "@llvm.maxnum.f64",
-  cs_math_min: "@llvm.minnum.f64",
-};
-
-function emitMathCall(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_call" }): string {
-  const intrinsic = MATH_INTRINSICS[expr.func];
+function emitMathCall(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_call" }): any {
+  const m = ctx.m;
+  const intrinsic = ctx.getMathIntrinsic(expr.func);
   if (!intrinsic) throw new Error(`unsupported math function: ${expr.func}`);
 
   const args = expr.args.map((a) => {
     const val = emitExpr(ctx, a);
     if (a.type.kind === "i32") {
-      const widened = ctx.nextTemp();
-      ctx.line(`  ${widened} = sitofp i32 ${val} to double`);
-      return `double ${widened}`;
+      return m.buildSIToFP(val, m.f64, "");
     }
-    return `double ${val}`;
+    return val;
   });
 
-  const tmp = ctx.nextTemp();
-  ctx.line(`  ${tmp} = call double ${intrinsic}(${args.join(", ")})`);
-  return tmp;
+  return m.buildCall(intrinsic.fnType, intrinsic.fn, args, "");
 }
