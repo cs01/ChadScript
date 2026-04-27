@@ -351,7 +351,7 @@ const ast = parseSync(source, { syntax: "typescript", decorators: true });
 **Goal:** Round out the language before stdlib. Fill in common TS features that don't need NaN-boxing.
 
 - [x] try/catch/throw — setjmp/longjmp based exception handling
-- [ ] Array destructuring — `const [a, b, c] = arr`
+- [x] Array destructuring — `const [a, b, c] = arr`
 - [ ] Object destructuring — `const { x, y } = obj`
 - [ ] Spread in arrays — `[...arr, 1, 2]`
 - [ ] Rest parameters — `function foo(...args: number[])`
