@@ -465,6 +465,10 @@ function declareExterns(ctx: EmitContext): void {
     ctx.declareMathIntrinsic(csName, fn, math2Type);
   }
 
+  const setjmpType = m.functionType(m.i32, [m.ptr]);
+  const setjmpFn = m.addFunction("_setjmp", setjmpType);
+  ctx.declareFunction("_setjmp", setjmpFn, setjmpType);
+
   const bridgeFns: [string, any, any[]][] = [
     ["cs2_str_length", m.i32, [m.ptr]],
     ["cs2_str_char_at", m.ptr, [m.ptr, m.i32]],
@@ -708,7 +712,7 @@ function emitMain(ctx: EmitContext, mod: HIRModule): void {
 function blockTerminates(stmts: HIRStmt[]): boolean {
   if (stmts.length === 0) return false;
   const last = stmts[stmts.length - 1];
-  if (last.kind === "return") return true;
+  if (last.kind === "return" || last.kind === "throw") return true;
   if (last.kind === "if" && last.else) {
     return blockTerminates(last.then) && blockTerminates(last.else);
   }
@@ -718,7 +722,12 @@ function blockTerminates(stmts: HIRStmt[]): boolean {
 function stmtTerminates(stmts: HIRStmt[]): boolean {
   if (stmts.length === 0) return false;
   const last = stmts[stmts.length - 1];
-  return last.kind === "break" || last.kind === "continue" || last.kind === "return";
+  return (
+    last.kind === "break" ||
+    last.kind === "continue" ||
+    last.kind === "return" ||
+    last.kind === "throw"
+  );
 }
 
 function emitStmt(ctx: EmitContext, stmt: HIRStmt): void {
@@ -859,8 +868,22 @@ function emitStmt(ctx: EmitContext, stmt: HIRStmt): void {
       emitSwitch(ctx, stmt);
       break;
     }
-    default:
+    case "throw": {
+      const msgVal = emitExpr(ctx, stmt.value);
+      const throwDecl = ctx.getDeclaredFunction("cs2_throw")!;
+      m.buildCall(throwDecl.fnType, throwDecl.fn, [msgVal], "");
+      m.buildUnreachable();
+      const fn = ctx.getCurrentFn();
+      const deadBlock = m.appendBlock(fn, "post.throw");
+      m.positionAtEnd(deadBlock);
       break;
+    }
+    case "try": {
+      emitTry(ctx, stmt as HIRStmt & { kind: "try" });
+      break;
+    }
+    default:
+      throw new Error(`unhandled statement kind: ${(stmt as any).kind}`);
   }
 }
 
@@ -927,6 +950,57 @@ function emitSwitch(ctx: EmitContext, stmt: HIRStmt & { kind: "switch" }): void 
 
   m.positionAtEnd(exitBlock);
   ctx.popLoop();
+}
+
+function emitTry(ctx: EmitContext, stmt: HIRStmt & { kind: "try" }): void {
+  const m = ctx.m;
+  const fn = ctx.getCurrentFn();
+
+  const tryEnter = ctx.getDeclaredFunction("cs2_try_enter")!;
+  const tryLeave = ctx.getDeclaredFunction("cs2_try_leave")!;
+  const catchMsg = ctx.getDeclaredFunction("cs2_catch_msg")!;
+  const setjmp = ctx.getDeclaredFunction("_setjmp")!;
+
+  const jmpBuf = m.buildCall(tryEnter.fnType, tryEnter.fn, [], "jmpbuf");
+  const sjResult = m.buildCall(setjmp.fnType, setjmp.fn, [jmpBuf], "sjresult");
+  const isException = m.buildICmp(LLVMIntNE, sjResult, m.constInt(m.i32, 0), "is_exc");
+
+  const tryBodyBB = m.appendBlock(fn, "try.body");
+  const catchBB = stmt.catch ? m.appendBlock(fn, "catch.body") : null;
+  const finallyBB = stmt.finally ? m.appendBlock(fn, "finally.body") : null;
+  const tryEndBB = m.appendBlock(fn, "try.end");
+
+  m.buildCondBr(isException, catchBB || finallyBB || tryEndBB, tryBodyBB);
+
+  m.positionAtEnd(tryBodyBB);
+  for (const s of stmt.body) emitStmt(ctx, s);
+  if (!blockTerminates(stmt.body)) {
+    m.buildCall(tryLeave.fnType, tryLeave.fn, [], "");
+    m.buildBr(finallyBB || tryEndBB);
+  }
+
+  if (stmt.catch && catchBB) {
+    m.positionAtEnd(catchBB);
+    m.buildCall(tryLeave.fnType, tryLeave.fn, [], "");
+    const errMsg = m.buildCall(catchMsg.fnType, catchMsg.fn, [], "errmsg");
+    const errAlloc = m.buildAlloca(m.ptr, stmt.catch.paramName);
+    m.buildStore(errMsg, errAlloc);
+    ctx.registerLocal(stmt.catch.paramId, stmt.catch.paramName, errAlloc);
+    for (const s of stmt.catch.body) emitStmt(ctx, s);
+    if (!blockTerminates(stmt.catch.body)) {
+      m.buildBr(finallyBB || tryEndBB);
+    }
+  }
+
+  if (stmt.finally && finallyBB) {
+    m.positionAtEnd(finallyBB);
+    for (const s of stmt.finally) emitStmt(ctx, s);
+    if (!blockTerminates(stmt.finally)) {
+      m.buildBr(tryEndBB);
+    }
+  }
+
+  m.positionAtEnd(tryEndBB);
 }
 
 function emitExpr(ctx: EmitContext, expr: HIRExpr): any {

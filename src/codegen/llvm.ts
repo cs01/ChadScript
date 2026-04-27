@@ -100,6 +100,7 @@ const LLVMBuildBr = lib.func("LLVMBuildBr", Ref, [Ref, Ref]);
 const LLVMBuildCondBr = lib.func("LLVMBuildCondBr", Ref, [Ref, Ref, Ref, Ref]);
 const LLVMBuildRet = lib.func("LLVMBuildRet", Ref, [Ref, Ref]);
 const LLVMBuildRetVoid = lib.func("LLVMBuildRetVoid", Ref, [Ref]);
+const LLVMBuildUnreachable = lib.func("LLVMBuildUnreachable", Ref, [Ref]);
 
 const LLVMBuildCall2 = lib.func("LLVMBuildCall2", Ref, [Ref, Ref, Ref, RefArr, "uint", "str"]);
 const LLVMBuildSelect = lib.func("LLVMBuildSelect", Ref, [Ref, Ref, Ref, Ref, "str"]);
@@ -497,6 +498,10 @@ export class LLVMModule {
   }
   buildRetVoid(): any {
     return LLVMBuildRetVoid(this.builder);
+  }
+
+  buildUnreachable(): any {
+    return LLVMBuildUnreachable(this.builder);
   }
 
   buildCall(fnType: any, fn: any, args: any[], name = ""): any {
