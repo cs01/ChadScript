@@ -637,8 +637,7 @@ function lowerForOf(stmt: any): HIRStmt[] {
   }
 
   const elemType = (arr.type as { kind: "array"; element: HIRType }).element;
-  const isStr = elemType.kind === "i8ptr";
-  const lenFn = isStr ? "cs2_str_array_length" : "cs2_num_array_length";
+  const lenFn = `${arrayPrefix(elemType)}_length`;
 
   const iId = freshId();
   const arrId = freshId();
@@ -1296,24 +1295,30 @@ function lowerStringMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
   return rtCall;
 }
 
+function arrayPrefix(elemType: HIRType): string {
+  if (elemType.kind === "i8ptr") return "cs2_str_array";
+  if (elemType.kind === "ptr") return "cs2_obj_array";
+  return "cs2_num_array";
+}
+
 function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
   const member = expr.callee as MemberExpression;
   const method = (member.property as Identifier).value;
   const args = expr.arguments.map((a) => lowerExpr(a.expression));
   const arrType = obj.type as { kind: "array"; element: HIRType };
-  const isStr = arrType.element.kind === "i8ptr";
-  const prefix = isStr ? "cs2_str_array" : "cs2_num_array";
+  const prefix = arrayPrefix(arrType.element);
 
   type MethodInfo = { func: string; returnType: HIRType; argTypes?: HIRType[] };
   let info: MethodInfo | undefined;
 
+  const isObj = arrType.element.kind === "ptr";
   if (method === "push") {
     info = { func: `${prefix}_push`, returnType: VOID, argTypes: [arrType.element] };
   } else if (method === "pop") {
     info = { func: `${prefix}_pop`, returnType: arrType.element };
-  } else if (method === "join") {
+  } else if (method === "join" && !isObj) {
     info = { func: `${prefix}_join`, returnType: I8PTR, argTypes: [I8PTR] };
-  } else if (!isStr) {
+  } else if (prefix === "cs2_num_array") {
     const numMethods: Record<string, MethodInfo> = {
       indexOf: { func: "cs2_num_array_index_of", returnType: I64, argTypes: [F64] },
       includes: { func: "cs2_num_array_includes", returnType: I64, argTypes: [F64] },
@@ -1428,7 +1433,7 @@ function lowerMember(expr: MemberExpression): HIRExpr {
       }
       if (obj.type.kind === "array") {
         const elemType = (obj.type as { kind: "array"; element: HIRType }).element;
-        const lenFn = elemType.kind === "i8ptr" ? "cs2_str_array_length" : "cs2_num_array_length";
+        const lenFn = `${arrayPrefix(elemType)}_length`;
         return { kind: "runtime_call", func: lenFn, args: [obj], returnType: I64, type: I64 };
       }
     }

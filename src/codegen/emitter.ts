@@ -257,6 +257,12 @@ function declareExterns(ctx: EmitContext): void {
     ["cs2_str_array_set", m.voidTy, [m.ptr, m.i32, m.ptr]],
     ["cs2_str_array_length", m.i32, [m.ptr]],
     ["cs2_str_array_join", m.ptr, [m.ptr, m.ptr]],
+    ["cs2_obj_array_new", m.ptr, [m.i32]],
+    ["cs2_obj_array_push", m.voidTy, [m.ptr, m.ptr]],
+    ["cs2_obj_array_pop", m.ptr, [m.ptr]],
+    ["cs2_obj_array_get", m.ptr, [m.ptr, m.i32]],
+    ["cs2_obj_array_set", m.voidTy, [m.ptr, m.i32, m.ptr]],
+    ["cs2_obj_array_length", m.i32, [m.ptr]],
   ];
   for (const [name, ret, params] of bridgeFns) {
     const fnType = m.functionType(ret, params);
@@ -651,11 +657,17 @@ function emitExpr(ctx: EmitContext, expr: HIRExpr): any {
   }
 }
 
+function emitArrayPrefix(elemType: HIRType): string {
+  if (elemType.kind === "i8ptr") return "cs2_str_array";
+  if (elemType.kind === "ptr") return "cs2_obj_array";
+  return "cs2_num_array";
+}
+
 function emitAllocArray(ctx: EmitContext, expr: HIRExpr & { kind: "alloc_array" }): any {
   const m = ctx.m;
-  const isStr = expr.elementType.kind === "i8ptr";
-  const newFn = isStr ? "cs2_str_array_new" : "cs2_num_array_new";
-  const pushFn = isStr ? "cs2_str_array_push" : "cs2_num_array_push";
+  const prefix = emitArrayPrefix(expr.elementType);
+  const newFn = `${prefix}_new`;
+  const pushFn = `${prefix}_push`;
 
   const capacity = Math.max(expr.initialValues.length, 4);
   const newDecl = ctx.getDeclaredFunction(newFn)!;
@@ -736,9 +748,9 @@ function emitIndexGet(ctx: EmitContext, expr: HIRExpr & { kind: "index_get" }): 
   if (expr.index.type.kind === "i64") {
     idx = m.buildTrunc(idx, m.i32, "");
   }
-  const isStr =
-    expr.array.type.kind === "array" && (expr.array.type as any).element?.kind === "i8ptr";
-  const getFn = isStr ? "cs2_str_array_get" : "cs2_num_array_get";
+  const elemType =
+    expr.array.type.kind === "array" ? (expr.array.type as any).element : { kind: "f64" };
+  const getFn = `${emitArrayPrefix(elemType)}_get`;
   const decl = ctx.getDeclaredFunction(getFn)!;
   return m.buildCall(decl.fnType, decl.fn, [arr, idx], "");
 }
@@ -751,9 +763,9 @@ function emitIndexSet(ctx: EmitContext, expr: HIRExpr & { kind: "index_set" }): 
     idx = m.buildTrunc(idx, m.i32, "");
   }
   const val = emitExpr(ctx, expr.value);
-  const isStr =
-    expr.array.type.kind === "array" && (expr.array.type as any).element?.kind === "i8ptr";
-  const setFn = isStr ? "cs2_str_array_set" : "cs2_num_array_set";
+  const elemType =
+    expr.array.type.kind === "array" ? (expr.array.type as any).element : { kind: "f64" };
+  const setFn = `${emitArrayPrefix(elemType)}_set`;
   const decl = ctx.getDeclaredFunction(setFn)!;
   m.buildCall(decl.fnType, decl.fn, [arr, idx, val], "");
   return val;

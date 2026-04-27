@@ -106,6 +106,48 @@ char *cs2_num_array_join(NumArray *arr, const char *sep) {
     return buf;
 }
 
+typedef struct {
+    void **data;
+    int32_t length;
+    int32_t capacity;
+} ObjArray;
+
+ObjArray *cs2_obj_array_new(int32_t capacity) {
+    if (capacity < 4) capacity = 4;
+    ObjArray *arr = (ObjArray *)malloc(sizeof(ObjArray));
+    arr->data = (void **)malloc(sizeof(void *) * capacity);
+    arr->length = 0;
+    arr->capacity = capacity;
+    return arr;
+}
+
+void cs2_obj_array_push(ObjArray *arr, void *value) {
+    if (arr->length >= arr->capacity) {
+        arr->capacity *= 2;
+        arr->data = (void **)realloc(arr->data, sizeof(void *) * arr->capacity);
+    }
+    arr->data[arr->length++] = value;
+}
+
+void *cs2_obj_array_pop(ObjArray *arr) {
+    if (arr->length <= 0) return NULL;
+    return arr->data[--arr->length];
+}
+
+void *cs2_obj_array_get(ObjArray *arr, int32_t index) {
+    if (index < 0 || index >= arr->length) return NULL;
+    return arr->data[index];
+}
+
+void cs2_obj_array_set(ObjArray *arr, int32_t index, void *value) {
+    if (index < 0 || index >= arr->length) return;
+    arr->data[index] = value;
+}
+
+int32_t cs2_obj_array_length(ObjArray *arr) {
+    return arr->length;
+}
+
 StrArray *cs2_str_array_new(int32_t capacity) {
     if (capacity < 4) capacity = 4;
     StrArray *arr = (StrArray *)malloc(sizeof(StrArray));
