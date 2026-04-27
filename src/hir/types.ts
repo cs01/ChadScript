@@ -117,7 +117,7 @@ export type HIRExpr =
     }
   | { kind: "conditional"; condition: HIRExpr; then: HIRExpr; else: HIRExpr; type: HIRType };
 
-export type HIRStmt =
+export type HIRStmtBase =
   | {
       kind: "let";
       id: number;
@@ -158,6 +158,8 @@ export type HIRStmt =
       finally?: HIRStmt[];
     };
 
+export type HIRStmt = HIRStmtBase & { line?: number };
+
 export interface HIRSwitchCase {
   test?: HIRExpr;
   body: HIRStmt[];
@@ -176,6 +178,13 @@ export interface HIRFunction {
   body: HIRStmt[];
   isAsync: boolean;
   captures: number[];
+  line?: number;
+}
+
+export interface SourceInfo {
+  filename: string;
+  directory: string;
+  source: string;
 }
 
 export interface HIRClass {
@@ -197,6 +206,7 @@ export interface HIRModule {
   classes: HIRClass[];
   globals: HIRGlobal[];
   init: HIRStmt[];
+  sourceInfo?: SourceInfo;
 }
 
 export const F64: HIRType = { kind: "f64" };

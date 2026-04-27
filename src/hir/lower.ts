@@ -33,8 +33,31 @@ import type {
   BinaryOp,
   UnaryOp,
 } from "./types.js";
+import type { SourceInfo } from "./types.js";
 import { F64, I64, I1, I8PTR, VOID, BOXED } from "./types.js";
 import { compileError } from "../errors.js";
+
+let sourceText = "";
+let lineOffsets: number[] = [];
+
+function buildLineOffsets(source: string): number[] {
+  const offsets = [0];
+  for (let i = 0; i < source.length; i++) {
+    if (source[i] === "\n") offsets.push(i + 1);
+  }
+  return offsets;
+}
+
+function offsetToLine(offset: number): number {
+  let lo = 0;
+  let hi = lineOffsets.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (lineOffsets[mid] <= offset) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo + 1;
+}
 
 let nextId = 0;
 const locals = new Map<string, { id: number; type: HIRType; mutable: boolean }>();
@@ -64,7 +87,7 @@ function resetState(): void {
   locals.clear();
 }
 
-export function lowerModule(ast: Module): HIRModule {
+export function lowerModule(ast: Module, source?: string, filename?: string): HIRModule {
   const functions: HIRFunction[] = [];
   const hirClasses: import("./types.js").HIRClass[] = [];
   const hirGlobals: import("./types.js").HIRGlobal[] = [];
@@ -77,6 +100,8 @@ export function lowerModule(ast: Module): HIRModule {
   pendingFunctions.length = 0;
   nextAnonId = 0;
   isModuleScope = true;
+  sourceText = source || "";
+  lineOffsets = buildLineOffsets(sourceText);
 
   for (const item of ast.body) {
     if (item.type === "ClassDeclaration") {
@@ -136,7 +161,18 @@ export function lowerModule(ast: Module): HIRModule {
   }
 
   functions.push(...pendingFunctions);
-  return { functions, classes: hirClasses, globals: hirGlobals, init };
+
+  let si: SourceInfo | undefined;
+  if (filename && source) {
+    const lastSlash = filename.lastIndexOf("/");
+    si = {
+      filename: lastSlash >= 0 ? filename.slice(lastSlash + 1) : filename,
+      directory: lastSlash >= 0 ? filename.slice(0, lastSlash) : ".",
+      source,
+    };
+  }
+
+  return { functions, classes: hirClasses, globals: hirGlobals, init, sourceInfo: si };
 }
 
 function registerFunction(decl: FunctionDeclaration): void {
@@ -362,6 +398,7 @@ function lowerMethod(
     body,
     isAsync: fn.async || false,
     captures: [],
+    line: method.span ? offsetToLine(method.span.start) : undefined,
   };
 }
 
@@ -456,6 +493,7 @@ function lowerFunctionDecl(decl: FunctionDeclaration): HIRFunction {
     body,
     isAsync: decl.async,
     captures: [],
+    line: decl.span ? offsetToLine(decl.span.start) : undefined,
   };
 
   locals.clear();
@@ -509,6 +547,7 @@ function lowerArrowOrFnExpr(expr: any, varName: string): HIRFunction {
     body,
     isAsync: expr.async || false,
     captures: [],
+    line: expr.span ? offsetToLine(expr.span.start) : undefined,
   };
 }
 
@@ -552,32 +591,42 @@ function resolveTypeAnnotation(ann: any): HIRType {
   return BOXED;
 }
 
+function lineOf(node: { span?: { start: number } }): number | undefined {
+  return node.span ? offsetToLine(node.span.start) : undefined;
+}
+
+function withLine<T extends HIRStmt>(stmt: T, node: { span?: { start: number } }): T {
+  const line = lineOf(node);
+  if (line !== undefined) (stmt as any).line = line;
+  return stmt;
+}
+
 function lowerModuleItem(item: ModuleItem): HIRStmt[] {
   switch (item.type) {
     case "VariableDeclaration":
       return lowerVarDecl(item);
     case "ExpressionStatement":
-      return [{ kind: "expr", expr: lowerExpr(item.expression) }];
+      return [withLine({ kind: "expr", expr: lowerExpr(item.expression) } as HIRStmt, item)];
     case "ReturnStatement":
-      return [lowerReturn(item)];
+      return [withLine(lowerReturn(item), item)];
     case "IfStatement":
-      return [lowerIf(item)];
+      return [withLine(lowerIf(item), item)];
     case "WhileStatement":
-      return [lowerWhile(item)];
+      return [withLine(lowerWhile(item), item)];
     case "ForStatement":
-      return [lowerFor(item)];
+      return [withLine(lowerFor(item), item)];
     case "ForOfStatement":
       return lowerForOf(item as any);
     case "DoWhileStatement":
-      return [lowerDoWhile(item as any)];
+      return [withLine(lowerDoWhile(item as any), item)];
     case "SwitchStatement":
-      return [lowerSwitch(item as any)];
+      return [withLine(lowerSwitch(item as any), item)];
     case "BlockStatement":
       return lowerBlock(item);
     case "BreakStatement":
-      return [{ kind: "break" }];
+      return [withLine({ kind: "break" } as HIRStmt, item)];
     case "ContinueStatement":
-      return [{ kind: "continue" }];
+      return [withLine({ kind: "continue" } as HIRStmt, item)];
     default:
       compileError(`unsupported statement type: ${item.type}`);
   }
@@ -613,7 +662,12 @@ function lowerVarDecl(decl: VariableDeclaration): HIRStmt[] {
       const coercedInit = init && init.type.kind !== type.kind ? coerce(init, type) : init;
 
       locals.set(d.id.value, { id, type, mutable });
-      stmts.push({ kind: "let", id, name: d.id.value, type, init: coercedInit, mutable });
+      stmts.push(
+        withLine(
+          { kind: "let", id, name: d.id.value, type, init: coercedInit, mutable } as HIRStmt,
+          d,
+        ),
+      );
     }
   }
 

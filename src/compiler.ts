@@ -23,7 +23,8 @@ export function compile(opts: CompileOptions): void {
   const source = readFileSync(opts.input, "utf-8");
   setSourceContext(source, opts.input);
   const ast = parseFile(opts.input);
-  const hir = lowerModule(ast);
+  const absPath = join(process.cwd(), opts.input);
+  const hir = lowerModule(ast, source, absPath);
 
   const tmpObj = join(tmpdir(), `chad2-${process.pid}.o`);
   const bridgeObjs = BRIDGE_SRCS.map((_, i) =>
@@ -39,9 +40,12 @@ export function compile(opts: CompileOptions): void {
     for (let i = 0; i < BRIDGE_SRCS.length; i++) {
       execSync(`clang -c -O2 -o ${bridgeObjs[i]} ${BRIDGE_SRCS[i]}`, { stdio: "inherit" });
     }
-    execSync(`clang -O2 -o ${opts.output} ${tmpObj} ${bridgeObjs.join(" ")}`, {
+    execSync(`clang -g -O2 -o ${opts.output} ${tmpObj} ${bridgeObjs.join(" ")}`, {
       stdio: "inherit",
     });
+    if (process.platform === "darwin") {
+      execSync(`dsymutil ${opts.output}`, { stdio: "inherit" });
+    }
   } finally {
     try {
       unlinkSync(tmpObj);

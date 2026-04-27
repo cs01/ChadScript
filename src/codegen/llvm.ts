@@ -151,6 +151,72 @@ const LLVMInitializeX86Target = lib.func("LLVMInitializeX86Target", "void", []);
 const LLVMInitializeX86TargetMC = lib.func("LLVMInitializeX86TargetMC", "void", []);
 const LLVMInitializeX86AsmPrinter = lib.func("LLVMInitializeX86AsmPrinter", "void", []);
 
+const LLVMCreateDIBuilder = lib.func("LLVMCreateDIBuilder", Ref, [Ref]);
+const LLVMDisposeDIBuilder = lib.func("LLVMDisposeDIBuilder", "void", [Ref]);
+const LLVMDIBuilderFinalize = lib.func("LLVMDIBuilderFinalize", "void", [Ref]);
+const LLVMDIBuilderCreateFile = lib.func("LLVMDIBuilderCreateFile", Ref, [
+  Ref,
+  "str",
+  "size_t",
+  "str",
+  "size_t",
+]);
+const LLVMDIBuilderCreateCompileUnit = lib.func("LLVMDIBuilderCreateCompileUnit", Ref, [
+  Ref,
+  "uint",
+  Ref,
+  "str",
+  "size_t",
+  Bool,
+  "str",
+  "size_t",
+  "uint",
+  "str",
+  "size_t",
+  "uint",
+  Bool,
+  Bool,
+  "str",
+  "size_t",
+  "str",
+  "size_t",
+]);
+const LLVMDIBuilderCreateSubroutineType = lib.func("LLVMDIBuilderCreateSubroutineType", Ref, [
+  Ref,
+  Ref,
+  RefArr,
+  "uint",
+  "uint",
+]);
+const LLVMDIBuilderCreateFunction = lib.func("LLVMDIBuilderCreateFunction", Ref, [
+  Ref,
+  Ref,
+  "str",
+  "size_t",
+  "str",
+  "size_t",
+  Ref,
+  "uint",
+  Ref,
+  Bool,
+  Bool,
+  "uint",
+  "uint",
+  Bool,
+]);
+const LLVMSetSubprogram = lib.func("LLVMSetSubprogram", "void", [Ref, Ref]);
+const LLVMDIBuilderCreateDebugLocation = lib.func("LLVMDIBuilderCreateDebugLocation", Ref, [
+  Ref,
+  "uint",
+  "uint",
+  Ref,
+  Ref,
+]);
+const LLVMSetCurrentDebugLocation2 = lib.func("LLVMSetCurrentDebugLocation2", "void", [Ref, Ref]);
+const LLVMAddModuleFlag = lib.func("LLVMAddModuleFlag", "void", [Ref, "uint", "str", "uint", Ref]);
+const LLVMValueAsMetadata = lib.func("LLVMValueAsMetadata", Ref, [Ref]);
+const LLVMMDStringInContext2 = lib.func("LLVMMDStringInContext2", Ref, [Ref, "str", "size_t"]);
+
 export const LLVMIntEQ = 32;
 export const LLVMIntNE = 33;
 export const LLVMIntSLT = 40;
@@ -218,6 +284,7 @@ export class LLVMModule {
   }
 
   dispose(): void {
+    if (this.diBuilder) LLVMDisposeDIBuilder(this.diBuilder);
     LLVMDisposeBuilder(this.builder);
     LLVMDisposeModule(this.mod);
     LLVMContextDispose(this.ctx);
@@ -445,6 +512,92 @@ export class LLVMModule {
     const errArr = [null];
     if (LLVMPrintModuleToFile(this.mod, path, errArr) !== 0) {
       throw new Error("Failed to print LLVM module to file");
+    }
+  }
+
+  private diBuilder: any = null;
+  private diFile: any = null;
+  private diCU: any = null;
+  private diScopes: any[] = [];
+
+  initDebugInfo(filename: string, directory: string): void {
+    this.diBuilder = LLVMCreateDIBuilder(this.mod);
+    this.diFile = LLVMDIBuilderCreateFile(
+      this.diBuilder,
+      filename,
+      filename.length,
+      directory,
+      directory.length,
+    );
+    this.diCU = LLVMDIBuilderCreateCompileUnit(
+      this.diBuilder,
+      1,
+      this.diFile,
+      "chadscript",
+      10,
+      0,
+      "",
+      0,
+      0,
+      "",
+      0,
+      1,
+      0,
+      0,
+      "",
+      0,
+      "",
+      0,
+    );
+
+    const dwarfVal = LLVMValueAsMetadata(LLVMConstInt(this.i32, 4, 0));
+    const diVerVal = LLVMValueAsMetadata(LLVMConstInt(this.i32, 3, 0));
+    LLVMAddModuleFlag(this.mod, 2, "Dwarf Version", 13, dwarfVal);
+    LLVMAddModuleFlag(this.mod, 1, "Debug Info Version", 18, diVerVal);
+  }
+
+  createDebugFunction(fn: any, name: string, line: number): any {
+    if (!this.diBuilder) return null;
+    const subroutineType = LLVMDIBuilderCreateSubroutineType(
+      this.diBuilder,
+      this.diFile,
+      null,
+      0,
+      0,
+    );
+    const sp = LLVMDIBuilderCreateFunction(
+      this.diBuilder,
+      this.diFile,
+      name,
+      name.length,
+      name,
+      name.length,
+      this.diFile,
+      line,
+      subroutineType,
+      0,
+      1,
+      line,
+      0,
+      0,
+    );
+    LLVMSetSubprogram(fn, sp);
+    return sp;
+  }
+
+  setDebugLocation(line: number, col: number, scope: any): void {
+    if (!this.diBuilder || !scope) return;
+    const loc = LLVMDIBuilderCreateDebugLocation(this.ctx, line, col, scope, null);
+    LLVMSetCurrentDebugLocation2(this.builder, loc);
+  }
+
+  clearDebugLocation(): void {
+    LLVMSetCurrentDebugLocation2(this.builder, null);
+  }
+
+  finalizeDebugInfo(): void {
+    if (this.diBuilder) {
+      LLVMDIBuilderFinalize(this.diBuilder);
     }
   }
 

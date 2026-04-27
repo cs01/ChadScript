@@ -38,6 +38,7 @@ class EmitContext {
   >();
   private currentFn: any = null;
   currentReturnType: HIRType = { kind: "void" };
+  diScope: any = null;
 
   constructor(m: LLVMModule) {
     this.m = m;
@@ -121,6 +122,10 @@ export function emitModule(mod: HIRModule, objectPath: string, irPath?: string):
   const m = new LLVMModule("chadscript");
   const ctx = new EmitContext(m);
 
+  if (mod.sourceInfo) {
+    m.initDebugInfo(mod.sourceInfo.filename, mod.sourceInfo.directory);
+  }
+
   declareExterns(ctx);
 
   for (const cls of mod.classes) {
@@ -150,6 +155,8 @@ export function emitModule(mod: HIRModule, objectPath: string, irPath?: string):
   }
 
   emitMain(ctx, mod);
+
+  m.finalizeDebugInfo();
 
   if (irPath) {
     m.printToFile(irPath);
@@ -338,8 +345,18 @@ function emitFunction(ctx: EmitContext, fn: HIRFunction): void {
   const llvmFn = decl.fn;
   ctx.setCurrentFn(llvmFn);
 
+  const diScope = fn.line ? m.createDebugFunction(llvmFn, fn.name, fn.line) : null;
+  ctx.diScope = diScope;
+  if (diScope && fn.line) {
+    m.setDebugLocation(fn.line, 0, diScope);
+  }
+
   const entry = m.appendBlock(llvmFn, "entry");
   m.positionAtEnd(entry);
+
+  if (diScope && fn.line) {
+    m.setDebugLocation(fn.line, 0, diScope);
+  }
 
   for (let i = 0; i < fn.params.length; i++) {
     const p = fn.params[i];
@@ -404,6 +421,10 @@ function stmtTerminates(stmts: HIRStmt[]): boolean {
 
 function emitStmt(ctx: EmitContext, stmt: HIRStmt): void {
   const m = ctx.m;
+
+  if (stmt.line && ctx.diScope) {
+    m.setDebugLocation(stmt.line, 0, ctx.diScope);
+  }
 
   switch (stmt.kind) {
     case "let": {
