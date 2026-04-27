@@ -13,7 +13,12 @@ export function emitModule(mod: HIRModule): string {
 
   ctx.line("declare i32 @puts(i8*)");
   ctx.line("declare i32 @printf(i8*, ...)");
+  ctx.line("declare i32 @sprintf(i8*, i8*, ...)");
   ctx.line("declare void @exit(i32)");
+  ctx.line("declare i64 @strlen(i8*)");
+  ctx.line("declare i8* @malloc(i64)");
+  ctx.line("declare i8* @strcpy(i8*, i8*)");
+  ctx.line("declare i8* @strcat(i8*, i8*)");
   ctx.line("declare double @llvm.floor.f64(double)");
   ctx.line("declare double @llvm.ceil.f64(double)");
   ctx.line("declare double @llvm.fabs.f64(double)");
@@ -24,6 +29,13 @@ export function emitModule(mod: HIRModule): string {
   ctx.line("declare double @llvm.maxnum.f64(double, double)");
   ctx.line("declare double @llvm.minnum.f64(double, double)");
   ctx.line("");
+
+  for (const g of mod.globals) {
+    const t = llvmType(g.type);
+    const init = g.type.kind === "f64" ? "0.0" : g.type.kind === "i8ptr" ? "null" : "0";
+    ctx.line(`@g_${g.name} = global ${t} ${init}`);
+  }
+  if (mod.globals.length > 0) ctx.line("");
 
   for (const fn of mod.functions) {
     emitFunction(ctx, fn);
@@ -138,8 +150,17 @@ function emitFunction(ctx: EmitContext, fn: HIRFunction): void {
 
 function emitMain(ctx: EmitContext, mod: HIRModule): void {
   ctx.resetTemps();
+  localNames.clear();
   ctx.line("define i32 @main(i32 %argc, i8** %argv) {");
   ctx.line("entry:");
+
+  for (const g of mod.globals) {
+    if (g.init) {
+      const val = emitExpr(ctx, g.init);
+      const t = llvmType(g.type);
+      ctx.line(`  store ${t} ${val}, ${t}* @g_${g.name}`);
+    }
+  }
 
   for (const stmt of mod.init) {
     emitStmt(ctx, stmt);
@@ -317,6 +338,18 @@ function emitExpr(ctx: EmitContext, expr: HIRExpr): string {
       const val = emitExpr(ctx, expr.value);
       const t = llvmType(expr.type);
       ctx.line(`  store ${t} ${val}, ${t}* %${getLocalName(expr.id)}`);
+      return val;
+    }
+    case "global_get": {
+      const tmp = ctx.nextTemp();
+      const t = llvmType(expr.type);
+      ctx.line(`  ${tmp} = load ${t}, ${t}* @g_${expr.name}`);
+      return tmp;
+    }
+    case "global_set": {
+      const val = emitExpr(ctx, expr.value);
+      const t = llvmType(expr.type);
+      ctx.line(`  store ${t} ${val}, ${t}* @g_${expr.name}`);
       return val;
     }
     case "binary":
@@ -510,6 +543,10 @@ function emitRuntimeCall(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_call
     return emitMathCall(ctx, expr);
   }
 
+  if (expr.func === "cs_string_concat") {
+    return emitStringConcat(ctx, expr);
+  }
+
   if (expr.func === "cs_console_log") {
     for (let i = 0; i < expr.args.length; i++) {
       if (i > 0) {
@@ -594,6 +631,67 @@ function emitPrintValue(ctx: EmitContext, arg: HIRExpr, val: string, isLast: boo
       ctx.line(`  call i32 (i8*, ...) @printf(i8* ${fmtPtr}, i8* ${selected})`);
     }
   }
+}
+
+function emitToString(ctx: EmitContext, arg: HIRExpr, val: string): string {
+  if (arg.type.kind === "i8ptr") return val;
+  const buf = ctx.nextTemp();
+  ctx.line(`  ${buf} = call i8* @malloc(i64 32)`);
+  if (arg.type.kind === "f64") {
+    const fmt = ctx.getOrCreateString("%.17g");
+    const fmtLen = Buffer.byteLength("%.17g", "utf-8") + 1;
+    const fmtPtr = ctx.nextTemp();
+    ctx.line(
+      `  ${fmtPtr} = getelementptr inbounds [${fmtLen} x i8], [${fmtLen} x i8]* ${fmt}, i64 0, i64 0`,
+    );
+    ctx.line(`  call i32 (i8*, i8*, ...) @sprintf(i8* ${buf}, i8* ${fmtPtr}, double ${val})`);
+  } else if (arg.type.kind === "i32") {
+    const fmt = ctx.getOrCreateString("%d");
+    const fmtLen = 3;
+    const fmtPtr = ctx.nextTemp();
+    ctx.line(
+      `  ${fmtPtr} = getelementptr inbounds [${fmtLen} x i8], [${fmtLen} x i8]* ${fmt}, i64 0, i64 0`,
+    );
+    ctx.line(`  call i32 (i8*, i8*, ...) @sprintf(i8* ${buf}, i8* ${fmtPtr}, i32 ${val})`);
+  } else if (arg.type.kind === "i1") {
+    const trueStr = ctx.getOrCreateString("true");
+    const falseStr = ctx.getOrCreateString("false");
+    const truePtr = ctx.nextTemp();
+    const falsePtr = ctx.nextTemp();
+    const selected = ctx.nextTemp();
+    ctx.line(`  ${truePtr} = getelementptr inbounds [5 x i8], [5 x i8]* ${trueStr}, i64 0, i64 0`);
+    ctx.line(
+      `  ${falsePtr} = getelementptr inbounds [6 x i8], [6 x i8]* ${falseStr}, i64 0, i64 0`,
+    );
+    ctx.line(`  ${selected} = select i1 ${val}, i8* ${truePtr}, i8* ${falsePtr}`);
+    return selected;
+  }
+  return buf;
+}
+
+function emitStringConcat(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_call" }): string {
+  const leftArg = expr.args[0];
+  const rightArg = expr.args[1];
+  const leftVal = emitExpr(ctx, leftArg);
+  const rightVal = emitExpr(ctx, rightArg);
+
+  const leftStr = emitToString(ctx, leftArg, leftVal);
+  const rightStr = emitToString(ctx, rightArg, rightVal);
+
+  const lenL = ctx.nextTemp();
+  const lenR = ctx.nextTemp();
+  const totalLen = ctx.nextTemp();
+  const totalLen1 = ctx.nextTemp();
+  const buf = ctx.nextTemp();
+
+  ctx.line(`  ${lenL} = call i64 @strlen(i8* ${leftStr})`);
+  ctx.line(`  ${lenR} = call i64 @strlen(i8* ${rightStr})`);
+  ctx.line(`  ${totalLen} = add i64 ${lenL}, ${lenR}`);
+  ctx.line(`  ${totalLen1} = add i64 ${totalLen}, 1`);
+  ctx.line(`  ${buf} = call i8* @malloc(i64 ${totalLen1})`);
+  ctx.line(`  call i8* @strcpy(i8* ${buf}, i8* ${leftStr})`);
+  ctx.line(`  call i8* @strcat(i8* ${buf}, i8* ${rightStr})`);
+  return buf;
 }
 
 const MATH_INTRINSICS: Record<string, string> = {
