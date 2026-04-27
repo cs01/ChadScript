@@ -99,8 +99,10 @@ function mangleType(t: HIRType): string {
       return "closure";
     case "struct":
       return t.name;
+    case "promise":
+      return `promise_${mangleType(t.inner)}`;
     default:
-      throw new Error(`cannot mangle type: ${t.kind}`);
+      throw new Error(`cannot mangle type: ${(t as any).kind}`);
   }
 }
 
@@ -187,6 +189,11 @@ export function resolveTypeAnnotation(ann: any): HIRType {
     if (name === "Array" && ta.typeParams?.params?.length === 1) {
       const elem = resolveTypeAnnotation(ta.typeParams.params[0]);
       return { kind: "array", element: elem };
+    }
+
+    if (name === "Promise" && ta.typeParams?.params?.length === 1) {
+      const inner = resolveTypeAnnotation(ta.typeParams.params[0]);
+      return { kind: "promise", inner };
     }
 
     if (classRegistry.has(name) || interfaceRegistry.has(name)) {

@@ -8,7 +8,8 @@ export type HIRType =
   | { kind: "array"; element: HIRType }
   | { kind: "boxed" }
   | { kind: "struct"; name: string; fields: HIRField[] }
-  | { kind: "closure"; params: HIRType[]; returnType: HIRType };
+  | { kind: "closure"; params: HIRType[]; returnType: HIRType }
+  | { kind: "promise"; inner: HIRType };
 
 export interface HIRField {
   name: string;
@@ -153,7 +154,8 @@ export type HIRExpr =
       returnType: HIRType;
       type: HIRType;
     }
-  | { kind: "nullish_coalesce"; left: HIRExpr; right: HIRExpr; type: HIRType };
+  | { kind: "nullish_coalesce"; left: HIRExpr; right: HIRExpr; type: HIRType }
+  | { kind: "await"; value: HIRExpr; resolvedType: HIRType; type: HIRType };
 
 export type HIRStmtBase =
   | {

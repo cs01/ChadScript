@@ -21,6 +21,7 @@ export class EmitContext {
   private closureType: any = null;
   private capturedLocals = new Map<number, { envAlloc: any; index: number; type: HIRType }>();
   private envAlloc: any = null;
+  private asyncPromiseAlloc: any = null;
   private currentFn: any = null;
   currentReturnType: HIRType = { kind: "void" };
   diScope: any = null;
@@ -148,11 +149,20 @@ export class EmitContext {
     return this.envAlloc;
   }
 
+  setAsyncPromiseAlloc(alloc: any): void {
+    this.asyncPromiseAlloc = alloc;
+  }
+
+  getAsyncPromiseAlloc(): any {
+    return this.asyncPromiseAlloc;
+  }
+
   resetLocalsAndCaptures(): void {
     this.localAllocs.clear();
     this.localNames.clear();
     this.capturedLocals.clear();
     this.envAlloc = null;
+    this.asyncPromiseAlloc = null;
   }
 }
 
@@ -186,6 +196,8 @@ export function llvmType(ctx: EmitContext, t: HIRType): any {
       return m.ptr;
     case "closure":
       return m.ptr;
+    case "promise":
+      return m.ptr;
     default: {
       const _: never = t;
       throw new Error(`unknown HIR type: ${JSON.stringify(t)}`);
@@ -196,6 +208,7 @@ export function llvmType(ctx: EmitContext, t: HIRType): any {
 export function coerceLLVM(ctx: EmitContext, val: any, from: HIRType, to: HIRType): any {
   const m = ctx.m;
   if (from.kind === to.kind) return val;
+  if (from.kind === "promise" && to.kind === "promise") return val;
   if (from.kind === "i64" && to.kind === "f64") return m.buildSIToFP(val, m.f64, "");
   if (from.kind === "f64" && to.kind === "i64") return m.buildFPToSI(val, m.i64, "");
   if (from.kind === "i1" && to.kind === "i64") return m.buildZExt(val, m.i64, "");
@@ -288,6 +301,8 @@ export function defaultInit(ctx: EmitContext, t: HIRType): any {
     case "ptr":
       return m.constNull(m.ptr);
     case "closure":
+      return m.constNull(m.ptr);
+    case "promise":
       return m.constNull(m.ptr);
     case "boxed":
       return m.constInt(m.i64, 0x7ffc000000000001n);

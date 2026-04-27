@@ -144,6 +144,17 @@ export function emitExpr(ctx: EmitContext, expr: HIRExpr): any {
       return emitCallClosure(ctx, expr as HIRExpr & { kind: "call_closure" });
     case "nullish_coalesce":
       return emitNullishCoalesce(ctx, expr as HIRExpr & { kind: "nullish_coalesce" });
+    case "await": {
+      const awaitExpr = expr as HIRExpr & { kind: "await"; value: HIRExpr; resolvedType: HIRType };
+      const promiseVal = emitExpr(ctx, awaitExpr.value);
+      const getFn = promiseGetFn(awaitExpr.resolvedType);
+      const decl = ctx.getDeclaredFunction(getFn)!;
+      let result = m.buildCall(decl.fnType, decl.fn, [promiseVal], "awaited");
+      if (awaitExpr.resolvedType.kind === "i1") {
+        result = m.buildTrunc(result, m.i1, "");
+      }
+      return result;
+    }
     case "box": {
       const inner = emitExpr(ctx, (expr as HIRExpr & { kind: "box" }).value);
       return emitBoxValue(ctx, inner, (expr as HIRExpr & { kind: "box" }).fromType);
@@ -803,6 +814,26 @@ function emitCallClosure(ctx: EmitContext, expr: HIRExpr & { kind: "call_closure
   const fnType = m.functionType(retType, paramTypes);
 
   return m.buildCall(fnType, fnPtr, allArgs, expr.returnType.kind === "void" ? "" : "");
+}
+
+function promiseGetFn(type: HIRType): string {
+  switch (type.kind) {
+    case "f64":
+      return "cs2_promise_get_f64";
+    case "i64":
+      return "cs2_promise_get_i64";
+    case "i1":
+      return "cs2_promise_get_bool";
+    case "i8ptr":
+      return "cs2_promise_get_str";
+    case "ptr":
+    case "array":
+    case "closure":
+    case "promise":
+      return "cs2_promise_get_ptr";
+    default:
+      throw new Error(`cannot await type: ${type.kind}`);
+  }
 }
 
 function emitNullishCoalesce(ctx: EmitContext, expr: HIRExpr & { kind: "nullish_coalesce" }): any {

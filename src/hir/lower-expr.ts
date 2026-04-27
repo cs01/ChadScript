@@ -111,6 +111,14 @@ export function lowerExpr(expr: Expression): HIRExpr {
     }
     case "TsNonNullExpression":
       return lowerExpr((expr as any).expression);
+    case "AwaitExpression": {
+      const arg = lowerExpr((expr as any).argument);
+      if (arg.type.kind === "promise") {
+        const innerType = (arg.type as { kind: "promise"; inner: HIRType }).inner;
+        return { kind: "await", value: arg, resolvedType: innerType, type: innerType };
+      }
+      return arg;
+    }
     default:
       compileError(`unsupported expression type: ${expr.type}`, expr.span);
   }

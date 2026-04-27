@@ -46,7 +46,10 @@ export function registerFunction(decl: any): void {
       params.push({ id: i, name: p.pat.type === "Identifier" ? p.pat.value : `p${i}`, type });
     }
   }
-  const returnType = decl.returnType ? resolveTypeAnnotation(decl.returnType) : VOID;
+  let returnType = decl.returnType ? resolveTypeAnnotation(decl.returnType) : VOID;
+  if (decl.async && returnType.kind !== "promise") {
+    returnType = { kind: "promise", inner: returnType };
+  }
   functionRegistry.set(decl.identifier.value, { params, returnType });
   if (restIndex >= 0) restParamRegistry.set(decl.identifier.value, restIndex);
 }

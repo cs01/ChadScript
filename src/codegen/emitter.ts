@@ -348,6 +348,18 @@ function declareExterns(ctx: EmitContext): void {
     ["nanbox_print", m.voidTy, [m.i64]],
     ["nanbox_undefined", m.i64, []],
     ["nanbox_null", m.i64, []],
+    ["cs2_promise_new", m.ptr, []],
+    ["cs2_promise_resolve_f64", m.voidTy, [m.ptr, m.f64]],
+    ["cs2_promise_resolve_i64", m.voidTy, [m.ptr, m.i64]],
+    ["cs2_promise_resolve_bool", m.voidTy, [m.ptr, m.i32]],
+    ["cs2_promise_resolve_ptr", m.voidTy, [m.ptr, m.ptr]],
+    ["cs2_promise_resolve_str", m.voidTy, [m.ptr, m.ptr]],
+    ["cs2_promise_resolve_void", m.voidTy, [m.ptr]],
+    ["cs2_promise_get_f64", m.f64, [m.ptr]],
+    ["cs2_promise_get_i64", m.i64, [m.ptr]],
+    ["cs2_promise_get_bool", m.i32, [m.ptr]],
+    ["cs2_promise_get_ptr", m.ptr, [m.ptr]],
+    ["cs2_promise_get_str", m.ptr, [m.ptr]],
   ];
   for (const [name, ret, params] of bridgeFns) {
     const fnType = m.functionType(ret, params);
@@ -437,12 +449,26 @@ function emitFunction(
     }
   }
 
+  if (fn.isAsync && fn.returnType.kind === "promise") {
+    const newDecl = ctx.getDeclaredFunction("cs2_promise_new")!;
+    const promisePtr = m.buildCall(newDecl.fnType, newDecl.fn, [], "promise");
+    const promiseAlloc = m.buildAlloca(m.ptr, "__promise");
+    m.buildStore(promisePtr, promiseAlloc);
+    ctx.setAsyncPromiseAlloc(promiseAlloc);
+  }
+
   for (const stmt of fn.body) {
     emitStmt(ctx, stmt);
   }
 
   if (!blockTerminates(fn.body)) {
-    if (fn.returnType.kind === "void") {
+    if (fn.isAsync && fn.returnType.kind === "promise") {
+      const promiseAlloc = ctx.getAsyncPromiseAlloc();
+      const promiseVal = m.buildLoad(m.ptr, promiseAlloc, "");
+      const resolveDecl = ctx.getDeclaredFunction("cs2_promise_resolve_void")!;
+      m.buildCall(resolveDecl.fnType, resolveDecl.fn, [promiseVal], "");
+      m.buildRet(promiseVal);
+    } else if (fn.returnType.kind === "void") {
       m.buildRetVoid();
     }
   }
@@ -508,7 +534,27 @@ function emitStmt(ctx: EmitContext, stmt: HIRStmt): void {
       emitExpr(ctx, stmt.expr);
       break;
     case "return": {
-      if (stmt.value) {
+      if (ctx.currentReturnType.kind === "promise") {
+        const promiseAlloc = ctx.getAsyncPromiseAlloc();
+        const promiseVal = m.buildLoad(m.ptr, promiseAlloc, "");
+        const inner = (
+          ctx.currentReturnType as { kind: "promise"; inner: import("../hir/types.js").HIRType }
+        ).inner;
+        if (stmt.value && inner.kind !== "void") {
+          let val = emitExpr(ctx, stmt.value);
+          val = coerceLLVM(ctx, val, stmt.value.type, inner);
+          const resolveFn = promiseResolveFn(inner);
+          const resolveDecl = ctx.getDeclaredFunction(resolveFn)!;
+          if (inner.kind === "i1") {
+            val = m.buildZExt(val, m.i32, "");
+          }
+          m.buildCall(resolveDecl.fnType, resolveDecl.fn, [promiseVal, val], "");
+        } else {
+          const resolveDecl = ctx.getDeclaredFunction("cs2_promise_resolve_void")!;
+          m.buildCall(resolveDecl.fnType, resolveDecl.fn, [promiseVal], "");
+        }
+        m.buildRet(promiseVal);
+      } else if (stmt.value) {
         let val = emitExpr(ctx, stmt.value);
         val = coerceLLVM(ctx, val, stmt.value.type, ctx.currentReturnType);
         m.buildRet(val);
@@ -698,6 +744,28 @@ function emitSwitch(ctx: EmitContext, stmt: HIRStmt & { kind: "switch" }): void 
 
   m.positionAtEnd(exitBlock);
   ctx.popLoop();
+}
+
+function promiseResolveFn(inner: import("../hir/types.js").HIRType): string {
+  switch (inner.kind) {
+    case "f64":
+      return "cs2_promise_resolve_f64";
+    case "i64":
+      return "cs2_promise_resolve_i64";
+    case "i1":
+      return "cs2_promise_resolve_bool";
+    case "i8ptr":
+      return "cs2_promise_resolve_str";
+    case "ptr":
+    case "array":
+    case "closure":
+    case "promise":
+      return "cs2_promise_resolve_ptr";
+    case "void":
+      return "cs2_promise_resolve_void";
+    default:
+      throw new Error(`unsupported promise resolve type: ${inner.kind}`);
+  }
 }
 
 function emitTry(ctx: EmitContext, stmt: HIRStmt & { kind: "try" }): void {

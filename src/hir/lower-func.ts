@@ -55,7 +55,10 @@ export function lowerFunctionDecl(decl: FunctionDeclaration): HIRFunction {
     }
   }
 
-  const returnType = decl.returnType ? resolveTypeAnnotation(decl.returnType) : VOID;
+  let returnType = decl.returnType ? resolveTypeAnnotation(decl.returnType) : VOID;
+  if (decl.async && returnType.kind !== "promise") {
+    returnType = { kind: "promise", inner: returnType };
+  }
 
   const body = decl.body ? lowerBlock(decl.body) : [];
 
@@ -122,6 +125,9 @@ export function lowerArrowOrFnExpr(expr: any, varName: string): HIRFunction {
   }
 
   let returnType = expr.returnType ? resolveTypeAnnotation(expr.returnType) : VOID;
+  if (expr.async && returnType.kind !== "promise") {
+    returnType = { kind: "promise", inner: returnType };
+  }
 
   let body: HIRStmt[];
   if (expr.body.type === "BlockStatement") {
@@ -130,8 +136,17 @@ export function lowerArrowOrFnExpr(expr: any, varName: string): HIRFunction {
     setIsModuleScope(true);
   } else {
     const retExpr = lowerExpr(expr.body);
-    if (returnType.kind === "void") returnType = retExpr.type;
-    body = [{ kind: "return", value: coerce(retExpr, returnType) }];
+    const innerRet =
+      returnType.kind === "promise"
+        ? (returnType as { kind: "promise"; inner: any }).inner
+        : returnType;
+    if (innerRet.kind === "void")
+      returnType = expr.async ? { kind: "promise", inner: retExpr.type } : retExpr.type;
+    const targetType =
+      returnType.kind === "promise"
+        ? (returnType as { kind: "promise"; inner: any }).inner
+        : returnType;
+    body = [{ kind: "return", value: coerce(retExpr, targetType) }];
   }
 
   const captures = Array.from(capturedIds);
@@ -189,7 +204,10 @@ export function lowerNestedFunctionDecl(decl: FunctionDeclaration): HIRFunction 
     }
   }
 
-  const returnType = decl.returnType ? resolveTypeAnnotation(decl.returnType) : VOID;
+  let returnType = decl.returnType ? resolveTypeAnnotation(decl.returnType) : VOID;
+  if (decl.async && returnType.kind !== "promise") {
+    returnType = { kind: "promise", inner: returnType };
+  }
 
   setIsModuleScope(false);
   const body = decl.body ? lowerBlock(decl.body) : [];
