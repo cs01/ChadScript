@@ -223,7 +223,7 @@ export function storeInterfaceMetadata(
     const types: string[] = [];
     const allFields = ctx.getAllInterfaceFields(interfaceDef);
     for (let i = 0; i < allFields.length; i++) {
-      const f = allFields[i] as { name: string; type: string };
+      const f = allFields[i] as InterfaceField;
       keys.push(stripOptional(f.name));
       tsTypes.push(f.type);
       types.push(tsTypeToLlvm(f.type));

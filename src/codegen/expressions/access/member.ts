@@ -88,10 +88,10 @@ import {
 } from "./chained-access.js";
 import { accessObjectWithMetadata, accessObjectProperty } from "./struct-access.js";
 import {
-  loadFieldValue as _loadFieldValue,
-  storeInterfaceMetadata as _storeInterfaceMetadata,
-  resolveConcreteClassByFields as _resolveConcreteClassByFields,
-  findStructuralClassForField as _findClassStructurallyMatchingInterface,
+  loadFieldValue,
+  storeInterfaceMetadata,
+  resolveConcreteClassByFields,
+  findStructuralClassForField,
 } from "./class-field-loading.js";
 import { createStringConstant } from "../../types/collections/string/constants.js";
 import { emitFptosi, emitTrunc, emitSext, emitMul } from "../../infrastructure/ir-builders.js";
@@ -458,11 +458,11 @@ export class MemberAccessGenerator {
     interfaceKeys: string[],
     targetProperty: string,
   ): string | null {
-    return _resolveConcreteClassByFields(this.ctx, interfaceKeys, targetProperty);
+    return resolveConcreteClassByFields(this.ctx, interfaceKeys, targetProperty);
   }
 
   private findClassStructurallyMatchingInterface(interfaceName: string): string | null {
-    return _findClassStructurallyMatchingInterface(this.ctx, interfaceName);
+    return findStructuralClassForField(this.ctx, interfaceName);
   }
 
   private getInterfaceFromAST(name: string): InterfaceInfo | null {
@@ -971,11 +971,11 @@ export class MemberAccessGenerator {
     className?: string,
     fieldName?: string,
   ): string {
-    return _loadFieldValue(this.ctx, fieldPtr, fieldInfo, className, fieldName);
+    return loadFieldValue(this.ctx, fieldPtr, fieldInfo, className, fieldName);
   }
 
   private storeInterfaceMetadata(register: string, tsType: string): void {
-    _storeInterfaceMetadata(this.ctx, register, tsType);
+    storeInterfaceMetadata(this.ctx, register, tsType);
   }
 
   private handleJsonPropertyAccess(expr: MemberAccessNode, params: string[]): string {
