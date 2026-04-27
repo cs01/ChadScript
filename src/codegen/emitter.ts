@@ -1120,6 +1120,8 @@ function emitExpr(ctx: EmitContext, expr: HIRExpr): any {
       return emitMakeClosure(ctx, expr as HIRExpr & { kind: "make_closure" });
     case "call_closure":
       return emitCallClosure(ctx, expr as HIRExpr & { kind: "call_closure" });
+    case "nullish_coalesce":
+      return emitNullishCoalesce(ctx, expr as HIRExpr & { kind: "nullish_coalesce" });
     default:
       return m.constInt(m.i64, 0);
   }
@@ -1720,4 +1722,30 @@ function emitCallClosure(ctx: EmitContext, expr: HIRExpr & { kind: "call_closure
   const fnType = m.functionType(retType, paramTypes);
 
   return m.buildCall(fnType, fnPtr, allArgs, expr.returnType.kind === "void" ? "" : "");
+}
+
+function emitNullishCoalesce(ctx: EmitContext, expr: HIRExpr & { kind: "nullish_coalesce" }): any {
+  const m = ctx.m;
+  const fn = ctx.getCurrentFn();
+
+  const leftVal = emitExpr(ctx, expr.left);
+  const leftBlock = m.getInsertBlock();
+
+  const isNull = m.buildICmp(LLVMIntEQ, leftVal, m.constNull(m.ptr), "is_null");
+
+  const rhsBlock = m.appendBlock(fn, "nc.rhs");
+  const mergeBlock = m.appendBlock(fn, "nc.merge");
+
+  m.buildCondBr(isNull, rhsBlock, mergeBlock);
+
+  m.positionAtEnd(rhsBlock);
+  const rightVal = emitExpr(ctx, expr.right);
+  const rhsEndBlock = m.getInsertBlock();
+  m.buildBr(mergeBlock);
+
+  m.positionAtEnd(mergeBlock);
+  const ty = llvmType(ctx, expr.type);
+  const phi = m.buildPhi(ty, "nc");
+  m.addIncoming(phi, [rightVal, leftVal], [rhsEndBlock, leftBlock]);
+  return phi;
 }

@@ -1468,6 +1468,12 @@ function lowerIdentifier(id: Identifier): HIRExpr {
 const BITWISE_OPS: BinaryOp[] = ["bit_and", "bit_or", "bit_xor", "shl", "shr", "ushr"];
 
 function lowerBinary(expr: BinaryExpression): HIRExpr {
+  if (expr.operator === "??") {
+    const left = lowerExpr(expr.left);
+    const right = lowerExpr(expr.right);
+    return { kind: "nullish_coalesce", left, right, type: left.type };
+  }
+
   let left = lowerExpr(expr.left);
   let right = lowerExpr(expr.right);
   const op = mapBinaryOp(expr.operator);

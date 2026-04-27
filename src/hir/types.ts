@@ -152,7 +152,8 @@ export type HIRExpr =
       args: HIRExpr[];
       returnType: HIRType;
       type: HIRType;
-    };
+    }
+  | { kind: "nullish_coalesce"; left: HIRExpr; right: HIRExpr; type: HIRType };
 
 export type HIRStmtBase =
   | {
