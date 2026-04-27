@@ -609,7 +609,7 @@ export class VariableAllocator {
         );
         this.ctx.emit(`${allocaReg} = alloca %Array*`);
         this.ctx.emit(`store %Array* null, %Array** ${allocaReg}`);
-      } else if (baseType.endsWith("[]")) {
+      } else if (isAnyArrayTsType(baseType)) {
         this.ctx.defineVariableWithMetadata(
           stmt.name,
           allocaReg,
@@ -747,7 +747,7 @@ export class VariableAllocator {
         this.ctx.setExpectedArrayElementType("boolean");
       } else if (strippedType === "number[]") {
         this.ctx.setExpectedArrayElementType("number");
-      } else if (strippedType.endsWith("[]")) {
+      } else if (isAnyArrayTsType(strippedType)) {
         this.ctx.setExpectedArrayElementType("pointer");
       }
     }
@@ -880,7 +880,7 @@ export class VariableAllocator {
       const genericReturn = this.resolveGenericCallReturnType(stmtValue);
       if (genericReturn === "string") isString = true;
       else if (genericReturn === "string[]") isStringArray = true;
-      else if (genericReturn && genericReturn.endsWith("[]")) isObjectArray = true;
+      else if (genericReturn && isAnyArrayTsType(genericReturn)) isObjectArray = true;
     }
 
     if (
