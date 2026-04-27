@@ -1,6 +1,6 @@
 export type HIRType =
   | { kind: "f64" }
-  | { kind: "i32" }
+  | { kind: "i64" }
   | { kind: "i1" }
   | { kind: "i8ptr" }
   | { kind: "void" }
@@ -39,7 +39,7 @@ export type UnaryOp = "neg" | "not" | "bit_not" | "typeof";
 
 export type HIRExpr =
   | { kind: "literal_f64"; value: number; type: HIRType }
-  | { kind: "literal_i32"; value: number; type: HIRType }
+  | { kind: "literal_i64"; value: number; type: HIRType }
   | { kind: "literal_i1"; value: boolean; type: HIRType }
   | { kind: "literal_string"; value: string; type: HIRType }
   | { kind: "literal_null"; type: HIRType }
@@ -94,7 +94,7 @@ export type HIRExpr =
     }
   | { kind: "box"; value: HIRExpr; fromType: HIRType; type: HIRType }
   | { kind: "unbox"; value: HIRExpr; toType: HIRType; type: HIRType }
-  | { kind: "narrow_i32"; value: HIRExpr; type: HIRType }
+  | { kind: "narrow_i64"; value: HIRExpr; type: HIRType }
   | { kind: "widen_f64"; value: HIRExpr; type: HIRType }
   | {
       kind: "alloc_struct";
@@ -200,7 +200,7 @@ export interface HIRModule {
 }
 
 export const F64: HIRType = { kind: "f64" };
-export const I32: HIRType = { kind: "i32" };
+export const I64: HIRType = { kind: "i64" };
 export const I1: HIRType = { kind: "i1" };
 export const I8PTR: HIRType = { kind: "i8ptr" };
 export const VOID: HIRType = { kind: "void" };

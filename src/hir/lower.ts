@@ -33,7 +33,7 @@ import type {
   BinaryOp,
   UnaryOp,
 } from "./types.js";
-import { F64, I32, I1, I8PTR, VOID, BOXED } from "./types.js";
+import { F64, I64, I1, I8PTR, VOID, BOXED } from "./types.js";
 import { compileError } from "../errors.js";
 
 let nextId = 0;
@@ -41,6 +41,7 @@ const locals = new Map<string, { id: number; type: HIRType; mutable: boolean }>(
 const globals = new Map<string, { type: HIRType; mutable: boolean }>();
 const functionRegistry = new Map<string, { params: HIRParam[]; returnType: HIRType }>();
 let isModuleScope = true;
+let expectedArrayElementType: HIRType | null = null;
 
 function freshId(): number {
   return nextId++;
@@ -76,13 +77,23 @@ export function lowerModule(ast: Module): HIRModule {
         if (d.id.type === "Identifier") {
           const mutable = item.kind === "let" || item.kind === "var";
           const declType = resolveTypeAnnotation(d.id.typeAnnotation);
+          if (declType.kind === "array")
+            expectedArrayElementType = (declType as { kind: "array"; element: HIRType }).element;
           const rawInit = d.init ? lowerExpr(d.init) : undefined;
+          expectedArrayElementType = null;
           const type = declType.kind !== "boxed" ? declType : rawInit ? rawInit.type : BOXED;
           const coercedInit =
             rawInit && rawInit.type.kind !== type.kind ? coerce(rawInit, type) : rawInit;
 
           globals.set(d.id.value, { type, mutable });
-          hirGlobals.push({ name: d.id.value, type, init: coercedInit, mutable });
+          hirGlobals.push({ name: d.id.value, type, mutable });
+
+          if (coercedInit) {
+            init.push({
+              kind: "expr",
+              expr: { kind: "global_set", name: d.id.value, value: coercedInit, type },
+            });
+          }
         }
       }
     } else {
@@ -162,6 +173,11 @@ function resolveTypeAnnotation(ann: any): HIRType {
     return resolveTypeAnnotation(ta.typeAnnotation);
   }
 
+  if (ta.type === "TsArrayType") {
+    const elem = resolveTypeAnnotation(ta.elemType);
+    return { kind: "array", element: elem };
+  }
+
   return BOXED;
 }
 
@@ -206,7 +222,10 @@ function lowerVarDecl(decl: VariableDeclaration): HIRStmt[] {
     if (d.id.type === "Identifier") {
       const id = freshId();
       const declType = resolveTypeAnnotation(d.id.typeAnnotation);
+      if (declType.kind === "array")
+        expectedArrayElementType = (declType as { kind: "array"; element: HIRType }).element;
       const init = d.init ? lowerExpr(d.init) : undefined;
+      expectedArrayElementType = null;
       const type = declType.kind !== "boxed" ? declType : init ? init.type : BOXED;
       const coercedInit = init && init.type.kind !== type.kind ? coerce(init, type) : init;
 
@@ -305,14 +324,16 @@ function lowerExpr(expr: Expression): HIRExpr {
         else: lowerExpr(expr.alternate),
         type: lowerExpr(expr.consequent).type,
       };
+    case "ArrayExpression":
+      return lowerArrayLiteral(expr);
     default:
       compileError(`unsupported expression type: ${expr.type}`, expr.span);
   }
 }
 
 function lowerNumericLiteral(lit: NumericLiteral): HIRExpr {
-  if (Number.isInteger(lit.value) && Math.abs(lit.value) <= 2147483647) {
-    return { kind: "literal_i32", value: lit.value, type: I32 };
+  if (Number.isInteger(lit.value) && Math.abs(lit.value) <= Number.MAX_SAFE_INTEGER) {
+    return { kind: "literal_i64", value: lit.value, type: I64 };
   }
   return { kind: "literal_f64", value: lit.value, type: F64 };
 }
@@ -347,9 +368,9 @@ function lowerBinary(expr: BinaryExpression): HIRExpr {
   }
 
   if (BITWISE_OPS.includes(op)) {
-    if (left.type.kind !== "i32") left = coerce(left, I32);
-    if (right.type.kind !== "i32") right = coerce(right, I32);
-    return { kind: "binary", op, left, right, type: I32 };
+    if (left.type.kind !== "i64") left = coerce(left, I64);
+    if (right.type.kind !== "i64") right = coerce(right, I64);
+    return { kind: "binary", op, left, right, type: I64 };
   }
 
   if (op === "div") {
@@ -374,19 +395,19 @@ function lowerBinary(expr: BinaryExpression): HIRExpr {
 
 function coerce(expr: HIRExpr, target: HIRType): HIRExpr {
   if (expr.type.kind === target.kind) return expr;
-  if (expr.type.kind === "i32" && target.kind === "f64") {
+  if (expr.type.kind === "i64" && target.kind === "f64") {
     return { kind: "widen_f64", value: expr, type: F64 };
   }
-  if (expr.type.kind === "f64" && target.kind === "i32") {
-    return { kind: "narrow_i32", value: expr, type: I32 };
+  if (expr.type.kind === "f64" && target.kind === "i64") {
+    return { kind: "narrow_i64", value: expr, type: I64 };
   }
   return expr;
 }
 
 function resolveArithType(a: HIRType, b: HIRType): HIRType {
-  if (a.kind === "i32" && b.kind === "i32") return I32;
+  if (a.kind === "i64" && b.kind === "i64") return I64;
   if (a.kind === "f64" || b.kind === "f64") return F64;
-  if (a.kind === "i32" || b.kind === "i32") return I32;
+  if (a.kind === "i64" || b.kind === "i64") return I64;
   return F64;
 }
 
@@ -466,8 +487,8 @@ function lowerUpdate(expr: UpdateExpression): HIRExpr {
     throw new Error("update expression on non-local/global");
   }
   const one: HIRExpr =
-    arg.type.kind === "i32"
-      ? { kind: "literal_i32", value: 1, type: I32 }
+    arg.type.kind === "i64"
+      ? { kind: "literal_i64", value: 1, type: I64 }
       : { kind: "literal_f64", value: 1, type: F64 };
   const op: BinaryOp = expr.operator === "++" ? "add" : "sub";
   const newVal: HIRExpr = {
@@ -490,6 +511,29 @@ function lowerUpdate(expr: UpdateExpression): HIRExpr {
     id: arg.id,
     value: newVal,
     type: arg.type,
+  };
+}
+
+function lowerArrayLiteral(expr: any): HIRExpr {
+  const elements = (expr.elements || [])
+    .filter((e: any) => e !== null)
+    .map((e: any) => lowerExpr(e.expression));
+
+  let elementType: HIRType = expectedArrayElementType || F64;
+  if (elements.length > 0) {
+    if (elements.some((e: HIRExpr) => e.type.kind === "i8ptr")) elementType = I8PTR;
+    else elementType = F64;
+  }
+
+  const coercedElements = elements.map((e: HIRExpr) =>
+    e.type.kind !== elementType.kind ? coerce(e, elementType) : e,
+  );
+
+  return {
+    kind: "alloc_array",
+    elementType,
+    initialValues: coercedElements,
+    type: { kind: "array", element: elementType },
   };
 }
 
@@ -520,6 +564,27 @@ function lowerAssignment(expr: AssignmentExpression): HIRExpr {
     }
     return { kind: "global_set", name: expr.left.value, value, type: value.type };
   }
+
+  if (expr.left.type === "MemberExpression") {
+    const member = expr.left as MemberExpression;
+    if ((member.property as any).type === "Computed") {
+      const obj = lowerExpr(member.object);
+      const index = lowerExpr((member.property as any).expression);
+      if (obj.type.kind === "array") {
+        const elemType = (obj.type as { kind: "array"; element: HIRType }).element;
+        const coercedValue = value.type.kind !== elemType.kind ? coerce(value, elemType) : value;
+        const idxCoerced = index.type.kind !== "i64" ? coerce(index, I64) : index;
+        return {
+          kind: "index_set",
+          array: obj,
+          index: idxCoerced,
+          value: coercedValue,
+          type: elemType,
+        };
+      }
+    }
+  }
+
   return value;
 }
 
@@ -539,9 +604,9 @@ const compoundOpMap: Record<string, BinaryOp> = {
 
 function lowerBinaryWithOp(op: BinaryOp, left: HIRExpr, right: HIRExpr): HIRExpr {
   if (BITWISE_OPS.includes(op)) {
-    if (left.type.kind !== "i32") left = coerce(left, I32);
-    if (right.type.kind !== "i32") right = coerce(right, I32);
-    return { kind: "binary", op, left, right, type: I32 };
+    if (left.type.kind !== "i64") left = coerce(left, I64);
+    if (right.type.kind !== "i64") right = coerce(right, I64);
+    return { kind: "binary", op, left, right, type: I64 };
   }
   if (op === "div") {
     if (left.type.kind !== "f64") left = coerce(left, F64);
@@ -587,7 +652,7 @@ function lowerCall(expr: CallExpression): HIRExpr {
     expr.callee.property.type === "Identifier" &&
     expr.callee.property.value === "fromCharCode"
   ) {
-    const args = expr.arguments.map((a) => coerce(lowerExpr(a.expression), I32));
+    const args = expr.arguments.map((a) => coerce(lowerExpr(a.expression), I64));
     return {
       kind: "runtime_call",
       func: "cs2_str_from_char_code",
@@ -601,6 +666,9 @@ function lowerCall(expr: CallExpression): HIRExpr {
     const obj = lowerExpr(expr.callee.object);
     if (obj.type.kind === "i8ptr") {
       return lowerStringMethodCall(expr, obj);
+    }
+    if (obj.type.kind === "array") {
+      return lowerArrayMethodCall(expr, obj);
     }
   }
 
@@ -654,19 +722,19 @@ function lowerStringMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
 
   const strMethodMap: Record<string, { func: string; returnType: HIRType; argTypes?: HIRType[] }> =
     {
-      charAt: { func: "cs2_str_char_at", returnType: I8PTR, argTypes: [I32] },
-      indexOf: { func: "cs2_str_index_of", returnType: I32, argTypes: [I8PTR] },
+      charAt: { func: "cs2_str_char_at", returnType: I8PTR, argTypes: [I64] },
+      indexOf: { func: "cs2_str_index_of", returnType: I64, argTypes: [I8PTR] },
       includes: { func: "cs2_str_includes", returnType: I1, argTypes: [I8PTR] },
       startsWith: { func: "cs2_str_starts_with", returnType: I1, argTypes: [I8PTR] },
       endsWith: { func: "cs2_str_ends_with", returnType: I1, argTypes: [I8PTR] },
-      slice: { func: "cs2_str_slice", returnType: I8PTR, argTypes: [I32, I32] },
-      substring: { func: "cs2_str_substring", returnType: I8PTR, argTypes: [I32, I32] },
+      slice: { func: "cs2_str_slice", returnType: I8PTR, argTypes: [I64, I64] },
+      substring: { func: "cs2_str_substring", returnType: I8PTR, argTypes: [I64, I64] },
       toUpperCase: { func: "cs2_str_to_upper", returnType: I8PTR },
       toLowerCase: { func: "cs2_str_to_lower", returnType: I8PTR },
       trim: { func: "cs2_str_trim", returnType: I8PTR },
-      repeat: { func: "cs2_str_repeat", returnType: I8PTR, argTypes: [I32] },
+      repeat: { func: "cs2_str_repeat", returnType: I8PTR, argTypes: [I64] },
       replace: { func: "cs2_str_replace", returnType: I8PTR, argTypes: [I8PTR, I8PTR] },
-      charCodeAt: { func: "cs2_str_char_code_at", returnType: I32, argTypes: [I32] },
+      charCodeAt: { func: "cs2_str_char_code_at", returnType: I64, argTypes: [I64] },
     };
 
   const info = strMethodMap[method];
@@ -694,7 +762,59 @@ function lowerStringMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
       kind: "binary",
       op: "ne" as BinaryOp,
       left: rtCall,
-      right: { kind: "literal_i32", value: 0, type: I32 },
+      right: { kind: "literal_i64", value: 0, type: I64 },
+      type: I1,
+    };
+  }
+
+  return rtCall;
+}
+
+function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
+  const member = expr.callee as MemberExpression;
+  const method = (member.property as Identifier).value;
+  const args = expr.arguments.map((a) => lowerExpr(a.expression));
+  const arrType = obj.type as { kind: "array"; element: HIRType };
+  const isStr = arrType.element.kind === "i8ptr";
+  const prefix = isStr ? "cs2_str_array" : "cs2_num_array";
+
+  type MethodInfo = { func: string; returnType: HIRType; argTypes?: HIRType[] };
+  let info: MethodInfo | undefined;
+
+  if (method === "push") {
+    info = { func: `${prefix}_push`, returnType: VOID, argTypes: [arrType.element] };
+  } else if (method === "pop") {
+    info = { func: `${prefix}_pop`, returnType: arrType.element };
+  } else if (method === "join") {
+    info = { func: `${prefix}_join`, returnType: I8PTR, argTypes: [I8PTR] };
+  } else if (!isStr) {
+    const numMethods: Record<string, MethodInfo> = {
+      indexOf: { func: "cs2_num_array_index_of", returnType: I64, argTypes: [F64] },
+      includes: { func: "cs2_num_array_includes", returnType: I64, argTypes: [F64] },
+      slice: { func: "cs2_num_array_slice", returnType: obj.type, argTypes: [I64, I64] },
+      reverse: { func: "cs2_num_array_reverse", returnType: VOID },
+    };
+    info = numMethods[method];
+  }
+
+  if (!info) compileError(`unsupported array method: ${method}`, expr.span);
+
+  const coercedArgs = info.argTypes ? args.map((a, i) => coerce(a, info!.argTypes![i])) : [];
+
+  const rtCall: HIRExpr = {
+    kind: "runtime_call",
+    func: info.func,
+    args: [obj, ...coercedArgs],
+    returnType: info.returnType,
+    type: info.returnType,
+  };
+
+  if (method === "includes") {
+    return {
+      kind: "binary",
+      op: "ne" as BinaryOp,
+      left: rtCall,
+      right: { kind: "literal_i64", value: 0, type: I64 },
       type: I1,
     };
   }
@@ -712,17 +832,32 @@ function lowerMember(expr: MemberExpression): HIRExpr {
     return { kind: "global_get", name: "process_exit", type: BOXED };
   }
 
+  if ((expr.property as any).type === "Computed") {
+    const obj = lowerExpr(expr.object);
+    const index = lowerExpr((expr.property as any).expression);
+    if (obj.type.kind === "array") {
+      const elemType = (obj.type as { kind: "array"; element: HIRType }).element;
+      const idxCoerced = index.type.kind !== "i64" ? coerce(index, I64) : index;
+      return { kind: "index_get", array: obj, index: idxCoerced, type: elemType };
+    }
+    compileError("unsupported computed member access", expr.span);
+  }
+
   if (expr.property.type === "Identifier" && expr.property.value === "length") {
     const obj = lowerExpr(expr.object);
     if (obj.type.kind === "i8ptr") {
-      const lenI64: HIRExpr = {
+      return {
         kind: "runtime_call",
         func: "cs2_str_length",
         args: [obj],
-        returnType: I32,
-        type: I32,
+        returnType: I64,
+        type: I64,
       };
-      return lenI64;
+    }
+    if (obj.type.kind === "array") {
+      const elemType = (obj.type as { kind: "array"; element: HIRType }).element;
+      const lenFn = elemType.kind === "i8ptr" ? "cs2_str_array_length" : "cs2_num_array_length";
+      return { kind: "runtime_call", func: lenFn, args: [obj], returnType: I64, type: I64 };
     }
   }
 

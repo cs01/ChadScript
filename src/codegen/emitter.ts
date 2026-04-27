@@ -218,6 +218,24 @@ function declareExterns(ctx: EmitContext): void {
     ["cs2_str_char_code_at", m.i32, [m.ptr, m.i32]],
     ["cs2_str_from_char_code", m.ptr, [m.i32]],
     ["cs2_math_random", m.f64, []],
+    ["cs2_num_array_new", m.ptr, [m.i32]],
+    ["cs2_num_array_push", m.voidTy, [m.ptr, m.f64]],
+    ["cs2_num_array_pop", m.f64, [m.ptr]],
+    ["cs2_num_array_get", m.f64, [m.ptr, m.i32]],
+    ["cs2_num_array_set", m.voidTy, [m.ptr, m.i32, m.f64]],
+    ["cs2_num_array_length", m.i32, [m.ptr]],
+    ["cs2_num_array_index_of", m.i32, [m.ptr, m.f64]],
+    ["cs2_num_array_includes", m.i32, [m.ptr, m.f64]],
+    ["cs2_num_array_slice", m.ptr, [m.ptr, m.i32, m.i32]],
+    ["cs2_num_array_reverse", m.voidTy, [m.ptr]],
+    ["cs2_num_array_join", m.ptr, [m.ptr, m.ptr]],
+    ["cs2_str_array_new", m.ptr, [m.i32]],
+    ["cs2_str_array_push", m.voidTy, [m.ptr, m.ptr]],
+    ["cs2_str_array_pop", m.ptr, [m.ptr]],
+    ["cs2_str_array_get", m.ptr, [m.ptr, m.i32]],
+    ["cs2_str_array_set", m.voidTy, [m.ptr, m.i32, m.ptr]],
+    ["cs2_str_array_length", m.i32, [m.ptr]],
+    ["cs2_str_array_join", m.ptr, [m.ptr, m.ptr]],
   ];
   for (const [name, ret, params] of bridgeFns) {
     const fnType = m.functionType(ret, params);
@@ -231,8 +249,8 @@ function llvmType(ctx: EmitContext, t: HIRType): any {
   switch (t.kind) {
     case "f64":
       return m.f64;
-    case "i32":
-      return m.i32;
+    case "i64":
+      return m.i64;
     case "i1":
       return m.i1;
     case "i8ptr":
@@ -257,14 +275,16 @@ function defaultInit(ctx: EmitContext, t: HIRType): any {
   switch (t.kind) {
     case "f64":
       return m.constReal(m.f64, 0.0);
-    case "i32":
-      return m.constInt(m.i32, 0);
+    case "i64":
+      return m.constInt(m.i64, 0);
     case "i1":
       return m.constInt(m.i1, 0);
     case "i8ptr":
+    case "array":
+    case "ptr":
       return m.constNull(m.ptr);
     default:
-      return m.constInt(m.i32, 0);
+      return m.constInt(m.i64, 0);
   }
 }
 
@@ -472,8 +492,8 @@ function emitExpr(ctx: EmitContext, expr: HIRExpr): any {
   switch (expr.kind) {
     case "literal_f64":
       return m.constReal(m.f64, expr.value);
-    case "literal_i32":
-      return m.constInt(m.i32, expr.value);
+    case "literal_i64":
+      return m.constInt(m.i64, expr.value);
     case "literal_i1":
       return m.constInt(m.i1, expr.value ? 1 : 0);
     case "literal_string":
@@ -516,18 +536,74 @@ function emitExpr(ctx: EmitContext, expr: HIRExpr): any {
       const elseVal = emitExpr(ctx, expr.else);
       return m.buildSelect(cond, thenVal, elseVal, "");
     }
-    case "narrow_i32": {
+    case "narrow_i64": {
       const val = emitExpr(ctx, expr.value);
-      const i64val = m.buildFPToSI(val, m.i64, "");
-      return m.buildTrunc(i64val, m.i32, "");
+      return m.buildFPToSI(val, m.i64, "");
     }
     case "widen_f64": {
       const val = emitExpr(ctx, expr.value);
       return m.buildSIToFP(val, m.f64, "");
     }
+    case "alloc_array":
+      return emitAllocArray(ctx, expr as HIRExpr & { kind: "alloc_array" });
+    case "index_get":
+      return emitIndexGet(ctx, expr as HIRExpr & { kind: "index_get" });
+    case "index_set":
+      return emitIndexSet(ctx, expr as HIRExpr & { kind: "index_set" });
     default:
-      return m.constInt(m.i32, 0);
+      return m.constInt(m.i64, 0);
   }
+}
+
+function emitAllocArray(ctx: EmitContext, expr: HIRExpr & { kind: "alloc_array" }): any {
+  const m = ctx.m;
+  const isStr = expr.elementType.kind === "i8ptr";
+  const newFn = isStr ? "cs2_str_array_new" : "cs2_num_array_new";
+  const pushFn = isStr ? "cs2_str_array_push" : "cs2_num_array_push";
+
+  const capacity = Math.max(expr.initialValues.length, 4);
+  const newDecl = ctx.getDeclaredFunction(newFn)!;
+  const arr = m.buildCall(newDecl.fnType, newDecl.fn, [m.constInt(m.i32, capacity)], "arr");
+
+  if (expr.initialValues.length > 0) {
+    const pushDecl = ctx.getDeclaredFunction(pushFn)!;
+    for (const valExpr of expr.initialValues) {
+      const v = emitExpr(ctx, valExpr);
+      m.buildCall(pushDecl.fnType, pushDecl.fn, [arr, v], "");
+    }
+  }
+
+  return arr;
+}
+
+function emitIndexGet(ctx: EmitContext, expr: HIRExpr & { kind: "index_get" }): any {
+  const m = ctx.m;
+  const arr = emitExpr(ctx, expr.array);
+  let idx = emitExpr(ctx, expr.index);
+  if (expr.index.type.kind === "i64") {
+    idx = m.buildTrunc(idx, m.i32, "");
+  }
+  const isStr =
+    expr.array.type.kind === "array" && (expr.array.type as any).element?.kind === "i8ptr";
+  const getFn = isStr ? "cs2_str_array_get" : "cs2_num_array_get";
+  const decl = ctx.getDeclaredFunction(getFn)!;
+  return m.buildCall(decl.fnType, decl.fn, [arr, idx], "");
+}
+
+function emitIndexSet(ctx: EmitContext, expr: HIRExpr & { kind: "index_set" }): any {
+  const m = ctx.m;
+  const arr = emitExpr(ctx, expr.array);
+  let idx = emitExpr(ctx, expr.index);
+  if (expr.index.type.kind === "i64") {
+    idx = m.buildTrunc(idx, m.i32, "");
+  }
+  const val = emitExpr(ctx, expr.value);
+  const isStr =
+    expr.array.type.kind === "array" && (expr.array.type as any).element?.kind === "i8ptr";
+  const setFn = isStr ? "cs2_str_array_set" : "cs2_num_array_set";
+  const decl = ctx.getDeclaredFunction(setFn)!;
+  m.buildCall(decl.fnType, decl.fn, [arr, idx, val], "");
+  return val;
 }
 
 function emitCall(ctx: EmitContext, expr: HIRExpr & { kind: "call" }): any {
@@ -589,17 +665,36 @@ function emitBinary(ctx: EmitContext, expr: HIRExpr & { kind: "binary" }): any {
         ? m.buildFCmp(LLVMRealOGE, left, right, "")
         : m.buildICmp(LLVMIntSGE, left, right, "");
     case "bit_and":
-      return m.buildAnd(left, right, "");
     case "bit_or":
-      return m.buildOr(left, right, "");
     case "bit_xor":
-      return m.buildXor(left, right, "");
     case "shl":
-      return m.buildShl(left, right, "");
     case "shr":
-      return m.buildAShr(left, right, "");
-    case "ushr":
-      return m.buildLShr(left, right, "");
+    case "ushr": {
+      const l32 = m.buildTrunc(left, m.i32, "");
+      const r32 = m.buildTrunc(right, m.i32, "");
+      let res32: any;
+      switch (expr.op) {
+        case "bit_and":
+          res32 = m.buildAnd(l32, r32, "");
+          break;
+        case "bit_or":
+          res32 = m.buildOr(l32, r32, "");
+          break;
+        case "bit_xor":
+          res32 = m.buildXor(l32, r32, "");
+          break;
+        case "shl":
+          res32 = m.buildShl(l32, r32, "");
+          break;
+        case "shr":
+          res32 = m.buildAShr(l32, r32, "");
+          break;
+        case "ushr":
+          res32 = m.buildLShr(l32, r32, "");
+          break;
+      }
+      return m.buildSExt(res32, m.i64, "");
+    }
     default:
       throw new Error(`unhandled binary op: ${expr.op}`);
   }
@@ -699,14 +794,20 @@ function emitRuntimeCall(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_call
   const bridgeFn = ctx.getDeclaredFunction(expr.func);
   if (bridgeFn) {
     const args = expr.args.map((a) => {
-      const val = emitExpr(ctx, a);
-      if (a.type.kind === "i32" || a.type.kind === "f64" || a.type.kind === "i8ptr") return val;
+      let val = emitExpr(ctx, a);
+      if (a.type.kind === "i64") {
+        val = m.buildTrunc(val, m.i32, "");
+      }
       return val;
     });
-    return m.buildCall(bridgeFn.fnType, bridgeFn.fn, args, "");
+    let result = m.buildCall(bridgeFn.fnType, bridgeFn.fn, args, "");
+    if (expr.returnType.kind === "i64") {
+      result = m.buildSExt(result, m.i64, "");
+    }
+    return result;
   }
 
-  return m.constInt(m.i32, 0);
+  return m.constInt(m.i64, 0);
 }
 
 function emitPrintValue(ctx: EmitContext, arg: HIRExpr, val: any, isLast: boolean): void {
@@ -726,8 +827,8 @@ function emitPrintValue(ctx: EmitContext, arg: HIRExpr, val: any, isLast: boolea
     const fmt = m.buildGlobalStringPtr(`%.17g${nl}`, "fmt");
     const printf = ctx.getDeclaredFunction("printf")!;
     m.buildCall(printf.fnType, printf.fn, [fmt, val], "");
-  } else if (arg.type.kind === "i32") {
-    const fmt = m.buildGlobalStringPtr(`%d${nl}`, "fmt");
+  } else if (arg.type.kind === "i64") {
+    const fmt = m.buildGlobalStringPtr(`%ld${nl}`, "fmt");
     const printf = ctx.getDeclaredFunction("printf")!;
     m.buildCall(printf.fnType, printf.fn, [fmt, val], "");
   } else if (arg.type.kind === "i1") {
@@ -756,8 +857,8 @@ function emitToString(ctx: EmitContext, arg: HIRExpr, val: any): any {
     const fmt = m.buildGlobalStringPtr("%.17g", "fmt");
     const sprintf = ctx.getDeclaredFunction("sprintf")!;
     m.buildCall(sprintf.fnType, sprintf.fn, [buf, fmt, val], "");
-  } else if (arg.type.kind === "i32") {
-    const fmt = m.buildGlobalStringPtr("%d", "fmt");
+  } else if (arg.type.kind === "i64") {
+    const fmt = m.buildGlobalStringPtr("%ld", "fmt");
     const sprintf = ctx.getDeclaredFunction("sprintf")!;
     m.buildCall(sprintf.fnType, sprintf.fn, [buf, fmt, val], "");
   } else if (arg.type.kind === "i1") {
@@ -801,7 +902,7 @@ function emitMathCall(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_call" }
 
   const args = expr.args.map((a) => {
     const val = emitExpr(ctx, a);
-    if (a.type.kind === "i32") {
+    if (a.type.kind === "i64") {
       return m.buildSIToFP(val, m.f64, "");
     }
     return val;

@@ -65,6 +65,8 @@ const PARITY_FIXTURES = [
   "string-equality.ts",
   "string-methods.ts",
   "string-trim.ts",
+  "array-basic.ts",
+  "array-methods.ts",
 ];
 
 function compileExpectError(fixture: string): string {
@@ -106,6 +108,6 @@ describe("compile errors", () => {
 
   it("unsupported expression", () => {
     const err = compileExpectError("unsupported-expr.ts");
-    assert.match(err, /unsupported expression type: ArrayExpression/);
+    assert.match(err, /unsupported expression type: TemplateLiteral/);
   });
 });
