@@ -199,6 +199,33 @@ export function coerce(
   if (expr.kind === "literal_null" && target.kind === "ptr") {
     return { kind: "literal_null", type: target };
   }
+  if (target.kind === "boxed" && expr.type.kind !== "boxed") {
+    return { kind: "box", value: expr, fromType: expr.type, type: BOXED };
+  }
+  if (expr.type.kind === "boxed" && target.kind !== "boxed") {
+    return { kind: "unbox", value: expr, toType: target, type: target };
+  }
+  return expr;
+}
+
+export function coerceToCondition(
+  expr: import("./types.js").HIRExpr,
+): import("./types.js").HIRExpr {
+  if (expr.type.kind === "boxed") {
+    return {
+      kind: "binary",
+      op: "ne" as BinaryOp,
+      left: {
+        kind: "runtime_call",
+        func: "nanbox_truthy",
+        args: [expr],
+        returnType: I64,
+        type: I64,
+      },
+      right: { kind: "literal_i64", value: 0, type: I64 },
+      type: I1,
+    };
+  }
   return expr;
 }
 

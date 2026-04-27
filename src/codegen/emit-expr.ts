@@ -19,6 +19,8 @@ import {
   coerceLLVM,
   emitCapturedLoad,
   emitCapturedStore,
+  emitBoxValue,
+  emitUnboxValue,
 } from "./emit-context.js";
 
 export function emitExpr(ctx: EmitContext, expr: HIRExpr): any {
@@ -34,6 +36,10 @@ export function emitExpr(ctx: EmitContext, expr: HIRExpr): any {
     case "literal_string":
       return m.buildGlobalStringPtr(expr.value, "str");
     case "literal_null":
+      if (expr.type.kind === "boxed") {
+        const fn = ctx.getDeclaredFunction("nanbox_null")!;
+        return m.buildCall(fn.fnType, fn.fn, [], "");
+      }
       return m.constNull(m.ptr);
     case "local_get": {
       const alloc = ctx.getLocalAlloc(expr.id);
@@ -138,6 +144,14 @@ export function emitExpr(ctx: EmitContext, expr: HIRExpr): any {
       return emitCallClosure(ctx, expr as HIRExpr & { kind: "call_closure" });
     case "nullish_coalesce":
       return emitNullishCoalesce(ctx, expr as HIRExpr & { kind: "nullish_coalesce" });
+    case "box": {
+      const inner = emitExpr(ctx, (expr as HIRExpr & { kind: "box" }).value);
+      return emitBoxValue(ctx, inner, (expr as HIRExpr & { kind: "box" }).fromType);
+    }
+    case "unbox": {
+      const inner = emitExpr(ctx, (expr as HIRExpr & { kind: "unbox" }).value);
+      return emitUnboxValue(ctx, inner, (expr as HIRExpr & { kind: "unbox" }).toType);
+    }
     default:
       return m.constInt(m.i64, 0);
   }
@@ -367,6 +381,10 @@ function emitBinary(ctx: EmitContext, expr: HIRExpr & { kind: "binary" }): any {
     return emitStringCompare(ctx, expr);
   }
 
+  if (expr.left.type.kind === "boxed" || expr.right.type.kind === "boxed") {
+    return emitBoxedBinary(ctx, expr);
+  }
+
   const left = emitExpr(ctx, expr.left);
   const right = emitExpr(ctx, expr.right);
   const isFloat = expr.left.type.kind === "f64";
@@ -442,6 +460,39 @@ function emitBinary(ctx: EmitContext, expr: HIRExpr & { kind: "binary" }): any {
   }
 }
 
+function emitBoxedBinary(ctx: EmitContext, expr: HIRExpr & { kind: "binary" }): any {
+  const m = ctx.m;
+  let left = emitExpr(ctx, expr.left);
+  let right = emitExpr(ctx, expr.right);
+  if (expr.left.type.kind !== "boxed") left = emitBoxValue(ctx, left, expr.left.type);
+  if (expr.right.type.kind !== "boxed") right = emitBoxValue(ctx, right, expr.right.type);
+
+  const fnMap: Record<string, string> = {
+    add: "nanbox_add",
+    sub: "nanbox_sub",
+    mul: "nanbox_mul",
+    div: "nanbox_div",
+    rem: "nanbox_rem",
+    eq: "nanbox_eq",
+    ne: "nanbox_ne",
+    lt: "nanbox_lt",
+    le: "nanbox_le",
+    gt: "nanbox_gt",
+    ge: "nanbox_ge",
+  };
+
+  const fname = fnMap[expr.op];
+  if (!fname) throw new Error(`unsupported boxed binary op: ${expr.op}`);
+
+  const decl = ctx.getDeclaredFunction(fname)!;
+  const result = m.buildCall(decl.fnType, decl.fn, [left, right], "");
+
+  if (["eq", "ne", "lt", "le", "gt", "ge"].includes(expr.op)) {
+    return m.buildTrunc(result, m.i1, "");
+  }
+  return result;
+}
+
 function emitStringCompare(ctx: EmitContext, expr: HIRExpr & { kind: "binary" }): any {
   const m = ctx.m;
   const left = emitExpr(ctx, expr.left);
@@ -490,6 +541,26 @@ function emitShortCircuit(ctx: EmitContext, expr: HIRExpr & { kind: "binary" }):
 function emitUnary(ctx: EmitContext, expr: HIRExpr & { kind: "unary" }): any {
   const m = ctx.m;
   const operand = emitExpr(ctx, expr.operand);
+
+  if (expr.operand.type.kind === "boxed") {
+    switch (expr.op) {
+      case "typeof": {
+        const fn = ctx.getDeclaredFunction("nanbox_typeof")!;
+        return m.buildCall(fn.fnType, fn.fn, [operand], "");
+      }
+      case "neg": {
+        const fn = ctx.getDeclaredFunction("nanbox_neg")!;
+        return m.buildCall(fn.fnType, fn.fn, [operand], "");
+      }
+      case "not": {
+        const fn = ctx.getDeclaredFunction("nanbox_truthy")!;
+        const truthy = m.buildCall(fn.fnType, fn.fn, [operand], "");
+        return m.buildICmp(LLVMIntEQ, truthy, m.constInt(m.i32, 0), "");
+      }
+      default:
+        throw new Error(`unsupported unary op on boxed: ${expr.op}`);
+    }
+  }
 
   switch (expr.op) {
     case "neg":
@@ -605,12 +676,32 @@ function emitPrintValue(ctx: EmitContext, arg: HIRExpr, val: any, isLast: boolea
       const printf = ctx.getDeclaredFunction("printf")!;
       m.buildCall(printf.fnType, printf.fn, [fmt, selected], "");
     }
+  } else if (arg.type.kind === "boxed") {
+    if (isLast) {
+      const printFn = ctx.getDeclaredFunction("nanbox_print")!;
+      m.buildCall(printFn.fnType, printFn.fn, [val], "");
+    } else {
+      const toStr = ctx.getDeclaredFunction("nanbox_to_string_val")!;
+      const boxedStr = m.buildCall(toStr.fnType, toStr.fn, [val], "");
+      const unbox = ctx.getDeclaredFunction("nanbox_to_string")!;
+      const rawStr = m.buildCall(unbox.fnType, unbox.fn, [boxedStr], "");
+      const fmt = m.buildGlobalStringPtr("%s", "fmt");
+      const printf = ctx.getDeclaredFunction("printf")!;
+      m.buildCall(printf.fnType, printf.fn, [fmt, rawStr], "");
+    }
   }
 }
 
 function emitToString(ctx: EmitContext, arg: HIRExpr, val: any): any {
   const m = ctx.m;
   if (arg.type.kind === "i8ptr") return val;
+
+  if (arg.type.kind === "boxed") {
+    const toStr = ctx.getDeclaredFunction("nanbox_to_string_val")!;
+    const boxedStr = m.buildCall(toStr.fnType, toStr.fn, [val], "");
+    const unbox = ctx.getDeclaredFunction("nanbox_to_string")!;
+    return m.buildCall(unbox.fnType, unbox.fn, [boxedStr], "");
+  }
 
   const malloc = ctx.getDeclaredFunction("malloc")!;
   const buf = m.buildCall(malloc.fnType, malloc.fn, [m.constInt(m.i64, 32)], "buf");

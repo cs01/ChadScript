@@ -99,6 +99,14 @@ export function lowerExpr(expr: Expression): HIRExpr {
       return lowerClosureExpr(expr as any);
     case "OptionalChainingExpression":
       return lowerOptionalChain(expr as any);
+    case "TsAsExpression": {
+      const inner = lowerExpr((expr as any).expression);
+      const targetType = resolveTypeAnnotation((expr as any).typeAnnotation);
+      if (inner.type.kind === targetType.kind) return inner;
+      return coerce(inner, targetType);
+    }
+    case "TsNonNullExpression":
+      return lowerExpr((expr as any).expression);
     default:
       compileError(`unsupported expression type: ${expr.type}`, expr.span);
   }
@@ -167,6 +175,13 @@ export function lowerBinary(expr: BinaryExpression): HIRExpr {
   let left = lowerExpr(expr.left);
   let right = lowerExpr(expr.right);
   const op = mapBinaryOp(expr.operator);
+
+  if (left.type.kind === "boxed" || right.type.kind === "boxed") {
+    if (left.type.kind !== "boxed") left = coerce(left, BOXED);
+    if (right.type.kind !== "boxed") right = coerce(right, BOXED);
+    const isComparison = ["eq", "ne", "lt", "le", "gt", "ge"].includes(op);
+    return { kind: "binary", op, left, right, type: isComparison ? I1 : BOXED };
+  }
 
   if (op === "add" && (left.type.kind === "i8ptr" || right.type.kind === "i8ptr")) {
     return {

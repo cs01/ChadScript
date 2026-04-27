@@ -364,16 +364,18 @@ const ast = parseSync(source, { syntax: "typescript", decorators: true });
 
 **Goal:** Dynamic types work. `any`, unions, untyped params all NaN-boxed.
 
-- [ ] `BoxInsertionPass`: HIR transform that finds box/unbox boundaries
+- [x] `BoxInsertionPass`: HIR transform that finds box/unbox boundaries
   - Function param is `any` or untyped → box at call site
   - Value assigned to `any`-typed variable → box
   - Value read from `any`-typed variable → unbox before use
   - Union types where members have different LLVM repr → box
-- [ ] Codegen: `box` node → NaN-tag the value (tag depends on source type)
-- [ ] Codegen: `unbox` node → check tag + extract raw value
-- [ ] Runtime: NaN-box helpers (tag/untag/typecheck) as C bridge or inline
-- [ ] Dynamic dispatch: `js_dynamic_add`, `js_dynamic_less`, etc. for boxed values
-- [ ] **Milestone:** Programs mixing typed and untyped code work correctly
+- [x] Codegen: `box` node → NaN-tag the value (tag depends on source type)
+- [x] Codegen: `unbox` node → check tag + extract raw value
+- [x] Runtime: NaN-box helpers (tag/untag/typecheck) as C bridge or inline
+- [x] Dynamic dispatch: `nanbox_add`, `nanbox_eq`, `nanbox_lt`, etc. for boxed values
+- [x] `as` type assertion lowering (TsAsExpression → unbox)
+- [x] Truthy coercion for boxed if/while/for conditions
+- [x] **Milestone:** Programs mixing typed and untyped code work correctly — 70 tests
 
 ### Phase 6.5: Generics + Monomorphization (~2-3 weeks, ~3-4K LOC)
 

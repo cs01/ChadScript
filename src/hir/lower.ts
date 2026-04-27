@@ -49,6 +49,7 @@ import {
   resolveTypeAnnotation,
   resolveObjectDestructProps,
   coerce,
+  coerceToCondition,
   defaultValue,
   withLine,
   arrayPrefix,
@@ -205,12 +206,20 @@ export function lowerModule(ast: Module, source?: string, filename?: string): HI
             continue;
           }
           const mutable = item.kind === "let" || item.kind === "var";
+          const hasAnnotation = !!d.id.typeAnnotation;
           const declType = resolveTypeAnnotation(d.id.typeAnnotation);
           if (declType.kind === "array")
             setExpectedArrayElementType((declType as { kind: "array"; element: HIRType }).element);
           const rawInit = d.init ? lowerExpr(d.init) : undefined;
           setExpectedArrayElementType(null);
-          const type = declType.kind !== "boxed" ? declType : rawInit ? rawInit.type : BOXED;
+          const type =
+            declType.kind !== "boxed"
+              ? declType
+              : hasAnnotation
+                ? BOXED
+                : rawInit
+                  ? rawInit.type
+                  : BOXED;
           const coercedInit =
             rawInit && rawInit.type.kind !== type.kind ? coerce(rawInit, type) : rawInit;
 
@@ -343,12 +352,14 @@ function lowerVarDecl(decl: VariableDeclaration): HIRStmt[] {
         continue;
       }
       const id = freshId();
+      const hasAnnotation = !!d.id.typeAnnotation;
       const declType = resolveTypeAnnotation(d.id.typeAnnotation);
       if (declType.kind === "array")
         setExpectedArrayElementType((declType as { kind: "array"; element: HIRType }).element);
       const init = d.init ? lowerExpr(d.init) : undefined;
       setExpectedArrayElementType(null);
-      const type = declType.kind !== "boxed" ? declType : init ? init.type : BOXED;
+      const type =
+        declType.kind !== "boxed" ? declType : hasAnnotation ? BOXED : init ? init.type : BOXED;
       const coercedInit = init && init.type.kind !== type.kind ? coerce(init, type) : init;
 
       locals.set(d.id.value, { id, type, mutable });
@@ -478,7 +489,7 @@ function lowerReturn(stmt: ReturnStatement): HIRStmt {
 function lowerIf(stmt: IfStatement): HIRStmt {
   return {
     kind: "if",
-    condition: lowerExpr(stmt.test),
+    condition: coerceToCondition(lowerExpr(stmt.test)),
     then: lowerConsequent(stmt.consequent),
     else: stmt.alternate ? lowerConsequent(stmt.alternate) : undefined,
   };
@@ -492,7 +503,7 @@ function lowerConsequent(stmt: Statement): HIRStmt[] {
 function lowerWhile(stmt: WhileStatement): HIRStmt {
   return {
     kind: "while",
-    condition: lowerExpr(stmt.test),
+    condition: coerceToCondition(lowerExpr(stmt.test)),
     body: lowerConsequent(stmt.body),
   };
 }
@@ -507,7 +518,7 @@ function lowerFor(stmt: ForStatement): HIRStmt {
   return {
     kind: "for",
     init,
-    condition: stmt.test ? lowerExpr(stmt.test) : undefined,
+    condition: stmt.test ? coerceToCondition(lowerExpr(stmt.test)) : undefined,
     update: stmt.update ? lowerExpr(stmt.update) : undefined,
     body: lowerConsequent(stmt.body),
   };

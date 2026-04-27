@@ -175,7 +175,7 @@ export function llvmType(ctx: EmitContext, t: HIRType): any {
     case "void":
       return m.voidTy;
     case "boxed":
-      return m.f64;
+      return m.i64;
     case "ptr": {
       const ifaceInfo = ctx.getInterfaceType(t.pointee);
       if (ifaceInfo) return ifaceInfo.fatType;
@@ -203,7 +203,75 @@ export function coerceLLVM(ctx: EmitContext, val: any, from: HIRType, to: HIRTyp
     const ext = m.buildZExt(val, m.i64, "");
     return m.buildSIToFP(ext, m.f64, "");
   }
+  if (to.kind === "boxed") {
+    return emitBoxValue(ctx, val, from);
+  }
+  if (from.kind === "boxed") {
+    return emitUnboxValue(ctx, val, to);
+  }
   return val;
+}
+
+export function emitBoxValue(ctx: EmitContext, val: any, from: HIRType): any {
+  const m = ctx.m;
+  switch (from.kind) {
+    case "f64": {
+      const fn = ctx.getDeclaredFunction("nanbox_from_f64")!;
+      return m.buildCall(fn.fnType, fn.fn, [val], "boxed");
+    }
+    case "i64": {
+      const fn = ctx.getDeclaredFunction("nanbox_from_i64")!;
+      return m.buildCall(fn.fnType, fn.fn, [val], "boxed");
+    }
+    case "i1": {
+      const ext = m.buildZExt(val, m.i32, "");
+      const fn = ctx.getDeclaredFunction("nanbox_from_bool")!;
+      return m.buildCall(fn.fnType, fn.fn, [ext], "boxed");
+    }
+    case "i8ptr": {
+      const fn = ctx.getDeclaredFunction("nanbox_from_string")!;
+      return m.buildCall(fn.fnType, fn.fn, [val], "boxed");
+    }
+    case "ptr": {
+      const fn = ctx.getDeclaredFunction("nanbox_from_ptr")!;
+      return m.buildCall(fn.fnType, fn.fn, [val], "boxed");
+    }
+    case "boxed":
+      return val;
+    default:
+      return val;
+  }
+}
+
+export function emitUnboxValue(ctx: EmitContext, val: any, to: HIRType): any {
+  const m = ctx.m;
+  switch (to.kind) {
+    case "f64": {
+      const fn = ctx.getDeclaredFunction("nanbox_to_f64")!;
+      return m.buildCall(fn.fnType, fn.fn, [val], "unboxed");
+    }
+    case "i64": {
+      const fn = ctx.getDeclaredFunction("nanbox_to_i64")!;
+      return m.buildCall(fn.fnType, fn.fn, [val], "unboxed");
+    }
+    case "i1": {
+      const fn = ctx.getDeclaredFunction("nanbox_to_bool")!;
+      const i32val = m.buildCall(fn.fnType, fn.fn, [val], "unboxed");
+      return m.buildTrunc(i32val, m.i1, "");
+    }
+    case "i8ptr": {
+      const fn = ctx.getDeclaredFunction("nanbox_to_string")!;
+      return m.buildCall(fn.fnType, fn.fn, [val], "unboxed");
+    }
+    case "ptr": {
+      const fn = ctx.getDeclaredFunction("nanbox_to_ptr")!;
+      return m.buildCall(fn.fnType, fn.fn, [val], "unboxed");
+    }
+    case "boxed":
+      return val;
+    default:
+      return val;
+  }
 }
 
 export function defaultInit(ctx: EmitContext, t: HIRType): any {
@@ -221,6 +289,8 @@ export function defaultInit(ctx: EmitContext, t: HIRType): any {
       return m.constNull(m.ptr);
     case "closure":
       return m.constNull(m.ptr);
+    case "boxed":
+      return m.constInt(m.i64, 0x7ffc000000000001n);
     default:
       return m.constInt(m.i64, 0);
   }
