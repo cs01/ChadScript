@@ -53,6 +53,9 @@ const LLVMGetInsertBlock = lib.func("LLVMGetInsertBlock", Ref, [Ref]);
 const LLVMConstInt = lib.func("LLVMConstInt", Ref, [Ref, "uint64", Bool]);
 const LLVMConstReal = lib.func("LLVMConstReal", Ref, [Ref, "double"]);
 const LLVMConstNull = lib.func("LLVMConstNull", Ref, [Ref]);
+const LLVMConstArray2 = lib.func("LLVMConstArray2", Ref, [Ref, RefArr, "uint64"]);
+const LLVMConstNamedStruct = lib.func("LLVMConstNamedStruct", Ref, [Ref, RefArr, "uint"]);
+const LLVMArrayType2 = lib.func("LLVMArrayType2", Ref, [Ref, "uint64"]);
 
 const LLVMBuildAdd = lib.func("LLVMBuildAdd", Ref, [Ref, Ref, Ref, "str"]);
 const LLVMBuildSub = lib.func("LLVMBuildSub", Ref, [Ref, Ref, Ref, "str"]);
@@ -103,6 +106,8 @@ const LLVMBuildSelect = lib.func("LLVMBuildSelect", Ref, [Ref, Ref, Ref, Ref, "s
 const LLVMBuildPhi = lib.func("LLVMBuildPhi", Ref, [Ref, Ref, "str"]);
 const LLVMAddIncoming = lib.func("LLVMAddIncoming", "void", [Ref, RefArr, RefArr, "uint"]);
 
+const LLVMBuildExtractValue = lib.func("LLVMBuildExtractValue", Ref, [Ref, Ref, "uint", "str"]);
+const LLVMBuildInsertValue = lib.func("LLVMBuildInsertValue", Ref, [Ref, Ref, Ref, "uint", "str"]);
 const LLVMBuildTrunc = lib.func("LLVMBuildTrunc", Ref, [Ref, Ref, Ref, "str"]);
 const LLVMBuildZExt = lib.func("LLVMBuildZExt", Ref, [Ref, Ref, Ref, "str"]);
 const LLVMBuildSExt = lib.func("LLVMBuildSExt", Ref, [Ref, Ref, Ref, "str"]);
@@ -231,6 +236,7 @@ export const LLVMRealOLE = 5;
 export const LLVMRealOGT = 2;
 export const LLVMRealOGE = 3;
 
+export const LLVMPrivateLinkage = 8;
 export const LLVMCodeGenLevelDefault = 2;
 export const LLVMRelocPIC = 1;
 export const LLVMCodeModelDefault = 0;
@@ -353,6 +359,18 @@ export class LLVMModule {
 
   constNull(type: any): any {
     return LLVMConstNull(type);
+  }
+
+  constArray(elemType: any, values: any[]): any {
+    return LLVMConstArray2(elemType, values, BigInt(values.length));
+  }
+
+  constNamedStruct(structTy: any, values: any[]): any {
+    return LLVMConstNamedStruct(structTy, values, values.length);
+  }
+
+  arrayType(elemType: any, count: number): any {
+    return LLVMArrayType2(elemType, BigInt(count));
   }
 
   structCreateNamed(name: string): any {
@@ -478,6 +496,14 @@ export class LLVMModule {
       args.length,
       name,
     );
+  }
+
+  buildExtractValue(agg: any, index: number, name = ""): any {
+    return LLVMBuildExtractValue(this.builder, agg, index, name);
+  }
+
+  buildInsertValue(agg: any, val: any, index: number, name = ""): any {
+    return LLVMBuildInsertValue(this.builder, agg, val, index, name);
   }
 
   buildSelect(cond: any, then: any, els: any, name = ""): any {

@@ -161,3 +161,37 @@ double cs2_math_random(void) {
     if (!seeded) { srand(42); seeded = 1; }
     return (double)rand() / (double)RAND_MAX;
 }
+
+static void cs2_shortest_repr(char *buf, int bufsz, double val) {
+    for (int prec = 1; prec <= 21; prec++) {
+        snprintf(buf, bufsz, "%.*g", prec, val);
+        double reparsed;
+        sscanf(buf, "%lf", &reparsed);
+        if (reparsed == val) {
+            if (strchr(buf, 'e') || strchr(buf, 'E')) {
+                char alt[32];
+                if (val == (long long)val && val >= -1e15 && val <= 1e15) {
+                    snprintf(alt, sizeof(alt), "%.0f", val);
+                    double re2;
+                    sscanf(alt, "%lf", &re2);
+                    if (re2 == val) {
+                        memcpy(buf, alt, strlen(alt) + 1);
+                        return;
+                    }
+                }
+            }
+            return;
+        }
+    }
+    snprintf(buf, bufsz, "%.17g", val);
+}
+
+void cs2_print_number(double val) {
+    char buf[32];
+    cs2_shortest_repr(buf, sizeof(buf), val);
+    printf("%s", buf);
+}
+
+void cs2_format_number(char *out, double val) {
+    cs2_shortest_repr(out, 32, val);
+}

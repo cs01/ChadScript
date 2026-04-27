@@ -115,7 +115,24 @@ export type HIRExpr =
       returnType: HIRType;
       type: HIRType;
     }
-  | { kind: "conditional"; condition: HIRExpr; then: HIRExpr; else: HIRExpr; type: HIRType };
+  | { kind: "conditional"; condition: HIRExpr; then: HIRExpr; else: HIRExpr; type: HIRType }
+  | {
+      kind: "wrap_interface";
+      value: HIRExpr;
+      className: string;
+      interfaceName: string;
+      type: HIRType;
+    }
+  | {
+      kind: "vtable_call";
+      object: HIRExpr;
+      interfaceName: string;
+      methodName: string;
+      methodIndex: number;
+      args: HIRExpr[];
+      returnType: HIRType;
+      type: HIRType;
+    };
 
 export type HIRStmtBase =
   | {
@@ -187,11 +204,18 @@ export interface SourceInfo {
   source: string;
 }
 
+export interface HIRInterface {
+  name: string;
+  fields: HIRField[];
+  methods: { name: string; params: HIRParam[]; returnType: HIRType }[];
+}
+
 export interface HIRClass {
   name: string;
   fields: HIRField[];
   methods: HIRFunction[];
   parent?: string;
+  implements?: string[];
 }
 
 export interface HIRGlobal {
@@ -204,6 +228,7 @@ export interface HIRGlobal {
 export interface HIRModule {
   functions: HIRFunction[];
   classes: HIRClass[];
+  interfaces: HIRInterface[];
   globals: HIRGlobal[];
   init: HIRStmt[];
   sourceInfo?: SourceInfo;

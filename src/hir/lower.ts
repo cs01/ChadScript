@@ -71,6 +71,13 @@ const classRegistry = new Map<
     parent?: string;
   }
 >();
+const interfaceRegistry = new Map<
+  string,
+  {
+    fields: { name: string; type: HIRType }[];
+    methods: { name: string; params: HIRParam[]; returnType: HIRType }[];
+  }
+>();
 let isModuleScope = true;
 let expectedArrayElementType: HIRType | null = null;
 let currentClassName: string | null = null;
@@ -90,11 +97,13 @@ function resetState(): void {
 export function lowerModule(ast: Module, source?: string, filename?: string): HIRModule {
   const functions: HIRFunction[] = [];
   const hirClasses: import("./types.js").HIRClass[] = [];
+  const hirInterfaces: import("./types.js").HIRInterface[] = [];
   const hirGlobals: import("./types.js").HIRGlobal[] = [];
   const init: HIRStmt[] = [];
 
   functionRegistry.clear();
   classRegistry.clear();
+  interfaceRegistry.clear();
   globals.clear();
   fnAliases.clear();
   pendingFunctions.length = 0;
@@ -102,6 +111,12 @@ export function lowerModule(ast: Module, source?: string, filename?: string): HI
   isModuleScope = true;
   sourceText = source || "";
   lineOffsets = buildLineOffsets(sourceText);
+
+  for (const item of ast.body) {
+    if ((item as any).type === "TsInterfaceDeclaration") {
+      registerInterface(item as any);
+    }
+  }
 
   for (const item of ast.body) {
     if (item.type === "ClassDeclaration") {
@@ -116,7 +131,9 @@ export function lowerModule(ast: Module, source?: string, filename?: string): HI
   }
 
   for (const item of ast.body) {
-    if (item.type === "ClassDeclaration") {
+    if ((item as any).type === "TsInterfaceDeclaration") {
+      continue;
+    } else if (item.type === "ClassDeclaration") {
       const { hirClass, fns } = lowerClassDecl(item as any);
       hirClasses.push(hirClass);
       functions.push(...fns);
@@ -162,6 +179,14 @@ export function lowerModule(ast: Module, source?: string, filename?: string): HI
 
   functions.push(...pendingFunctions);
 
+  for (const [name, info] of interfaceRegistry) {
+    hirInterfaces.push({
+      name,
+      fields: info.fields.map((f) => ({ name: f.name, type: f.type })),
+      methods: info.methods,
+    });
+  }
+
   let si: SourceInfo | undefined;
   if (filename && source) {
     const lastSlash = filename.lastIndexOf("/");
@@ -172,7 +197,14 @@ export function lowerModule(ast: Module, source?: string, filename?: string): HI
     };
   }
 
-  return { functions, classes: hirClasses, globals: hirGlobals, init, sourceInfo: si };
+  return {
+    functions,
+    classes: hirClasses,
+    interfaces: hirInterfaces,
+    globals: hirGlobals,
+    init,
+    sourceInfo: si,
+  };
 }
 
 function registerFunction(decl: FunctionDeclaration): void {
@@ -182,6 +214,32 @@ function registerFunction(decl: FunctionDeclaration): void {
   });
   const returnType = decl.returnType ? resolveTypeAnnotation(decl.returnType) : VOID;
   functionRegistry.set(decl.identifier.value, { params, returnType });
+}
+
+function registerInterface(decl: any): void {
+  const name = decl.id.value;
+  const fields: { name: string; type: HIRType }[] = [];
+  const methods: { name: string; params: HIRParam[]; returnType: HIRType }[] = [];
+
+  for (const member of decl.body.body) {
+    if (member.type === "TsPropertySignature" && member.key?.type === "Identifier") {
+      fields.push({
+        name: member.key.value,
+        type: resolveTypeAnnotation(member.typeAnnotation),
+      });
+    }
+    if (member.type === "TsMethodSignature" && member.key?.type === "Identifier") {
+      const params: HIRParam[] = member.params.map((p: any, i: number) => ({
+        id: i,
+        name: p.pat?.value || p.value || `p${i}`,
+        type: resolveTypeAnnotation(p.pat?.typeAnnotation || p.typeAnnotation),
+      }));
+      const returnType = member.typeAnn ? resolveTypeAnnotation(member.typeAnn) : VOID;
+      methods.push({ name: member.key.value, params, returnType });
+    }
+  }
+
+  interfaceRegistry.set(name, { fields, methods });
 }
 
 function registerClass(decl: any): void {
@@ -260,8 +318,23 @@ function lowerClassDecl(decl: any): {
     fns.push(constructor);
   }
 
+  const implementsList: string[] = [];
+  if (decl.implements) {
+    for (const impl of decl.implements) {
+      if (impl.expression?.type === "Identifier") {
+        implementsList.push(impl.expression.value);
+      }
+    }
+  }
+
   return {
-    hirClass: { name, fields: hirFields, methods: fns, parent: parentName },
+    hirClass: {
+      name,
+      fields: hirFields,
+      methods: fns,
+      parent: parentName,
+      implements: implementsList.length > 0 ? implementsList : undefined,
+    },
     fns,
   };
 }
@@ -583,7 +656,7 @@ function resolveTypeAnnotation(ann: any): HIRType {
 
   if (ta.type === "TsTypeReference" && ta.typeName?.type === "Identifier") {
     const name = ta.typeName.value;
-    if (classRegistry.has(name)) {
+    if (classRegistry.has(name) || interfaceRegistry.has(name)) {
       return { kind: "ptr", pointee: name };
     }
   }
@@ -964,7 +1037,26 @@ function lowerBinary(expr: BinaryExpression): HIRExpr {
 }
 
 function coerce(expr: HIRExpr, target: HIRType): HIRExpr {
-  if (expr.type.kind === target.kind) return expr;
+  if (expr.type.kind === target.kind) {
+    if (
+      expr.type.kind === "ptr" &&
+      target.kind === "ptr" &&
+      (expr.type as any).pointee !== (target as any).pointee
+    ) {
+      const srcName = (expr.type as any).pointee as string;
+      const dstName = (target as any).pointee as string;
+      if (classRegistry.has(srcName) && interfaceRegistry.has(dstName)) {
+        return {
+          kind: "wrap_interface",
+          value: expr,
+          className: srcName,
+          interfaceName: dstName,
+          type: target,
+        };
+      }
+    }
+    return expr;
+  }
   if (expr.type.kind === "i64" && target.kind === "f64") {
     return { kind: "widen_f64", value: expr, type: F64 };
   }
@@ -1537,11 +1629,39 @@ function resolveMethod(
 function lowerClassMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
   const member = expr.callee as MemberExpression;
   const method = (member.property as Identifier).value;
-  const className = (obj.type as { kind: "ptr"; pointee: string }).pointee;
+  const ptrType = obj.type as { kind: "ptr"; pointee: string };
+  const typeName = ptrType.pointee;
 
-  const resolved = resolveMethod(className, method);
+  const ifaceInfo = interfaceRegistry.get(typeName);
+  if (ifaceInfo) {
+    const methodIndex = ifaceInfo.methods.findIndex((m) => m.name === method);
+    if (methodIndex < 0) {
+      compileError(`unknown method '${method}' on interface '${typeName}'`, expr.span);
+    }
+    const methodDef = ifaceInfo.methods[methodIndex];
+    const args: HIRExpr[] = [];
+    for (let i = 0; i < expr.arguments.length; i++) {
+      let arg = lowerExpr(expr.arguments[i].expression);
+      if (methodDef.params[i]) {
+        arg = coerce(arg, methodDef.params[i].type);
+      }
+      args.push(arg);
+    }
+    return {
+      kind: "vtable_call",
+      object: obj,
+      interfaceName: typeName,
+      methodName: method,
+      methodIndex,
+      args,
+      returnType: methodDef.returnType,
+      type: methodDef.returnType,
+    };
+  }
+
+  const resolved = resolveMethod(typeName, method);
   if (!resolved) {
-    compileError(`unknown method '${method}' on class '${className}'`, expr.span);
+    compileError(`unknown method '${method}' on class '${typeName}'`, expr.span);
   }
 
   const args: HIRExpr[] = [obj];
@@ -1606,12 +1726,26 @@ function lowerMember(expr: MemberExpression): HIRExpr {
 
     const obj = lowerExpr(expr.object);
     if (obj.type.kind === "ptr") {
-      const className = (obj.type as { kind: "ptr"; pointee: string }).pointee;
-      const classInfo = classRegistry.get(className);
+      const typeName = (obj.type as { kind: "ptr"; pointee: string }).pointee;
+      const classInfo = classRegistry.get(typeName);
       if (classInfo) {
         const fieldIdx = classInfo.fields.findIndex((f) => f.name === propName);
         if (fieldIdx >= 0) {
           const field = classInfo.fields[fieldIdx];
+          return {
+            kind: "field_get",
+            object: obj,
+            fieldName: propName,
+            index: fieldIdx,
+            type: field.type,
+          };
+        }
+      }
+      const ifaceInfo = interfaceRegistry.get(typeName);
+      if (ifaceInfo) {
+        const fieldIdx = ifaceInfo.fields.findIndex((f) => f.name === propName);
+        if (fieldIdx >= 0) {
+          const field = ifaceInfo.fields[fieldIdx];
           return {
             kind: "field_get",
             object: obj,

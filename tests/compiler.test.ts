@@ -77,6 +77,7 @@ const PARITY_FIXTURES = [
   "class-array.ts",
   "template-literal.ts",
   "arrow-functions.ts",
+  "interface-basic.ts",
 ];
 
 function compileExpectError(fixture: string): string {

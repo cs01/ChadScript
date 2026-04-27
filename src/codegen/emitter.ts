@@ -36,6 +36,11 @@ class EmitContext {
     string,
     { llvmType: any; fields: { name: string; type: HIRType }[] }
   >();
+  private interfaceTypes = new Map<
+    string,
+    { fatType: any; iface: import("../hir/types.js").HIRInterface; layoutType: any }
+  >();
+  private vtables = new Map<string, any>();
   private currentFn: any = null;
   currentReturnType: HIRType = { kind: "void" };
   diScope: any = null;
@@ -111,6 +116,29 @@ class EmitContext {
   ): { llvmType: any; fields: { name: string; type: HIRType }[] } | undefined {
     return this.structTypes.get(name);
   }
+
+  registerInterfaceType(
+    name: string,
+    fatType: any,
+    iface: import("../hir/types.js").HIRInterface,
+    layoutType: any,
+  ): void {
+    this.interfaceTypes.set(name, { fatType, iface, layoutType });
+  }
+
+  getInterfaceType(
+    name: string,
+  ): { fatType: any; iface: import("../hir/types.js").HIRInterface; layoutType: any } | undefined {
+    return this.interfaceTypes.get(name);
+  }
+
+  registerVtable(key: string, vtableGlobal: any): void {
+    this.vtables.set(key, vtableGlobal);
+  }
+
+  getVtable(key: string): any {
+    return this.vtables.get(key);
+  }
 }
 
 export interface EmitResult {
@@ -127,6 +155,15 @@ export function emitModule(mod: HIRModule, objectPath: string, irPath?: string):
   }
 
   declareExterns(ctx);
+
+  for (const iface of mod.interfaces) {
+    const fatTy = m.structCreateNamed(`${iface.name}_fat`);
+    m.structSetBody(fatTy, [m.ptr, m.ptr]);
+    const fieldLayoutTy = m.structCreateNamed(`${iface.name}_layout`);
+    const fieldTypes = iface.fields.map((f) => llvmType(ctx, f.type));
+    m.structSetBody(fieldLayoutTy, fieldTypes);
+    ctx.registerInterfaceType(iface.name, fatTy, iface, fieldLayoutTy);
+  }
 
   for (const cls of mod.classes) {
     const fieldTypes = cls.fields.map((f) => llvmType(ctx, f.type));
@@ -150,6 +187,8 @@ export function emitModule(mod: HIRModule, objectPath: string, irPath?: string):
     ctx.declareFunction(fn.name, llvmFn, fnType);
   }
 
+  buildVtables(ctx, mod);
+
   for (const fn of mod.functions) {
     emitFunction(ctx, fn);
   }
@@ -164,6 +203,31 @@ export function emitModule(mod: HIRModule, objectPath: string, irPath?: string):
 
   m.emitObjectFile(objectPath);
   m.dispose();
+}
+
+function buildVtables(ctx: EmitContext, mod: HIRModule): void {
+  const m = ctx.m;
+  for (const cls of mod.classes) {
+    if (!cls.implements) continue;
+    for (const ifaceName of cls.implements) {
+      const ifaceInfo = ctx.getInterfaceType(ifaceName);
+      if (!ifaceInfo) continue;
+      const iface = ifaceInfo.iface;
+      const fnPtrs: any[] = [];
+      for (const method of iface.methods) {
+        const fnName = `${cls.name}_${method.name}`;
+        const decl = ctx.getDeclaredFunction(fnName);
+        if (!decl) throw new Error(`missing method ${fnName} for vtable`);
+        fnPtrs.push(decl.fn);
+      }
+      const vtableArrType = m.arrayType(m.ptr, fnPtrs.length);
+      const vtableConst = m.constArray(m.ptr, fnPtrs);
+      const vtableGlobal = m.addGlobal(`vtable_${cls.name}_${ifaceName}`, vtableArrType);
+      m.setInitializer(vtableGlobal, vtableConst);
+      m.setLinkage(vtableGlobal, LLVMPrivateLinkage);
+      ctx.registerVtable(`${cls.name}_${ifaceName}`, vtableGlobal);
+    }
+  }
 }
 
 function declareExterns(ctx: EmitContext): void {
@@ -204,6 +268,14 @@ function declareExterns(ctx: EmitContext): void {
   const strcmpType = m.functionType(m.i32, [m.ptr, m.ptr]);
   const strcmpFn = m.addFunction("strcmp", strcmpType);
   ctx.declareFunction("strcmp", strcmpFn, strcmpType);
+
+  const printNumType = m.functionType(m.voidTy, [m.f64]);
+  const printNumFn = m.addFunction("cs2_print_number", printNumType);
+  ctx.declareFunction("cs2_print_number", printNumFn, printNumType);
+
+  const fmtNumType = m.functionType(m.voidTy, [m.ptr, m.f64]);
+  const fmtNumFn = m.addFunction("cs2_format_number", fmtNumType);
+  ctx.declareFunction("cs2_format_number", fmtNumFn, fmtNumType);
 
   const mathIntrinsics1: [string, string][] = [
     ["llvm.floor.f64", "cs_math_floor"],
@@ -294,7 +366,11 @@ function llvmType(ctx: EmitContext, t: HIRType): any {
       return m.voidTy;
     case "boxed":
       return m.f64;
-    case "ptr":
+    case "ptr": {
+      const ifaceInfo = ctx.getInterfaceType(t.pointee);
+      if (ifaceInfo) return ifaceInfo.fatType;
+      return m.ptr;
+    }
     case "array":
     case "struct":
       return m.ptr;
@@ -689,6 +765,10 @@ function emitExpr(ctx: EmitContext, expr: HIRExpr): any {
       return emitIndexGet(ctx, expr as HIRExpr & { kind: "index_get" });
     case "index_set":
       return emitIndexSet(ctx, expr as HIRExpr & { kind: "index_set" });
+    case "vtable_call":
+      return emitVtableCall(ctx, expr as HIRExpr & { kind: "vtable_call" });
+    case "wrap_interface":
+      return emitWrapInterface(ctx, expr as HIRExpr & { kind: "wrap_interface" });
     default:
       return m.constInt(m.i64, 0);
   }
@@ -746,10 +826,24 @@ function emitAllocStruct(ctx: EmitContext, expr: HIRExpr & { kind: "alloc_struct
 
 function emitFieldGet(ctx: EmitContext, expr: HIRExpr & { kind: "field_get" }): any {
   const m = ctx.m;
+  const typeName = (expr.object.type as { kind: "ptr"; pointee: string }).pointee;
+  const ifaceInfo = ctx.getInterfaceType(typeName);
+
+  if (ifaceInfo) {
+    const fatVal = emitExpr(ctx, expr.object);
+    const dataPtr = m.buildExtractValue(fatVal, 0, "data");
+    const fieldPtr = m.buildGEP(
+      ifaceInfo.layoutType,
+      dataPtr,
+      [m.constInt(m.i32, 0), m.constInt(m.i32, expr.index)],
+      "",
+    );
+    return m.buildLoad(llvmType(ctx, expr.type), fieldPtr, "");
+  }
+
   const obj = emitExpr(ctx, expr.object);
-  const className = (expr.object.type as { kind: "ptr"; pointee: string }).pointee;
-  const structInfo = ctx.getStructType(className);
-  if (!structInfo) throw new Error(`unknown struct type: ${className}`);
+  const structInfo = ctx.getStructType(typeName);
+  if (!structInfo) throw new Error(`unknown struct type: ${typeName}`);
 
   const fieldPtr = m.buildGEP(
     structInfo.llvmType,
@@ -776,6 +870,48 @@ function emitFieldSet(ctx: EmitContext, expr: HIRExpr & { kind: "field_set" }): 
   );
   m.buildStore(val, fieldPtr);
   return val;
+}
+
+function emitWrapInterface(ctx: EmitContext, expr: HIRExpr & { kind: "wrap_interface" }): any {
+  const m = ctx.m;
+  const dataPtr = emitExpr(ctx, expr.value);
+  const vtableGlobal = ctx.getVtable(`${expr.className}_${expr.interfaceName}`);
+  if (!vtableGlobal) throw new Error(`missing vtable: ${expr.className}_${expr.interfaceName}`);
+  const ifaceInfo = ctx.getInterfaceType(expr.interfaceName);
+  if (!ifaceInfo) throw new Error(`unknown interface: ${expr.interfaceName}`);
+
+  let fat = m.constNull(ifaceInfo.fatType);
+  fat = m.buildInsertValue(fat, dataPtr, 0, "");
+  fat = m.buildInsertValue(fat, vtableGlobal, 1, "");
+  return fat;
+}
+
+function emitVtableCall(ctx: EmitContext, expr: HIRExpr & { kind: "vtable_call" }): any {
+  const m = ctx.m;
+  const fatVal = emitExpr(ctx, expr.object);
+  const dataPtr = m.buildExtractValue(fatVal, 0, "data");
+  const vtablePtr = m.buildExtractValue(fatVal, 1, "vtable");
+
+  const ifaceInfo = ctx.getInterfaceType(expr.interfaceName);
+  if (!ifaceInfo) throw new Error(`unknown interface: ${expr.interfaceName}`);
+
+  const methodCount = ifaceInfo.iface.methods.length;
+  const vtableArrTy = m.arrayType(m.ptr, methodCount);
+  const fnPtrPtr = m.buildGEP(
+    vtableArrTy,
+    vtablePtr,
+    [m.constInt(m.i32, 0), m.constInt(m.i32, expr.methodIndex)],
+    "",
+  );
+  const fnPtr = m.buildLoad(m.ptr, fnPtrPtr, "fnptr");
+
+  const methodDef = ifaceInfo.iface.methods[expr.methodIndex];
+  const paramTypes = [m.ptr, ...methodDef.params.map((p) => llvmType(ctx, p.type))];
+  const retType = llvmType(ctx, expr.returnType);
+  const fnType = m.functionType(retType, paramTypes);
+
+  const callArgs = [dataPtr, ...expr.args.map((a) => emitExpr(ctx, a))];
+  return m.buildCall(fnType, fnPtr, callArgs, expr.returnType.kind === "void" ? "" : "vcall");
 }
 
 function emitIndexGet(ctx: EmitContext, expr: HIRExpr & { kind: "index_get" }): any {
@@ -1052,9 +1188,13 @@ function emitPrintValue(ctx: EmitContext, arg: HIRExpr, val: any, isLast: boolea
       m.buildCall(printf.fnType, printf.fn, [fmt, val], "");
     }
   } else if (arg.type.kind === "f64") {
-    const fmt = m.buildGlobalStringPtr(`%.17g${nl}`, "fmt");
-    const printf = ctx.getDeclaredFunction("printf")!;
-    m.buildCall(printf.fnType, printf.fn, [fmt, val], "");
+    const printNum = ctx.getDeclaredFunction("cs2_print_number")!;
+    m.buildCall(printNum.fnType, printNum.fn, [val], "");
+    if (nl) {
+      const nlStr = m.buildGlobalStringPtr("\n", "nl");
+      const printf = ctx.getDeclaredFunction("printf")!;
+      m.buildCall(printf.fnType, printf.fn, [nlStr], "");
+    }
   } else if (arg.type.kind === "i64") {
     const fmt = m.buildGlobalStringPtr(`%ld${nl}`, "fmt");
     const printf = ctx.getDeclaredFunction("printf")!;
@@ -1082,9 +1222,8 @@ function emitToString(ctx: EmitContext, arg: HIRExpr, val: any): any {
   const buf = m.buildCall(malloc.fnType, malloc.fn, [m.constInt(m.i64, 32)], "buf");
 
   if (arg.type.kind === "f64") {
-    const fmt = m.buildGlobalStringPtr("%.17g", "fmt");
-    const sprintf = ctx.getDeclaredFunction("sprintf")!;
-    m.buildCall(sprintf.fnType, sprintf.fn, [buf, fmt, val], "");
+    const fmtNum = ctx.getDeclaredFunction("cs2_format_number")!;
+    m.buildCall(fmtNum.fnType, fmtNum.fn, [buf, val], "");
   } else if (arg.type.kind === "i64") {
     const fmt = m.buildGlobalStringPtr("%ld", "fmt");
     const sprintf = ctx.getDeclaredFunction("sprintf")!;
