@@ -1,136 +1,25 @@
-# Building ChadScript from Source
+# Building ChadScript v2 from Source
 
 ## Prerequisites
 
-**Runtime dependencies** (needed even if using a release binary):
-
 ```bash
-# Ubuntu/Debian
-sudo apt-get install llvm clang libcurl4-openssl-dev
-
-# RHEL/Fedora
-sudo dnf install llvm clang libcurl-devel
-
 # macOS
-brew install llvm
-export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
-```
+brew install llvm node
 
-**Build dependencies** (only needed when building from source):
-
-```bash
 # Ubuntu/Debian
-sudo apt-get install cmake autoconf automake libtool nodejs npm
-
-# RHEL/Fedora
-sudo dnf install cmake autoconf automake libtool nodejs npm
-
-# macOS
-brew install cmake autoconf automake libtool node
+sudo apt-get install llvm clang nodejs npm
 ```
 
-**Rust toolchain** (only needed when (re)building vendor libraries):
-
-ChadScript's regex engine is `librure` — the C ABI for Rust's `regex`
-crate. Vendor builds compile it from source via cargo. End users
-installing via the release tarball receive a prebuilt `librure.a` and
-do **not** need Rust.
+## Build & Test
 
 ```bash
-# Any OS (one-time, ~60s):
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
-```
-
-## Build
-
-```bash
-git clone https://github.com/cs01/ChadScript && cd ChadScript
 npm install
-bash scripts/build-vendor.sh
-npm run build
+npm test
 ```
 
-`scripts/build-vendor.sh` clones and builds static archives for libgc, cJSON, libuv, tree-sitter, libwebsockets, and `librure` (Rust regex C ABI) into `vendor/`. It's idempotent — re-running skips already-built libraries.
-
-## Run
-
-After building, the compiler is available as a Node.js script:
+## Usage
 
 ```bash
-node dist/chad-node.js build hello.ts -o hello
+npx tsx src/cli.ts build hello.ts -o hello
 ./hello
 ```
-
-For a ~10x faster compiler, build the native binary once:
-
-```bash
-node dist/chad-node.js build src/chad-native.ts -o .build/chad
-# Now tests and scripts auto-use .build/chad instead of node dist/chad-node.js
-```
-
-## Verify
-
-```bash
-# Quick: run tests + self-hosting Stage 0-1 in parallel
-npm run verify:quick
-
-# Full: run tests + self-hosting Stage 0-1-2 in parallel
-npm run verify
-
-# Tests only (uses native compiler if .build/chad exists)
-npm test
-
-# Self-hosting only
-bash scripts/self-hosting.sh          # full (3 stages)
-bash scripts/self-hosting.sh --quick  # skip Stage 2
-```
-
-**macOS users**: If you get a security warning, run `xattr -d com.apple.quarantine ./chad` to bypass Gatekeeper.
-
-## Environment Variables
-
-Override vendor library paths if you have your own builds:
-
-```bash
-export CHADSCRIPT_BDWGC_PATH=/path/to/bdwgc
-export CHADSCRIPT_LWS_PATH=/path/to/libwebsockets/build
-export CHADSCRIPT_CJSON_PATH=/path/to/cjson/build
-export CHADSCRIPT_LIBUV_PATH=/path/to/libuv/build
-export CHADSCRIPT_TREESITTER_PATH=/path/to/tree-sitter
-```
-
-## Cross-Compilation
-
-To cross-compile for a different platform, install a target SDK and use `--target`:
-
-```bash
-# One-time: download pre-built libraries for the target platform
-chad target add linux-x64
-
-# Cross-compile
-chad build hello.ts --target linux-x64 -o hello-linux
-```
-
-### Building a target SDK (for CI/contributors)
-
-The `scripts/build-target-sdk.sh` script packages the current platform's vendor libraries, C bridge objects, and (on musl Linux) sysroot into a tarball. CI runs this on each platform after `build-vendor.sh`:
-
-```bash
-bash scripts/build-vendor.sh
-bash scripts/build-target-sdk.sh
-# produces: chadscript-target-<platform>.tar.gz
-```
-
-## Self-Hosting (Stage 0)
-
-ChadScript can compile its own compiler to a native binary (this is what `scripts/self-hosting.sh` automates):
-
-```bash
-# Stage 0: Node.js compiler produces a native binary
-node dist/chad-node.js build src/chad-native.ts -o /tmp/chad-stage0
-
-# Stage 1: that native binary recompiles itself
-/tmp/chad-stage0 build src/chad-native.ts -o /tmp/chad-stage1
-```
-
-The Stage 1 binary is a standalone native compiler that needs no Node.js runtime.

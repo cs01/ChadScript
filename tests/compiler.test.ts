@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import { strict as assert } from "node:assert";
 import { execSync } from "child_process";
-import { mkdtempSync, writeFileSync, unlinkSync, rmSync } from "fs";
+import { mkdtempSync, readdirSync, rmSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 
@@ -32,55 +32,9 @@ function nodeRun(fixture: string): string {
   return result.trimEnd();
 }
 
-const PARITY_FIXTURES = [
-  "hello.ts",
-  "arithmetic.ts",
-  "fib.ts",
-  "while-loop.ts",
-  "for-loop.ts",
-  "boolean-logic.ts",
-  "nested-calls.ts",
-  "if-else.ts",
-  "integer-narrowing.ts",
-  "increment.ts",
-  "string-basic.ts",
-  "multi-function.ts",
-  "bitwise.ts",
-  "modulo.ts",
-  "division.ts",
-  "math-functions.ts",
-  "nested-if.ts",
-  "logical-ops.ts",
-  "break-continue.ts",
-  "multi-arg-log.ts",
-  "prime-sieve.ts",
-  "monte-carlo.ts",
-  "string-concat.ts",
-  "compound-assign.ts",
-  "global-vars.ts",
-  "early-return.ts",
-  "ternary.ts",
-  "negative-numbers.ts",
-  "variable-shadow.ts",
-  "string-equality.ts",
-  "string-methods.ts",
-  "string-trim.ts",
-  "array-basic.ts",
-  "array-methods.ts",
-  "class-basic.ts",
-  "class-methods.ts",
-  "class-fields.ts",
-  "class-inherit.ts",
-  "for-of.ts",
-  "do-while.ts",
-  "switch.ts",
-  "class-array.ts",
-  "template-literal.ts",
-  "arrow-functions.ts",
-  "interface-basic.ts",
-  "closures.ts",
-  "closure-arrow.ts",
-];
+const fixtures = readdirSync(FIXTURES)
+  .filter((f) => f.endsWith(".ts"))
+  .sort();
 
 function compileExpectError(fixture: string): string {
   const tmpDir = mkdtempSync(join(tmpdir(), "chad2-test-"));
@@ -103,7 +57,7 @@ function compileExpectError(fixture: string): string {
 }
 
 describe("chadscript v2 compiler", () => {
-  for (const fixture of PARITY_FIXTURES) {
+  for (const fixture of fixtures) {
     const name = fixture.replace(".ts", "");
     it(name, () => {
       const expected = nodeRun(fixture);

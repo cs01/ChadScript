@@ -2,34 +2,46 @@
 
 ## What It Is
 
-TypeScript-to-native compiler. Compiles .ts files to native binaries via: SWC parse → HIR → Transform passes → LLVM C API → clang link → binary.
+TypeScript-to-native compiler. Compiles .ts files to native binaries via: SWC parse → HIR → LLVM C API → clang link → binary.
 
-Key innovation: **unboxed-first with NaN-boxing escape hatch.** Statically-typed values stay as raw f64/i32/i8*. Dynamic types (`any`, unions) get NaN-boxed. Integer narrowing pass narrows `number` to `i32` when provably integer-valued.
+Key innovation: **unboxed-first with NaN-boxing escape hatch.** Statically-typed values stay as raw f64/i64/i8*. Dynamic types (`any`, unions) get NaN-boxed. Integer narrowing pass narrows `number` to i64 when provably integer-valued.
 
 ## Architecture
 
 ```
 src/
-  parser.ts          — SWC wrapper → ChadScript AST
+  parser.ts          — SWC wrapper → SWC AST
   hir/
     types.ts         — HIR node definitions
-    lower.ts         — AST → HIR lowering
-  transforms/        — HIR → HIR passes (integer narrowing, box insertion, closures, async)
+    lower.ts         — SWC AST → HIR lowering
   codegen/
-    llvm-bridge.c    — C bridge wrapping LLVM C API
-    emitter.ts       — HIR → LLVM via C bridge
-  compiler.ts        — orchestrator
-tests/fixtures/      — test programs (Node-compatible .ts files)
-c_bridges/           — C runtime helpers (regex, json, net, etc.)
+    llvm.ts          — koffi FFI wrapper for LLVM C API
+    emitter.ts       — HIR → LLVM via C API
+  compiler.ts        — orchestrator: parse → lower → emit → link
+  cli.ts             — CLI entry point
+  errors.ts          — diagnostic engine
+tests/
+  compiler.test.ts   — auto-discovers fixtures, compiles, diffs output against node
+  fixtures/          — .ts test programs (stdout parity against node)
+  fixtures/errors/   — expected compile errors
+c_bridges/
+  v2-string-bridge.c — string runtime helpers
+  v2-array-bridge.c  — array runtime helpers
 ```
 
 ## Build & Test
 
 ```bash
-npm run build        # TypeScript → dist/
-npm test             # run test fixtures
-chad2 build file.ts -o out   # compile a TS file to native binary
+npm install
+npm test             # compiles each fixture, runs it, diffs stdout against node
+npx tsx src/cli.ts build file.ts -o out   # compile a single file
 ```
+
+## Test Fixtures
+
+Tests auto-discover all `.ts` files in `tests/fixtures/`. Each fixture is compiled to a native binary, executed, and its stdout is compared against `node --experimental-strip-types`. No manual test list — just add a `.ts` file and it's picked up.
+
+Error fixtures in `tests/fixtures/errors/` test expected compile errors.
 
 ## Code Style
 

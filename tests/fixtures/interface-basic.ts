@@ -43,4 +43,3 @@ const r = new Rectangle("rect", 3, 4);
 
 printArea(c);
 printArea(r);
-console.log("TEST_PASSED");
