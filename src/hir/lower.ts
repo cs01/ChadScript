@@ -53,6 +53,10 @@ import {
   defaultValue,
   withLine,
   arrayPrefix,
+  genericFunctionTemplates,
+  genericClassTemplates,
+  genericSpecializations,
+  setTypeParamContext,
 } from "./lower-state.js";
 import {
   registerFunction,
@@ -60,8 +64,14 @@ import {
   registerClass,
   lowerClassDecl,
 } from "./lower-class.js";
-import { lowerExpr } from "./lower-expr.js";
+import { lowerExpr, drainPendingGenericClasses } from "./lower-expr.js";
 import { lowerFunctionDecl, lowerArrowOrFnExpr, lowerNestedFunctionDecl } from "./lower-func.js";
+import {
+  isGenericFunction,
+  isGenericClass,
+  storeGenericFunctionTemplate,
+  storeGenericClassTemplate,
+} from "./lower-generic.js";
 
 export { lowerExpr } from "./lower-expr.js";
 
@@ -80,6 +90,10 @@ export function lowerModule(ast: Module, source?: string, filename?: string): HI
   pendingFunctions.length = 0;
   closureInfoMap.clear();
   restParamRegistry.clear();
+  genericFunctionTemplates.clear();
+  genericClassTemplates.clear();
+  genericSpecializations.clear();
+  setTypeParamContext(null);
   setNextId(0);
   setIsModuleScope(true);
   setSourceText(source || "");
@@ -93,13 +107,21 @@ export function lowerModule(ast: Module, source?: string, filename?: string): HI
 
   for (const item of ast.body) {
     if (item.type === "ClassDeclaration") {
-      registerClass(item as any);
+      if (isGenericClass(item as any)) {
+        storeGenericClassTemplate(item as any);
+      } else {
+        registerClass(item as any);
+      }
     }
   }
 
   for (const item of ast.body) {
     if (item.type === "FunctionDeclaration") {
-      registerFunction(item);
+      if (isGenericFunction(item as any)) {
+        storeGenericFunctionTemplate(item as any);
+      } else {
+        registerFunction(item);
+      }
     }
   }
 
@@ -107,10 +129,12 @@ export function lowerModule(ast: Module, source?: string, filename?: string): HI
     if ((item as any).type === "TsInterfaceDeclaration") {
       continue;
     } else if (item.type === "ClassDeclaration") {
+      if (isGenericClass(item as any)) continue;
       const { hirClass, fns } = lowerClassDecl(item as any);
       hirClasses.push(hirClass);
       functions.push(...fns);
     } else if (item.type === "FunctionDeclaration") {
+      if (isGenericFunction(item as any)) continue;
       setIsModuleScope(false);
       functions.push(lowerFunctionDecl(item));
       setIsModuleScope(true);
@@ -241,6 +265,12 @@ export function lowerModule(ast: Module, source?: string, filename?: string): HI
   }
 
   functions.push(...pendingFunctions);
+
+  const genericClasses = drainPendingGenericClasses();
+  for (const { hirClass, fns } of genericClasses) {
+    hirClasses.push(hirClass);
+    functions.push(...fns);
+  }
 
   for (const [name, info] of interfaceRegistry) {
     hirInterfaces.push({

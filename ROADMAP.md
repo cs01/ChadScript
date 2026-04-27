@@ -381,12 +381,13 @@ const ast = parseSync(source, { syntax: "typescript", decorators: true });
 
 **Goal:** Generic functions and types compile to specialized, unboxed code per concrete type.
 
-- [ ] Generic function lowering: `function identity<T>(x: T): T` → stamp out per call-site type
-- [ ] Generic class/interface lowering: `class Box<T> { value: T }` → `Box_number`, `Box_string`, etc.
-- [ ] `MonomorphizationPass`: HIR transform that collects call sites, resolves concrete types, duplicates + specializes
-- [ ] Built-in generic types: `Array<T>`, `Map<K,V>`, `Set<T>`, `Promise<T>`
-- [ ] Generic constraints: `<T extends SomeInterface>` — vtable dispatch within monomorphized body
-- [ ] **Milestone:** Generic functions and classes compile with zero boxing overhead for concrete types
+- [x] Generic function lowering: `function identity<T>(x: T): T` → stamp out per call-site type
+- [x] Generic class/interface lowering: `class Box<T> { value: T }` → `Box_number`, `Box_string`, etc.
+- [x] Monomorphization during lowering: call sites trigger specialization, dedup via mangled name map
+- [x] Built-in generic types: `Array<T>` resolved to typed arrays
+- [ ] Built-in generic types: `Map<K,V>`, `Set<T>`, `Promise<T>` (deferred to Phase 7)
+- [ ] Generic constraints: `<T extends SomeInterface>` — vtable dispatch within monomorphized body (deferred)
+- [x] **Milestone:** Generic functions and classes compile with zero boxing overhead for concrete types — 76 tests
 
 **Why now:** Stdlib (Phase 7) needs `Map<K,V>`, `Set<T>`, `Promise<T>`. Without monomorphization, generics fall back to NaN-boxing everything — defeating the unboxed-first advantage. This is the pass that keeps generics fast.
 

@@ -64,6 +64,46 @@ export const closureInfoMap = new Map<
   { captures: { id: number; type: HIRType }[]; params: HIRType[]; returnType: HIRType }
 >();
 
+export const genericFunctionTemplates = new Map<string, { decl: any; typeParams: string[] }>();
+export const genericClassTemplates = new Map<string, { decl: any; typeParams: string[] }>();
+export const genericSpecializations = new Map<string, boolean>();
+export let typeParamContext: Map<string, HIRType> | null = null;
+
+export function setTypeParamContext(ctx: Map<string, HIRType> | null): void {
+  typeParamContext = ctx;
+}
+
+export function mangleGenericName(baseName: string, typeArgs: HIRType[]): string {
+  return `${baseName}_${typeArgs.map(mangleType).join("_")}`;
+}
+
+function mangleType(t: HIRType): string {
+  switch (t.kind) {
+    case "f64":
+      return "f64";
+    case "i64":
+      return "i64";
+    case "i1":
+      return "i1";
+    case "i8ptr":
+      return "str";
+    case "void":
+      return "void";
+    case "boxed":
+      return "boxed";
+    case "ptr":
+      return t.pointee;
+    case "array":
+      return `arr_${mangleType(t.element)}`;
+    case "closure":
+      return "closure";
+    case "struct":
+      return t.name;
+    default:
+      throw new Error(`cannot mangle type: ${t.kind}`);
+  }
+}
+
 export function setNextId(n: number): void {
   nextId = n;
 }
@@ -139,6 +179,16 @@ export function resolveTypeAnnotation(ann: any): HIRType {
 
   if (ta.type === "TsTypeReference" && ta.typeName?.type === "Identifier") {
     const name = ta.typeName.value;
+
+    if (typeParamContext && typeParamContext.has(name)) {
+      return typeParamContext.get(name)!;
+    }
+
+    if (name === "Array" && ta.typeParams?.params?.length === 1) {
+      const elem = resolveTypeAnnotation(ta.typeParams.params[0]);
+      return { kind: "array", element: elem };
+    }
+
     if (classRegistry.has(name) || interfaceRegistry.has(name)) {
       return { kind: "ptr", pointee: name };
     }

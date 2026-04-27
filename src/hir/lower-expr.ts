@@ -36,9 +36,13 @@ import {
   BITWISE_OPS,
   compoundOpMap,
   arrayPrefix,
+  genericFunctionTemplates,
+  genericClassTemplates,
+  mangleGenericName,
 } from "./lower-state.js";
 
 import { lowerArrowOrFnExpr } from "./lower-func.js";
+import { resolveTypeArgs, specializeFunction, specializeClass } from "./lower-generic.js";
 
 export function lowerExpr(expr: Expression): HIRExpr {
   switch (expr.type) {
@@ -589,6 +593,13 @@ function lowerCall(expr: CallExpression): HIRExpr {
   }
 
   if (expr.callee.type === "Identifier") {
+    if (
+      genericFunctionTemplates.has(expr.callee.value) &&
+      (expr as any).typeArguments?.params?.length
+    ) {
+      return lowerGenericFunctionCall(expr);
+    }
+
     const local = locals.get(expr.callee.value);
     if (local && local.type.kind === "closure") {
       const closureType = local.type as { kind: "closure"; params: HIRType[]; returnType: HIRType };
@@ -696,6 +707,11 @@ function lowerNewExpr(expr: any): HIRExpr {
     compileError("new expression requires identifier callee", expr.span);
   }
   const className = expr.callee.value;
+
+  if (genericClassTemplates.has(className) && expr.typeArguments?.params?.length) {
+    return lowerGenericNewExpr(expr);
+  }
+
   const classInfo = classRegistry.get(className);
   if (!classInfo) {
     compileError(`new expression for unknown class '${className}'`, expr.span);
@@ -976,6 +992,83 @@ function lowerOptionalChain(expr: any): HIRExpr {
   }
 
   compileError(`unsupported optional chaining base: ${base.type}`, expr.span);
+}
+
+function lowerGenericFunctionCall(expr: CallExpression): HIRExpr {
+  const baseName = (expr.callee as Identifier).value;
+  const typeArgs = resolveTypeArgs((expr as any).typeArguments);
+  const mangledName = mangleGenericName(baseName, typeArgs);
+
+  const fn = specializeFunction(baseName, typeArgs);
+  if (fn) {
+    pendingFunctions.push(fn);
+  }
+
+  const fnInfo = functionRegistry.get(mangledName);
+  if (!fnInfo) {
+    compileError(`failed to specialize generic function '${baseName}'`, expr.span);
+  }
+
+  const args: HIRExpr[] = expr.arguments.map((a, i) => {
+    let arg = lowerExpr(a.expression);
+    if (fnInfo.params[i]) {
+      arg = coerce(arg, fnInfo.params[i].type);
+    }
+    return arg;
+  });
+
+  return {
+    kind: "call",
+    callee: mangledName,
+    args,
+    returnType: fnInfo.returnType,
+    type: fnInfo.returnType,
+  };
+}
+
+function lowerGenericNewExpr(expr: any): HIRExpr {
+  const baseName = expr.callee.value;
+  const typeArgs = resolveTypeArgs(expr.typeArguments);
+  const mangledName = mangleGenericName(baseName, typeArgs);
+
+  const result = specializeClass(baseName, typeArgs);
+  if (result) {
+    (lowerGenericNewExpr as any).__pendingClasses =
+      (lowerGenericNewExpr as any).__pendingClasses || [];
+    (lowerGenericNewExpr as any).__pendingClasses.push(result);
+  }
+
+  const ctorName = `${mangledName}_constructor`;
+  const ctorInfo = functionRegistry.get(ctorName);
+  if (!ctorInfo) {
+    compileError(`failed to specialize generic class '${baseName}'`, expr.span);
+  }
+
+  const args = (expr.arguments || []).map((a: any, i: number) => {
+    let arg = lowerExpr(a.expression);
+    if (ctorInfo.params[i]) {
+      arg = coerce(arg, ctorInfo.params[i].type);
+    }
+    return arg;
+  });
+
+  const resultType: HIRType = { kind: "ptr", pointee: mangledName };
+  return {
+    kind: "call",
+    callee: ctorName,
+    args,
+    returnType: resultType,
+    type: resultType,
+  };
+}
+
+export function drainPendingGenericClasses(): {
+  hirClass: import("./types.js").HIRClass;
+  fns: import("./types.js").HIRFunction[];
+}[] {
+  const pending = (lowerGenericNewExpr as any).__pendingClasses || [];
+  (lowerGenericNewExpr as any).__pendingClasses = [];
+  return pending;
 }
 
 export function lowerMember(expr: MemberExpression): HIRExpr {
