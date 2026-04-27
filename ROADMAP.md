@@ -355,7 +355,7 @@ const ast = parseSync(source, { syntax: "typescript", decorators: true });
 - [x] Object destructuring — `const { x, y } = obj`
 - [x] Spread in arrays — `[...arr, 1, 2]`
 - [x] Rest parameters — `function foo(...args: number[])`
-- [ ] Default parameters — `function foo(x: number = 10)`
+- [x] Default parameters — `function foo(x: number = 10)`
 - [ ] Optional chaining — `obj?.prop` (desugar to null check)
 - [ ] Nullish coalescing — `a ?? b`
 - [ ] **Milestone:** Common TS patterns compile and run correctly
