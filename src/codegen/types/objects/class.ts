@@ -1488,7 +1488,15 @@ export class ClassGenerator {
         }
       }
     }
-    return "i8*";
+    if (returnType === "any" || returnType === "unknown" || returnType === "object") return "i8*";
+    if (returnType === "null" || returnType === "undefined" || returnType === "never") return "i8*";
+    if (returnType.startsWith("{")) return "i8*";
+    if (returnType.indexOf("=>") !== -1 || returnType.startsWith("(")) return "i8*";
+    if (returnType === "i8*" || returnType === "double" || returnType === "i1") return returnType;
+    if (returnType.startsWith("%")) return returnType;
+    const ch = returnType.charAt(0);
+    if (ch === ch.toUpperCase() && ch !== ch.toLowerCase()) return "i8*";
+    throw new Error(`methodReturnTypeToLlvm: unrecognized return type '${returnType}'`);
   }
 
   private optionalParamCounter = 0;
