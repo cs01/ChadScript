@@ -38,7 +38,9 @@ import { compileError } from "../errors.js";
 
 let nextId = 0;
 const locals = new Map<string, { id: number; type: HIRType; mutable: boolean }>();
+const globals = new Map<string, { type: HIRType; mutable: boolean }>();
 const functionRegistry = new Map<string, { params: HIRParam[]; returnType: HIRType }>();
+let isModuleScope = true;
 
 function freshId(): number {
   return nextId++;
@@ -51,9 +53,13 @@ function resetState(): void {
 
 export function lowerModule(ast: Module): HIRModule {
   const functions: HIRFunction[] = [];
+  const hirGlobals: import("./types.js").HIRGlobal[] = [];
   const init: HIRStmt[] = [];
 
   functionRegistry.clear();
+  globals.clear();
+  isModuleScope = true;
+
   for (const item of ast.body) {
     if (item.type === "FunctionDeclaration") {
       registerFunction(item);
@@ -62,14 +68,30 @@ export function lowerModule(ast: Module): HIRModule {
 
   for (const item of ast.body) {
     if (item.type === "FunctionDeclaration") {
+      isModuleScope = false;
       functions.push(lowerFunctionDecl(item));
+      isModuleScope = true;
+    } else if (item.type === "VariableDeclaration") {
+      for (const d of item.declarations) {
+        if (d.id.type === "Identifier") {
+          const mutable = item.kind === "let" || item.kind === "var";
+          const declType = resolveTypeAnnotation(d.id.typeAnnotation);
+          const rawInit = d.init ? lowerExpr(d.init) : undefined;
+          const type = declType.kind !== "boxed" ? declType : rawInit ? rawInit.type : BOXED;
+          const coercedInit =
+            rawInit && rawInit.type.kind !== type.kind ? coerce(rawInit, type) : rawInit;
+
+          globals.set(d.id.value, { type, mutable });
+          hirGlobals.push({ name: d.id.value, type, init: coercedInit, mutable });
+        }
+      }
     } else {
       const stmts = lowerModuleItem(item);
       init.push(...stmts);
     }
   }
 
-  return { functions, classes: [], globals: [], init };
+  return { functions, classes: [], globals: hirGlobals, init };
 }
 
 function registerFunction(decl: FunctionDeclaration): void {
@@ -300,6 +322,10 @@ function lowerIdentifier(id: Identifier): HIRExpr {
   if (local) {
     return { kind: "local_get", id: local.id, type: local.type };
   }
+  const global = globals.get(id.value);
+  if (global) {
+    return { kind: "global_get", name: id.value, type: global.type };
+  }
   return { kind: "global_get", name: id.value, type: BOXED };
 }
 
@@ -309,6 +335,16 @@ function lowerBinary(expr: BinaryExpression): HIRExpr {
   let left = lowerExpr(expr.left);
   let right = lowerExpr(expr.right);
   const op = mapBinaryOp(expr.operator);
+
+  if (op === "add" && (left.type.kind === "i8ptr" || right.type.kind === "i8ptr")) {
+    return {
+      kind: "runtime_call",
+      func: "cs_string_concat",
+      args: [left, right],
+      returnType: I8PTR,
+      type: I8PTR,
+    };
+  }
 
   if (BITWISE_OPS.includes(op)) {
     if (left.type.kind !== "i32") left = coerce(left, I32);
@@ -426,8 +462,8 @@ function lowerUnary(expr: UnaryExpression): HIRExpr {
 
 function lowerUpdate(expr: UpdateExpression): HIRExpr {
   const arg = lowerExpr(expr.argument);
-  if (arg.kind !== "local_get") {
-    throw new Error("update expression on non-local");
+  if (arg.kind !== "local_get" && arg.kind !== "global_get") {
+    throw new Error("update expression on non-local/global");
   }
   const one: HIRExpr =
     arg.type.kind === "i32"
@@ -441,6 +477,14 @@ function lowerUpdate(expr: UpdateExpression): HIRExpr {
     right: one,
     type: arg.type,
   };
+  if (arg.kind === "global_get") {
+    return {
+      kind: "global_set",
+      name: arg.name,
+      value: newVal,
+      type: arg.type,
+    };
+  }
   return {
     kind: "local_set",
     id: arg.id,
@@ -450,21 +494,64 @@ function lowerUpdate(expr: UpdateExpression): HIRExpr {
 }
 
 function lowerAssignment(expr: AssignmentExpression): HIRExpr {
-  let value = lowerExpr(expr.right);
+  const op = expr.operator;
+  let value: HIRExpr;
+
+  if (op !== "=" && expr.left.type === "Identifier") {
+    const left = lowerIdentifier(expr.left);
+    const right = lowerExpr(expr.right);
+    const binOp = compoundOpMap[op];
+    if (!binOp) compileError(`unsupported assignment operator: ${op}`, expr.span);
+    value = lowerBinaryWithOp(binOp, left, right);
+  } else {
+    value = lowerExpr(expr.right);
+  }
+
   if (expr.left.type === "Identifier") {
     const local = locals.get(expr.left.value);
     if (local) {
       if (value.type.kind !== local.type.kind) value = coerce(value, local.type);
       return { kind: "local_set", id: local.id, value, type: local.type };
     }
-    return {
-      kind: "global_set",
-      name: expr.left.value,
-      value,
-      type: value.type,
-    };
+    const global = globals.get(expr.left.value);
+    if (global) {
+      if (value.type.kind !== global.type.kind) value = coerce(value, global.type);
+      return { kind: "global_set", name: expr.left.value, value, type: global.type };
+    }
+    return { kind: "global_set", name: expr.left.value, value, type: value.type };
   }
   return value;
+}
+
+const compoundOpMap: Record<string, BinaryOp> = {
+  "+=": "add",
+  "-=": "sub",
+  "*=": "mul",
+  "/=": "div",
+  "%=": "rem",
+  "&=": "bit_and",
+  "|=": "bit_or",
+  "^=": "bit_xor",
+  "<<=": "shl",
+  ">>=": "shr",
+  ">>>=": "ushr",
+};
+
+function lowerBinaryWithOp(op: BinaryOp, left: HIRExpr, right: HIRExpr): HIRExpr {
+  if (BITWISE_OPS.includes(op)) {
+    if (left.type.kind !== "i32") left = coerce(left, I32);
+    if (right.type.kind !== "i32") right = coerce(right, I32);
+    return { kind: "binary", op, left, right, type: I32 };
+  }
+  if (op === "div") {
+    if (left.type.kind !== "f64") left = coerce(left, F64);
+    if (right.type.kind !== "f64") right = coerce(right, F64);
+    return { kind: "binary", op, left, right, type: F64 };
+  }
+  const operandType = resolveArithType(left.type, right.type);
+  if (left.type.kind !== operandType.kind) left = coerce(left, operandType);
+  if (right.type.kind !== operandType.kind) right = coerce(right, operandType);
+  return { kind: "binary", op, left, right, type: operandType };
 }
 
 function lowerCall(expr: CallExpression): HIRExpr {
