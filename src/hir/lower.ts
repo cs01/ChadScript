@@ -141,6 +141,8 @@ function registerClass(decl: any): void {
   const fields: { name: string; type: HIRType }[] = [];
   const methods = new Map<string, { params: HIRParam[]; returnType: HIRType }>();
 
+  classRegistry.set(name, { fields, methods, parent: parentName });
+
   if (parentName) {
     const parentInfo = classRegistry.get(parentName);
     if (parentInfo) {

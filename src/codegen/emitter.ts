@@ -909,6 +909,19 @@ function emitUnary(ctx: EmitContext, expr: HIRExpr & { kind: "unary" }): any {
       return m.buildXor(operand, m.constInt(m.i1, 1), "");
     case "bit_not":
       return m.buildNot(operand, "");
+    case "typeof": {
+      const typeStr =
+        expr.operand.type.kind === "f64" || expr.operand.type.kind === "i64"
+          ? "number"
+          : expr.operand.type.kind === "i8ptr"
+            ? "string"
+            : expr.operand.type.kind === "i1"
+              ? "boolean"
+              : expr.operand.type.kind === "ptr"
+                ? "object"
+                : "undefined";
+      return m.buildGlobalStringPtr(typeStr, "typeof_str");
+    }
     default:
       throw new Error(`unhandled unary op: ${expr.op}`);
   }
