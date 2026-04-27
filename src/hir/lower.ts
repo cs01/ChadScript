@@ -51,6 +51,9 @@ const classRegistry = new Map<
 let isModuleScope = true;
 let expectedArrayElementType: HIRType | null = null;
 let currentClassName: string | null = null;
+let nextAnonId = 0;
+const fnAliases = new Map<string, string>();
+const pendingFunctions: HIRFunction[] = [];
 
 function freshId(): number {
   return nextId++;
@@ -70,6 +73,9 @@ export function lowerModule(ast: Module): HIRModule {
   functionRegistry.clear();
   classRegistry.clear();
   globals.clear();
+  fnAliases.clear();
+  pendingFunctions.length = 0;
+  nextAnonId = 0;
   isModuleScope = true;
 
   for (const item of ast.body) {
@@ -96,6 +102,12 @@ export function lowerModule(ast: Module): HIRModule {
     } else if (item.type === "VariableDeclaration") {
       for (const d of item.declarations) {
         if (d.id.type === "Identifier") {
+          if (d.init?.type === "ArrowFunctionExpression" || d.init?.type === "FunctionExpression") {
+            const fn = lowerArrowOrFnExpr(d.init, d.id.value);
+            functions.push(fn);
+            fnAliases.set(d.id.value, fn.name);
+            continue;
+          }
           const mutable = item.kind === "let" || item.kind === "var";
           const declType = resolveTypeAnnotation(d.id.typeAnnotation);
           if (declType.kind === "array")
@@ -123,6 +135,7 @@ export function lowerModule(ast: Module): HIRModule {
     }
   }
 
+  functions.push(...pendingFunctions);
   return { functions, classes: hirClasses, globals: hirGlobals, init };
 }
 
@@ -452,6 +465,53 @@ function lowerFunctionDecl(decl: FunctionDeclaration): HIRFunction {
   return fn;
 }
 
+function lowerArrowOrFnExpr(expr: any, varName: string): HIRFunction {
+  const fnName = varName || `__anon_${nextAnonId++}`;
+  const savedLocals = new Map(locals);
+  const savedNextId = nextId;
+  locals.clear();
+  nextId = 0;
+
+  const params: HIRParam[] = [];
+  for (const p of expr.params) {
+    const pat = p.pat || p;
+    if (pat.type === "Identifier") {
+      const id = freshId();
+      const type = resolveTypeAnnotation(pat.typeAnnotation);
+      params.push({ id, name: pat.value, type });
+      locals.set(pat.value, { id, type, mutable: true });
+    }
+  }
+
+  let returnType = expr.returnType ? resolveTypeAnnotation(expr.returnType) : VOID;
+
+  let body: HIRStmt[];
+  if (expr.body.type === "BlockStatement") {
+    isModuleScope = false;
+    body = lowerBlock(expr.body);
+    isModuleScope = true;
+  } else {
+    const retExpr = lowerExpr(expr.body);
+    if (returnType.kind === "void") returnType = retExpr.type;
+    body = [{ kind: "return", value: coerce(retExpr, returnType) }];
+  }
+
+  functionRegistry.set(fnName, { params, returnType });
+
+  locals.clear();
+  for (const [k, v] of savedLocals) locals.set(k, v);
+  nextId = savedNextId;
+
+  return {
+    name: fnName,
+    params,
+    returnType,
+    body,
+    isAsync: expr.async || false,
+    captures: [],
+  };
+}
+
 function resolveTypeAnnotation(ann: any): HIRType {
   if (!ann) return BOXED;
 
@@ -537,6 +597,12 @@ function lowerVarDecl(decl: VariableDeclaration): HIRStmt[] {
 
   for (const d of decl.declarations) {
     if (d.id.type === "Identifier") {
+      if (d.init?.type === "ArrowFunctionExpression" || d.init?.type === "FunctionExpression") {
+        const fn = lowerArrowOrFnExpr(d.init, d.id.value);
+        pendingFunctions.push(fn);
+        fnAliases.set(d.id.value, fn.name);
+        continue;
+      }
       const id = freshId();
       const declType = resolveTypeAnnotation(d.id.typeAnnotation);
       if (declType.kind === "array")
@@ -1214,7 +1280,8 @@ function lowerCall(expr: CallExpression): HIRExpr {
   }
 
   if (expr.callee.type === "Identifier") {
-    const fnInfo = functionRegistry.get(expr.callee.value);
+    const calleeName = fnAliases.get(expr.callee.value) || expr.callee.value;
+    const fnInfo = functionRegistry.get(calleeName);
     if (!fnInfo) {
       compileError(`call to undeclared function '${expr.callee.value}'`, expr.span);
     }
@@ -1227,7 +1294,7 @@ function lowerCall(expr: CallExpression): HIRExpr {
     });
     return {
       kind: "call",
-      callee: expr.callee.value,
+      callee: calleeName,
       args,
       returnType: fnInfo.returnType,
       type: fnInfo.returnType,
