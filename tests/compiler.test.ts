@@ -75,6 +75,7 @@ const PARITY_FIXTURES = [
   "do-while.ts",
   "switch.ts",
   "class-array.ts",
+  "template-literal.ts",
 ];
 
 function compileExpectError(fixture: string): string {
@@ -116,6 +117,6 @@ describe("compile errors", () => {
 
   it("unsupported expression", () => {
     const err = compileExpectError("unsupported-expr.ts");
-    assert.match(err, /unsupported expression type: TemplateLiteral/);
+    assert.match(err, /unsupported expression type: RegExpLiteral/);
   });
 });

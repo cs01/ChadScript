@@ -774,6 +774,8 @@ function lowerExpr(expr: Expression): HIRExpr {
       if (!thisLocal) compileError("'this' used outside class", expr.span);
       return { kind: "local_get", id: thisLocal.id, type: thisLocal.type };
     }
+    case "TemplateLiteral":
+      return lowerTemplateLiteral(expr as any);
     default:
       compileError(`unsupported expression type: ${expr.type}`, expr.span);
   }
@@ -960,6 +962,49 @@ function lowerUpdate(expr: UpdateExpression): HIRExpr {
     value: newVal,
     type: arg.type,
   };
+}
+
+function lowerTemplateLiteral(expr: any): HIRExpr {
+  const quasis: any[] = expr.quasis;
+  const expressions: any[] = expr.expressions;
+  const parts: HIRExpr[] = [];
+
+  for (let i = 0; i < quasis.length; i++) {
+    const cooked = quasis[i].cooked;
+    if (cooked !== "") {
+      parts.push({ kind: "literal_string", value: cooked, type: I8PTR });
+    }
+    if (i < expressions.length) {
+      const e = lowerExpr(expressions[i]);
+      parts.push(e);
+    }
+  }
+
+  if (parts.length === 0) return { kind: "literal_string", value: "", type: I8PTR };
+  if (parts.length === 1 && parts[0].type.kind === "i8ptr") return parts[0];
+
+  let result = parts[0];
+  if (result.type.kind !== "i8ptr") {
+    result = {
+      kind: "runtime_call",
+      func: "cs_string_concat",
+      args: [{ kind: "literal_string", value: "", type: I8PTR }, result],
+      returnType: I8PTR,
+      type: I8PTR,
+    };
+  }
+
+  for (let i = 1; i < parts.length; i++) {
+    result = {
+      kind: "runtime_call",
+      func: "cs_string_concat",
+      args: [result, parts[i]],
+      returnType: I8PTR,
+      type: I8PTR,
+    };
+  }
+
+  return result;
 }
 
 function lowerArrayLiteral(expr: any): HIRExpr {

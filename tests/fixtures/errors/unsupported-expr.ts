@@ -1,1 +1,1 @@
-const x = `template literal`;
+const x = /regex/;
