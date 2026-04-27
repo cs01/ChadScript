@@ -55,6 +55,14 @@ const PARITY_FIXTURES = [
   "multi-arg-log.ts",
   "prime-sieve.ts",
   "monte-carlo.ts",
+  "string-concat.ts",
+  "compound-assign.ts",
+  "global-vars.ts",
+  "early-return.ts",
+  "ternary.ts",
+  "negative-numbers.ts",
+  "variable-shadow.ts",
+  "string-equality.ts",
 ];
 
 function compileExpectError(fixture: string): string {
