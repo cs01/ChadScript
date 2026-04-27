@@ -37,6 +37,7 @@ class EmitContext {
     { llvmType: any; fields: { name: string; type: HIRType }[] }
   >();
   private currentFn: any = null;
+  currentReturnType: HIRType = { kind: "void" };
 
   constructor(m: LLVMModule) {
     this.m = m;
@@ -297,6 +298,19 @@ function llvmType(ctx: EmitContext, t: HIRType): any {
   }
 }
 
+function coerceLLVM(ctx: EmitContext, val: any, from: HIRType, to: HIRType): any {
+  const m = ctx.m;
+  if (from.kind === to.kind) return val;
+  if (from.kind === "i64" && to.kind === "f64") return m.buildSIToFP(val, m.f64, "");
+  if (from.kind === "f64" && to.kind === "i64") return m.buildFPToSI(val, m.i64, "");
+  if (from.kind === "i1" && to.kind === "i64") return m.buildZExt(val, m.i64, "");
+  if (from.kind === "i1" && to.kind === "f64") {
+    const ext = m.buildZExt(val, m.i64, "");
+    return m.buildSIToFP(ext, m.f64, "");
+  }
+  return val;
+}
+
 function defaultInit(ctx: EmitContext, t: HIRType): any {
   const m = ctx.m;
   switch (t.kind) {
@@ -318,6 +332,7 @@ function defaultInit(ctx: EmitContext, t: HIRType): any {
 function emitFunction(ctx: EmitContext, fn: HIRFunction): void {
   const m = ctx.m;
   ctx.resetLocals();
+  ctx.currentReturnType = fn.returnType;
 
   const decl = ctx.getDeclaredFunction(fn.name)!;
   const llvmFn = decl.fn;
@@ -406,7 +421,8 @@ function emitStmt(ctx: EmitContext, stmt: HIRStmt): void {
       break;
     case "return": {
       if (stmt.value) {
-        const val = emitExpr(ctx, stmt.value);
+        let val = emitExpr(ctx, stmt.value);
+        val = coerceLLVM(ctx, val, stmt.value.type, ctx.currentReturnType);
         m.buildRet(val);
       } else {
         m.buildRetVoid();
