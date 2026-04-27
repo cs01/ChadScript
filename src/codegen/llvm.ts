@@ -115,6 +115,13 @@ const LLVMBuildSExt = lib.func("LLVMBuildSExt", Ref, [Ref, Ref, Ref, "str"]);
 const LLVMBuildFPToSI = lib.func("LLVMBuildFPToSI", Ref, [Ref, Ref, Ref, "str"]);
 const LLVMBuildSIToFP = lib.func("LLVMBuildSIToFP", Ref, [Ref, Ref, Ref, "str"]);
 
+const LLVMGetEnumAttributeKindForName = lib.func("LLVMGetEnumAttributeKindForName", "uint", [
+  "str",
+  "size_t",
+]);
+const LLVMCreateEnumAttribute = lib.func("LLVMCreateEnumAttribute", Ref, [Ref, "uint", "uint64"]);
+const LLVMAddAttributeAtIndex = lib.func("LLVMAddAttributeAtIndex", "void", [Ref, "uint", Ref]);
+
 const LLVMPrintModuleToFile = lib.func("LLVMPrintModuleToFile", Bool, [
   Ref,
   "str",

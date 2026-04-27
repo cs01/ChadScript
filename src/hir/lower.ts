@@ -777,6 +777,10 @@ function lowerModuleItem(item: ModuleItem): HIRStmt[] {
       return [withLine({ kind: "break" } as HIRStmt, item)];
     case "ContinueStatement":
       return [withLine({ kind: "continue" } as HIRStmt, item)];
+    case "ThrowStatement":
+      return [withLine(lowerThrow(item as any), item)];
+    case "TryStatement":
+      return [withLine(lowerTry(item as any), item)];
     case "FunctionDeclaration": {
       const fn = lowerNestedFunctionDecl(item as FunctionDeclaration);
       pendingFunctions.push(fn);
@@ -918,6 +922,45 @@ function lowerSwitch(stmt: any): HIRStmt {
   return { kind: "switch", discriminant, cases };
 }
 
+function lowerThrow(stmt: any): HIRStmt {
+  let value = lowerExpr(stmt.argument);
+  if (
+    stmt.argument.type === "NewExpression" &&
+    stmt.argument.callee?.type === "Identifier" &&
+    stmt.argument.callee.value === "Error" &&
+    stmt.argument.arguments?.length >= 1
+  ) {
+    value = lowerExpr(stmt.argument.arguments[0].expression);
+  }
+  if (value.type.kind !== "i8ptr") {
+    value = {
+      kind: "runtime_call",
+      func: "cs2_format_number_to_str",
+      args: [value],
+      returnType: I8PTR,
+      type: I8PTR,
+    };
+  }
+  return { kind: "throw", value };
+}
+
+function lowerTry(stmt: any): HIRStmt {
+  const body = lowerBlock(stmt.block);
+  let catchClause: { paramId: number; paramName: string; body: HIRStmt[] } | undefined;
+  if (stmt.handler) {
+    const paramName = stmt.handler.param?.value || "__err";
+    const paramId = freshId();
+    locals.set(paramName, { id: paramId, type: I8PTR, mutable: false });
+    const catchBody = lowerBlock(stmt.handler.body);
+    catchClause = { paramId, paramName, body: catchBody };
+  }
+  let finallyBody: HIRStmt[] | undefined;
+  if (stmt.finalizer) {
+    finallyBody = lowerBlock(stmt.finalizer);
+  }
+  return { kind: "try", body, catch: catchClause, finally: finallyBody };
+}
+
 function lowerForOf(stmt: any): HIRStmt[] {
   const arr = lowerExpr(stmt.right);
   if (arr.type.kind !== "array") {
@@ -1028,6 +1071,7 @@ function lowerExpr(expr: Expression): HIRExpr {
         type: I1,
       };
     case "NullExpression":
+    case "NullLiteral":
       return { kind: "literal_null", type: BOXED };
     case "Identifier":
       return lowerIdentifier(expr);

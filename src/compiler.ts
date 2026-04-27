@@ -17,6 +17,7 @@ const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
 const BRIDGE_SRCS = [
   join(ROOT, "c_bridges", "v2-string-bridge.c"),
   join(ROOT, "c_bridges", "v2-array-bridge.c"),
+  join(ROOT, "c_bridges", "v2-error-bridge.c"),
 ];
 
 export function compile(opts: CompileOptions): void {

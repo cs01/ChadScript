@@ -506,6 +506,10 @@ function declareExterns(ctx: EmitContext): void {
     ["cs2_obj_array_get", m.ptr, [m.ptr, m.i32]],
     ["cs2_obj_array_set", m.voidTy, [m.ptr, m.i32, m.ptr]],
     ["cs2_obj_array_length", m.i32, [m.ptr]],
+    ["cs2_try_enter", m.ptr, []],
+    ["cs2_try_leave", m.voidTy, []],
+    ["cs2_throw", m.voidTy, [m.ptr]],
+    ["cs2_catch_msg", m.ptr, []],
   ];
   for (const [name, ret, params] of bridgeFns) {
     const fnType = m.functionType(ret, params);
