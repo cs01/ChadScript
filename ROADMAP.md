@@ -354,7 +354,7 @@ const ast = parseSync(source, { syntax: "typescript", decorators: true });
 - [x] Array destructuring — `const [a, b, c] = arr`
 - [x] Object destructuring — `const { x, y } = obj`
 - [x] Spread in arrays — `[...arr, 1, 2]`
-- [ ] Rest parameters — `function foo(...args: number[])`
+- [x] Rest parameters — `function foo(...args: number[])`
 - [ ] Default parameters — `function foo(x: number = 10)`
 - [ ] Optional chaining — `obj?.prop` (desugar to null check)
 - [ ] Nullish coalescing — `a ?? b`
