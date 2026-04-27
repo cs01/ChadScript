@@ -353,7 +353,7 @@ const ast = parseSync(source, { syntax: "typescript", decorators: true });
 - [x] try/catch/throw — setjmp/longjmp based exception handling
 - [x] Array destructuring — `const [a, b, c] = arr`
 - [x] Object destructuring — `const { x, y } = obj`
-- [ ] Spread in arrays — `[...arr, 1, 2]`
+- [x] Spread in arrays — `[...arr, 1, 2]`
 - [ ] Rest parameters — `function foo(...args: number[])`
 - [ ] Default parameters — `function foo(x: number = 10)`
 - [ ] Optional chaining — `obj?.prop` (desugar to null check)
@@ -374,6 +374,19 @@ const ast = parseSync(source, { syntax: "typescript", decorators: true });
 - [ ] Runtime: NaN-box helpers (tag/untag/typecheck) as C bridge or inline
 - [ ] Dynamic dispatch: `js_dynamic_add`, `js_dynamic_less`, etc. for boxed values
 - [ ] **Milestone:** Programs mixing typed and untyped code work correctly
+
+### Phase 6.5: Generics + Monomorphization (~2-3 weeks, ~3-4K LOC)
+
+**Goal:** Generic functions and types compile to specialized, unboxed code per concrete type.
+
+- [ ] Generic function lowering: `function identity<T>(x: T): T` → stamp out per call-site type
+- [ ] Generic class/interface lowering: `class Box<T> { value: T }` → `Box_number`, `Box_string`, etc.
+- [ ] `MonomorphizationPass`: HIR transform that collects call sites, resolves concrete types, duplicates + specializes
+- [ ] Built-in generic types: `Array<T>`, `Map<K,V>`, `Set<T>`, `Promise<T>`
+- [ ] Generic constraints: `<T extends SomeInterface>` — vtable dispatch within monomorphized body
+- [ ] **Milestone:** Generic functions and classes compile with zero boxing overhead for concrete types
+
+**Why now:** Stdlib (Phase 7) needs `Map<K,V>`, `Set<T>`, `Promise<T>`. Without monomorphization, generics fall back to NaN-boxing everything — defeating the unboxed-first advantage. This is the pass that keeps generics fast.
 
 ### Phase 7: Stdlib + Node Compat (~4-6 weeks, ~8-10K LOC)
 
