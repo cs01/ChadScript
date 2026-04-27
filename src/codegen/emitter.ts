@@ -766,9 +766,14 @@ function emitIndexGet(ctx: EmitContext, expr: HIRExpr & { kind: "index_get" }): 
   }
   const elemType =
     expr.array.type.kind === "array" ? (expr.array.type as any).element : { kind: "f64" };
-  const getFn = `${emitArrayPrefix(elemType)}_get`;
+  const storagePrefix = elemType.kind === "i1" ? "cs2_num_array" : emitArrayPrefix(elemType);
+  const getFn = `${storagePrefix}_get`;
   const decl = ctx.getDeclaredFunction(getFn)!;
-  return m.buildCall(decl.fnType, decl.fn, [arr, idx], "");
+  let result = m.buildCall(decl.fnType, decl.fn, [arr, idx], "");
+  if (elemType.kind === "i1") {
+    result = m.buildFCmp(LLVMRealONE, result, m.constReal(m.f64, 0.0), "");
+  }
+  return result;
 }
 
 function emitIndexSet(ctx: EmitContext, expr: HIRExpr & { kind: "index_set" }): any {
@@ -778,10 +783,15 @@ function emitIndexSet(ctx: EmitContext, expr: HIRExpr & { kind: "index_set" }): 
   if (expr.index.type.kind === "i64") {
     idx = m.buildTrunc(idx, m.i32, "");
   }
-  const val = emitExpr(ctx, expr.value);
+  let val = emitExpr(ctx, expr.value);
   const elemType =
     expr.array.type.kind === "array" ? (expr.array.type as any).element : { kind: "f64" };
-  const setFn = `${emitArrayPrefix(elemType)}_set`;
+  const storagePrefix = elemType.kind === "i1" ? "cs2_num_array" : emitArrayPrefix(elemType);
+  if (elemType.kind === "i1") {
+    const ext = m.buildZExt(val, m.i64, "");
+    val = m.buildSIToFP(ext, m.f64, "");
+  }
+  const setFn = `${storagePrefix}_set`;
   const decl = ctx.getDeclaredFunction(setFn)!;
   m.buildCall(decl.fnType, decl.fn, [arr, idx, val], "");
   return val;
@@ -991,6 +1001,9 @@ function emitRuntimeCall(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_call
       let val = emitExpr(ctx, a);
       if (a.type.kind === "i64") {
         val = m.buildTrunc(val, m.i32, "");
+      } else if (a.type.kind === "i1" && expr.func.includes("num_array")) {
+        const ext = m.buildZExt(val, m.i64, "");
+        val = m.buildSIToFP(ext, m.f64, "");
       }
       return val;
     });
