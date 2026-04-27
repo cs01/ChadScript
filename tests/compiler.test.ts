@@ -6,6 +6,7 @@ import { join } from "path";
 import { tmpdir } from "os";
 
 const FIXTURES = join(import.meta.dirname, "fixtures");
+const ERROR_FIXTURES = join(FIXTURES, "errors");
 
 function compileAndRun(fixture: string): string {
   const tmpDir = mkdtempSync(join(tmpdir(), "chad2-test-"));
@@ -31,18 +32,57 @@ function nodeRun(fixture: string): string {
   return result.trimEnd();
 }
 
+const PARITY_FIXTURES = [
+  "hello.ts",
+  "arithmetic.ts",
+  "fib.ts",
+  "while-loop.ts",
+  "for-loop.ts",
+  "boolean-logic.ts",
+  "nested-calls.ts",
+  "if-else.ts",
+  "integer-narrowing.ts",
+];
+
+function compileExpectError(fixture: string): string {
+  const tmpDir = mkdtempSync(join(tmpdir(), "chad2-test-"));
+  const outBin = join(tmpDir, "out");
+
+  try {
+    execSync(`npx tsx src/cli.ts build ${join(ERROR_FIXTURES, fixture)} -o ${outBin}`, {
+      encoding: "utf-8",
+      timeout: 30000,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    throw new Error(`expected compile error for ${fixture}`);
+  } catch (e: any) {
+    if (e.stderr) return e.stderr.trimEnd();
+    if (e.message?.includes("expected compile error")) throw e;
+    return "";
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
+
 describe("chadscript v2 compiler", () => {
-  it("hello world", () => {
-    assert.equal(compileAndRun("hello.ts"), "hello world");
+  for (const fixture of PARITY_FIXTURES) {
+    const name = fixture.replace(".ts", "");
+    it(name, () => {
+      const expected = nodeRun(fixture);
+      assert.equal(compileAndRun(fixture), expected);
+    });
+  }
+});
+
+describe("compile errors", () => {
+  it("undeclared function", () => {
+    const err = compileExpectError("undeclared-fn.ts");
+    assert.match(err, /call to undeclared function 'foo'/);
+    assert.match(err, /1:2/);
   });
 
-  it("arithmetic", () => {
-    const expected = nodeRun("arithmetic.ts");
-    assert.equal(compileAndRun("arithmetic.ts"), expected);
-  });
-
-  it("fibonacci", () => {
-    const expected = nodeRun("fib.ts");
-    assert.equal(compileAndRun("fib.ts"), expected);
+  it("unsupported expression", () => {
+    const err = compileExpectError("unsupported-expr.ts");
+    assert.match(err, /unsupported expression type: ArrayExpression/);
   });
 });

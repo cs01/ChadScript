@@ -113,14 +113,14 @@ function emitFunction(ctx: EmitContext, fn: HIRFunction): void {
     ctx.line(`  store ${t} %arg.${p.name}, ${t}* %${p.name}`);
   }
 
-  let hasReturn = false;
   for (const stmt of fn.body) {
     emitStmt(ctx, stmt);
-    if (stmt.kind === "return") hasReturn = true;
   }
 
-  if (!hasReturn && fn.returnType.kind === "void") {
-    ctx.line("  ret void");
+  if (!blockTerminates(fn.body)) {
+    if (fn.returnType.kind === "void") {
+      ctx.line("  ret void");
+    }
   }
 
   ctx.line("}");
@@ -137,6 +137,16 @@ function emitMain(ctx: EmitContext, mod: HIRModule): void {
 
   ctx.line("  ret i32 0");
   ctx.line("}");
+}
+
+function blockTerminates(stmts: HIRStmt[]): boolean {
+  if (stmts.length === 0) return false;
+  const last = stmts[stmts.length - 1];
+  if (last.kind === "return") return true;
+  if (last.kind === "if" && last.else) {
+    return blockTerminates(last.then) && blockTerminates(last.else);
+  }
+  return false;
 }
 
 function emitStmt(ctx: EmitContext, stmt: HIRStmt): void {
@@ -183,21 +193,25 @@ function emitStmt(ctx: EmitContext, stmt: HIRStmt): void {
       let thenTerminated = false;
       for (const s of stmt.then) {
         emitStmt(ctx, s);
-        if (s.kind === "return") thenTerminated = true;
+        if (s.kind === "return" || s.kind === "break" || s.kind === "continue")
+          thenTerminated = true;
       }
       if (!thenTerminated) ctx.line(`  br label %${mergeLabel}`);
 
+      let elseTerminated = false;
       if (stmt.else) {
         ctx.line(`${elseLabel}:`);
-        let elseTerminated = false;
         for (const s of stmt.else) {
           emitStmt(ctx, s);
-          if (s.kind === "return") elseTerminated = true;
+          if (s.kind === "return" || s.kind === "break" || s.kind === "continue")
+            elseTerminated = true;
         }
         if (!elseTerminated) ctx.line(`  br label %${mergeLabel}`);
       }
 
-      ctx.line(`${mergeLabel}:`);
+      if (!(thenTerminated && elseTerminated)) {
+        ctx.line(`${mergeLabel}:`);
+      }
       break;
     }
     case "while": {

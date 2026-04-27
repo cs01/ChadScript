@@ -1,7 +1,8 @@
 import { parseFile } from "./parser.js";
 import { lowerModule } from "./hir/lower.js";
 import { emitModule } from "./codegen/emitter.js";
-import { writeFileSync, unlinkSync } from "fs";
+import { setSourceContext } from "./errors.js";
+import { writeFileSync, readFileSync, unlinkSync } from "fs";
 import { execSync } from "child_process";
 import { tmpdir } from "os";
 import { join } from "path";
@@ -13,6 +14,8 @@ export interface CompileOptions {
 }
 
 export function compile(opts: CompileOptions): void {
+  const source = readFileSync(opts.input, "utf-8");
+  setSourceContext(source, opts.input);
   const ast = parseFile(opts.input);
   const hir = lowerModule(ast);
   const ir = emitModule(hir);

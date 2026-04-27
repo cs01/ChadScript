@@ -34,6 +34,7 @@ import type {
   UnaryOp,
 } from "./types.js";
 import { F64, I32, I1, I8PTR, VOID, BOXED } from "./types.js";
+import { compileError } from "../errors.js";
 
 let nextId = 0;
 const locals = new Map<string, { id: number; type: HIRType; mutable: boolean }>();
@@ -159,7 +160,7 @@ function lowerModuleItem(item: ModuleItem): HIRStmt[] {
     case "BlockStatement":
       return lowerBlock(item);
     default:
-      return [];
+      compileError(`unsupported statement type: ${item.type}`);
   }
 }
 
@@ -279,7 +280,7 @@ function lowerExpr(expr: Expression): HIRExpr {
         type: lowerExpr(expr.consequent).type,
       };
     default:
-      return { kind: "literal_null", type: BOXED };
+      compileError(`unsupported expression type: ${expr.type}`, expr.span);
   }
 }
 
@@ -471,24 +472,26 @@ function lowerCall(expr: CallExpression): HIRExpr {
 
   if (expr.callee.type === "Identifier") {
     const fnInfo = functionRegistry.get(expr.callee.value);
+    if (!fnInfo) {
+      compileError(`call to undeclared function '${expr.callee.value}'`, expr.span);
+    }
     const args = expr.arguments.map((a, i) => {
       let arg = lowerExpr(a.expression);
-      if (fnInfo && fnInfo.params[i]) {
+      if (fnInfo.params[i]) {
         arg = coerce(arg, fnInfo.params[i].type);
       }
       return arg;
     });
-    const returnType = fnInfo ? fnInfo.returnType : F64;
     return {
       kind: "call",
       callee: expr.callee.value,
       args,
-      returnType,
-      type: returnType,
+      returnType: fnInfo.returnType,
+      type: fnInfo.returnType,
     };
   }
 
-  return { kind: "literal_null", type: BOXED };
+  compileError(`unsupported call expression: callee is ${expr.callee.type}`, expr.span);
 }
 
 function lowerMathCall(expr: CallExpression): HIRExpr {
@@ -516,5 +519,7 @@ function lowerMember(expr: MemberExpression): HIRExpr {
     return { kind: "global_get", name: "process_exit", type: BOXED };
   }
 
-  return { kind: "literal_null", type: BOXED };
+  const obj = expr.object.type === "Identifier" ? expr.object.value : expr.object.type;
+  const prop = expr.property.type === "Identifier" ? expr.property.value : expr.property.type;
+  compileError(`unsupported member access: ${obj}.${prop}`, expr.span);
 }
