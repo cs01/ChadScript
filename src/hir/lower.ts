@@ -886,6 +886,16 @@ function resolveTypeAnnotation(ann: any): HIRType {
     }
   }
 
+  if (ta.type === "TsUnionType" && Array.isArray(ta.types)) {
+    const nonNull = ta.types.filter(
+      (t: any) => !(t.type === "TsKeywordType" && (t.kind === "null" || t.kind === "undefined")),
+    );
+    if (nonNull.length === 1) {
+      return resolveTypeAnnotation(nonNull[0]);
+    }
+    return BOXED;
+  }
+
   if (ta.type === "TsFunctionType" || ta.type === "TsParenthesizedType") {
     const fnType = ta.type === "TsParenthesizedType" ? ta.typeAnnotation : ta;
     if (fnType.type === "TsFunctionType") {
@@ -1395,6 +1405,8 @@ function lowerExpr(expr: Expression): HIRExpr {
     case "ArrowFunctionExpression":
     case "FunctionExpression":
       return lowerClosureExpr(expr as any);
+    case "OptionalChainingExpression":
+      return lowerOptionalChain(expr as any);
     default:
       compileError(`unsupported expression type: ${expr.type}`, expr.span);
   }
@@ -1522,6 +1534,9 @@ function coerce(expr: HIRExpr, target: HIRType): HIRExpr {
   }
   if (expr.type.kind === "f64" && target.kind === "i64") {
     return { kind: "narrow_i64", value: expr, type: I64 };
+  }
+  if (expr.kind === "literal_null" && target.kind === "ptr") {
+    return { kind: "literal_null", type: target };
   }
   return expr;
 }
@@ -2296,6 +2311,67 @@ function lowerClassMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
     returnType: resolved.fnInfo.returnType,
     type: resolved.fnInfo.returnType,
   };
+}
+
+function lowerOptionalChain(expr: any): HIRExpr {
+  const base = expr.base;
+
+  if (base.type === "MemberExpression") {
+    const obj = lowerExpr(base.object);
+    if (obj.type.kind !== "ptr") {
+      compileError("optional chaining requires object type", expr.span);
+    }
+
+    const access = lowerMember(base as MemberExpression);
+    const nullCond: HIRExpr = {
+      kind: "binary",
+      op: "eq" as BinaryOp,
+      left: obj,
+      right: { kind: "literal_null", type: obj.type },
+      type: I1,
+    };
+    return {
+      kind: "conditional",
+      condition: nullCond,
+      then: defaultValue(access.type),
+      else: access,
+      type: access.type,
+    };
+  }
+
+  if (base.type === "CallExpression") {
+    const callee = base.callee;
+
+    if (callee.type === "OptionalChainingExpression" && callee.base.type === "MemberExpression") {
+      const memberExpr = callee.base as MemberExpression;
+      const obj = lowerExpr(memberExpr.object);
+      if (obj.type.kind !== "ptr") {
+        compileError("optional chaining requires object type", expr.span);
+      }
+
+      const syntheticCall: any = { ...base, callee: memberExpr };
+      const callResult = lowerClassMethodCall(syntheticCall, obj);
+
+      const nullCond: HIRExpr = {
+        kind: "binary",
+        op: "eq" as BinaryOp,
+        left: obj,
+        right: { kind: "literal_null", type: obj.type },
+        type: I1,
+      };
+      return {
+        kind: "conditional",
+        condition: nullCond,
+        then: defaultValue(callResult.type),
+        else: callResult,
+        type: callResult.type,
+      };
+    }
+
+    return lowerExpr(base);
+  }
+
+  compileError(`unsupported optional chaining base: ${base.type}`, expr.span);
 }
 
 function lowerMember(expr: MemberExpression): HIRExpr {

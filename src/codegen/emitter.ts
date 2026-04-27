@@ -1065,10 +1065,30 @@ function emitExpr(ctx: EmitContext, expr: HIRExpr): any {
     case "runtime_call":
       return emitRuntimeCall(ctx, expr);
     case "conditional": {
+      const fn = ctx.getCurrentFn();
       const cond = emitExpr(ctx, expr.condition);
+
+      const thenBlock = m.appendBlock(fn, "cond.then");
+      const elseBlock = m.appendBlock(fn, "cond.else");
+      const mergeBlock = m.appendBlock(fn, "cond.merge");
+
+      m.buildCondBr(cond, thenBlock, elseBlock);
+
+      m.positionAtEnd(thenBlock);
       const thenVal = emitExpr(ctx, expr.then);
+      const thenEndBlock = m.getInsertBlock();
+      m.buildBr(mergeBlock);
+
+      m.positionAtEnd(elseBlock);
       const elseVal = emitExpr(ctx, expr.else);
-      return m.buildSelect(cond, thenVal, elseVal, "");
+      const elseEndBlock = m.getInsertBlock();
+      m.buildBr(mergeBlock);
+
+      m.positionAtEnd(mergeBlock);
+      const ty = llvmType(ctx, expr.type);
+      const phi = m.buildPhi(ty, "");
+      m.addIncoming(phi, [thenVal, elseVal], [thenEndBlock, elseEndBlock]);
+      return phi;
     }
     case "narrow_i64": {
       const val = emitExpr(ctx, expr.value);
