@@ -159,6 +159,10 @@ function lowerModuleItem(item: ModuleItem): HIRStmt[] {
       return [lowerFor(item)];
     case "BlockStatement":
       return lowerBlock(item);
+    case "BreakStatement":
+      return [{ kind: "break" }];
+    case "ContinueStatement":
+      return [{ kind: "continue" }];
     default:
       compileError(`unsupported statement type: ${item.type}`);
   }
@@ -318,6 +322,10 @@ function lowerBinary(expr: BinaryExpression): HIRExpr {
     return { kind: "binary", op, left, right, type: F64 };
   }
 
+  if (op === "and" || op === "or") {
+    return { kind: "binary", op, left, right, type: I1 };
+  }
+
   const operandType = resolveArithType(left.type, right.type);
   if (left.type.kind !== operandType.kind) left = coerce(left, operandType);
   if (right.type.kind !== operandType.kind) right = coerce(right, operandType);
@@ -442,10 +450,11 @@ function lowerUpdate(expr: UpdateExpression): HIRExpr {
 }
 
 function lowerAssignment(expr: AssignmentExpression): HIRExpr {
-  const value = lowerExpr(expr.right);
+  let value = lowerExpr(expr.right);
   if (expr.left.type === "Identifier") {
     const local = locals.get(expr.left.value);
     if (local) {
+      if (value.type.kind !== local.type.kind) value = coerce(value, local.type);
       return { kind: "local_set", id: local.id, value, type: local.type };
     }
     return {

@@ -50,6 +50,11 @@ const PARITY_FIXTURES = [
   "division.ts",
   "math-functions.ts",
   "nested-if.ts",
+  "logical-ops.ts",
+  "break-continue.ts",
+  "multi-arg-log.ts",
+  "prime-sieve.ts",
+  "monte-carlo.ts",
 ];
 
 function compileExpectError(fixture: string): string {
