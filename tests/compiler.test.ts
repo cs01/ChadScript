@@ -63,6 +63,8 @@ const PARITY_FIXTURES = [
   "negative-numbers.ts",
   "variable-shadow.ts",
   "string-equality.ts",
+  "string-methods.ts",
+  "string-trim.ts",
 ];
 
 function compileExpectError(fixture: string): string {

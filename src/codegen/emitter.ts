@@ -200,6 +200,30 @@ function declareExterns(ctx: EmitContext): void {
     const fn = m.addFunction(llvmName, math2Type);
     ctx.declareMathIntrinsic(csName, fn, math2Type);
   }
+
+  const bridgeFns: [string, any, any[]][] = [
+    ["cs2_str_length", m.i32, [m.ptr]],
+    ["cs2_str_char_at", m.ptr, [m.ptr, m.i32]],
+    ["cs2_str_index_of", m.i32, [m.ptr, m.ptr]],
+    ["cs2_str_includes", m.i32, [m.ptr, m.ptr]],
+    ["cs2_str_starts_with", m.i32, [m.ptr, m.ptr]],
+    ["cs2_str_ends_with", m.i32, [m.ptr, m.ptr]],
+    ["cs2_str_slice", m.ptr, [m.ptr, m.i32, m.i32]],
+    ["cs2_str_substring", m.ptr, [m.ptr, m.i32, m.i32]],
+    ["cs2_str_to_upper", m.ptr, [m.ptr]],
+    ["cs2_str_to_lower", m.ptr, [m.ptr]],
+    ["cs2_str_trim", m.ptr, [m.ptr]],
+    ["cs2_str_repeat", m.ptr, [m.ptr, m.i32]],
+    ["cs2_str_replace", m.ptr, [m.ptr, m.ptr, m.ptr]],
+    ["cs2_str_char_code_at", m.i32, [m.ptr, m.i32]],
+    ["cs2_str_from_char_code", m.ptr, [m.i32]],
+    ["cs2_math_random", m.f64, []],
+  ];
+  for (const [name, ret, params] of bridgeFns) {
+    const fnType = m.functionType(ret, params);
+    const fn = m.addFunction(name, fnType);
+    ctx.declareFunction(name, fn, fnType);
+  }
 }
 
 function llvmType(ctx: EmitContext, t: HIRType): any {
@@ -670,6 +694,16 @@ function emitRuntimeCall(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_call
       m.buildCall(printf.fnType, printf.fn, [nlStr], "");
     }
     return m.constInt(m.i32, 0);
+  }
+
+  const bridgeFn = ctx.getDeclaredFunction(expr.func);
+  if (bridgeFn) {
+    const args = expr.args.map((a) => {
+      const val = emitExpr(ctx, a);
+      if (a.type.kind === "i32" || a.type.kind === "f64" || a.type.kind === "i8ptr") return val;
+      return val;
+    });
+    return m.buildCall(bridgeFn.fnType, bridgeFn.fn, args, "");
   }
 
   return m.constInt(m.i32, 0);

@@ -580,6 +580,30 @@ function lowerCall(expr: CallExpression): HIRExpr {
     return lowerMathCall(expr);
   }
 
+  if (
+    expr.callee.type === "MemberExpression" &&
+    expr.callee.object.type === "Identifier" &&
+    expr.callee.object.value === "String" &&
+    expr.callee.property.type === "Identifier" &&
+    expr.callee.property.value === "fromCharCode"
+  ) {
+    const args = expr.arguments.map((a) => coerce(lowerExpr(a.expression), I32));
+    return {
+      kind: "runtime_call",
+      func: "cs2_str_from_char_code",
+      args,
+      returnType: I8PTR,
+      type: I8PTR,
+    };
+  }
+
+  if (expr.callee.type === "MemberExpression") {
+    const obj = lowerExpr(expr.callee.object);
+    if (obj.type.kind === "i8ptr") {
+      return lowerStringMethodCall(expr, obj);
+    }
+  }
+
   if (expr.callee.type === "Identifier") {
     const fnInfo = functionRegistry.get(expr.callee.value);
     if (!fnInfo) {
@@ -609,6 +633,10 @@ function lowerMathCall(expr: CallExpression): HIRExpr {
   const method = (member.property as Identifier).value;
   const args = expr.arguments.map((a) => lowerExpr(a.expression));
 
+  if (method === "random") {
+    return { kind: "runtime_call", func: "cs2_math_random", args: [], returnType: F64, type: F64 };
+  }
+
   const func = `cs_math_${method}`;
   return {
     kind: "runtime_call",
@@ -619,6 +647,61 @@ function lowerMathCall(expr: CallExpression): HIRExpr {
   };
 }
 
+function lowerStringMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
+  const member = expr.callee as MemberExpression;
+  const method = (member.property as Identifier).value;
+  const args = expr.arguments.map((a) => lowerExpr(a.expression));
+
+  const strMethodMap: Record<string, { func: string; returnType: HIRType; argTypes?: HIRType[] }> =
+    {
+      charAt: { func: "cs2_str_char_at", returnType: I8PTR, argTypes: [I32] },
+      indexOf: { func: "cs2_str_index_of", returnType: I32, argTypes: [I8PTR] },
+      includes: { func: "cs2_str_includes", returnType: I1, argTypes: [I8PTR] },
+      startsWith: { func: "cs2_str_starts_with", returnType: I1, argTypes: [I8PTR] },
+      endsWith: { func: "cs2_str_ends_with", returnType: I1, argTypes: [I8PTR] },
+      slice: { func: "cs2_str_slice", returnType: I8PTR, argTypes: [I32, I32] },
+      substring: { func: "cs2_str_substring", returnType: I8PTR, argTypes: [I32, I32] },
+      toUpperCase: { func: "cs2_str_to_upper", returnType: I8PTR },
+      toLowerCase: { func: "cs2_str_to_lower", returnType: I8PTR },
+      trim: { func: "cs2_str_trim", returnType: I8PTR },
+      repeat: { func: "cs2_str_repeat", returnType: I8PTR, argTypes: [I32] },
+      replace: { func: "cs2_str_replace", returnType: I8PTR, argTypes: [I8PTR, I8PTR] },
+      charCodeAt: { func: "cs2_str_char_code_at", returnType: I32, argTypes: [I32] },
+    };
+
+  const info = strMethodMap[method];
+  if (!info) {
+    compileError(`unsupported string method: ${method}`, expr.span);
+  }
+
+  const coercedArgs = info.argTypes ? args.map((a, i) => coerce(a, info.argTypes![i])) : [];
+
+  const bridgeRetType = info.returnType;
+  const rtCall: HIRExpr = {
+    kind: "runtime_call",
+    func: info.func,
+    args: [obj, ...coercedArgs],
+    returnType: bridgeRetType,
+    type: bridgeRetType,
+  };
+
+  if (
+    info.func === "cs2_str_includes" ||
+    info.func === "cs2_str_starts_with" ||
+    info.func === "cs2_str_ends_with"
+  ) {
+    return {
+      kind: "binary",
+      op: "ne" as BinaryOp,
+      left: rtCall,
+      right: { kind: "literal_i32", value: 0, type: I32 },
+      type: I1,
+    };
+  }
+
+  return rtCall;
+}
+
 function lowerMember(expr: MemberExpression): HIRExpr {
   if (
     expr.object.type === "Identifier" &&
@@ -627,6 +710,20 @@ function lowerMember(expr: MemberExpression): HIRExpr {
     expr.property.value === "exit"
   ) {
     return { kind: "global_get", name: "process_exit", type: BOXED };
+  }
+
+  if (expr.property.type === "Identifier" && expr.property.value === "length") {
+    const obj = lowerExpr(expr.object);
+    if (obj.type.kind === "i8ptr") {
+      const lenI64: HIRExpr = {
+        kind: "runtime_call",
+        func: "cs2_str_length",
+        args: [obj],
+        returnType: I32,
+        type: I32,
+      };
+      return lenI64;
+    }
   }
 
   const obj = expr.object.type === "Identifier" ? expr.object.value : expr.object.type;
