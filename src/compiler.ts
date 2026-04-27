@@ -1,8 +1,6 @@
-import { parseFile } from "./parser.js";
-import { lowerModule } from "./hir/lower.js";
+import { resolveModules } from "./resolver.js";
 import { emitModule } from "./codegen/emitter.js";
-import { setSourceContext } from "./errors.js";
-import { readFileSync, unlinkSync } from "fs";
+import { unlinkSync } from "fs";
 import { execSync } from "child_process";
 import { tmpdir } from "os";
 import { join, dirname } from "path";
@@ -23,11 +21,7 @@ const BRIDGE_SRCS = [
 ];
 
 export function compile(opts: CompileOptions): void {
-  const source = readFileSync(opts.input, "utf-8");
-  setSourceContext(source, opts.input);
-  const ast = parseFile(opts.input);
-  const absPath = join(process.cwd(), opts.input);
-  const hir = lowerModule(ast, source, absPath);
+  const hir = resolveModules(opts.input);
 
   const tmpObj = join(tmpdir(), `chad2-${process.pid}.o`);
   const bridgeObjs = BRIDGE_SRCS.map((_, i) =>

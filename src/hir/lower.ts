@@ -75,7 +75,24 @@ import {
 
 export { lowerExpr } from "./lower-expr.js";
 
-export function lowerModule(ast: Module, source?: string, filename?: string): HIRModule {
+function unwrapExport(item: ModuleItem): ModuleItem {
+  if ((item as any).type === "ExportDeclaration") {
+    return (item as any).declaration as ModuleItem;
+  }
+  return item;
+}
+
+export interface ImportAlias {
+  local: string;
+  imported: string;
+}
+
+export function lowerModule(
+  ast: Module,
+  source?: string,
+  filename?: string,
+  importAliases?: ImportAlias[],
+): HIRModule {
   const functions: HIRFunction[] = [];
   const hirClasses: import("./types.js").HIRClass[] = [];
   const hirInterfaces: import("./types.js").HIRInterface[] = [];
@@ -99,49 +116,62 @@ export function lowerModule(ast: Module, source?: string, filename?: string): HI
   setSourceText(source || "");
   setLineOffsets(buildLineOffsets(source || ""));
 
-  for (const item of ast.body) {
-    if ((item as any).type === "TsInterfaceDeclaration") {
-      registerInterface(item as any);
+  if (importAliases) {
+    for (const alias of importAliases) {
+      fnAliases.set(alias.local, alias.imported);
     }
   }
 
   for (const item of ast.body) {
-    if (item.type === "ClassDeclaration") {
-      if (isGenericClass(item as any)) {
-        storeGenericClassTemplate(item as any);
+    const inner = unwrapExport(item);
+    if ((inner as any).type === "TsInterfaceDeclaration") {
+      registerInterface(inner as any);
+    }
+  }
+
+  for (const item of ast.body) {
+    const inner = unwrapExport(item);
+    if (inner.type === "ClassDeclaration") {
+      if (isGenericClass(inner as any)) {
+        storeGenericClassTemplate(inner as any);
       } else {
-        registerClass(item as any);
+        registerClass(inner as any);
       }
     }
   }
 
   for (const item of ast.body) {
-    if (item.type === "FunctionDeclaration") {
-      if (isGenericFunction(item as any)) {
-        storeGenericFunctionTemplate(item as any);
+    const inner = unwrapExport(item);
+    if (inner.type === "FunctionDeclaration") {
+      if (isGenericFunction(inner as any)) {
+        storeGenericFunctionTemplate(inner as any);
       } else {
-        registerFunction(item);
+        registerFunction(inner);
       }
     }
   }
 
   for (const item of ast.body) {
-    if ((item as any).type === "TsInterfaceDeclaration") {
+    const inner = unwrapExport(item);
+    if (inner.type === "ImportDeclaration") {
       continue;
-    } else if (item.type === "ClassDeclaration") {
-      if (isGenericClass(item as any)) continue;
-      const { hirClass, fns } = lowerClassDecl(item as any);
+    } else if ((inner as any).type === "TsInterfaceDeclaration") {
+      continue;
+    } else if (inner.type === "ClassDeclaration") {
+      if (isGenericClass(inner as any)) continue;
+      const { hirClass, fns } = lowerClassDecl(inner as any);
       hirClasses.push(hirClass);
       functions.push(...fns);
-    } else if (item.type === "FunctionDeclaration") {
-      if (isGenericFunction(item as any)) continue;
+    } else if (inner.type === "FunctionDeclaration") {
+      if (isGenericFunction(inner as any)) continue;
       setIsModuleScope(false);
-      functions.push(lowerFunctionDecl(item));
+      functions.push(lowerFunctionDecl(inner));
       setIsModuleScope(true);
-    } else if (item.type === "VariableDeclaration") {
-      for (const d of item.declarations) {
+    } else if (inner.type === "VariableDeclaration") {
+      const varDecl = inner as VariableDeclaration;
+      for (const d of varDecl.declarations) {
         if (d.id.type === "ArrayPattern") {
-          const mutable = item.kind === "let" || item.kind === "var";
+          const mutable = varDecl.kind === "let" || varDecl.kind === "var";
           if (!d.init) compileError("array destructuring requires initializer", d.span);
           const initExpr = lowerExpr(d.init);
           if (initExpr.type.kind !== "array")
@@ -180,7 +210,7 @@ export function lowerModule(ast: Module, source?: string, filename?: string): HI
           continue;
         }
         if (d.id.type === "ObjectPattern") {
-          const mutable = item.kind === "let" || item.kind === "var";
+          const mutable = varDecl.kind === "let" || varDecl.kind === "var";
           if (!d.init) compileError("object destructuring requires initializer", d.span);
           const initExpr = lowerExpr(d.init);
           if (initExpr.type.kind !== "ptr")
@@ -229,7 +259,7 @@ export function lowerModule(ast: Module, source?: string, filename?: string): HI
             fnAliases.set(d.id.value, fn.name);
             continue;
           }
-          const mutable = item.kind === "let" || item.kind === "var";
+          const mutable = varDecl.kind === "let" || varDecl.kind === "var";
           const hasAnnotation = !!d.id.typeAnnotation;
           const declType = resolveTypeAnnotation(d.id.typeAnnotation);
           if (declType.kind === "array")
@@ -259,7 +289,7 @@ export function lowerModule(ast: Module, source?: string, filename?: string): HI
         }
       }
     } else {
-      const stmts = lowerModuleItem(item);
+      const stmts = lowerModuleItem(inner);
       init.push(...stmts);
     }
   }
