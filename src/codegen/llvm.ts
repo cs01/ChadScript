@@ -25,6 +25,11 @@ const LLVMInt64TypeInContext = lib.func("LLVMInt64TypeInContext", Ref, [Ref]);
 const LLVMDoubleTypeInContext = lib.func("LLVMDoubleTypeInContext", Ref, [Ref]);
 const LLVMVoidTypeInContext = lib.func("LLVMVoidTypeInContext", Ref, [Ref]);
 const LLVMPointerTypeInContext = lib.func("LLVMPointerTypeInContext", Ref, [Ref, "uint"]);
+const LLVMStructCreateNamed = lib.func("LLVMStructCreateNamed", Ref, [Ref, "str"]);
+const LLVMStructSetBody = lib.func("LLVMStructSetBody", "void", [Ref, RefArr, "uint", Bool]);
+const LLVMSizeOf = lib.func("LLVMSizeOf", Ref, [Ref]);
+const LLVMBuildBitCast = lib.func("LLVMBuildBitCast", Ref, [Ref, Ref, Ref, "str"]);
+
 const LLVMFunctionType = lib.func("LLVMFunctionType", Ref, [Ref, RefArr, "uint", Bool]);
 
 const LLVMAddFunction = lib.func("LLVMAddFunction", Ref, [Ref, "str", Ref]);
@@ -281,6 +286,22 @@ export class LLVMModule {
 
   constNull(type: any): any {
     return LLVMConstNull(type);
+  }
+
+  structCreateNamed(name: string): any {
+    return LLVMStructCreateNamed(this.ctx, name);
+  }
+
+  structSetBody(structTy: any, elementTypes: any[], packed = false): void {
+    LLVMStructSetBody(structTy, elementTypes, elementTypes.length, packed ? 1 : 0);
+  }
+
+  sizeOf(type: any): any {
+    return LLVMSizeOf(type);
+  }
+
+  buildBitCast(val: any, destTy: any, name = ""): any {
+    return LLVMBuildBitCast(this.builder, val, destTy, name);
   }
 
   buildAdd(lhs: any, rhs: any, name = ""): any {

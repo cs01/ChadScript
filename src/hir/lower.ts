@@ -40,8 +40,16 @@ let nextId = 0;
 const locals = new Map<string, { id: number; type: HIRType; mutable: boolean }>();
 const globals = new Map<string, { type: HIRType; mutable: boolean }>();
 const functionRegistry = new Map<string, { params: HIRParam[]; returnType: HIRType }>();
+const classRegistry = new Map<
+  string,
+  {
+    fields: { name: string; type: HIRType }[];
+    methods: Map<string, { params: HIRParam[]; returnType: HIRType }>;
+  }
+>();
 let isModuleScope = true;
 let expectedArrayElementType: HIRType | null = null;
+let currentClassName: string | null = null;
 
 function freshId(): number {
   return nextId++;
@@ -54,12 +62,20 @@ function resetState(): void {
 
 export function lowerModule(ast: Module): HIRModule {
   const functions: HIRFunction[] = [];
+  const hirClasses: import("./types.js").HIRClass[] = [];
   const hirGlobals: import("./types.js").HIRGlobal[] = [];
   const init: HIRStmt[] = [];
 
   functionRegistry.clear();
+  classRegistry.clear();
   globals.clear();
   isModuleScope = true;
+
+  for (const item of ast.body) {
+    if (item.type === "ClassDeclaration") {
+      registerClass(item as any);
+    }
+  }
 
   for (const item of ast.body) {
     if (item.type === "FunctionDeclaration") {
@@ -68,7 +84,11 @@ export function lowerModule(ast: Module): HIRModule {
   }
 
   for (const item of ast.body) {
-    if (item.type === "FunctionDeclaration") {
+    if (item.type === "ClassDeclaration") {
+      const { hirClass, fns } = lowerClassDecl(item as any);
+      hirClasses.push(hirClass);
+      functions.push(...fns);
+    } else if (item.type === "FunctionDeclaration") {
       isModuleScope = false;
       functions.push(lowerFunctionDecl(item));
       isModuleScope = true;
@@ -102,7 +122,7 @@ export function lowerModule(ast: Module): HIRModule {
     }
   }
 
-  return { functions, classes: [], globals: hirGlobals, init };
+  return { functions, classes: hirClasses, globals: hirGlobals, init };
 }
 
 function registerFunction(decl: FunctionDeclaration): void {
@@ -112,6 +132,221 @@ function registerFunction(decl: FunctionDeclaration): void {
   });
   const returnType = decl.returnType ? resolveTypeAnnotation(decl.returnType) : VOID;
   functionRegistry.set(decl.identifier.value, { params, returnType });
+}
+
+function registerClass(decl: any): void {
+  const name = decl.identifier.value;
+  const fields: { name: string; type: HIRType }[] = [];
+  const methods = new Map<string, { params: HIRParam[]; returnType: HIRType }>();
+
+  for (const member of decl.body) {
+    if (member.type === "ClassProperty" && member.key?.type === "Identifier") {
+      fields.push({
+        name: member.key.value,
+        type: resolveTypeAnnotation(member.typeAnnotation),
+      });
+    }
+    if (member.type === "ClassMethod" && member.key?.type === "Identifier") {
+      const fn = member.function;
+      const params: HIRParam[] = fn.params.map((p: any, i: number) => ({
+        id: i + 1,
+        name: p.pat?.value || `p${i}`,
+        type: resolveTypeAnnotation(p.pat?.typeAnnotation),
+      }));
+      const returnType = fn.returnType ? resolveTypeAnnotation(fn.returnType) : VOID;
+      methods.set(member.key.value, { params, returnType });
+      functionRegistry.set(`${name}_${member.key.value}`, {
+        params: [{ id: 0, name: "this", type: { kind: "ptr", pointee: name } }, ...params],
+        returnType,
+      });
+    }
+  }
+
+  classRegistry.set(name, { fields, methods });
+  functionRegistry.set(`${name}_constructor`, {
+    params: [],
+    returnType: { kind: "ptr", pointee: name },
+  });
+}
+
+function lowerClassDecl(decl: any): {
+  hirClass: import("./types.js").HIRClass;
+  fns: HIRFunction[];
+} {
+  const name = decl.identifier.value;
+  const classInfo = classRegistry.get(name)!;
+  const fns: HIRFunction[] = [];
+
+  const hirFields = classInfo.fields.map((f) => ({ name: f.name, type: f.type }));
+
+  for (const member of decl.body) {
+    if (member.type === "Constructor") {
+      fns.push(lowerConstructor(name, member, classInfo));
+    }
+    if (member.type === "ClassMethod" && member.key?.type === "Identifier") {
+      fns.push(lowerMethod(name, member, classInfo));
+    }
+  }
+
+  if (!decl.body.some((m: any) => m.type === "Constructor")) {
+    fns.push(generateDefaultConstructor(name, classInfo));
+  }
+
+  return {
+    hirClass: { name, fields: hirFields, methods: fns, parent: undefined },
+    fns,
+  };
+}
+
+function lowerConstructor(
+  className: string,
+  ctor: any,
+  classInfo: { fields: { name: string; type: HIRType }[] },
+): HIRFunction {
+  const savedLocals = new Map(locals);
+  const savedNextId = nextId;
+  locals.clear();
+  nextId = 0;
+
+  const thisType: HIRType = { kind: "ptr", pointee: className };
+  const thisId = freshId();
+  locals.set("this", { id: thisId, type: thisType, mutable: false });
+
+  const params: HIRParam[] = [];
+  for (const p of ctor.params) {
+    const pat = p.pat || p;
+    if (pat.type === "Identifier") {
+      const id = freshId();
+      const type = resolveTypeAnnotation(pat.typeAnnotation);
+      params.push({ id, name: pat.value, type });
+      locals.set(pat.value, { id, type, mutable: true });
+    }
+  }
+
+  functionRegistry.set(`${className}_constructor`, {
+    params,
+    returnType: thisType,
+  });
+
+  currentClassName = className;
+  isModuleScope = false;
+
+  const allocExpr: HIRExpr = {
+    kind: "alloc_struct",
+    structName: className,
+    fields: classInfo.fields.map((f) => defaultValue(f.type)),
+    type: thisType,
+  };
+  const body: HIRStmt[] = [
+    { kind: "let", id: thisId, name: "this", type: thisType, init: allocExpr, mutable: false },
+  ];
+
+  if (ctor.body) {
+    body.push(...lowerBlock(ctor.body));
+  }
+
+  body.push({ kind: "return", value: { kind: "local_get", id: thisId, type: thisType } });
+
+  isModuleScope = true;
+  currentClassName = null;
+  locals.clear();
+  for (const [k, v] of savedLocals) locals.set(k, v);
+  nextId = savedNextId;
+
+  return {
+    name: `${className}_constructor`,
+    params,
+    returnType: thisType,
+    body,
+    isAsync: false,
+    captures: [],
+  };
+}
+
+function lowerMethod(
+  className: string,
+  method: any,
+  classInfo: { fields: { name: string; type: HIRType }[] },
+): HIRFunction {
+  const savedLocals = new Map(locals);
+  const savedNextId = nextId;
+  locals.clear();
+  nextId = 0;
+
+  const thisType: HIRType = { kind: "ptr", pointee: className };
+  const thisId = freshId();
+  locals.set("this", { id: thisId, type: thisType, mutable: false });
+
+  const params: HIRParam[] = [{ id: thisId, name: "this", type: thisType }];
+  const fn = method.function;
+  for (const p of fn.params) {
+    if (p.pat?.type === "Identifier") {
+      const id = freshId();
+      const type = resolveTypeAnnotation(p.pat.typeAnnotation);
+      params.push({ id, name: p.pat.value, type });
+      locals.set(p.pat.value, { id, type, mutable: true });
+    }
+  }
+
+  const returnType = fn.returnType ? resolveTypeAnnotation(fn.returnType) : VOID;
+
+  currentClassName = className;
+  isModuleScope = false;
+  const body = fn.body ? lowerBlock(fn.body) : [];
+  isModuleScope = true;
+  currentClassName = null;
+
+  locals.clear();
+  for (const [k, v] of savedLocals) locals.set(k, v);
+  nextId = savedNextId;
+
+  return {
+    name: `${className}_${method.key.value}`,
+    params,
+    returnType,
+    body,
+    isAsync: fn.async || false,
+    captures: [],
+  };
+}
+
+function generateDefaultConstructor(
+  className: string,
+  classInfo: { fields: { name: string; type: HIRType }[] },
+): HIRFunction {
+  const thisType: HIRType = { kind: "ptr", pointee: className };
+  const allocExpr: HIRExpr = {
+    kind: "alloc_struct",
+    structName: className,
+    fields: classInfo.fields.map((f) => defaultValue(f.type)),
+    type: thisType,
+  };
+  return {
+    name: `${className}_constructor`,
+    params: [],
+    returnType: thisType,
+    body: [
+      { kind: "let", id: 0, name: "this", type: thisType, init: allocExpr, mutable: false },
+      { kind: "return", value: { kind: "local_get", id: 0, type: thisType } },
+    ],
+    isAsync: false,
+    captures: [],
+  };
+}
+
+function defaultValue(type: HIRType): HIRExpr {
+  switch (type.kind) {
+    case "f64":
+      return { kind: "literal_f64", value: 0, type: F64 };
+    case "i64":
+      return { kind: "literal_i64", value: 0, type: I64 };
+    case "i1":
+      return { kind: "literal_i1", value: false, type: I1 };
+    case "i8ptr":
+      return { kind: "literal_string", value: "", type: I8PTR };
+    default:
+      return { kind: "literal_null", type: { kind: "ptr", pointee: "" } };
+  }
 }
 
 function lowerFunctionDecl(decl: FunctionDeclaration): HIRFunction {
@@ -176,6 +411,13 @@ function resolveTypeAnnotation(ann: any): HIRType {
   if (ta.type === "TsArrayType") {
     const elem = resolveTypeAnnotation(ta.elemType);
     return { kind: "array", element: elem };
+  }
+
+  if (ta.type === "TsTypeReference" && ta.typeName?.type === "Identifier") {
+    const name = ta.typeName.value;
+    if (classRegistry.has(name)) {
+      return { kind: "ptr", pointee: name };
+    }
   }
 
   return BOXED;
@@ -326,6 +568,13 @@ function lowerExpr(expr: Expression): HIRExpr {
       };
     case "ArrayExpression":
       return lowerArrayLiteral(expr);
+    case "NewExpression":
+      return lowerNewExpr(expr as any);
+    case "ThisExpression": {
+      const thisLocal = locals.get("this");
+      if (!thisLocal) compileError("'this' used outside class", expr.span);
+      return { kind: "local_get", id: thisLocal.id, type: thisLocal.type };
+    }
     default:
       compileError(`unsupported expression type: ${expr.type}`, expr.span);
   }
@@ -567,6 +816,31 @@ function lowerAssignment(expr: AssignmentExpression): HIRExpr {
 
   if (expr.left.type === "MemberExpression") {
     const member = expr.left as MemberExpression;
+
+    if (member.property.type === "Identifier") {
+      const obj = lowerExpr(member.object);
+      if (obj.type.kind === "ptr") {
+        const className = (obj.type as { kind: "ptr"; pointee: string }).pointee;
+        const classInfo = classRegistry.get(className);
+        if (classInfo) {
+          const fieldIdx = classInfo.fields.findIndex((f) => f.name === member.property.value);
+          if (fieldIdx >= 0) {
+            const field = classInfo.fields[fieldIdx];
+            const coercedValue =
+              value.type.kind !== field.type.kind ? coerce(value, field.type) : value;
+            return {
+              kind: "field_set",
+              object: obj,
+              fieldName: member.property.value,
+              index: fieldIdx,
+              value: coercedValue,
+              type: field.type,
+            };
+          }
+        }
+      }
+    }
+
     if ((member.property as any).type === "Computed") {
       const obj = lowerExpr(member.object);
       const index = lowerExpr((member.property as any).expression);
@@ -670,6 +944,9 @@ function lowerCall(expr: CallExpression): HIRExpr {
     if (obj.type.kind === "array") {
       return lowerArrayMethodCall(expr, obj);
     }
+    if (obj.type.kind === "ptr") {
+      return lowerClassMethodCall(expr, obj);
+    }
   }
 
   if (expr.callee.type === "Identifier") {
@@ -694,6 +971,35 @@ function lowerCall(expr: CallExpression): HIRExpr {
   }
 
   compileError(`unsupported call expression: callee is ${expr.callee.type}`, expr.span);
+}
+
+function lowerNewExpr(expr: any): HIRExpr {
+  if (expr.callee.type !== "Identifier") {
+    compileError("new expression requires identifier callee", expr.span);
+  }
+  const className = expr.callee.value;
+  const classInfo = classRegistry.get(className);
+  if (!classInfo) {
+    compileError(`new expression for unknown class '${className}'`, expr.span);
+  }
+
+  const ctorInfo = functionRegistry.get(`${className}_constructor`);
+  const args = (expr.arguments || []).map((a: any, i: number) => {
+    let arg = lowerExpr(a.expression);
+    if (ctorInfo && ctorInfo.params[i]) {
+      arg = coerce(arg, ctorInfo.params[i].type);
+    }
+    return arg;
+  });
+
+  const resultType: HIRType = { kind: "ptr", pointee: className };
+  return {
+    kind: "call",
+    callee: `${className}_constructor`,
+    args,
+    returnType: resultType,
+    type: resultType,
+  };
 }
 
 function lowerMathCall(expr: CallExpression): HIRExpr {
@@ -822,6 +1128,35 @@ function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
   return rtCall;
 }
 
+function lowerClassMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
+  const member = expr.callee as MemberExpression;
+  const method = (member.property as Identifier).value;
+  const className = (obj.type as { kind: "ptr"; pointee: string }).pointee;
+  const fnName = `${className}_${method}`;
+
+  const fnInfo = functionRegistry.get(fnName);
+  if (!fnInfo) {
+    compileError(`unknown method '${method}' on class '${className}'`, expr.span);
+  }
+
+  const args: HIRExpr[] = [obj];
+  for (let i = 0; i < expr.arguments.length; i++) {
+    let arg = lowerExpr(expr.arguments[i].expression);
+    if (fnInfo.params[i + 1]) {
+      arg = coerce(arg, fnInfo.params[i + 1].type);
+    }
+    args.push(arg);
+  }
+
+  return {
+    kind: "call",
+    callee: fnName,
+    args,
+    returnType: fnInfo.returnType,
+    type: fnInfo.returnType,
+  };
+}
+
 function lowerMember(expr: MemberExpression): HIRExpr {
   if (
     expr.object.type === "Identifier" &&
@@ -843,21 +1178,44 @@ function lowerMember(expr: MemberExpression): HIRExpr {
     compileError("unsupported computed member access", expr.span);
   }
 
-  if (expr.property.type === "Identifier" && expr.property.value === "length") {
-    const obj = lowerExpr(expr.object);
-    if (obj.type.kind === "i8ptr") {
-      return {
-        kind: "runtime_call",
-        func: "cs2_str_length",
-        args: [obj],
-        returnType: I64,
-        type: I64,
-      };
+  if (expr.property.type === "Identifier") {
+    const propName = expr.property.value;
+
+    if (propName === "length") {
+      const obj = lowerExpr(expr.object);
+      if (obj.type.kind === "i8ptr") {
+        return {
+          kind: "runtime_call",
+          func: "cs2_str_length",
+          args: [obj],
+          returnType: I64,
+          type: I64,
+        };
+      }
+      if (obj.type.kind === "array") {
+        const elemType = (obj.type as { kind: "array"; element: HIRType }).element;
+        const lenFn = elemType.kind === "i8ptr" ? "cs2_str_array_length" : "cs2_num_array_length";
+        return { kind: "runtime_call", func: lenFn, args: [obj], returnType: I64, type: I64 };
+      }
     }
-    if (obj.type.kind === "array") {
-      const elemType = (obj.type as { kind: "array"; element: HIRType }).element;
-      const lenFn = elemType.kind === "i8ptr" ? "cs2_str_array_length" : "cs2_num_array_length";
-      return { kind: "runtime_call", func: lenFn, args: [obj], returnType: I64, type: I64 };
+
+    const obj = lowerExpr(expr.object);
+    if (obj.type.kind === "ptr") {
+      const className = (obj.type as { kind: "ptr"; pointee: string }).pointee;
+      const classInfo = classRegistry.get(className);
+      if (classInfo) {
+        const fieldIdx = classInfo.fields.findIndex((f) => f.name === propName);
+        if (fieldIdx >= 0) {
+          const field = classInfo.fields[fieldIdx];
+          return {
+            kind: "field_get",
+            object: obj,
+            fieldName: propName,
+            index: fieldIdx,
+            type: field.type,
+          };
+        }
+      }
     }
   }
 

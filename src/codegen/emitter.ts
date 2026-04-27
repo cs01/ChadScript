@@ -32,6 +32,10 @@ class EmitContext {
   private loopStack: { condBlock: any; exitBlock: any }[] = [];
   private declaredFunctions = new Map<string, { fn: any; fnType: any }>();
   private mathIntrinsics = new Map<string, { fn: any; fnType: any }>();
+  private structTypes = new Map<
+    string,
+    { llvmType: any; fields: { name: string; type: HIRType }[] }
+  >();
   private currentFn: any = null;
 
   constructor(m: LLVMModule) {
@@ -95,6 +99,16 @@ class EmitContext {
   getMathIntrinsic(name: string): { fn: any; fnType: any } | undefined {
     return this.mathIntrinsics.get(name);
   }
+
+  registerStructType(name: string, llvmType: any, fields: { name: string; type: HIRType }[]): void {
+    this.structTypes.set(name, { llvmType, fields });
+  }
+
+  getStructType(
+    name: string,
+  ): { llvmType: any; fields: { name: string; type: HIRType }[] } | undefined {
+    return this.structTypes.get(name);
+  }
 }
 
 export interface EmitResult {
@@ -107,6 +121,13 @@ export function emitModule(mod: HIRModule, objectPath: string, irPath?: string):
   const ctx = new EmitContext(m);
 
   declareExterns(ctx);
+
+  for (const cls of mod.classes) {
+    const fieldTypes = cls.fields.map((f) => llvmType(ctx, f.type));
+    const structTy = m.structCreateNamed(cls.name);
+    m.structSetBody(structTy, fieldTypes);
+    ctx.registerStructType(cls.name, structTy, cls.fields);
+  }
 
   for (const g of mod.globals) {
     const ty = llvmType(ctx, g.type);
@@ -546,6 +567,12 @@ function emitExpr(ctx: EmitContext, expr: HIRExpr): any {
     }
     case "alloc_array":
       return emitAllocArray(ctx, expr as HIRExpr & { kind: "alloc_array" });
+    case "alloc_struct":
+      return emitAllocStruct(ctx, expr as HIRExpr & { kind: "alloc_struct" });
+    case "field_get":
+      return emitFieldGet(ctx, expr as HIRExpr & { kind: "field_get" });
+    case "field_set":
+      return emitFieldSet(ctx, expr as HIRExpr & { kind: "field_set" });
     case "index_get":
       return emitIndexGet(ctx, expr as HIRExpr & { kind: "index_get" });
     case "index_set":
@@ -574,6 +601,63 @@ function emitAllocArray(ctx: EmitContext, expr: HIRExpr & { kind: "alloc_array" 
   }
 
   return arr;
+}
+
+function emitAllocStruct(ctx: EmitContext, expr: HIRExpr & { kind: "alloc_struct" }): any {
+  const m = ctx.m;
+  const structInfo = ctx.getStructType(expr.structName);
+  if (!structInfo) throw new Error(`unknown struct type: ${expr.structName}`);
+
+  const size = m.sizeOf(structInfo.llvmType);
+  const malloc = ctx.getDeclaredFunction("malloc")!;
+  const raw = m.buildCall(malloc.fnType, malloc.fn, [size], "obj");
+
+  for (let i = 0; i < expr.fields.length; i++) {
+    const val = emitExpr(ctx, expr.fields[i]);
+    const fieldPtr = m.buildGEP(
+      structInfo.llvmType,
+      raw,
+      [m.constInt(m.i32, 0), m.constInt(m.i32, i)],
+      "",
+    );
+    m.buildStore(val, fieldPtr);
+  }
+
+  return raw;
+}
+
+function emitFieldGet(ctx: EmitContext, expr: HIRExpr & { kind: "field_get" }): any {
+  const m = ctx.m;
+  const obj = emitExpr(ctx, expr.object);
+  const className = (expr.object.type as { kind: "ptr"; pointee: string }).pointee;
+  const structInfo = ctx.getStructType(className);
+  if (!structInfo) throw new Error(`unknown struct type: ${className}`);
+
+  const fieldPtr = m.buildGEP(
+    structInfo.llvmType,
+    obj,
+    [m.constInt(m.i32, 0), m.constInt(m.i32, expr.index)],
+    "",
+  );
+  return m.buildLoad(llvmType(ctx, expr.type), fieldPtr, "");
+}
+
+function emitFieldSet(ctx: EmitContext, expr: HIRExpr & { kind: "field_set" }): any {
+  const m = ctx.m;
+  const obj = emitExpr(ctx, expr.object);
+  const val = emitExpr(ctx, expr.value);
+  const className = (expr.object.type as { kind: "ptr"; pointee: string }).pointee;
+  const structInfo = ctx.getStructType(className);
+  if (!structInfo) throw new Error(`unknown struct type: ${className}`);
+
+  const fieldPtr = m.buildGEP(
+    structInfo.llvmType,
+    obj,
+    [m.constInt(m.i32, 0), m.constInt(m.i32, expr.index)],
+    "",
+  );
+  m.buildStore(val, fieldPtr);
+  return val;
 }
 
 function emitIndexGet(ctx: EmitContext, expr: HIRExpr & { kind: "index_get" }): any {

@@ -67,6 +67,9 @@ const PARITY_FIXTURES = [
   "string-trim.ts",
   "array-basic.ts",
   "array-methods.ts",
+  "class-basic.ts",
+  "class-methods.ts",
+  "class-fields.ts",
 ];
 
 function compileExpectError(fixture: string): string {
