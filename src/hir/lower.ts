@@ -189,6 +189,49 @@ export function lowerModule(ast: Module, source?: string, filename?: string): HI
           }
           continue;
         }
+        if (d.id.type === "ObjectPattern") {
+          const mutable = item.kind === "let" || item.kind === "var";
+          if (!d.init) compileError("object destructuring requires initializer", d.span);
+          const initExpr = lowerExpr(d.init);
+          if (initExpr.type.kind !== "ptr")
+            compileError("object destructuring requires struct/class type", d.span);
+
+          const typeName = (initExpr.type as { kind: "ptr"; pointee: string }).pointee;
+          const cInfo = classRegistry.get(typeName);
+          if (!cInfo) compileError(`object destructuring: unknown class '${typeName}'`, d.span);
+
+          const tmpName = `__destruct_g_${nextAnonId++}`;
+          globals.set(tmpName, { type: initExpr.type, mutable: false });
+          hirGlobals.push({ name: tmpName, type: initExpr.type, mutable: false });
+          init.push({
+            kind: "expr",
+            expr: { kind: "global_set", name: tmpName, value: initExpr, type: initExpr.type },
+          });
+
+          for (const { fieldName, localName, span } of resolveObjectDestructProps(
+            d.id.properties,
+          )) {
+            const fieldIdx = cInfo!.fields.findIndex((f: any) => f.name === fieldName);
+            if (fieldIdx < 0)
+              compileError(`property '${fieldName}' does not exist on '${typeName}'`, span);
+
+            const field = cInfo!.fields[fieldIdx];
+            const fieldGet: HIRExpr = {
+              kind: "field_get",
+              object: { kind: "global_get", name: tmpName, type: initExpr.type },
+              fieldName,
+              index: fieldIdx,
+              type: field.type,
+            };
+            globals.set(localName, { type: field.type, mutable });
+            hirGlobals.push({ name: localName, type: field.type, mutable });
+            init.push({
+              kind: "expr",
+              expr: { kind: "global_set", name: localName, value: fieldGet, type: field.type },
+            });
+          }
+          continue;
+        }
         if (d.id.type === "Identifier") {
           if (d.init?.type === "ArrowFunctionExpression" || d.init?.type === "FunctionExpression") {
             const fn = lowerArrowOrFnExpr(d.init, d.id.value);
@@ -860,6 +903,10 @@ function lowerVarDecl(decl: VariableDeclaration): HIRStmt[] {
       stmts.push(...lowerArrayDestructuring(d, mutable));
       continue;
     }
+    if (d.id.type === "ObjectPattern") {
+      stmts.push(...lowerObjectDestructuring(d, mutable));
+      continue;
+    }
     if (d.id.type === "Identifier") {
       if (d.init?.type === "ArrowFunctionExpression" || d.init?.type === "FunctionExpression") {
         const fn = lowerArrowOrFnExpr(d.init, d.id.value);
@@ -934,6 +981,73 @@ function lowerArrayDestructuring(d: any, mutable: boolean): HIRStmt[] {
       name: elem.value,
       type: elemType,
       init: indexGet,
+      mutable,
+    } as HIRStmt);
+  }
+
+  return stmts;
+}
+
+function resolveObjectDestructProps(
+  properties: any[],
+): { fieldName: string; localName: string; span: any }[] {
+  return properties.map((prop: any) => {
+    switch (prop.type) {
+      case "AssignmentPatternProperty":
+        return { fieldName: prop.key.value, localName: prop.key.value, span: prop.span };
+      case "KeyValuePatternProperty":
+        return { fieldName: prop.key.value, localName: prop.value.value, span: prop.key.span };
+      default:
+        throw new Error(`unsupported object destructuring property: ${prop.type}`);
+    }
+  });
+}
+
+function lowerObjectDestructuring(d: any, mutable: boolean): HIRStmt[] {
+  const stmts: HIRStmt[] = [];
+  if (!d.init) compileError("object destructuring requires initializer", d.span);
+
+  const initExpr = lowerExpr(d.init);
+  if (initExpr.type.kind !== "ptr")
+    compileError("object destructuring requires struct/class type", d.span);
+
+  const typeName = (initExpr.type as { kind: "ptr"; pointee: string }).pointee;
+  const classInfo = classRegistry.get(typeName);
+  if (!classInfo) compileError(`object destructuring: unknown class '${typeName}'`, d.span);
+
+  const tmpId = freshId();
+  const tmpName = `__destruct_${tmpId}`;
+  locals.set(tmpName, { id: tmpId, type: initExpr.type, mutable: false });
+  stmts.push({
+    kind: "let",
+    id: tmpId,
+    name: tmpName,
+    type: initExpr.type,
+    init: initExpr,
+    mutable: false,
+  } as HIRStmt);
+
+  for (const { fieldName, localName, span } of resolveObjectDestructProps(d.id.properties)) {
+    const fieldIdx = classInfo!.fields.findIndex((f) => f.name === fieldName);
+    if (fieldIdx < 0) compileError(`property '${fieldName}' does not exist on '${typeName}'`, span);
+
+    const field = classInfo!.fields[fieldIdx];
+    const elemId = freshId();
+    const fieldGet: HIRExpr = {
+      kind: "field_get",
+      object: { kind: "local_get", id: tmpId, type: initExpr.type },
+      fieldName,
+      index: fieldIdx,
+      type: field.type,
+    };
+
+    locals.set(localName, { id: elemId, type: field.type, mutable });
+    stmts.push({
+      kind: "let",
+      id: elemId,
+      name: localName,
+      type: field.type,
+      init: fieldGet,
       mutable,
     } as HIRStmt);
   }
