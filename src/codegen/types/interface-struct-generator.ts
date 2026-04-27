@@ -159,7 +159,7 @@ export class InterfaceStructGenerator {
 
   private tsTypeToLlvmForField(fieldName: string, tsType: string): string {
     if (tsType === null || tsType === undefined || tsType === "") {
-      return "i8*";
+      throw new Error(`tsTypeToLlvmForField: empty type for field '${fieldName}'`);
     }
     if (this.interfaceStructs.has(tsType)) {
       return "i8*";
@@ -171,7 +171,7 @@ export class InterfaceStructGenerator {
 
   private tsTypeToLlvm(tsType: string): string {
     if (tsType === null || tsType === undefined || tsType === "") {
-      return "i8*";
+      throw new Error("tsTypeToLlvm: empty type");
     }
     if (this.interfaceStructs.has(tsType)) {
       return "i8*";
