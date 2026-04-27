@@ -339,12 +339,10 @@ const ast = parseSync(source, { syntax: "typescript", decorators: true });
 - [x] **Milestone:** `tests/fixtures/closures.ts` passing — 48 parity tests
 - [x] Arrow function closures (captures in arrow expressions)
 - [x] Higher-order functions (pass closures as args, call them) — 50 tests
-- [ ] `AsyncLoweringPass`: HIR transform
-  - Convert async functions to state machines
-  - `await` → yield point in state machine
-  - Wire up promise resolution
-- [ ] Codegen: async state machine, promise integration
-- [ ] **Milestone:** `tests/fixtures/async/` passing
+- [x] Synchronous async/await: promise struct, typed resolve/get bridge, AwaitExpression lowering
+- [x] Codegen: async function entry creates promise, return resolves + returns promise ptr
+- [x] **Milestone:** async/await parity tests passing — 79 tests
+- [ ] Full `AsyncLoweringPass` (state machines for real I/O) — deferred to Phase 6.75 (event loop)
 
 ### Phase 5: Language Gaps (~1-2 weeks, ~2-3K LOC)
 
@@ -358,7 +356,7 @@ const ast = parseSync(source, { syntax: "typescript", decorators: true });
 - [x] Default parameters — `function foo(x: number = 10)`
 - [x] Optional chaining — `obj?.prop` (desugar to null check)
 - [x] Nullish coalescing — `a ?? b`
-- [ ] **Milestone:** Common TS patterns compile and run correctly
+- [x] **Milestone:** Common TS patterns compile and run correctly
 
 ### Phase 6: NaN-Boxing Escape Hatch (~2 weeks, ~3-4K LOC)
 
@@ -390,6 +388,31 @@ const ast = parseSync(source, { syntax: "typescript", decorators: true });
 - [x] **Milestone:** Generic functions and classes compile with zero boxing overhead for concrete types — 76 tests
 
 **Why now:** Stdlib (Phase 7) needs `Map<K,V>`, `Set<T>`, `Promise<T>`. Without monomorphization, generics fall back to NaN-boxing everything — defeating the unboxed-first advantage. This is the pass that keeps generics fast.
+
+### Phase 6.75: Event Loop + Timers (~1-2 weeks, ~1-2K LOC)
+
+**Goal:** libuv event loop, setTimeout/setInterval, full async state machine transform.
+
+- [ ] Port libuv integration from v1 (vendor/libuv already built)
+- [ ] `setTimeout(fn, ms)` / `setInterval(fn, ms)` via `uv_timer_start`
+- [ ] `uv_run(UV_RUN_DEFAULT)` in main when async work is pending
+- [ ] `AsyncLoweringPass`: convert async functions to state machines for real I/O yield points
+- [ ] `clearTimeout` / `clearInterval`
+- [ ] **Milestone:** timer-based async code runs correctly, event loop drains before exit
+
+**Why now:** Stdlib (Phase 7) needs async I/O (fs async variants, fetch, child_process.spawn). Without an event loop, async is limited to synchronous execution. libuv already works in v1 — this is a port, not a build.
+
+### Phase 6.85: Import/Module System (~1-2 weeks, ~1-2K LOC)
+
+**Goal:** Multi-file compilation with ES module imports/exports.
+
+- [ ] `import { x } from "./other.ts"` — named imports from local files
+- [ ] `export function`, `export const`, `export class`, `export interface`
+- [ ] Multi-file compilation: resolve imports, compile all files, link together
+- [ ] Re-exports: `export { x } from "./other.ts"`
+- [ ] **Milestone:** programs split across multiple files compile and run
+
+**Why now:** Stdlib modules need an import mechanism. Without it, everything must be in a single file.
 
 ### Phase 7: Stdlib + Node Compat (~4-6 weeks, ~8-10K LOC)
 
@@ -559,6 +582,9 @@ End-state verification:
 | 4: Closures + async     | ~4K         | 2-3 weeks       |
 | 5: Language gaps        | ~2-3K       | 1-2 weeks       |
 | 6: NaN-boxing escape    | ~3-4K       | 2 weeks         |
+| 6.5: Generics           | ~2-3K       | 1-2 weeks       |
+| 6.75: Event loop        | ~1-2K       | 1-2 weeks       |
+| 6.85: Import system     | ~1-2K       | 1-2 weeks       |
 | 7: Stdlib               | ~8-10K      | 4-6 weeks       |
 | 8: Self-hosting         | ~500        | 2-3 weeks       |
 | 9: Optimization         | ~3K         | 2-3 weeks       |
