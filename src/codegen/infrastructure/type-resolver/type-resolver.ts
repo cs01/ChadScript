@@ -42,6 +42,7 @@ import {
   parseSetTypeString,
   parseArrayTypeString,
   canonicalTypeToLlvm,
+  isAnyArrayTsType,
 } from "../type-system.js";
 
 interface ExprBase {
@@ -736,7 +737,7 @@ export class TypeResolver {
     if (!valueType) return null;
     if (valueType === "string" || valueType === "number" || valueType === "boolean") return null;
 
-    if (valueType.endsWith("[]")) {
+    if (isAnyArrayTsType(valueType)) {
       return valueType;
     }
 
