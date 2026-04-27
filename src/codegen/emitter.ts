@@ -14,6 +14,15 @@ export function emitModule(mod: HIRModule): string {
   ctx.line("declare i32 @puts(i8*)");
   ctx.line("declare i32 @printf(i8*, ...)");
   ctx.line("declare void @exit(i32)");
+  ctx.line("declare double @llvm.floor.f64(double)");
+  ctx.line("declare double @llvm.ceil.f64(double)");
+  ctx.line("declare double @llvm.fabs.f64(double)");
+  ctx.line("declare double @llvm.sqrt.f64(double)");
+  ctx.line("declare double @llvm.pow.f64(double, double)");
+  ctx.line("declare double @llvm.log.f64(double)");
+  ctx.line("declare double @llvm.round.f64(double)");
+  ctx.line("declare double @llvm.maxnum.f64(double, double)");
+  ctx.line("declare double @llvm.minnum.f64(double, double)");
   ctx.line("");
 
   for (const fn of mod.functions) {
@@ -190,22 +199,15 @@ function emitStmt(ctx: EmitContext, stmt: HIRStmt): void {
       }
 
       ctx.line(`${thenLabel}:`);
-      let thenTerminated = false;
-      for (const s of stmt.then) {
-        emitStmt(ctx, s);
-        if (s.kind === "return" || s.kind === "break" || s.kind === "continue")
-          thenTerminated = true;
-      }
+      for (const s of stmt.then) emitStmt(ctx, s);
+      const thenTerminated = blockTerminates(stmt.then);
       if (!thenTerminated) ctx.line(`  br label %${mergeLabel}`);
 
       let elseTerminated = false;
       if (stmt.else) {
         ctx.line(`${elseLabel}:`);
-        for (const s of stmt.else) {
-          emitStmt(ctx, s);
-          if (s.kind === "return" || s.kind === "break" || s.kind === "continue")
-            elseTerminated = true;
-        }
+        for (const s of stmt.else) emitStmt(ctx, s);
+        elseTerminated = blockTerminates(stmt.else);
         if (!elseTerminated) ctx.line(`  br label %${mergeLabel}`);
       }
 
@@ -440,6 +442,10 @@ function emitUnary(ctx: EmitContext, expr: HIRExpr & { kind: "unary" }): string 
 }
 
 function emitRuntimeCall(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_call" }): string {
+  if (expr.func.startsWith("cs_math_")) {
+    return emitMathCall(ctx, expr);
+  }
+
   if (expr.func === "cs_console_log") {
     const arg = expr.args[0];
     if (arg) {
@@ -447,7 +453,7 @@ function emitRuntimeCall(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_call
       if (arg.type.kind === "i8ptr") {
         ctx.line(`  call i32 @puts(i8* ${val})`);
       } else if (arg.type.kind === "f64") {
-        const fmt = ctx.getOrCreateString("%g\n");
+        const fmt = ctx.getOrCreateString("%.17g\n");
         const fmtLen = Buffer.byteLength("%g\n", "utf-8") + 1;
         const fmtPtr = ctx.nextTemp();
         ctx.line(
@@ -484,4 +490,35 @@ function emitRuntimeCall(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_call
   }
 
   return "0";
+}
+
+const MATH_INTRINSICS: Record<string, string> = {
+  cs_math_floor: "@llvm.floor.f64",
+  cs_math_ceil: "@llvm.ceil.f64",
+  cs_math_abs: "@llvm.fabs.f64",
+  cs_math_sqrt: "@llvm.sqrt.f64",
+  cs_math_pow: "@llvm.pow.f64",
+  cs_math_log: "@llvm.log.f64",
+  cs_math_round: "@llvm.round.f64",
+  cs_math_max: "@llvm.maxnum.f64",
+  cs_math_min: "@llvm.minnum.f64",
+};
+
+function emitMathCall(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_call" }): string {
+  const intrinsic = MATH_INTRINSICS[expr.func];
+  if (!intrinsic) throw new Error(`unsupported math function: ${expr.func}`);
+
+  const args = expr.args.map((a) => {
+    const val = emitExpr(ctx, a);
+    if (a.type.kind === "i32") {
+      const widened = ctx.nextTemp();
+      ctx.line(`  ${widened} = sitofp i32 ${val} to double`);
+      return `double ${widened}`;
+    }
+    return `double ${val}`;
+  });
+
+  const tmp = ctx.nextTemp();
+  ctx.line(`  ${tmp} = call double ${intrinsic}(${args.join(", ")})`);
+  return tmp;
 }

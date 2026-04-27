@@ -47,6 +47,9 @@ const PARITY_FIXTURES = [
   "multi-function.ts",
   "bitwise.ts",
   "modulo.ts",
+  "division.ts",
+  "math-functions.ts",
+  "nested-if.ts",
 ];
 
 function compileExpectError(fixture: string): string {

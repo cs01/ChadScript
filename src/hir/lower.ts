@@ -312,6 +312,12 @@ function lowerBinary(expr: BinaryExpression): HIRExpr {
     return { kind: "binary", op, left, right, type: I32 };
   }
 
+  if (op === "div") {
+    if (left.type.kind !== "f64") left = coerce(left, F64);
+    if (right.type.kind !== "f64") right = coerce(right, F64);
+    return { kind: "binary", op, left, right, type: F64 };
+  }
+
   const operandType = resolveArithType(left.type, right.type);
   if (left.type.kind !== operandType.kind) left = coerce(left, operandType);
   if (right.type.kind !== operandType.kind) right = coerce(right, operandType);
