@@ -150,6 +150,45 @@ export function lowerModule(ast: Module, source?: string, filename?: string): HI
       isModuleScope = true;
     } else if (item.type === "VariableDeclaration") {
       for (const d of item.declarations) {
+        if (d.id.type === "ArrayPattern") {
+          const mutable = item.kind === "let" || item.kind === "var";
+          if (!d.init) compileError("array destructuring requires initializer", d.span);
+          const initExpr = lowerExpr(d.init);
+          if (initExpr.type.kind !== "array")
+            compileError("array destructuring requires array type", d.span);
+          const arrType = initExpr.type as { kind: "array"; element: HIRType };
+          const elemType = arrType.element;
+
+          const tmpName = `__destruct_g_${nextAnonId++}`;
+          globals.set(tmpName, { type: initExpr.type, mutable: false });
+          hirGlobals.push({ name: tmpName, type: initExpr.type, mutable: false });
+          init.push({
+            kind: "expr",
+            expr: { kind: "global_set", name: tmpName, value: initExpr, type: initExpr.type },
+          });
+
+          const elements: any[] = d.id.elements;
+          for (let i = 0; i < elements.length; i++) {
+            const elem = elements[i];
+            if (elem === null) continue;
+            if (elem.type !== "Identifier")
+              compileError(`unsupported destructuring element: ${elem.type}`, elem.span);
+
+            const indexGet: HIRExpr = {
+              kind: "index_get",
+              array: { kind: "global_get", name: tmpName, type: initExpr.type },
+              index: { kind: "literal_i64", value: i, type: I64 },
+              type: elemType,
+            };
+            globals.set(elem.value, { type: elemType, mutable });
+            hirGlobals.push({ name: elem.value, type: elemType, mutable });
+            init.push({
+              kind: "expr",
+              expr: { kind: "global_set", name: elem.value, value: indexGet, type: elemType },
+            });
+          }
+          continue;
+        }
         if (d.id.type === "Identifier") {
           if (d.init?.type === "ArrowFunctionExpression" || d.init?.type === "FunctionExpression") {
             const fn = lowerArrowOrFnExpr(d.init, d.id.value);
@@ -817,6 +856,10 @@ function lowerVarDecl(decl: VariableDeclaration): HIRStmt[] {
   const mutable = decl.kind === "let" || decl.kind === "var";
 
   for (const d of decl.declarations) {
+    if (d.id.type === "ArrayPattern") {
+      stmts.push(...lowerArrayDestructuring(d, mutable));
+      continue;
+    }
     if (d.id.type === "Identifier") {
       if (d.init?.type === "ArrowFunctionExpression" || d.init?.type === "FunctionExpression") {
         const fn = lowerArrowOrFnExpr(d.init, d.id.value);
@@ -841,6 +884,58 @@ function lowerVarDecl(decl: VariableDeclaration): HIRStmt[] {
         ),
       );
     }
+  }
+
+  return stmts;
+}
+
+function lowerArrayDestructuring(d: any, mutable: boolean): HIRStmt[] {
+  const stmts: HIRStmt[] = [];
+  if (!d.init) compileError("array destructuring requires initializer", d.span);
+
+  const initExpr = lowerExpr(d.init);
+  if (initExpr.type.kind !== "array")
+    compileError("array destructuring requires array type", d.span);
+
+  const arrType = initExpr.type as { kind: "array"; element: HIRType };
+  const elemType = arrType.element;
+
+  const tmpId = freshId();
+  const tmpName = `__destruct_${tmpId}`;
+  locals.set(tmpName, { id: tmpId, type: initExpr.type, mutable: false });
+  stmts.push({
+    kind: "let",
+    id: tmpId,
+    name: tmpName,
+    type: initExpr.type,
+    init: initExpr,
+    mutable: false,
+  } as HIRStmt);
+
+  const elements: any[] = d.id.elements;
+  for (let i = 0; i < elements.length; i++) {
+    const elem = elements[i];
+    if (elem === null) continue;
+    if (elem.type !== "Identifier")
+      compileError(`unsupported destructuring element: ${elem.type}`, elem.span);
+
+    const elemId = freshId();
+    const indexGet: HIRExpr = {
+      kind: "index_get",
+      array: { kind: "local_get", id: tmpId, type: initExpr.type },
+      index: { kind: "literal_i64", value: i, type: I64 },
+      type: elemType,
+    };
+
+    locals.set(elem.value, { id: elemId, type: elemType, mutable });
+    stmts.push({
+      kind: "let",
+      id: elemId,
+      name: elem.value,
+      type: elemType,
+      init: indexGet,
+      mutable,
+    } as HIRStmt);
   }
 
   return stmts;

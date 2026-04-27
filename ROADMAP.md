@@ -66,6 +66,7 @@ Narrow/widen boundaries:
 This is the deepest performance advantage — beyond just "unboxed doubles." When a `number` is provably integer-valued, we narrow it to `i32` and keep it there through entire computation chains.
 
 **What a box-first compiler does for `i % 2`:**
+
 ```llvm
 ; box-first: number is always f64 (NaN-boxed), must round-trip through int
 %1 = call double @unbox(%arg0)     ; untag NaN-box
@@ -77,12 +78,14 @@ This is the deepest performance advantage — beyond just "unboxed doubles." Whe
 ```
 
 **What ChadScript v2 does for `i % 2` (when `i` is narrowed to i32):**
+
 ```llvm
 %3 = srem i32 %i, 2
 ; 1 instruction. Done.
 ```
 
 **When to narrow:**
+
 - Loop counter variables: `for (let i = 0; i < n; i++)` → `i` is i32
 - Integer literal assignments: `const x = 42` → x is i32
 - Bitwise operations: `x & 0xFF`, `x << 2`, `x | mask` → result is i32
@@ -91,6 +94,7 @@ This is the deepest performance advantage — beyond just "unboxed doubles." Whe
 - Function params when all call sites pass i32 (interprocedural narrowing)
 
 **When to widen back to f64:**
+
 - Division that might produce a fraction: `i / 3` → widen to f64 before `fdiv`
 - Passed to a function expecting f64
 - Stored in a `number[]` (f64 array)
@@ -98,6 +102,7 @@ This is the deepest performance advantage — beyond just "unboxed doubles." Whe
 - Overflow risk: `i32` wraps at 2^31; if the value could exceed that, stay f64
 
 **Implementation — `IntegerNarrowingPass` (HIR transform):**
+
 1. Walk all `let` declarations. If init is integer literal or `0`, mark as i32 candidate.
 2. Walk all assignments to that variable. If all are integer-producing ops (add, sub, mul, srem, bitwise), confirm i32.
 3. Walk all uses. If any use requires f64 (passed to f64 function, stored in f64 array, division), insert `widen_f64` at that use site only.
@@ -105,15 +110,17 @@ This is the deepest performance advantage — beyond just "unboxed doubles." Whe
 5. Codegen: i32 locals get `alloca i32` instead of `alloca double`. All arithmetic stays in i32.
 
 **Interprocedural narrowing (the real win for benchmarks):**
+
 ```typescript
 function monteCarlo(iterations: number): number {
-  let inside = 0;                    // ← narrowed to i32
-  for (let i = 0; i < iterations; i++) {  // ← i narrowed to i32
-    const x = Math.random() * 2 - 1;     // ← stays f64 (random returns f64)
+  let inside = 0; // ← narrowed to i32
+  for (let i = 0; i < iterations; i++) {
+    // ← i narrowed to i32
+    const x = Math.random() * 2 - 1; // ← stays f64 (random returns f64)
     const y = Math.random() * 2 - 1;
-    if (x * x + y * y <= 1) inside++;     // ← i32 add, no f64 conversion
+    if (x * x + y * y <= 1) inside++; // ← i32 add, no f64 conversion
   }
-  return inside;                     // ← i32 → f64 widen only at return
+  return inside; // ← i32 → f64 widen only at return
 }
 ```
 
@@ -123,18 +130,18 @@ The entire inner loop runs with `inside` as native i32. A box-first compiler wou
 
 ## What Survives From v1
 
-| Component | Lines | Action | Rationale |
-|-----------|-------|--------|-----------|
-| Test fixtures (718 files) | — | **REFERENCE ONLY** | Many use ChadScript imports/semantics; write new Node-compat fixtures for v2 |
-| Test discovery + harness | ~180 | **KEEP pattern** | Annotation-based discovery is good; adapt for v2 fixture dirs |
-| C bridges (regex, json, net, pg, etc.) | 8,682 | **KEEP 90%** | Runtime helpers, not tied to codegen |
-| Semantic passes (21 passes) | 6,335 | **KEEP 90%** | Operate on AST, not IR |
-| Diagnostic engine | 604 | **KEEP** | Pure error reporting |
-| AST types (types.ts) | 537 | **KEEP or evolve** | May adapt to SWC AST |
-| Build tooling (scripts/) | 2,722 | **KEEP 95%** | Backend-agnostic |
-| CI pipeline | 877 | **KEEP** | Update invocations only |
-| lib/ stdlib stubs | 3,123 | **KEEP** | API specs |
-| Codegen (67K lines) | 67,665 | **DISCARD** | This is the rewrite |
+| Component                              | Lines  | Action             | Rationale                                                                    |
+| -------------------------------------- | ------ | ------------------ | ---------------------------------------------------------------------------- |
+| Test fixtures (718 files)              | —      | **REFERENCE ONLY** | Many use ChadScript imports/semantics; write new Node-compat fixtures for v2 |
+| Test discovery + harness               | ~180   | **KEEP pattern**   | Annotation-based discovery is good; adapt for v2 fixture dirs                |
+| C bridges (regex, json, net, pg, etc.) | 8,682  | **KEEP 90%**       | Runtime helpers, not tied to codegen                                         |
+| Semantic passes (21 passes)            | 6,335  | **KEEP 90%**       | Operate on AST, not IR                                                       |
+| Diagnostic engine                      | 604    | **KEEP**           | Pure error reporting                                                         |
+| AST types (types.ts)                   | 537    | **KEEP or evolve** | May adapt to SWC AST                                                         |
+| Build tooling (scripts/)               | 2,722  | **KEEP 95%**       | Backend-agnostic                                                             |
+| CI pipeline                            | 877    | **KEEP**           | Update invocations only                                                      |
+| lib/ stdlib stubs                      | 3,123  | **KEEP**           | API specs                                                                    |
+| Codegen (67K lines)                    | 67,665 | **DISCARD**        | This is the rewrite                                                          |
 
 ~32K lines survive. ~67K lines replaced with ~15-20K lines of HIR + new codegen.
 
@@ -146,73 +153,75 @@ The HIR is the core new abstraction. It's a typed, lowered, unambiguous IR — a
 // hir/types.ts — the whole thing should be ~500-800 lines
 
 type HIRType =
-  | { kind: "f64" }             // number (floating point)
-  | { kind: "i32" }             // number (narrowed integer — the secret sauce)
-  | { kind: "i1" }              // boolean
-  | { kind: "i8ptr" }           // string
+  | { kind: "f64" } // number (floating point)
+  | { kind: "i32" } // number (narrowed integer — the secret sauce)
+  | { kind: "i1" } // boolean
+  | { kind: "i8ptr" } // string
   | { kind: "void" }
-  | { kind: "ptr", pointee: string }  // class/interface struct
-  | { kind: "array", element: HIRType }
-  | { kind: "boxed" }           // NaN-boxed value (f64 with tag)
-  | { kind: "struct", name: string, fields: HIRField[] }
+  | { kind: "ptr"; pointee: string } // class/interface struct
+  | { kind: "array"; element: HIRType }
+  | { kind: "boxed" } // NaN-boxed value (f64 with tag)
+  | { kind: "struct"; name: string; fields: HIRField[] };
 
 type HIRExpr =
-  | { kind: "literal_f64", value: number }
-  | { kind: "literal_i1", value: boolean }
-  | { kind: "literal_string", value: string }
+  | { kind: "literal_f64"; value: number }
+  | { kind: "literal_i1"; value: boolean }
+  | { kind: "literal_string"; value: string }
   | { kind: "literal_null" }
-  | { kind: "local_get", id: number, type: HIRType }
-  | { kind: "local_set", id: number, value: HIRExpr }
-  | { kind: "global_get", name: string, type: HIRType }
-  | { kind: "global_set", name: string, value: HIRExpr }
-  | { kind: "binary", op: BinaryOp, left: HIRExpr, right: HIRExpr, type: HIRType }
-  | { kind: "unary", op: UnaryOp, operand: HIRExpr, type: HIRType }
-  | { kind: "call", callee: string, args: HIRExpr[], returnType: HIRType }
-  | { kind: "call_indirect", callee: HIRExpr, args: HIRExpr[], returnType: HIRType }
-  | { kind: "field_get", object: HIRExpr, index: number, type: HIRType }
-  | { kind: "field_set", object: HIRExpr, index: number, value: HIRExpr }
-  | { kind: "index_get", array: HIRExpr, index: HIRExpr, type: HIRType }
-  | { kind: "index_set", array: HIRExpr, index: HIRExpr, value: HIRExpr }
-  | { kind: "box", value: HIRExpr, fromType: HIRType }        // unboxed → NaN-box
-  | { kind: "unbox", value: HIRExpr, toType: HIRType }        // NaN-box → unboxed
-  | { kind: "narrow_i32", value: HIRExpr }                    // f64 → i32 (fptosi)
-  | { kind: "widen_f64", value: HIRExpr }                     // i32 → f64 (sitofp)
-  | { kind: "alloc_struct", structName: string, fields: HIRExpr[] }
-  | { kind: "alloc_array", elementType: HIRType, initialValues: HIRExpr[] }
-  | { kind: "runtime_call", func: string, args: HIRExpr[], returnType: HIRType }
-  | { kind: "phi", branches: { label: string, value: HIRExpr }[], type: HIRType }
-  // ... ~30-40 total node kinds. Built-in methods use runtime_call, not dedicated variants.
+  | { kind: "local_get"; id: number; type: HIRType }
+  | { kind: "local_set"; id: number; value: HIRExpr }
+  | { kind: "global_get"; name: string; type: HIRType }
+  | { kind: "global_set"; name: string; value: HIRExpr }
+  | { kind: "binary"; op: BinaryOp; left: HIRExpr; right: HIRExpr; type: HIRType }
+  | { kind: "unary"; op: UnaryOp; operand: HIRExpr; type: HIRType }
+  | { kind: "call"; callee: string; args: HIRExpr[]; returnType: HIRType }
+  | { kind: "call_indirect"; callee: HIRExpr; args: HIRExpr[]; returnType: HIRType }
+  | { kind: "field_get"; object: HIRExpr; index: number; type: HIRType }
+  | { kind: "field_set"; object: HIRExpr; index: number; value: HIRExpr }
+  | { kind: "index_get"; array: HIRExpr; index: HIRExpr; type: HIRType }
+  | { kind: "index_set"; array: HIRExpr; index: HIRExpr; value: HIRExpr }
+  | { kind: "box"; value: HIRExpr; fromType: HIRType } // unboxed → NaN-box
+  | { kind: "unbox"; value: HIRExpr; toType: HIRType } // NaN-box → unboxed
+  | { kind: "narrow_i32"; value: HIRExpr } // f64 → i32 (fptosi)
+  | { kind: "widen_f64"; value: HIRExpr } // i32 → f64 (sitofp)
+  | { kind: "alloc_struct"; structName: string; fields: HIRExpr[] }
+  | { kind: "alloc_array"; elementType: HIRType; initialValues: HIRExpr[] }
+  | { kind: "runtime_call"; func: string; args: HIRExpr[]; returnType: HIRType }
+  | { kind: "phi"; branches: { label: string; value: HIRExpr }[]; type: HIRType };
+// ... ~30-40 total node kinds. Built-in methods use runtime_call, not dedicated variants.
 
 type HIRStmt =
-  | { kind: "let", id: number, name: string, type: HIRType, init?: HIRExpr, mutable: boolean }
-  | { kind: "expr", expr: HIRExpr }
-  | { kind: "return", value?: HIRExpr }
-  | { kind: "if", condition: HIRExpr, then: HIRStmt[], else?: HIRStmt[] }
-  | { kind: "while", condition: HIRExpr, body: HIRStmt[] }
-  | { kind: "for", init?: HIRStmt, condition?: HIRExpr, update?: HIRExpr, body: HIRStmt[] }
-  | { kind: "break" } | { kind: "continue" }
-  | { kind: "switch", discriminant: HIRExpr, cases: HIRSwitchCase[] }
-  | { kind: "throw", value: HIRExpr }
-  | { kind: "try", body: HIRStmt[], catch?: HIRCatch, finally?: HIRStmt[] }
+  | { kind: "let"; id: number; name: string; type: HIRType; init?: HIRExpr; mutable: boolean }
+  | { kind: "expr"; expr: HIRExpr }
+  | { kind: "return"; value?: HIRExpr }
+  | { kind: "if"; condition: HIRExpr; then: HIRStmt[]; else?: HIRStmt[] }
+  | { kind: "while"; condition: HIRExpr; body: HIRStmt[] }
+  | { kind: "for"; init?: HIRStmt; condition?: HIRExpr; update?: HIRExpr; body: HIRStmt[] }
+  | { kind: "break" }
+  | { kind: "continue" }
+  | { kind: "switch"; discriminant: HIRExpr; cases: HIRSwitchCase[] }
+  | { kind: "throw"; value: HIRExpr }
+  | { kind: "try"; body: HIRStmt[]; catch?: HIRCatch; finally?: HIRStmt[] };
 
 interface HIRFunction {
-  name: string
-  params: { id: number, name: string, type: HIRType }[]
-  returnType: HIRType
-  body: HIRStmt[]
-  isAsync: boolean
-  captures: number[]  // closure captures by local id
+  name: string;
+  params: { id: number; name: string; type: HIRType }[];
+  returnType: HIRType;
+  body: HIRStmt[];
+  isAsync: boolean;
+  captures: number[]; // closure captures by local id
 }
 
 interface HIRModule {
-  functions: HIRFunction[]
-  classes: HIRClass[]
-  globals: HIRGlobal[]
-  init: HIRStmt[]  // module-level initialization
+  functions: HIRFunction[];
+  classes: HIRClass[];
+  globals: HIRGlobal[];
+  init: HIRStmt[]; // module-level initialization
 }
 ```
 
 Key design principles:
+
 - **Every node carries its type.** Codegen never needs to infer anything.
 - **`box`/`unbox` are explicit nodes.** The transform pass inserts them; codegen just emits them mechanically.
 - **~30-40 expression kinds, lean by design.** We use `runtime_call` for built-in methods (`array.push`, `string.split`, etc.) — the HIR doesn't need a variant per built-in function.
@@ -237,6 +246,7 @@ const ast = parseSync(source, { syntax: "typescript", decorators: true });
 ## Implementation Phases
 
 ### Phase 0: Scaffold (~1-2 weeks, ~2K LOC)
+
 **Goal:** New repo, SWC parsing, LLVM C API bridge, empty HIR pipeline end-to-end.
 
 - [x] Close all 9 open v1 issues with "superseded by v2 rewrite" comment
@@ -253,10 +263,11 @@ const ast = parseSync(source, { syntax: "typescript", decorators: true });
 - [x] **Milestone:** `chad2 build hello.ts -o hello && ./hello` prints "hello world"
 
 ### Phase 1: Numeric Core (~2-3 weeks, ~4-5K LOC)
+
 **Goal:** All numeric operations work unboxed with integer narrowing. Fibonacci, monte carlo, prime sieve pass.
 
 - [x] Lowering: functions, let/const, if/else, while, for, return
-- [x] Lowering: number literals, arithmetic (+, -, *, /, %), comparisons
+- [x] Lowering: number literals, arithmetic (+, -, \*, /, %), comparisons
 - [x] Lowering: function calls with typed params (f64/i64 ABI) — **changed to i64 for overflow safety**
 - [x] Lowering: boolean operations, logical &&/||
 - [x] Integer narrowing: i64 for integer values, bitwise ops enforce JS ToInt32 (trunc→i32 op→sext i64)
@@ -268,6 +279,7 @@ const ast = parseSync(source, { syntax: "typescript", decorators: true });
 - [x] Run existing test fixtures: all 36 parity tests pass
 
 ### Phase 1.5: LLVM C API Swap (~1 week, ~1-2K LOC)
+
 **Goal:** Replace text `.ll` emission with LLVM C API calls. Do this before Phase 2 so all subsequent codegen uses the type-safe API.
 
 - [x] `src/codegen/llvm.ts` — koffi FFI wrapper for LLVM C API (replaces C bridge approach)
@@ -281,6 +293,7 @@ const ast = parseSync(source, { syntax: "typescript", decorators: true });
 **Why now:** text IR is fine for bootstrapping, but every new Phase 2+ emitter written against text will need rewriting. Swap once now, write all future codegen against the real API.
 
 ### Phase 2: Strings + Arrays (~2 weeks, ~4-5K LOC)
+
 **Goal:** String and array operations, still all unboxed (statically typed).
 
 - [x] Lowering: string literals, concatenation, string methods
@@ -293,6 +306,7 @@ const ast = parseSync(source, { syntax: "typescript", decorators: true });
 - [x] **Milestone:** string + array parity tests passing (36 total)
 
 ### Phase 3: Classes + Interfaces (~2-3 weeks, ~4-5K LOC)
+
 **Goal:** Object system with struct layout, vtable dispatch.
 
 - [x] Lowering: class declarations, fields, methods, constructors
@@ -300,7 +314,7 @@ const ast = parseSync(source, { syntax: "typescript", decorators: true });
 - [x] Lowering: inheritance (extends)
 - [x] Codegen: struct layout for classes (GC_malloc + GEP field access)
 - [x] Codegen: `alloc_struct` → `GC_malloc` + field init
-- [x] Codegen: class arrays via ObjArray (void** storage)
+- [x] Codegen: class arrays via ObjArray (void\*\* storage)
 - [x] DWARF debug info — lldb line-level stepping in .ts source files
 - [x] Lowering: interface declarations, structural typing
 - [x] Lowering: interface implementation (class implements interface)
@@ -309,6 +323,7 @@ const ast = parseSync(source, { syntax: "typescript", decorators: true });
 - [x] **Milestone:** 47 parity tests passing including interfaces
 
 ### Phase 4: Closures + Async (~2-3 weeks, ~4K LOC)
+
 **Goal:** Closures capture correctly, async/await works.
 
 - [x] Closure capture analysis in lowering (outerLocals, capturedIds tracking)
@@ -332,6 +347,7 @@ const ast = parseSync(source, { syntax: "typescript", decorators: true });
 - [ ] **Milestone:** `tests/fixtures/async/` passing
 
 ### Phase 5: Language Gaps (~1-2 weeks, ~2-3K LOC)
+
 **Goal:** Round out the language before stdlib. Fill in common TS features that don't need NaN-boxing.
 
 - [x] try/catch/throw — setjmp/longjmp based exception handling
@@ -345,6 +361,7 @@ const ast = parseSync(source, { syntax: "typescript", decorators: true });
 - [ ] **Milestone:** Common TS patterns compile and run correctly
 
 ### Phase 6: NaN-Boxing Escape Hatch (~2 weeks, ~3-4K LOC)
+
 **Goal:** Dynamic types work. `any`, unions, untyped params all NaN-boxed.
 
 - [ ] `BoxInsertionPass`: HIR transform that finds box/unbox boundaries
@@ -359,6 +376,7 @@ const ast = parseSync(source, { syntax: "typescript", decorators: true });
 - [ ] **Milestone:** Programs mixing typed and untyped code work correctly
 
 ### Phase 7: Stdlib + Node Compat (~4-6 weeks, ~8-10K LOC)
+
 **Goal:** Full Node.js API surface. Start with 15-20 core modules (80/20), then expand to long tail. Each new module is just more `runtime_call` targets backed by C bridges — incremental, not architectural.
 
 - [ ] `console` (log, error, warn, time, timeEnd)
@@ -377,6 +395,7 @@ const ast = parseSync(source, { syntax: "typescript", decorators: true });
 - [ ] **Milestone:** Real-world programs compile and run. Express-like server works.
 
 ### Phase 8: Self-Hosting (~2-3 weeks, ~500 LOC new)
+
 **Goal:** ChadScript compiles itself to a native binary.
 
 Feasible here because Phase 6 gives us the Node APIs the compiler uses (fs, path, child_process, Map, JSON). The only blocker is the parser: SWC is a Rust native addon — a ChadScript binary can't `require("@swc/core")`. Solution: **Rust FFI bridge to `swc_ecma_parser`**.
@@ -391,6 +410,7 @@ Feasible here because Phase 6 gives us the Node APIs the compiler uses (fs, path
 **Not a tax this time:** self-hosting is a victory lap, not a design constraint. We don't require every feature to bootstrap — just enough TS support to compile the compiler source. No "two compiler" tax.
 
 ### Phase 9: Optimization Passes (~2-3 weeks, ~3K LOC)
+
 **Goal:** Match or beat v1 benchmarks across all workloads.
 
 - [ ] `InliningPass`: inline small functions (< N HIR nodes, single call site)
@@ -401,6 +421,7 @@ Feasible here because Phase 6 gives us the Node APIs the compiler uses (fs, path
 - [ ] **Milestone:** All benchmarks match or beat v1 numbers
 
 ### Phase 10: Polish + Parity (~ongoing)
+
 - [ ] DWARF debug info — carry SWC spans through HIR, emit `!dbg` metadata on LLVM instructions. Just `DIFile`/`DISubprogram`/`DILocation` metadata — LLVM handles the rest. Gives `lldb` line-level stepping and backtraces with `.ts` filenames for free.
 - [ ] Incremental compilation (per-module codegen caching)
 - [ ] Cross-compilation support
@@ -457,11 +478,23 @@ Estimated total new code: **~15-20K lines** (vs 67K lines of v1 codegen).
 1. **Now (Phases 0-4):** Standalone `.ts` parity fixtures diffed against `node --experimental-strip-types`. This is the existing 46-test pattern — scale it up as features land. Each new feature gets hand-written fixtures exercising edge cases from test262/Bun test catalogs.
 
 2. **Phase 5 (closures):** ChadScript gains `describe(() => { test(() => { ... }) })`. Ship a minimal `bun:test` shim as a ChadScript stdlib module (~20 lines):
+
    ```typescript
-   function describe(name: string, fn: () => void): void { fn(); }
-   function test(name: string, fn: () => void): void { fn(); }
-   function expect(val: any): any { return { toBe(x: any) { if (val !== x) throw "fail"; } /* ... */ }; }
+   function describe(name: string, fn: () => void): void {
+     fn();
+   }
+   function test(name: string, fn: () => void): void {
+     fn();
+   }
+   function expect(val: any): any {
+     return {
+       toBe(x: any) {
+         if (val !== x) throw "fail";
+       } /* ... */,
+     };
+   }
    ```
+
    At this point Bun test files can parse and run structurally — the `describe`/`test`/`expect` wrappers work, even if the APIs under test aren't all there yet. Gives us a skip/pass/fail count per category.
 
 3. **Phase 6 (stdlib):** Each new module (fs, path, crypto, etc.) immediately unlocks the corresponding Bun compat tests. Add `chad2 test:compat` command that:
@@ -473,6 +506,7 @@ Estimated total new code: **~15-20K lines** (vs 67K lines of v1 codegen).
 4. **Phase 9 (polish):** Port test262 `test/language/` and `test/built-ins/` for language semantics coverage. These are self-contained (no framework), just need `assert.js` → ChadScript shim.
 
 **Sources:**
+
 - Bun (`/Users/csmith/git/bun/test/js/node/`): 227 files, 59 categories (fs=23, path=21, process=38, crypto=16, child_process=18, http=25). Jest-style → shim.
 - Node (`/Users/csmith/git/node/test/parallel/`): 3,860 tests. Heavy on internals but exhaustive.
 - test262 (github.com/tc39/test262): Authoritative for language semantics.
@@ -490,6 +524,7 @@ Each phase has a concrete milestone. Verification at each phase:
 5. No self-hosting requirement (removed)
 
 End-state verification:
+
 - `npm test` passes 95%+ of existing 718 fixtures
 - Benchmarks: fib ≤ 170ms, monte carlo ≤ 25ms, startup ≤ 2ms (match or beat v1)
 - Object allocation benchmark competitive (within 2x of box-first compilers thanks to future precise GC)
@@ -498,20 +533,20 @@ End-state verification:
 
 ## LOC + Timeline Estimate
 
-| Phase | LOC | Calendar |
-|-------|-----|----------|
-| 0: Scaffold | ~1K | 1 week |
-| 1: Numeric core | ~3-4K | 2 weeks |
-| 1.5: LLVM C API swap | ~1-2K | 1 week |
-| 2: Strings + arrays | ~4-5K | 2 weeks |
-| 3: Classes + interfaces | ~4-5K | 2-3 weeks |
-| 4: Closures + async | ~4K | 2-3 weeks |
-| 5: Language gaps | ~2-3K | 1-2 weeks |
-| 6: NaN-boxing escape | ~3-4K | 2 weeks |
-| 7: Stdlib | ~8-10K | 4-6 weeks |
-| 8: Self-hosting | ~500 | 2-3 weeks |
-| 9: Optimization | ~3K | 2-3 weeks |
-| 10: Polish + parity | ~2K | ongoing |
-| **Total** | **~35-46K** | **~6-7 months** |
+| Phase                   | LOC         | Calendar        |
+| ----------------------- | ----------- | --------------- |
+| 0: Scaffold             | ~1K         | 1 week          |
+| 1: Numeric core         | ~3-4K       | 2 weeks         |
+| 1.5: LLVM C API swap    | ~1-2K       | 1 week          |
+| 2: Strings + arrays     | ~4-5K       | 2 weeks         |
+| 3: Classes + interfaces | ~4-5K       | 2-3 weeks       |
+| 4: Closures + async     | ~4K         | 2-3 weeks       |
+| 5: Language gaps        | ~2-3K       | 1-2 weeks       |
+| 6: NaN-boxing escape    | ~3-4K       | 2 weeks         |
+| 7: Stdlib               | ~8-10K      | 4-6 weeks       |
+| 8: Self-hosting         | ~500        | 2-3 weeks       |
+| 9: Optimization         | ~3K         | 2-3 weeks       |
+| 10: Polish + parity     | ~2K         | ongoing         |
+| **Total**               | **~35-46K** | **~6-7 months** |
 
 This is aggressive but realistic. v1 is 100K+ LOC. The HIR layer means each line does more — no string concatenation, no scattered type resolution, no dispatch ladders.
