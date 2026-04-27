@@ -334,7 +334,7 @@ const ast = parseSync(source, { syntax: "typescript", decorators: true });
 ### Phase 5: Language Gaps (~1-2 weeks, ~2-3K LOC)
 **Goal:** Round out the language before stdlib. Fill in common TS features that don't need NaN-boxing.
 
-- [ ] try/catch/throw — setjmp/longjmp based exception handling
+- [x] try/catch/throw — setjmp/longjmp based exception handling
 - [ ] Array destructuring — `const [a, b, c] = arr`
 - [ ] Object destructuring — `const { x, y } = obj`
 - [ ] Spread in arrays — `[...arr, 1, 2]`
