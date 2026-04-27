@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import { strict as assert } from "node:assert";
 import { execSync } from "child_process";
-import { mkdtempSync, readdirSync, rmSync } from "fs";
+import { mkdtempSync, readdirSync, rmSync, statSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 
@@ -10,6 +10,20 @@ const ERROR_FIXTURES = join(FIXTURES, "errors");
 
 const ANSI_RE = /\x1B\[[0-9;]*m/g;
 const stripAnsi = (s: string) => s.replace(ANSI_RE, "");
+
+function discoverFixtures(dir: string): string[] {
+  const results: string[] = [];
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    if (entry === "errors") continue;
+    if (statSync(full).isDirectory()) {
+      for (const f of readdirSync(full)) {
+        if (f.endsWith(".ts")) results.push(join(entry, f));
+      }
+    }
+  }
+  return results.sort();
+}
 
 function compileAndRun(fixture: string): string {
   const tmpDir = mkdtempSync(join(tmpdir(), "chad2-test-"));
@@ -35,9 +49,7 @@ function nodeRun(fixture: string): string {
   return stripAnsi(result.trimEnd());
 }
 
-const fixtures = readdirSync(FIXTURES)
-  .filter((f) => f.endsWith(".ts"))
-  .sort();
+const fixtures = discoverFixtures(FIXTURES);
 
 function compileExpectError(fixture: string): string {
   const tmpDir = mkdtempSync(join(tmpdir(), "chad2-test-"));
