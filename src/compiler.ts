@@ -45,7 +45,7 @@ export function compile(opts: CompileOptions): void {
       stdio: "inherit",
     });
     if (process.platform === "darwin") {
-      execSync(`dsymutil ${opts.output}`, { stdio: "inherit" });
+      execSync(`dsymutil -q ${opts.output}`, { stdio: "inherit" });
     }
   } finally {
     try {

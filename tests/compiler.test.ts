@@ -8,6 +8,9 @@ import { tmpdir } from "os";
 const FIXTURES = join(import.meta.dirname, "fixtures");
 const ERROR_FIXTURES = join(FIXTURES, "errors");
 
+const ANSI_RE = /\x1B\[[0-9;]*m/g;
+const stripAnsi = (s: string) => s.replace(ANSI_RE, "");
+
 function compileAndRun(fixture: string): string {
   const tmpDir = mkdtempSync(join(tmpdir(), "chad2-test-"));
   const outBin = join(tmpDir, "out");
@@ -18,7 +21,7 @@ function compileAndRun(fixture: string): string {
       timeout: 30000,
     });
     const result = execSync(outBin, { encoding: "utf-8", timeout: 10000 });
-    return result.trimEnd();
+    return stripAnsi(result.trimEnd());
   } finally {
     rmSync(tmpDir, { recursive: true, force: true });
   }
@@ -29,7 +32,7 @@ function nodeRun(fixture: string): string {
     encoding: "utf-8",
     timeout: 10000,
   });
-  return result.trimEnd();
+  return stripAnsi(result.trimEnd());
 }
 
 const fixtures = readdirSync(FIXTURES)
