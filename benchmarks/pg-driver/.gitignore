@@ -1,4 +1,0 @@
-node_modules/
-/tmp/bench-*
-bench-go/bench-go
-results.txt
