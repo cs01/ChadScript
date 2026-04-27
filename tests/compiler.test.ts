@@ -42,6 +42,11 @@ const PARITY_FIXTURES = [
   "nested-calls.ts",
   "if-else.ts",
   "integer-narrowing.ts",
+  "increment.ts",
+  "string-basic.ts",
+  "multi-function.ts",
+  "bitwise.ts",
+  "modulo.ts",
 ];
 
 function compileExpectError(fixture: string): string {

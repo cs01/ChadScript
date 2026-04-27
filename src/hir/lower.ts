@@ -299,10 +299,18 @@ function lowerIdentifier(id: Identifier): HIRExpr {
   return { kind: "global_get", name: id.value, type: BOXED };
 }
 
+const BITWISE_OPS: BinaryOp[] = ["bit_and", "bit_or", "bit_xor", "shl", "shr", "ushr"];
+
 function lowerBinary(expr: BinaryExpression): HIRExpr {
   let left = lowerExpr(expr.left);
   let right = lowerExpr(expr.right);
   const op = mapBinaryOp(expr.operator);
+
+  if (BITWISE_OPS.includes(op)) {
+    if (left.type.kind !== "i32") left = coerce(left, I32);
+    if (right.type.kind !== "i32") right = coerce(right, I32);
+    return { kind: "binary", op, left, right, type: I32 };
+  }
 
   const operandType = resolveArithType(left.type, right.type);
   if (left.type.kind !== operandType.kind) left = coerce(left, operandType);

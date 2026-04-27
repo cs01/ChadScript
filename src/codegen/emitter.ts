@@ -257,8 +257,11 @@ function emitStmt(ctx: EmitContext, stmt: HIRStmt): void {
 
 function emitExpr(ctx: EmitContext, expr: HIRExpr): string {
   switch (expr.kind) {
-    case "literal_f64":
-      return `${expr.value.toExponential()}`;
+    case "literal_f64": {
+      if (Object.is(expr.value, -0)) return "-0.0";
+      const s = expr.value.toExponential(20);
+      return s;
+    }
     case "literal_i32":
       return `${expr.value}`;
     case "literal_i1":
