@@ -78,6 +78,7 @@ const interfaceRegistry = new Map<
     methods: { name: string; params: HIRParam[]; returnType: HIRType }[];
   }
 >();
+const restParamRegistry = new Map<string, number>();
 let isModuleScope = true;
 let expectedArrayElementType: HIRType | null = null;
 let currentClassName: string | null = null;
@@ -114,6 +115,7 @@ export function lowerModule(ast: Module, source?: string, filename?: string): HI
   fnAliases.clear();
   pendingFunctions.length = 0;
   closureInfoMap.clear();
+  restParamRegistry.clear();
   nextAnonId = 0;
   isModuleScope = true;
   sourceText = source || "";
@@ -297,12 +299,28 @@ export function lowerModule(ast: Module, source?: string, filename?: string): HI
 }
 
 function registerFunction(decl: FunctionDeclaration): void {
-  const params: HIRParam[] = decl.params.map((p, i) => {
-    const type = p.pat.type === "Identifier" ? resolveTypeAnnotation(p.pat.typeAnnotation) : BOXED;
-    return { id: i, name: p.pat.type === "Identifier" ? p.pat.value : `p${i}`, type };
-  });
+  const params: HIRParam[] = [];
+  let restIndex = -1;
+  for (let i = 0; i < decl.params.length; i++) {
+    const p = decl.params[i];
+    if (p.pat.type === "RestElement") {
+      restIndex = i;
+      const arg = (p.pat as any).argument;
+      const name = arg.type === "Identifier" ? arg.value : `p${i}`;
+      const typeAnn = (p.pat as any).typeAnnotation;
+      const type = typeAnn
+        ? resolveTypeAnnotation(typeAnn)
+        : { kind: "array" as const, element: F64 };
+      params.push({ id: i, name, type, isRest: true });
+    } else {
+      const type =
+        p.pat.type === "Identifier" ? resolveTypeAnnotation(p.pat.typeAnnotation) : BOXED;
+      params.push({ id: i, name: p.pat.type === "Identifier" ? p.pat.value : `p${i}`, type });
+    }
+  }
   const returnType = decl.returnType ? resolveTypeAnnotation(decl.returnType) : VOID;
   functionRegistry.set(decl.identifier.value, { params, returnType });
+  if (restIndex >= 0) restParamRegistry.set(decl.identifier.value, restIndex);
 }
 
 function registerInterface(decl: any): void {
@@ -636,7 +654,17 @@ function lowerFunctionDecl(decl: FunctionDeclaration): HIRFunction {
 
   const params: HIRParam[] = [];
   for (const param of decl.params) {
-    if (param.pat.type === "Identifier") {
+    if (param.pat.type === "RestElement") {
+      const arg = (param.pat as any).argument;
+      const name = arg.type === "Identifier" ? arg.value : `rest${params.length}`;
+      const typeAnn = (param.pat as any).typeAnnotation;
+      const type: HIRType = typeAnn
+        ? resolveTypeAnnotation(typeAnn)
+        : { kind: "array", element: F64 };
+      const id = freshId();
+      params.push({ id, name, type, isRest: true });
+      locals.set(name, { id, type, mutable: false });
+    } else if (param.pat.type === "Identifier") {
       const id = freshId();
       const type = resolveTypeAnnotation(param.pat.typeAnnotation);
       params.push({ id, name: param.pat.value, type });
@@ -682,7 +710,18 @@ function lowerArrowOrFnExpr(expr: any, varName: string): HIRFunction {
   const params: HIRParam[] = [];
   for (const p of expr.params) {
     const pat = p.pat || p;
-    if (pat.type === "Identifier") {
+    if (pat.type === "RestElement") {
+      const arg = pat.argument;
+      const name = arg.type === "Identifier" ? arg.value : `rest${params.length}`;
+      const typeAnn = pat.typeAnnotation;
+      const type: HIRType = typeAnn
+        ? resolveTypeAnnotation(typeAnn)
+        : { kind: "array", element: F64 };
+      const id = freshId();
+      params.push({ id, name, type, isRest: true });
+      locals.set(name, { id, type, mutable: false });
+      restParamRegistry.set(fnName, params.length - 1);
+    } else if (pat.type === "Identifier") {
       const id = freshId();
       const type = resolveTypeAnnotation(pat.typeAnnotation);
       params.push({ id, name: pat.value, type });
@@ -739,7 +778,18 @@ function lowerNestedFunctionDecl(decl: FunctionDeclaration): HIRFunction {
 
   const params: HIRParam[] = [];
   for (const param of decl.params) {
-    if (param.pat.type === "Identifier") {
+    if (param.pat.type === "RestElement") {
+      const arg = (param.pat as any).argument;
+      const name = arg.type === "Identifier" ? arg.value : `rest${params.length}`;
+      const typeAnn = (param.pat as any).typeAnnotation;
+      const type: HIRType = typeAnn
+        ? resolveTypeAnnotation(typeAnn)
+        : { kind: "array", element: F64 };
+      const id = freshId();
+      params.push({ id, name, type, isRest: true });
+      locals.set(name, { id, type, mutable: false });
+      restParamRegistry.set(decl.identifier.value, params.length - 1);
+    } else if (param.pat.type === "Identifier") {
       const id = freshId();
       const type = resolveTypeAnnotation(param.pat.typeAnnotation);
       params.push({ id, name: param.pat.value, type });
@@ -1931,6 +1981,40 @@ function lowerCall(expr: CallExpression): HIRExpr {
     const fnInfo = functionRegistry.get(calleeName);
     if (!fnInfo) {
       compileError(`call to undeclared function '${expr.callee.value}'`, expr.span);
+    }
+    const restIdx = restParamRegistry.get(calleeName);
+    if (restIdx !== undefined) {
+      const args: HIRExpr[] = [];
+      for (let i = 0; i < restIdx; i++) {
+        let arg = lowerExpr(expr.arguments[i].expression);
+        if (fnInfo.params[i]) arg = coerce(arg, fnInfo.params[i].type);
+        args.push(arg);
+      }
+      const restParam = fnInfo.params[restIdx];
+      const elemType =
+        restParam.type.kind === "array"
+          ? (restParam.type as { kind: "array"; element: HIRType }).element
+          : F64;
+      const restArgs: HIRExpr[] = [];
+      for (let i = restIdx; i < expr.arguments.length; i++) {
+        let arg = lowerExpr(expr.arguments[i].expression);
+        arg = coerce(arg, elemType);
+        restArgs.push(arg);
+      }
+      const restArray: HIRExpr = {
+        kind: "alloc_array",
+        elementType: elemType,
+        initialValues: restArgs,
+        type: { kind: "array", element: elemType },
+      };
+      args.push(restArray);
+      return {
+        kind: "call",
+        callee: calleeName,
+        args,
+        returnType: fnInfo.returnType,
+        type: fnInfo.returnType,
+      };
     }
     const args = expr.arguments.map((a, i) => {
       let arg = lowerExpr(a.expression);

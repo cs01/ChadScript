@@ -206,6 +206,7 @@ export interface HIRParam {
   id: number;
   name: string;
   type: HIRType;
+  isRest?: boolean;
 }
 
 export interface HIRFunction {
