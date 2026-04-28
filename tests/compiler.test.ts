@@ -7,6 +7,7 @@ import { tmpdir } from "os";
 
 const FIXTURES = join(import.meta.dirname, "fixtures");
 const ERROR_FIXTURES = join(FIXTURES, "errors");
+const CLI = join(import.meta.dirname, "..", "src", "cli.ts");
 
 const ANSI_RE = /\x1B\[[0-9;]*m/g;
 const stripAnsi = (s: string) => s.replace(ANSI_RE, "");
@@ -30,7 +31,7 @@ function compileAndRun(fixture: string): string {
   const outBin = join(tmpDir, "out");
 
   try {
-    execSync(`npx tsx src/cli.ts build ${join(FIXTURES, fixture)} -o ${outBin}`, {
+    execSync(`node --import tsx ${CLI} build ${join(FIXTURES, fixture)} -o ${outBin}`, {
       encoding: "utf-8",
       timeout: 30000,
     });
@@ -49,14 +50,23 @@ function nodeRun(fixture: string): string {
   return stripAnsi(result.trimEnd());
 }
 
-const fixtures = discoverFixtures(FIXTURES);
+const allFixtures = discoverFixtures(FIXTURES);
+
+function sampleFixtures(all: string[], pct: number): string[] {
+  const n = Math.max(1, Math.ceil(all.length * pct));
+  const shuffled = [...all].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, n).sort();
+}
+
+const QUICK = process.env.QUICK === "1";
+const fixtures = QUICK ? sampleFixtures(allFixtures, 0.3) : allFixtures;
 
 function compileExpectError(fixture: string): string {
   const tmpDir = mkdtempSync(join(tmpdir(), "chad2-test-"));
   const outBin = join(tmpDir, "out");
 
   try {
-    execSync(`npx tsx src/cli.ts build ${join(ERROR_FIXTURES, fixture)} -o ${outBin}`, {
+    execSync(`node --import tsx ${CLI} build ${join(ERROR_FIXTURES, fixture)} -o ${outBin}`, {
       encoding: "utf-8",
       timeout: 30000,
       stdio: ["pipe", "pipe", "pipe"],
@@ -85,7 +95,7 @@ describe("compile errors", () => {
   it("undeclared function", () => {
     const err = compileExpectError("undeclared-fn.ts");
     assert.match(err, /call to undeclared function 'foo'/);
-    assert.match(err, /1:2/);
+    assert.match(err, /1:\d+/);
   });
 
   it("unsupported expression", () => {

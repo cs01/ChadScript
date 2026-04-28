@@ -14,3 +14,4 @@ dist/
 vendor/
 .claude/*
 !.claude/rules.md
+.cache/

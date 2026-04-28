@@ -10,6 +10,7 @@
   "scripts": {
     "build": "tsc",
     "test": "node --import tsx --test tests/compiler.test.ts",
+    "test:quick": "QUICK=1 node --import tsx --test tests/compiler.test.ts",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check ."

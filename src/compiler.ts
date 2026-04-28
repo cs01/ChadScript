@@ -2,7 +2,8 @@ import { resolveModules } from "./resolver.js";
 import { emitModule } from "./codegen/emitter.js";
 import { deadCodePass } from "./transforms/dead-code.js";
 import { constFoldPass } from "./transforms/const-fold.js";
-import { unlinkSync, existsSync } from "fs";
+import { unlinkSync, existsSync, readFileSync, mkdirSync, copyFileSync } from "fs";
+import { createHash } from "crypto";
 import { execSync } from "child_process";
 import { tmpdir } from "os";
 import { join, dirname } from "path";
@@ -65,6 +66,24 @@ const TIMER_BRIDGE = join(ROOT, "c_bridges", "v2-timer-bridge.c");
 const JSON_BRIDGE = join(ROOT, "c_bridges", "v2-json-bridge.c");
 const HTTP_BRIDGE = join(ROOT, "c_bridges", "v2-http-bridge.c");
 
+const BRIDGE_CACHE_DIR = join(ROOT, ".cache", "bridges");
+
+function hashFile(path: string): string {
+  return createHash("md5").update(readFileSync(path)).digest("hex").slice(0, 12);
+}
+
+function cachedCompile(src: string, outObj: string, flags: string): void {
+  mkdirSync(BRIDGE_CACHE_DIR, { recursive: true });
+  const hash = hashFile(src);
+  const cached = join(BRIDGE_CACHE_DIR, `${hash}-${src.split("/").pop()!.replace(".c", ".o")}`);
+  if (existsSync(cached)) {
+    copyFileSync(cached, outObj);
+    return;
+  }
+  execSync(`clang -c ${flags} -o ${outObj} ${src}`, { stdio: "inherit" });
+  copyFileSync(outObj, cached);
+}
+
 export function compile(opts: CompileOptions): void {
   const hir = resolveModules(opts.input);
   constFoldPass(hir);
@@ -91,20 +110,12 @@ export function compile(opts: CompileOptions): void {
     const rureDir = findRure();
 
     for (let i = 0; i < BRIDGE_SRCS.length; i++) {
-      execSync(`clang -c -O2 -o ${bridgeObjs[i]} ${BRIDGE_SRCS[i]}`, { stdio: "inherit" });
+      cachedCompile(BRIDGE_SRCS[i], bridgeObjs[i], "-O2");
     }
-    execSync(`clang -c -O2 -I${libuv.include} -o ${timerObj} ${TIMER_BRIDGE}`, {
-      stdio: "inherit",
-    });
-    execSync(`clang -c -O2 -I${libuv.include} -o ${httpObj} ${HTTP_BRIDGE}`, {
-      stdio: "inherit",
-    });
-    execSync(`clang -c -O2 -o ${yyjsonObj} ${join(yyjsonDir, "yyjson.c")}`, {
-      stdio: "inherit",
-    });
-    execSync(`clang -c -O2 -I${yyjsonDir} -o ${jsonObj} ${JSON_BRIDGE}`, {
-      stdio: "inherit",
-    });
+    cachedCompile(TIMER_BRIDGE, timerObj, `-O2 -I${libuv.include}`);
+    cachedCompile(HTTP_BRIDGE, httpObj, `-O2 -I${libuv.include}`);
+    cachedCompile(join(yyjsonDir, "yyjson.c"), yyjsonObj, "-O2");
+    cachedCompile(JSON_BRIDGE, jsonObj, `-O2 -I${yyjsonDir}`);
     execSync(
       `clang -g -O2 -o ${opts.output} ${tmpObj} ${allObjs.join(" ")} -L${libuv.lib} -luv -L${rureDir} -lrure`,
       { stdio: "inherit" },
