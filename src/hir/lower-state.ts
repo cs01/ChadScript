@@ -180,7 +180,7 @@ export function resolveTypeAnnotation(ann: any): HIRType {
       case "void":
         return VOID;
       case "any":
-        return DYNOBJ;
+        return BOXED;
       default:
         return BOXED;
     }
