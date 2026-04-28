@@ -12,7 +12,9 @@ export type HIRType =
   | { kind: "promise"; inner: HIRType }
   | { kind: "map"; key: HIRType; value: HIRType }
   | { kind: "set"; element: HIRType }
-  | { kind: "regex" };
+  | { kind: "regex" }
+  | { kind: "dynobj" }
+  | { kind: "dynarray" };
 
 export interface HIRField {
   name: string;
