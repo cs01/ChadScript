@@ -2742,6 +2742,15 @@ export function lowerMember(expr: MemberExpression): HIRExpr {
         };
       }
     }
+    if (obj.type.kind === "i8ptr") {
+      return {
+        kind: "runtime_call",
+        func: "cs2_str_char_at",
+        args: [obj, coerce(index, I64)],
+        returnType: I8PTR,
+        type: I8PTR,
+      };
+    }
     if (obj.type.kind === "dynobj") {
       return dynobj_get(obj, index);
     }
