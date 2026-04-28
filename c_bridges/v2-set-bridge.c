@@ -94,3 +94,27 @@ int32_t cs2_num_set_delete(NumSet *s, double val) {
 int32_t cs2_num_set_size(NumSet *s) {
     return s->length;
 }
+
+typedef struct { char **data; int32_t length; int32_t capacity; } CS2StrArr2;
+typedef struct { double *data; int32_t length; int32_t capacity; } CS2NumArr2;
+
+CS2StrArr2 *cs2_str_set_values(StrSet *s) {
+    CS2StrArr2 *a = (CS2StrArr2 *)malloc(sizeof(CS2StrArr2));
+    int32_t cap = s->length < 4 ? 4 : s->length;
+    a->data = (char **)malloc(sizeof(char *) * cap);
+    a->length = s->length; a->capacity = cap;
+    for (int32_t i = 0; i < s->length; i++) a->data[i] = s->data[i];
+    return a;
+}
+
+CS2NumArr2 *cs2_num_set_values(NumSet *s) {
+    CS2NumArr2 *a = (CS2NumArr2 *)malloc(sizeof(CS2NumArr2));
+    int32_t cap = s->length < 4 ? 4 : s->length;
+    a->data = (double *)malloc(sizeof(double) * cap);
+    a->length = s->length; a->capacity = cap;
+    for (int32_t i = 0; i < s->length; i++) a->data[i] = s->data[i];
+    return a;
+}
+
+void cs2_str_set_clear(StrSet *s) { s->length = 0; }
+void cs2_num_set_clear(NumSet *s) { s->length = 0; }

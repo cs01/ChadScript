@@ -245,6 +245,11 @@ int32_t cs2_num_str_map_size(NumStrMap *m) {
     return m->length;
 }
 
+void cs2_str_num_map_clear(StrNumMap *m) { m->length = 0; }
+void cs2_str_str_map_clear(StrStrMap *m) { m->length = 0; }
+void cs2_num_num_map_clear(NumNumMap *m) { m->length = 0; }
+void cs2_num_str_map_clear(NumStrMap *m) { m->length = 0; }
+
 typedef struct { char **data; int32_t length; int32_t capacity; } CS2StrArr;
 typedef struct { double *data; int32_t length; int32_t capacity; } CS2NumArr;
 

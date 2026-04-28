@@ -1978,6 +1978,24 @@ function lowerSetMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
         type: I1,
       };
     }
+    case "values": {
+      const arrType: HIRType = { kind: "array", element: st.element };
+      return {
+        kind: "runtime_call",
+        func: `${prefix}_values`,
+        args: [obj],
+        returnType: arrType,
+        type: arrType,
+      };
+    }
+    case "clear":
+      return {
+        kind: "runtime_call",
+        func: `${prefix}_clear`,
+        args: [obj],
+        returnType: VOID,
+        type: VOID,
+      };
     default:
       throw new Error(`unsupported Set method: ${method}`);
   }
