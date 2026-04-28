@@ -324,10 +324,12 @@ export function lowerModule(
           const type =
             declType.kind !== "boxed"
               ? declType
-              : hasAnnotation
-                ? BOXED
-                : rawInit
-                  ? rawInit.type
+              : rawInit && (rawInit.type.kind === "dynobj" || rawInit.type.kind === "dynarray")
+                ? rawInit.type
+                : hasAnnotation
+                  ? BOXED
+                  : rawInit
+                    ? rawInit.type
                   : BOXED;
           const coercedInit =
             rawInit && rawInit.type.kind !== type.kind ? coerce(rawInit, type) : rawInit;
@@ -487,7 +489,15 @@ function lowerVarDecl(decl: VariableDeclaration): HIRStmt[] {
       setExpectedMapType(null);
       setExpectedDeclType(null);
       const type =
-        declType.kind !== "boxed" ? declType : hasAnnotation ? BOXED : init ? init.type : BOXED;
+        declType.kind !== "boxed"
+          ? declType
+          : init && (init.type.kind === "dynobj" || init.type.kind === "dynarray")
+            ? init.type
+            : hasAnnotation
+              ? BOXED
+              : init
+                ? init.type
+                : BOXED;
       const coercedInit = init && init.type.kind !== type.kind ? coerce(init, type) : init;
 
       locals.set(d.id.value, { id, type, mutable });
