@@ -64,6 +64,10 @@ export const closureInfoMap = new Map<
   { captures: { id: number; type: HIRType }[]; params: HIRType[]; returnType: HIRType }
 >();
 
+export const enumRegistry = new Map<
+  string,
+  { members: { name: string; value: number | string }[]; memberType: HIRType }
+>();
 export const genericFunctionTemplates = new Map<string, { decl: any; typeParams: string[] }>();
 export const genericClassTemplates = new Map<string, { decl: any; typeParams: string[] }>();
 export const genericSpecializations = new Map<string, boolean>();
@@ -205,6 +209,10 @@ export function resolveTypeAnnotation(ann: any): HIRType {
     if (name === "Set" && ta.typeParams?.params?.length === 1) {
       const elem = resolveTypeAnnotation(ta.typeParams.params[0]);
       return { kind: "set", element: elem };
+    }
+
+    if (enumRegistry.has(name)) {
+      return enumRegistry.get(name)!.memberType;
     }
 
     if (classRegistry.has(name) || interfaceRegistry.has(name)) {

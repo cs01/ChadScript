@@ -42,7 +42,7 @@ function compileAndRun(fixture: string): string {
 }
 
 function nodeRun(fixture: string): string {
-  const result = execSync(`node --experimental-strip-types ${join(FIXTURES, fixture)}`, {
+  const result = execSync(`node --experimental-transform-types ${join(FIXTURES, fixture)}`, {
     encoding: "utf-8",
     timeout: 10000,
   });

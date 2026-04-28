@@ -57,6 +57,7 @@ import {
   genericClassTemplates,
   genericSpecializations,
   setTypeParamContext,
+  enumRegistry,
 } from "./lower-state.js";
 import {
   registerFunction,
@@ -110,6 +111,7 @@ export function lowerModule(
   genericFunctionTemplates.clear();
   genericClassTemplates.clear();
   genericSpecializations.clear();
+  enumRegistry.clear();
   setTypeParamContext(null);
   setNextId(0);
   setIsModuleScope(true);
@@ -153,9 +155,55 @@ export function lowerModule(
 
   for (const item of ast.body) {
     const inner = unwrapExport(item);
+    if ((inner as any).type === "TsEnumDeclaration") {
+      const enumDecl = inner as any;
+      const enumName = enumDecl.id.value;
+      let autoValue = 0;
+      const members: { name: string; value: number | string }[] = [];
+      for (const member of enumDecl.members) {
+        const memberName = member.id.value;
+        if (member.init) {
+          if (member.init.type === "NumericLiteral") {
+            autoValue = member.init.value;
+            members.push({ name: memberName, value: autoValue });
+            autoValue++;
+          } else if (member.init.type === "StringLiteral") {
+            members.push({ name: memberName, value: member.init.value });
+          } else {
+            members.push({ name: memberName, value: autoValue++ });
+          }
+        } else {
+          members.push({ name: memberName, value: autoValue++ });
+        }
+      }
+      const isStringEnum = members.some((m) => typeof m.value === "string");
+      const memberType = isStringEnum ? I8PTR : I64;
+      for (const m of members) {
+        const globalName = `${enumName}_${m.name}`;
+        globals.set(globalName, { type: memberType, mutable: false });
+        hirGlobals.push({ name: globalName, type: memberType, mutable: false });
+        const initExpr: HIRExpr =
+          typeof m.value === "string"
+            ? { kind: "literal_string", value: m.value, type: I8PTR }
+            : { kind: "literal_i64", value: m.value, type: I64 };
+        init.push({
+          kind: "expr",
+          expr: { kind: "global_set", name: globalName, value: initExpr, type: memberType },
+        });
+      }
+      enumRegistry.set(enumName, { members, memberType });
+    }
+  }
+
+  for (const item of ast.body) {
+    const inner = unwrapExport(item);
     if (inner.type === "ImportDeclaration") {
       continue;
     } else if ((inner as any).type === "TsInterfaceDeclaration") {
+      continue;
+    } else if ((inner as any).type === "TsEnumDeclaration") {
+      continue;
+    } else if ((inner as any).type === "TsTypeAliasDeclaration") {
       continue;
     } else if (inner.type === "ClassDeclaration") {
       if (isGenericClass(inner as any)) continue;

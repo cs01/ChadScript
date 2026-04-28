@@ -41,6 +41,7 @@ import {
   genericFunctionTemplates,
   genericClassTemplates,
   mangleGenericName,
+  enumRegistry,
 } from "./lower-state.js";
 
 import { lowerArrowOrFnExpr } from "./lower-func.js";
@@ -2171,6 +2172,18 @@ export function lowerMember(expr: MemberExpression): HIRExpr {
       returnType: I8PTR,
       type: I8PTR,
     };
+  }
+
+  if (
+    expr.object.type === "Identifier" &&
+    expr.property.type === "Identifier" &&
+    enumRegistry.has(expr.object.value)
+  ) {
+    const enumName = expr.object.value;
+    const memberName = (expr.property as Identifier).value;
+    const globalName = `${enumName}_${memberName}`;
+    const enumInfo = enumRegistry.get(enumName)!;
+    return { kind: "global_get", name: globalName, type: enumInfo.memberType };
   }
 
   if (
