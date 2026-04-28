@@ -146,6 +146,10 @@ function lowerNumericLiteral(lit: NumericLiteral): HIRExpr {
 }
 
 function lowerIdentifier(id: Identifier): HIRExpr {
+  if (id.value === "NaN") return { kind: "literal_f64", value: NaN, type: F64 };
+  if (id.value === "Infinity") return { kind: "literal_f64", value: Infinity, type: F64 };
+  if (id.value === "undefined") return { kind: "literal_null", type: { kind: "ptr", pointee: "" } };
+
   const local = locals.get(id.value);
   if (local) {
     return { kind: "local_get", id: local.id, type: local.type };
@@ -797,6 +801,54 @@ function lowerCall(expr: CallExpression): HIRExpr {
     };
   }
 
+  if (
+    expr.callee.type === "MemberExpression" &&
+    expr.callee.object.type === "Identifier" &&
+    expr.callee.object.value === "Date" &&
+    expr.callee.property.type === "Identifier" &&
+    expr.callee.property.value === "now"
+  ) {
+    return { kind: "runtime_call", func: "cs2_date_now", args: [], returnType: F64, type: F64 };
+  }
+
+  if (
+    expr.callee.type === "MemberExpression" &&
+    expr.callee.object.type === "Identifier" &&
+    expr.callee.object.value === "Number" &&
+    expr.callee.property.type === "Identifier"
+  ) {
+    const method = (expr.callee.property as Identifier).value;
+    const arg = coerce(lowerExpr(expr.arguments[0].expression), F64);
+    switch (method) {
+      case "isInteger":
+        return {
+          kind: "runtime_call",
+          func: "cs2_number_is_integer",
+          args: [arg],
+          returnType: I1,
+          type: I1,
+        };
+      case "isNaN":
+        return {
+          kind: "runtime_call",
+          func: "cs2_number_is_nan",
+          args: [arg],
+          returnType: I1,
+          type: I1,
+        };
+      case "isFinite":
+        return {
+          kind: "runtime_call",
+          func: "cs2_number_is_finite",
+          args: [arg],
+          returnType: I1,
+          type: I1,
+        };
+      default:
+        break;
+    }
+  }
+
   if (expr.callee.type === "MemberExpression") {
     const obj = lowerExpr(expr.callee.object);
     if (obj.type.kind === "i8ptr") {
@@ -825,6 +877,9 @@ function lowerCall(expr: CallExpression): HIRExpr {
       if (pointee === "HttpResponse") {
         return lowerHttpResponseMethodCall(expr, obj);
       }
+      if (pointee === "Date") {
+        return lowerDateMethodCall(expr, obj);
+      }
       return lowerClassMethodCall(expr, obj);
     }
   }
@@ -852,6 +907,24 @@ function lowerCall(expr: CallExpression): HIRExpr {
         args: [handleExpr],
         returnType: VOID,
         type: VOID,
+      };
+    }
+    if (calleeName_ === "isNaN") {
+      return {
+        kind: "runtime_call",
+        func: "cs2_number_is_nan",
+        args: [coerce(lowerExpr(expr.arguments[0].expression), F64)],
+        returnType: I1,
+        type: I1,
+      };
+    }
+    if (calleeName_ === "isFinite") {
+      return {
+        kind: "runtime_call",
+        func: "cs2_number_is_finite",
+        args: [coerce(lowerExpr(expr.arguments[0].expression), F64)],
+        returnType: I1,
+        type: I1,
       };
     }
     if (calleeName_ === "parseFloat") {
@@ -1078,6 +1151,27 @@ function lowerNewExpr(expr: any): HIRExpr {
       args: [sizeArg],
       returnType: resultType,
       type: resultType,
+    };
+  }
+
+  if (className === "Date") {
+    const dateType: HIRType = { kind: "ptr", pointee: "Date" };
+    if (expr.arguments?.length > 0) {
+      const msArg = coerce(lowerExpr(expr.arguments[0].expression), F64);
+      return {
+        kind: "runtime_call",
+        func: "cs2_date_new",
+        args: [msArg],
+        returnType: dateType,
+        type: dateType,
+      };
+    }
+    return {
+      kind: "runtime_call",
+      func: "cs2_date_new_now",
+      args: [],
+      returnType: dateType,
+      type: dateType,
     };
   }
 
@@ -1361,6 +1455,35 @@ function lowerBufferStaticCall(expr: CallExpression): HIRExpr {
     default:
       throw new Error(`unsupported Buffer static method: ${method}`);
   }
+}
+
+function lowerDateMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
+  const member = expr.callee as MemberExpression;
+  const method = (member.property as Identifier).value;
+
+  const dateMethods: Record<string, { func: string; returnType: HIRType }> = {
+    getTime: { func: "cs2_date_get_time", returnType: F64 },
+    getFullYear: { func: "cs2_date_get_full_year", returnType: F64 },
+    getMonth: { func: "cs2_date_get_month", returnType: F64 },
+    getDate: { func: "cs2_date_get_date", returnType: F64 },
+    getHours: { func: "cs2_date_get_hours", returnType: F64 },
+    getMinutes: { func: "cs2_date_get_minutes", returnType: F64 },
+    getSeconds: { func: "cs2_date_get_seconds", returnType: F64 },
+    getDay: { func: "cs2_date_get_day", returnType: F64 },
+    toISOString: { func: "cs2_date_to_iso_string", returnType: I8PTR },
+    toString: { func: "cs2_date_to_string", returnType: I8PTR },
+  };
+
+  const info = dateMethods[method];
+  if (!info) compileError(`unsupported Date method: ${method}`, expr.span);
+
+  return {
+    kind: "runtime_call",
+    func: info.func,
+    args: [obj],
+    returnType: info.returnType,
+    type: info.returnType,
+  };
 }
 
 function lowerBufferMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {

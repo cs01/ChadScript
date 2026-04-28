@@ -271,6 +271,18 @@ double cs2_parse_int(const char *s) {
     return (double)atoi(s);
 }
 
+int32_t cs2_number_is_integer(double val) {
+    return val == (double)(long long)val && val >= -9007199254740992.0 && val <= 9007199254740992.0;
+}
+
+int32_t cs2_number_is_nan(double val) {
+    return val != val;
+}
+
+int32_t cs2_number_is_finite(double val) {
+    return val == val && val != 1.0/0.0 && val != -1.0/0.0;
+}
+
 double cs2_math_random(void) {
     static int seeded = 0;
     if (!seeded) { srand(42); seeded = 1; }

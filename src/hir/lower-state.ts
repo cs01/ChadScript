@@ -215,6 +215,10 @@ export function resolveTypeAnnotation(ann: any): HIRType {
       return enumRegistry.get(name)!.memberType;
     }
 
+    if (name === "Date") {
+      return { kind: "ptr", pointee: "Date" };
+    }
+
     if (classRegistry.has(name) || interfaceRegistry.has(name)) {
       return { kind: "ptr", pointee: name };
     }
