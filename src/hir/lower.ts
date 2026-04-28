@@ -853,7 +853,7 @@ function lowerForOf(stmt: any): HIRStmt[] {
   }
 
   if (iteree.type.kind !== "array") {
-    compileError("for...of requires array or map type", stmt.span);
+    compileError(`for...of requires array or map type, got ${iteree.type.kind}`, stmt.span);
   }
 
   const elemType = (iteree.type as { kind: "array"; element: HIRType }).element;
