@@ -266,6 +266,17 @@ export function resolveTypeAnnotation(ann: any): HIRType {
     return { kind: "dynobj", props: props.length > 0 ? props : undefined };
   }
 
+  if (ta.type === "TsIntersectionType" && Array.isArray(ta.types)) {
+    const allProps: { name: string; type: HIRType }[] = [];
+    for (const t of ta.types) {
+      const resolved = resolveTypeAnnotation(t);
+      if (resolved.kind === "dynobj" && resolved.props) {
+        allProps.push(...resolved.props);
+      }
+    }
+    return { kind: "dynobj", props: allProps.length > 0 ? allProps : undefined };
+  }
+
   if (ta.type === "TsLiteralType") {
     if (ta.literal?.type === "StringLiteral") return I8PTR;
     if (ta.literal?.type === "NumericLiteral") return F64;
