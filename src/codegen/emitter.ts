@@ -434,6 +434,8 @@ function declareExterns(ctx: EmitContext): void {
     ["cs2_fs_stat_is_file", m.i32, [m.ptr]],
     ["cs2_fs_stat_is_directory", m.i32, [m.ptr]],
     ["cs2_exec_sync", m.ptr, [m.ptr]],
+    ["cs2_crypto_random_bytes_hex", m.ptr, [m.f64]],
+    ["cs2_crypto_hash", m.ptr, [m.ptr, m.ptr, m.ptr]],
     ["cs2_str_num_map_new", m.ptr, []],
     ["cs2_str_num_map_set", m.voidTy, [m.ptr, m.ptr, m.f64]],
     ["cs2_str_num_map_get", m.f64, [m.ptr, m.ptr]],

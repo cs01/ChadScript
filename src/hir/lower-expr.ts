@@ -615,6 +615,11 @@ function lowerCall(expr: CallExpression): HIRExpr {
     return lowerPathCall(expr);
   }
 
+  {
+    const cryptoChain = matchCryptoChain(expr);
+    if (cryptoChain) return cryptoChain;
+  }
+
   if (
     expr.callee.type === "MemberExpression" &&
     (expr.callee as MemberExpression).object.type === "CallExpression" &&
@@ -1089,6 +1094,68 @@ function lowerFsCall(expr: CallExpression): HIRExpr {
     default:
       throw new Error(`unsupported fs method: ${method}`);
   }
+}
+
+function matchCryptoChain(expr: CallExpression): HIRExpr | null {
+  if (expr.callee.type !== "MemberExpression") return null;
+  const outerMember = expr.callee as MemberExpression;
+  if (outerMember.property.type !== "Identifier") return null;
+  if (outerMember.object.type !== "CallExpression") return null;
+
+  const outerMethod = (outerMember.property as Identifier).value;
+  const midCall = outerMember.object as CallExpression;
+
+  if (outerMethod === "toString" && midCall.callee.type === "MemberExpression") {
+    const midMember = midCall.callee as MemberExpression;
+    if (
+      midMember.object.type === "Identifier" &&
+      (midMember.object as Identifier).value === "crypto" &&
+      midMember.property.type === "Identifier" &&
+      (midMember.property as Identifier).value === "randomBytes"
+    ) {
+      const nArg = lowerExpr(midCall.arguments[0].expression);
+      return {
+        kind: "runtime_call",
+        func: "cs2_crypto_random_bytes_hex",
+        args: [coerce(nArg, F64)],
+        returnType: I8PTR,
+        type: I8PTR,
+      };
+    }
+  }
+
+  if (outerMethod === "digest" && midCall.callee.type === "MemberExpression") {
+    const midMember = midCall.callee as MemberExpression;
+    if (
+      midMember.property.type === "Identifier" &&
+      (midMember.property as Identifier).value === "update" &&
+      midMember.object.type === "CallExpression"
+    ) {
+      const innerCall = midMember.object as CallExpression;
+      if (innerCall.callee.type === "MemberExpression") {
+        const innerMember = innerCall.callee as MemberExpression;
+        if (
+          innerMember.object.type === "Identifier" &&
+          (innerMember.object as Identifier).value === "crypto" &&
+          innerMember.property.type === "Identifier" &&
+          (innerMember.property as Identifier).value === "createHash"
+        ) {
+          const algoArg = lowerExpr(innerCall.arguments[0].expression);
+          const dataArg = lowerExpr(midCall.arguments[0].expression);
+          const encodingArg = lowerExpr(expr.arguments[0].expression);
+          return {
+            kind: "runtime_call",
+            func: "cs2_crypto_hash",
+            args: [algoArg, dataArg, encodingArg],
+            returnType: I8PTR,
+            type: I8PTR,
+          };
+        }
+      }
+    }
+  }
+
+  return null;
 }
 
 function lowerChildProcessCall(expr: CallExpression): HIRExpr {
