@@ -116,6 +116,7 @@ export function lowerModule(
   genericClassTemplates.clear();
   genericSpecializations.clear();
   enumRegistry.clear();
+  typeAliasRegistry.clear();
   setTypeParamContext(null);
   setNextId(0);
   setIsModuleScope(true);

@@ -16,23 +16,27 @@ interface ParsedModule {
 export function resolveModules(entryPath: string): HIRModule {
   const absEntry = resolve(entryPath);
   const visited = new Map<string, ParsedModule>();
+  const typeOnlyPaths = new Set<string>();
   const aliases: ImportAlias[] = [];
 
-  collectModules(absEntry, visited, aliases);
+  collectModules(absEntry, visited, aliases, typeOnlyPaths);
 
   const mergedBody: ModuleItem[] = [];
+  const TYPE_DECLS = new Set(["TsTypeAliasDeclaration", "TsInterfaceDeclaration", "TsEnumDeclaration"]);
 
   for (const [path, mod] of visited) {
     if (path === absEntry) continue;
+    const isTypeOnly = typeOnlyPaths.has(path);
     for (const item of mod.ast.body) {
       if (item.type === "ImportDeclaration") continue;
       if (item.type === "ExportNamedDeclaration" && (item as any).source)
         continue;
+      let decl = item;
       if ((item as any).type === "ExportDeclaration") {
-        mergedBody.push((item as any).declaration as ModuleItem);
-      } else {
-        mergedBody.push(item);
+        decl = (item as any).declaration;
       }
+      if (isTypeOnly && !TYPE_DECLS.has((decl as any).type)) continue;
+      mergedBody.push(decl as ModuleItem);
     }
   }
 
@@ -63,6 +67,7 @@ function collectModules(
   absPath: string,
   visited: Map<string, ParsedModule>,
   aliases: ImportAlias[],
+  typeOnlyPaths?: Set<string>,
 ): void {
   if (visited.has(absPath)) return;
 
@@ -72,10 +77,23 @@ function collectModules(
 
   for (const item of ast.body) {
     if (item.type === "ImportDeclaration") {
-      if ((item as any).typeOnly) continue;
       if (isBuiltinImport(item.source.value)) continue;
+      if ((item as any).typeOnly) {
+        const specifier = item.source.value;
+        if (specifier.startsWith(".")) {
+          try {
+            const resolvedPath = resolveImportPath(specifier, absPath);
+            if (typeOnlyPaths && !visited.has(resolvedPath)) {
+              typeOnlyPaths.add(resolvedPath);
+            }
+            collectModules(resolvedPath, visited, aliases, typeOnlyPaths);
+          } catch {}
+        }
+        continue;
+      }
       const resolvedPath = resolveImportPath(item.source.value, absPath);
-      collectModules(resolvedPath, visited, aliases);
+      if (typeOnlyPaths) typeOnlyPaths.delete(resolvedPath);
+      collectModules(resolvedPath, visited, aliases, typeOnlyPaths);
 
       for (const s of item.specifiers) {
         if (s.type === "ImportSpecifier") {
@@ -93,7 +111,7 @@ function collectModules(
       const decl = item as any;
       if (isBuiltinImport(decl.source.value)) continue;
       const resolvedPath = resolveImportPath(decl.source.value, absPath);
-      collectModules(resolvedPath, visited, aliases);
+      collectModules(resolvedPath, visited, aliases, typeOnlyPaths);
 
       for (const s of decl.specifiers) {
         if (s.type === "ExportSpecifier" && s.exported) {
