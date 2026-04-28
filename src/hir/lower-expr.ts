@@ -115,6 +115,9 @@ export function lowerExpr(expr: Expression): HIRExpr {
       const inner = lowerExpr((expr as any).expression);
       const targetType = resolveTypeAnnotation((expr as any).typeAnnotation);
       if (inner.type.kind === targetType.kind) return inner;
+      if (inner.type.kind === "dynobj" && targetType.kind === "boxed") {
+        return inner;
+      }
       if (
         inner.type.kind === "dynobj" &&
         inner.kind === "runtime_call" &&
@@ -1360,6 +1363,13 @@ function lowerNewExpr(expr: any): HIRExpr {
       returnType: dateType,
       type: dateType,
     };
+  }
+
+  if (className === "Error") {
+    if (expr.arguments?.length > 0) {
+      return coerce(lowerExpr(expr.arguments[0].expression), I8PTR);
+    }
+    return { kind: "literal_string", value: "Error", type: I8PTR };
   }
 
   if (genericClassTemplates.has(className) && expr.typeArguments?.params?.length) {
