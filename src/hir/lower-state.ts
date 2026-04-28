@@ -57,6 +57,7 @@ export let expectedArrayElementType: HIRType | null = null;
 export let expectedMapType: HIRType | null = null;
 export let expectedDeclType: HIRType | null = null;
 export let currentClassName: string | null = null;
+export let sourceFilePath: string | null = null;
 export let nextAnonId = 0;
 export const fnAliases = new Map<string, string>();
 export const builtinImports = new Map<string, { module: string; imported: string }>();
@@ -136,6 +137,10 @@ export function setExpectedDeclType(t: HIRType | null): void {
 
 export function setCurrentClassName(name: string | null): void {
   currentClassName = name;
+}
+
+export function setSourceFilePath(path: string | null): void {
+  sourceFilePath = path;
 }
 
 export function setNextAnonId(n: number): void {

@@ -10,26 +10,9 @@
 
 The compiler's own source uses TS features we haven't tested compiling yet. Audit + fill gaps:
 
-- [x] `for (const [k, v] of map)` — Map iteration with destructuring (compiler uses this heavily)
-- [x] `Record<string, T>` object literals — used as typed hashmaps throughout lowering
-- [x] Object spread — `{ ...obj, key: newVal }` used in generic cloning
-- [x] `import type { X }` — type-only imports (SWC strips these, verified ignored)
-- [x] String indexing `str[i]` — used in errors.ts offset scanner
-- [x] `.js` → `.ts` import path resolution — standard TS convention
-- [x] Untyped object literals → dynobj — `{ line, col }` shorthand + explicit props
-- [x] Function return type inference — infer from first return stmt when no annotation
-- [x] Constructor parameter properties — `public field: T` auto-register + auto-assign
-- [x] Discriminated unions — type alias registry, union prop tracking, TsLiteralType, dynobj property access
-- [x] `new Error(msg)` — handled as builtin (returns string for throw)
-- [x] `as any` on dynobj preserves runtime type
-- [x] `import type` should register type aliases from imported files (not just strip them)
-- [x] Property access on `any`-typed params — need dynobj or boxed dispatch
-- [x] Destructured builtin imports — `const { foo } = require("mod")` resolves bare calls to module.method dispatch
-- [x] Set initialization from array literal — `new Set([...])` via alloc_set HIR node
-- [x] Object destructuring from dynobj return types — typed dynobj getters at destructure boundary
-- [ ] **Type-alias/interface parameter resolution** — functions like `fn(mod: HIRModule)` get params typed as dynobj because type annotations referencing imported interfaces/type-aliases aren't resolved. This is THE self-hosting blocker: every merged module function with typed params fails. `mod.functions` returns dynobj instead of array, breaking all for-of iteration over struct fields. Root cause found via diagnostic: the "for-of requires array" error on compiler.ts was actually from a merged module (emitter/const-fold/dead-code), not compiler.ts itself (SWC span misleading after module merge).
-- [ ] `this.prop` for inherited class fields — `this.message` in error subclasses (errors.ts needs this)
-- [ ] `import.meta.url` + `new URL()` — compiler.ts line 17 uses `new URL(import.meta.url).pathname` for ROOT path
+- [x] **Type-alias/interface parameter resolution** — three-phase registration (pre-register names → type aliases → full interfaces), object literal → struct coercion when target is interface/class, array element type propagation for ptr types
+- [x] `this.prop` for inherited class fields — parent chain traversal in field_get lookup
+- [x] `import.meta.url` + `new URL()` — compile-time evaluation of `import.meta.url` → `file://` string, `new URL(str).pathname` → extract pathname
 - [ ] MemberExpression callee — `module.method()` call patterns beyond destructured builtin imports (parser.ts)
 - [ ] Verify: compiler source files (src/**/*.ts) compile without errors
 

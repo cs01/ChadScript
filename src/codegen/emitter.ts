@@ -79,8 +79,7 @@ function findClosureFuncNames(mod: HIRModule, names: Set<string>): void {
       scanExpr(expr.then as HIRExpr);
     if ("props" in expr && Array.isArray(expr.props))
       for (const p of expr.props as { value: HIRExpr }[]) scanExpr(p.value);
-    if ("spreadSource" in expr && expr.spreadSource)
-      scanExpr(expr.spreadSource as HIRExpr);
+    if ("spreadSource" in expr && expr.spreadSource) scanExpr(expr.spreadSource as HIRExpr);
   }
   function scanStmts(stmts: HIRStmt[]): void {
     for (const s of stmts) {
@@ -120,6 +119,7 @@ export function emitModule(mod: HIRModule, objectPath: string, irPath?: string):
     const fieldTypes = iface.fields.map((f) => llvmType(ctx, f.type));
     m.structSetBody(fieldLayoutTy, fieldTypes);
     ctx.registerInterfaceType(iface.name, fatTy, iface, fieldLayoutTy);
+    ctx.registerStructType(iface.name, fieldLayoutTy, iface.fields);
   }
 
   for (const cls of mod.classes) {

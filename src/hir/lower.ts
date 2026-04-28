@@ -63,6 +63,7 @@ import {
   enumRegistry,
   typeAliasRegistry,
   builtinImports,
+  setSourceFilePath,
 } from "./lower-state.js";
 import {
   registerFunction,
@@ -131,6 +132,7 @@ export function lowerModule(
   setIsModuleScope(true);
   setSourceText(source || "");
   setLineOffsets(buildLineOffsets(source || ""));
+  setSourceFilePath(filename || null);
 
   if (importAliases) {
     for (const alias of importAliases) {
@@ -146,16 +148,21 @@ export function lowerModule(
   for (const item of ast.body) {
     const inner = unwrapExport(item);
     if ((inner as any).type === "TsInterfaceDeclaration") {
-      registerInterface(inner as any);
+      interfaceRegistry.set((inner as any).id.value, { fields: [], methods: [] });
     }
   }
 
   for (const item of ast.body) {
     const inner = unwrapExport(item) as any;
     if (inner.type === "TsTypeAliasDeclaration" && inner.id?.type === "Identifier") {
-      const name = inner.id.value;
-      const resolved = resolveTypeAnnotation(inner.typeAnnotation);
-      typeAliasRegistry.set(name, resolved);
+      typeAliasRegistry.set(inner.id.value, resolveTypeAnnotation(inner.typeAnnotation));
+    }
+  }
+
+  for (const item of ast.body) {
+    const inner = unwrapExport(item);
+    if ((inner as any).type === "TsInterfaceDeclaration") {
+      registerInterface(inner as any);
     }
   }
 
@@ -291,7 +298,9 @@ export function lowerModule(
           const initExpr = lowerExpr(d.init);
 
           if (initExpr.type.kind === "dynobj") {
-            const props = (initExpr.type as { kind: "dynobj"; props?: { name: string; type: HIRType }[] }).props || [];
+            const props =
+              (initExpr.type as { kind: "dynobj"; props?: { name: string; type: HIRType }[] })
+                .props || [];
             const tmpName = `__destruct_g_${incNextAnonId()}`;
             globals.set(tmpName, { type: initExpr.type, mutable: false });
             hirGlobals.push({ name: tmpName, type: initExpr.type, mutable: false });
@@ -385,7 +394,7 @@ export function lowerModule(
                   ? BOXED
                   : rawInit
                     ? rawInit.type
-                  : BOXED;
+                    : BOXED;
           const coercedInit =
             rawInit && rawInit.type.kind !== type.kind ? coerce(rawInit, type) : rawInit;
 
@@ -624,17 +633,53 @@ function dynObjGetForType(obj: HIRExpr, key: HIRExpr, targetType: HIRType): HIRE
   switch (targetType.kind) {
     case "f64":
     case "i64":
-      return { kind: "runtime_call", func: "cs2_dynobj_get_f64", args: [obj, key], returnType: F64, type: F64 };
+      return {
+        kind: "runtime_call",
+        func: "cs2_dynobj_get_f64",
+        args: [obj, key],
+        returnType: F64,
+        type: F64,
+      };
     case "i8ptr":
-      return { kind: "runtime_call", func: "cs2_dynobj_get_str", args: [obj, key], returnType: I8PTR, type: I8PTR };
+      return {
+        kind: "runtime_call",
+        func: "cs2_dynobj_get_str",
+        args: [obj, key],
+        returnType: I8PTR,
+        type: I8PTR,
+      };
     case "i1":
-      return { kind: "runtime_call", func: "cs2_dynobj_get_bool", args: [obj, key], returnType: I1, type: I1 };
+      return {
+        kind: "runtime_call",
+        func: "cs2_dynobj_get_bool",
+        args: [obj, key],
+        returnType: I1,
+        type: I1,
+      };
     case "dynarray":
-      return { kind: "runtime_call", func: "cs2_dynobj_get_arr", args: [obj, key], returnType: DYNARRAY, type: DYNARRAY };
+      return {
+        kind: "runtime_call",
+        func: "cs2_dynobj_get_arr",
+        args: [obj, key],
+        returnType: DYNARRAY,
+        type: DYNARRAY,
+      };
     case "dynobj":
-      return { kind: "runtime_call", func: "cs2_dynobj_get_obj", args: [obj, key], returnType: DYNOBJ, type: DYNOBJ };
+      return {
+        kind: "runtime_call",
+        func: "cs2_dynobj_get_obj",
+        args: [obj, key],
+        returnType: DYNOBJ,
+        type: DYNOBJ,
+      };
     default:
-      return { kind: "runtime_call", func: "cs2_dynobj_get_obj", args: [obj, key], returnType: DYNOBJ, type: DYNOBJ };
+      return {
+        kind: "runtime_call",
+        func: "cs2_dynobj_get_obj",
+        args: [obj, key],
+        returnType: DYNOBJ,
+        type: DYNOBJ,
+      };
   }
 }
 
@@ -645,7 +690,8 @@ function lowerObjectDestructuring(d: any, mutable: boolean): HIRStmt[] {
   const initExpr = lowerExpr(d.init);
 
   if (initExpr.type.kind === "dynobj") {
-    const props = (initExpr.type as { kind: "dynobj"; props?: { name: string; type: HIRType }[] }).props || [];
+    const props =
+      (initExpr.type as { kind: "dynobj"; props?: { name: string; type: HIRType }[] }).props || [];
     const tmpId = freshId();
     const tmpName = `__destruct_${tmpId}`;
     locals.set(tmpName, { id: tmpId, type: initExpr.type, mutable: false });

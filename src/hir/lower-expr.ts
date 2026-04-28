@@ -46,6 +46,7 @@ import {
   mangleGenericName,
   enumRegistry,
   builtinImports,
+  sourceFilePath,
 } from "./lower-state.js";
 
 import { lowerArrowOrFnExpr } from "./lower-func.js";
@@ -123,7 +124,10 @@ export function lowerExpr(expr: Expression): HIRExpr {
         inner.type.kind === "dynobj" &&
         inner.kind === "runtime_call" &&
         (inner as any).func === "cs2_json_parse_obj" &&
-        (targetType.kind === "f64" || targetType.kind === "i64" || targetType.kind === "i8ptr" || targetType.kind === "i1")
+        (targetType.kind === "f64" ||
+          targetType.kind === "i64" ||
+          targetType.kind === "i8ptr" ||
+          targetType.kind === "i1")
       ) {
         const boxed: HIRExpr = {
           kind: "runtime_call",
@@ -447,8 +451,7 @@ function lowerAssignment(expr: AssignmentExpression): HIRExpr {
       if (obj.type.kind === "ptr") {
         const pointee = (obj.type as { kind: "ptr"; pointee: string }).pointee;
         if (pointee === "Uint8Array" || pointee === "Float64Array") {
-          const fn =
-            pointee === "Uint8Array" ? "cs2_uint8array_set" : "cs2_float64array_set";
+          const fn = pointee === "Uint8Array" ? "cs2_uint8array_set" : "cs2_float64array_set";
           return {
             kind: "runtime_call",
             func: fn,
@@ -550,10 +553,17 @@ function lowerArrayLiteral(expr: any): HIRExpr {
   const hasSpread = rawElements.some((e: any) => e.spread !== null);
 
   if (!hasSpread) {
-    const elements = rawElements.map((e: any) => lowerExpr(e.expression));
-    let elementType: HIRType = expectedArrayElementType || F64;
-    if (elements.length > 0) {
+    const elemTarget = expectedArrayElementType;
+    const elements = rawElements.map((e: any) => {
+      if (elemTarget && elemTarget.kind === "ptr") setExpectedDeclType(elemTarget);
+      const result = lowerExpr(e.expression);
+      if (elemTarget && elemTarget.kind === "ptr") setExpectedDeclType(null);
+      return result;
+    });
+    let elementType: HIRType = elemTarget || F64;
+    if (!elemTarget && elements.length > 0) {
       if (elements.some((e: HIRExpr) => e.type.kind === "i8ptr")) elementType = I8PTR;
+      else if (elements.some((e: HIRExpr) => e.type.kind === "ptr")) elementType = elements[0].type;
       else elementType = F64;
     }
     const coercedElements = elements.map((e: HIRExpr) =>
@@ -601,7 +611,13 @@ function lowerArrayLiteral(expr: any): HIRExpr {
 }
 
 function dynobj_get(obj: HIRExpr, key: HIRExpr): HIRExpr {
-  return { kind: "runtime_call", func: "cs2_dynobj_get_obj", args: [obj, key], returnType: DYNOBJ, type: DYNOBJ };
+  return {
+    kind: "runtime_call",
+    func: "cs2_dynobj_get_obj",
+    args: [obj, key],
+    returnType: DYNOBJ,
+    type: DYNOBJ,
+  };
 }
 
 function dynobj_get_typed(obj: HIRExpr, key: HIRExpr, targetType: HIRType | null): HIRExpr {
@@ -609,20 +625,56 @@ function dynobj_get_typed(obj: HIRExpr, key: HIRExpr, targetType: HIRType | null
     switch (targetType.kind) {
       case "f64":
       case "i64":
-        return { kind: "runtime_call", func: "cs2_dynobj_get_f64", args: [obj, key], returnType: F64, type: F64 };
+        return {
+          kind: "runtime_call",
+          func: "cs2_dynobj_get_f64",
+          args: [obj, key],
+          returnType: F64,
+          type: F64,
+        };
       case "i8ptr":
-        return { kind: "runtime_call", func: "cs2_dynobj_get_str", args: [obj, key], returnType: I8PTR, type: I8PTR };
+        return {
+          kind: "runtime_call",
+          func: "cs2_dynobj_get_str",
+          args: [obj, key],
+          returnType: I8PTR,
+          type: I8PTR,
+        };
       case "i1":
-        return { kind: "runtime_call", func: "cs2_dynobj_get_bool", args: [obj, key], returnType: I1, type: I1 };
+        return {
+          kind: "runtime_call",
+          func: "cs2_dynobj_get_bool",
+          args: [obj, key],
+          returnType: I1,
+          type: I1,
+        };
       case "dynarray":
-        return { kind: "runtime_call", func: "cs2_dynobj_get_arr", args: [obj, key], returnType: DYNARRAY, type: DYNARRAY };
+        return {
+          kind: "runtime_call",
+          func: "cs2_dynobj_get_arr",
+          args: [obj, key],
+          returnType: DYNARRAY,
+          type: DYNARRAY,
+        };
       case "dynobj":
-        return { kind: "runtime_call", func: "cs2_dynobj_get_obj", args: [obj, key], returnType: DYNOBJ, type: DYNOBJ };
+        return {
+          kind: "runtime_call",
+          func: "cs2_dynobj_get_obj",
+          args: [obj, key],
+          returnType: DYNOBJ,
+          type: DYNOBJ,
+        };
       default:
         break;
     }
   }
-  return { kind: "runtime_call", func: "cs2_dynobj_get_obj", args: [obj, key], returnType: DYNOBJ, type: DYNOBJ };
+  return {
+    kind: "runtime_call",
+    func: "cs2_dynobj_get_obj",
+    args: [obj, key],
+    returnType: DYNOBJ,
+    type: DYNOBJ,
+  };
 }
 
 function lowerObjectLiteral(expr: any): HIRExpr {
@@ -635,8 +687,7 @@ function lowerObjectLiteral(expr: any): HIRExpr {
         spreadSource = lowerExpr(prop.arguments);
         continue;
       }
-      const keyStr =
-        prop.key.type === "Identifier" ? prop.key.value : prop.key.value;
+      const keyStr = prop.key.type === "Identifier" ? prop.key.value : prop.key.value;
       const key = coerce({ kind: "literal_string", value: keyStr, type: I8PTR }, mt.key);
       const val = coerce(lowerExpr(prop.value), mt.value);
       entries.push({ key, value: val });
@@ -649,6 +700,36 @@ function lowerObjectLiteral(expr: any): HIRExpr {
       entries,
       type: expectedMapType,
     };
+  }
+
+  if (expectedDeclType && expectedDeclType.kind === "ptr") {
+    const structName = (expectedDeclType as { kind: "ptr"; pointee: string }).pointee;
+    const layout = classRegistry.get(structName) || interfaceRegistry.get(structName);
+    if (layout) {
+      const propMap = new Map<string, any>();
+      for (const prop of expr.properties) {
+        if (prop.type === "SpreadElement") continue;
+        const key =
+          prop.type === "Identifier"
+            ? prop.value
+            : prop.key.type === "Identifier"
+              ? prop.key.value
+              : String(prop.key.value);
+        propMap.set(key, prop);
+      }
+      const fields: HIRExpr[] = layout.fields.map((f: { name: string; type: HIRType }) => {
+        const prop = propMap.get(f.name);
+        if (!prop) return defaultValue(f.type);
+        const valExpr = prop.type === "Identifier" ? lowerExpr(prop) : lowerExpr(prop.value);
+        return coerce(valExpr, f.type);
+      });
+      return {
+        kind: "alloc_struct",
+        structName,
+        fields,
+        type: expectedDeclType,
+      };
+    }
   }
 
   const props: { key: string; value: HIRExpr }[] = [];
@@ -665,10 +746,13 @@ function lowerObjectLiteral(expr: any): HIRExpr {
     }
     const keyNode = prop.key;
     const keyStr =
-      keyNode.type === "Identifier" ? keyNode.value :
-      keyNode.type === "StringLiteral" ? keyNode.value :
-      keyNode.type === "NumericLiteral" ? String(keyNode.value) :
-      String(keyNode.value);
+      keyNode.type === "Identifier"
+        ? keyNode.value
+        : keyNode.type === "StringLiteral"
+          ? keyNode.value
+          : keyNode.type === "NumericLiteral"
+            ? String(keyNode.value)
+            : String(keyNode.value);
     const value = lowerExpr(prop.value);
     props.push({ key: keyStr, value });
   }
@@ -782,8 +866,7 @@ function lowerCall(expr: CallExpression): HIRExpr {
   if (
     expr.callee.type === "MemberExpression" &&
     expr.callee.object.type === "Identifier" &&
-    (expr.callee.object.value === "Uint8Array" ||
-      expr.callee.object.value === "Float64Array") &&
+    (expr.callee.object.value === "Uint8Array" || expr.callee.object.value === "Float64Array") &&
     expr.callee.property.type === "Identifier" &&
     expr.callee.property.value === "from"
   ) {
@@ -897,7 +980,13 @@ function lowerCall(expr: CallExpression): HIRExpr {
     };
     const info = osMethods[method];
     if (info) {
-      return { kind: "runtime_call", func: info.func, args: [], returnType: info.returnType, type: info.returnType };
+      return {
+        kind: "runtime_call",
+        func: info.func,
+        args: [],
+        returnType: info.returnType,
+        type: info.returnType,
+      };
     }
   }
 
@@ -1016,7 +1105,13 @@ function lowerCall(expr: CallExpression): HIRExpr {
       const args = expr.arguments.map((a: any, i: number) =>
         coerce(lowerExpr(a.expression), info.params[i].type),
       );
-      return { kind: "call", callee: funcName, args, returnType: info.returnType, type: info.returnType };
+      return {
+        kind: "call",
+        callee: funcName,
+        args,
+        returnType: info.returnType,
+        type: info.returnType,
+      };
     }
   }
 
@@ -1083,7 +1178,13 @@ function lowerCall(expr: CallExpression): HIRExpr {
     if (calleeName_ === "Number") {
       const arg = lowerExpr(expr.arguments[0].expression);
       if (arg.type.kind === "i8ptr") {
-        return { kind: "runtime_call", func: "cs2_parse_float", args: [arg], returnType: F64, type: F64 };
+        return {
+          kind: "runtime_call",
+          func: "cs2_parse_float",
+          args: [arg],
+          returnType: F64,
+          type: F64,
+        };
       }
       return coerce(arg, F64);
     }
@@ -1206,7 +1307,12 @@ function lowerCall(expr: CallExpression): HIRExpr {
         type: "MemberExpression" as const,
         span: expr.span,
         object: { type: "Identifier" as const, span: expr.span, value: bi.module, optional: false },
-        property: { type: "Identifier" as const, span: expr.span, value: bi.imported, optional: false },
+        property: {
+          type: "Identifier" as const,
+          span: expr.span,
+          value: bi.imported,
+          optional: false,
+        },
       };
       return lowerCall({ ...expr, callee: syntheticCallee as any });
     }
@@ -1813,10 +1919,7 @@ function lowerHttpCall(expr: CallExpression): HIRExpr {
     case "createServer": {
       ensureHttpTypesRegistered();
       const cbAst = expr.arguments[0].expression as any;
-      if (
-        cbAst.type === "ArrowFunctionExpression" ||
-        cbAst.type === "FunctionExpression"
-      ) {
+      if (cbAst.type === "ArrowFunctionExpression" || cbAst.type === "FunctionExpression") {
         const params = cbAst.params || [];
         const typeNames = ["HttpRequest", "HttpResponse"];
         for (let i = 0; i < Math.min(params.length, 2); i++) {
@@ -1828,7 +1931,12 @@ function lowerHttpCall(expr: CallExpression): HIRExpr {
               typeAnnotation: {
                 type: "TsTypeReference",
                 span: pat.span,
-                typeName: { type: "Identifier", span: pat.span, value: typeNames[i], optional: false },
+                typeName: {
+                  type: "Identifier",
+                  span: pat.span,
+                  value: typeNames[i],
+                  optional: false,
+                },
               },
             };
           }
@@ -2366,8 +2474,7 @@ function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
       },
     };
     const funcs = hofMethods[prefix];
-    if (!funcs || !funcs[method])
-      compileError(`unsupported array method: ${method}`, expr.span);
+    if (!funcs || !funcs[method]) compileError(`unsupported array method: ${method}`, expr.span);
     let returnType: HIRType;
     switch (method) {
       case "map":
@@ -2662,6 +2769,31 @@ export function lowerMember(expr: MemberExpression): HIRExpr {
   }
 
   if (
+    (expr.object as any).type === "MetaProperty" &&
+    expr.property.type === "Identifier" &&
+    (expr.property as Identifier).value === "url"
+  ) {
+    const url = sourceFilePath ? `file://${sourceFilePath}` : "file:///unknown";
+    return { kind: "literal_string", value: url, type: I8PTR };
+  }
+
+  if (
+    (expr.object as any).type === "NewExpression" &&
+    (expr.object as any).callee?.type === "Identifier" &&
+    (expr.object as any).callee.value === "URL" &&
+    expr.property.type === "Identifier"
+  ) {
+    const urlArg = lowerExpr((expr.object as any).arguments[0].expression);
+    const prop = (expr.property as Identifier).value;
+    if (prop === "pathname" && urlArg.kind === "literal_string") {
+      const urlStr = urlArg.value;
+      const pathname = urlStr.startsWith("file://") ? urlStr.slice(7) : urlStr;
+      return { kind: "literal_string", value: pathname, type: I8PTR };
+    }
+    return urlArg;
+  }
+
+  if (
     expr.object.type === "Identifier" &&
     expr.property.type === "Identifier" &&
     enumRegistry.has(expr.object.value)
@@ -2809,8 +2941,7 @@ export function lowerMember(expr: MemberExpression): HIRExpr {
     if (obj.type.kind === "ptr") {
       const pointee = (obj.type as { kind: "ptr"; pointee: string }).pointee;
       if (pointee === "Uint8Array" || pointee === "Float64Array") {
-        const fn =
-          pointee === "Uint8Array" ? "cs2_uint8array_get" : "cs2_float64array_get";
+        const fn = pointee === "Uint8Array" ? "cs2_uint8array_get" : "cs2_float64array_get";
         return {
           kind: "runtime_call",
           func: fn,
@@ -2870,8 +3001,7 @@ export function lowerMember(expr: MemberExpression): HIRExpr {
       if (obj.type.kind === "ptr") {
         const pointee = (obj.type as { kind: "ptr"; pointee: string }).pointee;
         if (pointee === "Uint8Array" || pointee === "Float64Array") {
-          const fn =
-            pointee === "Uint8Array" ? "cs2_uint8array_length" : "cs2_float64array_length";
+          const fn = pointee === "Uint8Array" ? "cs2_uint8array_length" : "cs2_float64array_length";
           return {
             kind: "runtime_call",
             func: fn,
@@ -2934,8 +3064,10 @@ export function lowerMember(expr: MemberExpression): HIRExpr {
             throw new Error(`unsupported HttpRequest property: ${propName}`);
         }
       }
-      const classInfo = classRegistry.get(typeName);
-      if (classInfo) {
+      let searchClass = typeName;
+      while (searchClass) {
+        const classInfo = classRegistry.get(searchClass);
+        if (!classInfo) break;
         const fieldIdx = classInfo.fields.findIndex((f) => f.name === propName);
         if (fieldIdx >= 0) {
           const field = classInfo.fields[fieldIdx];
@@ -2947,6 +3079,7 @@ export function lowerMember(expr: MemberExpression): HIRExpr {
             type: field.type,
           };
         }
+        searchClass = classInfo.parent!;
       }
       const ifaceInfo = interfaceRegistry.get(typeName);
       if (ifaceInfo) {
@@ -2970,12 +3103,17 @@ export function lowerMember(expr: MemberExpression): HIRExpr {
     setExpectedDeclType(null);
     const objExpr = lowerExpr(expr.object);
     setExpectedDeclType(savedDeclType);
-    if ((objExpr.type.kind === "dynobj" || objExpr.type.kind === "boxed") && expr.property.type === "Identifier") {
+    if (
+      (objExpr.type.kind === "dynobj" || objExpr.type.kind === "boxed") &&
+      expr.property.type === "Identifier"
+    ) {
       const dynObj = objExpr.type.kind === "boxed" ? coerce(objExpr, DYNOBJ) : objExpr;
       const key: HIRExpr = { kind: "literal_string", value: expr.property.value, type: I8PTR };
       let targetType = savedDeclType;
       if (!targetType && objExpr.type.props) {
-        const propInfo = objExpr.type.props.find((p: { name: string; type: HIRType }) => p.name === expr.property.value);
+        const propInfo = objExpr.type.props.find(
+          (p: { name: string; type: HIRType }) => p.name === expr.property.value,
+        );
         if (propInfo) targetType = propInfo.type;
       }
       return dynobj_get_typed(dynObj, key, targetType);
