@@ -163,6 +163,16 @@ export function emitExpr(ctx: EmitContext, expr: HIRExpr): any {
       const inner = emitExpr(ctx, (expr as HIRExpr & { kind: "unbox" }).value);
       return emitUnboxValue(ctx, inner, (expr as HIRExpr & { kind: "unbox" }).toType);
     }
+    case "promise_static":
+      return emitPromiseStatic(
+        ctx,
+        expr as HIRExpr & {
+          kind: "promise_static";
+          method: "all" | "race" | "allSettled";
+          promises: HIRExpr[];
+          innerType: HIRType;
+        },
+      );
     default:
       return m.constInt(m.i64, 0);
   }
@@ -891,6 +901,116 @@ function emitCallClosure(ctx: EmitContext, expr: HIRExpr & { kind: "call_closure
   const fnType = m.functionType(retType, paramTypes);
 
   return m.buildCall(fnType, fnPtr, allArgs, expr.returnType.kind === "void" ? "" : "");
+}
+
+function emitPromiseStatic(
+  ctx: EmitContext,
+  expr: HIRExpr & {
+    kind: "promise_static";
+    method: "all" | "race" | "allSettled";
+    promises: HIRExpr[];
+    innerType: HIRType;
+  },
+): any {
+  const m = ctx.m;
+  const suffix = expr.innerType.kind === "i8ptr" ? "str" : "num";
+
+  const objNewDecl = ctx.getDeclaredFunction("cs2_obj_array_new")!;
+  const objPushDecl = ctx.getDeclaredFunction("cs2_obj_array_push")!;
+  const arr = m.buildCall(
+    objNewDecl.fnType,
+    objNewDecl.fn,
+    [m.constInt(m.i32, Math.max(expr.promises.length, 4))],
+    "promises_arr",
+  );
+
+  for (const p of expr.promises) {
+    const val = emitExpr(ctx, p);
+    m.buildCall(objPushDecl.fnType, objPushDecl.fn, [arr, val], "");
+  }
+
+  switch (expr.method) {
+    case "all": {
+      const fnName = `cs2_promise_all_${suffix}`;
+      const decl = ctx.getDeclaredFunction(fnName)!;
+      return m.buildCall(decl.fnType, decl.fn, [arr], "promise_all");
+    }
+    case "race": {
+      const fnName = `cs2_promise_race_${suffix}`;
+      const decl = ctx.getDeclaredFunction(fnName)!;
+      return m.buildCall(decl.fnType, decl.fn, [arr], "promise_race");
+    }
+    case "allSettled": {
+      return emitPromiseAllSettled(ctx, arr, expr);
+    }
+    default:
+      throw new Error(`unsupported promise static method: ${expr.method}`);
+  }
+}
+
+function emitPromiseAllSettled(
+  ctx: EmitContext,
+  promisesArr: any,
+  expr: HIRExpr & {
+    kind: "promise_static";
+    promises: HIRExpr[];
+    innerType: HIRType;
+  },
+): any {
+  const m = ctx.m;
+
+  const structInfo = ctx.getStructType("__PromiseSettledResult");
+  if (!structInfo) throw new Error("__PromiseSettledResult struct not registered");
+  const resultArrNew = ctx.getDeclaredFunction("cs2_obj_array_new")!;
+  const resultArrPush = ctx.getDeclaredFunction("cs2_obj_array_push")!;
+
+  const resultArr = m.buildCall(
+    resultArrNew.fnType,
+    resultArrNew.fn,
+    [m.constInt(m.i32, Math.max(expr.promises.length, 4))],
+    "settled_arr",
+  );
+
+  const getFn = expr.innerType.kind === "i8ptr" ? "cs2_promise_get_str" : "cs2_promise_get_f64";
+  const getDecl = ctx.getDeclaredFunction(getFn)!;
+  const objGetDecl = ctx.getDeclaredFunction("cs2_obj_array_get")!;
+  const fulfilledStr = m.buildGlobalStringPtr("fulfilled", "settled_status");
+  const mallocDecl = ctx.getDeclaredFunction("malloc")!;
+
+  for (let i = 0; i < expr.promises.length; i++) {
+    const promisePtr = m.buildCall(
+      objGetDecl.fnType,
+      objGetDecl.fn,
+      [promisesArr, m.constInt(m.i32, i)],
+      "p",
+    );
+    const resolvedVal = m.buildCall(getDecl.fnType, getDecl.fn, [promisePtr], "resolved");
+
+    const size = m.sizeOf(structInfo.llvmType);
+    const obj = m.buildCall(mallocDecl.fnType, mallocDecl.fn, [size], "settled_obj");
+    const statusPtr = m.buildGEP(
+      structInfo.llvmType,
+      obj,
+      [m.constInt(m.i32, 0), m.constInt(m.i32, 0)],
+      "",
+    );
+    m.buildStore(fulfilledStr, statusPtr);
+    const valuePtr = m.buildGEP(
+      structInfo.llvmType,
+      obj,
+      [m.constInt(m.i32, 0), m.constInt(m.i32, 1)],
+      "",
+    );
+    m.buildStore(resolvedVal, valuePtr);
+
+    m.buildCall(resultArrPush.fnType, resultArrPush.fn, [resultArr, obj], "");
+  }
+
+  const promiseNew = ctx.getDeclaredFunction("cs2_promise_new")!;
+  const promiseResolvePtr = ctx.getDeclaredFunction("cs2_promise_resolve_ptr")!;
+  const outPromise = m.buildCall(promiseNew.fnType, promiseNew.fn, [], "settled_promise");
+  m.buildCall(promiseResolvePtr.fnType, promiseResolvePtr.fn, [outPromise, resultArr], "");
+  return outPromise;
 }
 
 function promiseGetFn(type: HIRType): string {

@@ -27,28 +27,33 @@ const BRIDGE_SRCS = [
   join(ROOT, "c_bridges", "v2-set-bridge.c"),
   join(ROOT, "c_bridges", "v2-crypto-bridge.c"),
   join(ROOT, "c_bridges", "v2-buffer-bridge.c"),
+  join(ROOT, "c_bridges", "v2-regex-bridge.c"),
 ];
 
 function findLibuv(): { include: string; lib: string } {
-  const candidates = [join(ROOT, "vendor", "libuv"), join(ROOT, "..", "..", "vendor", "libuv")];
-  for (const dir of candidates) {
-    const lib = join(dir, "build", "libuv.a");
-    const inc = join(dir, "include");
-    if (existsSync(lib) && existsSync(inc)) {
-      return { include: inc, lib: join(dir, "build") };
-    }
+  const dir = join(ROOT, "vendor", "libuv");
+  const lib = join(dir, "build", "libuv.a");
+  const inc = join(dir, "include");
+  if (existsSync(lib) && existsSync(inc)) {
+    return { include: inc, lib: join(dir, "build") };
   }
   throw new Error("libuv not found — expected vendor/libuv with build/libuv.a and include/");
 }
 
 function findYyjson(): string {
-  const candidates = [join(ROOT, "vendor", "yyjson"), join(ROOT, "..", "..", "vendor", "yyjson")];
-  for (const dir of candidates) {
-    if (existsSync(join(dir, "yyjson.c")) && existsSync(join(dir, "yyjson.h"))) {
-      return dir;
-    }
+  const dir = join(ROOT, "vendor", "yyjson");
+  if (existsSync(join(dir, "yyjson.c")) && existsSync(join(dir, "yyjson.h"))) {
+    return dir;
   }
   throw new Error("yyjson not found — expected vendor/yyjson with yyjson.c and yyjson.h");
+}
+
+function findRure(): string {
+  const dir = join(ROOT, "vendor", "rure");
+  if (existsSync(join(dir, "librure.a"))) {
+    return dir;
+  }
+  throw new Error("rure not found — expected vendor/rure with librure.a");
 }
 
 const TIMER_BRIDGE = join(ROOT, "c_bridges", "v2-timer-bridge.c");
@@ -74,6 +79,7 @@ export function compile(opts: CompileOptions): void {
 
     const libuv = findLibuv();
     const yyjsonDir = findYyjson();
+    const rureDir = findRure();
 
     for (let i = 0; i < BRIDGE_SRCS.length; i++) {
       execSync(`clang -c -O2 -o ${bridgeObjs[i]} ${BRIDGE_SRCS[i]}`, { stdio: "inherit" });
@@ -87,9 +93,10 @@ export function compile(opts: CompileOptions): void {
     execSync(`clang -c -O2 -I${yyjsonDir} -o ${jsonObj} ${JSON_BRIDGE}`, {
       stdio: "inherit",
     });
-    execSync(`clang -g -O2 -o ${opts.output} ${tmpObj} ${allObjs.join(" ")} -L${libuv.lib} -luv`, {
-      stdio: "inherit",
-    });
+    execSync(
+      `clang -g -O2 -o ${opts.output} ${tmpObj} ${allObjs.join(" ")} -L${libuv.lib} -luv -L${rureDir} -lrure`,
+      { stdio: "inherit" },
+    );
     if (process.platform === "darwin") {
       execSync(`dsymutil -q ${opts.output}`, { stdio: "inherit" });
     }

@@ -1,1 +1,1 @@
-const x = /regex/;
+const x = class {};

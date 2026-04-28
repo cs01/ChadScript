@@ -11,7 +11,8 @@ export type HIRType =
   | { kind: "closure"; params: HIRType[]; returnType: HIRType }
   | { kind: "promise"; inner: HIRType }
   | { kind: "map"; key: HIRType; value: HIRType }
-  | { kind: "set"; element: HIRType };
+  | { kind: "set"; element: HIRType }
+  | { kind: "regex" };
 
 export interface HIRField {
   name: string;
@@ -157,7 +158,14 @@ export type HIRExpr =
       type: HIRType;
     }
   | { kind: "nullish_coalesce"; left: HIRExpr; right: HIRExpr; type: HIRType }
-  | { kind: "await"; value: HIRExpr; resolvedType: HIRType; type: HIRType };
+  | { kind: "await"; value: HIRExpr; resolvedType: HIRType; type: HIRType }
+  | {
+      kind: "promise_static";
+      method: "all" | "race" | "allSettled";
+      promises: HIRExpr[];
+      innerType: HIRType;
+      type: HIRType;
+    };
 
 export type HIRStmtBase =
   | {
@@ -267,3 +275,4 @@ export const I1: HIRType = { kind: "i1" };
 export const I8PTR: HIRType = { kind: "i8ptr" };
 export const VOID: HIRType = { kind: "void" };
 export const BOXED: HIRType = { kind: "boxed" };
+export const REGEX: HIRType = { kind: "regex" };

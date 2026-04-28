@@ -71,7 +71,7 @@ function compileExpectError(fixture: string): string {
   }
 }
 
-describe("chadscript v2 compiler", () => {
+describe("chadscript v2 compiler", { concurrency: 8 }, () => {
   for (const fixture of fixtures) {
     const name = fixture.replace(".ts", "");
     it(name, () => {
@@ -90,6 +90,6 @@ describe("compile errors", () => {
 
   it("unsupported expression", () => {
     const err = compileExpectError("unsupported-expr.ts");
-    assert.match(err, /unsupported expression type: RegExpLiteral/);
+    assert.match(err, /unsupported expression type: ClassExpression/);
   });
 });

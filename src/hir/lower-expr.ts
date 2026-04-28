@@ -11,7 +11,7 @@ import type {
 } from "@swc/core";
 
 import type { HIRExpr, HIRType, HIRParam, BinaryOp, UnaryOp } from "./types.js";
-import { F64, I64, I1, I8PTR, VOID, BOXED } from "./types.js";
+import { F64, I64, I1, I8PTR, VOID, BOXED, REGEX } from "./types.js";
 import { compileError } from "../errors.js";
 import {
   locals,
@@ -113,6 +113,17 @@ export function lowerExpr(expr: Expression): HIRExpr {
     }
     case "TsNonNullExpression":
       return lowerExpr((expr as any).expression);
+    case "RegExpLiteral":
+      return {
+        kind: "runtime_call",
+        func: "cs2_regex_new",
+        args: [
+          { kind: "literal_string", value: (expr as any).pattern, type: I8PTR },
+          { kind: "literal_string", value: (expr as any).flags, type: I8PTR },
+        ],
+        returnType: REGEX,
+        type: REGEX,
+      };
     case "AwaitExpression": {
       const arg = lowerExpr((expr as any).argument);
       if (arg.type.kind === "promise") {
@@ -711,6 +722,15 @@ function lowerCall(expr: CallExpression): HIRExpr {
   if (
     expr.callee.type === "MemberExpression" &&
     expr.callee.object.type === "Identifier" &&
+    expr.callee.object.value === "Promise" &&
+    expr.callee.property.type === "Identifier"
+  ) {
+    return lowerPromiseStaticCall(expr);
+  }
+
+  if (
+    expr.callee.type === "MemberExpression" &&
+    expr.callee.object.type === "Identifier" &&
     expr.callee.object.value === "String" &&
     expr.callee.property.type === "Identifier" &&
     expr.callee.property.value === "fromCharCode"
@@ -738,6 +758,9 @@ function lowerCall(expr: CallExpression): HIRExpr {
     }
     if (obj.type.kind === "set") {
       return lowerSetMethodCall(expr, obj);
+    }
+    if (obj.type.kind === "regex") {
+      return lowerRegexMethodCall(expr, obj);
     }
     if (obj.type.kind === "ptr") {
       const pointee = (obj.type as { kind: "ptr"; pointee: string }).pointee;
@@ -897,6 +920,22 @@ function lowerNewExpr(expr: any): HIRExpr {
     compileError("new expression requires identifier callee", expr.span);
   }
   const className = expr.callee.value;
+
+  if (className === "RegExp") {
+    const patternArg = expr.arguments?.length > 0
+      ? lowerExpr(expr.arguments[0].expression)
+      : ({ kind: "literal_string" as const, value: "", type: I8PTR } as HIRExpr);
+    const flagsArg = expr.arguments?.length > 1
+      ? lowerExpr(expr.arguments[1].expression)
+      : ({ kind: "literal_string" as const, value: "", type: I8PTR } as HIRExpr);
+    return {
+      kind: "runtime_call",
+      func: "cs2_regex_new",
+      args: [patternArg, flagsArg],
+      returnType: REGEX,
+      type: REGEX,
+    };
+  }
 
   if (className === "Map" && expr.typeArguments?.params?.length === 2) {
     const keyType = resolveTypeAnnotation(expr.typeArguments.params[0]);
@@ -1356,6 +1395,26 @@ function lowerStringMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
   const method = (member.property as Identifier).value;
   const args = expr.arguments.map((a) => lowerExpr(a.expression));
 
+  if (method === "match" && args.length >= 1 && args[0].type.kind === "regex") {
+    return {
+      kind: "runtime_call",
+      func: "cs2_string_match",
+      args: [obj, args[0]],
+      returnType: I8PTR,
+      type: I8PTR,
+    };
+  }
+
+  if (method === "replace" && args.length >= 2 && args[0].type.kind === "regex") {
+    return {
+      kind: "runtime_call",
+      func: "cs2_string_replace_regex",
+      args: [obj, args[0], args[1]],
+      returnType: I8PTR,
+      type: I8PTR,
+    };
+  }
+
   const strMethodMap: Record<string, { func: string; returnType: HIRType; argTypes?: HIRType[] }> =
     {
       charAt: { func: "cs2_str_char_at", returnType: I8PTR, argTypes: [I64] },
@@ -1484,6 +1543,36 @@ function lowerSetMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
     }
     default:
       throw new Error(`unsupported Set method: ${method}`);
+  }
+}
+
+function lowerRegexMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
+  const member = expr.callee as MemberExpression;
+  const method = (member.property as Identifier).value;
+
+  switch (method) {
+    case "test": {
+      const strArg = lowerExpr(expr.arguments[0].expression);
+      return {
+        kind: "runtime_call",
+        func: "cs2_regex_test",
+        args: [obj, strArg],
+        returnType: I1,
+        type: I1,
+      };
+    }
+    case "exec": {
+      const strArg = lowerExpr(expr.arguments[0].expression);
+      return {
+        kind: "runtime_call",
+        func: "cs2_regex_exec_match",
+        args: [obj, strArg],
+        returnType: I8PTR,
+        type: I8PTR,
+      };
+    }
+    default:
+      throw new Error(`unsupported RegExp method: ${method}`);
   }
 }
 
@@ -1943,4 +2032,76 @@ export function lowerMember(expr: MemberExpression): HIRExpr {
   const obj = expr.object.type === "Identifier" ? expr.object.value : expr.object.type;
   const prop = expr.property.type === "Identifier" ? expr.property.value : expr.property.type;
   compileError(`unsupported member access: ${obj}.${prop}`, expr.span);
+}
+
+function lowerPromiseStaticCall(expr: CallExpression): HIRExpr {
+  const method = ((expr.callee as MemberExpression).property as Identifier).value;
+  if (expr.arguments.length < 1) {
+    compileError(`Promise.${method} requires an argument`, expr.span);
+  }
+  const argExpr = expr.arguments[0].expression;
+  if (argExpr.type !== "ArrayExpression") {
+    compileError(`Promise.${method} requires an array literal argument`, expr.span);
+  }
+  const elements = (argExpr as any).elements || [];
+  const promises: HIRExpr[] = elements
+    .filter((e: any) => e !== null)
+    .map((e: any) => lowerExpr(e.expression));
+
+  if (promises.length === 0) {
+    compileError(`Promise.${method} requires at least one promise`, expr.span);
+  }
+
+  const firstType = promises[0].type;
+  if (firstType.kind !== "promise") {
+    compileError(`Promise.${method} elements must be promises`, expr.span);
+  }
+  const innerType = (firstType as { kind: "promise"; inner: HIRType }).inner;
+
+  switch (method) {
+    case "all":
+      return {
+        kind: "promise_static",
+        method: "all",
+        promises,
+        innerType,
+        type: { kind: "promise", inner: { kind: "array", element: innerType } },
+      };
+    case "race":
+      return {
+        kind: "promise_static",
+        method: "race",
+        promises,
+        innerType,
+        type: { kind: "promise", inner: innerType },
+      };
+    case "allSettled": {
+      if (!classRegistry.has("__PromiseSettledResult")) {
+        const fields =
+          innerType.kind === "i8ptr"
+            ? [
+                { name: "status", type: I8PTR },
+                { name: "value", type: I8PTR },
+              ]
+            : [
+                { name: "status", type: I8PTR },
+                { name: "value", type: F64 },
+              ];
+        classRegistry.set("__PromiseSettledResult", {
+          fields,
+          methods: new Map(),
+        });
+      }
+      const resultStructType: HIRType = { kind: "ptr", pointee: "__PromiseSettledResult" };
+      return {
+        kind: "promise_static",
+        method: "allSettled",
+        promises,
+        innerType,
+        type: { kind: "promise", inner: { kind: "array", element: resultStructType } },
+      };
+    }
+    default:
+      compileError(`unsupported Promise method: ${method}`, expr.span);
+  }
 }

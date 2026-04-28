@@ -391,6 +391,10 @@ function declareExterns(ctx: EmitContext): void {
     ["cs2_promise_get_bool", m.i32, [m.ptr]],
     ["cs2_promise_get_ptr", m.ptr, [m.ptr]],
     ["cs2_promise_get_str", m.ptr, [m.ptr]],
+    ["cs2_promise_all_num", m.ptr, [m.ptr]],
+    ["cs2_promise_all_str", m.ptr, [m.ptr]],
+    ["cs2_promise_race_num", m.ptr, [m.ptr]],
+    ["cs2_promise_race_str", m.ptr, [m.ptr]],
     ["cs2_set_timeout", m.ptr, [m.ptr, m.f64]],
     ["cs2_set_interval", m.ptr, [m.ptr, m.f64]],
     ["cs2_clear_timer", m.voidTy, [m.ptr]],
@@ -475,6 +479,11 @@ function declareExterns(ctx: EmitContext): void {
     ["cs2_num_set_has", m.i32, [m.ptr, m.f64]],
     ["cs2_num_set_delete", m.i32, [m.ptr, m.f64]],
     ["cs2_num_set_size", m.i32, [m.ptr]],
+    ["cs2_regex_new", m.ptr, [m.ptr, m.ptr]],
+    ["cs2_regex_test", m.i32, [m.ptr, m.ptr]],
+    ["cs2_regex_exec_match", m.ptr, [m.ptr, m.ptr]],
+    ["cs2_string_match", m.ptr, [m.ptr, m.ptr]],
+    ["cs2_string_replace_regex", m.ptr, [m.ptr, m.ptr, m.ptr]],
   ];
   for (const [name, ret, params] of bridgeFns) {
     const fnType = m.functionType(ret, params);

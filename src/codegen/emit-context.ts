@@ -200,6 +200,7 @@ export function llvmType(ctx: EmitContext, t: HIRType): any {
       return m.ptr;
     case "map":
     case "set":
+    case "regex":
       return m.ptr;
     default: {
       const _: never = t;

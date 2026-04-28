@@ -302,7 +302,7 @@ const ast = parseSync(source, { syntax: "typescript", decorators: true });
 - [x] Codegen: array struct layout via C bridges (`v2-array-bridge.c`: NumArray/StrArray { ptr, len, cap })
 - [x] Codegen: string as `i8*`, malloc for allocation
 - [x] Codegen: `runtime_call` for string/array ops → v2-string-bridge.c, v2-array-bridge.c
-- [ ] Wire up regex bridge
+- [x] Wire up regex bridge — rure (Rust regex) via v2-regex-bridge.c
 - [x] **Milestone:** string + array parity tests passing (36 total)
 
 ### Phase 3: Classes + Interfaces (~2-3 weeks, ~4-5K LOC)
@@ -415,21 +415,24 @@ const ast = parseSync(source, { syntax: "typescript", decorators: true });
 
 **Goal:** Full Node.js API surface. Each new module is just more `runtime_call` targets backed by C bridges — incremental, not architectural.
 
+Note: if useful, you can make use of c_bridges in main barnch rather than rewriting from scratch
+
 - [x] `console.log` (basic — multi-arg, all types)
 - [x] `setTimeout`, `setInterval`, `clearTimeout`, `clearInterval` (via libuv)
 - [x] `JSON` (parse, stringify) — yyjson bridge, typed dispatch, nanbox parse
 - [x] `console` (error, warn, time, timeEnd) — stderr bridge, per-type formatters
 - [x] `process` (argv, env, exit, cwd, platform) — C bridge with argc/argv init
-- [ ] `Math` (extended — random done, add remaining)
-- [ ] `fs` (readFileSync, writeFileSync, existsSync, readdirSync, async variants)
+- [x] `Math` (extended) — sin, cos, tan, asin, acos, atan, atan2, exp, log2, log10, trunc, sign, hypot, cbrt, clz32 + constants (PI, E, LN2, etc.)
+- [x] `fs` (readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync, unlinkSync, statSync) — C bridge
 - [x] `path` (join, resolve, dirname, basename, extname, sep) — POSIX C bridge
 - [ ] `http` / `fetch` — reuse lws bridge
-- [ ] `child_process` (exec, spawn) — reuse existing bridges
-- [ ] `crypto` (randomBytes, createHash) — reuse existing bridge
-- [ ] `Buffer` — reuse existing bridge
-- [ ] `RegExp` — reuse PCRE2 bridge
-- [ ] `Map`, `Set` (native implementations)
-- [ ] `Promise.all`, `Promise.race`, `Promise.allSettled`
+- [x] `child_process` (execSync) — popen bridge
+- [x] `crypto` (randomBytes, createHash) — CommonCrypto bridge, sha256/sha1/sha512/md5
+- [x] `Buffer` (from, alloc, toString, length) — utf8/hex/base64 encoding
+- [x] `RegExp` (test, replace, match) — rure (Rust regex) bridge
+- [x] `Map`, `Set` (native implementations) — parallel-array, str/num key specializations
+- [x] `Promise.all`, `Promise.race` — synchronous promise collection via C bridge
+- [ ] `Promise.allSettled`
 - [ ] **Milestone:** Real-world programs compile and run. Express-like server works.
 
 ### Phase 8: Self-Hosting (~2-3 weeks, ~500 LOC new)

@@ -296,6 +296,15 @@ export function lowerModule(
 
   functions.push(...pendingFunctions);
 
+  if (classRegistry.has("__PromiseSettledResult")) {
+    const info = classRegistry.get("__PromiseSettledResult")!;
+    hirClasses.push({
+      name: "__PromiseSettledResult",
+      fields: info.fields,
+      methods: [],
+    });
+  }
+
   const genericClasses = drainPendingGenericClasses();
   for (const { hirClass, fns } of genericClasses) {
     hirClasses.push(hirClass);
