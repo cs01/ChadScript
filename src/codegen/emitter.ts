@@ -643,6 +643,8 @@ function declareExterns(ctx: EmitContext): void {
     ["cs2_dynarray_get_obj", m.ptr, [m.ptr, m.i32]],
     ["cs2_dynarray_get_arr", m.ptr, [m.ptr, m.i32]],
     ["cs2_dynarray_get_bool", m.i32, [m.ptr, m.i32]],
+    ["cs2_json_parse_obj", m.ptr, [m.ptr]],
+    ["cs2_json_parse_arr", m.ptr, [m.ptr]],
   ];
   for (const [name, ret, params] of bridgeFns) {
     const fnType = m.functionType(ret, params);

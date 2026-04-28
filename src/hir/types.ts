@@ -296,3 +296,5 @@ export const I8PTR: HIRType = { kind: "i8ptr" };
 export const VOID: HIRType = { kind: "void" };
 export const BOXED: HIRType = { kind: "boxed" };
 export const REGEX: HIRType = { kind: "regex" };
+export const DYNOBJ: HIRType = { kind: "dynobj" };
+export const DYNARRAY: HIRType = { kind: "dynarray" };

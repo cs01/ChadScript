@@ -72,6 +72,7 @@ function collectModules(
 
   for (const item of ast.body) {
     if (item.type === "ImportDeclaration") {
+      if ((item as any).typeOnly) continue;
       if (isBuiltinImport(item.source.value)) continue;
       const resolvedPath = resolveImportPath(item.source.value, absPath);
       collectModules(resolvedPath, visited, aliases);

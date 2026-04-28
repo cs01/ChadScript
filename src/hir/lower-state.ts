@@ -1,5 +1,5 @@
 import type { HIRType, HIRParam, BinaryOp } from "./types.js";
-import { F64, I64, I1, I8PTR, VOID, BOXED } from "./types.js";
+import { F64, I64, I1, I8PTR, VOID, BOXED, DYNOBJ, DYNARRAY } from "./types.js";
 
 export let sourceText = "";
 export let lineOffsets: number[] = [];
@@ -54,6 +54,7 @@ export const restParamRegistry = new Map<string, number>();
 export let isModuleScope = true;
 export let expectedArrayElementType: HIRType | null = null;
 export let expectedMapType: HIRType | null = null;
+export let expectedDeclType: HIRType | null = null;
 export let currentClassName: string | null = null;
 export let nextAnonId = 0;
 export const fnAliases = new Map<string, string>();
@@ -127,6 +128,10 @@ export function setExpectedMapType(t: HIRType | null): void {
   expectedMapType = t;
 }
 
+export function setExpectedDeclType(t: HIRType | null): void {
+  expectedDeclType = t;
+}
+
 export function setCurrentClassName(name: string | null): void {
   currentClassName = name;
 }
@@ -174,6 +179,8 @@ export function resolveTypeAnnotation(ann: any): HIRType {
         return I1;
       case "void":
         return VOID;
+      case "any":
+        return DYNOBJ;
       default:
         return BOXED;
     }

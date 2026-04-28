@@ -43,6 +43,7 @@ import {
   setIsModuleScope,
   setExpectedArrayElementType,
   setExpectedMapType,
+  setExpectedDeclType,
   incNextAnonId,
   setSourceText,
   setLineOffsets,
@@ -315,9 +316,11 @@ export function lowerModule(
           if (declType.kind === "array")
             setExpectedArrayElementType((declType as { kind: "array"; element: HIRType }).element);
           if (declType.kind === "map") setExpectedMapType(declType);
+          if (hasAnnotation) setExpectedDeclType(declType);
           const rawInit = d.init ? lowerExpr(d.init) : undefined;
           setExpectedArrayElementType(null);
           setExpectedMapType(null);
+          setExpectedDeclType(null);
           const type =
             declType.kind !== "boxed"
               ? declType
@@ -478,9 +481,11 @@ function lowerVarDecl(decl: VariableDeclaration): HIRStmt[] {
       if (declType.kind === "array")
         setExpectedArrayElementType((declType as { kind: "array"; element: HIRType }).element);
       if (declType.kind === "map") setExpectedMapType(declType);
+      if (hasAnnotation) setExpectedDeclType(declType);
       const init = d.init ? lowerExpr(d.init) : undefined;
       setExpectedArrayElementType(null);
       setExpectedMapType(null);
+      setExpectedDeclType(null);
       const type =
         declType.kind !== "boxed" ? declType : hasAnnotation ? BOXED : init ? init.type : BOXED;
       const coercedInit = init && init.type.kind !== type.kind ? coerce(init, type) : init;

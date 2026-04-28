@@ -15,3 +15,4 @@ vendor/
 .claude/*
 !.claude/rules.md
 .cache/
+swc-bridge/target/

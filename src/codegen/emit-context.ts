@@ -201,6 +201,8 @@ export function llvmType(ctx: EmitContext, t: HIRType): any {
     case "map":
     case "set":
     case "regex":
+    case "dynobj":
+    case "dynarray":
       return m.ptr;
     default: {
       const _: never = t;

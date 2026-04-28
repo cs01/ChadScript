@@ -11,7 +11,7 @@ import type {
 } from "@swc/core";
 
 import type { HIRExpr, HIRType, HIRParam, BinaryOp, UnaryOp } from "./types.js";
-import { F64, I64, I1, I8PTR, VOID, BOXED, REGEX } from "./types.js";
+import { F64, I64, I1, I8PTR, VOID, BOXED, REGEX, DYNOBJ, DYNARRAY } from "./types.js";
 import { compileError } from "../errors.js";
 import {
   locals,
@@ -28,6 +28,8 @@ import {
   currentClassName,
   expectedArrayElementType,
   expectedMapType,
+  expectedDeclType,
+  setExpectedDeclType,
   freshId,
   resolveTypeAnnotation,
   coerce,
@@ -572,6 +574,29 @@ function lowerArrayLiteral(expr: any): HIRExpr {
     elements: coerced as any,
     type: { kind: "array", element: elementType },
   };
+}
+
+function dynobj_get(obj: HIRExpr, key: HIRExpr): HIRExpr {
+  return { kind: "runtime_call", func: "cs2_dynobj_get_obj", args: [obj, key], returnType: DYNOBJ, type: DYNOBJ };
+}
+
+function dynobj_get_typed(obj: HIRExpr, key: HIRExpr, targetType: HIRType | null): HIRExpr {
+  if (targetType) {
+    switch (targetType.kind) {
+      case "f64":
+      case "i64":
+        return { kind: "runtime_call", func: "cs2_dynobj_get_f64", args: [obj, key], returnType: F64, type: F64 };
+      case "i8ptr":
+        return { kind: "runtime_call", func: "cs2_dynobj_get_str", args: [obj, key], returnType: I8PTR, type: I8PTR };
+      case "i1":
+        return { kind: "runtime_call", func: "cs2_dynobj_get_bool", args: [obj, key], returnType: I1, type: I1 };
+      case "dynarray":
+        return { kind: "runtime_call", func: "cs2_dynobj_get_arr", args: [obj, key], returnType: DYNARRAY, type: DYNARRAY };
+      default:
+        break;
+    }
+  }
+  return { kind: "runtime_call", func: "cs2_dynobj_get_obj", args: [obj, key], returnType: DYNOBJ, type: DYNOBJ };
 }
 
 function lowerObjectLiteral(expr: any): HIRExpr {
@@ -1893,10 +1918,10 @@ function lowerJSONCall(expr: CallExpression): HIRExpr {
       if (arg.type.kind !== "i8ptr") arg = coerce(arg, I8PTR);
       return {
         kind: "runtime_call",
-        func: "cs2_json_parse",
+        func: "cs2_json_parse_obj",
         args: [arg],
-        returnType: BOXED,
-        type: BOXED,
+        returnType: DYNOBJ,
+        type: DYNOBJ,
       };
     }
     default:
@@ -2702,6 +2727,9 @@ export function lowerMember(expr: MemberExpression): HIRExpr {
         };
       }
     }
+    if (obj.type.kind === "dynobj") {
+      return dynobj_get(obj, index);
+    }
     compileError("unsupported computed member access", expr.span);
   }
 
@@ -2831,6 +2859,17 @@ export function lowerMember(expr: MemberExpression): HIRExpr {
           };
         }
       }
+    }
+  }
+
+  {
+    const savedDeclType = expectedDeclType;
+    setExpectedDeclType(null);
+    const objExpr = lowerExpr(expr.object);
+    setExpectedDeclType(savedDeclType);
+    if (objExpr.type.kind === "dynobj" && expr.property.type === "Identifier") {
+      const key: HIRExpr = { kind: "literal_string", value: expr.property.value, type: I8PTR };
+      return dynobj_get_typed(objExpr, key, savedDeclType);
     }
   }
 
