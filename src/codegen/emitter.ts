@@ -13,7 +13,7 @@ import {
   collectLocalIds,
   findLocalTypeInStmts,
 } from "./emit-context.js";
-import { emitExpr } from "./emit-expr.js";
+import { emitExpr, ensureI1 } from "./emit-expr.js";
 
 export type { CaptureMap } from "./emit-context.js";
 
@@ -862,7 +862,8 @@ function emitStmt(ctx: EmitContext, stmt: HIRStmt): void {
       break;
     }
     case "if": {
-      const cond = emitExpr(ctx, stmt.condition);
+      const condRaw = emitExpr(ctx, stmt.condition);
+      const cond = ensureI1(ctx, condRaw, stmt.condition.type);
       const fn = ctx.getCurrentFn();
       const thenBlock = m.appendBlock(fn, "then");
       const elseBlock = stmt.else ? m.appendBlock(fn, "else") : null;
@@ -898,8 +899,9 @@ function emitStmt(ctx: EmitContext, stmt: HIRStmt): void {
       m.buildBr(condBlock);
 
       m.positionAtEnd(condBlock);
-      const cond = emitExpr(ctx, stmt.condition);
-      m.buildCondBr(cond, bodyBlock, exitBlock);
+      const condRawW = emitExpr(ctx, stmt.condition);
+      const condW = ensureI1(ctx, condRawW, stmt.condition.type);
+      m.buildCondBr(condW, bodyBlock, exitBlock);
 
       m.positionAtEnd(bodyBlock);
       for (const s of stmt.body) emitStmt(ctx, s);
@@ -922,8 +924,9 @@ function emitStmt(ctx: EmitContext, stmt: HIRStmt): void {
 
       m.positionAtEnd(condBlock);
       if (stmt.condition) {
-        const cond = emitExpr(ctx, stmt.condition);
-        m.buildCondBr(cond, bodyBlock, exitBlock);
+        const condRawF = emitExpr(ctx, stmt.condition);
+        const condF = ensureI1(ctx, condRawF, stmt.condition.type);
+        m.buildCondBr(condF, bodyBlock, exitBlock);
       } else {
         m.buildBr(bodyBlock);
       }

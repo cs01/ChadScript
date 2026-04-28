@@ -134,6 +134,59 @@ export function lowerModule(
   setLineOffsets(buildLineOffsets(source || ""));
   setSourceFilePath(filename || null);
 
+  const errorThisType: HIRType = { kind: "ptr", pointee: "Error" };
+  classRegistry.set("Error", {
+    fields: [
+      { name: "message", type: I8PTR },
+      { name: "name", type: I8PTR },
+    ],
+    methods: new Map(),
+    parent: undefined,
+  });
+  functionRegistry.set("Error_init", {
+    params: [
+      { id: 0, name: "this", type: errorThisType },
+      { id: 1, name: "message", type: I8PTR },
+    ],
+    returnType: VOID,
+  });
+  functionRegistry.set("Error_constructor", {
+    params: [{ id: 0, name: "message", type: I8PTR }],
+    returnType: errorThisType,
+  });
+  hirClasses.push({
+    name: "Error",
+    fields: [
+      { name: "message", type: I8PTR },
+      { name: "name", type: I8PTR },
+    ],
+    methods: [],
+    parent: undefined,
+  });
+  functions.push({
+    name: "Error_init",
+    params: [
+      { id: 0, name: "this", type: errorThisType },
+      { id: 1, name: "message", type: I8PTR },
+    ],
+    returnType: VOID,
+    body: [
+      {
+        kind: "expr",
+        expr: {
+          kind: "field_set",
+          object: { kind: "local_get", id: 0, type: errorThisType },
+          fieldName: "message",
+          index: 0,
+          value: { kind: "local_get", id: 1, type: I8PTR },
+          type: I8PTR,
+        },
+      },
+    ],
+    isAsync: false,
+    captures: [],
+  });
+
   if (importAliases) {
     for (const alias of importAliases) {
       fnAliases.set(alias.local, alias.imported);

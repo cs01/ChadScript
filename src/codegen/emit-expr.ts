@@ -88,7 +88,8 @@ export function emitExpr(ctx: EmitContext, expr: HIRExpr): any {
       return emitRuntimeCall(ctx, expr);
     case "conditional": {
       const fn = ctx.getCurrentFn();
-      const cond = emitExpr(ctx, expr.condition);
+      const condRaw = emitExpr(ctx, expr.condition);
+      const cond = ensureI1(ctx, condRaw, expr.condition.type);
 
       const thenBlock = m.appendBlock(fn, "cond.then");
       const elseBlock = m.appendBlock(fn, "cond.else");
@@ -649,20 +650,22 @@ function emitShortCircuit(ctx: EmitContext, expr: HIRExpr & { kind: "binary" }):
   const m = ctx.m;
   const fn = ctx.getCurrentFn();
 
-  const left = emitExpr(ctx, expr.left);
+  const leftRaw = emitExpr(ctx, expr.left);
+  const leftCond = ensureI1(ctx, leftRaw, expr.left.type);
   const leftBlock = m.getInsertBlock();
 
   const rhsBlock = m.appendBlock(fn, "sc.rhs");
   const mergeBlock = m.appendBlock(fn, "sc.merge");
 
   if (expr.op === "and") {
-    m.buildCondBr(left, rhsBlock, mergeBlock);
+    m.buildCondBr(leftCond, rhsBlock, mergeBlock);
   } else {
-    m.buildCondBr(left, mergeBlock, rhsBlock);
+    m.buildCondBr(leftCond, mergeBlock, rhsBlock);
   }
 
   m.positionAtEnd(rhsBlock);
-  const right = emitExpr(ctx, expr.right);
+  const rightRaw = emitExpr(ctx, expr.right);
+  const rightCond = ensureI1(ctx, rightRaw, expr.right.type);
   const rhsEndBlock = m.getInsertBlock();
   m.buildBr(mergeBlock);
 
@@ -670,9 +673,9 @@ function emitShortCircuit(ctx: EmitContext, expr: HIRExpr & { kind: "binary" }):
   const phi = m.buildPhi(m.i1, "");
 
   if (expr.op === "and") {
-    m.addIncoming(phi, [right, m.constInt(m.i1, 0)], [rhsEndBlock, leftBlock]);
+    m.addIncoming(phi, [rightCond, m.constInt(m.i1, 0)], [rhsEndBlock, leftBlock]);
   } else {
-    m.addIncoming(phi, [right, m.constInt(m.i1, 1)], [rhsEndBlock, leftBlock]);
+    m.addIncoming(phi, [rightCond, m.constInt(m.i1, 1)], [rhsEndBlock, leftBlock]);
   }
 
   return phi;
@@ -705,8 +708,10 @@ function emitUnary(ctx: EmitContext, expr: HIRExpr & { kind: "unary" }): any {
   switch (expr.op) {
     case "neg":
       return expr.operand.type.kind === "f64" ? m.buildFNeg(operand, "") : m.buildNeg(operand, "");
-    case "not":
-      return m.buildXor(operand, m.constInt(m.i1, 1), "");
+    case "not": {
+      const boolVal = ensureI1(ctx, operand, expr.operand.type);
+      return m.buildXor(boolVal, m.constInt(m.i1, 1), "");
+    }
     case "bit_not":
       return m.buildNot(operand, "");
     case "typeof": {
@@ -1221,4 +1226,23 @@ function emitNullishCoalesce(ctx: EmitContext, expr: HIRExpr & { kind: "nullish_
   const phi = m.buildPhi(ty, "nc");
   m.addIncoming(phi, [rightVal, leftVal], [rhsEndBlock, leftBlock]);
   return phi;
+}
+
+export function ensureI1(ctx: EmitContext, val: any, hirType: HIRType): any {
+  const m = ctx.m;
+  switch (hirType.kind) {
+    case "i1":
+      return val;
+    case "f64":
+      return m.buildFCmp(LLVMRealONE, val, m.constReal(m.f64, 0.0), "");
+    case "i64":
+      return m.buildICmp(LLVMIntNE, val, m.constInt(m.i64, 0), "");
+    case "i8ptr":
+    case "ptr":
+      return m.buildICmp(LLVMIntNE, val, m.constNull(m.ptr), "");
+    case "boxed":
+      return m.buildICmp(LLVMIntNE, val, m.constInt(m.i64, 0), "");
+    default:
+      return val;
+  }
 }
