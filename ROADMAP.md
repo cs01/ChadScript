@@ -24,6 +24,8 @@ The compiler's own source uses TS features we haven't tested compiling yet. Audi
 - [x] `as any` on dynobj preserves runtime type
 - [x] `import type` should register type aliases from imported files (not just strip them)
 - [x] Property access on `any`-typed params — need dynobj or boxed dispatch
+- [x] Destructured builtin imports — `const { foo } = require("mod")` resolves bare calls to module.method dispatch
+- [x] Set initialization from array literal — `new Set([...])` via alloc_set HIR node
 - [ ] Verify: compiler source files (src/**/*.ts) compile without errors
 
 ### 2. Self-Hosting (~500 LOC new)
