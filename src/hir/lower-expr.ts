@@ -218,6 +218,10 @@ export function lowerBinary(expr: BinaryExpression): HIRExpr {
     };
   }
 
+  if ((op === "eq" || op === "ne") && left.type.kind === "i8ptr" && right.type.kind === "i8ptr") {
+    return { kind: "binary", op: op === "eq" ? "str_eq" : "str_ne", left, right, type: I1 };
+  }
+
   if (BITWISE_OPS.includes(op)) {
     if (left.type.kind !== "i64") left = coerce(left, I64);
     if (right.type.kind !== "i64") right = coerce(right, I64);

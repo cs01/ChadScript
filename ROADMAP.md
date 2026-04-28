@@ -432,6 +432,8 @@ Note: if useful, you can make use of c_bridges in main barnch rather than rewrit
 - [x] `RegExp` (test, replace, match) — rure (Rust regex) bridge
 - [x] `Map`, `Set` (native implementations) — parallel-array, str/num key specializations
 - [x] `Promise.all`, `Promise.race`, `Promise.allSettled` — synchronous promise collection via C bridge
+- [ ] `fetch` API — async `fetch(url)` returning `Promise<Response>` with `.text()`, `.json()`, `.status` (needs AsyncLoweringPass or thread-based approach)
+- [ ] `express` compat — `npm install express` and compile real Express apps (needs: `require()`, `node_modules` resolution, dynamic object patterns, middleware chains)
 - [ ] **Milestone:** Real-world programs compile and run. Express-like server works.
 
 ### Phase 8: Self-Hosting (~2-3 weeks, ~500 LOC new)
