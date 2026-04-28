@@ -337,6 +337,61 @@ void cs2_str_array_forEach(StrArray *arr, void *fn_ptr, void *env_ptr) {
     }
 }
 
+double cs2_num_array_shift(NumArray *arr) {
+    if (arr->length <= 0) return 0.0;
+    double val = arr->data[0];
+    for (int32_t i = 1; i < arr->length; i++) arr->data[i-1] = arr->data[i];
+    arr->length--;
+    return val;
+}
+
+void cs2_num_array_unshift(NumArray *arr, double value) {
+    if (arr->length >= arr->capacity) {
+        arr->capacity *= 2;
+        arr->data = (double *)realloc(arr->data, sizeof(double) * arr->capacity);
+    }
+    for (int32_t i = arr->length; i > 0; i--) arr->data[i] = arr->data[i-1];
+    arr->data[0] = value;
+    arr->length++;
+}
+
+char *cs2_str_array_shift(StrArray *arr) {
+    if (arr->length <= 0) return "";
+    char *val = arr->data[0];
+    for (int32_t i = 1; i < arr->length; i++) arr->data[i-1] = arr->data[i];
+    arr->length--;
+    return val;
+}
+
+void cs2_str_array_unshift(StrArray *arr, const char *value) {
+    if (arr->length >= arr->capacity) {
+        arr->capacity *= 2;
+        arr->data = (char **)realloc(arr->data, sizeof(char *) * arr->capacity);
+    }
+    for (int32_t i = arr->length; i > 0; i--) arr->data[i] = arr->data[i-1];
+    arr->data[0] = (char *)value;
+    arr->length++;
+}
+
+NumArray *cs2_num_array_splice(NumArray *arr, int32_t start, int32_t deleteCount) {
+    if (start < 0) start = arr->length + start;
+    if (start < 0) start = 0;
+    if (start > arr->length) start = arr->length;
+    if (deleteCount < 0) deleteCount = 0;
+    if (start + deleteCount > arr->length) deleteCount = arr->length - start;
+    NumArray *removed = cs2_num_array_new(deleteCount < 4 ? 4 : deleteCount);
+    for (int32_t i = 0; i < deleteCount; i++) {
+        removed->data[i] = arr->data[start + i];
+    }
+    removed->length = deleteCount;
+    int32_t tail = arr->length - start - deleteCount;
+    for (int32_t i = 0; i < tail; i++) {
+        arr->data[start + i] = arr->data[start + deleteCount + i];
+    }
+    arr->length -= deleteCount;
+    return removed;
+}
+
 char *cs2_str_array_join(StrArray *arr, const char *sep) {
     if (arr->length == 0) {
         char *empty = (char *)malloc(1);

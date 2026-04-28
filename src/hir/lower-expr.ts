@@ -2056,6 +2056,9 @@ function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
       reverse: { func: "cs2_num_array_reverse", returnType: VOID },
       sort: { func: "cs2_num_array_sort", returnType: VOID },
       concat: { func: "cs2_num_array_concat", returnType: obj.type, argTypes: [obj.type] },
+      shift: { func: "cs2_num_array_shift", returnType: F64 },
+      unshift: { func: "cs2_num_array_unshift", returnType: VOID, argTypes: [F64] },
+      splice: { func: "cs2_num_array_splice", returnType: obj.type, argTypes: [I64, I64] },
     };
     info = numMethods[method];
   } else if (prefix === "cs2_str_array") {
@@ -2065,6 +2068,8 @@ function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
       slice: { func: "cs2_str_array_slice", returnType: obj.type, argTypes: [I64, I64] },
       reverse: { func: "cs2_str_array_reverse", returnType: VOID },
       concat: { func: "cs2_str_array_concat", returnType: obj.type, argTypes: [obj.type] },
+      shift: { func: "cs2_str_array_shift", returnType: I8PTR },
+      unshift: { func: "cs2_str_array_unshift", returnType: VOID, argTypes: [I8PTR] },
     };
     info = strMethods[method];
   }
