@@ -1,0 +1,18 @@
+console.log(Math.exp(0));
+console.log(Math.exp(1));
+console.log(Math.log2(8));
+console.log(Math.log2(1));
+console.log(Math.log10(1000));
+console.log(Math.log10(1));
+console.log(Math.trunc(3.7));
+console.log(Math.trunc(-3.7));
+console.log(Math.sign(5));
+console.log(Math.sign(-5));
+console.log(Math.sign(0));
+console.log(Math.hypot(3, 4));
+console.log(Math.hypot(5, 12));
+console.log(Math.cbrt(27));
+console.log(Math.cbrt(8));
+console.log(Math.clz32(1));
+console.log(Math.clz32(1000));
+console.log(Math.clz32(0));

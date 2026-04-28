@@ -1,0 +1,14 @@
+console.log(Math.sin(0));
+console.log(Math.sin(Math.PI / 2));
+console.log(Math.cos(0));
+console.log(Math.cos(Math.PI));
+console.log(Math.tan(0));
+console.log(Math.tan(Math.PI / 4));
+console.log(Math.asin(0));
+console.log(Math.asin(1));
+console.log(Math.acos(1));
+console.log(Math.acos(0));
+console.log(Math.atan(0));
+console.log(Math.atan(1));
+console.log(Math.atan2(1, 1));
+console.log(Math.atan2(0, -1));

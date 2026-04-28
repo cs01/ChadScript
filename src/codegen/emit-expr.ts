@@ -609,7 +609,11 @@ function emitRuntimeCall(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_call
     return emitStringConcat(ctx, expr);
   }
 
-  if (expr.func === "cs_console_log" || expr.func === "cs_console_error" || expr.func === "cs_console_warn") {
+  if (
+    expr.func === "cs_console_log" ||
+    expr.func === "cs_console_error" ||
+    expr.func === "cs_console_warn"
+  ) {
     const toStderr = expr.func !== "cs_console_log";
     for (let i = 0; i < expr.args.length; i++) {
       if (i > 0) {
@@ -658,6 +662,8 @@ function emitRuntimeCall(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_call
     let result = m.buildCall(bridgeFn.fnType, bridgeFn.fn, args, "");
     if (expr.returnType.kind === "i64") {
       result = m.buildSExt(result, m.i64, "");
+    } else if (expr.returnType.kind === "i1") {
+      result = m.buildICmp(LLVMIntNE, result, m.constInt(m.i32, 0), "");
     }
     return result;
   }
@@ -811,8 +817,6 @@ function emitStringConcat(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_cal
 
 function emitMathCall(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_call" }): any {
   const m = ctx.m;
-  const intrinsic = ctx.getMathIntrinsic(expr.func);
-  if (!intrinsic) throw new Error(`unsupported math function: ${expr.func}`);
 
   const args = expr.args.map((a) => {
     const val = emitExpr(ctx, a);
@@ -821,6 +825,28 @@ function emitMathCall(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_call" }
     }
     return val;
   });
+
+  if (expr.func === "cs_math_sign") {
+    const val = args[0];
+    const zero = m.constReal(m.f64, 0);
+    const isPos = m.buildFCmp(LLVMRealOGT, val, zero, "");
+    const isNeg = m.buildFCmp(LLVMRealOLT, val, zero, "");
+    const posOne = m.constReal(m.f64, 1);
+    const negOne = m.constReal(m.f64, -1);
+    const step1 = m.buildSelect(isNeg, negOne, zero, "");
+    return m.buildSelect(isPos, posOne, step1, "");
+  }
+
+  if (expr.func === "cs_math_clz32") {
+    const val = args[0];
+    const i32Val = m.buildFPToSI(val, m.i32, "");
+    const ctlz = ctx.getMathIntrinsic("cs_math_clz32_intrinsic")!;
+    const result = m.buildCall(ctlz.fnType, ctlz.fn, [i32Val, m.constInt(m.i1, 0)], "");
+    return m.buildSIToFP(result, m.f64, "");
+  }
+
+  const intrinsic = ctx.getMathIntrinsic(expr.func);
+  if (!intrinsic) throw new Error(`unsupported math function: ${expr.func}`);
 
   return m.buildCall(intrinsic.fnType, intrinsic.fn, args, "");
 }

@@ -572,14 +572,26 @@ function lowerCall(expr: CallExpression): HIRExpr {
         expr.arguments.length > 0
           ? lowerExpr(expr.arguments[0].expression)
           : ({ kind: "literal_string" as const, value: "default", type: I8PTR } as HIRExpr);
-      return { kind: "runtime_call", func: "cs2_console_time", args: [label], returnType: VOID, type: VOID };
+      return {
+        kind: "runtime_call",
+        func: "cs2_console_time",
+        args: [label],
+        returnType: VOID,
+        type: VOID,
+      };
     }
     if (method === "timeEnd") {
       const label =
         expr.arguments.length > 0
           ? lowerExpr(expr.arguments[0].expression)
           : ({ kind: "literal_string" as const, value: "default", type: I8PTR } as HIRExpr);
-      return { kind: "runtime_call", func: "cs2_console_time_end", args: [label], returnType: VOID, type: VOID };
+      return {
+        kind: "runtime_call",
+        func: "cs2_console_time_end",
+        args: [label],
+        returnType: VOID,
+        type: VOID,
+      };
     }
   }
 
@@ -599,6 +611,68 @@ function lowerCall(expr: CallExpression): HIRExpr {
     expr.callee.property.type === "Identifier"
   ) {
     return lowerPathCall(expr);
+  }
+
+  if (
+    expr.callee.type === "MemberExpression" &&
+    (expr.callee as MemberExpression).object.type === "CallExpression" &&
+    ((expr.callee as MemberExpression).object as CallExpression).callee.type ===
+      "MemberExpression" &&
+    (((expr.callee as MemberExpression).object as CallExpression).callee as MemberExpression).object
+      .type === "Identifier" &&
+    (
+      (((expr.callee as MemberExpression).object as CallExpression).callee as MemberExpression)
+        .object as Identifier
+    ).value === "fs" &&
+    (((expr.callee as MemberExpression).object as CallExpression).callee as MemberExpression)
+      .property.type === "Identifier" &&
+    (
+      (((expr.callee as MemberExpression).object as CallExpression).callee as MemberExpression)
+        .property as Identifier
+    ).value === "statSync" &&
+    (expr.callee as MemberExpression).property.type === "Identifier"
+  ) {
+    const innerCall = (expr.callee as MemberExpression).object as CallExpression;
+    const pathArg = lowerExpr(innerCall.arguments[0].expression);
+    const statMethod = ((expr.callee as MemberExpression).property as Identifier).value;
+    switch (statMethod) {
+      case "isFile":
+        return {
+          kind: "runtime_call",
+          func: "cs2_fs_stat_is_file",
+          args: [pathArg],
+          returnType: I1,
+          type: I1,
+        };
+      case "isDirectory":
+        return {
+          kind: "runtime_call",
+          func: "cs2_fs_stat_is_directory",
+          args: [pathArg],
+          returnType: I1,
+          type: I1,
+        };
+      default:
+        throw new Error(`unsupported statSync method: ${statMethod}`);
+    }
+  }
+
+  if (
+    expr.callee.type === "MemberExpression" &&
+    expr.callee.object.type === "Identifier" &&
+    expr.callee.object.value === "fs" &&
+    expr.callee.property.type === "Identifier"
+  ) {
+    return lowerFsCall(expr);
+  }
+
+  if (
+    expr.callee.type === "MemberExpression" &&
+    expr.callee.object.type === "Identifier" &&
+    expr.callee.object.value === "child_process" &&
+    expr.callee.property.type === "Identifier"
+  ) {
+    return lowerChildProcessCall(expr);
   }
 
   if (
@@ -671,6 +745,15 @@ function lowerCall(expr: CallExpression): HIRExpr {
         args: [handleExpr],
         returnType: VOID,
         type: VOID,
+      };
+    }
+    if (calleeName_ === "execSync") {
+      return {
+        kind: "runtime_call",
+        func: "cs2_exec_sync",
+        args: [lowerExpr(expr.arguments[0].expression)],
+        returnType: I8PTR,
+        type: I8PTR,
       };
     }
 
@@ -836,7 +919,13 @@ function lowerProcessCall(expr: CallExpression): HIRExpr {
       };
     }
     case "cwd":
-      return { kind: "runtime_call", func: "cs2_process_cwd", args: [], returnType: I8PTR, type: I8PTR };
+      return {
+        kind: "runtime_call",
+        func: "cs2_process_cwd",
+        args: [],
+        returnType: I8PTR,
+        type: I8PTR,
+      };
     default:
       throw new Error(`unsupported process method: ${method}`);
   }
@@ -853,7 +942,13 @@ function lowerPathCall(expr: CallExpression): HIRExpr {
       if (args.length === 1) return args[0];
       let result: HIRExpr = args[0];
       for (let i = 1; i < args.length; i++) {
-        result = { kind: "runtime_call", func: "cs2_path_join", args: [result, args[i]], returnType: I8PTR, type: I8PTR };
+        result = {
+          kind: "runtime_call",
+          func: "cs2_path_join",
+          args: [result, args[i]],
+          returnType: I8PTR,
+          type: I8PTR,
+        };
       }
       return result;
     }
@@ -862,16 +957,120 @@ function lowerPathCall(expr: CallExpression): HIRExpr {
         expr.arguments.length > 0
           ? lowerExpr(expr.arguments[0].expression)
           : ({ kind: "literal_string" as const, value: "", type: I8PTR } as HIRExpr);
-      return { kind: "runtime_call", func: "cs2_path_resolve", args: [arg], returnType: I8PTR, type: I8PTR };
+      return {
+        kind: "runtime_call",
+        func: "cs2_path_resolve",
+        args: [arg],
+        returnType: I8PTR,
+        type: I8PTR,
+      };
     }
     case "dirname":
-      return { kind: "runtime_call", func: "cs2_path_dirname", args: [lowerExpr(expr.arguments[0].expression)], returnType: I8PTR, type: I8PTR };
+      return {
+        kind: "runtime_call",
+        func: "cs2_path_dirname",
+        args: [lowerExpr(expr.arguments[0].expression)],
+        returnType: I8PTR,
+        type: I8PTR,
+      };
     case "basename":
-      return { kind: "runtime_call", func: "cs2_path_basename", args: [lowerExpr(expr.arguments[0].expression)], returnType: I8PTR, type: I8PTR };
+      return {
+        kind: "runtime_call",
+        func: "cs2_path_basename",
+        args: [lowerExpr(expr.arguments[0].expression)],
+        returnType: I8PTR,
+        type: I8PTR,
+      };
     case "extname":
-      return { kind: "runtime_call", func: "cs2_path_extname", args: [lowerExpr(expr.arguments[0].expression)], returnType: I8PTR, type: I8PTR };
+      return {
+        kind: "runtime_call",
+        func: "cs2_path_extname",
+        args: [lowerExpr(expr.arguments[0].expression)],
+        returnType: I8PTR,
+        type: I8PTR,
+      };
     default:
       throw new Error(`unsupported path method: ${method}`);
+  }
+}
+
+function lowerFsCall(expr: CallExpression): HIRExpr {
+  const member = expr.callee as MemberExpression;
+  const method = (member.property as Identifier).value;
+
+  switch (method) {
+    case "readFileSync":
+      return {
+        kind: "runtime_call",
+        func: "cs2_fs_read_file_sync",
+        args: [lowerExpr(expr.arguments[0].expression)],
+        returnType: I8PTR,
+        type: I8PTR,
+      };
+    case "writeFileSync":
+      return {
+        kind: "runtime_call",
+        func: "cs2_fs_write_file_sync",
+        args: [lowerExpr(expr.arguments[0].expression), lowerExpr(expr.arguments[1].expression)],
+        returnType: VOID,
+        type: VOID,
+      };
+    case "existsSync":
+      return {
+        kind: "runtime_call",
+        func: "cs2_fs_exists_sync",
+        args: [lowerExpr(expr.arguments[0].expression)],
+        returnType: I1,
+        type: I1,
+      };
+    case "readdirSync":
+      return {
+        kind: "runtime_call",
+        func: "cs2_fs_readdir_sync",
+        args: [lowerExpr(expr.arguments[0].expression)],
+        returnType: { kind: "array", element: I8PTR },
+        type: { kind: "array", element: I8PTR },
+      };
+    case "mkdirSync":
+      return {
+        kind: "runtime_call",
+        func: "cs2_fs_mkdir_sync",
+        args: [lowerExpr(expr.arguments[0].expression)],
+        returnType: VOID,
+        type: VOID,
+      };
+    case "unlinkSync":
+      return {
+        kind: "runtime_call",
+        func: "cs2_fs_unlink_sync",
+        args: [lowerExpr(expr.arguments[0].expression)],
+        returnType: VOID,
+        type: VOID,
+      };
+    case "statSync":
+      throw new Error(
+        "fs.statSync is not supported directly — use fs.existsSync, or statSync().isFile()/isDirectory() pattern",
+      );
+    default:
+      throw new Error(`unsupported fs method: ${method}`);
+  }
+}
+
+function lowerChildProcessCall(expr: CallExpression): HIRExpr {
+  const member = expr.callee as MemberExpression;
+  const method = (member.property as Identifier).value;
+
+  switch (method) {
+    case "execSync":
+      return {
+        kind: "runtime_call",
+        func: "cs2_exec_sync",
+        args: [lowerExpr(expr.arguments[0].expression)],
+        returnType: I8PTR,
+        type: I8PTR,
+      };
+    default:
+      throw new Error(`unsupported child_process method: ${method}`);
   }
 }
 
@@ -880,18 +1079,24 @@ function lowerMathCall(expr: CallExpression): HIRExpr {
   const method = (member.property as Identifier).value;
   const args = expr.arguments.map((a) => lowerExpr(a.expression));
 
-  if (method === "random") {
-    return { kind: "runtime_call", func: "cs2_math_random", args: [], returnType: F64, type: F64 };
+  switch (method) {
+    case "random":
+      return {
+        kind: "runtime_call",
+        func: "cs2_math_random",
+        args: [],
+        returnType: F64,
+        type: F64,
+      };
+    case "sign":
+      return { kind: "runtime_call", func: "cs_math_sign", args, returnType: F64, type: F64 };
+    case "clz32":
+      return { kind: "runtime_call", func: "cs_math_clz32", args, returnType: F64, type: F64 };
+    default: {
+      const func = `cs_math_${method}`;
+      return { kind: "runtime_call", func, args, returnType: F64, type: F64 };
+    }
   }
-
-  const func = `cs_math_${method}`;
-  return {
-    kind: "runtime_call",
-    func,
-    args,
-    returnType: F64,
-    type: F64,
-  };
 }
 
 function lowerJSONCall(expr: CallExpression): HIRExpr {
@@ -1009,20 +1214,6 @@ function lowerStringMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
     returnType: bridgeRetType,
     type: bridgeRetType,
   };
-
-  if (
-    info.func === "cs2_str_includes" ||
-    info.func === "cs2_str_starts_with" ||
-    info.func === "cs2_str_ends_with"
-  ) {
-    return {
-      kind: "binary",
-      op: "ne" as BinaryOp,
-      left: rtCall,
-      right: { kind: "literal_i64", value: 0, type: I64 },
-      type: I1,
-    };
-  }
 
   return rtCall;
 }
@@ -1323,11 +1514,45 @@ export function lowerMember(expr: MemberExpression): HIRExpr {
           type: { kind: "array", element: I8PTR },
         };
       case "platform":
-        return { kind: "runtime_call", func: "cs2_process_platform", args: [], returnType: I8PTR, type: I8PTR };
+        return {
+          kind: "runtime_call",
+          func: "cs2_process_platform",
+          args: [],
+          returnType: I8PTR,
+          type: I8PTR,
+        };
       case "exit":
         return { kind: "global_get", name: "process_exit", type: BOXED };
       default:
         break;
+    }
+  }
+
+  if (
+    expr.object.type === "Identifier" &&
+    expr.object.value === "Math" &&
+    expr.property.type === "Identifier"
+  ) {
+    const prop = (expr.property as Identifier).value;
+    switch (prop) {
+      case "PI":
+        return { kind: "literal_f64", value: Math.PI, type: F64 };
+      case "E":
+        return { kind: "literal_f64", value: Math.E, type: F64 };
+      case "LN2":
+        return { kind: "literal_f64", value: Math.LN2, type: F64 };
+      case "LN10":
+        return { kind: "literal_f64", value: Math.LN10, type: F64 };
+      case "LOG2E":
+        return { kind: "literal_f64", value: Math.LOG2E, type: F64 };
+      case "LOG10E":
+        return { kind: "literal_f64", value: Math.LOG10E, type: F64 };
+      case "SQRT2":
+        return { kind: "literal_f64", value: Math.SQRT2, type: F64 };
+      case "SQRT1_2":
+        return { kind: "literal_f64", value: Math.SQRT1_2, type: F64 };
+      default:
+        throw new Error(`unsupported Math constant: ${prop}`);
     }
   }
 

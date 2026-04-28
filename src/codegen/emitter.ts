@@ -245,10 +245,28 @@ function declareExterns(ctx: EmitContext): void {
     ["llvm.sqrt.f64", "cs_math_sqrt"],
     ["llvm.log.f64", "cs_math_log"],
     ["llvm.round.f64", "cs_math_round"],
+    ["llvm.sin.f64", "cs_math_sin"],
+    ["llvm.cos.f64", "cs_math_cos"],
+    ["llvm.exp.f64", "cs_math_exp"],
+    ["llvm.log2.f64", "cs_math_log2"],
+    ["llvm.log10.f64", "cs_math_log10"],
+    ["llvm.trunc.f64", "cs_math_trunc"],
   ];
   const math1Type = m.functionType(m.f64, [m.f64]);
   for (const [llvmName, csName] of mathIntrinsics1) {
     const fn = m.addFunction(llvmName, math1Type);
+    ctx.declareMathIntrinsic(csName, fn, math1Type);
+  }
+
+  const libm1: [string, string][] = [
+    ["tan", "cs_math_tan"],
+    ["asin", "cs_math_asin"],
+    ["acos", "cs_math_acos"],
+    ["atan", "cs_math_atan"],
+    ["cbrt", "cs_math_cbrt"],
+  ];
+  for (const [libName, csName] of libm1) {
+    const fn = m.addFunction(libName, math1Type);
     ctx.declareMathIntrinsic(csName, fn, math1Type);
   }
 
@@ -262,6 +280,19 @@ function declareExterns(ctx: EmitContext): void {
     const fn = m.addFunction(llvmName, math2Type);
     ctx.declareMathIntrinsic(csName, fn, math2Type);
   }
+
+  const libm2: [string, string][] = [
+    ["atan2", "cs_math_atan2"],
+    ["hypot", "cs_math_hypot"],
+  ];
+  for (const [libName, csName] of libm2) {
+    const fn = m.addFunction(libName, math2Type);
+    ctx.declareMathIntrinsic(csName, fn, math2Type);
+  }
+
+  const ctlzType = m.functionType(m.i32, [m.i32, m.i1]);
+  const ctlzFn = m.addFunction("llvm.ctlz.i32", ctlzType);
+  ctx.declareMathIntrinsic("cs_math_clz32_intrinsic", ctlzFn, ctlzType);
 
   const setjmpType = m.functionType(m.i32, [m.ptr]);
   const setjmpFn = m.addFunction("_setjmp", setjmpType);
@@ -394,6 +425,15 @@ function declareExterns(ctx: EmitContext): void {
     ["cs2_path_dirname", m.ptr, [m.ptr]],
     ["cs2_path_basename", m.ptr, [m.ptr]],
     ["cs2_path_extname", m.ptr, [m.ptr]],
+    ["cs2_fs_read_file_sync", m.ptr, [m.ptr]],
+    ["cs2_fs_write_file_sync", m.voidTy, [m.ptr, m.ptr]],
+    ["cs2_fs_exists_sync", m.i32, [m.ptr]],
+    ["cs2_fs_readdir_sync", m.ptr, [m.ptr]],
+    ["cs2_fs_mkdir_sync", m.i32, [m.ptr]],
+    ["cs2_fs_unlink_sync", m.voidTy, [m.ptr]],
+    ["cs2_fs_stat_is_file", m.i32, [m.ptr]],
+    ["cs2_fs_stat_is_directory", m.i32, [m.ptr]],
+    ["cs2_exec_sync", m.ptr, [m.ptr]],
   ];
   for (const [name, ret, params] of bridgeFns) {
     const fnType = m.functionType(ret, params);
