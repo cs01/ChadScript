@@ -395,6 +395,20 @@ function lowerAssignment(expr: AssignmentExpression): HIRExpr {
           type: elemType,
         };
       }
+      if (obj.type.kind === "ptr") {
+        const pointee = (obj.type as { kind: "ptr"; pointee: string }).pointee;
+        if (pointee === "Uint8Array" || pointee === "Float64Array") {
+          const fn =
+            pointee === "Uint8Array" ? "cs2_uint8array_set" : "cs2_float64array_set";
+          return {
+            kind: "runtime_call",
+            func: fn,
+            args: [obj, coerce(index, F64), coerce(value, F64)],
+            returnType: F64,
+            type: F64,
+          };
+        }
+      }
     }
   }
 
@@ -635,6 +649,30 @@ function lowerCall(expr: CallExpression): HIRExpr {
     return lowerBufferStaticCall(expr);
   }
 
+  if (
+    expr.callee.type === "MemberExpression" &&
+    expr.callee.object.type === "Identifier" &&
+    (expr.callee.object.value === "Uint8Array" ||
+      expr.callee.object.value === "Float64Array") &&
+    expr.callee.property.type === "Identifier" &&
+    expr.callee.property.value === "from"
+  ) {
+    const typeName = expr.callee.object.value;
+    const arrArg = lowerExpr(expr.arguments[0].expression);
+    const resultType: HIRType = { kind: "ptr", pointee: typeName };
+    const fn =
+      typeName === "Uint8Array"
+        ? "cs2_uint8array_from_num_array"
+        : "cs2_float64array_from_num_array";
+    return {
+      kind: "runtime_call",
+      func: fn,
+      args: [arrArg],
+      returnType: resultType,
+      type: resultType,
+    };
+  }
+
   {
     const cryptoChain = matchCryptoChain(expr);
     if (cryptoChain) return cryptoChain;
@@ -705,6 +743,15 @@ function lowerCall(expr: CallExpression): HIRExpr {
   if (
     expr.callee.type === "MemberExpression" &&
     expr.callee.object.type === "Identifier" &&
+    expr.callee.object.value === "http" &&
+    expr.callee.property.type === "Identifier"
+  ) {
+    return lowerHttpCall(expr);
+  }
+
+  if (
+    expr.callee.type === "MemberExpression" &&
+    expr.callee.object.type === "Identifier" &&
     expr.callee.object.value === "Math"
   ) {
     return lowerMathCall(expr);
@@ -767,6 +814,12 @@ function lowerCall(expr: CallExpression): HIRExpr {
       if (pointee === "Buffer") {
         return lowerBufferMethodCall(expr, obj);
       }
+      if (pointee === "HttpServer") {
+        return lowerHttpServerMethodCall(expr, obj);
+      }
+      if (pointee === "HttpResponse") {
+        return lowerHttpResponseMethodCall(expr, obj);
+      }
       return lowerClassMethodCall(expr, obj);
     }
   }
@@ -794,6 +847,15 @@ function lowerCall(expr: CallExpression): HIRExpr {
         args: [handleExpr],
         returnType: VOID,
         type: VOID,
+      };
+    }
+    if (calleeName_ === "fetch") {
+      return {
+        kind: "runtime_call",
+        func: "cs2_fetch_sync",
+        args: [lowerExpr(expr.arguments[0].expression)],
+        returnType: I8PTR,
+        type: I8PTR,
       };
     }
     if (calleeName_ === "execSync") {
@@ -922,12 +984,14 @@ function lowerNewExpr(expr: any): HIRExpr {
   const className = expr.callee.value;
 
   if (className === "RegExp") {
-    const patternArg = expr.arguments?.length > 0
-      ? lowerExpr(expr.arguments[0].expression)
-      : ({ kind: "literal_string" as const, value: "", type: I8PTR } as HIRExpr);
-    const flagsArg = expr.arguments?.length > 1
-      ? lowerExpr(expr.arguments[1].expression)
-      : ({ kind: "literal_string" as const, value: "", type: I8PTR } as HIRExpr);
+    const patternArg =
+      expr.arguments?.length > 0
+        ? lowerExpr(expr.arguments[0].expression)
+        : ({ kind: "literal_string" as const, value: "", type: I8PTR } as HIRExpr);
+    const flagsArg =
+      expr.arguments?.length > 1
+        ? lowerExpr(expr.arguments[1].expression)
+        : ({ kind: "literal_string" as const, value: "", type: I8PTR } as HIRExpr);
     return {
       kind: "runtime_call",
       func: "cs2_regex_new",
@@ -959,6 +1023,36 @@ function lowerNewExpr(expr: any): HIRExpr {
       kind: "runtime_call",
       func: `${prefix}_new`,
       args: [],
+      returnType: resultType,
+      type: resultType,
+    };
+  }
+
+  if (className === "Uint8Array") {
+    const sizeArg =
+      expr.arguments?.length > 0
+        ? coerce(lowerExpr(expr.arguments[0].expression), F64)
+        : ({ kind: "literal_f64" as const, value: 0, type: F64 } as HIRExpr);
+    const resultType: HIRType = { kind: "ptr", pointee: "Uint8Array" };
+    return {
+      kind: "runtime_call",
+      func: "cs2_uint8array_new",
+      args: [sizeArg],
+      returnType: resultType,
+      type: resultType,
+    };
+  }
+
+  if (className === "Float64Array") {
+    const sizeArg =
+      expr.arguments?.length > 0
+        ? coerce(lowerExpr(expr.arguments[0].expression), F64)
+        : ({ kind: "literal_f64" as const, value: 0, type: F64 } as HIRExpr);
+    const resultType: HIRType = { kind: "ptr", pointee: "Float64Array" };
+    return {
+      kind: "runtime_call",
+      func: "cs2_float64array_new",
+      args: [sizeArg],
       returnType: resultType,
       type: resultType,
     };
@@ -1284,6 +1378,142 @@ function lowerChildProcessCall(expr: CallExpression): HIRExpr {
       };
     default:
       throw new Error(`unsupported child_process method: ${method}`);
+  }
+}
+
+const HTTP_SERVER: HIRType = { kind: "ptr", pointee: "HttpServer" };
+const HTTP_REQ: HIRType = { kind: "ptr", pointee: "HttpRequest" };
+const HTTP_RES: HIRType = { kind: "ptr", pointee: "HttpResponse" };
+
+function ensureHttpTypesRegistered(): void {
+  if (!classRegistry.has("HttpRequest")) {
+    classRegistry.set("HttpRequest", {
+      fields: [
+        { name: "method", type: I8PTR },
+        { name: "url", type: I8PTR },
+      ],
+      methods: new Map(),
+    });
+  }
+  if (!classRegistry.has("HttpResponse")) {
+    classRegistry.set("HttpResponse", {
+      fields: [],
+      methods: new Map(),
+    });
+  }
+}
+
+function lowerHttpCall(expr: CallExpression): HIRExpr {
+  const member = expr.callee as MemberExpression;
+  const method = (member.property as Identifier).value;
+
+  switch (method) {
+    case "createServer": {
+      ensureHttpTypesRegistered();
+      const cbAst = expr.arguments[0].expression as any;
+      if (
+        cbAst.type === "ArrowFunctionExpression" ||
+        cbAst.type === "FunctionExpression"
+      ) {
+        const params = cbAst.params || [];
+        const typeNames = ["HttpRequest", "HttpResponse"];
+        for (let i = 0; i < Math.min(params.length, 2); i++) {
+          const pat = params[i].pat || params[i];
+          if (pat.type === "Identifier") {
+            pat.typeAnnotation = {
+              type: "TsTypeAnnotation",
+              span: pat.span,
+              typeAnnotation: {
+                type: "TsTypeReference",
+                span: pat.span,
+                typeName: { type: "Identifier", span: pat.span, value: typeNames[i], optional: false },
+              },
+            };
+          }
+        }
+      }
+      const callbackExpr = lowerExpr(expr.arguments[0].expression);
+      return {
+        kind: "runtime_call",
+        func: "cs2_http_create_server",
+        args: [callbackExpr],
+        returnType: HTTP_SERVER,
+        type: HTTP_SERVER,
+      };
+    }
+    default:
+      throw new Error(`unsupported http method: ${method}`);
+  }
+}
+
+function lowerHttpServerMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
+  const member = expr.callee as MemberExpression;
+  const method = (member.property as Identifier).value;
+
+  switch (method) {
+    case "listen": {
+      let portExpr = lowerExpr(expr.arguments[0].expression);
+      if (portExpr.type.kind !== "f64") portExpr = coerce(portExpr, F64);
+      const callbackExpr =
+        expr.arguments.length > 1
+          ? lowerExpr(expr.arguments[1].expression)
+          : ({ kind: "literal_null" as const, type: I8PTR } as HIRExpr);
+      return {
+        kind: "runtime_call",
+        func: "cs2_http_server_listen",
+        args: [obj, portExpr, callbackExpr],
+        returnType: VOID,
+        type: VOID,
+      };
+    }
+    case "close":
+      return {
+        kind: "runtime_call",
+        func: "cs2_http_server_close",
+        args: [obj],
+        returnType: VOID,
+        type: VOID,
+      };
+    default:
+      throw new Error(`unsupported HttpServer method: ${method}`);
+  }
+}
+
+function lowerHttpResponseMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
+  const member = expr.callee as MemberExpression;
+  const method = (member.property as Identifier).value;
+
+  switch (method) {
+    case "writeHead": {
+      let statusExpr = lowerExpr(expr.arguments[0].expression);
+      if (statusExpr.type.kind !== "f64") statusExpr = coerce(statusExpr, F64);
+      const ctExpr =
+        expr.arguments.length > 1
+          ? lowerExpr(expr.arguments[1].expression)
+          : ({ kind: "literal_string" as const, value: "text/plain", type: I8PTR } as HIRExpr);
+      return {
+        kind: "runtime_call",
+        func: "cs2_http_res_write_head",
+        args: [obj, statusExpr, ctExpr],
+        returnType: VOID,
+        type: VOID,
+      };
+    }
+    case "end": {
+      const bodyExpr =
+        expr.arguments.length > 0
+          ? lowerExpr(expr.arguments[0].expression)
+          : ({ kind: "literal_string" as const, value: "", type: I8PTR } as HIRExpr);
+      return {
+        kind: "runtime_call",
+        func: "cs2_http_res_end",
+        args: [obj, bodyExpr],
+        returnType: VOID,
+        type: VOID,
+      };
+    }
+    default:
+      throw new Error(`unsupported HttpResponse method: ${method}`);
   }
 }
 
@@ -1945,6 +2175,20 @@ export function lowerMember(expr: MemberExpression): HIRExpr {
         type: F64,
       };
     }
+    if (obj.type.kind === "ptr") {
+      const pointee = (obj.type as { kind: "ptr"; pointee: string }).pointee;
+      if (pointee === "Uint8Array" || pointee === "Float64Array") {
+        const fn =
+          pointee === "Uint8Array" ? "cs2_uint8array_get" : "cs2_float64array_get";
+        return {
+          kind: "runtime_call",
+          func: fn,
+          args: [obj, coerce(index, F64)],
+          returnType: F64,
+          type: F64,
+        };
+      }
+    }
     compileError("unsupported computed member access", expr.span);
   }
 
@@ -1979,6 +2223,20 @@ export function lowerMember(expr: MemberExpression): HIRExpr {
           type: F64,
         };
       }
+      if (obj.type.kind === "ptr") {
+        const pointee = (obj.type as { kind: "ptr"; pointee: string }).pointee;
+        if (pointee === "Uint8Array" || pointee === "Float64Array") {
+          const fn =
+            pointee === "Uint8Array" ? "cs2_uint8array_length" : "cs2_float64array_length";
+          return {
+            kind: "runtime_call",
+            func: fn,
+            args: [obj],
+            returnType: F64,
+            type: F64,
+          };
+        }
+      }
     }
 
     if (propName === "size") {
@@ -1986,18 +2244,52 @@ export function lowerMember(expr: MemberExpression): HIRExpr {
       if (obj.type.kind === "map") {
         const mt = obj.type as { kind: "map"; key: HIRType; value: HIRType };
         const prefix = mapPrefix(mt.key, mt.value);
-        return { kind: "runtime_call", func: `${prefix}_size`, args: [obj], returnType: I64, type: I64 };
+        return {
+          kind: "runtime_call",
+          func: `${prefix}_size`,
+          args: [obj],
+          returnType: I64,
+          type: I64,
+        };
       }
       if (obj.type.kind === "set") {
         const st = obj.type as { kind: "set"; element: HIRType };
         const prefix = setPrefix(st.element);
-        return { kind: "runtime_call", func: `${prefix}_size`, args: [obj], returnType: I64, type: I64 };
+        return {
+          kind: "runtime_call",
+          func: `${prefix}_size`,
+          args: [obj],
+          returnType: I64,
+          type: I64,
+        };
       }
     }
 
     const obj = lowerExpr(expr.object);
     if (obj.type.kind === "ptr") {
       const typeName = (obj.type as { kind: "ptr"; pointee: string }).pointee;
+      if (typeName === "HttpRequest") {
+        switch (propName) {
+          case "method":
+            return {
+              kind: "runtime_call",
+              func: "cs2_http_req_method",
+              args: [obj],
+              returnType: I8PTR,
+              type: I8PTR,
+            };
+          case "url":
+            return {
+              kind: "runtime_call",
+              func: "cs2_http_req_url",
+              args: [obj],
+              returnType: I8PTR,
+              type: I8PTR,
+            };
+          default:
+            throw new Error(`unsupported HttpRequest property: ${propName}`);
+        }
+      }
       const classInfo = classRegistry.get(typeName);
       if (classInfo) {
         const fieldIdx = classInfo.fields.findIndex((f) => f.name === propName);

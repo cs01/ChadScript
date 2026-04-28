@@ -28,6 +28,7 @@ const BRIDGE_SRCS = [
   join(ROOT, "c_bridges", "v2-crypto-bridge.c"),
   join(ROOT, "c_bridges", "v2-buffer-bridge.c"),
   join(ROOT, "c_bridges", "v2-regex-bridge.c"),
+  join(ROOT, "c_bridges", "v2-typed-array-bridge.c"),
 ];
 
 function findLibuv(): { include: string; lib: string } {
@@ -58,6 +59,7 @@ function findRure(): string {
 
 const TIMER_BRIDGE = join(ROOT, "c_bridges", "v2-timer-bridge.c");
 const JSON_BRIDGE = join(ROOT, "c_bridges", "v2-json-bridge.c");
+const HTTP_BRIDGE = join(ROOT, "c_bridges", "v2-http-bridge.c");
 
 export function compile(opts: CompileOptions): void {
   const hir = resolveModules(opts.input);
@@ -69,7 +71,8 @@ export function compile(opts: CompileOptions): void {
   const timerObj = join(tmpdir(), `chad2-timer-${process.pid}.o`);
   const jsonObj = join(tmpdir(), `chad2-json-${process.pid}.o`);
   const yyjsonObj = join(tmpdir(), `chad2-yyjson-${process.pid}.o`);
-  const allObjs = [...bridgeObjs, timerObj, jsonObj, yyjsonObj];
+  const httpObj = join(tmpdir(), `chad2-http-${process.pid}.o`);
+  const allObjs = [...bridgeObjs, timerObj, jsonObj, yyjsonObj, httpObj];
   const irPath = opts.emitIR ? opts.output + ".ll" : undefined;
 
   try {
@@ -85,6 +88,9 @@ export function compile(opts: CompileOptions): void {
       execSync(`clang -c -O2 -o ${bridgeObjs[i]} ${BRIDGE_SRCS[i]}`, { stdio: "inherit" });
     }
     execSync(`clang -c -O2 -I${libuv.include} -o ${timerObj} ${TIMER_BRIDGE}`, {
+      stdio: "inherit",
+    });
+    execSync(`clang -c -O2 -I${libuv.include} -o ${httpObj} ${HTTP_BRIDGE}`, {
       stdio: "inherit",
     });
     execSync(`clang -c -O2 -o ${yyjsonObj} ${join(yyjsonDir, "yyjson.c")}`, {

@@ -86,9 +86,22 @@ function collectModules(
 }
 
 const BUILTIN_MODULES = new Set([
-  "path", "node:path", "fs", "node:fs", "process", "node:process",
-  "child_process", "node:child_process", "crypto", "node:crypto",
-  "http", "node:http", "os", "node:os", "url", "node:url",
+  "path",
+  "node:path",
+  "fs",
+  "node:fs",
+  "process",
+  "node:process",
+  "child_process",
+  "node:child_process",
+  "crypto",
+  "node:crypto",
+  "http",
+  "node:http",
+  "os",
+  "node:os",
+  "url",
+  "node:url",
 ]);
 
 function isBuiltinImport(specifier: string): boolean {

@@ -298,7 +298,7 @@ const ast = parseSync(source, { syntax: "typescript", decorators: true });
 
 - [x] Lowering: string literals, concatenation, string methods
 - [x] Lowering: typed arrays (`number[]`, `string[]`), push/pop/length/index
-- [ ] Lowering: `Uint8Array`, `Float64Array`
+- [x] Lowering: `Uint8Array`, `Float64Array` — typed array bridge with constructor, get/set, length, from
 - [x] Codegen: array struct layout via C bridges (`v2-array-bridge.c`: NumArray/StrArray { ptr, len, cap })
 - [x] Codegen: string as `i8*`, malloc for allocation
 - [x] Codegen: `runtime_call` for string/array ops → v2-string-bridge.c, v2-array-bridge.c
@@ -425,14 +425,13 @@ Note: if useful, you can make use of c_bridges in main barnch rather than rewrit
 - [x] `Math` (extended) — sin, cos, tan, asin, acos, atan, atan2, exp, log2, log10, trunc, sign, hypot, cbrt, clz32 + constants (PI, E, LN2, etc.)
 - [x] `fs` (readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync, unlinkSync, statSync) — C bridge
 - [x] `path` (join, resolve, dirname, basename, extname, sep) — POSIX C bridge
-- [ ] `http` / `fetch` — reuse lws bridge
+- [x] `http` / `fetch` — libuv tcp server, POSIX socket sync fetch, 119 tests
 - [x] `child_process` (execSync) — popen bridge
 - [x] `crypto` (randomBytes, createHash) — CommonCrypto bridge, sha256/sha1/sha512/md5
 - [x] `Buffer` (from, alloc, toString, length) — utf8/hex/base64 encoding
 - [x] `RegExp` (test, replace, match) — rure (Rust regex) bridge
 - [x] `Map`, `Set` (native implementations) — parallel-array, str/num key specializations
-- [x] `Promise.all`, `Promise.race` — synchronous promise collection via C bridge
-- [ ] `Promise.allSettled`
+- [x] `Promise.all`, `Promise.race`, `Promise.allSettled` — synchronous promise collection via C bridge
 - [ ] **Milestone:** Real-world programs compile and run. Express-like server works.
 
 ### Phase 8: Self-Hosting (~2-3 weeks, ~500 LOC new)
