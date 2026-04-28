@@ -1524,7 +1524,33 @@ function lowerDateMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
     getDay: { func: "cs2_date_get_day", returnType: F64 },
     toISOString: { func: "cs2_date_to_iso_string", returnType: I8PTR },
     toString: { func: "cs2_date_to_string", returnType: I8PTR },
+    getMilliseconds: { func: "cs2_date_get_milliseconds", returnType: F64 },
+    getTimezoneOffset: { func: "cs2_date_get_timezone_offset", returnType: F64 },
+    valueOf: { func: "cs2_date_value_of", returnType: F64 },
+    toDateString: { func: "cs2_date_to_date_string", returnType: I8PTR },
+    toTimeString: { func: "cs2_date_to_time_string", returnType: I8PTR },
   };
+
+  const setMethods: Record<string, string> = {
+    setTime: "cs2_date_set_time",
+    setFullYear: "cs2_date_set_full_year",
+    setMonth: "cs2_date_set_month",
+    setDate: "cs2_date_set_date",
+    setHours: "cs2_date_set_hours",
+    setMinutes: "cs2_date_set_minutes",
+    setSeconds: "cs2_date_set_seconds",
+  };
+
+  if (Object.hasOwn(setMethods, method)) {
+    const arg = coerce(lowerExpr(expr.arguments[0].expression), F64);
+    return {
+      kind: "runtime_call",
+      func: setMethods[method],
+      args: [obj, arg],
+      returnType: VOID,
+      type: VOID,
+    };
+  }
 
   const info = dateMethods[method];
   if (!info) compileError(`unsupported Date method: ${method}`, expr.span);

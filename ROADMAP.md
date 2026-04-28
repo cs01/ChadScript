@@ -433,6 +433,7 @@ Note: if useful, you can make use of c_bridges in main barnch rather than rewrit
 - [x] `Map`, `Set` (native implementations) — parallel-array, str/num key specializations
 - [x] `Promise.all`, `Promise.race`, `Promise.allSettled` — synchronous promise collection via C bridge
 - [x] `Date` (now, new Date, getTime, getFullYear, getMonth, getDate, getHours, getMinutes, getSeconds, getDay, toISOString, toString)
+- [x] `Date` extended — getMilliseconds, getTimezoneOffset, valueOf, setTime/setFullYear/setMonth/setDate/setHours/setMinutes/setSeconds, toDateString, toTimeString
 - [x] `Number` (isInteger, isNaN, isFinite), `isNaN()`, `isFinite()`, `NaN`/`Infinity` literals
 - [x] `parseInt`, `parseFloat`, `Number()`, `String()` conversion functions
 - [x] `string.split`, `string.padStart`, `string.padEnd`, `string.trimStart`, `string.trimEnd`
