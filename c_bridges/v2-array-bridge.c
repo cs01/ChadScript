@@ -494,6 +494,37 @@ void cs2_str_array_unshift(StrArray *arr, const char *value) {
     arr->length++;
 }
 
+static int str_cmp(const void *a, const void *b) {
+    return strcmp(*(const char **)a, *(const char **)b);
+}
+
+void cs2_str_array_sort(StrArray *arr) {
+    if (arr->length > 1) qsort(arr->data, arr->length, sizeof(char *), str_cmp);
+}
+
+void cs2_str_array_fill(StrArray *arr, const char *value) {
+    for (int32_t i = 0; i < arr->length; i++) arr->data[i] = (char *)value;
+}
+
+StrArray *cs2_str_array_splice(StrArray *arr, int32_t start, int32_t deleteCount) {
+    if (start < 0) start = arr->length + start;
+    if (start < 0) start = 0;
+    if (start > arr->length) start = arr->length;
+    if (deleteCount < 0) deleteCount = 0;
+    if (start + deleteCount > arr->length) deleteCount = arr->length - start;
+    StrArray *removed = cs2_str_array_new(deleteCount < 4 ? 4 : deleteCount);
+    for (int32_t i = 0; i < deleteCount; i++) {
+        removed->data[i] = arr->data[start + i];
+    }
+    removed->length = deleteCount;
+    int32_t tail = arr->length - start - deleteCount;
+    for (int32_t i = 0; i < tail; i++) {
+        arr->data[start + i] = arr->data[start + deleteCount + i];
+    }
+    arr->length -= deleteCount;
+    return removed;
+}
+
 NumArray *cs2_num_array_splice(NumArray *arr, int32_t start, int32_t deleteCount) {
     if (start < 0) start = arr->length + start;
     if (start < 0) start = 0;

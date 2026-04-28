@@ -2147,6 +2147,9 @@ function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
       shift: { func: "cs2_str_array_shift", returnType: I8PTR },
       unshift: { func: "cs2_str_array_unshift", returnType: VOID, argTypes: [I8PTR] },
       at: { func: "cs2_str_array_at", returnType: I8PTR, argTypes: [I64] },
+      sort: { func: "cs2_str_array_sort", returnType: VOID },
+      fill: { func: "cs2_str_array_fill", returnType: VOID, argTypes: [I8PTR] },
+      splice: { func: "cs2_str_array_splice", returnType: obj.type, argTypes: [I64, I64] },
     };
     info = strMethods[method];
   }
