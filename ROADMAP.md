@@ -408,7 +408,7 @@ const ast = parseSync(source, { syntax: "typescript", decorators: true });
 - [x] `import { x as y }` — renamed imports
 - [x] `export function`, `export const`, `export class`, `export interface`
 - [x] Multi-file compilation: AST-merge resolver, compile all files into single binary
-- [ ] Re-exports: `export { x } from "./other.ts"`
+- [x] Re-exports: `export { x } from "./other.ts"`
 - [x] **Milestone:** programs split across multiple files compile and run — 84 tests
 
 ### Phase 7: Stdlib + Node Compat (~4-6 weeks, ~8-10K LOC)

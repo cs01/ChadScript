@@ -26,6 +26,8 @@ export function resolveModules(entryPath: string): HIRModule {
     if (path === absEntry) continue;
     for (const item of mod.ast.body) {
       if (item.type === "ImportDeclaration") continue;
+      if (item.type === "ExportNamedDeclaration" && (item as any).source)
+        continue;
       if ((item as any).type === "ExportDeclaration") {
         mergedBody.push((item as any).declaration as ModuleItem);
       } else {
@@ -37,6 +39,8 @@ export function resolveModules(entryPath: string): HIRModule {
   const entry = visited.get(absEntry)!;
   for (const item of entry.ast.body) {
     if (item.type === "ImportDeclaration") continue;
+    if (item.type === "ExportNamedDeclaration" && (item as any).source)
+      continue;
     if ((item as any).type === "ExportDeclaration") {
       mergedBody.push((item as any).declaration as ModuleItem);
     } else {
@@ -78,6 +82,24 @@ function collectModules(
           const local = s.local.value;
           if (local !== imported) {
             aliases.push({ local, imported });
+          }
+        }
+      }
+    } else if (
+      item.type === "ExportNamedDeclaration" &&
+      (item as any).source
+    ) {
+      const decl = item as any;
+      if (isBuiltinImport(decl.source.value)) continue;
+      const resolvedPath = resolveImportPath(decl.source.value, absPath);
+      collectModules(resolvedPath, visited, aliases);
+
+      for (const s of decl.specifiers) {
+        if (s.type === "ExportSpecifier" && s.exported) {
+          const orig = s.orig.value;
+          const exported = s.exported.value;
+          if (orig !== exported) {
+            aliases.push({ local: exported, imported: orig });
           }
         }
       }
