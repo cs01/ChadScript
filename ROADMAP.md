@@ -26,6 +26,11 @@ The compiler's own source uses TS features we haven't tested compiling yet. Audi
 - [x] Property access on `any`-typed params — need dynobj or boxed dispatch
 - [x] Destructured builtin imports — `const { foo } = require("mod")` resolves bare calls to module.method dispatch
 - [x] Set initialization from array literal — `new Set([...])` via alloc_set HIR node
+- [x] Object destructuring from dynobj return types — typed dynobj getters at destructure boundary
+- [ ] **Type-alias/interface parameter resolution** — functions like `fn(mod: HIRModule)` get params typed as dynobj because type annotations referencing imported interfaces/type-aliases aren't resolved. This is THE self-hosting blocker: every merged module function with typed params fails. `mod.functions` returns dynobj instead of array, breaking all for-of iteration over struct fields. Root cause found via diagnostic: the "for-of requires array" error on compiler.ts was actually from a merged module (emitter/const-fold/dead-code), not compiler.ts itself (SWC span misleading after module merge).
+- [ ] `this.prop` for inherited class fields — `this.message` in error subclasses (errors.ts needs this)
+- [ ] `import.meta.url` + `new URL()` — compiler.ts line 17 uses `new URL(import.meta.url).pathname` for ROOT path
+- [ ] MemberExpression callee — `module.method()` call patterns beyond destructured builtin imports (parser.ts)
 - [ ] Verify: compiler source files (src/**/*.ts) compile without errors
 
 ### 2. Self-Hosting (~500 LOC new)
