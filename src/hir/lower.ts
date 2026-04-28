@@ -21,7 +21,7 @@ import type {
   HIRParam,
   SourceInfo,
 } from "./types.js";
-import { F64, I64, I1, I8PTR, VOID, BOXED } from "./types.js";
+import { F64, I64, I1, I8PTR, VOID, BOXED, DYNOBJ, DYNARRAY } from "./types.js";
 import { compileError } from "../errors.js";
 import {
   locals,
@@ -289,8 +289,38 @@ export function lowerModule(
           const mutable = varDecl.kind === "let" || varDecl.kind === "var";
           if (!d.init) compileError("object destructuring requires initializer", d.span);
           const initExpr = lowerExpr(d.init);
+
+          if (initExpr.type.kind === "dynobj") {
+            const props = (initExpr.type as { kind: "dynobj"; props?: { name: string; type: HIRType }[] }).props || [];
+            const tmpName = `__destruct_g_${incNextAnonId()}`;
+            globals.set(tmpName, { type: initExpr.type, mutable: false });
+            hirGlobals.push({ name: tmpName, type: initExpr.type, mutable: false });
+            init.push({
+              kind: "expr",
+              expr: { kind: "global_set", name: tmpName, value: initExpr, type: initExpr.type },
+            });
+
+            for (const { fieldName, localName } of resolveObjectDestructProps(d.id.properties)) {
+              const propInfo = props.find((p) => p.name === fieldName);
+              const propType = propInfo ? propInfo.type : DYNOBJ;
+              const key: HIRExpr = { kind: "literal_string", value: fieldName, type: I8PTR };
+              const fieldGet = dynObjGetForType(
+                { kind: "global_get", name: tmpName, type: initExpr.type },
+                key,
+                propType,
+              );
+              globals.set(localName, { type: propType, mutable });
+              hirGlobals.push({ name: localName, type: propType, mutable });
+              init.push({
+                kind: "expr",
+                expr: { kind: "global_set", name: localName, value: fieldGet, type: propType },
+              });
+            }
+            continue;
+          }
+
           if (initExpr.type.kind !== "ptr")
-            compileError("object destructuring requires struct/class type", d.span);
+            compileError("object destructuring requires struct/class/object type", d.span);
 
           const typeName = (initExpr.type as { kind: "ptr"; pointee: string }).pointee;
           const cInfo = classRegistry.get(typeName);
@@ -590,13 +620,71 @@ function lowerArrayDestructuring(d: any, mutable: boolean): HIRStmt[] {
   return stmts;
 }
 
+function dynObjGetForType(obj: HIRExpr, key: HIRExpr, targetType: HIRType): HIRExpr {
+  switch (targetType.kind) {
+    case "f64":
+    case "i64":
+      return { kind: "runtime_call", func: "cs2_dynobj_get_f64", args: [obj, key], returnType: F64, type: F64 };
+    case "i8ptr":
+      return { kind: "runtime_call", func: "cs2_dynobj_get_str", args: [obj, key], returnType: I8PTR, type: I8PTR };
+    case "i1":
+      return { kind: "runtime_call", func: "cs2_dynobj_get_bool", args: [obj, key], returnType: I1, type: I1 };
+    case "dynarray":
+      return { kind: "runtime_call", func: "cs2_dynobj_get_arr", args: [obj, key], returnType: DYNARRAY, type: DYNARRAY };
+    case "dynobj":
+      return { kind: "runtime_call", func: "cs2_dynobj_get_obj", args: [obj, key], returnType: DYNOBJ, type: DYNOBJ };
+    default:
+      return { kind: "runtime_call", func: "cs2_dynobj_get_obj", args: [obj, key], returnType: DYNOBJ, type: DYNOBJ };
+  }
+}
+
 function lowerObjectDestructuring(d: any, mutable: boolean): HIRStmt[] {
   const stmts: HIRStmt[] = [];
   if (!d.init) compileError("object destructuring requires initializer", d.span);
 
   const initExpr = lowerExpr(d.init);
+
+  if (initExpr.type.kind === "dynobj") {
+    const props = (initExpr.type as { kind: "dynobj"; props?: { name: string; type: HIRType }[] }).props || [];
+    const tmpId = freshId();
+    const tmpName = `__destruct_${tmpId}`;
+    locals.set(tmpName, { id: tmpId, type: initExpr.type, mutable: false });
+    stmts.push({
+      kind: "let",
+      id: tmpId,
+      name: tmpName,
+      type: initExpr.type,
+      init: initExpr,
+      mutable: false,
+    } as HIRStmt);
+
+    for (const { fieldName, localName, span } of resolveObjectDestructProps(d.id.properties)) {
+      const propInfo = props.find((p) => p.name === fieldName);
+      const propType = propInfo ? propInfo.type : DYNOBJ;
+      const elemId = freshId();
+      const key: HIRExpr = { kind: "literal_string", value: fieldName, type: I8PTR };
+      const fieldGet = dynObjGetForType(
+        { kind: "local_get", id: tmpId, type: initExpr.type },
+        key,
+        propType,
+      );
+
+      locals.set(localName, { id: elemId, type: propType, mutable });
+      stmts.push({
+        kind: "let",
+        id: elemId,
+        name: localName,
+        type: propType,
+        init: fieldGet,
+        mutable,
+      } as HIRStmt);
+    }
+
+    return stmts;
+  }
+
   if (initExpr.type.kind !== "ptr")
-    compileError("object destructuring requires struct/class type", d.span);
+    compileError("object destructuring requires struct/class/object type", d.span);
 
   const typeName = (initExpr.type as { kind: "ptr"; pointee: string }).pointee;
   const classInfo = classRegistry.get(typeName);
