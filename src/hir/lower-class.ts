@@ -125,6 +125,20 @@ export function registerClass(decl: any): void {
     }
   }
 
+  for (const member of decl.body) {
+    if (member.type === "Constructor") {
+      for (const p of member.params) {
+        const pat = p.pat || p;
+        if (pat.type === "TsParameterProperty" && pat.param?.type === "Identifier") {
+          const fieldType = resolveTypeAnnotation(pat.param.typeAnnotation);
+          if (!fields.some((f) => f.name === pat.param.value)) {
+            fields.push({ name: pat.param.value, type: fieldType });
+          }
+        }
+      }
+    }
+  }
+
   classRegistry.set(name, { fields, methods, parent: parentName });
   functionRegistry.set(`${name}_constructor`, {
     params: [],
@@ -200,13 +214,22 @@ function lowerConstructorPair(
   locals.set("this", { id: thisId, type: thisType, mutable: false });
 
   const ctorParams: HIRParam[] = [];
+  const paramPropertyAssigns: { name: string; paramId: number; type: HIRType }[] = [];
   for (const p of ctor.params) {
-    const pat = p.pat || p;
+    let pat = p.pat || p;
+    let isParamProperty = false;
+    if (pat.type === "TsParameterProperty") {
+      isParamProperty = true;
+      pat = pat.param;
+    }
     if (pat.type === "Identifier") {
       const id = freshId();
       const type = resolveTypeAnnotation(pat.typeAnnotation);
       ctorParams.push({ id, name: pat.value, type });
       locals.set(pat.value, { id, type, mutable: true });
+      if (isParamProperty) {
+        paramPropertyAssigns.push({ name: pat.value, paramId: id, type });
+      }
     }
   }
 
@@ -221,6 +244,23 @@ function lowerConstructorPair(
   const initBody: HIRStmt[] = ctor.body ? lowerBlock(ctor.body) : [];
   setIsModuleScope(true);
   setCurrentClassName(null);
+
+  for (const pp of paramPropertyAssigns) {
+    const fieldIdx = classInfo.fields.findIndex((f) => f.name === pp.name);
+    if (fieldIdx >= 0) {
+      initBody.unshift({
+        kind: "expr",
+        expr: {
+          kind: "field_set",
+          object: { kind: "local_get", id: 0, type: thisType },
+          fieldName: pp.name,
+          index: fieldIdx,
+          value: { kind: "local_get", id: pp.paramId, type: pp.type },
+          type: pp.type,
+        },
+      });
+    }
+  }
 
   locals.clear();
   for (const [k, v] of savedLocals) locals.set(k, v);
