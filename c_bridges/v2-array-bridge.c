@@ -441,6 +441,23 @@ double cs2_str_array_some(StrArray *arr, void *fn_ptr, void *env_ptr) {
     return 0.0;
 }
 
+const char *cs2_str_array_find(StrArray *arr, void *fn_ptr, void *env_ptr) {
+    int32_t (*fn)(void *, const char *) = (int32_t (*)(void *, const char *))fn_ptr;
+    for (int32_t i = 0; i < arr->length; i++) {
+        if (fn(env_ptr, arr->data[i])) return arr->data[i];
+    }
+    return "undefined";
+}
+
+const char *cs2_str_array_reduce(StrArray *arr, void *fn_ptr, void *env_ptr, const char *init) {
+    const char *(*fn)(void *, const char *, const char *) = (const char *(*)(void *, const char *, const char *))fn_ptr;
+    const char *acc = init;
+    for (int32_t i = 0; i < arr->length; i++) {
+        acc = fn(env_ptr, acc, arr->data[i]);
+    }
+    return acc;
+}
+
 double cs2_num_array_shift(NumArray *arr) {
     if (arr->length <= 0) return 0.0;
     double val = arr->data[0];

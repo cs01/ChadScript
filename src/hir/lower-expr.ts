@@ -2155,6 +2155,7 @@ function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
     method === "map" ||
     method === "filter" ||
     method === "forEach" ||
+    method === "find" ||
     method === "findIndex" ||
     method === "every" ||
     method === "some" ||
@@ -2166,6 +2167,7 @@ function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
         map: "cs2_num_array_map",
         filter: "cs2_num_array_filter",
         forEach: "cs2_num_array_forEach",
+        find: "cs2_num_array_find",
         findIndex: "cs2_num_array_findIndex",
         every: "cs2_num_array_every",
         some: "cs2_num_array_some",
@@ -2175,9 +2177,11 @@ function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
         map: "cs2_str_array_map",
         filter: "cs2_str_array_filter",
         forEach: "cs2_str_array_forEach",
+        find: "cs2_str_array_find",
         findIndex: "cs2_str_array_findIndex",
         every: "cs2_str_array_every",
         some: "cs2_str_array_some",
+        reduce: "cs2_str_array_reduce",
       },
     };
     const funcs = hofMethods[prefix];
@@ -2192,6 +2196,9 @@ function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
       case "forEach":
         returnType = VOID;
         break;
+      case "find":
+        returnType = prefix === "cs2_num_array" ? F64 : I8PTR;
+        break;
       case "findIndex":
         returnType = F64;
         break;
@@ -2200,7 +2207,7 @@ function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
         returnType = { kind: "i1" };
         break;
       case "reduce":
-        returnType = F64;
+        returnType = prefix === "cs2_num_array" ? F64 : I8PTR;
         break;
       default:
         throw new Error(`unexpected hof method: ${method}`);

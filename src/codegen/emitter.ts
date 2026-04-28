@@ -411,6 +411,8 @@ function declareExterns(ctx: EmitContext): void {
     ["cs2_str_array_findIndex", m.f64, [m.ptr, m.ptr, m.ptr]],
     ["cs2_str_array_every", m.f64, [m.ptr, m.ptr, m.ptr]],
     ["cs2_str_array_some", m.f64, [m.ptr, m.ptr, m.ptr]],
+    ["cs2_str_array_find", m.ptr, [m.ptr, m.ptr, m.ptr]],
+    ["cs2_str_array_reduce", m.ptr, [m.ptr, m.ptr, m.ptr, m.ptr]],
     ["cs2_print_str_array", m.voidTy, [m.ptr]],
     ["cs2_str_array_join", m.ptr, [m.ptr, m.ptr]],
     ["cs2_str_array_spread", m.voidTy, [m.ptr, m.ptr]],
