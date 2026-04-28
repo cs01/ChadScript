@@ -113,11 +113,15 @@ export function registerClass(decl: any): void {
         type: resolveTypeAnnotation(p.pat?.typeAnnotation),
       }));
       const returnType = fn.returnType ? resolveTypeAnnotation(fn.returnType) : VOID;
-      methods.set(member.key.value, { params, returnType });
-      functionRegistry.set(`${name}_${member.key.value}`, {
-        params: [{ id: 0, name: "this", type: { kind: "ptr", pointee: name } }, ...params],
-        returnType,
-      });
+      if (member.isStatic) {
+        functionRegistry.set(`${name}_${member.key.value}`, { params, returnType });
+      } else {
+        methods.set(member.key.value, { params, returnType });
+        functionRegistry.set(`${name}_${member.key.value}`, {
+          params: [{ id: 0, name: "this", type: { kind: "ptr", pointee: name } }, ...params],
+          returnType,
+        });
+      }
     }
   }
 
@@ -146,7 +150,11 @@ export function lowerClassDecl(decl: any): {
       fns.push(constructor);
     }
     if (member.type === "ClassMethod" && member.key?.type === "Identifier") {
-      fns.push(lowerMethod(name, member, classInfo));
+      if (member.isStatic) {
+        fns.push(lowerStaticMethod(name, member));
+      } else {
+        fns.push(lowerMethod(name, member, classInfo));
+      }
     }
   }
 
@@ -297,6 +305,44 @@ function lowerMethod(
   const body = fn.body ? lowerBlock(fn.body) : [];
   setIsModuleScope(true);
   setCurrentClassName(null);
+
+  locals.clear();
+  for (const [k, v] of savedLocals) locals.set(k, v);
+  setNextId(savedNextId);
+
+  return {
+    name: `${className}_${method.key.value}`,
+    params,
+    returnType,
+    body,
+    isAsync: fn.async || false,
+    captures: [],
+    line: method.span ? offsetToLine(method.span.start) : undefined,
+  };
+}
+
+function lowerStaticMethod(className: string, method: any): HIRFunction {
+  const savedLocals = new Map(locals);
+  const savedNextId = nextId;
+  locals.clear();
+  setNextId(0);
+
+  const params: HIRParam[] = [];
+  const fn = method.function;
+  for (const p of fn.params) {
+    if (p.pat?.type === "Identifier") {
+      const id = freshId();
+      const type = resolveTypeAnnotation(p.pat.typeAnnotation);
+      params.push({ id, name: p.pat.value, type });
+      locals.set(p.pat.value, { id, type, mutable: true });
+    }
+  }
+
+  const returnType = fn.returnType ? resolveTypeAnnotation(fn.returnType) : VOID;
+
+  setIsModuleScope(false);
+  const body = fn.body ? lowerBlock(fn.body) : [];
+  setIsModuleScope(true);
 
   locals.clear();
   for (const [k, v] of savedLocals) locals.set(k, v);

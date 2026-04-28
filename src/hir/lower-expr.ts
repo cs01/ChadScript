@@ -881,6 +881,24 @@ function lowerCall(expr: CallExpression): HIRExpr {
     }
   }
 
+  if (
+    expr.callee.type === "MemberExpression" &&
+    expr.callee.object.type === "Identifier" &&
+    expr.callee.property.type === "Identifier" &&
+    classRegistry.has(expr.callee.object.value)
+  ) {
+    const className = expr.callee.object.value;
+    const methodName = expr.callee.property.value;
+    const funcName = `${className}_${methodName}`;
+    const info = functionRegistry.get(funcName);
+    if (info && !info.params.some((p: any) => p.name === "this")) {
+      const args = expr.arguments.map((a: any, i: number) =>
+        coerce(lowerExpr(a.expression), info.params[i].type),
+      );
+      return { kind: "call", callee: funcName, args, returnType: info.returnType, type: info.returnType };
+    }
+  }
+
   if (expr.callee.type === "MemberExpression") {
     const obj = lowerExpr(expr.callee.object);
     if (obj.type.kind === "i8ptr") {
