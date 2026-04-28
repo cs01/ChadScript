@@ -115,6 +115,21 @@ export function lowerExpr(expr: Expression): HIRExpr {
       const inner = lowerExpr((expr as any).expression);
       const targetType = resolveTypeAnnotation((expr as any).typeAnnotation);
       if (inner.type.kind === targetType.kind) return inner;
+      if (
+        inner.type.kind === "dynobj" &&
+        inner.kind === "runtime_call" &&
+        (inner as any).func === "cs2_json_parse_obj" &&
+        (targetType.kind === "f64" || targetType.kind === "i64" || targetType.kind === "i8ptr" || targetType.kind === "i1")
+      ) {
+        const boxed: HIRExpr = {
+          kind: "runtime_call",
+          func: "cs2_json_parse",
+          args: (inner as any).args,
+          returnType: BOXED,
+          type: BOXED,
+        };
+        return { kind: "unbox", value: boxed, toType: targetType, type: targetType };
+      }
       return coerce(inner, targetType);
     }
     case "TsNonNullExpression":
