@@ -23,6 +23,8 @@ const BRIDGE_SRCS = [
   join(ROOT, "c_bridges", "v2-path-bridge.c"),
   join(ROOT, "c_bridges", "v2-fs-bridge.c"),
   join(ROOT, "c_bridges", "v2-child-process-bridge.c"),
+  join(ROOT, "c_bridges", "v2-map-bridge.c"),
+  join(ROOT, "c_bridges", "v2-set-bridge.c"),
 ];
 
 function findLibuv(): { include: string; lib: string } {

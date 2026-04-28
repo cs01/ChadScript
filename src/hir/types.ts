@@ -9,7 +9,9 @@ export type HIRType =
   | { kind: "boxed" }
   | { kind: "struct"; name: string; fields: HIRField[] }
   | { kind: "closure"; params: HIRType[]; returnType: HIRType }
-  | { kind: "promise"; inner: HIRType };
+  | { kind: "promise"; inner: HIRType }
+  | { kind: "map"; key: HIRType; value: HIRType }
+  | { kind: "set"; element: HIRType };
 
 export interface HIRField {
   name: string;

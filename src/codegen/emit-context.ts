@@ -198,6 +198,9 @@ export function llvmType(ctx: EmitContext, t: HIRType): any {
       return m.ptr;
     case "promise":
       return m.ptr;
+    case "map":
+    case "set":
+      return m.ptr;
     default: {
       const _: never = t;
       throw new Error(`unknown HIR type: ${JSON.stringify(t)}`);
@@ -301,8 +304,9 @@ export function defaultInit(ctx: EmitContext, t: HIRType): any {
     case "ptr":
       return m.constNull(m.ptr);
     case "closure":
-      return m.constNull(m.ptr);
     case "promise":
+    case "map":
+    case "set":
       return m.constNull(m.ptr);
     case "boxed":
       return m.constInt(m.i64, 0x7ffc000000000001n);

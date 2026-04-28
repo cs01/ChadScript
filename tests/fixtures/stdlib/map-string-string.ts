@@ -1,0 +1,13 @@
+const m = new Map<string, string>();
+m.set("name", "chad");
+m.set("lang", "typescript");
+console.log(m.get("name"));
+console.log(m.get("lang"));
+console.log(m.has("name"));
+console.log(m.has("missing"));
+console.log(m.size);
+m.set("name", "updated");
+console.log(m.get("name"));
+m.delete("lang");
+console.log(m.size);
+console.log(m.has("lang"));

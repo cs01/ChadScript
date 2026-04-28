@@ -36,6 +36,8 @@ import {
   BITWISE_OPS,
   compoundOpMap,
   arrayPrefix,
+  mapPrefix,
+  setPrefix,
   genericFunctionTemplates,
   genericClassTemplates,
   mangleGenericName,
@@ -717,6 +719,12 @@ function lowerCall(expr: CallExpression): HIRExpr {
     if (obj.type.kind === "array") {
       return lowerArrayMethodCall(expr, obj);
     }
+    if (obj.type.kind === "map") {
+      return lowerMapMethodCall(expr, obj);
+    }
+    if (obj.type.kind === "set") {
+      return lowerSetMethodCall(expr, obj);
+    }
     if (obj.type.kind === "ptr") {
       return lowerClassMethodCall(expr, obj);
     }
@@ -871,6 +879,33 @@ function lowerNewExpr(expr: any): HIRExpr {
     compileError("new expression requires identifier callee", expr.span);
   }
   const className = expr.callee.value;
+
+  if (className === "Map" && expr.typeArguments?.params?.length === 2) {
+    const keyType = resolveTypeAnnotation(expr.typeArguments.params[0]);
+    const valueType = resolveTypeAnnotation(expr.typeArguments.params[1]);
+    const prefix = mapPrefix(keyType, valueType);
+    const resultType: HIRType = { kind: "map", key: keyType, value: valueType };
+    return {
+      kind: "runtime_call",
+      func: `${prefix}_new`,
+      args: [],
+      returnType: resultType,
+      type: resultType,
+    };
+  }
+
+  if (className === "Set" && expr.typeArguments?.params?.length === 1) {
+    const elemType = resolveTypeAnnotation(expr.typeArguments.params[0]);
+    const prefix = setPrefix(elemType);
+    const resultType: HIRType = { kind: "set", element: elemType };
+    return {
+      kind: "runtime_call",
+      func: `${prefix}_new`,
+      args: [],
+      returnType: resultType,
+      type: resultType,
+    };
+  }
 
   if (genericClassTemplates.has(className) && expr.typeArguments?.params?.length) {
     return lowerGenericNewExpr(expr);
@@ -1216,6 +1251,101 @@ function lowerStringMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
   };
 
   return rtCall;
+}
+
+function lowerMapMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
+  const member = expr.callee as MemberExpression;
+  const method = (member.property as Identifier).value;
+  const mt = obj.type as { kind: "map"; key: HIRType; value: HIRType };
+  const prefix = mapPrefix(mt.key, mt.value);
+
+  switch (method) {
+    case "set": {
+      const key = coerce(lowerExpr(expr.arguments[0].expression), mt.key);
+      const val = coerce(lowerExpr(expr.arguments[1].expression), mt.value);
+      return {
+        kind: "runtime_call",
+        func: `${prefix}_set`,
+        args: [obj, key, val],
+        returnType: VOID,
+        type: VOID,
+      };
+    }
+    case "get": {
+      const key = coerce(lowerExpr(expr.arguments[0].expression), mt.key);
+      return {
+        kind: "runtime_call",
+        func: `${prefix}_get`,
+        args: [obj, key],
+        returnType: mt.value,
+        type: mt.value,
+      };
+    }
+    case "has": {
+      const key = coerce(lowerExpr(expr.arguments[0].expression), mt.key);
+      return {
+        kind: "runtime_call",
+        func: `${prefix}_has`,
+        args: [obj, key],
+        returnType: I1,
+        type: I1,
+      };
+    }
+    case "delete": {
+      const key = coerce(lowerExpr(expr.arguments[0].expression), mt.key);
+      return {
+        kind: "runtime_call",
+        func: `${prefix}_delete`,
+        args: [obj, key],
+        returnType: I1,
+        type: I1,
+      };
+    }
+    default:
+      throw new Error(`unsupported Map method: ${method}`);
+  }
+}
+
+function lowerSetMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
+  const member = expr.callee as MemberExpression;
+  const method = (member.property as Identifier).value;
+  const st = obj.type as { kind: "set"; element: HIRType };
+  const prefix = setPrefix(st.element);
+
+  switch (method) {
+    case "add": {
+      const val = coerce(lowerExpr(expr.arguments[0].expression), st.element);
+      return {
+        kind: "runtime_call",
+        func: `${prefix}_add`,
+        args: [obj, val],
+        returnType: VOID,
+        type: VOID,
+      };
+    }
+    case "has": {
+      const val = coerce(lowerExpr(expr.arguments[0].expression), st.element);
+      return {
+        kind: "runtime_call",
+        func: `${prefix}_has`,
+        args: [obj, val],
+        returnType: I1,
+        type: I1,
+      };
+    }
+    case "delete": {
+      const val = coerce(lowerExpr(expr.arguments[0].expression), st.element);
+      return {
+        kind: "runtime_call",
+        func: `${prefix}_delete`,
+        args: [obj, val],
+        returnType: I1,
+        type: I1,
+      };
+    }
+    default:
+      throw new Error(`unsupported Set method: ${method}`);
+  }
 }
 
 function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
@@ -1596,6 +1726,20 @@ export function lowerMember(expr: MemberExpression): HIRExpr {
         const elemType = (obj.type as { kind: "array"; element: HIRType }).element;
         const lenFn = `${arrayPrefix(elemType)}_length`;
         return { kind: "runtime_call", func: lenFn, args: [obj], returnType: I64, type: I64 };
+      }
+    }
+
+    if (propName === "size") {
+      const obj = lowerExpr(expr.object);
+      if (obj.type.kind === "map") {
+        const mt = obj.type as { kind: "map"; key: HIRType; value: HIRType };
+        const prefix = mapPrefix(mt.key, mt.value);
+        return { kind: "runtime_call", func: `${prefix}_size`, args: [obj], returnType: I64, type: I64 };
+      }
+      if (obj.type.kind === "set") {
+        const st = obj.type as { kind: "set"; element: HIRType };
+        const prefix = setPrefix(st.element);
+        return { kind: "runtime_call", func: `${prefix}_size`, args: [obj], returnType: I64, type: I64 };
       }
     }
 

@@ -196,6 +196,17 @@ export function resolveTypeAnnotation(ann: any): HIRType {
       return { kind: "promise", inner };
     }
 
+    if (name === "Map" && ta.typeParams?.params?.length === 2) {
+      const key = resolveTypeAnnotation(ta.typeParams.params[0]);
+      const value = resolveTypeAnnotation(ta.typeParams.params[1]);
+      return { kind: "map", key, value };
+    }
+
+    if (name === "Set" && ta.typeParams?.params?.length === 1) {
+      const elem = resolveTypeAnnotation(ta.typeParams.params[0]);
+      return { kind: "set", element: elem };
+    }
+
     if (classRegistry.has(name) || interfaceRegistry.has(name)) {
       return { kind: "ptr", pointee: name };
     }
@@ -325,6 +336,16 @@ export function arrayPrefix(elemType: HIRType): string {
   if (elemType.kind === "i8ptr") return "cs2_str_array";
   if (elemType.kind === "ptr") return "cs2_obj_array";
   return "cs2_num_array";
+}
+
+export function mapPrefix(keyType: HIRType, valueType: HIRType): string {
+  const k = keyType.kind === "i8ptr" ? "str" : "num";
+  const v = valueType.kind === "i8ptr" ? "str" : "num";
+  return `cs2_${k}_${v}_map`;
+}
+
+export function setPrefix(elemType: HIRType): string {
+  return elemType.kind === "i8ptr" ? "cs2_str_set" : "cs2_num_set";
 }
 
 export function mapBinaryOp(op: string): BinaryOp {
