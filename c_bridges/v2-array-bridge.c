@@ -204,6 +204,139 @@ int32_t cs2_str_array_length(StrArray *arr) {
     return arr->length;
 }
 
+int32_t cs2_str_array_index_of(StrArray *arr, const char *value) {
+    for (int32_t i = 0; i < arr->length; i++) {
+        if (strcmp(arr->data[i], value) == 0) return i;
+    }
+    return -1;
+}
+
+int32_t cs2_str_array_includes(StrArray *arr, const char *value) {
+    for (int32_t i = 0; i < arr->length; i++) {
+        if (strcmp(arr->data[i], value) == 0) return 1;
+    }
+    return 0;
+}
+
+StrArray *cs2_str_array_slice(StrArray *arr, int32_t start, int32_t end) {
+    if (start < 0) start = arr->length + start;
+    if (end < 0) end = arr->length + end;
+    if (start < 0) start = 0;
+    if (end > arr->length) end = arr->length;
+    if (start >= end) {
+        StrArray *empty = (StrArray *)malloc(sizeof(StrArray));
+        empty->data = (char **)malloc(sizeof(char *) * 4);
+        empty->length = 0;
+        empty->capacity = 4;
+        return empty;
+    }
+    int32_t len = end - start;
+    StrArray *result = (StrArray *)malloc(sizeof(StrArray));
+    result->data = (char **)malloc(sizeof(char *) * len);
+    memcpy(result->data, arr->data + start, sizeof(char *) * len);
+    result->length = len;
+    result->capacity = len;
+    return result;
+}
+
+void cs2_str_array_reverse(StrArray *arr) {
+    for (int32_t i = 0, j = arr->length - 1; i < j; i++, j--) {
+        char *tmp = arr->data[i];
+        arr->data[i] = arr->data[j];
+        arr->data[j] = tmp;
+    }
+}
+
+StrArray *cs2_str_array_concat(StrArray *a, StrArray *b) {
+    int32_t len = a->length + b->length;
+    StrArray *result = (StrArray *)malloc(sizeof(StrArray));
+    result->data = (char **)malloc(sizeof(char *) * (len < 4 ? 4 : len));
+    memcpy(result->data, a->data, sizeof(char *) * a->length);
+    memcpy(result->data + a->length, b->data, sizeof(char *) * b->length);
+    result->length = len;
+    result->capacity = len < 4 ? 4 : len;
+    return result;
+}
+
+NumArray *cs2_num_array_concat(NumArray *a, NumArray *b) {
+    int32_t len = a->length + b->length;
+    NumArray *result = (NumArray *)malloc(sizeof(NumArray));
+    result->data = (double *)malloc(sizeof(double) * (len < 4 ? 4 : len));
+    memcpy(result->data, a->data, sizeof(double) * a->length);
+    memcpy(result->data + a->length, b->data, sizeof(double) * b->length);
+    result->length = len;
+    result->capacity = len < 4 ? 4 : len;
+    return result;
+}
+
+static int cs2_num_compare_asc(const void *a, const void *b) {
+    double da = *(const double *)a;
+    double db = *(const double *)b;
+    if (da < db) return -1;
+    if (da > db) return 1;
+    return 0;
+}
+
+void cs2_num_array_sort(NumArray *arr) {
+    qsort(arr->data, arr->length, sizeof(double), cs2_num_compare_asc);
+}
+
+NumArray *cs2_num_array_map(NumArray *arr, void *fn_ptr, void *env_ptr) {
+    double (*fn)(void *, double) = (double (*)(void *, double))fn_ptr;
+    NumArray *result = cs2_num_array_new(arr->length);
+    for (int32_t i = 0; i < arr->length; i++) {
+        result->data[i] = fn(env_ptr, arr->data[i]);
+    }
+    result->length = arr->length;
+    return result;
+}
+
+NumArray *cs2_num_array_filter(NumArray *arr, void *fn_ptr, void *env_ptr) {
+    int32_t (*fn)(void *, double) = (int32_t (*)(void *, double))fn_ptr;
+    NumArray *result = cs2_num_array_new(arr->length);
+    for (int32_t i = 0; i < arr->length; i++) {
+        if (fn(env_ptr, arr->data[i])) {
+            cs2_num_array_push(result, arr->data[i]);
+        }
+    }
+    return result;
+}
+
+void cs2_num_array_forEach(NumArray *arr, void *fn_ptr, void *env_ptr) {
+    void (*fn)(void *, double) = (void (*)(void *, double))fn_ptr;
+    for (int32_t i = 0; i < arr->length; i++) {
+        fn(env_ptr, arr->data[i]);
+    }
+}
+
+StrArray *cs2_str_array_map(StrArray *arr, void *fn_ptr, void *env_ptr) {
+    char *(*fn)(void *, const char *) = (char *(*)(void *, const char *))fn_ptr;
+    StrArray *result = cs2_str_array_new(arr->length);
+    for (int32_t i = 0; i < arr->length; i++) {
+        result->data[i] = fn(env_ptr, arr->data[i]);
+    }
+    result->length = arr->length;
+    return result;
+}
+
+StrArray *cs2_str_array_filter(StrArray *arr, void *fn_ptr, void *env_ptr) {
+    int32_t (*fn)(void *, const char *) = (int32_t (*)(void *, const char *))fn_ptr;
+    StrArray *result = cs2_str_array_new(arr->length);
+    for (int32_t i = 0; i < arr->length; i++) {
+        if (fn(env_ptr, arr->data[i])) {
+            cs2_str_array_push(result, arr->data[i]);
+        }
+    }
+    return result;
+}
+
+void cs2_str_array_forEach(StrArray *arr, void *fn_ptr, void *env_ptr) {
+    void (*fn)(void *, const char *) = (void (*)(void *, const char *))fn_ptr;
+    for (int32_t i = 0; i < arr->length; i++) {
+        fn(env_ptr, arr->data[i]);
+    }
+}
+
 char *cs2_str_array_join(StrArray *arr, const char *sep) {
     if (arr->length == 0) {
         char *empty = (char *)malloc(1);

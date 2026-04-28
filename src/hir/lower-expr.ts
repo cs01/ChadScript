@@ -1833,8 +1833,60 @@ function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
       includes: { func: "cs2_num_array_includes", returnType: I64, argTypes: [F64] },
       slice: { func: "cs2_num_array_slice", returnType: obj.type, argTypes: [I64, I64] },
       reverse: { func: "cs2_num_array_reverse", returnType: VOID },
+      sort: { func: "cs2_num_array_sort", returnType: VOID },
+      concat: { func: "cs2_num_array_concat", returnType: obj.type, argTypes: [obj.type] },
     };
     info = numMethods[method];
+  } else if (prefix === "cs2_str_array") {
+    const strMethods: Record<string, MethodInfo> = {
+      indexOf: { func: "cs2_str_array_index_of", returnType: I64, argTypes: [I8PTR] },
+      includes: { func: "cs2_str_array_includes", returnType: I64, argTypes: [I8PTR] },
+      slice: { func: "cs2_str_array_slice", returnType: obj.type, argTypes: [I64, I64] },
+      reverse: { func: "cs2_str_array_reverse", returnType: VOID },
+      concat: { func: "cs2_str_array_concat", returnType: obj.type, argTypes: [obj.type] },
+    };
+    info = strMethods[method];
+  }
+
+  if (method === "map" || method === "filter" || method === "forEach") {
+    const callback = args[0];
+    const hofMethods: Record<string, { map: string; filter: string; forEach: string }> = {
+      cs2_num_array: {
+        map: "cs2_num_array_map",
+        filter: "cs2_num_array_filter",
+        forEach: "cs2_num_array_forEach",
+      },
+      cs2_str_array: {
+        map: "cs2_str_array_map",
+        filter: "cs2_str_array_filter",
+        forEach: "cs2_str_array_forEach",
+      },
+    };
+    const funcs = hofMethods[prefix];
+    if (!funcs) compileError(`unsupported array method: ${method}`, expr.span);
+    let returnType: HIRType;
+    switch (method) {
+      case "map":
+        returnType = obj.type;
+        break;
+      case "filter":
+        returnType = obj.type;
+        break;
+      case "forEach":
+        returnType = VOID;
+        break;
+      default:
+        throw new Error(`unexpected hof method: ${method}`);
+    }
+    return {
+      kind: "array_hof",
+      array: obj,
+      method,
+      callback,
+      bridgeFunc: funcs[method],
+      returnType,
+      type: returnType,
+    };
   }
 
   if (!info) compileError(`unsupported array method: ${method}`, expr.span);

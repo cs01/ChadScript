@@ -157,6 +157,15 @@ export type HIRExpr =
       returnType: HIRType;
       type: HIRType;
     }
+  | {
+      kind: "array_hof";
+      array: HIRExpr;
+      method: "map" | "filter" | "forEach";
+      callback: HIRExpr;
+      bridgeFunc: string;
+      returnType: HIRType;
+      type: HIRType;
+    }
   | { kind: "nullish_coalesce"; left: HIRExpr; right: HIRExpr; type: HIRType }
   | { kind: "await"; value: HIRExpr; resolvedType: HIRType; type: HIRType }
   | {

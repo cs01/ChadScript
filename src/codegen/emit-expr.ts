@@ -142,6 +142,8 @@ export function emitExpr(ctx: EmitContext, expr: HIRExpr): any {
       return emitMakeClosure(ctx, expr as HIRExpr & { kind: "make_closure" });
     case "call_closure":
       return emitCallClosure(ctx, expr as HIRExpr & { kind: "call_closure" });
+    case "array_hof":
+      return emitArrayHof(ctx, expr as HIRExpr & { kind: "array_hof" });
     case "nullish_coalesce":
       return emitNullishCoalesce(ctx, expr as HIRExpr & { kind: "nullish_coalesce" });
     case "await": {
@@ -901,6 +903,26 @@ function emitCallClosure(ctx: EmitContext, expr: HIRExpr & { kind: "call_closure
   const fnType = m.functionType(retType, paramTypes);
 
   return m.buildCall(fnType, fnPtr, allArgs, expr.returnType.kind === "void" ? "" : "");
+}
+
+function emitArrayHof(
+  ctx: EmitContext,
+  expr: HIRExpr & { kind: "array_hof" },
+): any {
+  const m = ctx.m;
+  const arrVal = emitExpr(ctx, expr.array);
+  const closurePtr = emitExpr(ctx, expr.callback);
+
+  const fnSlot = m.buildGEP(m.i8, closurePtr, [m.constInt(m.i64, 0)], "hof_fn_slot");
+  const fnPtr = m.buildLoad(m.ptr, fnSlot, "hof_fn_ptr");
+  const envSlot = m.buildGEP(m.i8, closurePtr, [m.constInt(m.i64, 8)], "hof_env_slot");
+  const envPtr = m.buildLoad(m.ptr, envSlot, "hof_env_ptr");
+
+  const decl = ctx.getDeclaredFunction(expr.bridgeFunc);
+  if (!decl) throw new Error(`undeclared bridge function: ${expr.bridgeFunc}`);
+
+  const resultName = expr.method === "forEach" ? "" : "hof_result";
+  return m.buildCall(decl.fnType, decl.fn, [arrVal, fnPtr, envPtr], resultName);
 }
 
 function emitPromiseStatic(
