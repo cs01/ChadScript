@@ -250,6 +250,15 @@ void cs2_str_str_map_clear(StrStrMap *m) { m->length = 0; }
 void cs2_num_num_map_clear(NumNumMap *m) { m->length = 0; }
 void cs2_num_str_map_clear(NumStrMap *m) { m->length = 0; }
 
+const char *cs2_str_num_map_key_at(StrNumMap *m, int32_t i) { return m->keys[i]; }
+double cs2_str_num_map_value_at(StrNumMap *m, int32_t i) { return m->values[i]; }
+const char *cs2_str_str_map_key_at(StrStrMap *m, int32_t i) { return m->keys[i]; }
+char *cs2_str_str_map_value_at(StrStrMap *m, int32_t i) { return m->values[i]; }
+double cs2_num_num_map_key_at(NumNumMap *m, int32_t i) { return m->keys[i]; }
+double cs2_num_num_map_value_at(NumNumMap *m, int32_t i) { return m->values[i]; }
+double cs2_num_str_map_key_at(NumStrMap *m, int32_t i) { return m->keys[i]; }
+char *cs2_num_str_map_value_at(NumStrMap *m, int32_t i) { return m->values[i]; }
+
 typedef struct { char **data; int32_t length; int32_t capacity; } CS2StrArr;
 typedef struct { double *data; int32_t length; int32_t capacity; } CS2NumArr;
 
