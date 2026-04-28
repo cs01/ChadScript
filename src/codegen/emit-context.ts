@@ -255,6 +255,10 @@ export function emitBoxValue(ctx: EmitContext, val: any, from: HIRType): any {
       const fn = ctx.getDeclaredFunction("nanbox_from_ptr")!;
       return m.buildCall(fn.fnType, fn.fn, [val], "boxed");
     }
+    case "dynobj": {
+      const fn = ctx.getDeclaredFunction("nanbox_from_ptr")!;
+      return m.buildCall(fn.fnType, fn.fn, [val], "boxed");
+    }
     case "boxed":
       return val;
     default:
@@ -283,6 +287,10 @@ export function emitUnboxValue(ctx: EmitContext, val: any, to: HIRType): any {
       return m.buildCall(fn.fnType, fn.fn, [val], "unboxed");
     }
     case "ptr": {
+      const fn = ctx.getDeclaredFunction("nanbox_to_ptr")!;
+      return m.buildCall(fn.fnType, fn.fn, [val], "unboxed");
+    }
+    case "dynobj": {
       const fn = ctx.getDeclaredFunction("nanbox_to_ptr")!;
       return m.buildCall(fn.fnType, fn.fn, [val], "unboxed");
     }

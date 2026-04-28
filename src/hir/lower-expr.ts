@@ -2796,8 +2796,9 @@ export function lowerMember(expr: MemberExpression): HIRExpr {
         type: I8PTR,
       };
     }
-    if (obj.type.kind === "dynobj") {
-      return dynobj_get(obj, index);
+    if (obj.type.kind === "dynobj" || obj.type.kind === "boxed") {
+      const dynObj = obj.type.kind === "boxed" ? coerce(obj, DYNOBJ) : obj;
+      return dynobj_get(dynObj, index);
     }
     compileError("unsupported computed member access", expr.span);
   }
@@ -2936,14 +2937,15 @@ export function lowerMember(expr: MemberExpression): HIRExpr {
     setExpectedDeclType(null);
     const objExpr = lowerExpr(expr.object);
     setExpectedDeclType(savedDeclType);
-    if (objExpr.type.kind === "dynobj" && expr.property.type === "Identifier") {
+    if ((objExpr.type.kind === "dynobj" || objExpr.type.kind === "boxed") && expr.property.type === "Identifier") {
+      const dynObj = objExpr.type.kind === "boxed" ? coerce(objExpr, DYNOBJ) : objExpr;
       const key: HIRExpr = { kind: "literal_string", value: expr.property.value, type: I8PTR };
       let targetType = savedDeclType;
       if (!targetType && objExpr.type.props) {
         const propInfo = objExpr.type.props.find((p: { name: string; type: HIRType }) => p.name === expr.property.value);
         if (propInfo) targetType = propInfo.type;
       }
-      return dynobj_get_typed(objExpr, key, targetType);
+      return dynobj_get_typed(dynObj, key, targetType);
     }
   }
 

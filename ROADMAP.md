@@ -22,8 +22,8 @@ The compiler's own source uses TS features we haven't tested compiling yet. Audi
 - [x] Discriminated unions — type alias registry, union prop tracking, TsLiteralType, dynobj property access
 - [x] `new Error(msg)` — handled as builtin (returns string for throw)
 - [x] `as any` on dynobj preserves runtime type
-- [ ] `import type` should register type aliases from imported files (not just strip them)
-- [ ] Property access on `any`-typed params — need dynobj or boxed dispatch
+- [x] `import type` should register type aliases from imported files (not just strip them)
+- [x] Property access on `any`-typed params — need dynobj or boxed dispatch
 - [ ] Verify: compiler source files (src/**/*.ts) compile without errors
 
 ### 2. Self-Hosting (~500 LOC new)
