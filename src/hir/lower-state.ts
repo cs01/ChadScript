@@ -51,6 +51,7 @@ export const interfaceRegistry = new Map<
   }
 >();
 export const restParamRegistry = new Map<string, number>();
+export const typeAliasRegistry = new Map<string, HIRType>();
 export let isModuleScope = true;
 export let expectedArrayElementType: HIRType | null = null;
 export let expectedMapType: HIRType | null = null;
@@ -240,6 +241,10 @@ export function resolveTypeAnnotation(ann: any): HIRType {
     if (classRegistry.has(name) || interfaceRegistry.has(name)) {
       return { kind: "ptr", pointee: name };
     }
+
+    if (typeAliasRegistry.has(name)) {
+      return typeAliasRegistry.get(name)!;
+    }
   }
 
   if (ta.type === "TsUnionType" && Array.isArray(ta.types)) {
@@ -249,6 +254,22 @@ export function resolveTypeAnnotation(ann: any): HIRType {
     if (nonNull.length === 1) {
       return resolveTypeAnnotation(nonNull[0]);
     }
+    if (nonNull.some((t: any) => t.type === "TsTypeLiteral")) {
+      const props = collectUnionProps(nonNull);
+      return { kind: "dynobj", props: props.length > 0 ? props : undefined };
+    }
+    return BOXED;
+  }
+
+  if (ta.type === "TsTypeLiteral") {
+    const props = extractTypeLiteralProps(ta);
+    return { kind: "dynobj", props: props.length > 0 ? props : undefined };
+  }
+
+  if (ta.type === "TsLiteralType") {
+    if (ta.literal?.type === "StringLiteral") return I8PTR;
+    if (ta.literal?.type === "NumericLiteral") return F64;
+    if (ta.literal?.type === "BooleanLiteral") return I1;
     return BOXED;
   }
 
@@ -262,6 +283,35 @@ export function resolveTypeAnnotation(ann: any): HIRType {
   }
 
   return BOXED;
+}
+
+function extractTypeLiteralProps(ta: any): { name: string; type: HIRType }[] {
+  const props: { name: string; type: HIRType }[] = [];
+  if (ta.type !== "TsTypeLiteral" || !ta.members) return props;
+  for (const m of ta.members) {
+    if (m.type === "TsPropertySignature" && m.key?.type === "Identifier") {
+      props.push({ name: m.key.value, type: resolveTypeAnnotation(m.typeAnnotation) });
+    }
+  }
+  return props;
+}
+
+function collectUnionProps(variants: any[]): { name: string; type: HIRType }[] {
+  const allProps = new Map<string, HIRType>();
+  for (const v of variants) {
+    if (v.type !== "TsTypeLiteral") continue;
+    const vProps = extractTypeLiteralProps(v);
+    for (const p of vProps) {
+      if (!allProps.has(p.name)) {
+        allProps.set(p.name, p.type);
+      }
+    }
+  }
+  const result: { name: string; type: HIRType }[] = [];
+  for (const [name, type] of allProps) {
+    result.push({ name, type });
+  }
+  return result;
 }
 
 export function coerce(

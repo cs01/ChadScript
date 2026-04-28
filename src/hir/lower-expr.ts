@@ -226,6 +226,11 @@ export function lowerBinary(expr: BinaryExpression): HIRExpr {
   let right = lowerExpr(expr.right);
   const op = mapBinaryOp(expr.operator);
 
+  if (left.type.kind === "dynobj" || right.type.kind === "dynobj") {
+    if (left.type.kind === "dynobj") left = coerce(left, BOXED);
+    if (right.type.kind === "dynobj") right = coerce(right, BOXED);
+  }
+
   if (left.type.kind === "boxed" || right.type.kind === "boxed") {
     if (left.type.kind !== "boxed") left = coerce(left, BOXED);
     if (right.type.kind !== "boxed") right = coerce(right, BOXED);
@@ -607,6 +612,8 @@ function dynobj_get_typed(obj: HIRExpr, key: HIRExpr, targetType: HIRType | null
         return { kind: "runtime_call", func: "cs2_dynobj_get_bool", args: [obj, key], returnType: I1, type: I1 };
       case "dynarray":
         return { kind: "runtime_call", func: "cs2_dynobj_get_arr", args: [obj, key], returnType: DYNARRAY, type: DYNARRAY };
+      case "dynobj":
+        return { kind: "runtime_call", func: "cs2_dynobj_get_obj", args: [obj, key], returnType: DYNOBJ, type: DYNOBJ };
       default:
         break;
     }

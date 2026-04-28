@@ -187,6 +187,21 @@ DynArray *cs2_dynobj_get_arr(DynObj *o, const char *key) {
     return NULL;
 }
 
+extern uint64_t nanbox_from_f64(double val);
+extern uint64_t nanbox_from_string(const char *s);
+extern uint64_t nanbox_from_bool(int32_t val);
+
+uint64_t cs2_dynobj_get_boxed(DynObj *o, const char *key) {
+    int32_t idx = find_key(o, key);
+    if (idx < 0) return 0;
+    switch (o->values[idx].tag) {
+        case TAG_F64:    return nanbox_from_f64(o->values[idx].f64_val);
+        case TAG_STRING: return nanbox_from_string(o->values[idx].str_val);
+        case TAG_BOOL:   return nanbox_from_bool(o->values[idx].bool_val);
+        default:         return 0;
+    }
+}
+
 int32_t cs2_dynobj_has(DynObj *o, const char *key) {
     return find_key(o, key) >= 0 ? 1 : 0;
 }

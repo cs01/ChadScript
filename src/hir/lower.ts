@@ -61,6 +61,7 @@ import {
   genericSpecializations,
   setTypeParamContext,
   enumRegistry,
+  typeAliasRegistry,
 } from "./lower-state.js";
 import {
   registerFunction,
@@ -131,6 +132,15 @@ export function lowerModule(
     const inner = unwrapExport(item);
     if ((inner as any).type === "TsInterfaceDeclaration") {
       registerInterface(inner as any);
+    }
+  }
+
+  for (const item of ast.body) {
+    const inner = unwrapExport(item) as any;
+    if (inner.type === "TsTypeAliasDeclaration" && inner.id?.type === "Identifier") {
+      const name = inner.id.value;
+      const resolved = resolveTypeAnnotation(inner.typeAnnotation);
+      typeAliasRegistry.set(name, resolved);
     }
   }
 
