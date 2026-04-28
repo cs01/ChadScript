@@ -37,6 +37,10 @@ npm test             # compiles each fixture, runs it, diffs stdout against node
 npx tsx src/cli.ts build file.ts -o out   # compile a single file
 ```
 
+## Testing Strategy
+
+For routine changes, run a statistical sample (~10-15 fixtures across categories) to check for regressions rather than the full suite. Use full suite when: touching core codegen/emitter, changing HIR types, modifying transforms, or before pushing. Pick samples that span categories (arithmetic, strings, classes, generics, stdlib, nan-boxing).
+
 ## Test Fixtures
 
 Tests auto-discover all `.ts` files in `tests/fixtures/`. Each fixture is compiled to a native binary, executed, and its stdout is compared against `node --experimental-strip-types`. No manual test list — just add a `.ts` file and it's picked up.

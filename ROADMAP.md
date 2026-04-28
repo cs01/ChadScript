@@ -14,6 +14,12 @@ The compiler's own source uses TS features we haven't tested compiling yet. Audi
 - [x] `Record<string, T>` object literals — used as typed hashmaps throughout lowering
 - [x] Object spread — `{ ...obj, key: newVal }` used in generic cloning
 - [x] `import type { X }` — type-only imports (SWC strips these, verified ignored)
+- [x] String indexing `str[i]` — used in errors.ts offset scanner
+- [x] `.js` → `.ts` import path resolution — standard TS convention
+- [x] Untyped object literals → dynobj — `{ line, col }` shorthand + explicit props
+- [x] Function return type inference — infer from first return stmt when no annotation
+- [x] Constructor parameter properties — `public field: T` auto-register + auto-assign
+- [ ] Discriminated union property access — `.kind` on union types (HIRExpr, HIRType, HIRStmt). Core self-hosting blocker. These types compile to dynobj at runtime.
 - [ ] Verify: compiler source files (src/**/*.ts) compile without errors
 
 ### 2. Self-Hosting (~500 LOC new)
