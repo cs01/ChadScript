@@ -409,7 +409,7 @@ const ast = parseSync(source, { syntax: "typescript", decorators: true });
 - [x] `export function`, `export const`, `export class`, `export interface`
 - [x] Multi-file compilation: AST-merge resolver, compile all files into single binary
 - [x] Re-exports: `export { x } from "./other.ts"`
-- [x] **Milestone:** programs split across multiple files compile and run — 84 tests
+- [x] **Milestone:** programs split across multiple files compile and run — 121 tests
 
 ### Phase 7: Stdlib + Node Compat (~4-6 weeks, ~8-10K LOC)
 
@@ -432,6 +432,14 @@ Note: if useful, you can make use of c_bridges in main barnch rather than rewrit
 - [x] `RegExp` (test, replace, match) — rure (Rust regex) bridge
 - [x] `Map`, `Set` (native implementations) — parallel-array, str/num key specializations
 - [x] `Promise.all`, `Promise.race`, `Promise.allSettled` — synchronous promise collection via C bridge
+- [x] `Date` (now, new Date, getTime, getFullYear, getMonth, getDate, getHours, getMinutes, getSeconds, getDay, toISOString, toString)
+- [x] `Number` (isInteger, isNaN, isFinite), `isNaN()`, `isFinite()`, `NaN`/`Infinity` literals
+- [x] `parseInt`, `parseFloat`, `Number()`, `String()` conversion functions
+- [x] `string.split`, `string.padStart`, `string.padEnd`, `string.trimStart`, `string.trimEnd`
+- [x] `Array` extended methods — sort, concat, shift, unshift, splice, map, filter, forEach (HOF via closure bridge)
+- [x] `Array` string methods — indexOf, includes, slice, reverse, concat for string arrays
+- [x] `Map.keys()`, `Map.values()`, `Map.clear()`, `Set.values()`, `Set.clear()`
+- [x] `enum` support — numeric enums (auto-increment), string enums, member access
 - [ ] `fetch` API — async `fetch(url)` returning `Promise<Response>` with `.text()`, `.json()`, `.status` (needs AsyncLoweringPass or thread-based approach)
 - [ ] `express` compat — `npm install express` and compile real Express apps (needs: `require()`, `node_modules` resolution, dynamic object patterns, middleware chains)
 - [ ] **Milestone:** Real-world programs compile and run. Express-like server works.
