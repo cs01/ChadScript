@@ -761,6 +761,28 @@ function lowerCall(expr: CallExpression): HIRExpr {
   if (
     expr.callee.type === "MemberExpression" &&
     expr.callee.object.type === "Identifier" &&
+    expr.callee.object.value === "os" &&
+    expr.callee.property.type === "Identifier"
+  ) {
+    const method = (expr.callee.property as Identifier).value;
+    const osMethods: Record<string, { func: string; returnType: HIRType }> = {
+      hostname: { func: "cs2_os_hostname", returnType: I8PTR },
+      homedir: { func: "cs2_os_homedir", returnType: I8PTR },
+      tmpdir: { func: "cs2_os_tmpdir", returnType: I8PTR },
+      platform: { func: "cs2_os_platform", returnType: I8PTR },
+      arch: { func: "cs2_os_arch", returnType: I8PTR },
+      type: { func: "cs2_os_type", returnType: I8PTR },
+      uptime: { func: "cs2_os_uptime", returnType: F64 },
+    };
+    const info = osMethods[method];
+    if (info) {
+      return { kind: "runtime_call", func: info.func, args: [], returnType: info.returnType, type: info.returnType };
+    }
+  }
+
+  if (
+    expr.callee.type === "MemberExpression" &&
+    expr.callee.object.type === "Identifier" &&
     expr.callee.object.value === "Math"
   ) {
     return lowerMathCall(expr);
@@ -2408,6 +2430,15 @@ export function lowerMember(expr: MemberExpression): HIRExpr {
       default:
         break;
     }
+  }
+
+  if (
+    expr.object.type === "Identifier" &&
+    expr.object.value === "os" &&
+    expr.property.type === "Identifier" &&
+    (expr.property as Identifier).value === "EOL"
+  ) {
+    return { kind: "literal_string", value: "\n", type: I8PTR };
   }
 
   if (

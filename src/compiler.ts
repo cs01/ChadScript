@@ -30,6 +30,7 @@ const BRIDGE_SRCS = [
   join(ROOT, "c_bridges", "v2-regex-bridge.c"),
   join(ROOT, "c_bridges", "v2-typed-array-bridge.c"),
   join(ROOT, "c_bridges", "v2-date-bridge.c"),
+  join(ROOT, "c_bridges", "v2-os-bridge.c"),
 ];
 
 function findLibuv(): { include: string; lib: string } {
