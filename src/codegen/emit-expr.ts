@@ -720,6 +720,18 @@ function emitPrintValue(ctx: EmitContext, arg: HIRExpr, val: any, isLast: boolea
       const printf = ctx.getDeclaredFunction("printf")!;
       m.buildCall(printf.fnType, printf.fn, [fmt, selected], "");
     }
+  } else if (arg.type.kind === "array") {
+    const elemKind = (arg.type as { kind: "array"; element: { kind: string } }).element.kind;
+    const printFn =
+      elemKind === "i8ptr"
+        ? ctx.getDeclaredFunction("cs2_print_str_array")!
+        : ctx.getDeclaredFunction("cs2_print_num_array")!;
+    m.buildCall(printFn.fnType, printFn.fn, [val], "");
+    if (nl) {
+      const nlStr = m.buildGlobalStringPtr("\n", "nl");
+      const printf = ctx.getDeclaredFunction("printf")!;
+      m.buildCall(printf.fnType, printf.fn, [nlStr], "");
+    }
   } else if (arg.type.kind === "boxed") {
     if (isLast) {
       const printFn = ctx.getDeclaredFunction("nanbox_print")!;

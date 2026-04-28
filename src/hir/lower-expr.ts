@@ -1857,6 +1857,8 @@ function lowerStringMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
       padEnd: { func: "cs2_str_pad_end", returnType: I8PTR, argTypes: [I64, I8PTR] },
       trimStart: { func: "cs2_str_trim_start", returnType: I8PTR },
       trimEnd: { func: "cs2_str_trim_end", returnType: I8PTR },
+      lastIndexOf: { func: "cs2_str_last_index_of", returnType: F64, argTypes: [I8PTR] },
+      replaceAll: { func: "cs2_str_replace_all", returnType: I8PTR, argTypes: [I8PTR, I8PTR] },
     };
 
   const info = strMethodMap[method];

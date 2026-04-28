@@ -328,3 +328,45 @@ char *cs2_number_to_string(double val) {
     cs2_shortest_repr(buf, 32, val);
     return buf;
 }
+
+double cs2_str_last_index_of(const char *s, const char *search) {
+    size_t slen = strlen(s);
+    size_t searchlen = strlen(search);
+    if (searchlen > slen) return -1.0;
+    for (size_t i = slen - searchlen + 1; i > 0; i--) {
+        if (memcmp(s + i - 1, search, searchlen) == 0) return (double)(i - 1);
+    }
+    return -1.0;
+}
+
+char *cs2_str_replace_all(const char *s, const char *search, const char *replace) {
+    size_t slen = strlen(s);
+    size_t searchlen = strlen(search);
+    size_t replacelen = strlen(replace);
+    if (searchlen == 0) {
+        char *copy = (char *)malloc(slen + 1);
+        memcpy(copy, s, slen + 1);
+        return copy;
+    }
+    size_t count = 0;
+    const char *p = s;
+    while ((p = strstr(p, search)) != NULL) { count++; p += searchlen; }
+    size_t newlen = slen + count * (replacelen - searchlen);
+    char *result = (char *)malloc(newlen + 1);
+    char *dst = result;
+    p = s;
+    while (1) {
+        const char *found = strstr(p, search);
+        if (!found) {
+            strcpy(dst, p);
+            break;
+        }
+        size_t chunk = found - p;
+        memcpy(dst, p, chunk);
+        dst += chunk;
+        memcpy(dst, replace, replacelen);
+        dst += replacelen;
+        p = found + searchlen;
+    }
+    return result;
+}

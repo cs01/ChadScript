@@ -483,3 +483,28 @@ char *cs2_str_array_join(StrArray *arr, const char *sep) {
     buf[pos] = '\0';
     return buf;
 }
+
+extern void cs2_format_number(char *out, double val);
+
+void cs2_print_num_array(NumArray *arr) {
+    printf("[");
+    for (int32_t i = 0; i < arr->length; i++) {
+        if (i > 0) printf(",");
+        printf(" ");
+        char buf[32];
+        cs2_format_number(buf, arr->data[i]);
+        printf("%s", buf);
+    }
+    if (arr->length > 0) printf(" ");
+    printf("]");
+}
+
+void cs2_print_str_array(StrArray *arr) {
+    printf("[");
+    for (int32_t i = 0; i < arr->length; i++) {
+        if (i > 0) printf(",");
+        printf(" '%s'", arr->data[i]);
+    }
+    if (arr->length > 0) printf(" ");
+    printf("]");
+}
