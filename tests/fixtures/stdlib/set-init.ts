@@ -1,0 +1,10 @@
+const s = new Set(["a", "b", "c"]);
+console.log(s.size);
+console.log(s.has("a"));
+console.log(s.has("b"));
+console.log(s.has("c"));
+console.log(s.has("z"));
+s.add("d");
+console.log(s.size);
+s.add("a");
+console.log(s.size);

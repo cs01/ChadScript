@@ -1313,17 +1313,38 @@ function lowerNewExpr(expr: any): HIRExpr {
     };
   }
 
-  if (className === "Set" && expr.typeArguments?.params?.length === 1) {
-    const elemType = resolveTypeAnnotation(expr.typeArguments.params[0]);
-    const prefix = setPrefix(elemType);
-    const resultType: HIRType = { kind: "set", element: elemType };
-    return {
-      kind: "runtime_call",
-      func: `${prefix}_new`,
-      args: [],
-      returnType: resultType,
-      type: resultType,
-    };
+  if (className === "Set") {
+    let elemType: HIRType | null = null;
+    let initElements: HIRExpr[] = [];
+    if (expr.typeArguments?.params?.length === 1) {
+      elemType = resolveTypeAnnotation(expr.typeArguments.params[0]);
+    }
+    if (expr.arguments?.length > 0 && expr.arguments[0].expression.type === "ArrayExpression") {
+      const elems = (expr.arguments[0].expression.elements || []).filter((e: any) => e !== null);
+      for (const elem of elems) {
+        const lowered = lowerExpr(elem.expression);
+        if (!elemType) elemType = lowered.type;
+        initElements.push(coerce(lowered, elemType!));
+      }
+    }
+    if (elemType) {
+      const resultType: HIRType = { kind: "set", element: elemType };
+      if (initElements.length > 0) {
+        return {
+          kind: "alloc_set",
+          element: elemType,
+          elements: initElements,
+          type: resultType,
+        };
+      }
+      return {
+        kind: "runtime_call",
+        func: `${setPrefix(elemType)}_new`,
+        args: [],
+        returnType: resultType,
+        type: resultType,
+      };
+    }
   }
 
   if (className === "Uint8Array") {

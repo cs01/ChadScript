@@ -128,6 +128,8 @@ export function emitExpr(ctx: EmitContext, expr: HIRExpr): any {
       return emitAllocStruct(ctx, expr as HIRExpr & { kind: "alloc_struct" });
     case "alloc_map":
       return emitAllocMap(ctx, expr as HIRExpr & { kind: "alloc_map" });
+    case "alloc_set":
+      return emitAllocSet(ctx, expr as HIRExpr & { kind: "alloc_set" });
     case "alloc_dynobj":
       return emitAllocDynObj(ctx, expr as HIRExpr & { kind: "alloc_dynobj" });
     case "field_get":
@@ -286,6 +288,26 @@ function emitAllocMap(
   }
 
   return mapPtr;
+}
+
+function emitAllocSet(
+  ctx: EmitContext,
+  expr: HIRExpr & { kind: "alloc_set" },
+): any {
+  const m = ctx.m;
+  const e = expr.element.kind === "i8ptr" ? "str" : "num";
+  const prefix = `cs2_${e}_set`;
+
+  const newFn = ctx.getDeclaredFunction(`${prefix}_new`)!;
+  const setPtr = m.buildCall(newFn.fnType, newFn.fn, [], "set");
+
+  const addFn = ctx.getDeclaredFunction(`${prefix}_add`)!;
+  for (const elem of expr.elements) {
+    const val = emitExpr(ctx, elem);
+    m.buildCall(addFn.fnType, addFn.fn, [setPtr, val], "");
+  }
+
+  return setPtr;
 }
 
 function dynObjSetFunc(ctx: EmitContext, valueType: HIRType): { fn: any; fnType: any } | null {

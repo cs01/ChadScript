@@ -130,6 +130,12 @@ export type HIRExpr =
       type: HIRType;
     }
   | {
+      kind: "alloc_set";
+      element: HIRType;
+      elements: HIRExpr[];
+      type: HIRType;
+    }
+  | {
       kind: "alloc_dynobj";
       props: { key: string; value: HIRExpr }[];
       spreadSource?: HIRExpr;
