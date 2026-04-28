@@ -7,6 +7,20 @@ int32_t cs2_str_length(const char *s) {
     return (int32_t)strlen(s);
 }
 
+char *cs2_str_at(const char *s, int32_t idx) {
+    int32_t len = (int32_t)strlen(s);
+    if (idx < 0) idx += len;
+    if (idx < 0 || idx >= len) {
+        char *empty = (char *)malloc(1);
+        empty[0] = '\0';
+        return empty;
+    }
+    char *result = (char *)malloc(2);
+    result[0] = s[idx];
+    result[1] = '\0';
+    return result;
+}
+
 char *cs2_str_char_at(const char *s, int32_t idx) {
     int32_t len = (int32_t)strlen(s);
     if (idx < 0 || idx >= len) {
@@ -290,6 +304,9 @@ double cs2_math_random(void) {
 }
 
 static void cs2_shortest_repr(char *buf, int bufsz, double val) {
+    if (val != val) { snprintf(buf, bufsz, "NaN"); return; }
+    if (val == 1.0/0.0) { snprintf(buf, bufsz, "Infinity"); return; }
+    if (val == -1.0/0.0) { snprintf(buf, bufsz, "-Infinity"); return; }
     for (int prec = 1; prec <= 21; prec++) {
         snprintf(buf, bufsz, "%.*g", prec, val);
         double reparsed;

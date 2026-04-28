@@ -41,6 +41,12 @@ double cs2_num_array_get(NumArray *arr, int32_t index) {
     return arr->data[index];
 }
 
+double cs2_num_array_at(NumArray *arr, int32_t index) {
+    if (index < 0) index += arr->length;
+    if (index < 0 || index >= arr->length) return 0.0;
+    return arr->data[index];
+}
+
 void cs2_num_array_set(NumArray *arr, int32_t index, double value) {
     if (index < 0 || index >= arr->length) return;
     arr->data[index] = value;
@@ -191,6 +197,12 @@ char *cs2_str_array_pop(StrArray *arr) {
 }
 
 char *cs2_str_array_get(StrArray *arr, int32_t index) {
+    if (index < 0 || index >= arr->length) return "";
+    return arr->data[index];
+}
+
+char *cs2_str_array_at(StrArray *arr, int32_t index) {
+    if (index < 0) index += arr->length;
     if (index < 0 || index >= arr->length) return "";
     return arr->data[index];
 }

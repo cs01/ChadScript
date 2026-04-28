@@ -840,6 +840,16 @@ function lowerCall(expr: CallExpression): HIRExpr {
     expr.callee.property.type === "Identifier"
   ) {
     const method = (expr.callee.property as Identifier).value;
+    if (method === "parseInt" || method === "parseFloat") {
+      const strArg = coerce(lowerExpr(expr.arguments[0].expression), I8PTR);
+      return {
+        kind: "runtime_call",
+        func: method === "parseInt" ? "cs2_parse_int" : "cs2_parse_float",
+        args: [strArg],
+        returnType: F64,
+        type: F64,
+      };
+    }
     const arg = coerce(lowerExpr(expr.arguments[0].expression), F64);
     switch (method) {
       case "isInteger":
@@ -1858,6 +1868,7 @@ function lowerStringMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
       trimStart: { func: "cs2_str_trim_start", returnType: I8PTR },
       trimEnd: { func: "cs2_str_trim_end", returnType: I8PTR },
       lastIndexOf: { func: "cs2_str_last_index_of", returnType: F64, argTypes: [I8PTR] },
+      at: { func: "cs2_str_at", returnType: I8PTR, argTypes: [I64] },
       replaceAll: { func: "cs2_str_replace_all", returnType: I8PTR, argTypes: [I8PTR, I8PTR] },
     };
 
@@ -2083,6 +2094,7 @@ function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
       shift: { func: "cs2_num_array_shift", returnType: F64 },
       unshift: { func: "cs2_num_array_unshift", returnType: VOID, argTypes: [F64] },
       splice: { func: "cs2_num_array_splice", returnType: obj.type, argTypes: [I64, I64] },
+      at: { func: "cs2_num_array_at", returnType: F64, argTypes: [I64] },
     };
     info = numMethods[method];
   } else if (prefix === "cs2_str_array") {
@@ -2094,6 +2106,7 @@ function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
       concat: { func: "cs2_str_array_concat", returnType: obj.type, argTypes: [obj.type] },
       shift: { func: "cs2_str_array_shift", returnType: I8PTR },
       unshift: { func: "cs2_str_array_unshift", returnType: VOID, argTypes: [I8PTR] },
+      at: { func: "cs2_str_array_at", returnType: I8PTR, argTypes: [I64] },
     };
     info = strMethods[method];
   }
@@ -2496,6 +2509,30 @@ export function lowerMember(expr: MemberExpression): HIRExpr {
         return { kind: "literal_f64", value: Math.SQRT1_2, type: F64 };
       default:
         throw new Error(`unsupported Math constant: ${prop}`);
+    }
+  }
+
+  if (
+    expr.object.type === "Identifier" &&
+    expr.object.value === "Number" &&
+    expr.property.type === "Identifier"
+  ) {
+    const prop = (expr.property as Identifier).value;
+    switch (prop) {
+      case "MAX_SAFE_INTEGER":
+        return { kind: "literal_f64", value: Number.MAX_SAFE_INTEGER, type: F64 };
+      case "MIN_SAFE_INTEGER":
+        return { kind: "literal_f64", value: Number.MIN_SAFE_INTEGER, type: F64 };
+      case "POSITIVE_INFINITY":
+        return { kind: "literal_f64", value: Infinity, type: F64 };
+      case "NEGATIVE_INFINITY":
+        return { kind: "literal_f64", value: -Infinity, type: F64 };
+      case "NaN":
+        return { kind: "literal_f64", value: NaN, type: F64 };
+      case "EPSILON":
+        return { kind: "literal_f64", value: Number.EPSILON, type: F64 };
+      default:
+        throw new Error(`unsupported Number constant: ${prop}`);
     }
   }
 
