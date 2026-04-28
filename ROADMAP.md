@@ -449,6 +449,9 @@ Note: if useful, you can make use of c_bridges in main barnch rather than rewrit
 - [x] `Array.sort(comparator)` — custom sort with comparison callback, `Array.fill()`
 - [x] `Number` constants — MAX_SAFE_INTEGER, MIN_SAFE_INTEGER, EPSILON, POSITIVE_INFINITY, NaN
 - [x] `Number.parseInt`, `Number.parseFloat` — static method aliases
+- [x] `Array.find` — HOF find for number and string arrays
+- [x] `string[].reduce` — string array reduce with accumulator
+- [x] `string[]` sort/fill/splice — parity with number array methods
 - [x] NaN/Infinity printing — correct "NaN", "Infinity", "-Infinity" format matching Node
 - [ ] `fetch` API — async `fetch(url)` returning `Promise<Response>` with `.text()`, `.json()`, `.status` (needs AsyncLoweringPass or thread-based approach)
 - [ ] `express` compat — `npm install express` and compile real Express apps (needs: `require()`, `node_modules` resolution, dynamic object patterns, middleware chains)
@@ -475,7 +478,7 @@ Feasible here because Phase 6 gives us the Node APIs the compiler uses (fs, path
 
 - [ ] `InliningPass`: inline small functions (< N HIR nodes, single call site)
 - [ ] `EscapeAnalysisPass`: stack-allocate objects that don't escape
-- [ ] `DeadCodePass`: remove unreachable blocks
+- [x] `DeadCodePass`: remove unreachable statements after return/throw/break/continue
 - [ ] `ConstantFoldingPass`: evaluate constant expressions at compile time
 - [ ] `UnboxWidening`: when a boxed value is only used in unboxed context, elide the box/unbox pair
 - [ ] **Milestone:** All benchmarks match or beat v1 numbers

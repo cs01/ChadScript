@@ -1,5 +1,6 @@
 import { resolveModules } from "./resolver.js";
 import { emitModule } from "./codegen/emitter.js";
+import { deadCodePass } from "./transforms/dead-code.js";
 import { unlinkSync, existsSync } from "fs";
 import { execSync } from "child_process";
 import { tmpdir } from "os";
@@ -65,6 +66,7 @@ const HTTP_BRIDGE = join(ROOT, "c_bridges", "v2-http-bridge.c");
 
 export function compile(opts: CompileOptions): void {
   const hir = resolveModules(opts.input);
+  deadCodePass(hir);
 
   const tmpObj = join(tmpdir(), `chad2-${process.pid}.o`);
   const bridgeObjs = BRIDGE_SRCS.map((_, i) =>
