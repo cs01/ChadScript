@@ -137,6 +137,12 @@ function resolveImportPath(specifier: string, fromPath: string): string {
   }
   const dir = dirname(fromPath);
   let resolved = resolve(dir, specifier);
+  if (resolved.endsWith(".js")) {
+    const tsPath = resolved.slice(0, -3) + ".ts";
+    if (existsSync(tsPath)) {
+      return tsPath;
+    }
+  }
   if (!resolved.endsWith(".ts")) {
     if (existsSync(resolved + ".ts")) {
       resolved += ".ts";
