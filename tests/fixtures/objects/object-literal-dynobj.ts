@@ -18,3 +18,12 @@ const obj = { greeting: "hello", count: 42, flag: true };
 console.log(obj.greeting);
 console.log(obj.count);
 console.log(obj.flag);
+
+function shorthand() {
+  const x = 10;
+  const y = 20;
+  return { x, y };
+}
+const s = shorthand();
+console.log(s.x);
+console.log(s.y);

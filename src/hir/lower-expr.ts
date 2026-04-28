@@ -647,14 +647,18 @@ function lowerObjectLiteral(expr: any): HIRExpr {
       spreadSource = lowerExpr(prop.arguments);
       continue;
     }
-    const keyStr =
-      prop.key.type === "Identifier" ? prop.key.value : prop.key.value;
-    let value: HIRExpr;
-    if (prop.shorthand) {
-      value = lowerExpr(prop.key);
-    } else {
-      value = lowerExpr(prop.value);
+    if (prop.type === "Identifier") {
+      const value = lowerExpr(prop);
+      props.push({ key: prop.value, value });
+      continue;
     }
+    const keyNode = prop.key;
+    const keyStr =
+      keyNode.type === "Identifier" ? keyNode.value :
+      keyNode.type === "StringLiteral" ? keyNode.value :
+      keyNode.type === "NumericLiteral" ? String(keyNode.value) :
+      String(keyNode.value);
+    const value = lowerExpr(prop.value);
     props.push({ key: keyStr, value });
   }
   const propTypes = props.map((p) => ({ name: p.key, type: p.value.type }));
