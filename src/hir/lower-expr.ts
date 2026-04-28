@@ -615,6 +615,15 @@ function lowerCall(expr: CallExpression): HIRExpr {
     return lowerPathCall(expr);
   }
 
+  if (
+    expr.callee.type === "MemberExpression" &&
+    expr.callee.object.type === "Identifier" &&
+    expr.callee.object.value === "Buffer" &&
+    expr.callee.property.type === "Identifier"
+  ) {
+    return lowerBufferStaticCall(expr);
+  }
+
   {
     const cryptoChain = matchCryptoChain(expr);
     if (cryptoChain) return cryptoChain;
@@ -731,6 +740,10 @@ function lowerCall(expr: CallExpression): HIRExpr {
       return lowerSetMethodCall(expr, obj);
     }
     if (obj.type.kind === "ptr") {
+      const pointee = (obj.type as { kind: "ptr"; pointee: string }).pointee;
+      if (pointee === "Buffer") {
+        return lowerBufferMethodCall(expr, obj);
+      }
       return lowerClassMethodCall(expr, obj);
     }
   }
@@ -1156,6 +1169,65 @@ function matchCryptoChain(expr: CallExpression): HIRExpr | null {
   }
 
   return null;
+}
+
+const BUFFER_PTR: HIRType = { kind: "ptr", pointee: "Buffer" };
+
+function lowerBufferStaticCall(expr: CallExpression): HIRExpr {
+  const member = expr.callee as MemberExpression;
+  const method = (member.property as Identifier).value;
+
+  switch (method) {
+    case "from": {
+      const strArg = lowerExpr(expr.arguments[0].expression);
+      const encoding =
+        expr.arguments.length > 1
+          ? lowerExpr(expr.arguments[1].expression)
+          : ({ kind: "literal_string" as const, value: "utf8", type: I8PTR } as HIRExpr);
+      return {
+        kind: "runtime_call",
+        func: "cs2_buffer_from_string",
+        args: [strArg, encoding],
+        returnType: BUFFER_PTR,
+        type: BUFFER_PTR,
+      };
+    }
+    case "alloc": {
+      const sizeArg = lowerExpr(expr.arguments[0].expression);
+      return {
+        kind: "runtime_call",
+        func: "cs2_buffer_alloc",
+        args: [coerce(sizeArg, F64)],
+        returnType: BUFFER_PTR,
+        type: BUFFER_PTR,
+      };
+    }
+    default:
+      throw new Error(`unsupported Buffer static method: ${method}`);
+  }
+}
+
+function lowerBufferMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
+  const member = expr.callee as MemberExpression;
+  const method = (member.property as Identifier).value;
+
+  switch (method) {
+    case "toString": {
+      const encoding =
+        expr.arguments.length > 0
+          ? lowerExpr(expr.arguments[0].expression)
+          : ({ kind: "literal_string" as const, value: "utf8", type: I8PTR } as HIRExpr);
+      return {
+        kind: "runtime_call",
+        func: "cs2_buffer_to_string",
+        args: [obj, encoding],
+        returnType: I8PTR,
+        type: I8PTR,
+      };
+    }
+    default:
+      throw new Error(`unsupported Buffer method: ${method}`);
+  }
 }
 
 function lowerChildProcessCall(expr: CallExpression): HIRExpr {
@@ -1772,6 +1844,18 @@ export function lowerMember(expr: MemberExpression): HIRExpr {
       const idxCoerced = index.type.kind !== "i64" ? coerce(index, I64) : index;
       return { kind: "index_get", array: obj, index: idxCoerced, type: elemType };
     }
+    if (
+      obj.type.kind === "ptr" &&
+      (obj.type as { kind: "ptr"; pointee: string }).pointee === "Buffer"
+    ) {
+      return {
+        kind: "runtime_call",
+        func: "cs2_buffer_at",
+        args: [obj, coerce(index, F64)],
+        returnType: F64,
+        type: F64,
+      };
+    }
     compileError("unsupported computed member access", expr.span);
   }
 
@@ -1793,6 +1877,18 @@ export function lowerMember(expr: MemberExpression): HIRExpr {
         const elemType = (obj.type as { kind: "array"; element: HIRType }).element;
         const lenFn = `${arrayPrefix(elemType)}_length`;
         return { kind: "runtime_call", func: lenFn, args: [obj], returnType: I64, type: I64 };
+      }
+      if (
+        obj.type.kind === "ptr" &&
+        (obj.type as { kind: "ptr"; pointee: string }).pointee === "Buffer"
+      ) {
+        return {
+          kind: "runtime_call",
+          func: "cs2_buffer_length",
+          args: [obj],
+          returnType: F64,
+          type: F64,
+        };
       }
     }
 
