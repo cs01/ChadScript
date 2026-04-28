@@ -2077,6 +2077,19 @@ function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
   let info: MethodInfo | undefined;
 
   const isObj = arrType.element.kind === "ptr";
+  if (method === "sort" && args.length > 0 && prefix === "cs2_num_array") {
+    const callback = args[0];
+    return {
+      kind: "array_hof",
+      array: obj,
+      method: "sort" as any,
+      callback,
+      bridgeFunc: "cs2_num_array_sort_fn",
+      returnType: VOID,
+      type: VOID,
+    };
+  }
+
   if (method === "push") {
     info = { func: `${prefix}_push`, returnType: VOID, argTypes: [arrType.element] };
   } else if (method === "pop") {

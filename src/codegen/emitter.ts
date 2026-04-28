@@ -356,6 +356,7 @@ function declareExterns(ctx: EmitContext): void {
     ["cs2_num_array_get", m.f64, [m.ptr, m.i32]],
     ["cs2_num_array_at", m.f64, [m.ptr, m.i32]],
     ["cs2_num_array_fill", m.voidTy, [m.ptr, m.f64]],
+    ["cs2_num_array_sort_fn", m.voidTy, [m.ptr, m.ptr, m.ptr]],
     ["cs2_num_array_set", m.voidTy, [m.ptr, m.i32, m.f64]],
     ["cs2_num_array_length", m.i32, [m.ptr]],
     ["cs2_num_array_index_of", m.i32, [m.ptr, m.f64]],

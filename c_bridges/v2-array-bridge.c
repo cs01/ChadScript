@@ -299,6 +299,27 @@ void cs2_num_array_sort(NumArray *arr) {
     qsort(arr->data, arr->length, sizeof(double), cs2_num_compare_asc);
 }
 
+typedef struct {
+    void *fn_ptr;
+    void *env_ptr;
+} SortCtx;
+
+static SortCtx g_sort_ctx;
+
+static int cs2_custom_compare(const void *a, const void *b) {
+    double (*fn)(void *, double, double) = (double (*)(void *, double, double))g_sort_ctx.fn_ptr;
+    double result = fn(g_sort_ctx.env_ptr, *(const double *)a, *(const double *)b);
+    if (result < 0) return -1;
+    if (result > 0) return 1;
+    return 0;
+}
+
+void cs2_num_array_sort_fn(NumArray *arr, void *fn_ptr, void *env_ptr) {
+    g_sort_ctx.fn_ptr = fn_ptr;
+    g_sort_ctx.env_ptr = env_ptr;
+    qsort(arr->data, arr->length, sizeof(double), cs2_custom_compare);
+}
+
 NumArray *cs2_num_array_map(NumArray *arr, void *fn_ptr, void *env_ptr) {
     double (*fn)(void *, double) = (double (*)(void *, double))fn_ptr;
     NumArray *result = cs2_num_array_new(arr->length);
