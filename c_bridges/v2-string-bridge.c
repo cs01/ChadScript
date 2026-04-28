@@ -322,3 +322,9 @@ void cs2_print_number(double val) {
 void cs2_format_number(char *out, double val) {
     cs2_shortest_repr(out, 32, val);
 }
+
+char *cs2_number_to_string(double val) {
+    char *buf = (char *)malloc(32);
+    cs2_shortest_repr(buf, 32, val);
+    return buf;
+}

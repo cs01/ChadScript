@@ -244,3 +244,70 @@ int32_t cs2_num_str_map_delete(NumStrMap *m, double key) {
 int32_t cs2_num_str_map_size(NumStrMap *m) {
     return m->length;
 }
+
+typedef struct { char **data; int32_t length; int32_t capacity; } CS2StrArr;
+typedef struct { double *data; int32_t length; int32_t capacity; } CS2NumArr;
+
+CS2StrArr *cs2_str_num_map_keys(StrNumMap *m) {
+    CS2StrArr *a = (CS2StrArr *)malloc(sizeof(CS2StrArr));
+    a->data = (char **)malloc(sizeof(char *) * (m->length < 4 ? 4 : m->length));
+    a->length = m->length; a->capacity = m->length < 4 ? 4 : m->length;
+    for (int32_t i = 0; i < m->length; i++) a->data[i] = m->keys[i];
+    return a;
+}
+
+CS2NumArr *cs2_str_num_map_values(StrNumMap *m) {
+    CS2NumArr *a = (CS2NumArr *)malloc(sizeof(CS2NumArr));
+    a->data = (double *)malloc(sizeof(double) * (m->length < 4 ? 4 : m->length));
+    a->length = m->length; a->capacity = m->length < 4 ? 4 : m->length;
+    for (int32_t i = 0; i < m->length; i++) a->data[i] = m->values[i];
+    return a;
+}
+
+CS2StrArr *cs2_str_str_map_keys(StrStrMap *m) {
+    CS2StrArr *a = (CS2StrArr *)malloc(sizeof(CS2StrArr));
+    a->data = (char **)malloc(sizeof(char *) * (m->length < 4 ? 4 : m->length));
+    a->length = m->length; a->capacity = m->length < 4 ? 4 : m->length;
+    for (int32_t i = 0; i < m->length; i++) a->data[i] = m->keys[i];
+    return a;
+}
+
+CS2StrArr *cs2_str_str_map_values(StrStrMap *m) {
+    CS2StrArr *a = (CS2StrArr *)malloc(sizeof(CS2StrArr));
+    a->data = (char **)malloc(sizeof(char *) * (m->length < 4 ? 4 : m->length));
+    a->length = m->length; a->capacity = m->length < 4 ? 4 : m->length;
+    for (int32_t i = 0; i < m->length; i++) a->data[i] = m->values[i];
+    return a;
+}
+
+CS2NumArr *cs2_num_num_map_keys(NumNumMap *m) {
+    CS2NumArr *a = (CS2NumArr *)malloc(sizeof(CS2NumArr));
+    a->data = (double *)malloc(sizeof(double) * (m->length < 4 ? 4 : m->length));
+    a->length = m->length; a->capacity = m->length < 4 ? 4 : m->length;
+    for (int32_t i = 0; i < m->length; i++) a->data[i] = m->keys[i];
+    return a;
+}
+
+CS2NumArr *cs2_num_num_map_values(NumNumMap *m) {
+    CS2NumArr *a = (CS2NumArr *)malloc(sizeof(CS2NumArr));
+    a->data = (double *)malloc(sizeof(double) * (m->length < 4 ? 4 : m->length));
+    a->length = m->length; a->capacity = m->length < 4 ? 4 : m->length;
+    for (int32_t i = 0; i < m->length; i++) a->data[i] = m->values[i];
+    return a;
+}
+
+CS2NumArr *cs2_num_str_map_keys(NumStrMap *m) {
+    CS2NumArr *a = (CS2NumArr *)malloc(sizeof(CS2NumArr));
+    a->data = (double *)malloc(sizeof(double) * (m->length < 4 ? 4 : m->length));
+    a->length = m->length; a->capacity = m->length < 4 ? 4 : m->length;
+    for (int32_t i = 0; i < m->length; i++) a->data[i] = m->keys[i];
+    return a;
+}
+
+CS2StrArr *cs2_num_str_map_values(NumStrMap *m) {
+    CS2StrArr *a = (CS2StrArr *)malloc(sizeof(CS2StrArr));
+    a->data = (char **)malloc(sizeof(char *) * (m->length < 4 ? 4 : m->length));
+    a->length = m->length; a->capacity = m->length < 4 ? 4 : m->length;
+    for (int32_t i = 0; i < m->length; i++) a->data[i] = m->values[i];
+    return a;
+}

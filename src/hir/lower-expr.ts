@@ -909,6 +909,26 @@ function lowerCall(expr: CallExpression): HIRExpr {
         type: VOID,
       };
     }
+    if (calleeName_ === "Number") {
+      const arg = lowerExpr(expr.arguments[0].expression);
+      if (arg.type.kind === "i8ptr") {
+        return { kind: "runtime_call", func: "cs2_parse_float", args: [arg], returnType: F64, type: F64 };
+      }
+      return coerce(arg, F64);
+    }
+    if (calleeName_ === "String") {
+      const arg = lowerExpr(expr.arguments[0].expression);
+      if (arg.type.kind === "f64" || arg.type.kind === "i64") {
+        return {
+          kind: "runtime_call",
+          func: "cs2_number_to_string",
+          args: [coerce(arg, F64)],
+          returnType: I8PTR,
+          type: I8PTR,
+        };
+      }
+      return arg;
+    }
     if (calleeName_ === "isNaN") {
       return {
         kind: "runtime_call",
@@ -1888,6 +1908,34 @@ function lowerMapMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
         type: I1,
       };
     }
+    case "keys": {
+      const keyArrType: HIRType = { kind: "array", element: mt.key };
+      return {
+        kind: "runtime_call",
+        func: `${prefix}_keys`,
+        args: [obj],
+        returnType: keyArrType,
+        type: keyArrType,
+      };
+    }
+    case "values": {
+      const valArrType: HIRType = { kind: "array", element: mt.value };
+      return {
+        kind: "runtime_call",
+        func: `${prefix}_values`,
+        args: [obj],
+        returnType: valArrType,
+        type: valArrType,
+      };
+    }
+    case "clear":
+      return {
+        kind: "runtime_call",
+        func: `${prefix}_clear`,
+        args: [obj],
+        returnType: VOID,
+        type: VOID,
+      };
     default:
       throw new Error(`unsupported Map method: ${method}`);
   }
