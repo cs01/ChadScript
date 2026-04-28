@@ -19,7 +19,11 @@ The compiler's own source uses TS features we haven't tested compiling yet. Audi
 - [x] Untyped object literals → dynobj — `{ line, col }` shorthand + explicit props
 - [x] Function return type inference — infer from first return stmt when no annotation
 - [x] Constructor parameter properties — `public field: T` auto-register + auto-assign
-- [ ] Discriminated union property access — `.kind` on union types (HIRExpr, HIRType, HIRStmt). Core self-hosting blocker. These types compile to dynobj at runtime.
+- [x] Discriminated unions — type alias registry, union prop tracking, TsLiteralType, dynobj property access
+- [x] `new Error(msg)` — handled as builtin (returns string for throw)
+- [x] `as any` on dynobj preserves runtime type
+- [ ] `import type` should register type aliases from imported files (not just strip them)
+- [ ] Property access on `any`-typed params — need dynobj or boxed dispatch
 - [ ] Verify: compiler source files (src/**/*.ts) compile without errors
 
 ### 2. Self-Hosting (~500 LOC new)
