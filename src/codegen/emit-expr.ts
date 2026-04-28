@@ -922,7 +922,20 @@ function emitArrayHof(
   if (!decl) throw new Error(`undeclared bridge function: ${expr.bridgeFunc}`);
 
   const resultName = expr.method === "forEach" ? "" : "hof_result";
-  return m.buildCall(decl.fnType, decl.fn, [arrVal, fnPtr, envPtr], resultName);
+  let result;
+  if (expr.method === "reduce" && expr.initialValue) {
+    let initVal = emitExpr(ctx, expr.initialValue);
+    if (expr.initialValue.type.kind === "i64") {
+      initVal = m.buildSIToFP(initVal, m.f64, "reduce_init_f64");
+    }
+    result = m.buildCall(decl.fnType, decl.fn, [arrVal, fnPtr, envPtr, initVal], resultName);
+  } else {
+    result = m.buildCall(decl.fnType, decl.fn, [arrVal, fnPtr, envPtr], resultName);
+  }
+  if (expr.method === "every" || expr.method === "some") {
+    result = m.buildFCmp(LLVMRealONE, result, m.constReal(m.f64, 0.0), "hof_bool");
+  }
+  return result;
 }
 
 function emitPromiseStatic(

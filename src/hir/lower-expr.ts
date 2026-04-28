@@ -2096,37 +2096,61 @@ function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
     info = strMethods[method];
   }
 
-  if (method === "map" || method === "filter" || method === "forEach") {
+  if (
+    method === "map" ||
+    method === "filter" ||
+    method === "forEach" ||
+    method === "findIndex" ||
+    method === "every" ||
+    method === "some" ||
+    method === "reduce"
+  ) {
     const callback = args[0];
-    const hofMethods: Record<string, { map: string; filter: string; forEach: string }> = {
+    const hofMethods: Record<string, Record<string, string>> = {
       cs2_num_array: {
         map: "cs2_num_array_map",
         filter: "cs2_num_array_filter",
         forEach: "cs2_num_array_forEach",
+        findIndex: "cs2_num_array_findIndex",
+        every: "cs2_num_array_every",
+        some: "cs2_num_array_some",
+        reduce: "cs2_num_array_reduce",
       },
       cs2_str_array: {
         map: "cs2_str_array_map",
         filter: "cs2_str_array_filter",
         forEach: "cs2_str_array_forEach",
+        findIndex: "cs2_str_array_findIndex",
+        every: "cs2_str_array_every",
+        some: "cs2_str_array_some",
       },
     };
     const funcs = hofMethods[prefix];
-    if (!funcs) compileError(`unsupported array method: ${method}`, expr.span);
+    if (!funcs || !funcs[method])
+      compileError(`unsupported array method: ${method}`, expr.span);
     let returnType: HIRType;
     switch (method) {
       case "map":
-        returnType = obj.type;
-        break;
       case "filter":
         returnType = obj.type;
         break;
       case "forEach":
         returnType = VOID;
         break;
+      case "findIndex":
+        returnType = F64;
+        break;
+      case "every":
+      case "some":
+        returnType = { kind: "i1" };
+        break;
+      case "reduce":
+        returnType = F64;
+        break;
       default:
         throw new Error(`unexpected hof method: ${method}`);
     }
-    return {
+    const node: any = {
       kind: "array_hof",
       array: obj,
       method,
@@ -2135,6 +2159,10 @@ function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
       returnType,
       type: returnType,
     };
+    if (method === "reduce" && args.length > 1) {
+      node.initialValue = args[1];
+    }
+    return node;
   }
 
   if (!info) compileError(`unsupported array method: ${method}`, expr.span);

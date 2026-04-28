@@ -73,6 +73,7 @@ function findClosureFuncNames(mod: HIRModule, names: Set<string>): void {
     if ("callee" in expr && expr.callee && typeof expr.callee === "object" && "kind" in expr.callee)
       scanExpr(expr.callee as HIRExpr);
     if ("object" in expr && expr.object) scanExpr(expr.object as HIRExpr);
+    if ("callback" in expr && expr.callback) scanExpr(expr.callback as HIRExpr);
     if ("condition" in expr && expr.condition) scanExpr(expr.condition as HIRExpr);
     if ("then" in expr && expr.then && typeof expr.then === "object" && "kind" in expr.then)
       scanExpr(expr.then as HIRExpr);
@@ -364,6 +365,11 @@ function declareExterns(ctx: EmitContext): void {
     ["cs2_num_array_map", m.ptr, [m.ptr, m.ptr, m.ptr]],
     ["cs2_num_array_filter", m.ptr, [m.ptr, m.ptr, m.ptr]],
     ["cs2_num_array_forEach", m.voidTy, [m.ptr, m.ptr, m.ptr]],
+    ["cs2_num_array_find", m.f64, [m.ptr, m.ptr, m.ptr]],
+    ["cs2_num_array_findIndex", m.f64, [m.ptr, m.ptr, m.ptr]],
+    ["cs2_num_array_every", m.f64, [m.ptr, m.ptr, m.ptr]],
+    ["cs2_num_array_some", m.f64, [m.ptr, m.ptr, m.ptr]],
+    ["cs2_num_array_reduce", m.f64, [m.ptr, m.ptr, m.ptr, m.f64]],
     ["cs2_num_array_join", m.ptr, [m.ptr, m.ptr]],
     ["cs2_num_array_spread", m.voidTy, [m.ptr, m.ptr]],
     ["cs2_str_array_new", m.ptr, [m.i32]],
@@ -382,6 +388,9 @@ function declareExterns(ctx: EmitContext): void {
     ["cs2_str_array_map", m.ptr, [m.ptr, m.ptr, m.ptr]],
     ["cs2_str_array_filter", m.ptr, [m.ptr, m.ptr, m.ptr]],
     ["cs2_str_array_forEach", m.voidTy, [m.ptr, m.ptr, m.ptr]],
+    ["cs2_str_array_findIndex", m.f64, [m.ptr, m.ptr, m.ptr]],
+    ["cs2_str_array_every", m.f64, [m.ptr, m.ptr, m.ptr]],
+    ["cs2_str_array_some", m.f64, [m.ptr, m.ptr, m.ptr]],
     ["cs2_str_array_join", m.ptr, [m.ptr, m.ptr]],
     ["cs2_str_array_spread", m.voidTy, [m.ptr, m.ptr]],
     ["cs2_obj_array_new", m.ptr, [m.i32]],

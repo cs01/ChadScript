@@ -440,6 +440,8 @@ Note: if useful, you can make use of c_bridges in main barnch rather than rewrit
 - [x] `Array` string methods — indexOf, includes, slice, reverse, concat for string arrays
 - [x] `Map.keys()`, `Map.values()`, `Map.clear()`, `Set.values()`, `Set.clear()`
 - [x] `enum` support — numeric enums (auto-increment), string enums, member access
+- [x] `os` module — hostname, homedir, tmpdir, platform, arch, type, uptime, EOL
+- [x] `Array` HOF extended — findIndex, every, some, reduce (number + string arrays)
 - [ ] `fetch` API — async `fetch(url)` returning `Promise<Response>` with `.text()`, `.json()`, `.status` (needs AsyncLoweringPass or thread-based approach)
 - [ ] `express` compat — `npm install express` and compile real Express apps (needs: `require()`, `node_modules` resolution, dynamic object patterns, middleware chains)
 - [ ] **Milestone:** Real-world programs compile and run. Express-like server works.

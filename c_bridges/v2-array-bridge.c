@@ -337,6 +337,71 @@ void cs2_str_array_forEach(StrArray *arr, void *fn_ptr, void *env_ptr) {
     }
 }
 
+double cs2_num_array_find(NumArray *arr, void *fn_ptr, void *env_ptr) {
+    int32_t (*fn)(void *, double) = (int32_t (*)(void *, double))fn_ptr;
+    for (int32_t i = 0; i < arr->length; i++) {
+        if (fn(env_ptr, arr->data[i])) return arr->data[i];
+    }
+    return 0.0 / 0.0;
+}
+
+double cs2_num_array_findIndex(NumArray *arr, void *fn_ptr, void *env_ptr) {
+    int32_t (*fn)(void *, double) = (int32_t (*)(void *, double))fn_ptr;
+    for (int32_t i = 0; i < arr->length; i++) {
+        if (fn(env_ptr, arr->data[i])) return (double)i;
+    }
+    return -1.0;
+}
+
+double cs2_num_array_every(NumArray *arr, void *fn_ptr, void *env_ptr) {
+    int32_t (*fn)(void *, double) = (int32_t (*)(void *, double))fn_ptr;
+    for (int32_t i = 0; i < arr->length; i++) {
+        if (!fn(env_ptr, arr->data[i])) return 0.0;
+    }
+    return 1.0;
+}
+
+double cs2_num_array_some(NumArray *arr, void *fn_ptr, void *env_ptr) {
+    int32_t (*fn)(void *, double) = (int32_t (*)(void *, double))fn_ptr;
+    for (int32_t i = 0; i < arr->length; i++) {
+        if (fn(env_ptr, arr->data[i])) return 1.0;
+    }
+    return 0.0;
+}
+
+double cs2_num_array_reduce(NumArray *arr, void *fn_ptr, void *env_ptr, double init) {
+    double (*fn)(void *, double, double) = (double (*)(void *, double, double))fn_ptr;
+    double acc = init;
+    for (int32_t i = 0; i < arr->length; i++) {
+        acc = fn(env_ptr, acc, arr->data[i]);
+    }
+    return acc;
+}
+
+double cs2_str_array_findIndex(StrArray *arr, void *fn_ptr, void *env_ptr) {
+    int32_t (*fn)(void *, const char *) = (int32_t (*)(void *, const char *))fn_ptr;
+    for (int32_t i = 0; i < arr->length; i++) {
+        if (fn(env_ptr, arr->data[i])) return (double)i;
+    }
+    return -1.0;
+}
+
+double cs2_str_array_every(StrArray *arr, void *fn_ptr, void *env_ptr) {
+    int32_t (*fn)(void *, const char *) = (int32_t (*)(void *, const char *))fn_ptr;
+    for (int32_t i = 0; i < arr->length; i++) {
+        if (!fn(env_ptr, arr->data[i])) return 0.0;
+    }
+    return 1.0;
+}
+
+double cs2_str_array_some(StrArray *arr, void *fn_ptr, void *env_ptr) {
+    int32_t (*fn)(void *, const char *) = (int32_t (*)(void *, const char *))fn_ptr;
+    for (int32_t i = 0; i < arr->length; i++) {
+        if (fn(env_ptr, arr->data[i])) return 1.0;
+    }
+    return 0.0;
+}
+
 double cs2_num_array_shift(NumArray *arr) {
     if (arr->length <= 0) return 0.0;
     double val = arr->data[0];

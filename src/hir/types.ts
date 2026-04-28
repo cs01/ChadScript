@@ -160,11 +160,12 @@ export type HIRExpr =
   | {
       kind: "array_hof";
       array: HIRExpr;
-      method: "map" | "filter" | "forEach";
+      method: "map" | "filter" | "forEach" | "findIndex" | "every" | "some" | "reduce";
       callback: HIRExpr;
       bridgeFunc: string;
       returnType: HIRType;
       type: HIRType;
+      initialValue?: HIRExpr;
     }
   | { kind: "nullish_coalesce"; left: HIRExpr; right: HIRExpr; type: HIRType }
   | { kind: "await"; value: HIRExpr; resolvedType: HIRType; type: HIRType }
