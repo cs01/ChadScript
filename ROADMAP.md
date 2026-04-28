@@ -479,7 +479,7 @@ Feasible here because Phase 6 gives us the Node APIs the compiler uses (fs, path
 - [ ] `InliningPass`: inline small functions (< N HIR nodes, single call site)
 - [ ] `EscapeAnalysisPass`: stack-allocate objects that don't escape
 - [x] `DeadCodePass`: remove unreachable statements after return/throw/break/continue
-- [ ] `ConstantFoldingPass`: evaluate constant expressions at compile time
+- [x] `ConstantFoldingPass`: evaluate constant expressions at compile time (arithmetic, string concat, comparisons, boolean logic, ternary)
 - [ ] `UnboxWidening`: when a boxed value is only used in unboxed context, elide the box/unbox pair
 - [ ] **Milestone:** All benchmarks match or beat v1 numbers
 
