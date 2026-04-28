@@ -126,6 +126,8 @@ export function emitExpr(ctx: EmitContext, expr: HIRExpr): any {
       return emitAllocArraySpread(ctx, expr as HIRExpr & { kind: "alloc_array_spread" });
     case "alloc_struct":
       return emitAllocStruct(ctx, expr as HIRExpr & { kind: "alloc_struct" });
+    case "alloc_map":
+      return emitAllocMap(ctx, expr as HIRExpr & { kind: "alloc_map" });
     case "field_get":
       return emitFieldGet(ctx, expr as HIRExpr & { kind: "field_get" });
     case "field_set":
@@ -253,6 +255,35 @@ function emitAllocStruct(ctx: EmitContext, expr: HIRExpr & { kind: "alloc_struct
   }
 
   return raw;
+}
+
+function emitAllocMap(
+  ctx: EmitContext,
+  expr: HIRExpr & { kind: "alloc_map" },
+): any {
+  const m = ctx.m;
+  const k = expr.keyType.kind === "i8ptr" ? "str" : "num";
+  const v = expr.valueType.kind === "i8ptr" ? "str" : "num";
+  const prefix = `cs2_${k}_${v}_map`;
+
+  let mapPtr: any;
+  if (expr.spreadSource) {
+    const src = emitExpr(ctx, expr.spreadSource);
+    const copyFn = ctx.getDeclaredFunction(`${prefix}_copy`)!;
+    mapPtr = m.buildCall(copyFn.fnType, copyFn.fn, [src], "map");
+  } else {
+    const newFn = ctx.getDeclaredFunction(`${prefix}_new`)!;
+    mapPtr = m.buildCall(newFn.fnType, newFn.fn, [], "map");
+  }
+
+  const setFn = ctx.getDeclaredFunction(`${prefix}_set`)!;
+  for (const entry of expr.entries) {
+    const key = emitExpr(ctx, entry.key);
+    const val = emitExpr(ctx, entry.value);
+    m.buildCall(setFn.fnType, setFn.fn, [mapPtr, key, val], "");
+  }
+
+  return mapPtr;
 }
 
 function emitFieldGet(ctx: EmitContext, expr: HIRExpr & { kind: "field_get" }): any {

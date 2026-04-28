@@ -11,8 +11,8 @@
 The compiler's own source uses TS features we haven't tested compiling yet. Audit + fill gaps:
 
 - [x] `for (const [k, v] of map)` — Map iteration with destructuring (compiler uses this heavily)
-- [ ] `Record<string, T>` object literals — used as typed hashmaps throughout lowering
-- [ ] Object spread — `{ ...obj, key: newVal }` used in generic cloning
+- [x] `Record<string, T>` object literals — used as typed hashmaps throughout lowering
+- [x] Object spread — `{ ...obj, key: newVal }` used in generic cloning
 - [x] `import type { X }` — type-only imports (SWC strips these, verified ignored)
 - [ ] Verify: compiler source files (src/**/*.ts) compile without errors
 

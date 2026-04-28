@@ -53,6 +53,7 @@ export const interfaceRegistry = new Map<
 export const restParamRegistry = new Map<string, number>();
 export let isModuleScope = true;
 export let expectedArrayElementType: HIRType | null = null;
+export let expectedMapType: HIRType | null = null;
 export let currentClassName: string | null = null;
 export let nextAnonId = 0;
 export const fnAliases = new Map<string, string>();
@@ -120,6 +121,10 @@ export function setIsModuleScope(v: boolean): void {
 
 export function setExpectedArrayElementType(t: HIRType | null): void {
   expectedArrayElementType = t;
+}
+
+export function setExpectedMapType(t: HIRType | null): void {
+  expectedMapType = t;
 }
 
 export function setCurrentClassName(name: string | null): void {
@@ -201,6 +206,12 @@ export function resolveTypeAnnotation(ann: any): HIRType {
     }
 
     if (name === "Map" && ta.typeParams?.params?.length === 2) {
+      const key = resolveTypeAnnotation(ta.typeParams.params[0]);
+      const value = resolveTypeAnnotation(ta.typeParams.params[1]);
+      return { kind: "map", key, value };
+    }
+
+    if (name === "Record" && ta.typeParams?.params?.length === 2) {
       const key = resolveTypeAnnotation(ta.typeParams.params[0]);
       const value = resolveTypeAnnotation(ta.typeParams.params[1]);
       return { kind: "map", key, value };

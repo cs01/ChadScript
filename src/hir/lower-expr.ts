@@ -27,6 +27,7 @@ import {
   closureInfoMap,
   currentClassName,
   expectedArrayElementType,
+  expectedMapType,
   freshId,
   resolveTypeAnnotation,
   coerce,
@@ -92,6 +93,8 @@ export function lowerExpr(expr: Expression): HIRExpr {
       };
     case "ArrayExpression":
       return lowerArrayLiteral(expr);
+    case "ObjectExpression":
+      return lowerObjectLiteral(expr as any);
     case "NewExpression":
       return lowerNewExpr(expr as any);
     case "ThisExpression": {
@@ -404,6 +407,17 @@ function lowerAssignment(expr: AssignmentExpression): HIRExpr {
           type: elemType,
         };
       }
+      if (obj.type.kind === "map") {
+        const mt = obj.type as { kind: "map"; key: HIRType; value: HIRType };
+        const prefix = mapPrefix(mt.key, mt.value);
+        return {
+          kind: "runtime_call",
+          func: `${prefix}_set`,
+          args: [obj, coerce(index, mt.key), coerce(value, mt.value)],
+          returnType: VOID,
+          type: VOID,
+        };
+      }
       if (obj.type.kind === "ptr") {
         const pointee = (obj.type as { kind: "ptr"; pointee: string }).pointee;
         if (pointee === "Uint8Array" || pointee === "Float64Array") {
@@ -557,6 +571,34 @@ function lowerArrayLiteral(expr: any): HIRExpr {
     elementType,
     elements: coerced as any,
     type: { kind: "array", element: elementType },
+  };
+}
+
+function lowerObjectLiteral(expr: any): HIRExpr {
+  if (!expectedMapType || expectedMapType.kind !== "map") {
+    compileError("object literal requires Record<K, V> type annotation", expr.span);
+  }
+  const mt = expectedMapType as { kind: "map"; key: HIRType; value: HIRType };
+  const entries: { key: HIRExpr; value: HIRExpr }[] = [];
+  let spreadSource: HIRExpr | undefined;
+  for (const prop of expr.properties) {
+    if (prop.type === "SpreadElement") {
+      spreadSource = lowerExpr(prop.arguments);
+      continue;
+    }
+    const keyStr =
+      prop.key.type === "Identifier" ? prop.key.value : prop.key.value;
+    const key = coerce({ kind: "literal_string", value: keyStr, type: I8PTR }, mt.key);
+    const val = coerce(lowerExpr(prop.value), mt.value);
+    entries.push({ key, value: val });
+  }
+  return {
+    kind: "alloc_map",
+    keyType: mt.key,
+    valueType: mt.value,
+    spreadSource,
+    entries,
+    type: expectedMapType,
   };
 }
 
@@ -2633,6 +2675,17 @@ export function lowerMember(expr: MemberExpression): HIRExpr {
         args: [obj, coerce(index, F64)],
         returnType: F64,
         type: F64,
+      };
+    }
+    if (obj.type.kind === "map") {
+      const mt = obj.type as { kind: "map"; key: HIRType; value: HIRType };
+      const prefix = mapPrefix(mt.key, mt.value);
+      return {
+        kind: "runtime_call",
+        func: `${prefix}_get`,
+        args: [obj, coerce(index, mt.key)],
+        returnType: mt.value,
+        type: mt.value,
       };
     }
     if (obj.type.kind === "ptr") {

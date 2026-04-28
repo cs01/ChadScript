@@ -120,6 +120,14 @@ export type HIRExpr =
       type: HIRType;
     }
   | {
+      kind: "alloc_map";
+      keyType: HIRType;
+      valueType: HIRType;
+      spreadSource?: HIRExpr;
+      entries: { key: HIRExpr; value: HIRExpr }[];
+      type: HIRType;
+    }
+  | {
       kind: "runtime_call";
       func: string;
       args: HIRExpr[];
