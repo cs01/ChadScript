@@ -373,6 +373,27 @@ function declareExterns(ctx: EmitContext): void {
     ["cs2_json_stringify_num_array", m.ptr, [m.ptr]],
     ["cs2_json_stringify_str_array", m.ptr, [m.ptr]],
     ["cs2_json_parse", m.i64, [m.ptr]],
+    ["cs2_process_init", m.voidTy, [m.i32, m.ptr]],
+    ["cs2_process_argv_array", m.ptr, []],
+    ["cs2_process_env_get", m.ptr, [m.ptr]],
+    ["cs2_process_cwd", m.ptr, []],
+    ["cs2_process_platform", m.ptr, []],
+    ["cs2_process_exit", m.voidTy, [m.i32]],
+    ["cs2_console_time", m.voidTy, [m.ptr]],
+    ["cs2_console_time_end", m.voidTy, [m.ptr]],
+    ["cs2_stderr_str", m.voidTy, [m.ptr]],
+    ["cs2_stderr_str_nl", m.voidTy, [m.ptr]],
+    ["cs2_stderr_number", m.voidTy, [m.f64]],
+    ["cs2_stderr_i64", m.voidTy, [m.i64]],
+    ["cs2_stderr_bool", m.voidTy, [m.i32]],
+    ["cs2_stderr_nl", m.voidTy, []],
+    ["cs2_stderr_space", m.voidTy, []],
+    ["cs2_stderr_boxed", m.voidTy, [m.i64]],
+    ["cs2_path_join", m.ptr, [m.ptr, m.ptr]],
+    ["cs2_path_resolve", m.ptr, [m.ptr]],
+    ["cs2_path_dirname", m.ptr, [m.ptr]],
+    ["cs2_path_basename", m.ptr, [m.ptr]],
+    ["cs2_path_extname", m.ptr, [m.ptr]],
   ];
   for (const [name, ret, params] of bridgeFns) {
     const fnType = m.functionType(ret, params);
@@ -501,6 +522,11 @@ function emitMain(ctx: EmitContext, mod: HIRModule): void {
 
   const entry = m.appendBlock(mainFn, "entry");
   m.positionAtEnd(entry);
+
+  const argc = m.getParam(mainFn, 0);
+  const argv = m.getParam(mainFn, 1);
+  const processInit = ctx.getDeclaredFunction("cs2_process_init")!;
+  m.buildCall(processInit.fnType, processInit.fn, [argc, argv], "");
 
   for (const g of mod.globals) {
     if (g.init) {

@@ -68,6 +68,7 @@ function collectModules(
 
   for (const item of ast.body) {
     if (item.type === "ImportDeclaration") {
+      if (isBuiltinImport(item.source.value)) continue;
       const resolvedPath = resolveImportPath(item.source.value, absPath);
       collectModules(resolvedPath, visited, aliases);
 
@@ -82,6 +83,16 @@ function collectModules(
       }
     }
   }
+}
+
+const BUILTIN_MODULES = new Set([
+  "path", "node:path", "fs", "node:fs", "process", "node:process",
+  "child_process", "node:child_process", "crypto", "node:crypto",
+  "http", "node:http", "os", "node:os", "url", "node:url",
+]);
+
+function isBuiltinImport(specifier: string): boolean {
+  return BUILTIN_MODULES.has(specifier);
 }
 
 function resolveImportPath(specifier: string, fromPath: string): string {

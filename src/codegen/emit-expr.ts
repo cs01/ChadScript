@@ -609,21 +609,36 @@ function emitRuntimeCall(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_call
     return emitStringConcat(ctx, expr);
   }
 
-  if (expr.func === "cs_console_log") {
+  if (expr.func === "cs_console_log" || expr.func === "cs_console_error" || expr.func === "cs_console_warn") {
+    const toStderr = expr.func !== "cs_console_log";
     for (let i = 0; i < expr.args.length; i++) {
       if (i > 0) {
-        const spaceStr = m.buildGlobalStringPtr(" ", "space");
-        const printf = ctx.getDeclaredFunction("printf")!;
-        m.buildCall(printf.fnType, printf.fn, [spaceStr], "");
+        if (toStderr) {
+          const spaceFn = ctx.getDeclaredFunction("cs2_stderr_space")!;
+          m.buildCall(spaceFn.fnType, spaceFn.fn, [], "");
+        } else {
+          const spaceStr = m.buildGlobalStringPtr(" ", "space");
+          const printf = ctx.getDeclaredFunction("printf")!;
+          m.buildCall(printf.fnType, printf.fn, [spaceStr], "");
+        }
       }
       const arg = expr.args[i];
       const val = emitExpr(ctx, arg);
-      emitPrintValue(ctx, arg, val, i === expr.args.length - 1);
+      if (toStderr) {
+        emitPrintValueStderr(ctx, arg, val, i === expr.args.length - 1);
+      } else {
+        emitPrintValue(ctx, arg, val, i === expr.args.length - 1);
+      }
     }
     if (expr.args.length === 0) {
-      const nlStr = m.buildGlobalStringPtr("\n", "nl");
-      const printf = ctx.getDeclaredFunction("printf")!;
-      m.buildCall(printf.fnType, printf.fn, [nlStr], "");
+      if (toStderr) {
+        const nlFn = ctx.getDeclaredFunction("cs2_stderr_nl")!;
+        m.buildCall(nlFn.fnType, nlFn.fn, [], "");
+      } else {
+        const nlStr = m.buildGlobalStringPtr("\n", "nl");
+        const printf = ctx.getDeclaredFunction("printf")!;
+        m.buildCall(printf.fnType, printf.fn, [nlStr], "");
+      }
     }
     return m.constInt(m.i32, 0);
   }
@@ -699,6 +714,42 @@ function emitPrintValue(ctx: EmitContext, arg: HIRExpr, val: any, isLast: boolea
       const fmt = m.buildGlobalStringPtr("%s", "fmt");
       const printf = ctx.getDeclaredFunction("printf")!;
       m.buildCall(printf.fnType, printf.fn, [fmt, rawStr], "");
+    }
+  }
+}
+
+function emitPrintValueStderr(ctx: EmitContext, arg: HIRExpr, val: any, isLast: boolean): void {
+  const m = ctx.m;
+  if (arg.type.kind === "i8ptr") {
+    const fn = ctx.getDeclaredFunction(isLast ? "cs2_stderr_str_nl" : "cs2_stderr_str")!;
+    m.buildCall(fn.fnType, fn.fn, [val], "");
+  } else if (arg.type.kind === "f64") {
+    const fn = ctx.getDeclaredFunction("cs2_stderr_number")!;
+    m.buildCall(fn.fnType, fn.fn, [val], "");
+    if (isLast) {
+      const nlFn = ctx.getDeclaredFunction("cs2_stderr_nl")!;
+      m.buildCall(nlFn.fnType, nlFn.fn, [], "");
+    }
+  } else if (arg.type.kind === "i64") {
+    const fn = ctx.getDeclaredFunction("cs2_stderr_i64")!;
+    m.buildCall(fn.fnType, fn.fn, [val], "");
+    if (isLast) {
+      const nlFn = ctx.getDeclaredFunction("cs2_stderr_nl")!;
+      m.buildCall(nlFn.fnType, nlFn.fn, [], "");
+    }
+  } else if (arg.type.kind === "i1") {
+    const fn = ctx.getDeclaredFunction("cs2_stderr_bool")!;
+    m.buildCall(fn.fnType, fn.fn, [val], "");
+    if (isLast) {
+      const nlFn = ctx.getDeclaredFunction("cs2_stderr_nl")!;
+      m.buildCall(nlFn.fnType, nlFn.fn, [], "");
+    }
+  } else if (arg.type.kind === "boxed") {
+    const fn = ctx.getDeclaredFunction("cs2_stderr_boxed")!;
+    m.buildCall(fn.fnType, fn.fn, [val], "");
+    if (isLast) {
+      const nlFn = ctx.getDeclaredFunction("cs2_stderr_nl")!;
+      m.buildCall(nlFn.fnType, nlFn.fn, [], "");
     }
   }
 }

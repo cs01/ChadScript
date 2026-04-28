@@ -549,17 +549,56 @@ function lowerCall(expr: CallExpression): HIRExpr {
     expr.callee.type === "MemberExpression" &&
     expr.callee.object.type === "Identifier" &&
     expr.callee.object.value === "console" &&
-    expr.callee.property.type === "Identifier" &&
-    expr.callee.property.value === "log"
+    expr.callee.property.type === "Identifier"
   ) {
-    const args = expr.arguments.map((a) => lowerExpr(a.expression));
-    return {
-      kind: "runtime_call",
-      func: "cs_console_log",
-      args,
-      returnType: VOID,
-      type: VOID,
-    };
+    const method = (expr.callee.property as Identifier).value;
+    if (method === "log" || method === "error" || method === "warn") {
+      const args = expr.arguments.map((a) => lowerExpr(a.expression));
+      const funcMap: Record<string, string> = {
+        log: "cs_console_log",
+        error: "cs_console_error",
+        warn: "cs_console_warn",
+      };
+      return {
+        kind: "runtime_call",
+        func: funcMap[method],
+        args,
+        returnType: VOID,
+        type: VOID,
+      };
+    }
+    if (method === "time") {
+      const label =
+        expr.arguments.length > 0
+          ? lowerExpr(expr.arguments[0].expression)
+          : ({ kind: "literal_string" as const, value: "default", type: I8PTR } as HIRExpr);
+      return { kind: "runtime_call", func: "cs2_console_time", args: [label], returnType: VOID, type: VOID };
+    }
+    if (method === "timeEnd") {
+      const label =
+        expr.arguments.length > 0
+          ? lowerExpr(expr.arguments[0].expression)
+          : ({ kind: "literal_string" as const, value: "default", type: I8PTR } as HIRExpr);
+      return { kind: "runtime_call", func: "cs2_console_time_end", args: [label], returnType: VOID, type: VOID };
+    }
+  }
+
+  if (
+    expr.callee.type === "MemberExpression" &&
+    expr.callee.object.type === "Identifier" &&
+    expr.callee.object.value === "process" &&
+    expr.callee.property.type === "Identifier"
+  ) {
+    return lowerProcessCall(expr);
+  }
+
+  if (
+    expr.callee.type === "MemberExpression" &&
+    expr.callee.object.type === "Identifier" &&
+    expr.callee.object.value === "path" &&
+    expr.callee.property.type === "Identifier"
+  ) {
+    return lowerPathCall(expr);
   }
 
   if (
@@ -776,6 +815,64 @@ function lowerNewExpr(expr: any): HIRExpr {
     returnType: resultType,
     type: resultType,
   };
+}
+
+function lowerProcessCall(expr: CallExpression): HIRExpr {
+  const member = expr.callee as MemberExpression;
+  const method = (member.property as Identifier).value;
+
+  switch (method) {
+    case "exit": {
+      const code =
+        expr.arguments.length > 0
+          ? coerce(lowerExpr(expr.arguments[0].expression), I64)
+          : ({ kind: "literal_i64", value: 0, type: I64 } as HIRExpr);
+      return {
+        kind: "runtime_call",
+        func: "cs2_process_exit",
+        args: [code],
+        returnType: VOID,
+        type: VOID,
+      };
+    }
+    case "cwd":
+      return { kind: "runtime_call", func: "cs2_process_cwd", args: [], returnType: I8PTR, type: I8PTR };
+    default:
+      throw new Error(`unsupported process method: ${method}`);
+  }
+}
+
+function lowerPathCall(expr: CallExpression): HIRExpr {
+  const member = expr.callee as MemberExpression;
+  const method = (member.property as Identifier).value;
+
+  switch (method) {
+    case "join": {
+      const args = expr.arguments.map((a) => lowerExpr(a.expression));
+      if (args.length === 0) return { kind: "literal_string", value: ".", type: I8PTR };
+      if (args.length === 1) return args[0];
+      let result: HIRExpr = args[0];
+      for (let i = 1; i < args.length; i++) {
+        result = { kind: "runtime_call", func: "cs2_path_join", args: [result, args[i]], returnType: I8PTR, type: I8PTR };
+      }
+      return result;
+    }
+    case "resolve": {
+      const arg =
+        expr.arguments.length > 0
+          ? lowerExpr(expr.arguments[0].expression)
+          : ({ kind: "literal_string" as const, value: "", type: I8PTR } as HIRExpr);
+      return { kind: "runtime_call", func: "cs2_path_resolve", args: [arg], returnType: I8PTR, type: I8PTR };
+    }
+    case "dirname":
+      return { kind: "runtime_call", func: "cs2_path_dirname", args: [lowerExpr(expr.arguments[0].expression)], returnType: I8PTR, type: I8PTR };
+    case "basename":
+      return { kind: "runtime_call", func: "cs2_path_basename", args: [lowerExpr(expr.arguments[0].expression)], returnType: I8PTR, type: I8PTR };
+    case "extname":
+      return { kind: "runtime_call", func: "cs2_path_extname", args: [lowerExpr(expr.arguments[0].expression)], returnType: I8PTR, type: I8PTR };
+    default:
+      throw new Error(`unsupported path method: ${method}`);
+  }
 }
 
 function lowerMathCall(expr: CallExpression): HIRExpr {
@@ -1193,12 +1290,56 @@ export function drainPendingGenericClasses(): {
 
 export function lowerMember(expr: MemberExpression): HIRExpr {
   if (
+    expr.object.type === "MemberExpression" &&
+    (expr.object as MemberExpression).object.type === "Identifier" &&
+    ((expr.object as MemberExpression).object as Identifier).value === "process" &&
+    (expr.object as MemberExpression).property.type === "Identifier" &&
+    ((expr.object as MemberExpression).property as Identifier).value === "env" &&
+    expr.property.type === "Identifier"
+  ) {
+    const envName = (expr.property as Identifier).value;
+    return {
+      kind: "runtime_call",
+      func: "cs2_process_env_get",
+      args: [{ kind: "literal_string", value: envName, type: I8PTR }],
+      returnType: I8PTR,
+      type: I8PTR,
+    };
+  }
+
+  if (
     expr.object.type === "Identifier" &&
     expr.object.value === "process" &&
-    expr.property.type === "Identifier" &&
-    expr.property.value === "exit"
+    expr.property.type === "Identifier"
   ) {
-    return { kind: "global_get", name: "process_exit", type: BOXED };
+    const prop = (expr.property as Identifier).value;
+    switch (prop) {
+      case "argv":
+        return {
+          kind: "runtime_call",
+          func: "cs2_process_argv_array",
+          args: [],
+          returnType: { kind: "array", element: I8PTR },
+          type: { kind: "array", element: I8PTR },
+        };
+      case "platform":
+        return { kind: "runtime_call", func: "cs2_process_platform", args: [], returnType: I8PTR, type: I8PTR };
+      case "exit":
+        return { kind: "global_get", name: "process_exit", type: BOXED };
+      default:
+        break;
+    }
+  }
+
+  if (
+    expr.object.type === "Identifier" &&
+    expr.object.value === "path" &&
+    expr.property.type === "Identifier"
+  ) {
+    const prop = (expr.property as Identifier).value;
+    if (prop === "sep") {
+      return { kind: "literal_string", value: "/", type: I8PTR };
+    }
   }
 
   if ((expr.property as any).type === "Computed") {

@@ -417,12 +417,12 @@ const ast = parseSync(source, { syntax: "typescript", decorators: true });
 
 - [x] `console.log` (basic — multi-arg, all types)
 - [x] `setTimeout`, `setInterval`, `clearTimeout`, `clearInterval` (via libuv)
-- [ ] `JSON` (parse, stringify) — reuse yyjson bridge
-- [ ] `console` (error, warn, time, timeEnd)
-- [ ] `process` (argv, env, exit, cwd, stdin/stdout/stderr)
+- [x] `JSON` (parse, stringify) — yyjson bridge, typed dispatch, nanbox parse
+- [x] `console` (error, warn, time, timeEnd) — stderr bridge, per-type formatters
+- [x] `process` (argv, env, exit, cwd, platform) — C bridge with argc/argv init
 - [ ] `Math` (extended — random done, add remaining)
 - [ ] `fs` (readFileSync, writeFileSync, existsSync, readdirSync, async variants)
-- [ ] `path` (join, resolve, dirname, basename, extname)
+- [x] `path` (join, resolve, dirname, basename, extname, sep) — POSIX C bridge
 - [ ] `http` / `fetch` — reuse lws bridge
 - [ ] `child_process` (exec, spawn) — reuse existing bridges
 - [ ] `crypto` (randomBytes, createHash) — reuse existing bridge
