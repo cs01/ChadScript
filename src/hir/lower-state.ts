@@ -59,6 +59,7 @@ export let expectedDeclType: HIRType | null = null;
 export let currentClassName: string | null = null;
 export let nextAnonId = 0;
 export const fnAliases = new Map<string, string>();
+export const builtinImports = new Map<string, { module: string; imported: string }>();
 export const pendingFunctions: import("./types.js").HIRFunction[] = [];
 export let outerLocals: Map<string, { id: number; type: HIRType; mutable: boolean }> | null = null;
 export let capturedIds = new Set<number>();

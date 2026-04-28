@@ -1,6 +1,6 @@
 import { parseFile } from "./parser.js";
 import { lowerModule } from "./hir/lower.js";
-import type { ImportAlias } from "./hir/lower.js";
+import type { ImportAlias, BuiltinImport } from "./hir/lower.js";
 import { setSourceContext } from "./errors.js";
 import { readFileSync, existsSync } from "fs";
 import { resolve, dirname } from "path";
@@ -18,8 +18,9 @@ export function resolveModules(entryPath: string): HIRModule {
   const visited = new Map<string, ParsedModule>();
   const typeOnlyPaths = new Set<string>();
   const aliases: ImportAlias[] = [];
+  const builtinImportList: BuiltinImport[] = [];
 
-  collectModules(absEntry, visited, aliases, typeOnlyPaths);
+  collectModules(absEntry, visited, aliases, typeOnlyPaths, builtinImportList);
 
   const mergedBody: ModuleItem[] = [];
   const TYPE_DECLS = new Set(["TsTypeAliasDeclaration", "TsInterfaceDeclaration", "TsEnumDeclaration"]);
@@ -60,7 +61,7 @@ export function resolveModules(entryPath: string): HIRModule {
   };
 
   setSourceContext(entry.source, absEntry);
-  return lowerModule(mergedAst, entry.source, absEntry, aliases);
+  return lowerModule(mergedAst, entry.source, absEntry, aliases, builtinImportList);
 }
 
 function collectModules(
@@ -68,6 +69,7 @@ function collectModules(
   visited: Map<string, ParsedModule>,
   aliases: ImportAlias[],
   typeOnlyPaths?: Set<string>,
+  builtinImportList?: BuiltinImport[],
 ): void {
   if (visited.has(absPath)) return;
 
@@ -77,7 +79,18 @@ function collectModules(
 
   for (const item of ast.body) {
     if (item.type === "ImportDeclaration") {
-      if (isBuiltinImport(item.source.value)) continue;
+      if (isBuiltinImport(item.source.value)) {
+        if (builtinImportList && !(item as any).typeOnly) {
+          const moduleName = item.source.value.replace(/^node:/, "");
+          for (const s of item.specifiers) {
+            if (s.type === "ImportSpecifier") {
+              const imported = s.imported?.value || s.local.value;
+              builtinImportList.push({ local: s.local.value, module: moduleName, imported });
+            }
+          }
+        }
+        continue;
+      }
       if ((item as any).typeOnly) {
         const specifier = item.source.value;
         if (specifier.startsWith(".")) {
@@ -86,14 +99,14 @@ function collectModules(
             if (typeOnlyPaths && !visited.has(resolvedPath)) {
               typeOnlyPaths.add(resolvedPath);
             }
-            collectModules(resolvedPath, visited, aliases, typeOnlyPaths);
+            collectModules(resolvedPath, visited, aliases, typeOnlyPaths, builtinImportList);
           } catch {}
         }
         continue;
       }
       const resolvedPath = resolveImportPath(item.source.value, absPath);
       if (typeOnlyPaths) typeOnlyPaths.delete(resolvedPath);
-      collectModules(resolvedPath, visited, aliases, typeOnlyPaths);
+      collectModules(resolvedPath, visited, aliases, typeOnlyPaths, builtinImportList);
 
       for (const s of item.specifiers) {
         if (s.type === "ImportSpecifier") {
@@ -111,7 +124,7 @@ function collectModules(
       const decl = item as any;
       if (isBuiltinImport(decl.source.value)) continue;
       const resolvedPath = resolveImportPath(decl.source.value, absPath);
-      collectModules(resolvedPath, visited, aliases, typeOnlyPaths);
+      collectModules(resolvedPath, visited, aliases, typeOnlyPaths, builtinImportList);
 
       for (const s of decl.specifiers) {
         if (s.type === "ExportSpecifier" && s.exported) {
@@ -143,6 +156,8 @@ const BUILTIN_MODULES = new Set([
   "node:os",
   "url",
   "node:url",
+  "@swc/core",
+  "koffi",
 ]);
 
 function isBuiltinImport(specifier: string): boolean {

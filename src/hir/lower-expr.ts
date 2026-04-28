@@ -45,6 +45,7 @@ import {
   genericClassTemplates,
   mangleGenericName,
   enumRegistry,
+  builtinImports,
 } from "./lower-state.js";
 
 import { lowerArrowOrFnExpr } from "./lower-func.js";
@@ -1197,6 +1198,17 @@ function lowerCall(expr: CallExpression): HIRExpr {
         returnType: closureType.returnType,
         type: closureType.returnType,
       };
+    }
+
+    const bi = builtinImports.get(expr.callee.value);
+    if (bi) {
+      const syntheticCallee = {
+        type: "MemberExpression" as const,
+        span: expr.span,
+        object: { type: "Identifier" as const, span: expr.span, value: bi.module, optional: false },
+        property: { type: "Identifier" as const, span: expr.span, value: bi.imported, optional: false },
+      };
+      return lowerCall({ ...expr, callee: syntheticCallee as any });
     }
 
     const calleeName = fnAliases.get(expr.callee.value) || expr.callee.value;

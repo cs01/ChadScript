@@ -62,6 +62,7 @@ import {
   setTypeParamContext,
   enumRegistry,
   typeAliasRegistry,
+  builtinImports,
 } from "./lower-state.js";
 import {
   registerFunction,
@@ -92,11 +93,18 @@ export interface ImportAlias {
   imported: string;
 }
 
+export interface BuiltinImport {
+  local: string;
+  module: string;
+  imported: string;
+}
+
 export function lowerModule(
   ast: Module,
   source?: string,
   filename?: string,
   importAliases?: ImportAlias[],
+  builtinImportList?: BuiltinImport[],
 ): HIRModule {
   const functions: HIRFunction[] = [];
   const hirClasses: import("./types.js").HIRClass[] = [];
@@ -117,6 +125,7 @@ export function lowerModule(
   genericSpecializations.clear();
   enumRegistry.clear();
   typeAliasRegistry.clear();
+  builtinImports.clear();
   setTypeParamContext(null);
   setNextId(0);
   setIsModuleScope(true);
@@ -126,6 +135,11 @@ export function lowerModule(
   if (importAliases) {
     for (const alias of importAliases) {
       fnAliases.set(alias.local, alias.imported);
+    }
+  }
+  if (builtinImportList) {
+    for (const bi of builtinImportList) {
+      builtinImports.set(bi.local, { module: bi.module, imported: bi.imported });
     }
   }
 
