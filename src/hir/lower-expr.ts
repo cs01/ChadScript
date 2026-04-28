@@ -615,11 +615,32 @@ function dynobj_get_typed(obj: HIRExpr, key: HIRExpr, targetType: HIRType | null
 }
 
 function lowerObjectLiteral(expr: any): HIRExpr {
-  if (!expectedMapType || expectedMapType.kind !== "map") {
-    compileError("object literal requires Record<K, V> type annotation", expr.span);
+  if (expectedMapType && expectedMapType.kind === "map") {
+    const mt = expectedMapType as { kind: "map"; key: HIRType; value: HIRType };
+    const entries: { key: HIRExpr; value: HIRExpr }[] = [];
+    let spreadSource: HIRExpr | undefined;
+    for (const prop of expr.properties) {
+      if (prop.type === "SpreadElement") {
+        spreadSource = lowerExpr(prop.arguments);
+        continue;
+      }
+      const keyStr =
+        prop.key.type === "Identifier" ? prop.key.value : prop.key.value;
+      const key = coerce({ kind: "literal_string", value: keyStr, type: I8PTR }, mt.key);
+      const val = coerce(lowerExpr(prop.value), mt.value);
+      entries.push({ key, value: val });
+    }
+    return {
+      kind: "alloc_map",
+      keyType: mt.key,
+      valueType: mt.value,
+      spreadSource,
+      entries,
+      type: expectedMapType,
+    };
   }
-  const mt = expectedMapType as { kind: "map"; key: HIRType; value: HIRType };
-  const entries: { key: HIRExpr; value: HIRExpr }[] = [];
+
+  const props: { key: string; value: HIRExpr }[] = [];
   let spreadSource: HIRExpr | undefined;
   for (const prop of expr.properties) {
     if (prop.type === "SpreadElement") {
@@ -628,17 +649,20 @@ function lowerObjectLiteral(expr: any): HIRExpr {
     }
     const keyStr =
       prop.key.type === "Identifier" ? prop.key.value : prop.key.value;
-    const key = coerce({ kind: "literal_string", value: keyStr, type: I8PTR }, mt.key);
-    const val = coerce(lowerExpr(prop.value), mt.value);
-    entries.push({ key, value: val });
+    let value: HIRExpr;
+    if (prop.shorthand) {
+      value = lowerExpr(prop.key);
+    } else {
+      value = lowerExpr(prop.value);
+    }
+    props.push({ key: keyStr, value });
   }
+  const propTypes = props.map((p) => ({ name: p.key, type: p.value.type }));
   return {
-    kind: "alloc_map",
-    keyType: mt.key,
-    valueType: mt.value,
+    kind: "alloc_dynobj",
+    props,
     spreadSource,
-    entries,
-    type: expectedMapType,
+    type: { kind: "dynobj" as const, props: propTypes },
   };
 }
 
@@ -2893,7 +2917,12 @@ export function lowerMember(expr: MemberExpression): HIRExpr {
     setExpectedDeclType(savedDeclType);
     if (objExpr.type.kind === "dynobj" && expr.property.type === "Identifier") {
       const key: HIRExpr = { kind: "literal_string", value: expr.property.value, type: I8PTR };
-      return dynobj_get_typed(objExpr, key, savedDeclType);
+      let targetType = savedDeclType;
+      if (!targetType && objExpr.type.props) {
+        const propInfo = objExpr.type.props.find((p: { name: string; type: HIRType }) => p.name === expr.property.value);
+        if (propInfo) targetType = propInfo.type;
+      }
+      return dynobj_get_typed(objExpr, key, targetType);
     }
   }
 

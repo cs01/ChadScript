@@ -77,6 +77,10 @@ function findClosureFuncNames(mod: HIRModule, names: Set<string>): void {
     if ("condition" in expr && expr.condition) scanExpr(expr.condition as HIRExpr);
     if ("then" in expr && expr.then && typeof expr.then === "object" && "kind" in expr.then)
       scanExpr(expr.then as HIRExpr);
+    if ("props" in expr && Array.isArray(expr.props))
+      for (const p of expr.props as { value: HIRExpr }[]) scanExpr(p.value);
+    if ("spreadSource" in expr && expr.spreadSource)
+      scanExpr(expr.spreadSource as HIRExpr);
   }
   function scanStmts(stmts: HIRStmt[]): void {
     for (const s of stmts) {

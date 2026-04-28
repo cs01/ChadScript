@@ -62,6 +62,17 @@ export function lowerFunctionDecl(decl: FunctionDeclaration): HIRFunction {
 
   const body = decl.body ? lowerBlock(decl.body) : [];
 
+  if (returnType.kind === "void") {
+    for (const s of body) {
+      if (s.kind === "return" && s.value) {
+        returnType = s.value.type;
+        break;
+      }
+    }
+  }
+
+  functionRegistry.set(decl.identifier.value, { params, returnType });
+
   const fn: HIRFunction = {
     name: decl.identifier.value,
     params,
@@ -212,6 +223,15 @@ export function lowerNestedFunctionDecl(decl: FunctionDeclaration): HIRFunction 
   setIsModuleScope(false);
   const body = decl.body ? lowerBlock(decl.body) : [];
   setIsModuleScope(true);
+
+  if (returnType.kind === "void") {
+    for (const s of body) {
+      if (s.kind === "return" && s.value) {
+        returnType = s.value.type;
+        break;
+      }
+    }
+  }
 
   const captures = Array.from(capturedIds);
 

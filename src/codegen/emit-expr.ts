@@ -128,6 +128,8 @@ export function emitExpr(ctx: EmitContext, expr: HIRExpr): any {
       return emitAllocStruct(ctx, expr as HIRExpr & { kind: "alloc_struct" });
     case "alloc_map":
       return emitAllocMap(ctx, expr as HIRExpr & { kind: "alloc_map" });
+    case "alloc_dynobj":
+      return emitAllocDynObj(ctx, expr as HIRExpr & { kind: "alloc_dynobj" });
     case "field_get":
       return emitFieldGet(ctx, expr as HIRExpr & { kind: "field_get" });
     case "field_set":
@@ -284,6 +286,68 @@ function emitAllocMap(
   }
 
   return mapPtr;
+}
+
+function dynObjSetFunc(ctx: EmitContext, valueType: HIRType): { fn: any; fnType: any } | null {
+  switch (valueType.kind) {
+    case "f64":
+      return ctx.getDeclaredFunction("cs2_dynobj_set_f64")!;
+    case "i64":
+      return ctx.getDeclaredFunction("cs2_dynobj_set_f64")!;
+    case "i8ptr":
+      return ctx.getDeclaredFunction("cs2_dynobj_set_str")!;
+    case "i1":
+      return ctx.getDeclaredFunction("cs2_dynobj_set_bool")!;
+    case "dynobj":
+      return ctx.getDeclaredFunction("cs2_dynobj_set_obj")!;
+    case "dynarray":
+      return ctx.getDeclaredFunction("cs2_dynobj_set_arr")!;
+    case "boxed":
+      return ctx.getDeclaredFunction("cs2_dynobj_set_f64")!;
+    default:
+      return null;
+  }
+}
+
+function emitAllocDynObj(
+  ctx: EmitContext,
+  expr: HIRExpr & { kind: "alloc_dynobj" },
+): any {
+  const m = ctx.m;
+  let objPtr: any;
+
+  if (expr.spreadSource) {
+    const src = emitExpr(ctx, expr.spreadSource);
+    const copyFn = ctx.getDeclaredFunction("cs2_dynobj_copy");
+    if (copyFn) {
+      objPtr = m.buildCall(copyFn.fnType, copyFn.fn, [src], "obj");
+    } else {
+      const newFn = ctx.getDeclaredFunction("cs2_dynobj_new")!;
+      objPtr = m.buildCall(newFn.fnType, newFn.fn, [], "obj");
+    }
+  } else {
+    const newFn = ctx.getDeclaredFunction("cs2_dynobj_new")!;
+    objPtr = m.buildCall(newFn.fnType, newFn.fn, [], "obj");
+  }
+
+  for (const prop of expr.props) {
+    const keyVal = m.buildGlobalStringPtr(prop.key, "");
+    const val = emitExpr(ctx, prop.value);
+    const setFn = dynObjSetFunc(ctx, prop.value.type);
+    if (setFn) {
+      if (prop.value.type.kind === "i64") {
+        const asF64 = m.buildSIToFP(val, m.f64, "");
+        m.buildCall(setFn.fnType, setFn.fn, [objPtr, keyVal, asF64], "");
+      } else if (prop.value.type.kind === "i1") {
+        const asI32 = m.buildZExt(val, m.i32, "");
+        m.buildCall(setFn.fnType, setFn.fn, [objPtr, keyVal, asI32], "");
+      } else {
+        m.buildCall(setFn.fnType, setFn.fn, [objPtr, keyVal, val], "");
+      }
+    }
+  }
+
+  return objPtr;
 }
 
 function emitFieldGet(ctx: EmitContext, expr: HIRExpr & { kind: "field_get" }): any {

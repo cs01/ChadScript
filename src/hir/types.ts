@@ -13,7 +13,7 @@ export type HIRType =
   | { kind: "map"; key: HIRType; value: HIRType }
   | { kind: "set"; element: HIRType }
   | { kind: "regex" }
-  | { kind: "dynobj" }
+  | { kind: "dynobj"; props?: { name: string; type: HIRType }[] }
   | { kind: "dynarray" };
 
 export interface HIRField {
@@ -127,6 +127,12 @@ export type HIRExpr =
       valueType: HIRType;
       spreadSource?: HIRExpr;
       entries: { key: HIRExpr; value: HIRExpr }[];
+      type: HIRType;
+    }
+  | {
+      kind: "alloc_dynobj";
+      props: { key: string; value: HIRExpr }[];
+      spreadSource?: HIRExpr;
       type: HIRType;
     }
   | {
