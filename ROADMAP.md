@@ -445,6 +445,10 @@ Note: if useful, you can make use of c_bridges in main barnch rather than rewrit
 - [x] `string.lastIndexOf`, `string.replaceAll`, `string.at` — extended string methods
 - [x] `Array.at()` — negative index support for number and string arrays
 - [x] `console.log(array)` — formatted array printing matching Node output
+- [x] `Array.sort(comparator)` — custom sort with comparison callback, `Array.fill()`
+- [x] `Number` constants — MAX_SAFE_INTEGER, MIN_SAFE_INTEGER, EPSILON, POSITIVE_INFINITY, NaN
+- [x] `Number.parseInt`, `Number.parseFloat` — static method aliases
+- [x] NaN/Infinity printing — correct "NaN", "Infinity", "-Infinity" format matching Node
 - [ ] `fetch` API — async `fetch(url)` returning `Promise<Response>` with `.text()`, `.json()`, `.status` (needs AsyncLoweringPass or thread-based approach)
 - [ ] `express` compat — `npm install express` and compile real Express apps (needs: `require()`, `node_modules` resolution, dynamic object patterns, middleware chains)
 - [ ] **Milestone:** Real-world programs compile and run. Express-like server works.
