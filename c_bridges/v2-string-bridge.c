@@ -156,6 +156,121 @@ char *cs2_str_from_char_code(int32_t code) {
     return result;
 }
 
+typedef struct {
+    char **data;
+    int32_t length;
+    int32_t capacity;
+} CS2StrArray;
+
+CS2StrArray *cs2_str_split(const char *s, const char *sep) {
+    CS2StrArray *arr = (CS2StrArray *)malloc(sizeof(CS2StrArray));
+    arr->capacity = 8;
+    arr->data = (char **)malloc(sizeof(char *) * arr->capacity);
+    arr->length = 0;
+
+    size_t sep_len = strlen(sep);
+    if (sep_len == 0) {
+        size_t len = strlen(s);
+        for (size_t i = 0; i < len; i++) {
+            if (arr->length >= arr->capacity) {
+                arr->capacity *= 2;
+                arr->data = (char **)realloc(arr->data, sizeof(char *) * arr->capacity);
+            }
+            char *ch = (char *)malloc(2);
+            ch[0] = s[i];
+            ch[1] = '\0';
+            arr->data[arr->length++] = ch;
+        }
+        return arr;
+    }
+
+    const char *start = s;
+    const char *found;
+    while ((found = strstr(start, sep)) != NULL) {
+        if (arr->length >= arr->capacity) {
+            arr->capacity *= 2;
+            arr->data = (char **)realloc(arr->data, sizeof(char *) * arr->capacity);
+        }
+        size_t part_len = found - start;
+        char *part = (char *)malloc(part_len + 1);
+        memcpy(part, start, part_len);
+        part[part_len] = '\0';
+        arr->data[arr->length++] = part;
+        start = found + sep_len;
+    }
+    if (arr->length >= arr->capacity) {
+        arr->capacity *= 2;
+        arr->data = (char **)realloc(arr->data, sizeof(char *) * arr->capacity);
+    }
+    size_t rest_len = strlen(start);
+    char *rest = (char *)malloc(rest_len + 1);
+    memcpy(rest, start, rest_len + 1);
+    arr->data[arr->length++] = rest;
+    return arr;
+}
+
+char *cs2_str_pad_start(const char *s, int32_t target_len, const char *pad) {
+    int32_t len = (int32_t)strlen(s);
+    if (len >= target_len) {
+        char *copy = (char *)malloc(len + 1);
+        memcpy(copy, s, len + 1);
+        return copy;
+    }
+    int32_t pad_needed = target_len - len;
+    size_t pad_len = strlen(pad);
+    if (pad_len == 0) pad_len = 1;
+    char *result = (char *)malloc(target_len + 1);
+    for (int32_t i = 0; i < pad_needed; i++) {
+        result[i] = pad[i % pad_len];
+    }
+    memcpy(result + pad_needed, s, len + 1);
+    return result;
+}
+
+char *cs2_str_pad_end(const char *s, int32_t target_len, const char *pad) {
+    int32_t len = (int32_t)strlen(s);
+    if (len >= target_len) {
+        char *copy = (char *)malloc(len + 1);
+        memcpy(copy, s, len + 1);
+        return copy;
+    }
+    int32_t pad_needed = target_len - len;
+    size_t pad_len = strlen(pad);
+    if (pad_len == 0) pad_len = 1;
+    char *result = (char *)malloc(target_len + 1);
+    memcpy(result, s, len);
+    for (int32_t i = 0; i < pad_needed; i++) {
+        result[len + i] = pad[i % pad_len];
+    }
+    result[target_len] = '\0';
+    return result;
+}
+
+char *cs2_str_trim_start(const char *s) {
+    while (*s && isspace((unsigned char)*s)) s++;
+    size_t len = strlen(s);
+    char *result = (char *)malloc(len + 1);
+    memcpy(result, s, len + 1);
+    return result;
+}
+
+char *cs2_str_trim_end(const char *s) {
+    size_t len = strlen(s);
+    while (len > 0 && isspace((unsigned char)s[len - 1])) len--;
+    char *result = (char *)malloc(len + 1);
+    memcpy(result, s, len);
+    result[len] = '\0';
+    return result;
+}
+
+double cs2_parse_float(const char *s) {
+    return atof(s);
+}
+
+double cs2_parse_int(const char *s) {
+    return (double)atoi(s);
+}
+
 double cs2_math_random(void) {
     static int seeded = 0;
     if (!seeded) { srand(42); seeded = 1; }

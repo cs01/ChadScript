@@ -853,6 +853,24 @@ function lowerCall(expr: CallExpression): HIRExpr {
         type: VOID,
       };
     }
+    if (calleeName_ === "parseFloat") {
+      return {
+        kind: "runtime_call",
+        func: "cs2_parse_float",
+        args: [lowerExpr(expr.arguments[0].expression)],
+        returnType: F64,
+        type: F64,
+      };
+    }
+    if (calleeName_ === "parseInt") {
+      return {
+        kind: "runtime_call",
+        func: "cs2_parse_int",
+        args: [lowerExpr(expr.arguments[0].expression)],
+        returnType: F64,
+        type: F64,
+      };
+    }
     if (calleeName_ === "fetch") {
       return {
         kind: "runtime_call",
@@ -1664,11 +1682,24 @@ function lowerStringMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
       repeat: { func: "cs2_str_repeat", returnType: I8PTR, argTypes: [I64] },
       replace: { func: "cs2_str_replace", returnType: I8PTR, argTypes: [I8PTR, I8PTR] },
       charCodeAt: { func: "cs2_str_char_code_at", returnType: I64, argTypes: [I64] },
+      split: {
+        func: "cs2_str_split",
+        returnType: { kind: "array", element: I8PTR },
+        argTypes: [I8PTR],
+      },
+      padStart: { func: "cs2_str_pad_start", returnType: I8PTR, argTypes: [I64, I8PTR] },
+      padEnd: { func: "cs2_str_pad_end", returnType: I8PTR, argTypes: [I64, I8PTR] },
+      trimStart: { func: "cs2_str_trim_start", returnType: I8PTR },
+      trimEnd: { func: "cs2_str_trim_end", returnType: I8PTR },
     };
 
   const info = strMethodMap[method];
   if (!info) {
     compileError(`unsupported string method: ${method}`, expr.span);
+  }
+
+  if ((method === "padStart" || method === "padEnd") && args.length === 1) {
+    args.push({ kind: "literal_string", value: " ", type: I8PTR });
   }
 
   const coercedArgs = info.argTypes ? args.map((a, i) => coerce(a, info.argTypes![i])) : [];
