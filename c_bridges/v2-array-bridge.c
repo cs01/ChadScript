@@ -41,6 +41,12 @@ double cs2_num_array_get(NumArray *arr, int32_t index) {
     return arr->data[index];
 }
 
+void cs2_num_array_fill(NumArray *arr, double value) {
+    for (int32_t i = 0; i < arr->length; i++) {
+        arr->data[i] = value;
+    }
+}
+
 double cs2_num_array_at(NumArray *arr, int32_t index) {
     if (index < 0) index += arr->length;
     if (index < 0 || index >= arr->length) return 0.0;
