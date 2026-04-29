@@ -70,7 +70,14 @@ export function lowerPythonModule(
       case "if_statement":
       case "while_statement":
       case "for_statement":
+      case "try_statement":
+      case "delete_statement":
+      case "raise_statement":
         initStmts.push(...lowerStmt(child));
+        break;
+      case "import_statement":
+      case "import_from_statement":
+      case "comment":
         break;
       default:
         throw new Error(`unsupported top-level node: ${child.type}`);
@@ -136,7 +143,7 @@ function registerFunction(node: SyntaxNode): void {
 
   for (let i = 0; i < paramsNode.namedChildCount; i++) {
     const p = paramsNode.namedChild(i)!;
-    if (p.type === "typed_parameter") {
+    if (p.type === "typed_parameter" || p.type === "typed_default_parameter") {
       params.push(resolveType(p.childForFieldName("type")!));
     } else {
       params.push(BOXED);
@@ -160,7 +167,7 @@ function lowerFunction(node: SyntaxNode): HIRFunction {
 
   for (let i = 0; i < paramsNode.namedChildCount; i++) {
     const p = paramsNode.namedChild(i)!;
-    if (p.type === "typed_parameter") {
+    if (p.type === "typed_parameter" || p.type === "typed_default_parameter") {
       const pName = p.namedChild(0)!.text;
       const pTypeNode = p.childForFieldName("type")!;
       const pType = resolveType(pTypeNode);
@@ -254,7 +261,7 @@ function lowerInitPair(
   for (let i = 0; i < paramsNode.namedChildCount; i++) {
     const p = paramsNode.namedChild(i)!;
     if (p.type === "identifier" && p.text === "self") continue;
-    if (p.type === "typed_parameter") {
+    if (p.type === "typed_parameter" || p.type === "typed_default_parameter") {
       const pName = p.namedChild(0)!.text;
       const pType = resolveType(p.childForFieldName("type")!);
       const id = freshId();
@@ -348,7 +355,7 @@ function lowerMethod(
   for (let i = 0; i < paramsNode.namedChildCount; i++) {
     const p = paramsNode.namedChild(i)!;
     if (p.type === "identifier" && p.text === "self") continue;
-    if (p.type === "typed_parameter") {
+    if (p.type === "typed_parameter" || p.type === "typed_default_parameter") {
       const pName = p.namedChild(0)!.text;
       const pType = resolveType(p.childForFieldName("type")!);
       const id = freshId();
@@ -421,6 +428,21 @@ function lowerStmt(node: SyntaxNode): HIRStmt[] {
       return [];
     case "augmented_assignment":
       return lowerAugmentedAssignment(node);
+    case "try_statement":
+      return [lowerTryCatch(node)];
+    case "raise_statement":
+      return [lowerRaise(node)];
+    case "delete_statement":
+      return lowerDelete(node);
+    case "assert_statement":
+    case "import_statement":
+    case "import_from_statement":
+    case "global_statement":
+    case "nonlocal_statement":
+      return [];
+    case "function_definition":
+      lowerFunction(node);
+      return [];
     default:
       throw new Error(`unsupported statement: ${node.type}`);
   }
@@ -448,18 +470,28 @@ function lowerAssignment(node: SyntaxNode): HIRStmt[] {
     const arrExpr = lowerExpr(nameNode.namedChild(0)!);
     const idxExpr = lowerExpr(nameNode.namedChild(1)!);
     const val = lowerExpr(valueNode!);
-    return [
-      {
+    if (arrExpr.type.kind === "map") {
+      const mt = arrExpr.type as { kind: "map"; key: HIRType; value: HIRType };
+      const prefix = mapPrefix(mt.key, mt.value);
+      return [{
         kind: "expr",
         expr: {
-          kind: "index_set",
-          array: arrExpr,
-          index: coerceTo(idxExpr, I64),
-          value: val,
-          type: val.type,
+          kind: "runtime_call",
+          func: `${prefix}_set`,
+          args: [arrExpr, coerceTo(idxExpr, mt.key), coerceTo(val, mt.value)],
+          returnType: VOID,
+          type: VOID,
         },
-      },
-    ];
+      }];
+    }
+    return [{
+      kind: "expr",
+      expr: { kind: "index_set", array: arrExpr, index: coerceTo(idxExpr, I64), value: val, type: val.type },
+    }];
+  }
+
+  if (nameNode.type === "pattern_list") {
+    return lowerPatternUnpack(nameNode, valueNode);
   }
 
   const name = nameNode.text;
@@ -659,7 +691,25 @@ function lowerFor(node: SyntaxNode): HIRStmt[] {
     return lowerRangeFor(left, right, body);
   }
 
-  return lowerArrayFor(left, right, body);
+  // dict.items() or dict.keys()
+  if (right.type === "call") {
+    const fn = right.childForFieldName("function");
+    if (fn?.type === "attribute") {
+      const method = fn.namedChild(1)!.text;
+      if (method === "items" || method === "keys") {
+        const dictExpr = lowerExpr(fn.namedChild(0)!);
+        if (dictExpr.type.kind === "map") {
+          return lowerMapFor(left, dictExpr, body, method === "items");
+        }
+      }
+    }
+  }
+
+  const iterExpr = lowerExpr(right);
+  if (iterExpr.type.kind === "map") {
+    return lowerMapFor(left, iterExpr, body, left.type === "pattern_list");
+  }
+  return lowerArrayFor(left, iterExpr, body);
 }
 
 function lowerRangeFor(left: SyntaxNode, call: SyntaxNode, body: SyntaxNode): HIRStmt[] {
@@ -714,8 +764,85 @@ function lowerRangeFor(left: SyntaxNode, call: SyntaxNode, body: SyntaxNode): HI
   ];
 }
 
-function lowerArrayFor(left: SyntaxNode, right: SyntaxNode, body: SyntaxNode): HIRStmt[] {
-  const arrExpr = lowerExpr(right);
+function mapPrefix(keyType: HIRType, valueType: HIRType): string {
+  const k = keyType.kind === "i8ptr" ? "str" : "num";
+  const v = valueType.kind === "i8ptr" ? "str" : "num";
+  return `cs2_${k}_${v}_map`;
+}
+
+function lowerMapFor(left: SyntaxNode, mapExpr: HIRExpr, body: SyntaxNode, unpack: boolean): HIRStmt[] {
+  const mt = mapExpr.type as { kind: "map"; key: HIRType; value: HIRType };
+  const prefix = mapPrefix(mt.key, mt.value);
+  const mapType: HIRType = { kind: "map", key: mt.key, value: mt.value };
+
+  const mapId = freshId();
+  const iId = freshId();
+  locals.set("__formap_map", { id: mapId, name: "__formap_map", type: mapType });
+  locals.set("__formap_i", { id: iId, name: "__formap_i", type: I64 });
+
+  const mapRef: HIRExpr = { kind: "local_get", id: mapId, type: mapType };
+  const iRef: HIRExpr = { kind: "local_get", id: iId, type: I64 };
+
+  const sizeExpr: HIRExpr = {
+    kind: "runtime_call",
+    func: `${prefix}_size`,
+    args: [mapRef],
+    returnType: I64,
+    type: I64,
+  };
+
+  const bodyVars: HIRStmt[] = [];
+
+  if (unpack && left.type === "pattern_list") {
+    const kvNames = namedChildren(left).map((c) => c.text);
+    const keyName = kvNames[0];
+    const valName = kvNames[1];
+    if (keyName) {
+      const keyId = freshId();
+      locals.set(keyName, { id: keyId, name: keyName, type: mt.key });
+      bodyVars.push({
+        kind: "let", id: keyId, name: keyName, type: mt.key,
+        init: { kind: "runtime_call", func: `${prefix}_key_at`, args: [mapRef, iRef], returnType: mt.key, type: mt.key },
+        mutable: false,
+      });
+    }
+    if (valName) {
+      const valId = freshId();
+      locals.set(valName, { id: valId, name: valName, type: mt.value });
+      bodyVars.push({
+        kind: "let", id: valId, name: valName, type: mt.value,
+        init: { kind: "runtime_call", func: `${prefix}_value_at`, args: [mapRef, iRef], returnType: mt.value, type: mt.value },
+        mutable: false,
+      });
+    }
+  } else {
+    const keyName = left.text;
+    const keyId = freshId();
+    locals.set(keyName, { id: keyId, name: keyName, type: mt.key });
+    bodyVars.push({
+      kind: "let", id: keyId, name: keyName, type: mt.key,
+      init: { kind: "runtime_call", func: `${prefix}_key_at`, args: [mapRef, iRef], returnType: mt.key, type: mt.key },
+      mutable: false,
+    });
+  }
+
+  return [
+    { kind: "let", id: mapId, name: "__formap_map", type: mapType, init: mapExpr, mutable: false },
+    { kind: "let", id: iId, name: "__formap_i", type: I64, init: { kind: "literal_i64", value: 0, type: I64 }, mutable: true },
+    {
+      kind: "for",
+      condition: { kind: "binary", op: "lt", left: iRef, right: sizeExpr, type: I1 },
+      update: {
+        kind: "local_set", id: iId,
+        value: { kind: "binary", op: "add", left: iRef, right: { kind: "literal_i64", value: 1, type: I64 }, type: I64 },
+        type: I64,
+      },
+      body: [...bodyVars, ...lowerBlock(body)],
+    },
+  ];
+}
+
+function lowerArrayFor(left: SyntaxNode, arrExpr: HIRExpr, body: SyntaxNode): HIRStmt[] {
   if (arrExpr.type.kind !== "array") {
     throw new Error(`for...in requires array type, got ${arrExpr.type.kind}`);
   }
@@ -816,6 +943,11 @@ function lowerExpr(node: SyntaxNode): HIRExpr {
       return lowerExpr(node.namedChild(0)!);
     case "list":
       return lowerListLiteral(node);
+    case "dictionary":
+      return lowerDictLiteral(node);
+    case "tuple":
+    case "expression_list":
+      return lowerTupleLiteral(node);
     case "subscript":
       return lowerSubscript(node);
     case "attribute":
@@ -892,11 +1024,17 @@ function lowerSubscript(node: SyntaxNode): HIRExpr {
   const arr = lowerExpr(node.namedChild(0)!);
   const idx = lowerExpr(node.namedChild(1)!);
   if (arr.type.kind === "array") {
+    return { kind: "index_get", array: arr, index: coerceTo(idx, I64), type: arr.type.element };
+  }
+  if (arr.type.kind === "map") {
+    const mt = arr.type as { kind: "map"; key: HIRType; value: HIRType };
+    const prefix = mapPrefix(mt.key, mt.value);
     return {
-      kind: "index_get",
-      array: arr,
-      index: coerceTo(idx, I64),
-      type: arr.type.element,
+      kind: "runtime_call",
+      func: `${prefix}_get`,
+      args: [arr, coerceTo(idx, mt.key)],
+      returnType: mt.value,
+      type: mt.value,
     };
   }
   if (arr.type.kind === "i8ptr") {
@@ -996,22 +1134,49 @@ function lowerComparison(node: SyntaxNode): HIRExpr {
   const left = lowerExpr(node.namedChild(0)!);
   const right = lowerExpr(node.namedChild(1)!);
 
-  let opText = "";
+  const opParts: string[] = [];
   for (let i = 0; i < node.childCount; i++) {
     const c = node.child(i)!;
-    if (!c.isNamed && c.text !== "(" && c.text !== ")") {
-      opText = c.text;
-      break;
+    if (!c.isNamed) {
+      const t = c.text.trim();
+      if (t) opParts.push(t);
     }
+  }
+  const opText = opParts.join(" ");
+
+  if (opText === "in" || opText === "not in") {
+    const rightType = right.type;
+    if (rightType.kind === "map") {
+      const mt = rightType as { kind: "map"; key: HIRType; value: HIRType };
+      const prefix = mapPrefix(mt.key, mt.value);
+      const hasExpr: HIRExpr = {
+        kind: "runtime_call",
+        func: `${prefix}_has`,
+        args: [right, coerceTo(left, mt.key)],
+        returnType: I1,
+        type: I1,
+      };
+      return opText === "not in"
+        ? { kind: "unary", op: "not", operand: hasExpr, type: I1 }
+        : hasExpr;
+    }
+    throw new Error(`'${opText}' not supported for type: ${rightType.kind}`);
+  }
+
+  if (opText === "is" || opText === "is not") {
+    const commonType = resolveArithResultType(left.type, right.type);
+    const cmp: HIRExpr = {
+      kind: "binary",
+      op: "eq",
+      left: coerceTo(left, commonType),
+      right: coerceTo(right, commonType),
+      type: I1,
+    };
+    return opText === "is not" ? { kind: "unary", op: "not", operand: cmp, type: I1 } : cmp;
   }
 
   const opMap: Record<string, string> = {
-    "==": "eq",
-    "!=": "ne",
-    "<": "lt",
-    "<=": "le",
-    ">": "gt",
-    ">=": "ge",
+    "==": "eq", "!=": "ne", "<": "lt", "<=": "le", ">": "gt", ">=": "ge",
   };
   const hirOp = opMap[opText];
   if (!hirOp) throw new Error(`unsupported comparison operator: ${opText}`);
@@ -1090,6 +1255,10 @@ function lowerCall(node: SyntaxNode): HIRExpr {
       const prefix = arg.type.element.kind === "i8ptr" ? "cs2_str_array" : "cs2_num_array";
       return { kind: "runtime_call", func: `${prefix}_length`, args: [arg], returnType: I64, type: I64 };
     }
+    if (arg.type.kind === "map") {
+      const mt = arg.type as { kind: "map"; key: HIRType; value: HIRType };
+      return { kind: "runtime_call", func: `${mapPrefix(mt.key, mt.value)}_size`, args: [arg], returnType: I64, type: I64 };
+    }
     if (arg.type.kind === "i8ptr") {
       return { kind: "runtime_call", func: "cs2_str_length", args: [arg], returnType: I64, type: I64 };
     }
@@ -1134,6 +1303,15 @@ function lowerCall(node: SyntaxNode): HIRExpr {
     return { kind: "literal_i1", value: false, type: I1 };
   }
 
+  if (funcName === "dict") {
+    const mapType: HIRType = { kind: "map", key: I8PTR, value: I8PTR };
+    return { kind: "alloc_map", keyType: I8PTR, valueType: I8PTR, entries: [], type: mapType };
+  }
+
+  if (funcName === "list") {
+    return { kind: "alloc_array", elementType: F64, initialValues: [], type: { kind: "array", element: F64 } };
+  }
+
   const classInfo = classes.get(funcName);
   if (classInfo) {
     const thisType: HIRType = { kind: "ptr", pointee: funcName };
@@ -1171,6 +1349,42 @@ function lowerMethodCall(attrNode: SyntaxNode, args: HIRExpr[]): HIRExpr {
         returnType,
         type: returnType,
       };
+    }
+  }
+
+  if (obj.type.kind === "map") {
+    const mt = obj.type as { kind: "map"; key: HIRType; value: HIRType };
+    const prefix = mapPrefix(mt.key, mt.value);
+    const mapType = obj.type;
+    switch (methodName) {
+      case "get": {
+        const getExpr: HIRExpr = {
+          kind: "runtime_call",
+          func: `${prefix}_get`,
+          args: [obj, coerceTo(args[0], mt.key)],
+          returnType: mt.value,
+          type: mt.value,
+        };
+        return getExpr;
+      }
+      case "pop":
+        return { kind: "runtime_call", func: `${prefix}_delete`, args: [obj, coerceTo(args[0], mt.key)], returnType: I64, type: I64 };
+      case "keys":
+        return { kind: "runtime_call", func: `${prefix}_keys`, args: [obj], returnType: { kind: "array", element: mt.key }, type: { kind: "array", element: mt.key } };
+      case "values":
+        return { kind: "runtime_call", func: `${prefix}_values`, args: [obj], returnType: { kind: "array", element: mt.value }, type: { kind: "array", element: mt.value } };
+      case "items":
+        return obj;
+      case "clear":
+        return { kind: "runtime_call", func: `${prefix}_clear`, args: [obj], returnType: VOID, type: VOID };
+      case "update": {
+        if (args.length > 0) {
+          return { kind: "runtime_call", func: `${prefix}_copy`, args: [args[0]], returnType: mapType, type: mapType };
+        }
+        return obj;
+      }
+      default:
+        throw new Error(`unsupported map method: ${methodName}`);
     }
   }
 
@@ -1266,9 +1480,17 @@ function resolveType(node: SyntaxNode): HIRType {
     if (baseName === "list" && typeParams) {
       const elemNode = typeParams.namedChild(0);
       const elemType = elemNode ? resolveType(elemNode) : F64;
-      // num arrays store f64; use F64 for int too to match storage
       const storageType = elemType.kind === "i64" ? F64 : elemType;
       return { kind: "array", element: storageType };
+    }
+    if (baseName === "dict" && typeParams) {
+      const keyNode = typeParams.namedChild(0);
+      const valNode = typeParams.namedChild(1);
+      const rawKey = keyNode ? resolveType(keyNode) : I8PTR;
+      const rawVal = valNode ? resolveType(valNode) : I8PTR;
+      const keyType = rawKey.kind === "i64" ? F64 : rawKey;
+      const valType = rawVal.kind === "i64" ? F64 : rawVal;
+      return { kind: "map", key: keyType, value: valType };
     }
     return BOXED;
   }
@@ -1300,6 +1522,20 @@ function inferType(node: SyntaxNode): HIRType {
       const t = inferType(first);
       return { kind: "array", element: t.kind === "i64" ? F64 : t };
     }
+    case "dictionary": {
+      if (node.namedChildCount === 0) return { kind: "map", key: I8PTR, value: I8PTR };
+      const pair = node.namedChild(0)!;
+      if (pair.type === "pair") {
+        const kRaw = inferType(pair.namedChild(0)!);
+        const vRaw = inferType(pair.namedChild(1)!);
+        return {
+          kind: "map",
+          key: kRaw.kind === "i64" ? F64 : kRaw,
+          value: vRaw.kind === "i64" ? F64 : vRaw,
+        };
+      }
+      return { kind: "map", key: I8PTR, value: I8PTR };
+    }
     default: return BOXED;
   }
 }
@@ -1311,6 +1547,7 @@ function defaultValue(type: HIRType): HIRExpr {
     case "i1": return { kind: "literal_i1", value: false, type: I1 };
     case "i8ptr": return { kind: "literal_string", value: "", type: I8PTR };
     case "array": return { kind: "alloc_array", elementType: type.element, initialValues: [], type };
+    case "map": return { kind: "alloc_map", keyType: type.key, valueType: type.value, entries: [], type };
     default: return { kind: "literal_null", type: { kind: "ptr", pointee: "" } };
   }
 }
@@ -1343,4 +1580,175 @@ function namedChildren(node: SyntaxNode): SyntaxNode[] {
   const result: SyntaxNode[] = [];
   for (let i = 0; i < node.namedChildCount; i++) result.push(node.namedChild(i)!);
   return result;
+}
+
+function lowerDictLiteral(node: SyntaxNode): HIRExpr {
+  const entries: { key: HIRExpr; value: HIRExpr }[] = [];
+  let keyType: HIRType = I8PTR;
+  let valType: HIRType = I8PTR;
+
+  for (let i = 0; i < node.namedChildCount; i++) {
+    const pair = node.namedChild(i)!;
+    if (pair.type !== "pair") continue;
+    const k = lowerExpr(pair.namedChild(0)!);
+    const v = lowerExpr(pair.namedChild(1)!);
+    if (i === 0) {
+      keyType = k.type.kind === "i64" ? F64 : k.type;
+      valType = v.type.kind === "i64" ? F64 : v.type;
+    }
+    entries.push({ key: coerceTo(k, keyType), value: coerceTo(v, valType) });
+  }
+
+  const mapType: HIRType = { kind: "map", key: keyType, value: valType };
+  return { kind: "alloc_map", keyType, valueType: valType, entries, type: mapType };
+}
+
+function lowerTupleLiteral(node: SyntaxNode): HIRExpr {
+  const elems = namedChildren(node).map((c) => lowerExpr(c));
+  if (elems.length === 0) {
+    return { kind: "alloc_array", elementType: F64, initialValues: [], type: { kind: "array", element: F64 } };
+  }
+  const elemType = elems[0].type.kind === "i64" ? F64 : elems[0].type;
+  return {
+    kind: "alloc_array",
+    elementType: elemType,
+    initialValues: elems.map((e) => coerceTo(e, elemType)),
+    type: { kind: "array", element: elemType },
+  };
+}
+
+function lowerPatternUnpack(patternNode: SyntaxNode, valueNode: SyntaxNode | null): HIRStmt[] {
+  const names = namedChildren(patternNode).map((c) => c.text);
+  const stmts: HIRStmt[] = [];
+
+  if (valueNode && (valueNode.type === "tuple" || valueNode.type === "expression_list")) {
+    const values = namedChildren(valueNode).map((c) => lowerExpr(c));
+    for (let i = 0; i < names.length; i++) {
+      const name = names[i];
+      const val = values[i] ?? { kind: "literal_i64" as const, value: 0, type: I64 };
+      const existing = locals.get(name);
+      if (existing) {
+        stmts.push({ kind: "expr", expr: { kind: "local_set", id: existing.id, value: coerceTo(val, existing.type), type: existing.type } });
+      } else {
+        const id = freshId();
+        locals.set(name, { id, name, type: val.type });
+        stmts.push({ kind: "let", id, name, type: val.type, init: val, mutable: true });
+      }
+    }
+  } else {
+    const rhs = valueNode ? lowerExpr(valueNode) : { kind: "literal_null" as const, type: VOID };
+    const arrType = rhs.type.kind === "array" ? rhs.type : { kind: "array" as const, element: F64 as HIRType };
+    const elemType = arrType.kind === "array" ? arrType.element : F64;
+    const tmpId = freshId();
+    stmts.push({ kind: "let", id: tmpId, name: "__unpack", type: rhs.type, init: rhs as HIRExpr, mutable: false });
+    for (let i = 0; i < names.length; i++) {
+      const name = names[i];
+      const getExpr: HIRExpr = {
+        kind: "index_get",
+        array: { kind: "local_get", id: tmpId, type: rhs.type as HIRType },
+        index: { kind: "literal_i64", value: i, type: I64 },
+        type: elemType,
+      };
+      const existing = locals.get(name);
+      if (existing) {
+        stmts.push({ kind: "expr", expr: { kind: "local_set", id: existing.id, value: coerceTo(getExpr, existing.type), type: existing.type } });
+      } else {
+        const id = freshId();
+        locals.set(name, { id, name, type: elemType });
+        stmts.push({ kind: "let", id, name, type: elemType, init: getExpr, mutable: true });
+      }
+    }
+  }
+
+  return stmts;
+}
+
+function lowerTryCatch(node: SyntaxNode): HIRStmt {
+  const body = lowerBlock(node.childForFieldName("body")!);
+  let catchClause: { paramId: number; paramName: string; body: HIRStmt[] } | undefined;
+  let finallyBody: HIRStmt[] | undefined;
+
+  for (let i = 0; i < node.namedChildCount; i++) {
+    const child = node.namedChild(i)!;
+    if (child.type === "except_clause") {
+      let bindingName = "__e";
+      let bodyBlock: SyntaxNode | null = null;
+      for (let j = 0; j < child.namedChildCount; j++) {
+        const c = child.namedChild(j)!;
+        if (c.type === "as_pattern") {
+          const target = c.namedChild(c.namedChildCount - 1)!;
+          const ident = target.type === "as_pattern_target" ? target.namedChild(0) : target;
+          if (ident) bindingName = ident.text;
+        }
+        if (c.type === "block") bodyBlock = c;
+      }
+      if (!bodyBlock) continue;
+      const paramId = freshId();
+      locals.set(bindingName, { id: paramId, name: bindingName, type: I8PTR });
+      catchClause = { paramId, paramName: bindingName, body: lowerBlock(bodyBlock) };
+    }
+    if (child.type === "finally_clause") {
+      const fb = child.childForFieldName("body") ?? child.namedChild(child.namedChildCount - 1)!;
+      finallyBody = lowerBlock(fb);
+    }
+  }
+
+  return { kind: "try", body, catch: catchClause, finally: finallyBody };
+}
+
+function lowerRaise(node: SyntaxNode): HIRStmt {
+  const arg = node.namedChild(0);
+  let value: HIRExpr;
+
+  if (!arg) {
+    value = { kind: "literal_string", value: "exception", type: I8PTR };
+  } else if (arg.type === "call") {
+    const funcNode = arg.childForFieldName("function")!;
+    const argsNode = arg.childForFieldName("arguments")!;
+    if (argsNode.namedChildCount > 0) {
+      const msgArg = lowerExpr(argsNode.namedChild(0)!);
+      value = msgArg.type.kind === "i8ptr" ? msgArg : {
+        kind: "runtime_call",
+        func: "cs_string_concat",
+        args: [{ kind: "literal_string", value: "", type: I8PTR }, msgArg],
+        returnType: I8PTR,
+        type: I8PTR,
+      };
+    } else {
+      value = { kind: "literal_string", value: funcNode.text, type: I8PTR };
+    }
+  } else if (arg.type === "identifier") {
+    const local = locals.get(arg.text);
+    value = local && local.type.kind === "i8ptr"
+      ? { kind: "local_get", id: local.id, type: I8PTR }
+      : { kind: "literal_string", value: arg.text, type: I8PTR };
+  } else {
+    value = { kind: "literal_string", value: "exception", type: I8PTR };
+  }
+
+  return { kind: "throw", value };
+}
+
+function lowerDelete(node: SyntaxNode): HIRStmt[] {
+  const target = node.namedChild(0);
+  if (!target) return [];
+  if (target.type === "subscript") {
+    const obj = lowerExpr(target.namedChild(0)!);
+    const key = lowerExpr(target.namedChild(1)!);
+    if (obj.type.kind === "map") {
+      const mt = obj.type as { kind: "map"; key: HIRType; value: HIRType };
+      const prefix = mapPrefix(mt.key, mt.value);
+      return [{
+        kind: "expr",
+        expr: {
+          kind: "runtime_call",
+          func: `${prefix}_delete`,
+          args: [obj, coerceTo(key, mt.key)],
+          returnType: I64,
+          type: I64,
+        },
+      }];
+    }
+  }
+  return [];
 }
