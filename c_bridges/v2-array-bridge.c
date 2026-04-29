@@ -62,7 +62,7 @@ int32_t cs2_num_array_length(NumArray *arr) {
     return arr->length;
 }
 
-int32_t cs2_num_array_index_of(NumArray *arr, double value) {
+int64_t cs2_num_array_index_of(NumArray *arr, double value) {
     for (int32_t i = 0; i < arr->length; i++) {
         if (arr->data[i] == value) return i;
     }
@@ -282,7 +282,7 @@ int32_t cs2_str_array_length(StrArray *arr) {
     return arr->length;
 }
 
-int32_t cs2_str_array_index_of(StrArray *arr, const char *value) {
+int64_t cs2_str_array_index_of(StrArray *arr, const char *value) {
     for (int32_t i = 0; i < arr->length; i++) {
         if (strcmp(arr->data[i], value) == 0) return i;
     }

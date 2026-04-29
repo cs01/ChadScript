@@ -278,13 +278,28 @@ function lowerComparison(node: SyntaxNode, ctx: LowerCtx): HIRExpr {
         ? { kind: "unary", op: "not", operand: geZero, type: I1 }
         : geZero;
     }
+    if (rightType.kind === "i8ptr") {
+      const includesExpr: HIRExpr = {
+        kind: "runtime_call",
+        func: "cs2_str_includes",
+        args: [right, coerceTo(left, I8PTR)],
+        returnType: I1,
+        type: I1,
+      };
+      return opText === "not in"
+        ? { kind: "unary", op: "not", operand: includesExpr, type: I1 }
+        : includesExpr;
+    }
     throw new Error(`'${opText}' not supported for type: ${rightType.kind}`);
   }
 
   if (opText === "is" || opText === "is not") {
     const isNullCheck = right.type.kind === "void" || (right.kind === "literal_null" as any);
     let cmp: HIRExpr;
-    if (isNullCheck && left.type.kind === "ptr") {
+    if (isNullCheck && left.type.kind === "void") {
+      // both None — always equal
+      cmp = { kind: "literal_i1", value: true, type: I1 };
+    } else if (isNullCheck && (left.type.kind === "ptr" || left.type.kind === "i8ptr")) {
       cmp = { kind: "binary", op: "eq", left, right: { kind: "literal_null", type: left.type }, type: I1 };
     } else {
       const commonType = resolveArithResultType(left.type, right.type);

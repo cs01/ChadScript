@@ -149,15 +149,16 @@ export function lowerAssignment(node: SyntaxNode, ctx: LowerCtx): HIRStmt[] {
   }
 
   const id = ctx.freshId();
-  const init = valueNode ? ctx.lowerExpr(valueNode) : undefined;
+  let init = valueNode ? ctx.lowerExpr(valueNode) : undefined;
   const inferredType = typeNode
     ? resolveType(typeNode, ctx)
     : valueNode
       ? inferType(valueNode)
       : BOXED;
-  const type = inferredType.kind === "boxed" && init && init.type.kind !== "boxed"
+  let type = inferredType.kind === "boxed" && init && init.type.kind !== "boxed"
     ? init.type
     : inferredType;
+  if (type.kind === "void") { type = I8PTR; init = { kind: "literal_null", type: I8PTR }; }
   ctx.locals.set(name, { id, name, type });
   return [{ kind: "let", id, name, type, init, mutable: true }];
 }
