@@ -654,7 +654,7 @@ export function lowerMethodCall(attrNode: SyntaxNode, args: HIRExpr[], ctx: Lowe
         };
       }
       case "pop":
-        return { kind: "runtime_call", func: `${prefix}_delete`, args: [obj, coerceTo(args[0], mt.key)], returnType: I64, type: I64 };
+        return { kind: "runtime_call", func: `${prefix}_pop`, args: [obj, coerceTo(args[0], mt.key)], returnType: mt.value, type: mt.value };
       case "keys":
         return { kind: "runtime_call", func: `${prefix}_keys`, args: [obj], returnType: { kind: "array", element: mt.key }, type: { kind: "array", element: mt.key } };
       case "values":
@@ -665,9 +665,9 @@ export function lowerMethodCall(attrNode: SyntaxNode, args: HIRExpr[], ctx: Lowe
         return { kind: "runtime_call", func: `${prefix}_clear`, args: [obj], returnType: VOID, type: VOID };
       case "update": {
         if (args.length > 0) {
-          return { kind: "runtime_call", func: `${prefix}_copy`, args: [args[0]], returnType: mapType, type: mapType };
+          return { kind: "runtime_call", func: `${prefix}_update`, args: [obj, args[0]], returnType: VOID, type: VOID };
         }
-        return obj;
+        return { kind: "literal_null", type: VOID };
       }
       default:
         throw new Error(`unsupported map method: ${methodName}`);
@@ -750,7 +750,7 @@ export function lowerMethodCall(attrNode: SyntaxNode, args: HIRExpr[], ctx: Lowe
       strip: { func: "cs2_str_trim", returnType: I8PTR },
       lstrip: { func: "cs2_str_trim_start", returnType: I8PTR },
       rstrip: { func: "cs2_str_trim_end", returnType: I8PTR },
-      replace: { func: "cs2_str_replace", returnType: I8PTR },
+      replace: { func: "cs2_str_replace_all", returnType: I8PTR },
       startswith: { func: "cs2_str_starts_with", returnType: I1 },
       endswith: { func: "cs2_str_ends_with", returnType: I1 },
       find: { func: "cs2_str_index_of", returnType: I64 },

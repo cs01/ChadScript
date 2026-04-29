@@ -265,6 +265,32 @@ void cs2_str_str_map_clear(StrStrMap *m) { m->length = 0; }
 void cs2_num_num_map_clear(NumNumMap *m) { m->length = 0; }
 void cs2_num_str_map_clear(NumStrMap *m) { m->length = 0; }
 
+double cs2_str_num_map_pop(StrNumMap *m, const char *key) {
+    int32_t idx = find_str_key(m->keys, m->length, key);
+    if (idx < 0) return 0.0;
+    double val = m->values[idx];
+    m->length--;
+    m->keys[idx] = m->keys[m->length];
+    m->values[idx] = m->values[m->length];
+    return val;
+}
+void cs2_str_num_map_update(StrNumMap *dst, StrNumMap *src) {
+    for (int32_t i = 0; i < src->length; i++) cs2_str_num_map_set(dst, src->keys[i], src->values[i]);
+}
+
+const char *cs2_str_str_map_pop(StrStrMap *m, const char *key) {
+    int32_t idx = find_str_key(m->keys, m->length, key);
+    if (idx < 0) return "";
+    const char *val = m->values[idx];
+    m->length--;
+    m->keys[idx] = m->keys[m->length];
+    m->values[idx] = m->values[m->length];
+    return val;
+}
+void cs2_str_str_map_update(StrStrMap *dst, StrStrMap *src) {
+    for (int32_t i = 0; i < src->length; i++) cs2_str_str_map_set(dst, src->keys[i], src->values[i]);
+}
+
 StrNumMap *cs2_str_num_map_copy(StrNumMap *src) {
     StrNumMap *m = cs2_str_num_map_new();
     for (int32_t i = 0; i < src->length; i++) cs2_str_num_map_set(m, src->keys[i], src->values[i]);

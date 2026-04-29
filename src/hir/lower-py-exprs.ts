@@ -535,6 +535,68 @@ function lowerTupleLiteral(node: SyntaxNode, ctx: LowerCtx): HIRExpr {
   };
 }
 
+function lowerListCompEnumerate(
+  loopVarNode: SyntaxNode, callNode: SyntaxNode,
+  bodyNode: SyntaxNode, ifClause: SyntaxNode | null, ctx: LowerCtx
+): HIRExpr {
+  const argsNode = callNode.childForFieldName("arguments")!;
+  const iterExpr = ctx.lowerExpr(argsNode.namedChild(0)!);
+  if (iterExpr.type.kind !== "array") throw new Error("enumerate() requires array");
+  const elemType = iterExpr.type.element;
+  const iterPrefix = elemType.kind === "i8ptr" ? "cs2_str_array" : "cs2_num_array";
+
+  const arrId = ctx.freshId(); const iId = ctx.freshId(); const elemId = ctx.freshId();
+  const arrRef: HIRExpr = { kind: "local_get", id: arrId, type: iterExpr.type };
+  const iRef: HIRExpr = { kind: "local_get", id: iId, type: I64 };
+
+  let idxName: string | null = null; let valName: string | null = null;
+  if (loopVarNode.type === "pattern_list") {
+    const names = namedChildren(loopVarNode).map((c) => c.text);
+    idxName = names[0] ?? null; valName = names[1] ?? null;
+  } else { idxName = loopVarNode.text; }
+  if (idxName) ctx.locals.set(idxName, { id: iId, name: idxName, type: I64 });
+  if (valName) ctx.locals.set(valName, { id: elemId, name: valName, type: elemType });
+
+  const savedLocals = new Map(ctx.locals); const savedPending = ctx.pendingStmts;
+  ctx.pendingStmts = [];
+  const typeCheckExpr = ctx.lowerExpr(bodyNode);
+  const resultElemType: HIRType = typeCheckExpr.type;
+  ctx.locals = savedLocals; ctx.pendingStmts = savedPending;
+  if (idxName) ctx.locals.set(idxName, { id: iId, name: idxName, type: I64 });
+  if (valName) ctx.locals.set(valName, { id: elemId, name: valName, type: elemType });
+
+  const resultType: HIRType = { kind: "array", element: resultElemType };
+  const arrPrefix = resultElemType.kind === "i8ptr" ? "cs2_str_array" : "cs2_num_array";
+  const resultId = ctx.freshId(); const resultName = `__cr${resultId}`;
+  ctx.locals.set(resultName, { id: resultId, name: resultName, type: resultType });
+  const resultRef: HIRExpr = { kind: "local_get", id: resultId, type: resultType };
+
+  const bodyExpr = ctx.lowerExpr(bodyNode);
+  const pushStmt: HIRStmt = { kind: "expr", expr: { kind: "runtime_call", func: `${arrPrefix}_push`,
+    args: [resultRef, coerceTo(bodyExpr, resultElemType)], returnType: VOID, type: VOID } };
+  const elemLetStmt: HIRStmt = { kind: "let", id: elemId, name: valName ?? "__ev", type: elemType,
+    init: { kind: "index_get", array: arrRef, index: iRef, type: elemType }, mutable: false };
+  let loopBody: HIRStmt[] = valName ? [elemLetStmt] : [];
+  if (ifClause) {
+    const cond = ctx.lowerExpr(ifClause.namedChild(0)!);
+    loopBody.push({ kind: "if", condition: cond, then: [pushStmt], else: undefined });
+  } else { loopBody.push(pushStmt); }
+
+  ctx.pendingStmts.push(
+    { kind: "let", id: resultId, name: resultName, type: resultType,
+      init: { kind: "alloc_array", elementType: resultElemType, initialValues: [], type: resultType }, mutable: false },
+    { kind: "let", id: arrId, name: `__earr_${arrId}`, type: iterExpr.type, init: iterExpr, mutable: false },
+    { kind: "let", id: iId, name: idxName ?? "__ei", type: I64, init: { kind: "literal_i64", value: 0, type: I64 }, mutable: true },
+    { kind: "for",
+      condition: { kind: "binary", op: "lt", left: iRef,
+        right: { kind: "runtime_call", func: `${iterPrefix}_length`, args: [arrRef], returnType: I64, type: I64 }, type: I1 },
+      update: { kind: "local_set", id: iId,
+        value: { kind: "binary", op: "add", left: iRef, right: { kind: "literal_i64", value: 1, type: I64 }, type: I64 }, type: I64 },
+      body: loopBody },
+  );
+  return resultRef;
+}
+
 function lowerListCompRange(
   node: SyntaxNode, loopVarNode: SyntaxNode, rangeCall: SyntaxNode,
   bodyNode: SyntaxNode, ifClause: SyntaxNode | null, ctx: LowerCtx
@@ -619,6 +681,9 @@ function lowerListComp(node: SyntaxNode, ctx: LowerCtx): HIRExpr {
 
   if (iterNode.type === "call" && iterNode.childForFieldName("function")?.text === "range") {
     return lowerListCompRange(node, loopVarNode, iterNode, bodyNode, ifClause, ctx);
+  }
+  if (iterNode.type === "call" && iterNode.childForFieldName("function")?.text === "enumerate") {
+    return lowerListCompEnumerate(loopVarNode, iterNode, bodyNode, ifClause, ctx);
   }
 
   const iterExpr = ctx.lowerExpr(iterNode);

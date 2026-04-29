@@ -178,6 +178,60 @@ function registerFunction(node: SyntaxNode, ctx: LowerCtx): void {
   ctx.functions.set(name, { params, returnType, variadicIdx });
 }
 
+function inferParamTypeFromUsage(name: string, bodyNode: SyntaxNode): HIRType {
+  function scan(n: SyntaxNode): HIRType | null {
+    if (n.type === "call") {
+      const fn = n.childForFieldName("function");
+      const args = n.childForFieldName("arguments");
+      if (fn && args) {
+        const fnText = fn.text;
+        const firstArg = args.namedChild(0);
+        if (firstArg?.text === name || firstArg?.type === "identifier" && firstArg.text === name) {
+          if (fnText === "min" || fnText === "max" || fnText === "sum" || fnText === "sorted" ||
+              fnText === "len" || fnText === "reversed" || fnText === "enumerate") {
+            return { kind: "array", element: { kind: "i64" } };
+          }
+        }
+        if (fn.type === "attribute") {
+          const obj = fn.namedChild(0); const method = fn.namedChild(1)?.text;
+          if (obj?.text === name) {
+            if (method === "append" || method === "extend" || method === "sort" ||
+                method === "index" || method === "pop" || method === "reverse") {
+              return { kind: "array", element: { kind: "i64" } };
+            }
+            if (method === "keys" || method === "values" || method === "items" ||
+                method === "get" || method === "update") {
+              return { kind: "map", key: { kind: "i8ptr" }, value: { kind: "f64" } };
+            }
+          }
+        }
+      }
+    }
+    if (n.type === "for_statement") {
+      const right = n.childForFieldName("right");
+      if (right?.text === name) return { kind: "array", element: { kind: "f64" } };
+    }
+    for (let i = 0; i < n.namedChildCount; i++) {
+      const r = scan(n.namedChild(i)!);
+      if (r) return r;
+    }
+    return null;
+  }
+  return scan(bodyNode) ?? BOXED;
+}
+
+function inferReturnType(stmts: HIRStmt[]): HIRType | null {
+  for (const s of stmts) {
+    if (s.kind === "return" && s.value && s.value.type.kind !== "void") return s.value.type;
+    if (s.kind === "if") {
+      const t = inferReturnType(s.then) ?? (s.else ? inferReturnType(s.else) : null);
+      if (t) return t;
+    }
+    if (s.kind === "for") { const t = inferReturnType(s.body); if (t) return t; }
+  }
+  return null;
+}
+
 function lowerFunction(node: SyntaxNode, ctx: LowerCtx): HIRFunction {
   const savedLocals = new Map(ctx.locals);
   ctx.locals = new Map();
@@ -206,9 +260,10 @@ function lowerFunction(node: SyntaxNode, ctx: LowerCtx): HIRFunction {
       if (isSplat) variadicIdx = i;
     } else if (p.type === "identifier") {
       const pName = p.text;
+      const inferredType = inferParamTypeFromUsage(pName, body);
       const id = ctx.freshId();
-      params.push({ id, name: pName, type: BOXED });
-      ctx.locals.set(pName, { id, name: pName, type: BOXED });
+      params.push({ id, name: pName, type: inferredType });
+      ctx.locals.set(pName, { id, name: pName, type: inferredType });
     }
   }
 
@@ -218,7 +273,12 @@ function lowerFunction(node: SyntaxNode, ctx: LowerCtx): HIRFunction {
 
   ctx.locals = savedLocals;
 
-  return { name, params, returnType, body: hirBody, isAsync: false, captures: [] };
+  const inferredReturnType = returnTypeNode ? returnType : (inferReturnType(hirBody) ?? returnType);
+  if (inferredReturnType !== returnType) {
+    ctx.functions.set(name, { params: params.map((p) => p.type), returnType: inferredReturnType, variadicIdx });
+  }
+
+  return { name, params, returnType: inferredReturnType, body: hirBody, isAsync: false, captures: [] };
 }
 
 function lowerClass(
