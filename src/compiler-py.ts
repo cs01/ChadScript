@@ -27,6 +27,7 @@ const BRIDGE_SRCS = [
   join(ROOT, "c_bridges", "py-sys-bridge.c"),
   join(ROOT, "c_bridges", "py-random-bridge.c"),
   join(ROOT, "c_bridges", "py-os-bridge.c"),
+  join(ROOT, "c_bridges", "py-io-bridge.c"),
 ];
 
 function findLibuv(): { include: string; lib: string } {

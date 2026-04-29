@@ -824,7 +824,8 @@ function emitRuntimeCall(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_call
     if (expr.returnType.kind === "i64") {
       const isNumBridge = expr.func.includes("num_array") || expr.func.includes("_num_map_");
       const isLenFunc = expr.func.includes("_length") || expr.func.includes("_size");
-      const isNativeI64 = expr.func === "cs2_random_randint" || expr.func === "cs2_py_sys_argc";
+      const isNativeI64 = expr.func === "cs2_random_randint" || expr.func === "cs2_py_sys_argc" ||
+        expr.func === "cs2_io_tell";
       if (isNativeI64) {
         // already i64, no conversion needed
       } else if (isNumBridge && !isLenFunc) {

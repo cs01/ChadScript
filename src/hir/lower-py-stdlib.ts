@@ -441,6 +441,13 @@ export function lowerCall(node: SyntaxNode, ctx: LowerCtx): HIRExpr {
     return { kind: "alloc_set", element: F64, elements: [], type: setType };
   }
 
+  if (funcName === "open") {
+    const fileType: HIRType = { kind: "ptr", pointee: "__file" };
+    const path = args[0];
+    const mode = args[1] ?? { kind: "literal_string" as const, value: "r", type: I8PTR };
+    return { kind: "runtime_call", func: "cs2_io_open", args: [path, mode], returnType: fileType, type: fileType };
+  }
+
   if (funcName === "any") {
     const arg = args[0];
     if (arg.type.kind === "array") {
@@ -662,6 +669,46 @@ export function lowerMethodCall(attrNode: SyntaxNode, args: HIRExpr[], ctx: Lowe
       return { kind: "runtime_call", func: "cs2_str_split", args: [obj, sep], returnType: { kind: "array", element: I8PTR }, type: { kind: "array", element: I8PTR } };
     }
     throw new Error(`unsupported string method: ${methodName}`);
+  }
+
+  if (obj.type.kind === "ptr" && obj.type.pointee === "__file") {
+    const strArrType: HIRType = { kind: "array", element: I8PTR };
+    switch (methodName) {
+      case "read":
+        if (args.length > 0) return { kind: "runtime_call", func: "cs2_io_read_n", args: [obj, coerceTo(args[0], I64)], returnType: I8PTR, type: I8PTR };
+        return { kind: "runtime_call", func: "cs2_io_read", args: [obj], returnType: I8PTR, type: I8PTR };
+      case "readline":
+        return { kind: "runtime_call", func: "cs2_io_readline", args: [obj], returnType: I8PTR, type: I8PTR };
+      case "readlines":
+        return { kind: "runtime_call", func: "cs2_io_readlines", args: [obj], returnType: strArrType, type: strArrType };
+      case "write":
+        return { kind: "runtime_call", func: "cs2_io_write", args: [obj, args[0]], returnType: VOID, type: VOID };
+      case "writelines": {
+        const lines = args[0];
+        const iId = ctx.freshId();
+        const iRef: HIRExpr = { kind: "local_get", id: iId, type: I64 };
+        const lenE: HIRExpr = { kind: "runtime_call", func: "cs2_str_array_length", args: [lines], returnType: I64, type: I64 };
+        ctx.pendingStmts.push(
+          { kind: "let", id: iId, name: `__wl_${iId}`, type: I64, init: { kind: "literal_i64", value: 0, type: I64 }, mutable: true },
+          { kind: "for",
+            condition: { kind: "binary", op: "lt", left: iRef, right: lenE, type: I1 },
+            update: { kind: "local_set", id: iId, value: { kind: "binary", op: "add", left: iRef, right: { kind: "literal_i64", value: 1, type: I64 }, type: I64 }, type: I64 },
+            body: [{ kind: "expr", expr: { kind: "runtime_call", func: "cs2_io_write", args: [obj, { kind: "index_get", array: lines, index: iRef, type: I8PTR }], returnType: VOID, type: VOID } }] }
+        );
+        return { kind: "literal_null", type: VOID };
+      }
+      case "close":
+        return { kind: "runtime_call", func: "cs2_io_close", args: [obj], returnType: VOID, type: VOID };
+      case "flush":
+        return { kind: "runtime_call", func: "cs2_io_flush", args: [obj], returnType: VOID, type: VOID };
+      case "seek": {
+        const offset = coerceTo(args[0], I64);
+        const whence = args[1] ? { kind: "binary" as const, op: "bit_and" as const, left: coerceTo(args[1], I64), right: { kind: "literal_i64" as const, value: 3, type: I64 }, type: I64 } : { kind: "literal_i64" as const, value: 0, type: I64 };
+        return { kind: "runtime_call", func: "cs2_io_seek", args: [obj, offset, whence], returnType: VOID, type: VOID };
+      }
+      case "tell":
+        return { kind: "runtime_call", func: "cs2_io_tell", args: [obj], returnType: I64, type: I64 };
+    }
   }
 
   throw new Error(`method call on unsupported type: ${methodName} on ${obj.type.kind}`);

@@ -124,14 +124,14 @@ Python-to-native compiler. Same HIR + emitter + C bridges as ChadScript v2 — o
 
 ## Phase 8: Stdlib C Bridges ✅ (partial)
 - [ ] `py-io-bridge.c` — `open()`, file objects, context manager
-- [ ] `py-os-bridge.c` — `os.path`, `os.listdir`, `os.getcwd`, `os.environ`
+- [x] `py-os-bridge.c` — `os.getcwd`, `os.listdir`, `os.getenv`, `os.mkdir`, `os.remove`, `os.path.exists/isfile/isdir/join/basename/dirname/abspath`
 - [x] `py-sys-bridge.c` — `sys.argv`, `sys.exit`, stdio
 - [ ] `py-json-bridge.c` — `json.loads` / `json.dumps` (reuse yyjson)
 - [ ] `py-re-bridge.c` — `re.match`, `re.search`, `re.findall` (reuse PCRE2)
 - [x] `py-random-bridge.c` — `random.random()`, `random.randint()`, `random.choice()`, `random.shuffle()`, `random.uniform()`, `random.seed()`
 - [ ] `py-collections-bridge.c` — `Counter`, `defaultdict`, `deque`
 
-**Test runner:** `node --import tsx --test tests/py-test.ts` — auto-discovers all `.py` in `tests/fixtures-py/`, diffs stdout against `python3`. **21/21 pass.**
+**Test runner:** `node --import tsx --test tests/py-test.ts` — auto-discovers all `.py` in `tests/fixtures-py/`, diffs stdout against `python3`. **22/22 pass.**
 
 ---
 

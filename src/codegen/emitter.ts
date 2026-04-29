@@ -300,6 +300,26 @@ function declareExterns(ctx: EmitContext): void {
     ctx.declareFunction(name, fn, ft);
   }
 
+  const ioFns: [string, any, any[]][] = [
+    ["cs2_io_open", m.ptr, [m.ptr, m.ptr]],
+    ["cs2_io_close", m.voidTy, [m.ptr]],
+    ["cs2_io_read", m.ptr, [m.ptr]],
+    ["cs2_io_readline", m.ptr, [m.ptr]],
+    ["cs2_io_readlines", m.ptr, [m.ptr]],
+    ["cs2_io_write", m.voidTy, [m.ptr, m.ptr]],
+    ["cs2_io_write_line", m.voidTy, [m.ptr, m.ptr]],
+    ["cs2_io_is_eof", m.i32, [m.ptr]],
+    ["cs2_io_tell", m.i64, [m.ptr]],
+    ["cs2_io_seek", m.voidTy, [m.ptr, m.i64, m.i32]],
+    ["cs2_io_read_n", m.ptr, [m.ptr, m.i64]],
+    ["cs2_io_flush", m.voidTy, [m.ptr]],
+  ];
+  for (const [name, ret, params] of ioFns) {
+    const ft = m.functionType(ret, params);
+    const fn = m.addFunction(name, ft);
+    ctx.declareFunction(name, fn, ft);
+  }
+
   const mathIntrinsics1: [string, string][] = [
     ["llvm.floor.f64", "cs_math_floor"],
     ["llvm.ceil.f64", "cs_math_ceil"],

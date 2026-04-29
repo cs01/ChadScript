@@ -23,12 +23,29 @@ export function interpretEscape(esc: string): string {
   }
 }
 
+function processStringContent(node: SyntaxNode): string {
+  const raw = node.text;
+  let result = "";
+  let lastEnd = 0;
+  for (let i = 0; i < node.childCount; i++) {
+    const child = node.child(i)!;
+    if (child.type === "escape_sequence") {
+      const start = child.startIndex - node.startIndex;
+      result += raw.slice(lastEnd, start);
+      result += interpretEscape(child.text);
+      lastEnd = child.endIndex - node.startIndex;
+    }
+  }
+  result += raw.slice(lastEnd);
+  return result;
+}
+
 export function extractStringContent(node: SyntaxNode): string {
   let result = "";
   for (let i = 0; i < node.namedChildCount; i++) {
     const child = node.namedChild(i)!;
     if (child.type === "string_content") {
-      result += child.text;
+      result += processStringContent(child);
     } else if (child.type === "escape_sequence") {
       result += interpretEscape(child.text);
     }
