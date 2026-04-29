@@ -371,6 +371,16 @@ function lowerSubscript(node: SyntaxNode, ctx: LowerCtx): HIRExpr {
       type: mt.value,
     };
   }
+  if (arr.type.kind === "ptr") {
+    const pt = (arr.type as { kind: "ptr"; pointee: string }).pointee;
+    if (pt === "__counter_num")
+      return { kind: "runtime_call", func: "cs2_counter_num_get", args: [arr, coerceToF64(idx)], returnType: I64, type: I64 };
+    if (pt === "__counter_str")
+      return { kind: "runtime_call", func: "cs2_counter_str_get", args: [arr, coerceTo(idx, I8PTR)], returnType: I64, type: I64 };
+    if (pt === "__deque_num")
+      return { kind: "runtime_call", func: "cs2_deque_num_get", args: [arr, coerceTo(idx, I64)], returnType: I64, type: I64 };
+  }
+
   if (arr.type.kind === "i8ptr") {
     return {
       kind: "runtime_call",

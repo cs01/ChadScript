@@ -346,6 +346,26 @@ function declareExterns(ctx: EmitContext): void {
     ctx.declareFunction(name, fn, ft);
   }
 
+  const collectionsFns: [string, any, any[]][] = [
+    ["cs2_counter_num_new", m.ptr, [m.ptr]],
+    ["cs2_counter_str_new", m.ptr, [m.ptr]],
+    ["cs2_counter_str_from_string", m.ptr, [m.ptr]],
+    ["cs2_counter_num_get", m.i64, [m.ptr, m.f64]],
+    ["cs2_counter_str_get", m.i64, [m.ptr, m.ptr]],
+    ["cs2_deque_num_new", m.ptr, [m.ptr]],
+    ["cs2_deque_num_append", m.voidTy, [m.ptr, m.f64]],
+    ["cs2_deque_num_appendleft", m.voidTy, [m.ptr, m.f64]],
+    ["cs2_deque_num_pop", m.f64, [m.ptr]],
+    ["cs2_deque_num_popleft", m.f64, [m.ptr]],
+    ["cs2_deque_num_len", m.i32, [m.ptr]],
+    ["cs2_deque_num_get", m.i64, [m.ptr, m.i64]],
+  ];
+  for (const [name, ret, params] of collectionsFns) {
+    const ft = m.functionType(ret, params);
+    const fn = m.addFunction(name, ft);
+    ctx.declareFunction(name, fn, ft);
+  }
+
   const reFns: [string, any, any[]][] = [
     ["cs2_re_match", m.ptr, [m.ptr, m.ptr]],
     ["cs2_re_search", m.ptr, [m.ptr, m.ptr]],

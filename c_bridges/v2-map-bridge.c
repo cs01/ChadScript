@@ -190,6 +190,11 @@ double cs2_num_num_map_get(NumNumMap *m, double key) {
     return 0.0 / 0.0;
 }
 
+double cs2_num_num_map_get_or(NumNumMap *m, double key, double def) {
+    int32_t idx = find_num_key(m->keys, m->length, key);
+    return idx >= 0 ? m->values[idx] : def;
+}
+
 int32_t cs2_num_num_map_has(NumNumMap *m, double key) {
     return find_num_key(m->keys, m->length, key) >= 0 ? 1 : 0;
 }

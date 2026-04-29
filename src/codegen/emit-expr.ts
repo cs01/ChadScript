@@ -802,7 +802,7 @@ function emitRuntimeCall(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_call
           (expr.func.endsWith("_push") && i === 1) ||
           ((expr.func.includes("_num_map_set") || expr.func.includes("_num_map_get_or")) && i === 2);
         const nativeI64Fn = expr.func === "cs2_random_randint" || expr.func === "cs2_random_seed" ||
-          expr.func === "cs2_py_sys_exit";
+          expr.func === "cs2_py_sys_exit" || expr.func === "cs2_deque_num_get";
         if (needsF64) {
           val = m.buildSIToFP(val, m.f64, "");
         } else if (nativeI64Fn) {
@@ -825,7 +825,8 @@ function emitRuntimeCall(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_call
       const isNumBridge = expr.func.includes("num_array") || expr.func.includes("_num_map_");
       const isLenFunc = expr.func.includes("_length") || expr.func.includes("_size");
       const isNativeI64 = expr.func === "cs2_random_randint" || expr.func === "cs2_py_sys_argc" ||
-        expr.func === "cs2_io_tell";
+        expr.func === "cs2_io_tell" || expr.func === "cs2_counter_num_get" || expr.func === "cs2_counter_str_get" ||
+        expr.func === "cs2_deque_num_get";
       if (isNativeI64) {
         // already i64, no conversion needed
       } else if (isNumBridge && !isLenFunc) {

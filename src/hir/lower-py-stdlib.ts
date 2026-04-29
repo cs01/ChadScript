@@ -267,7 +267,32 @@ export function lowerCall(node: SyntaxNode, ctx: LowerCtx): HIRExpr {
     if (arg.type.kind === "i8ptr") {
       return { kind: "runtime_call", func: "cs2_str_length", args: [arg], returnType: I64, type: I64 };
     }
+    if (arg.type.kind === "ptr") {
+      const pt = (arg.type as { kind: "ptr"; pointee: string }).pointee;
+      if (pt === "__deque_num") return { kind: "runtime_call", func: "cs2_deque_num_len", args: [arg], returnType: I64, type: I64 };
+    }
     throw new Error(`len() on unsupported type: ${arg.type.kind}`);
+  }
+
+  if (funcName === "Counter" && !ctx.classes.has("Counter")) {
+    const a = args[0];
+    const counterNumType: HIRType = { kind: "ptr", pointee: "__counter_num" };
+    const counterStrType: HIRType = { kind: "ptr", pointee: "__counter_str" };
+    if (a.type.kind === "array") {
+      const elem = (a.type as { kind: "array"; element: HIRType }).element;
+      if (elem.kind === "f64" || elem.kind === "i64")
+        return { kind: "runtime_call", func: "cs2_counter_num_new", args: [a], returnType: counterNumType, type: counterNumType };
+      return { kind: "runtime_call", func: "cs2_counter_str_new", args: [a], returnType: counterStrType, type: counterStrType };
+    }
+    if (a.type.kind === "i8ptr")
+      return { kind: "runtime_call", func: "cs2_counter_str_from_string", args: [a], returnType: counterStrType, type: counterStrType };
+    return { kind: "runtime_call", func: "cs2_counter_num_new", args: [a], returnType: counterNumType, type: counterNumType };
+  }
+
+  if (funcName === "deque" && !ctx.classes.has("deque")) {
+    const dequeNumType: HIRType = { kind: "ptr", pointee: "__deque_num" };
+    const a = args.length > 0 ? args[0] : { kind: "literal_null" as const, type: { kind: "ptr", pointee: "__null" } as HIRType };
+    return { kind: "runtime_call", func: "cs2_deque_num_new", args: [a], returnType: dequeNumType, type: dequeNumType };
   }
 
   if (funcName === "str") {
@@ -759,6 +784,29 @@ export function lowerMethodCall(attrNode: SyntaxNode, args: HIRExpr[], ctx: Lowe
       }
       case "tell":
         return { kind: "runtime_call", func: "cs2_io_tell", args: [obj], returnType: I64, type: I64 };
+    }
+  }
+
+  if (obj.type.kind === "ptr" && obj.type.pointee === "__deque_num") {
+    switch (methodName) {
+      case "append": return { kind: "runtime_call", func: "cs2_deque_num_append", args: [obj, coerceToF64(args[0])], returnType: VOID, type: VOID };
+      case "appendleft": return { kind: "runtime_call", func: "cs2_deque_num_appendleft", args: [obj, coerceToF64(args[0])], returnType: VOID, type: VOID };
+      case "pop": return { kind: "runtime_call", func: "cs2_deque_num_pop", args: [obj], returnType: F64, type: F64 };
+      case "popleft": return { kind: "runtime_call", func: "cs2_deque_num_popleft", args: [obj], returnType: F64, type: F64 };
+      case "extend": {
+        const arr = args[0];
+        const iId = ctx.freshId();
+        const iRef: HIRExpr = { kind: "local_get", id: iId, type: I64 };
+        const lenE: HIRExpr = { kind: "runtime_call", func: "cs2_num_array_length", args: [arr], returnType: I64, type: I64 };
+        ctx.pendingStmts.push(
+          { kind: "let", id: iId, name: `__dext_${iId}`, type: I64, init: { kind: "literal_i64", value: 0, type: I64 }, mutable: true },
+          { kind: "for",
+            condition: { kind: "binary", op: "lt", left: iRef, right: lenE, type: I1 },
+            update: { kind: "local_set", id: iId, value: { kind: "binary", op: "add", left: iRef, right: { kind: "literal_i64", value: 1, type: I64 }, type: I64 }, type: I64 },
+            body: [{ kind: "expr", expr: { kind: "runtime_call", func: "cs2_deque_num_append", args: [obj, { kind: "index_get", array: arr, index: iRef, type: F64 }], returnType: VOID, type: VOID } }] }
+        );
+        return { kind: "literal_null", type: VOID };
+      }
     }
   }
 
