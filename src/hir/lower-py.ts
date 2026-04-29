@@ -26,6 +26,7 @@ interface Local {
 let locals: Map<string, Local>;
 let functions: Map<string, { params: HIRType[]; returnType: HIRType }>;
 let classes: Map<string, { fields: { name: string; type: HIRType }[] }>;
+let classParents: Map<string, string>;
 let currentClassName: string | null;
 let pendingStmts: HIRStmt[] = [];
 
@@ -38,6 +39,7 @@ export function lowerPythonModule(
   locals = new Map();
   functions = new Map();
   classes = new Map();
+  classParents = new Map();
   currentClassName = null;
   pendingStmts = [];
 
@@ -119,10 +121,29 @@ export function lowerPythonModule(
   };
 }
 
+function resolveMethodOwner(className: string, methodName: string): string {
+  const fnKey = `${className}_${methodName}`;
+  if (functions.has(fnKey)) return className;
+  const parent = classParents.get(className);
+  if (parent) return resolveMethodOwner(parent, methodName);
+  return className;
+}
+
 function registerClass(node: SyntaxNode): void {
   const name = node.childForFieldName("name")!.text;
   const body = node.childForFieldName("body")!;
   const fields: { name: string; type: HIRType }[] = [];
+
+  // Detect superclass and inherit fields
+  const argList = node.namedChild(1);
+  if (argList && argList.type === "argument_list" && argList.namedChildCount > 0) {
+    const superName = argList.namedChild(0)!.text;
+    if (superName !== "Generic" && classes.has(superName)) {
+      classParents.set(name, superName);
+      const parentFields = classes.get(superName)!.fields;
+      fields.push(...parentFields);
+    }
+  }
 
   for (let i = 0; i < body.namedChildCount; i++) {
     const member = body.namedChild(i)!;
@@ -1239,6 +1260,25 @@ function lowerCall(node: SyntaxNode): HIRExpr {
     for (let i = 0; i < argsNode.namedChildCount; i++) {
       args.push(lowerExpr(argsNode.namedChild(i)!));
     }
+
+    // super().method(args) → ParentClass_method(self, args)
+    const objNode = funcNode.namedChild(0)!;
+    if (objNode.type === "call" && objNode.childForFieldName("function")?.text === "super") {
+      const rawMethodName = funcNode.namedChild(1)!.text;
+      const methodName = rawMethodName === "__init__" ? "init" : rawMethodName;
+      const parentName = currentClassName ? classParents.get(currentClassName) : undefined;
+      if (parentName) {
+        const fnKey = `${parentName}_${methodName}`;
+        const fnInfo = functions.get(fnKey);
+        const returnType = fnInfo?.returnType ?? VOID;
+        const selfLocal = locals.get("self");
+        const selfExpr: HIRExpr = selfLocal
+          ? { kind: "local_get", id: selfLocal.id, type: selfLocal.type }
+          : { kind: "literal_null", type: VOID };
+        return { kind: "call", callee: fnKey, args: [selfExpr, ...args], returnType, type: returnType };
+      }
+    }
+
     return lowerMethodCall(funcNode, args);
   }
 
@@ -1435,13 +1475,15 @@ function lowerMethodCall(attrNode: SyntaxNode, args: HIRExpr[]): HIRExpr {
   if (obj.type.kind === "ptr") {
     const cls = classes.get(obj.type.pointee);
     if (cls) {
-      const fnKey = `${obj.type.pointee}_${methodName}`;
+      const owner = resolveMethodOwner(obj.type.pointee, methodName);
+      const fnKey = `${owner}_${methodName}`;
       const fnInfo = functions.get(fnKey);
       const returnType = fnInfo?.returnType ?? VOID;
+      const selfType: HIRType = { kind: "ptr", pointee: owner };
       return {
         kind: "call",
         callee: fnKey,
-        args: [obj, ...args],
+        args: [obj.type.pointee === owner ? obj : { ...obj, type: selfType }, ...args],
         returnType,
         type: returnType,
       };
