@@ -14,6 +14,7 @@ if (args[0] === "build") {
   const outputIdx = args.indexOf("-o");
   const output = outputIdx !== -1 ? args[outputIdx + 1] : "a.out";
   const emitIR = args.includes("--emit-ir");
+  const llvm = args.includes("--llvm");
 
   if (!input) {
     console.error("usage: chad2 build <input.ts> -o <output>");
@@ -21,7 +22,7 @@ if (args[0] === "build") {
   }
 
   try {
-    compile({ input, output, emitIR });
+    compile({ input, output, emitIR, llvm });
   } catch (e) {
     if (e instanceof CompileError) {
       console.error(e.format());

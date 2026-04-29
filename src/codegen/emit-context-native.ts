@@ -1,0 +1,433 @@
+import type { HIRType, HIRField, HIRFunction, HIRInterface, HIRStmt } from "../hir/types.js";
+import { LLVMModule } from "./llvm-native.js";
+
+interface LoopFrame { condBlock: string; exitBlock: string; }
+interface FnDecl { fn: string; fnType: string; }
+interface GlobalEntry { alloc: string; type: HIRType; }
+interface StructEntry { llvmType: string; fields: HIRField[]; }
+interface IfaceEntry { fatType: string; iface: HIRInterface; layoutType: string; }
+interface CaptureEntry { envAlloc: string; index: number; type: HIRType; }
+
+export class EmitContext {
+  readonly m: LLVMModule;
+  private localAllocs: Map<number, string>;
+  private localNames: Map<number, string>;
+  private globalValues: Map<string, GlobalEntry>;
+  private loopStack: LoopFrame[];
+  private declaredFunctions: Map<string, FnDecl>;
+  private mathIntrinsics: Map<string, FnDecl>;
+  private structTypes: Map<string, StructEntry>;
+  private interfaceTypes: Map<string, IfaceEntry>;
+  private vtables: Map<string, string>;
+  private closureType: string;
+  private capturedLocals: Map<number, CaptureEntry>;
+  private envAlloc: string;
+  private asyncPromiseAlloc: string;
+  private currentFn: string;
+  currentReturnType: HIRType;
+  diScope: string;
+
+  constructor(m: LLVMModule) {
+    this.m = m;
+    this.localAllocs = new Map();
+    this.localNames = new Map();
+    this.globalValues = new Map();
+    this.loopStack = [];
+    this.declaredFunctions = new Map();
+    this.mathIntrinsics = new Map();
+    this.structTypes = new Map();
+    this.interfaceTypes = new Map();
+    this.vtables = new Map();
+    this.closureType = "";
+    this.capturedLocals = new Map();
+    this.envAlloc = "";
+    this.asyncPromiseAlloc = "";
+    this.currentFn = "";
+    this.currentReturnType = { kind: "void" };
+    this.diScope = "";
+  }
+
+  registerLocal(id: number, name: string, alloc: string): void {
+    this.localAllocs.set(id, alloc);
+    this.localNames.set(id, name);
+  }
+
+  getLocalAlloc(id: number): string {
+    return this.localAllocs.get(id)!;
+  }
+
+  resetLocals(): void {
+    this.localAllocs = new Map();
+    this.localNames = new Map();
+  }
+
+  pushLoop(condBlock: string, exitBlock: string): void {
+    this.loopStack.push({ condBlock, exitBlock });
+  }
+
+  popLoop(): void {
+    this.loopStack.pop();
+  }
+
+  currentLoop(): LoopFrame {
+    return this.loopStack[this.loopStack.length - 1];
+  }
+
+  setCurrentFn(fn: string): void {
+    this.currentFn = fn;
+  }
+
+  getCurrentFn(): string {
+    return this.currentFn;
+  }
+
+  registerGlobal(name: string, alloc: string, type: HIRType): void {
+    this.globalValues.set(name, { alloc, type });
+  }
+
+  getGlobal(name: string): GlobalEntry | undefined {
+    return this.globalValues.get(name);
+  }
+
+  declareFunction(name: string, fn: string, fnType: string): void {
+    this.declaredFunctions.set(name, { fn, fnType });
+  }
+
+  getDeclaredFunction(name: string): FnDecl | undefined {
+    return this.declaredFunctions.get(name);
+  }
+
+  declareMathIntrinsic(name: string, fn: string, fnType: string): void {
+    this.mathIntrinsics.set(name, { fn, fnType });
+  }
+
+  getMathIntrinsic(name: string): FnDecl | undefined {
+    return this.mathIntrinsics.get(name);
+  }
+
+  registerStructType(name: string, llvmType: string, fields: HIRField[]): void {
+    this.structTypes.set(name, { llvmType, fields });
+  }
+
+  getStructType(name: string): StructEntry | undefined {
+    return this.structTypes.get(name);
+  }
+
+  registerInterfaceType(name: string, fatType: string, iface: HIRInterface, layoutType: string): void {
+    this.interfaceTypes.set(name, { fatType, iface, layoutType });
+  }
+
+  getInterfaceType(name: string): IfaceEntry | undefined {
+    return this.interfaceTypes.get(name);
+  }
+
+  registerVtable(key: string, vtableGlobal: string): void {
+    this.vtables.set(key, vtableGlobal);
+  }
+
+  getVtable(key: string): string {
+    return this.vtables.get(key)!;
+  }
+
+  getClosureType(): string {
+    if (!this.closureType) {
+      this.closureType = this.m.structCreateNamed("Closure");
+      this.m.structSetBody(this.closureType, [this.m.ptr, this.m.ptr]);
+    }
+    return this.closureType;
+  }
+
+  setCapturedLocal(id: number, envAlloc: string, index: number, type: HIRType): void {
+    this.capturedLocals.set(id, { envAlloc, index, type });
+  }
+
+  getCapturedLocal(id: number): CaptureEntry | undefined {
+    return this.capturedLocals.get(id);
+  }
+
+  setEnvAlloc(alloc: string): void {
+    this.envAlloc = alloc;
+  }
+
+  getEnvAlloc(): string {
+    return this.envAlloc;
+  }
+
+  setAsyncPromiseAlloc(alloc: string): void {
+    this.asyncPromiseAlloc = alloc;
+  }
+
+  getAsyncPromiseAlloc(): string {
+    return this.asyncPromiseAlloc;
+  }
+
+  resetLocalsAndCaptures(): void {
+    this.localAllocs = new Map();
+    this.localNames = new Map();
+    this.capturedLocals = new Map();
+    this.envAlloc = "";
+    this.asyncPromiseAlloc = "";
+  }
+}
+
+export interface CaptureEnvEntry { id: number; type: HIRType; }
+export type CaptureMap = Map<string, CaptureEnvEntry[]>;
+
+export function llvmType(ctx: EmitContext, t: HIRType): string {
+  const m = ctx.m;
+  switch (t.kind) {
+    case "f64":
+      return m.f64;
+    case "i64":
+      return m.i64;
+    case "i1":
+      return m.i1;
+    case "i8ptr":
+      return m.ptr;
+    case "void":
+      return m.voidTy;
+    case "boxed":
+      return m.i64;
+    case "ptr":
+      return m.ptr;
+    case "array":
+    case "struct":
+      return m.ptr;
+    case "closure":
+      return m.ptr;
+    case "promise":
+      return m.ptr;
+    case "map":
+    case "set":
+    case "regex":
+    case "dynobj":
+    case "dynarray":
+      return m.ptr;
+    default: {
+      const _: never = t;
+      throw new Error(`unknown HIR type: ${JSON.stringify(t)}`);
+    }
+  }
+}
+
+export function coerceLLVM(ctx: EmitContext, val: string, from: HIRType, to: HIRType): string {
+  const m = ctx.m;
+  if (from.kind === to.kind) return val;
+  if (from.kind === "promise" && to.kind === "promise") return val;
+  if (from.kind === "i64" && to.kind === "f64") return m.buildSIToFP(val, m.f64, "");
+  if (from.kind === "f64" && to.kind === "i64") return m.buildFPToSI(val, m.i64, "");
+  if (from.kind === "i1" && to.kind === "i64") return m.buildZExt(val, m.i64, "");
+  if (from.kind === "i1" && to.kind === "f64") {
+    const ext = m.buildZExt(val, m.i64, "");
+    return m.buildSIToFP(ext, m.f64, "");
+  }
+  if (to.kind === "boxed") {
+    return emitBoxValue(ctx, val, from);
+  }
+  if (from.kind === "boxed") {
+    return emitUnboxValue(ctx, val, to);
+  }
+  if (to.kind === "f64") return m.constReal(m.f64, 0.0);
+  if (to.kind === "i64") return m.constInt(m.i64, 0, false);
+  if (to.kind === "i1") return m.constInt(m.i1, 0, false);
+  return val;
+}
+
+export function emitBoxValue(ctx: EmitContext, val: string, from: HIRType): string {
+  const m = ctx.m;
+  switch (from.kind) {
+    case "f64": {
+      const fn = ctx.getDeclaredFunction("nanbox_from_f64")!;
+      return m.buildCall(fn.fnType, fn.fn, [val], "boxed");
+    }
+    case "i64": {
+      const fn = ctx.getDeclaredFunction("nanbox_from_i64")!;
+      return m.buildCall(fn.fnType, fn.fn, [val], "boxed");
+    }
+    case "i1": {
+      const ext = m.buildZExt(val, m.i32, "");
+      const fn = ctx.getDeclaredFunction("nanbox_from_bool")!;
+      return m.buildCall(fn.fnType, fn.fn, [ext], "boxed");
+    }
+    case "i8ptr": {
+      const fn = ctx.getDeclaredFunction("nanbox_from_string")!;
+      return m.buildCall(fn.fnType, fn.fn, [val], "boxed");
+    }
+    case "ptr": {
+      const fn = ctx.getDeclaredFunction("nanbox_from_ptr")!;
+      return m.buildCall(fn.fnType, fn.fn, [val], "boxed");
+    }
+    case "dynobj":
+    case "dynarray":
+    case "map":
+    case "set":
+    case "array":
+    case "struct":
+    case "closure":
+    case "promise":
+    case "regex": {
+      const fn = ctx.getDeclaredFunction("nanbox_from_ptr")!;
+      return m.buildCall(fn.fnType, fn.fn, [val], "boxed");
+    }
+    case "boxed":
+      return val;
+    default:
+      return val;
+  }
+}
+
+export function emitUnboxValue(ctx: EmitContext, val: string, to: HIRType): string {
+  const m = ctx.m;
+  switch (to.kind) {
+    case "f64": {
+      const fn = ctx.getDeclaredFunction("nanbox_to_f64")!;
+      return m.buildCall(fn.fnType, fn.fn, [val], "unboxed");
+    }
+    case "i64": {
+      const fn = ctx.getDeclaredFunction("nanbox_to_i64")!;
+      return m.buildCall(fn.fnType, fn.fn, [val], "unboxed");
+    }
+    case "i1": {
+      const fn = ctx.getDeclaredFunction("nanbox_to_bool")!;
+      const i32val = m.buildCall(fn.fnType, fn.fn, [val], "unboxed");
+      return m.buildTrunc(i32val, m.i1, "");
+    }
+    case "i8ptr": {
+      const fn = ctx.getDeclaredFunction("nanbox_to_string")!;
+      return m.buildCall(fn.fnType, fn.fn, [val], "unboxed");
+    }
+    case "ptr": {
+      const fn = ctx.getDeclaredFunction("nanbox_to_ptr")!;
+      return m.buildCall(fn.fnType, fn.fn, [val], "unboxed");
+    }
+    case "dynobj":
+    case "dynarray":
+    case "map":
+    case "set":
+    case "array":
+    case "struct":
+    case "closure":
+    case "promise":
+    case "regex": {
+      const fn = ctx.getDeclaredFunction("nanbox_to_ptr")!;
+      return m.buildCall(fn.fnType, fn.fn, [val], "unboxed");
+    }
+    case "boxed":
+      return val;
+    default:
+      return val;
+  }
+}
+
+export function defaultInit(ctx: EmitContext, t: HIRType): string {
+  const m = ctx.m;
+  switch (t.kind) {
+    case "f64":
+      return m.constReal(m.f64, 0.0);
+    case "i64":
+      return m.constInt(m.i64, 0, false);
+    case "i1":
+      return m.constInt(m.i1, 0, false);
+    case "i8ptr":
+    case "array":
+    case "ptr":
+      return m.constNull(m.ptr);
+    case "closure":
+    case "promise":
+    case "map":
+    case "set":
+    case "dynobj":
+    case "dynarray":
+      return m.constNull(m.ptr);
+    case "boxed":
+      return m.constBigInt(m.i64, "7ffc000000000001");
+    default:
+      return m.constInt(m.i64, 0, false);
+  }
+}
+
+export function emitCapturedLoad(
+  ctx: EmitContext,
+  captured: CaptureEntry,
+  exprType: HIRType,
+): string {
+  const m = ctx.m;
+  const envPtr = m.buildLoad(m.ptr, captured.envAlloc, "env");
+  const ty = llvmType(ctx, captured.type);
+  const offset = m.constInt(m.i64, captured.index * 8, false);
+  const fieldRaw = m.buildGEP(m.i8, envPtr, [offset], "cap_ptr");
+  return m.buildLoad(ty, fieldRaw, "cap_val");
+}
+
+export function emitCapturedStore(
+  ctx: EmitContext,
+  captured: CaptureEntry,
+  val: string,
+  _exprType: HIRType,
+): void {
+  const m = ctx.m;
+  const envPtr = m.buildLoad(m.ptr, captured.envAlloc, "env");
+  const offset = m.constInt(m.i64, captured.index * 8, false);
+  const fieldRaw = m.buildGEP(m.i8, envPtr, [offset], "cap_ptr");
+  m.buildStore(val, fieldRaw);
+}
+
+export function blockTerminates(stmts: HIRStmt[]): boolean {
+  if (stmts.length === 0) return false;
+  const last = stmts[stmts.length - 1];
+  if (last.kind === "return" || last.kind === "throw") return true;
+  if (last.kind === "if" && last.else) {
+    return blockTerminates(last.then) && blockTerminates(last.else);
+  }
+  return false;
+}
+
+export function stmtTerminates(stmts: HIRStmt[]): boolean {
+  if (stmts.length === 0) return false;
+  const last = stmts[stmts.length - 1];
+  return (
+    last.kind === "break" ||
+    last.kind === "continue" ||
+    last.kind === "return" ||
+    last.kind === "throw"
+  );
+}
+
+export function collectLocalIds(stmts: HIRStmt[], ids: Set<number>): void {
+  for (const stmt of stmts) {
+    if (stmt.kind === "let") ids.add(stmt.id);
+    if (stmt.kind === "if") {
+      collectLocalIds(stmt.then, ids);
+      if (stmt.else) collectLocalIds(stmt.else, ids);
+    }
+    if (stmt.kind === "while") collectLocalIds(stmt.body, ids);
+    if (stmt.kind === "for") {
+      if (stmt.init && stmt.init.kind === "let") ids.add(stmt.init.id);
+      collectLocalIds(stmt.body, ids);
+    }
+  }
+}
+
+export function findLocalTypeInStmts(stmts: HIRStmt[], id: number): HIRType | null {
+  for (const stmt of stmts) {
+    if (stmt.kind === "let" && stmt.id === id) return stmt.type;
+    if (stmt.kind === "if") {
+      const t = findLocalTypeInStmts(stmt.then, id);
+      if (t) return t;
+      if (stmt.else) {
+        const e = findLocalTypeInStmts(stmt.else, id);
+        if (e) return e;
+      }
+    }
+    if (stmt.kind === "while") {
+      const t = findLocalTypeInStmts(stmt.body, id);
+      if (t) return t;
+    }
+    if (stmt.kind === "for") {
+      if (stmt.init && stmt.init.kind === "let" && stmt.init.id === id) return stmt.init.type;
+      const t = findLocalTypeInStmts(stmt.body, id);
+      if (t) return t;
+    }
+  }
+  return null;
+}

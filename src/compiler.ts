@@ -12,6 +12,7 @@ export interface CompileOptions {
   input: string;
   output: string;
   emitIR?: boolean;
+  llvm?: boolean;
 }
 
 const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
@@ -64,6 +65,10 @@ function findRure(): string {
   throw new Error("rure not found — expected vendor/rure with librure.a");
 }
 
+const LLVM_BRIDGE = join(ROOT, "c_bridges", "v2-llvm-bridge.c");
+const LLVM_INCLUDE = "/opt/homebrew/opt/llvm/include";
+const LLVM_LIB = "/opt/homebrew/opt/llvm/lib";
+
 const TIMER_BRIDGE = join(ROOT, "c_bridges", "v2-timer-bridge.c");
 const JSON_BRIDGE = join(ROOT, "c_bridges", "v2-json-bridge.c");
 const HTTP_BRIDGE = join(ROOT, "c_bridges", "v2-http-bridge.c");
@@ -99,7 +104,9 @@ export function compile(opts: CompileOptions): void {
   const jsonObj = join(tmpdir(), `chad2-json-${process.pid}.o`);
   const yyjsonObj = join(tmpdir(), `chad2-yyjson-${process.pid}.o`);
   const httpObj = join(tmpdir(), `chad2-http-${process.pid}.o`);
+  const llvmObj = join(tmpdir(), `chad2-llvm-${process.pid}.o`);
   const allObjs = [...bridgeObjs, timerObj, jsonObj, yyjsonObj, httpObj];
+  if (opts.llvm) allObjs.push(llvmObj);
   const irPath = opts.emitIR ? opts.output + ".ll" : undefined;
 
   try {
@@ -118,8 +125,12 @@ export function compile(opts: CompileOptions): void {
     cachedCompile(HTTP_BRIDGE, httpObj, `-O2 -I${libuv.include}`);
     cachedCompile(join(yyjsonDir, "yyjson.c"), yyjsonObj, "-O2");
     cachedCompile(JSON_BRIDGE, jsonObj, `-O2 -I${yyjsonDir}`);
+    if (opts.llvm) {
+      cachedCompile(LLVM_BRIDGE, llvmObj, `-O2 -I${LLVM_INCLUDE}`);
+    }
+    const llvmFlags = opts.llvm ? ` -L${LLVM_LIB} -lLLVM-22` : "";
     execSync(
-      `clang -g -O2 -o ${opts.output} ${tmpObj} ${allObjs.join(" ")} -L${libuv.lib} -luv -L${rureDir} -lrure`,
+      `clang -g -O2 -o ${opts.output} ${tmpObj} ${allObjs.join(" ")} -L${libuv.lib} -luv -L${rureDir} -lrure${llvmFlags}`,
       { stdio: "inherit" },
     );
     if (process.platform === "darwin") {
