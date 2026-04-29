@@ -794,6 +794,7 @@ function declareExterns(ctx: EmitContext): void {
     ["cs2_dynobj_has", m.i32, [m.ptr, m.ptr]],
     ["cs2_dynobj_delete", m.voidTy, [m.ptr, m.ptr]],
     ["cs2_dynobj_length", m.i32, [m.ptr]],
+    ["cs2_dynobj_repr", m.ptr, [m.ptr]],
     ["cs2_dynarray_new", m.ptr, []],
     ["cs2_dynarray_push_f64", m.voidTy, [m.ptr, m.f64]],
     ["cs2_dynarray_push_str", m.voidTy, [m.ptr, m.ptr]],

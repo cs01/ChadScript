@@ -91,6 +91,37 @@ int32_t cs2_dynobj_length(DynObj *o) {
     return o->length;
 }
 
+extern const char *cs2_boxed_to_string(uint64_t v);
+
+char *cs2_dynobj_repr(DynObj *o) {
+    size_t cap = 64;
+    char *buf = (char *)malloc(cap);
+    size_t len = 0;
+    buf[len++] = '{';
+    for (int32_t i = 0; i < o->length; i++) {
+        if (i > 0) {
+            if (len + 2 >= cap) { cap *= 2; buf = (char *)realloc(buf, cap); }
+            buf[len++] = ',';
+            buf[len++] = ' ';
+        }
+        const char *key = o->keys[i];
+        const char *val = cs2_boxed_to_string(o->values[i]);
+        size_t klen = strlen(key);
+        size_t vlen = strlen(val);
+        while (len + klen + vlen + 4 >= cap) { cap *= 2; buf = (char *)realloc(buf, cap); }
+        buf[len++] = '\'';
+        memcpy(buf + len, key, klen); len += klen;
+        buf[len++] = '\'';
+        buf[len++] = ':';
+        buf[len++] = ' ';
+        memcpy(buf + len, val, vlen); len += vlen;
+    }
+    if (len + 2 >= cap) { cap += 2; buf = (char *)realloc(buf, cap); }
+    buf[len++] = '}';
+    buf[len] = '\0';
+    return buf;
+}
+
 DynArray *cs2_dynarray_new(void) {
     DynArray *a = (DynArray *)malloc(sizeof(DynArray));
     a->capacity = DYNOBJ_INITIAL_CAP;

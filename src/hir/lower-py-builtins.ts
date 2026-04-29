@@ -1,6 +1,6 @@
 import type { SyntaxNode } from "../parser-py.js";
 import type { HIRType, HIRExpr, HIRFunction } from "./types.js";
-import { F64, I64, I1, I8PTR, VOID } from "./types.js";
+import { F64, I64, I1, I8PTR, VOID, BOXED, DYNOBJ } from "./types.js";
 import type { LowerCtx } from "./lower-py-ctx.js";
 import { coerceTo, coerceToF64, mapPrefix, resolveType } from "./lower-py-types.js";
 
@@ -62,6 +62,10 @@ export function lowerBuiltinCall(
         const fn = elem.kind === "i8ptr" ? "cs2_py_str_array_repr" : "cs2_py_num_array_repr";
         return { kind: "runtime_call", func: fn, args: [a], returnType: I8PTR, type: I8PTR };
       }
+      if (a.type.kind === "boxed")
+        return { kind: "runtime_call", func: "cs2_boxed_to_string", args: [a], returnType: I8PTR, type: I8PTR };
+      if (a.type.kind === "dynobj")
+        return { kind: "runtime_call", func: "cs2_dynobj_repr", args: [a], returnType: I8PTR, type: I8PTR };
       return a;
     });
     return { kind: "runtime_call", func: "cs_console_log", args: printArgs, returnType: VOID, type: VOID };
@@ -89,6 +93,8 @@ export function lowerBuiltinCall(
       const pt = (arg.type as { kind: "ptr"; pointee: string }).pointee;
       if (pt === "__deque_num") return { kind: "runtime_call", func: "cs2_deque_num_len", args: [arg], returnType: I64, type: I64 };
     }
+    if (arg.type.kind === "dynobj")
+      return { kind: "runtime_call", func: "cs2_dynobj_length", args: [arg], returnType: I64, type: I64 };
     throw new Error(`len() on unsupported type: ${arg.type.kind}`);
   }
 
@@ -96,6 +102,8 @@ export function lowerBuiltinCall(
     if (args.length === 0) return { kind: "literal_string", value: "", type: I8PTR };
     const arg = args[0];
     if (arg.type.kind === "i8ptr") return arg;
+    if (arg.type.kind === "boxed")
+      return { kind: "runtime_call", func: "cs2_boxed_to_string", args: [arg], returnType: I8PTR, type: I8PTR };
     return {
       kind: "runtime_call",
       func: "cs_string_concat",
