@@ -528,6 +528,27 @@ function lowerAssignment(node: SyntaxNode): HIRStmt[] {
     return lowerPatternUnpack(nameNode, valueNode);
   }
 
+  // Chained assignment: a = b = 5 → lower inner first, use result
+  if (valueNode && valueNode.type === "assignment") {
+    const innerStmts = lowerAssignment(valueNode);
+    const innerNameNode = namedChildren(valueNode)[0];
+    const innerName = innerNameNode.type === "identifier" ? innerNameNode.text : null;
+    const innerLocal = innerName ? locals.get(innerName) : null;
+    const outerValue: HIRExpr = innerLocal
+      ? { kind: "local_get", id: innerLocal.id, type: innerLocal.type }
+      : { kind: "literal_i64", value: 0, type: I64 };
+
+    const name = nameNode.text;
+    const existing = locals.get(name);
+    if (existing) {
+      return [...innerStmts, { kind: "expr", expr: { kind: "local_set", id: existing.id, value: coerceTo(outerValue, existing.type), type: existing.type } }];
+    }
+    const type = outerValue.type;
+    const id = freshId();
+    locals.set(name, { id, name, type });
+    return [...innerStmts, { kind: "let", id, name, type, init: outerValue, mutable: true }];
+  }
+
   const name = nameNode.text;
   const existing = locals.get(name);
   if (existing) {
