@@ -751,6 +751,15 @@ function lowerFor(node: SyntaxNode): HIRStmt[] {
   if (iterExpr.type.kind === "map") {
     return lowerMapFor(left, iterExpr, body, left.type === "pattern_list");
   }
+  if (iterExpr.type.kind === "set") {
+    const elemType = (iterExpr.type as { kind: "set"; element: HIRType }).element;
+    const prefix = elemType.kind === "i8ptr" ? "cs2_str_set" : "cs2_num_set";
+    const valuesExpr: HIRExpr = {
+      kind: "runtime_call", func: `${prefix}_values`,
+      args: [iterExpr], returnType: { kind: "array", element: elemType }, type: { kind: "array", element: elemType },
+    };
+    return lowerArrayFor(left, valuesExpr, body);
+  }
   return lowerArrayFor(left, iterExpr, body);
 }
 
@@ -1385,6 +1394,35 @@ function lowerComparison(node: SyntaxNode): HIRExpr {
         ? { kind: "unary", op: "not", operand: hasExpr, type: I1 }
         : hasExpr;
     }
+    if (rightType.kind === "set") {
+      const elemType = (rightType as { kind: "set"; element: HIRType }).element;
+      const prefix = elemType.kind === "i8ptr" ? "cs2_str_set" : "cs2_num_set";
+      const hasExpr: HIRExpr = {
+        kind: "runtime_call",
+        func: `${prefix}_has`,
+        args: [right, coerceTo(left, elemType)],
+        returnType: I1,
+        type: I1,
+      };
+      return opText === "not in"
+        ? { kind: "unary", op: "not", operand: hasExpr, type: I1 }
+        : hasExpr;
+    }
+    if (rightType.kind === "array") {
+      const elemType = (rightType as { kind: "array"; element: HIRType }).element;
+      const prefix = elemType.kind === "i8ptr" ? "cs2_str_array" : "cs2_num_array";
+      const hasExpr: HIRExpr = {
+        kind: "runtime_call",
+        func: `${prefix}_index_of`,
+        args: [right, coerceTo(left, elemType)],
+        returnType: I64,
+        type: I64,
+      };
+      const geZero: HIRExpr = { kind: "binary", op: "ge", left: hasExpr, right: { kind: "literal_i64", value: 0, type: I64 }, type: I1 };
+      return opText === "not in"
+        ? { kind: "unary", op: "not", operand: geZero, type: I1 }
+        : geZero;
+    }
     throw new Error(`'${opText}' not supported for type: ${rightType.kind}`);
   }
 
@@ -1530,7 +1568,12 @@ function lowerCall(node: SyntaxNode): HIRExpr {
         type: VOID,
       };
     }
-    return { kind: "runtime_call", func: "cs_console_log", args, returnType: VOID, type: VOID };
+    const printArgs = args.map((a): HIRExpr =>
+      a.type.kind === "i1"
+        ? { kind: "runtime_call", func: "cs2_py_bool_str", args: [a], returnType: I8PTR, type: I8PTR }
+        : a
+    );
+    return { kind: "runtime_call", func: "cs_console_log", args: printArgs, returnType: VOID, type: VOID };
   }
 
   if (funcName === "len") {
@@ -1542,6 +1585,11 @@ function lowerCall(node: SyntaxNode): HIRExpr {
     if (arg.type.kind === "map") {
       const mt = arg.type as { kind: "map"; key: HIRType; value: HIRType };
       return { kind: "runtime_call", func: `${mapPrefix(mt.key, mt.value)}_size`, args: [arg], returnType: I64, type: I64 };
+    }
+    if (arg.type.kind === "set") {
+      const elemType = (arg.type as { kind: "set"; element: HIRType }).element;
+      const prefix = elemType.kind === "i8ptr" ? "cs2_str_set" : "cs2_num_set";
+      return { kind: "runtime_call", func: `${prefix}_size`, args: [arg], returnType: I64, type: I64 };
     }
     if (arg.type.kind === "i8ptr") {
       return { kind: "runtime_call", func: "cs2_str_length", args: [arg], returnType: I64, type: I64 };
@@ -1731,6 +1779,63 @@ function lowerCall(node: SyntaxNode): HIRExpr {
     return { kind: "alloc_array", elementType: F64, initialValues: [], type: { kind: "array", element: F64 } };
   }
 
+  if (funcName === "set") {
+    if (args.length === 1 && args[0].type.kind === "array") {
+      const elemType = (args[0].type as { kind: "array"; element: HIRType }).element;
+      const setType: HIRType = { kind: "set", element: elemType };
+      const prefix = elemType.kind === "i8ptr" ? "cs2_str_set" : "cs2_num_set";
+      const setId = freshId();
+      const setName = `__set_${setId}`;
+      locals.set(setName, { id: setId, name: setName, type: setType });
+      const setRef: HIRExpr = { kind: "local_get", id: setId, type: setType };
+      const arrRef = args[0];
+      const iId = freshId();
+      const iName = `__si_${iId}`;
+      locals.set(iName, { id: iId, name: iName, type: I64 });
+      const iRef: HIRExpr = { kind: "local_get", id: iId, type: I64 };
+      const lenExpr: HIRExpr = { kind: "runtime_call",
+        func: elemType.kind === "i8ptr" ? "cs2_str_array_length" : "cs2_num_array_length",
+        args: [arrRef], returnType: I64, type: I64 };
+      const elemExpr: HIRExpr = { kind: "index_get", array: arrRef, index: iRef, type: elemType };
+      pendingStmts.push(
+        { kind: "let", id: setId, name: setName, type: setType,
+          init: { kind: "alloc_set", element: elemType, elements: [], type: setType }, mutable: false },
+        { kind: "let", id: iId, name: iName, type: I64,
+          init: { kind: "literal_i64", value: 0, type: I64 }, mutable: true },
+        { kind: "for",
+          condition: { kind: "binary", op: "lt", left: iRef, right: lenExpr, type: I1 },
+          update: { kind: "local_set", id: iId,
+            value: { kind: "binary", op: "add", left: iRef, right: { kind: "literal_i64", value: 1, type: I64 }, type: I64 },
+            type: I64 },
+          body: [{ kind: "expr",
+            expr: { kind: "runtime_call", func: `${prefix}_add`, args: [setRef, elemExpr], returnType: VOID, type: VOID } }] }
+      );
+      return setRef;
+    }
+    const setType: HIRType = { kind: "set", element: F64 };
+    return { kind: "alloc_set", element: F64, elements: [], type: setType };
+  }
+
+  if (funcName === "any") {
+    const arg = args[0];
+    if (arg.type.kind === "array") {
+      const elemType = (arg.type as { kind: "array"; element: HIRType }).element;
+      const prefix = elemType.kind === "i8ptr" ? "cs2_str_array" : "cs2_num_array";
+      return { kind: "runtime_call", func: `${prefix}_any`, args: [arg], returnType: I1, type: I1 };
+    }
+    return { kind: "literal_i1", value: false, type: I1 };
+  }
+
+  if (funcName === "all") {
+    const arg = args[0];
+    if (arg.type.kind === "array") {
+      const elemType = (arg.type as { kind: "array"; element: HIRType }).element;
+      const prefix = elemType.kind === "i8ptr" ? "cs2_str_array" : "cs2_num_array";
+      return { kind: "runtime_call", func: `${prefix}_all`, args: [arg], returnType: I1, type: I1 };
+    }
+    return { kind: "literal_i1", value: true, type: I1 };
+  }
+
   const classInfo = classes.get(funcName);
   if (classInfo) {
     const thisType: HIRType = { kind: "ptr", pointee: funcName };
@@ -1814,6 +1919,27 @@ function lowerMethodCall(attrNode: SyntaxNode, args: HIRExpr[]): HIRExpr {
       }
       default:
         throw new Error(`unsupported map method: ${methodName}`);
+    }
+  }
+
+  if (obj.type.kind === "set") {
+    const elemType = (obj.type as { kind: "set"; element: HIRType }).element;
+    const prefix = elemType.kind === "i8ptr" ? "cs2_str_set" : "cs2_num_set";
+    switch (methodName) {
+      case "add":
+        return { kind: "runtime_call", func: `${prefix}_add`, args: [obj, coerceTo(args[0], elemType)], returnType: VOID, type: VOID };
+      case "remove":
+      case "discard":
+        return { kind: "runtime_call", func: `${prefix}_delete`, args: [obj, coerceTo(args[0], elemType)], returnType: I64, type: I64 };
+      case "clear":
+        return { kind: "runtime_call", func: `${prefix}_clear`, args: [obj], returnType: VOID, type: VOID };
+      case "values":
+      case "__iter__": {
+        const arrType: HIRType = { kind: "array", element: elemType };
+        return { kind: "runtime_call", func: `${prefix}_values`, args: [obj], returnType: arrType, type: arrType };
+      }
+      default:
+        throw new Error(`unsupported set method: ${methodName}`);
     }
   }
 
@@ -1920,6 +2046,12 @@ function resolveType(node: SyntaxNode): HIRType {
       const keyType = rawKey.kind === "i64" ? F64 : rawKey;
       const valType = rawVal.kind === "i64" ? F64 : rawVal;
       return { kind: "map", key: keyType, value: valType };
+    }
+    if (baseName === "set" && typeParams) {
+      const elemNode = typeParams.namedChild(0);
+      const elemType = elemNode ? resolveType(elemNode) : F64;
+      const storageType = elemType.kind === "i64" ? F64 : elemType;
+      return { kind: "set", element: storageType };
     }
     if ((baseName === "Optional" || baseName === "Union") && typeParams) {
       const inner = typeParams.namedChild(0);

@@ -330,6 +330,10 @@ static void cs2_shortest_repr(char *buf, int bufsz, double val) {
     snprintf(buf, bufsz, "%.17g", val);
 }
 
+const char *cs2_py_bool_str(int val) {
+    return val ? "True" : "False";
+}
+
 void cs2_print_number(double val) {
     char buf[32];
     cs2_shortest_repr(buf, sizeof(buf), val);

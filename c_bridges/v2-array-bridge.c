@@ -379,6 +379,16 @@ double cs2_num_array_max(NumArray *arr) {
     return m;
 }
 
+int32_t cs2_num_array_any(NumArray *arr) {
+    for (int32_t i = 0; i < arr->length; i++) if (arr->data[i] != 0.0) return 1;
+    return 0;
+}
+
+int32_t cs2_num_array_all(NumArray *arr) {
+    for (int32_t i = 0; i < arr->length; i++) if (arr->data[i] == 0.0) return 0;
+    return 1;
+}
+
 NumArray *cs2_num_array_copy(NumArray *arr) {
     NumArray *r = (NumArray *)malloc(sizeof(NumArray));
     r->capacity = arr->length > 0 ? arr->length : 8;

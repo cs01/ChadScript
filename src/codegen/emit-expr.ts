@@ -787,9 +787,13 @@ function emitRuntimeCall(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_call
       let val = emitExpr(ctx, a);
       if (a.type.kind === "i64") {
         val = m.buildTrunc(val, m.i32, "");
-      } else if (a.type.kind === "i1" && expr.func.includes("num_array")) {
-        const ext = m.buildZExt(val, m.i64, "");
-        val = m.buildSIToFP(ext, m.f64, "");
+      } else if (a.type.kind === "i1") {
+        if (expr.func.includes("num_array")) {
+          const ext = m.buildZExt(val, m.i64, "");
+          val = m.buildSIToFP(ext, m.f64, "");
+        } else {
+          val = m.buildZExt(val, m.i32, "");
+        }
       }
       return val;
     });

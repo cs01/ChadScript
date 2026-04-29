@@ -239,6 +239,10 @@ function declareExterns(ctx: EmitContext): void {
   const printNumFn = m.addFunction("cs2_print_number", printNumType);
   ctx.declareFunction("cs2_print_number", printNumFn, printNumType);
 
+  const pyBoolStrType = m.functionType(m.ptr, [m.i32]);
+  const pyBoolStrFn = m.addFunction("cs2_py_bool_str", pyBoolStrType);
+  ctx.declareFunction("cs2_py_bool_str", pyBoolStrFn, pyBoolStrType);
+
   const fmtNumType = m.functionType(m.voidTy, [m.ptr, m.f64]);
   const fmtNumFn = m.addFunction("cs2_format_number", fmtNumType);
   ctx.declareFunction("cs2_format_number", fmtNumFn, fmtNumType);
@@ -385,6 +389,8 @@ function declareExterns(ctx: EmitContext): void {
     ["cs2_num_array_sum", m.f64, [m.ptr]],
     ["cs2_num_array_min", m.f64, [m.ptr]],
     ["cs2_num_array_max", m.f64, [m.ptr]],
+    ["cs2_num_array_any", m.i32, [m.ptr]],
+    ["cs2_num_array_all", m.i32, [m.ptr]],
     ["cs2_num_array_copy", m.ptr, [m.ptr]],
     ["cs2_num_array_shift", m.f64, [m.ptr]],
     ["cs2_num_array_unshift", m.voidTy, [m.ptr, m.f64]],
