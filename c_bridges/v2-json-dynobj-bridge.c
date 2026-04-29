@@ -3,12 +3,12 @@
 #include <stdint.h>
 #include "../vendor/yyjson/yyjson.h"
 
-#define TAG_F64    0
-#define TAG_STRING 1
-#define TAG_BOOL   2
-#define TAG_NULL   3
-#define TAG_OBJECT 4
-#define TAG_ARRAY  5
+typedef struct {
+    char **keys;
+    uint64_t *values;
+    int32_t length;
+    int32_t capacity;
+} DynObj;
 
 typedef struct {
     int32_t tag;
@@ -22,25 +22,19 @@ typedef struct {
 } DynValue;
 
 typedef struct {
-    char **keys;
-    DynValue *values;
-    int32_t length;
-    int32_t capacity;
-} DynObj;
-
-typedef struct {
     DynValue *data;
     int32_t length;
     int32_t capacity;
 } DynArray;
 
 extern DynObj *cs2_dynobj_new(void);
-extern void cs2_dynobj_set_f64(DynObj *o, const char *key, double val);
-extern void cs2_dynobj_set_str(DynObj *o, const char *key, const char *val);
-extern void cs2_dynobj_set_bool(DynObj *o, const char *key, int32_t val);
-extern void cs2_dynobj_set_null(DynObj *o, const char *key);
-extern void cs2_dynobj_set_obj(DynObj *o, const char *key, DynObj *val);
-extern void cs2_dynobj_set_arr(DynObj *o, const char *key, DynArray *val);
+extern void cs2_dynobj_set(DynObj *o, const char *key, uint64_t val);
+
+extern uint64_t nanbox_from_f64(double val);
+extern uint64_t nanbox_from_string(const char *s);
+extern uint64_t nanbox_from_bool(int32_t val);
+extern uint64_t nanbox_from_ptr(void *p);
+extern uint64_t nanbox_null(void);
 
 extern DynArray *cs2_dynarray_new(void);
 extern void cs2_dynarray_push_f64(DynArray *a, double val);
@@ -71,19 +65,19 @@ static DynObj *convert_obj(yyjson_val *obj) {
         const char *k = strdup_safe(yyjson_get_str(key));
         if (yyjson_is_real(val) || yyjson_is_int(val)) {
             double v = yyjson_is_real(val) ? yyjson_get_real(val) : (double)yyjson_get_sint(val);
-            cs2_dynobj_set_f64(o, k, v);
+            cs2_dynobj_set(o, k, nanbox_from_f64(v));
         } else if (yyjson_is_str(val)) {
-            cs2_dynobj_set_str(o, k, strdup_safe(yyjson_get_str(val)));
+            cs2_dynobj_set(o, k, nanbox_from_string(strdup_safe(yyjson_get_str(val))));
         } else if (yyjson_is_true(val)) {
-            cs2_dynobj_set_bool(o, k, 1);
+            cs2_dynobj_set(o, k, nanbox_from_bool(1));
         } else if (yyjson_is_false(val)) {
-            cs2_dynobj_set_bool(o, k, 0);
+            cs2_dynobj_set(o, k, nanbox_from_bool(0));
         } else if (yyjson_is_null(val)) {
-            cs2_dynobj_set_null(o, k);
+            cs2_dynobj_set(o, k, nanbox_null());
         } else if (yyjson_is_obj(val)) {
-            cs2_dynobj_set_obj(o, k, convert_obj(val));
+            cs2_dynobj_set(o, k, nanbox_from_ptr(convert_obj(val)));
         } else if (yyjson_is_arr(val)) {
-            cs2_dynobj_set_arr(o, k, convert_arr(val));
+            cs2_dynobj_set(o, k, nanbox_from_ptr(convert_arr(val)));
         }
     }
     return o;

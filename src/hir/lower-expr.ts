@@ -643,78 +643,26 @@ function lowerArrayLiteral(expr: any): HIRExpr {
 }
 
 function dynobj_get(obj: HIRExpr, key: HIRExpr): HIRExpr {
-  return {
+  const getExpr: HIRExpr = {
     kind: "runtime_call",
-    func: "cs2_dynobj_get_obj",
+    func: "cs2_dynobj_get",
     args: [obj, key],
-    returnType: DYNOBJ,
-    type: DYNOBJ,
+    returnType: BOXED,
+    type: BOXED,
   };
+  return coerce(getExpr, DYNOBJ);
 }
 
 function dynobj_get_typed(obj: HIRExpr, key: HIRExpr, targetType: HIRType | null): HIRExpr {
-  if (targetType) {
-    switch (targetType.kind) {
-      case "f64":
-      case "i64":
-        return {
-          kind: "runtime_call",
-          func: "cs2_dynobj_get_f64",
-          args: [obj, key],
-          returnType: F64,
-          type: F64,
-        };
-      case "i8ptr":
-        return {
-          kind: "runtime_call",
-          func: "cs2_dynobj_get_str",
-          args: [obj, key],
-          returnType: I8PTR,
-          type: I8PTR,
-        };
-      case "i1":
-        return {
-          kind: "runtime_call",
-          func: "cs2_dynobj_get_bool",
-          args: [obj, key],
-          returnType: I1,
-          type: I1,
-        };
-      case "dynarray":
-        return {
-          kind: "runtime_call",
-          func: "cs2_dynobj_get_arr",
-          args: [obj, key],
-          returnType: DYNARRAY,
-          type: DYNARRAY,
-        };
-      case "dynobj":
-        return {
-          kind: "runtime_call",
-          func: "cs2_dynobj_get_obj",
-          args: [obj, key],
-          returnType: DYNOBJ,
-          type: DYNOBJ,
-        };
-      case "boxed":
-        return {
-          kind: "runtime_call",
-          func: "cs2_dynobj_get_boxed",
-          args: [obj, key],
-          returnType: { kind: "boxed" },
-          type: { kind: "boxed" },
-        };
-      default:
-        break;
-    }
-  }
-  return {
+  const getExpr: HIRExpr = {
     kind: "runtime_call",
-    func: "cs2_dynobj_get_obj",
+    func: "cs2_dynobj_get",
     args: [obj, key],
-    returnType: DYNOBJ,
-    type: DYNOBJ,
+    returnType: BOXED,
+    type: BOXED,
   };
+  if (targetType) return coerce(getExpr, targetType);
+  return coerce(getExpr, DYNOBJ);
 }
 
 function lowerObjectLiteral(expr: any): HIRExpr {
@@ -1213,16 +1161,10 @@ function lowerCall(expr: CallExpression): HIRExpr {
     const key = lowerExpr(expr.arguments[1].expression);
     if (obj.type.kind === "dynobj") {
       return {
-        kind: "binary",
-        op: "ne" as BinaryOp,
-        left: {
-          kind: "runtime_call",
-          func: "cs2_dynobj_tag",
-          args: [obj, coerce(key, I8PTR)],
-          returnType: I64,
-          type: I64,
-        },
-        right: { kind: "literal_i64", value: -1, type: I64 },
+        kind: "runtime_call",
+        func: "cs2_dynobj_has",
+        args: [obj, coerce(key, I8PTR)],
+        returnType: I1,
         type: I1,
       };
     }

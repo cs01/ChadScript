@@ -689,57 +689,14 @@ function lowerArrayDestructuring(d: any, mutable: boolean): HIRStmt[] {
 }
 
 function dynObjGetForType(obj: HIRExpr, key: HIRExpr, targetType: HIRType): HIRExpr {
-  switch (targetType.kind) {
-    case "f64":
-    case "i64":
-      return {
-        kind: "runtime_call",
-        func: "cs2_dynobj_get_f64",
-        args: [obj, key],
-        returnType: F64,
-        type: F64,
-      };
-    case "i8ptr":
-      return {
-        kind: "runtime_call",
-        func: "cs2_dynobj_get_str",
-        args: [obj, key],
-        returnType: I8PTR,
-        type: I8PTR,
-      };
-    case "i1":
-      return {
-        kind: "runtime_call",
-        func: "cs2_dynobj_get_bool",
-        args: [obj, key],
-        returnType: I1,
-        type: I1,
-      };
-    case "dynarray":
-      return {
-        kind: "runtime_call",
-        func: "cs2_dynobj_get_arr",
-        args: [obj, key],
-        returnType: DYNARRAY,
-        type: DYNARRAY,
-      };
-    case "dynobj":
-      return {
-        kind: "runtime_call",
-        func: "cs2_dynobj_get_obj",
-        args: [obj, key],
-        returnType: DYNOBJ,
-        type: DYNOBJ,
-      };
-    default:
-      return {
-        kind: "runtime_call",
-        func: "cs2_dynobj_get_obj",
-        args: [obj, key],
-        returnType: DYNOBJ,
-        type: DYNOBJ,
-      };
-  }
+  const getExpr: HIRExpr = {
+    kind: "runtime_call",
+    func: "cs2_dynobj_get",
+    args: [obj, key],
+    returnType: BOXED,
+    type: BOXED,
+  };
+  return coerce(getExpr, targetType);
 }
 
 function lowerObjectDestructuring(d: any, mutable: boolean): HIRStmt[] {

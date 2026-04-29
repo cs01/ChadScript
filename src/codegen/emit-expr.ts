@@ -314,25 +314,8 @@ function emitAllocSet(
   return setPtr;
 }
 
-function dynObjSetFunc(ctx: EmitContext, valueType: HIRType): { fn: any; fnType: any } | null {
-  switch (valueType.kind) {
-    case "f64":
-      return ctx.getDeclaredFunction("cs2_dynobj_set_f64")!;
-    case "i64":
-      return ctx.getDeclaredFunction("cs2_dynobj_set_f64")!;
-    case "i8ptr":
-      return ctx.getDeclaredFunction("cs2_dynobj_set_str")!;
-    case "i1":
-      return ctx.getDeclaredFunction("cs2_dynobj_set_bool")!;
-    case "dynobj":
-      return ctx.getDeclaredFunction("cs2_dynobj_set_obj")!;
-    case "dynarray":
-      return ctx.getDeclaredFunction("cs2_dynobj_set_arr")!;
-    case "boxed":
-      return ctx.getDeclaredFunction("cs2_dynobj_set_f64")!;
-    default:
-      return null;
-  }
+function dynObjSetFunc(ctx: EmitContext, _valueType: HIRType): { fn: any; fnType: any } | null {
+  return ctx.getDeclaredFunction("cs2_dynobj_set")!;
 }
 
 function emitAllocDynObj(
@@ -361,15 +344,8 @@ function emitAllocDynObj(
     const val = emitExpr(ctx, prop.value);
     const setFn = dynObjSetFunc(ctx, prop.value.type);
     if (setFn) {
-      if (prop.value.type.kind === "i64") {
-        const asF64 = m.buildSIToFP(val, m.f64, "");
-        m.buildCall(setFn.fnType, setFn.fn, [objPtr, keyVal, asF64], "");
-      } else if (prop.value.type.kind === "i1") {
-        const asI32 = m.buildZExt(val, m.i32, "");
-        m.buildCall(setFn.fnType, setFn.fn, [objPtr, keyVal, asI32], "");
-      } else {
-        m.buildCall(setFn.fnType, setFn.fn, [objPtr, keyVal, val], "");
-      }
+      const boxed = emitBoxValue(ctx, val, prop.value.type);
+      m.buildCall(setFn.fnType, setFn.fn, [objPtr, keyVal, boxed], "");
     }
   }
 
