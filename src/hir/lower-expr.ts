@@ -2728,6 +2728,7 @@ function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
   if (prefix === "cs2_obj_array") {
     if (method === "unshift") info = { func: "cs2_obj_array_unshift", returnType: VOID, argTypes: [arrType.element] };
     else if (method === "join") info = { func: "cs2_obj_array_join", returnType: I8PTR, argTypes: [I8PTR] };
+    else if (method === "slice") info = { func: "cs2_obj_array_slice", returnType: obj.type, argTypes: [I64, I64] };
   }
 
   if (
@@ -3123,6 +3124,14 @@ export function lowerMember(expr: MemberExpression): HIRExpr {
           args: [],
           returnType: I8PTR,
           type: I8PTR,
+        };
+      case "pid":
+        return {
+          kind: "runtime_call",
+          func: "cs2_process_get_pid",
+          args: [],
+          returnType: I64,
+          type: I64,
         };
       case "exit":
         return { kind: "global_get", name: "process_exit", type: BOXED };

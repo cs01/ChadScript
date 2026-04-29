@@ -289,6 +289,40 @@ export function lowerModule(
 
   for (const item of ast.body) {
     const inner = unwrapExport(item);
+    if (inner.type !== "VariableDeclaration") continue;
+    const varDecl0 = inner as VariableDeclaration;
+    for (const d of varDecl0.declarations) {
+      if (d.id.type !== "Identifier") continue;
+      if (globals.has(d.id.value)) continue;
+      const ann = (d.id as any).typeAnnotation;
+      if (ann) {
+        const t = resolveTypeAnnotation(ann);
+        if (t.kind !== "boxed") {
+          const mutable = varDecl0.kind === "let" || varDecl0.kind === "var";
+          globals.set(d.id.value, { type: t, mutable });
+          continue;
+        }
+      }
+      if (d.init && (d.init as any).type === "NewExpression") {
+        const newExpr = d.init as any;
+        const cn = newExpr.callee?.value;
+        const ta = newExpr.typeArguments?.params;
+        if (cn === "Map" && ta?.length === 2) {
+          const key = resolveTypeAnnotation(ta[0]);
+          const val = resolveTypeAnnotation(ta[1]);
+          const mutable = varDecl0.kind === "let" || varDecl0.kind === "var";
+          globals.set(d.id.value, { type: { kind: "map", key, value: val }, mutable });
+        } else if (cn === "Set" && ta?.length === 1) {
+          const elem = resolveTypeAnnotation(ta[0]);
+          const mutable = varDecl0.kind === "let" || varDecl0.kind === "var";
+          globals.set(d.id.value, { type: { kind: "set", element: elem }, mutable });
+        }
+      }
+    }
+  }
+
+  for (const item of ast.body) {
+    const inner = unwrapExport(item);
     if (inner.type === "ImportDeclaration") {
       continue;
     } else if ((inner as any).type === "TsInterfaceDeclaration") {

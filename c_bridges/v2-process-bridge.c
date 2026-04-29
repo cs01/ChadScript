@@ -52,3 +52,5 @@ char *cs2_process_platform(void) {
 }
 
 void cs2_process_exit(int code) { exit(code); }
+
+int64_t cs2_process_get_pid(void) { return (int64_t)getpid(); }

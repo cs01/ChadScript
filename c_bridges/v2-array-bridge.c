@@ -192,6 +192,17 @@ int32_t cs2_obj_array_length(ObjArray *arr) {
     return arr->length;
 }
 
+ObjArray *cs2_obj_array_slice(ObjArray *arr, int32_t start, int32_t end) {
+    if (start < 0) start = arr->length + start;
+    if (end < 0) end = arr->length + end;
+    if (start < 0) start = 0;
+    if (end > arr->length) end = arr->length;
+    int32_t len = end > start ? end - start : 0;
+    ObjArray *result = cs2_obj_array_new(len > 0 ? len : 1);
+    for (int32_t i = 0; i < len; i++) result->data[result->length++] = arr->data[start + i];
+    return result;
+}
+
 ObjArray *cs2_obj_array_map(ObjArray *arr, void *fn_ptr, void *env_ptr) {
     void *(*fn)(void *, void *) = (void *(*)(void *, void *))fn_ptr;
     ObjArray *result = cs2_obj_array_new(arr->length);
