@@ -78,7 +78,8 @@ export function lowerPythonModule(
       case "for_statement":
       case "try_statement":
       case "delete_statement":
-      case "raise_statement": {
+      case "raise_statement":
+      case "with_statement": {
         const prev = pendingStmts;
         pendingStmts = [];
         const lowered = lowerStmt(child);
@@ -477,6 +478,8 @@ function lowerStmt(node: SyntaxNode): HIRStmt[] {
     case "function_definition":
       lowerFunction(node);
       return [];
+    case "with_statement":
+      return lowerWith(node);
     default:
       throw new Error(`unsupported statement: ${node.type}`);
   }
@@ -1164,6 +1167,20 @@ function lowerExpr(node: SyntaxNode): HIRExpr {
       const closureType: HIRType = { kind: "closure", params: fn.params.map((p) => p.type), returnType: fn.returnType };
       return { kind: "make_closure", funcName: lambdaName, captures: [], type: closureType };
     }
+    case "named_expression": {
+      // walrus := — assign and return value
+      const walrusName = node.namedChild(0)!.text;
+      const walrusVal = lowerExpr(node.namedChild(1)!);
+      const existing = locals.get(walrusName);
+      if (existing) {
+        pendingStmts.push({ kind: "expr", expr: { kind: "local_set", id: existing.id, value: walrusVal, type: walrusVal.type } });
+        return { kind: "local_get", id: existing.id, type: walrusVal.type };
+      }
+      const wId = freshId();
+      locals.set(walrusName, { id: wId, name: walrusName, type: walrusVal.type });
+      pendingStmts.push({ kind: "let", id: wId, name: walrusName, type: walrusVal.type, init: walrusVal, mutable: true });
+      return { kind: "local_get", id: wId, type: walrusVal.type };
+    }
     default:
       throw new Error(`unsupported expression: ${node.type} "${node.text}"`);
   }
@@ -1252,13 +1269,11 @@ function lowerListLiteral(node: SyntaxNode): HIRExpr {
     return { kind: "alloc_array", elementType: F64, initialValues: [], type: { kind: "array", element: F64 } };
   }
   const elements = namedChildren(node).map((c) => lowerExpr(c));
-  const rawType = elements[0].type;
-  // num arrays store f64; coerce int element type to f64 for storage
-  const elemType = rawType.kind === "i64" ? F64 : rawType;
+  const elemType = elements[0].type;
   return {
     kind: "alloc_array",
     elementType: elemType,
-    initialValues: elements.map((e) => coerceTo(e, elemType)),
+    initialValues: elements,
     type: { kind: "array", element: elemType },
   };
 }
@@ -2390,7 +2405,7 @@ function lowerDictLiteral(node: SyntaxNode): HIRExpr {
     const v = lowerExpr(pair.namedChild(1)!);
     if (i === 0) {
       keyType = k.type.kind === "i64" ? F64 : k.type;
-      valType = v.type.kind === "i64" ? F64 : v.type;
+      valType = v.type;
     }
     entries.push({ key: coerceTo(k, keyType), value: coerceTo(v, valType) });
   }
@@ -2414,13 +2429,14 @@ function lowerTupleLiteral(node: SyntaxNode): HIRExpr {
 }
 
 function lowerPatternUnpack(patternNode: SyntaxNode, valueNode: SyntaxNode | null): HIRStmt[] {
-  const names = namedChildren(patternNode).map((c) => c.text);
+  const children = namedChildren(patternNode);
   const stmts: HIRStmt[] = [];
 
   if (valueNode && (valueNode.type === "tuple" || valueNode.type === "expression_list")) {
     const values = namedChildren(valueNode).map((c) => lowerExpr(c));
-    for (let i = 0; i < names.length; i++) {
-      const name = names[i];
+    for (let i = 0; i < children.length; i++) {
+      const child = children[i];
+      const name = child.type === "list_splat_pattern" ? child.namedChild(0)!.text : child.text;
       const val = values[i] ?? { kind: "literal_i64" as const, value: 0, type: I64 };
       const existing = locals.get(name);
       if (existing) {
@@ -2437,25 +2453,84 @@ function lowerPatternUnpack(patternNode: SyntaxNode, valueNode: SyntaxNode | nul
     const elemType = arrType.kind === "array" ? arrType.element : F64;
     const tmpId = freshId();
     stmts.push({ kind: "let", id: tmpId, name: "__unpack", type: rhs.type, init: rhs as HIRExpr, mutable: false });
-    for (let i = 0; i < names.length; i++) {
-      const name = names[i];
-      const getExpr: HIRExpr = {
-        kind: "index_get",
-        array: { kind: "local_get", id: tmpId, type: rhs.type as HIRType },
-        index: { kind: "literal_i64", value: i, type: I64 },
-        type: elemType,
-      };
-      const existing = locals.get(name);
-      if (existing) {
-        stmts.push({ kind: "expr", expr: { kind: "local_set", id: existing.id, value: coerceTo(getExpr, existing.type), type: existing.type } });
+    const tmpRef: HIRExpr = { kind: "local_get", id: tmpId, type: rhs.type as HIRType };
+    const starIdx = children.findIndex((c) => c.type === "list_splat_pattern");
+    const prefix = elemType.kind === "i8ptr" ? "cs2_str_array" : "cs2_num_array";
+    let posIdx = 0;
+    for (let i = 0; i < children.length; i++) {
+      const child = children[i];
+      if (child.type === "list_splat_pattern") {
+        const name = child.namedChild(0)!.text;
+        const afterCount = children.length - i - 1;
+        const sliceType: HIRType = { kind: "array", element: elemType };
+        const lenExpr: HIRExpr = { kind: "runtime_call", func: `${prefix}_length`, args: [tmpRef], returnType: I64, type: I64 };
+        const endExpr: HIRExpr = afterCount === 0
+          ? lenExpr
+          : { kind: "binary", op: "sub", left: lenExpr, right: { kind: "literal_i64", value: afterCount, type: I64 }, type: I64 };
+        const sliceExpr: HIRExpr = {
+          kind: "runtime_call", func: `${prefix}_slice`,
+          args: [tmpRef, { kind: "literal_i64", value: posIdx, type: I64 }, endExpr],
+          returnType: sliceType, type: sliceType,
+        };
+        const existing = locals.get(name);
+        if (existing) {
+          stmts.push({ kind: "expr", expr: { kind: "local_set", id: existing.id, value: sliceExpr, type: sliceType } });
+        } else {
+          const id = freshId();
+          locals.set(name, { id, name, type: sliceType });
+          stmts.push({ kind: "let", id, name, type: sliceType, init: sliceExpr, mutable: true });
+        }
+        posIdx = -(afterCount);
       } else {
-        const id = freshId();
-        locals.set(name, { id, name, type: elemType });
-        stmts.push({ kind: "let", id, name, type: elemType, init: getExpr, mutable: true });
+        const name = child.text;
+        const idx = starIdx < 0 || i < starIdx ? posIdx : posIdx - (children.length - starIdx - 1) + i - starIdx;
+        const getExpr: HIRExpr = {
+          kind: "index_get", array: tmpRef,
+          index: idx >= 0
+            ? { kind: "literal_i64", value: idx, type: I64 }
+            : { kind: "binary", op: "sub",
+                left: { kind: "runtime_call", func: `${prefix}_length`, args: [tmpRef], returnType: I64, type: I64 },
+                right: { kind: "literal_i64", value: -idx, type: I64 }, type: I64 },
+          type: elemType,
+        };
+        const existing = locals.get(name);
+        if (existing) {
+          stmts.push({ kind: "expr", expr: { kind: "local_set", id: existing.id, value: coerceTo(getExpr, existing.type), type: existing.type } });
+        } else {
+          const id = freshId();
+          locals.set(name, { id, name, type: elemType });
+          stmts.push({ kind: "let", id, name, type: elemType, init: getExpr, mutable: true });
+        }
+        posIdx++;
       }
     }
   }
 
+  return stmts;
+}
+
+function lowerWith(node: SyntaxNode): HIRStmt[] {
+  const clauseNode = node.namedChild(0)!;
+  const bodyNode = node.childForFieldName("body")!;
+  const stmts: HIRStmt[] = [];
+
+  for (let i = 0; i < clauseNode.namedChildCount; i++) {
+    const item = clauseNode.namedChild(i)!;
+    const valueNode = item.childForFieldName("value") ?? item.namedChild(0)!;
+    if (valueNode.type === "as_pattern") {
+      const exprNode = valueNode.namedChild(0)!;
+      const aliasNode = valueNode.namedChild(valueNode.namedChildCount - 1)!;
+      const cmExpr = lowerExpr(exprNode);
+      const aliasName = aliasNode.text;
+      const aliasId = freshId();
+      locals.set(aliasName, { id: aliasId, name: aliasName, type: cmExpr.type });
+      stmts.push({ kind: "let", id: aliasId, name: aliasName, type: cmExpr.type, init: cmExpr, mutable: false });
+    } else {
+      stmts.push({ kind: "expr", expr: lowerExpr(valueNode) });
+    }
+  }
+
+  stmts.push(...lowerBlock(bodyNode));
   return stmts;
 }
 

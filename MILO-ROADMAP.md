@@ -70,7 +70,7 @@ Python-to-native compiler. Same HIR + emitter + C bridges as ChadScript v2 — o
 - [x] `lambda x: expr` — closures for HOF callbacks
 - [x] `Optional[T]`, `is None`, `is not None`
 - [x] `dict.get(k, default)`
-- [ ] Fix float printing: `3.0` should print `3.0` not `3` (Python-style repr)
+- [x] Fix float printing: `3.0` should print `3.0` not `3` (Python-style repr)
 
 **Fixtures:** comprehensions, builtins, dict-comp, set-ops, lambda-hof, range-negative ✅
 
