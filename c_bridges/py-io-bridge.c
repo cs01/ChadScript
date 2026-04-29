@@ -111,3 +111,47 @@ int32_t cs2_io_flush(FILE *f) {
     if (!f) return 0;
     return fflush(f) == 0 ? 1 : 0;
 }
+
+typedef struct { double *data; int32_t length; int32_t capacity; } CS2NumArray;
+
+char *cs2_py_str_array_repr(CS2StrArray *arr) {
+    if (!arr || arr->length == 0) return "[]";
+    size_t total = 3;
+    for (int i = 0; i < arr->length; i++) total += strlen(arr->data[i]) + 4;
+    char *buf = (char *)malloc(total);
+    size_t pos = 0;
+    buf[pos++] = '[';
+    for (int i = 0; i < arr->length; i++) {
+        if (i > 0) { buf[pos++] = ','; buf[pos++] = ' '; }
+        buf[pos++] = '\'';
+        const char *s = arr->data[i];
+        while (*s) buf[pos++] = *s++;
+        buf[pos++] = '\'';
+    }
+    buf[pos++] = ']';
+    buf[pos] = '\0';
+    return buf;
+}
+
+char *cs2_py_num_array_repr(CS2NumArray *arr) {
+    if (!arr || arr->length == 0) return "[]";
+    char tmp[64];
+    size_t total = 3 + arr->length * 32;
+    char *buf = (char *)malloc(total);
+    size_t pos = 0;
+    buf[pos++] = '[';
+    for (int i = 0; i < arr->length; i++) {
+        if (i > 0) { buf[pos++] = ','; buf[pos++] = ' '; }
+        double v = arr->data[i];
+        int len;
+        if (v == (double)(long long)v)
+            len = snprintf(tmp, sizeof(tmp), "%lld", (long long)v);
+        else
+            len = snprintf(tmp, sizeof(tmp), "%g", v);
+        memcpy(buf + pos, tmp, len);
+        pos += len;
+    }
+    buf[pos++] = ']';
+    buf[pos] = '\0';
+    return buf;
+}

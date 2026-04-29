@@ -153,6 +153,24 @@ export function lowerCall(node: SyntaxNode, ctx: LowerCtx): HIRExpr {
       }
     }
 
+    if (objName === "re") {
+      const reMethod = funcNode.namedChild(1)!.text;
+      const reMatchType: HIRType = { kind: "ptr", pointee: "__re_match" };
+      const strArrType: HIRType = { kind: "array", element: I8PTR };
+      switch (reMethod) {
+        case "match":
+          return { kind: "runtime_call", func: "cs2_re_match", args: [args[0], args[1]], returnType: reMatchType, type: reMatchType };
+        case "search":
+          return { kind: "runtime_call", func: "cs2_re_search", args: [args[0], args[1]], returnType: reMatchType, type: reMatchType };
+        case "findall":
+          return { kind: "runtime_call", func: "cs2_re_findall", args: [args[0], args[1]], returnType: strArrType, type: strArrType };
+        case "sub":
+          return { kind: "runtime_call", func: "cs2_re_sub", args: [args[0], args[1], args[2]], returnType: I8PTR, type: I8PTR };
+        case "split":
+          return { kind: "runtime_call", func: "cs2_re_split", args: [args[0], args[1]], returnType: strArrType, type: strArrType };
+      }
+    }
+
     if (objName === "math") {
       const mathMethod = funcNode.namedChild(1)!.text;
       const mathMap: Record<string, string> = {
@@ -221,6 +239,11 @@ export function lowerCall(node: SyntaxNode, ctx: LowerCtx): HIRExpr {
         return { kind: "runtime_call", func: "cs2_py_bool_str", args: [a], returnType: I8PTR, type: I8PTR };
       if (a.type.kind === "f64")
         return { kind: "runtime_call", func: "cs2_py_float_str", args: [a], returnType: I8PTR, type: I8PTR };
+      if (a.type.kind === "array") {
+        const elem = (a.type as { kind: "array"; element: HIRType }).element;
+        const fn = elem.kind === "i8ptr" ? "cs2_py_str_array_repr" : "cs2_py_num_array_repr";
+        return { kind: "runtime_call", func: fn, args: [a], returnType: I8PTR, type: I8PTR };
+      }
       return a;
     });
     return { kind: "runtime_call", func: "cs_console_log", args: printArgs, returnType: VOID, type: VOID };
@@ -736,6 +759,19 @@ export function lowerMethodCall(attrNode: SyntaxNode, args: HIRExpr[], ctx: Lowe
       }
       case "tell":
         return { kind: "runtime_call", func: "cs2_io_tell", args: [obj], returnType: I64, type: I64 };
+    }
+  }
+
+  if (obj.type.kind === "ptr" && obj.type.pointee === "__re_match") {
+    switch (methodName) {
+      case "group": {
+        const n: HIRExpr = args.length > 0 ? coerceTo(args[0], I64) : { kind: "literal_i64", value: 0, type: I64 };
+        return { kind: "runtime_call", func: "cs2_re_match_group", args: [obj, n], returnType: I8PTR, type: I8PTR };
+      }
+      case "start":
+        return { kind: "runtime_call", func: "cs2_re_match_start", args: [obj], returnType: I64, type: I64 };
+      case "end":
+        return { kind: "runtime_call", func: "cs2_re_match_end", args: [obj], returnType: I64, type: I64 };
     }
   }
 

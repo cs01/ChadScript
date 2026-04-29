@@ -320,6 +320,16 @@ function declareExterns(ctx: EmitContext): void {
     ctx.declareFunction(name, fn, ft);
   }
 
+  const pyReprFns: [string, any, any[]][] = [
+    ["cs2_py_str_array_repr", m.ptr, [m.ptr]],
+    ["cs2_py_num_array_repr", m.ptr, [m.ptr]],
+  ];
+  for (const [name, ret, params] of pyReprFns) {
+    const ft = m.functionType(ret, params);
+    const fn = m.addFunction(name, ft);
+    ctx.declareFunction(name, fn, ft);
+  }
+
   const pyJsonFns: [string, any, any[]][] = [
     ["cs2_py_json_dumps_str_str_map", m.ptr, [m.ptr]],
     ["cs2_py_json_dumps_str_num_map", m.ptr, [m.ptr]],
@@ -331,6 +341,22 @@ function declareExterns(ctx: EmitContext): void {
     ["cs2_py_json_loads_num_array", m.ptr, [m.ptr]],
   ];
   for (const [name, ret, params] of pyJsonFns) {
+    const ft = m.functionType(ret, params);
+    const fn = m.addFunction(name, ft);
+    ctx.declareFunction(name, fn, ft);
+  }
+
+  const reFns: [string, any, any[]][] = [
+    ["cs2_re_match", m.ptr, [m.ptr, m.ptr]],
+    ["cs2_re_search", m.ptr, [m.ptr, m.ptr]],
+    ["cs2_re_match_group", m.ptr, [m.ptr, m.i32]],
+    ["cs2_re_match_start", m.i32, [m.ptr]],
+    ["cs2_re_match_end", m.i32, [m.ptr]],
+    ["cs2_re_findall", m.ptr, [m.ptr, m.ptr]],
+    ["cs2_re_sub", m.ptr, [m.ptr, m.ptr, m.ptr]],
+    ["cs2_re_split", m.ptr, [m.ptr, m.ptr]],
+  ];
+  for (const [name, ret, params] of reFns) {
     const ft = m.functionType(ret, params);
     const fn = m.addFunction(name, ft);
     ctx.declareFunction(name, fn, ft);

@@ -891,6 +891,21 @@ function emitPrintValue(ctx: EmitContext, arg: HIRExpr, val: any, isLast: boolea
       const printf = ctx.getDeclaredFunction("printf")!;
       m.buildCall(printf.fnType, printf.fn, [nlStr], "");
     }
+  } else if (arg.type.kind === "ptr" && (arg.type as any).pointee === "__re_match") {
+    const isNull = m.buildICmp(LLVMIntEQ, val, m.constNull(m.ptr), "");
+    const printf = ctx.getDeclaredFunction("printf")!;
+    const puts = ctx.getDeclaredFunction("puts")!;
+    const matchGroupFn = ctx.getDeclaredFunction("cs2_re_match_group")!;
+    const groupIdx = m.constInt(m.i32, 0);
+    const matchStr = m.buildCall(matchGroupFn.fnType, matchGroupFn.fn, [val, groupIdx], "");
+    if (isLast) {
+      const selected = m.buildSelect(isNull, m.buildGlobalStringPtr("None", "none"), matchStr, "");
+      m.buildCall(puts.fnType, puts.fn, [selected], "");
+    } else {
+      const fmtS = m.buildGlobalStringPtr("%s", "fmt");
+      const selected = m.buildSelect(isNull, m.buildGlobalStringPtr("None", "none"), matchStr, "");
+      m.buildCall(printf.fnType, printf.fn, [fmtS, selected], "");
+    }
   } else if (arg.type.kind === "boxed") {
     if (isLast) {
       const printFn = ctx.getDeclaredFunction("nanbox_print")!;
