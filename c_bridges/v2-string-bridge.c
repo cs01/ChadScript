@@ -346,6 +346,15 @@ char *cs2_number_to_string(double val) {
     return buf;
 }
 
+char *cs2_number_to_fixed(double val, double digits) {
+    int d = (int)digits;
+    if (d < 0) d = 0;
+    if (d > 20) d = 20;
+    char *buf = (char *)malloc(64);
+    snprintf(buf, 64, "%.*f", d, val);
+    return buf;
+}
+
 double cs2_str_last_index_of(const char *s, const char *search) {
     size_t slen = strlen(s);
     size_t searchlen = strlen(search);

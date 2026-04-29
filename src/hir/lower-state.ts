@@ -82,6 +82,16 @@ export function setTypeParamContext(ctx: Map<string, HIRType> | null): void {
   typeParamContext = ctx;
 }
 
+export const narrowedLocals = new Map<string, HIRType>();
+
+export function pushNarrowing(name: string, type: HIRType): void {
+  narrowedLocals.set(name, type);
+}
+
+export function popNarrowing(name: string): void {
+  narrowedLocals.delete(name);
+}
+
 export function mangleGenericName(baseName: string, typeArgs: HIRType[]): string {
   return `${baseName}_${typeArgs.map(mangleType).join("_")}`;
 }
@@ -262,7 +272,10 @@ export function resolveTypeAnnotation(ann: any): HIRType {
     }
     if (nonNull.some((t: any) => t.type === "TsTypeLiteral")) {
       const props = collectUnionProps(nonNull);
-      return { kind: "dynobj", props: props.length > 0 ? props : undefined };
+      const variants = nonNull
+        .filter((t: any) => t.type === "TsTypeLiteral")
+        .map((t: any) => extractVariant(t));
+      return { kind: "dynobj", props: props.length > 0 ? props : undefined, variants };
     }
     return BOXED;
   }
@@ -313,20 +326,38 @@ function extractTypeLiteralProps(ta: any): { name: string; type: HIRType }[] {
   return props;
 }
 
+function extractVariant(ta: any): { fields: { name: string; type: HIRType }[]; literals: Record<string, string> } {
+  const fields: { name: string; type: HIRType }[] = [];
+  const literals: Record<string, string> = {};
+  if (ta.type !== "TsTypeLiteral" || !ta.members) return { fields, literals };
+  for (const m of ta.members) {
+    if (m.type === "TsPropertySignature" && m.key?.type === "Identifier") {
+      const name = m.key.value;
+      const typeAnn = m.typeAnnotation;
+      if (typeAnn?.type === "TsLiteralType" && typeAnn.literal?.type === "StringLiteral") {
+        literals[name] = typeAnn.literal.value;
+      }
+      fields.push({ name, type: resolveTypeAnnotation(typeAnn) });
+    }
+  }
+  return { fields, literals };
+}
+
 function collectUnionProps(variants: any[]): { name: string; type: HIRType }[] {
-  const allProps = new Map<string, HIRType>();
+  const allProps = new Map<string, HIRType[]>();
   for (const v of variants) {
     if (v.type !== "TsTypeLiteral") continue;
     const vProps = extractTypeLiteralProps(v);
     for (const p of vProps) {
-      if (!allProps.has(p.name)) {
-        allProps.set(p.name, p.type);
-      }
+      if (!allProps.has(p.name)) allProps.set(p.name, []);
+      allProps.get(p.name)!.push(p.type);
     }
   }
   const result: { name: string; type: HIRType }[] = [];
-  for (const [name, type] of allProps) {
-    result.push({ name, type });
+  for (const [name, types] of allProps) {
+    const first = types[0];
+    const allSame = types.every((t) => t.kind === first.kind);
+    result.push({ name, type: allSame ? first : BOXED });
   }
   return result;
 }

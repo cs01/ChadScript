@@ -47,6 +47,7 @@ import {
   enumRegistry,
   builtinImports,
   sourceFilePath,
+  narrowedLocals,
 } from "./lower-state.js";
 
 import { lowerArrowOrFnExpr } from "./lower-func.js";
@@ -182,7 +183,8 @@ function lowerIdentifier(id: Identifier): HIRExpr {
 
   const local = locals.get(id.value);
   if (local) {
-    return { kind: "local_get", id: local.id, type: local.type };
+    const narrowed = narrowedLocals.get(id.value);
+    return { kind: "local_get", id: local.id, type: narrowed ?? local.type };
   }
   if (outerLocals) {
     const outer = outerLocals.get(id.value);
@@ -216,6 +218,20 @@ function lowerIdentifier(id: Identifier): HIRExpr {
         },
       };
     }
+  }
+
+  const topLevelFn = functionRegistry.get(id.value);
+  if (topLevelFn) {
+    return {
+      kind: "make_closure",
+      funcName: id.value,
+      captures: [],
+      type: {
+        kind: "closure",
+        params: topLevelFn.params.map((p) => p.type),
+        returnType: topLevelFn.returnType,
+      },
+    };
   }
 
   const global = globals.get(id.value);
@@ -665,6 +681,14 @@ function dynobj_get_typed(obj: HIRExpr, key: HIRExpr, targetType: HIRType | null
           args: [obj, key],
           returnType: DYNOBJ,
           type: DYNOBJ,
+        };
+      case "boxed":
+        return {
+          kind: "runtime_call",
+          func: "cs2_dynobj_get_boxed",
+          args: [obj, key],
+          returnType: { kind: "boxed" },
+          type: { kind: "boxed" },
         };
       default:
         break;
@@ -1255,6 +1279,25 @@ function lowerCall(expr: CallExpression): HIRExpr {
           return lowerStringMethodCall(expr, asStr);
         }
       }
+    }
+    if (obj.type.kind === "f64" || obj.type.kind === "i64") {
+      const numObj: HIRExpr = obj.type.kind === "i64" ? coerce(obj, F64) : obj;
+      const method = ((expr.callee as MemberExpression).property as Identifier).value;
+      if (method === "toString") {
+        return { kind: "runtime_call", func: "cs2_number_to_string", args: [numObj], returnType: I8PTR, type: I8PTR };
+      }
+      if (method === "toFixed") {
+        const digits = expr.arguments.length > 0 ? coerce(lowerExpr(expr.arguments[0].expression), F64) : { kind: "literal_f64" as const, value: 0, type: F64 };
+        return { kind: "runtime_call", func: "cs2_number_to_fixed", args: [numObj, digits], returnType: I8PTR, type: I8PTR };
+      }
+      compileError(`unsupported number method: ${method}`, expr.span);
+    }
+    if (obj.type.kind === "boxed") {
+      const method = ((expr.callee as MemberExpression).property as Identifier).value;
+      if (method === "toString") {
+        return { kind: "runtime_call", func: "cs2_boxed_to_string", args: [obj], returnType: I8PTR, type: I8PTR };
+      }
+      compileError(`unsupported boxed method: ${method}`, expr.span);
     }
     if (obj.type.kind === "ptr") {
       const pointee = (obj.type as { kind: "ptr"; pointee: string }).pointee;

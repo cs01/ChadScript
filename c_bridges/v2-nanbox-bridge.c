@@ -73,6 +73,25 @@ int nanbox_to_bool(uint64_t v) {
     return v == TAG_TRUE ? 1 : 0;
 }
 
+const char *cs2_boxed_to_string(uint64_t v) {
+    if ((v & 0xFFFF000000000000ULL) == TAG_STRING) {
+        return (const char *)(uintptr_t)(v & MASK_PAYLOAD);
+    }
+    if (v == TAG_TRUE) return "true";
+    if (v == TAG_FALSE) return "false";
+    if (v == TAG_NULL) return "null";
+    if (v == TAG_UNDEFINED) return "undefined";
+    char *buf = (char *)malloc(32);
+    if (is_double(v)) {
+        double d;
+        memcpy(&d, &v, 8);
+        snprintf(buf, 32, "%g", d);
+        return buf;
+    }
+    snprintf(buf, 32, "%lld", (long long)(v & MASK_PAYLOAD));
+    return buf;
+}
+
 const char *nanbox_to_string(uint64_t v) {
     if ((v & 0xFFFF000000000000ULL) == TAG_STRING) {
         return (const char *)(uintptr_t)(v & MASK_PAYLOAD);

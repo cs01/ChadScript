@@ -64,6 +64,9 @@ import {
   typeAliasRegistry,
   builtinImports,
   setSourceFilePath,
+  narrowedLocals,
+  pushNarrowing,
+  popNarrowing,
 } from "./lower-state.js";
 import {
   registerFunction,
@@ -839,11 +842,61 @@ function lowerReturn(stmt: ReturnStatement): HIRStmt {
   };
 }
 
+function detectNarrowing(test: any): { varName: string; fieldName: string; literal: string } | null {
+  if (
+    test.type === "BinaryExpression" &&
+    (test.operator === "===" || test.operator === "==") &&
+    test.left?.type === "MemberExpression" &&
+    test.left.object?.type === "Identifier" &&
+    test.left.property?.type === "Identifier" &&
+    test.right?.type === "StringLiteral"
+  ) {
+    return {
+      varName: test.left.object.value,
+      fieldName: test.left.property.value,
+      literal: test.right.value,
+    };
+  }
+  return null;
+}
+
+function findVariant(
+  baseType: import("./types.js").HIRType,
+  fieldName: string,
+  literal: string,
+): import("./types.js").HIRType | null {
+  if (baseType.kind !== "dynobj" || !baseType.variants) return null;
+  for (const variant of baseType.variants) {
+    if (variant.literals[fieldName] === literal) {
+      return { kind: "dynobj", props: variant.fields };
+    }
+  }
+  return null;
+}
+
 function lowerIf(stmt: IfStatement): HIRStmt {
+  const condition = coerceToCondition(lowerExpr(stmt.test));
+  const narrowing = detectNarrowing(stmt.test);
+  let narrowedName: string | null = null;
+
+  if (narrowing) {
+    const local = locals.get(narrowing.varName);
+    if (local) {
+      const narrowed = findVariant(local.type, narrowing.fieldName, narrowing.literal);
+      if (narrowed) {
+        narrowedName = narrowing.varName;
+        pushNarrowing(narrowing.varName, narrowed);
+      }
+    }
+  }
+
+  const thenBody = lowerConsequent(stmt.consequent);
+  if (narrowedName) popNarrowing(narrowedName);
+
   return {
     kind: "if",
-    condition: coerceToCondition(lowerExpr(stmt.test)),
-    then: lowerConsequent(stmt.consequent),
+    condition,
+    then: thenBody,
     else: stmt.alternate ? lowerConsequent(stmt.alternate) : undefined,
   };
 }
