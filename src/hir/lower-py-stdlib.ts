@@ -718,6 +718,22 @@ export function lowerMethodCall(attrNode: SyntaxNode, args: HIRExpr[], ctx: Lowe
           returnType: I64,
           type: I64,
         };
+      case "sort":
+        return { kind: "runtime_call", func: `${prefix}_sort`, args: [obj], returnType: VOID, type: VOID };
+      case "extend": {
+        const arrB = args[0];
+        const iId = ctx.freshId();
+        const iRef: HIRExpr = { kind: "local_get", id: iId, type: I64 };
+        const lenE: HIRExpr = { kind: "runtime_call", func: `${prefix}_length`, args: [arrB], returnType: I64, type: I64 };
+        ctx.pendingStmts.push(
+          { kind: "let", id: iId, name: `__ext_${iId}`, type: I64, init: { kind: "literal_i64", value: 0, type: I64 }, mutable: true },
+          { kind: "for",
+            condition: { kind: "binary", op: "lt", left: iRef, right: lenE, type: I1 },
+            update: { kind: "local_set", id: iId, value: { kind: "binary", op: "add", left: iRef, right: { kind: "literal_i64", value: 1, type: I64 }, type: I64 }, type: I64 },
+            body: [{ kind: "expr", expr: { kind: "runtime_call", func: `${prefix}_push`, args: [obj, { kind: "index_get", array: arrB, index: iRef, type: elemType }], returnType: VOID, type: VOID } }] }
+        );
+        return { kind: "literal_null", type: VOID };
+      }
       default:
         throw new Error(`unsupported array method: ${methodName}`);
     }
