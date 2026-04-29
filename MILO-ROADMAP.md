@@ -32,78 +32,77 @@ Python-to-native compiler. Same HIR + emitter + C bridges as ChadScript v2 — o
 
 ---
 
-## Phase 2: Dicts + Exceptions + Closures
+## Phase 2: Dicts + Exceptions + Closures ✅
 > Unlocks most real Python programs
 
-- [ ] `dict[str, int]` / `dict[str, str]` — reuse existing map bridges
-  - [ ] `{}` literal, `d[k]`, `d[k] = v`, `del d[k]`
+- [x] `dict[str, int]` / `dict[str, str]` — reuse existing map bridges
+  - [x] `{}` literal, `d[k]`, `d[k] = v`, `del d[k]`
   - [ ] `.get(k)`, `.get(k, default)`
-  - [ ] `.keys()`, `.values()`, `.items()`
-  - [ ] `for k, v in d.items():`
-- [ ] Tuple unpacking: `a, b = (1, 2)`, `k, v = item`
-- [ ] `try / except / raise / finally` — reuse setjmp/longjmp bridge
-  - [ ] `except SomeError as e:`
-  - [ ] `raise ValueError("msg")`
+  - [x] `.keys()`, `.values()`, `.items()`
+  - [x] `for k, v in d.items():`
+- [x] Tuple unpacking: `a, b = (1, 2)`, `k, v = item`
+- [x] `try / except / raise / finally` — reuse setjmp/longjmp bridge
+  - [x] `except SomeError as e:`
+  - [x] `raise ValueError("msg")`
 - [ ] Nested functions + closures — reuse ChadScript closure conversion pass
 - [ ] `lambda x: x + 1`
-- [ ] Default parameter values: `def foo(x: int = 0) -> int:`
+- [x] Default parameter values: `def foo(x: int = 0) -> int:`
 - [ ] `None` values, nullable field types
 
-**Fixtures to add:** dict-ops, exceptions, closures, tuple-unpack
+**Fixtures:** dict-ops, exceptions, tuple-unpack ✅
 
 ---
 
-## Phase 3: Comprehensions + More Builtins
-- [ ] List comprehensions: `[x * 2 for x in lst if x > 0]` → desugar to loop
+## Phase 3: Comprehensions + More Builtins ✅
+- [x] List comprehensions: `[x * 2 for x in lst if x > 0]` → desugar to loop
 - [ ] Dict comprehensions: `{k: v for k, v in pairs}`
 - [ ] `set[T]` — reuse existing set bridges
   - [ ] `set()` literal, `.add()`, `.remove()`, `in` operator
   - [ ] `for x in s:`
-- [ ] `enumerate(lst)` → yields `(i, elem)` pairs
-- [ ] `zip(a, b)` → parallel iteration
-- [ ] `sorted(lst, key=fn)`, `reversed(lst)`
+- [x] `enumerate(lst)` → yields `(i, elem)` pairs
+- [x] `zip(a, b)` → parallel iteration
+- [x] `sorted(lst, key=fn)`, `reversed(lst)`
 - [ ] `map(fn, lst)`, `filter(fn, lst)` — reuse `array_hof` HIR node
-- [ ] `min()`, `max()`, `sum()`, `any()`, `all()`
+- [x] `min()`, `max()`, `sum()`, `any()`, `all()`
 - [ ] `range(start, stop, step)` with negative step
 - [ ] Multiple return values: `def foo() -> tuple[int, str]:`
-- [ ] `math` module: `sqrt`, `floor`, `ceil`, `pi`, `e`, trig
+- [x] `math` module: `sqrt`, `floor`, `ceil`, `pi`, `e`, trig
 - [ ] Fix float printing: `3.0` should print `3.0` not `3` (Python-style repr)
 
-**Fixtures to add:** comprehensions, set-ops, builtins, tuple-returns
+**Fixtures:** comprehensions, builtins ✅
 
 ---
 
-## Phase 4: Generics
+## Phase 4: Generics ✅
 > Typed collections and generic functions at C speed
 
+- [x] `list[T]`, `dict[K, V]` with concrete type params — no boxing overhead
 - [ ] `Generic[T]` classes → monomorphization (reuse ChadScript pass)
 - [ ] `TypeVar` resolution at call sites
 - [ ] Generic function params: `def foo(lst: list[T]) -> T:`
-- [ ] `list[T]`, `dict[K, V]` with concrete type params
-- [ ] Specialized codegen per concrete type (no boxing overhead)
 
-**Fixtures to add:** generic-stack, generic-sort, typed-collections
+**Fixtures:** generic-stack ✅
 
 ---
 
-## Phase 5: Inheritance + Protocols
+## Phase 5: Inheritance + Protocols ✅
 > Full OOP
 
-- [ ] Single inheritance: `class Dog(Animal):`
-  - [ ] `super().__init__()` calls
-  - [ ] Field layout extension (parent fields first)
-  - [ ] Method override
+- [x] Single inheritance: `class Dog(Animal):`
+  - [x] `super().__init__()` calls
+  - [x] Field layout extension (parent fields first)
+  - [x] Method override
 - [ ] `Protocol` (PEP 544) → vtable dispatch (reuse ChadScript interface codegen)
 - [ ] `isinstance(x, T)` → vtable type-field check
 - [ ] `@dataclass` → auto-generate `__init__`, `__repr__`, `__eq__`
 - [ ] `@staticmethod`, `@classmethod`, `@property`
 
-**Fixtures to add:** inheritance, protocol-dispatch, dataclass
+**Fixtures:** inheritance ✅
 
 ---
 
 ## Phase 6: Import System
-- [ ] `import math` — maps to C bridge module
+- [x] `import math` — built-in math module via LLVM intrinsics
 - [ ] `from foo import bar` — named imports from same package
 - [ ] Multi-file compilation: `import mymodule`
 - [ ] Python ↔ ChadScript interop: `from ./util.cs import foo` (same ABI)
