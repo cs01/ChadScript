@@ -723,6 +723,14 @@ function lowerFor(node: SyntaxNode): HIRStmt[] {
     return lowerRangeFor(left, right, body);
   }
 
+  if (right.type === "call" && right.childForFieldName("function")?.text === "enumerate") {
+    return lowerEnumerateFor(left, right, body);
+  }
+
+  if (right.type === "call" && right.childForFieldName("function")?.text === "zip") {
+    return lowerZipFor(left, right, body);
+  }
+
   // dict.items() or dict.keys()
   if (right.type === "call") {
     const fn = right.childForFieldName("function");
@@ -742,6 +750,129 @@ function lowerFor(node: SyntaxNode): HIRStmt[] {
     return lowerMapFor(left, iterExpr, body, left.type === "pattern_list");
   }
   return lowerArrayFor(left, iterExpr, body);
+}
+
+function lowerEnumerateFor(left: SyntaxNode, call: SyntaxNode, body: SyntaxNode): HIRStmt[] {
+  const argsNode = call.childForFieldName("arguments")!;
+  const iterExpr = lowerExpr(argsNode.namedChild(0)!);
+  if (iterExpr.type.kind !== "array") {
+    throw new Error("enumerate() requires array");
+  }
+  const elemType = iterExpr.type.element;
+  const iterPrefix = elemType.kind === "i8ptr" ? "cs2_str_array" : "cs2_num_array";
+
+  const arrId = freshId();
+  const iId = freshId();
+  const elemId = freshId();
+  locals.set("__enum_arr", { id: arrId, name: "__enum_arr", type: iterExpr.type });
+  locals.set("__enum_i", { id: iId, name: "__enum_i", type: I64 });
+
+  const arrRef: HIRExpr = { kind: "local_get", id: arrId, type: iterExpr.type };
+  const iRef: HIRExpr = { kind: "local_get", id: iId, type: I64 };
+
+  const lenExpr: HIRExpr = {
+    kind: "runtime_call", func: `${iterPrefix}_length`, args: [arrRef], returnType: I64, type: I64,
+  };
+
+  const bodyVars: HIRStmt[] = [];
+  if (left.type === "pattern_list") {
+    const names = namedChildren(left).map((c) => c.text);
+    const idxName = names[0];
+    const valName = names[1];
+    if (idxName) {
+      const idId = freshId();
+      locals.set(idxName, { id: idId, name: idxName, type: I64 });
+      bodyVars.push({ kind: "let", id: idId, name: idxName, type: I64, init: iRef, mutable: false });
+    }
+    if (valName) {
+      locals.set(valName, { id: elemId, name: valName, type: elemType });
+      bodyVars.push({
+        kind: "let", id: elemId, name: valName, type: elemType,
+        init: { kind: "index_get", array: arrRef, index: iRef, type: elemType },
+        mutable: false,
+      });
+    }
+  }
+
+  return [
+    { kind: "let", id: arrId, name: "__enum_arr", type: iterExpr.type, init: iterExpr, mutable: false },
+    { kind: "let", id: iId, name: "__enum_i", type: I64, init: { kind: "literal_i64", value: 0, type: I64 }, mutable: true },
+    {
+      kind: "for",
+      condition: { kind: "binary", op: "lt", left: iRef, right: lenExpr, type: I1 },
+      update: {
+        kind: "local_set", id: iId,
+        value: { kind: "binary", op: "add", left: iRef, right: { kind: "literal_i64", value: 1, type: I64 }, type: I64 },
+        type: I64,
+      },
+      body: [...bodyVars, ...lowerBlock(body)],
+    },
+  ];
+}
+
+function lowerZipFor(left: SyntaxNode, call: SyntaxNode, body: SyntaxNode): HIRStmt[] {
+  const argsNode = call.childForFieldName("arguments")!;
+  const arr1Expr = lowerExpr(argsNode.namedChild(0)!);
+  const arr2Expr = lowerExpr(argsNode.namedChild(1)!);
+  if (arr1Expr.type.kind !== "array" || arr2Expr.type.kind !== "array") {
+    throw new Error("zip() requires arrays");
+  }
+  const elem1 = arr1Expr.type.element;
+  const elem2 = arr2Expr.type.element;
+  const p1 = elem1.kind === "i8ptr" ? "cs2_str_array" : "cs2_num_array";
+  const p2 = elem2.kind === "i8ptr" ? "cs2_str_array" : "cs2_num_array";
+
+  const a1Id = freshId();
+  const a2Id = freshId();
+  const iId = freshId();
+  locals.set("__zip_a1", { id: a1Id, name: "__zip_a1", type: arr1Expr.type });
+  locals.set("__zip_a2", { id: a2Id, name: "__zip_a2", type: arr2Expr.type });
+  locals.set("__zip_i", { id: iId, name: "__zip_i", type: I64 });
+
+  const a1Ref: HIRExpr = { kind: "local_get", id: a1Id, type: arr1Expr.type };
+  const a2Ref: HIRExpr = { kind: "local_get", id: a2Id, type: arr2Expr.type };
+  const iRef: HIRExpr = { kind: "local_get", id: iId, type: I64 };
+
+  const lenExpr: HIRExpr = {
+    kind: "runtime_call", func: `${p1}_length`, args: [a1Ref], returnType: I64, type: I64,
+  };
+
+  const bodyVars: HIRStmt[] = [];
+  if (left.type === "pattern_list") {
+    const names = namedChildren(left).map((c) => c.text);
+    if (names[0]) {
+      const id1 = freshId();
+      locals.set(names[0], { id: id1, name: names[0], type: elem1 });
+      bodyVars.push({
+        kind: "let", id: id1, name: names[0], type: elem1,
+        init: { kind: "index_get", array: a1Ref, index: iRef, type: elem1 }, mutable: false,
+      });
+    }
+    if (names[1]) {
+      const id2 = freshId();
+      locals.set(names[1], { id: id2, name: names[1], type: elem2 });
+      bodyVars.push({
+        kind: "let", id: id2, name: names[1], type: elem2,
+        init: { kind: "index_get", array: a2Ref, index: iRef, type: elem2 }, mutable: false,
+      });
+    }
+  }
+
+  return [
+    { kind: "let", id: a1Id, name: "__zip_a1", type: arr1Expr.type, init: arr1Expr, mutable: false },
+    { kind: "let", id: a2Id, name: "__zip_a2", type: arr2Expr.type, init: arr2Expr, mutable: false },
+    { kind: "let", id: iId, name: "__zip_i", type: I64, init: { kind: "literal_i64", value: 0, type: I64 }, mutable: true },
+    {
+      kind: "for",
+      condition: { kind: "binary", op: "lt", left: iRef, right: lenExpr, type: I1 },
+      update: {
+        kind: "local_set", id: iId,
+        value: { kind: "binary", op: "add", left: iRef, right: { kind: "literal_i64", value: 1, type: I64 }, type: I64 },
+        type: I64,
+      },
+      body: [...bodyVars, ...lowerBlock(body)],
+    },
+  ];
 }
 
 function lowerRangeFor(left: SyntaxNode, call: SyntaxNode, body: SyntaxNode): HIRStmt[] {
@@ -1084,8 +1215,19 @@ function lowerSubscript(node: SyntaxNode): HIRExpr {
 }
 
 function lowerAttribute(node: SyntaxNode): HIRExpr {
-  const obj = lowerExpr(node.namedChild(0)!);
+  const objNode = node.namedChild(0)!;
   const fieldName = node.namedChild(1)!.text;
+
+  if (objNode.text === "math") {
+    switch (fieldName) {
+      case "pi": return { kind: "literal_f64", value: Math.PI, type: F64 };
+      case "e": return { kind: "literal_f64", value: Math.E, type: F64 };
+      case "inf": return { kind: "literal_f64", value: Infinity, type: F64 };
+      case "tau": return { kind: "literal_f64", value: 2 * Math.PI, type: F64 };
+    }
+  }
+
+  const obj = lowerExpr(objNode);
 
   if (obj.type.kind === "ptr") {
     const cls = classes.get(obj.type.pointee);
@@ -1109,6 +1251,7 @@ function lowerIdentifier(node: SyntaxNode): HIRExpr {
   const name = node.text;
   const local = locals.get(name);
   if (local) return { kind: "local_get", id: local.id, type: local.type };
+  if (name === "math") return { kind: "literal_null", type: VOID };
   throw new Error(`undefined variable: ${name}`);
 }
 
@@ -1259,6 +1402,34 @@ function lowerCall(node: SyntaxNode): HIRExpr {
     const args: HIRExpr[] = [];
     for (let i = 0; i < argsNode.namedChildCount; i++) {
       args.push(lowerExpr(argsNode.namedChild(i)!));
+    }
+
+    // math.method(args)
+    if (funcNode.namedChild(0)!.text === "math") {
+      const mathMethod = funcNode.namedChild(1)!.text;
+      const mathMap: Record<string, string> = {
+        sqrt: "cs_math_sqrt",
+        floor: "cs_math_floor",
+        ceil: "cs_math_ceil",
+        abs: "cs_math_abs",
+        sin: "cs_math_sin",
+        cos: "cs_math_cos",
+        tan: "cs_math_tan",
+        log: "cs_math_log",
+        log2: "cs_math_log2",
+        exp: "cs_math_exp",
+        pow: "cs_math_pow",
+        fabs: "cs_math_abs",
+      };
+      const mathFn = mathMap[mathMethod];
+      if (mathFn) {
+        return {
+          kind: "runtime_call",
+          func: mathFn,
+          args: args.map(coerceToF64),
+          returnType: F64, type: F64,
+        };
+      }
     }
 
     // super().method(args) → ParentClass_method(self, args)
