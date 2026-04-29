@@ -334,6 +334,23 @@ const char *cs2_py_bool_str(int val) {
     return val ? "True" : "False";
 }
 
+char *cs2_py_float_str(double val) {
+    char *buf = (char *)malloc(32);
+    if (val != val) { strcpy(buf, "nan"); return buf; }
+    if (val == 1.0/0.0) { strcpy(buf, "inf"); return buf; }
+    if (val == -1.0/0.0) { strcpy(buf, "-inf"); return buf; }
+    for (int prec = 1; prec <= 17; prec++) {
+        snprintf(buf, 32, "%.*g", prec, val);
+        double reparsed;
+        sscanf(buf, "%lf", &reparsed);
+        if (reparsed == val) break;
+    }
+    if (!strchr(buf, '.') && !strchr(buf, 'e') && !strchr(buf, 'E') && !strchr(buf, 'n') && !strchr(buf, 'i')) {
+        strcat(buf, ".0");
+    }
+    return buf;
+}
+
 void cs2_print_number(double val) {
     char buf[32];
     cs2_shortest_repr(buf, sizeof(buf), val);

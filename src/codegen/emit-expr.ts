@@ -195,7 +195,8 @@ function emitArrayPrefix(elemType: HIRType): string {
 
 function emitAllocArray(ctx: EmitContext, expr: HIRExpr & { kind: "alloc_array" }): any {
   const m = ctx.m;
-  const prefix = emitArrayPrefix(expr.elementType);
+  const storageElem = expr.elementType.kind === "i64" ? { kind: "f64" } as HIRType : expr.elementType;
+  const prefix = emitArrayPrefix(storageElem);
   const newFn = `${prefix}_new`;
   const pushFn = `${prefix}_push`;
 
@@ -206,7 +207,8 @@ function emitAllocArray(ctx: EmitContext, expr: HIRExpr & { kind: "alloc_array" 
   if (expr.initialValues.length > 0) {
     const pushDecl = ctx.getDeclaredFunction(pushFn)!;
     for (const valExpr of expr.initialValues) {
-      const v = emitExpr(ctx, valExpr);
+      let v = emitExpr(ctx, valExpr);
+      if (expr.elementType.kind === "i64") v = m.buildSIToFP(v, m.f64, "");
       m.buildCall(pushDecl.fnType, pushDecl.fn, [arr, v], "");
     }
   }
@@ -284,7 +286,8 @@ function emitAllocMap(
   const setFn = ctx.getDeclaredFunction(`${prefix}_set`)!;
   for (const entry of expr.entries) {
     const key = emitExpr(ctx, entry.key);
-    const val = emitExpr(ctx, entry.value);
+    let val = emitExpr(ctx, entry.value);
+    if (expr.valueType.kind === "i64") val = m.buildSIToFP(val, m.f64, "");
     m.buildCall(setFn.fnType, setFn.fn, [mapPtr, key, val], "");
   }
 
@@ -472,12 +475,15 @@ function emitIndexGet(ctx: EmitContext, expr: HIRExpr & { kind: "index_get" }): 
   }
   const elemType =
     expr.array.type.kind === "array" ? (expr.array.type as any).element : { kind: "f64" };
-  const storagePrefix = elemType.kind === "i1" ? "cs2_num_array" : emitArrayPrefix(elemType);
+  const storageElem = elemType.kind === "i64" ? { kind: "f64" } : elemType;
+  const storagePrefix = storageElem.kind === "i1" ? "cs2_num_array" : emitArrayPrefix(storageElem);
   const getFn = `${storagePrefix}_get`;
   const decl = ctx.getDeclaredFunction(getFn)!;
   let result = m.buildCall(decl.fnType, decl.fn, [arr, idx], "");
   if (elemType.kind === "i1") {
     result = m.buildFCmp(LLVMRealONE, result, m.constReal(m.f64, 0.0), "");
+  } else if (elemType.kind === "i64") {
+    result = m.buildFPToSI(result, m.i64, "");
   }
   return result;
 }
@@ -492,7 +498,11 @@ function emitIndexSet(ctx: EmitContext, expr: HIRExpr & { kind: "index_set" }): 
   let val = emitExpr(ctx, expr.value);
   const elemType =
     expr.array.type.kind === "array" ? (expr.array.type as any).element : { kind: "f64" };
-  const storagePrefix = elemType.kind === "i1" ? "cs2_num_array" : emitArrayPrefix(elemType);
+  const storageElem = elemType.kind === "i64" ? { kind: "f64" } : elemType;
+  if (elemType.kind === "i64") {
+    val = m.buildSIToFP(val, m.f64, "");
+  }
+  const storagePrefix = storageElem.kind === "i1" ? "cs2_num_array" : emitArrayPrefix(storageElem);
   if (elemType.kind === "i1") {
     const ext = m.buildZExt(val, m.i64, "");
     val = m.buildSIToFP(ext, m.f64, "");
@@ -783,10 +793,19 @@ function emitRuntimeCall(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_call
 
   const bridgeFn = ctx.getDeclaredFunction(expr.func);
   if (bridgeFn) {
-    const args = expr.args.map((a) => {
+    const paramTypes = bridgeFn.fnType.getParamTypes ? bridgeFn.fnType.getParamTypes() : null;
+    const args = expr.args.map((a, i) => {
       let val = emitExpr(ctx, a);
       if (a.type.kind === "i64") {
-        val = m.buildTrunc(val, m.i32, "");
+        // Only push/set/get_or value args are double; index args remain i32
+        const needsF64 =
+          (expr.func.endsWith("_push") && i === 1) ||
+          ((expr.func.includes("_num_map_set") || expr.func.includes("_num_map_get_or")) && i === 2);
+        if (needsF64) {
+          val = m.buildSIToFP(val, m.f64, "");
+        } else {
+          val = m.buildTrunc(val, m.i32, "");
+        }
       } else if (a.type.kind === "i1") {
         if (expr.func.includes("num_array")) {
           const ext = m.buildZExt(val, m.i64, "");
@@ -799,7 +818,13 @@ function emitRuntimeCall(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_call
     });
     let result = m.buildCall(bridgeFn.fnType, bridgeFn.fn, args, "");
     if (expr.returnType.kind === "i64") {
-      result = m.buildSExt(result, m.i64, "");
+      const isNumBridge = expr.func.includes("num_array") || expr.func.includes("_num_map_");
+      const isLenFunc = expr.func.includes("_length") || expr.func.includes("_size");
+      if (isNumBridge && !isLenFunc) {
+        result = m.buildFPToSI(result, m.i64, "");
+      } else {
+        result = m.buildSExt(result, m.i64, "");
+      }
     } else if (expr.returnType.kind === "i1") {
       result = m.buildICmp(LLVMIntNE, result, m.constInt(m.i32, 0), "");
     }

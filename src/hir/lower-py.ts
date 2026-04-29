@@ -1546,12 +1546,16 @@ function lowerCall(node: SyntaxNode): HIRExpr {
       };
       const mathFn = mathMap[mathMethod];
       if (mathFn) {
-        return {
+        const isIntResult = mathMethod === "floor" || mathMethod === "ceil";
+        const retType = isIntResult ? I64 : F64;
+        const result: HIRExpr = {
           kind: "runtime_call",
           func: mathFn,
           args: args.map(coerceToF64),
           returnType: F64, type: F64,
         };
+        if (isIntResult) return { kind: "narrow_i64", value: result, type: I64 };
+        return result;
       }
     }
 
@@ -1589,11 +1593,13 @@ function lowerCall(node: SyntaxNode): HIRExpr {
         type: VOID,
       };
     }
-    const printArgs = args.map((a): HIRExpr =>
-      a.type.kind === "i1"
-        ? { kind: "runtime_call", func: "cs2_py_bool_str", args: [a], returnType: I8PTR, type: I8PTR }
-        : a
-    );
+    const printArgs = args.map((a): HIRExpr => {
+      if (a.type.kind === "i1")
+        return { kind: "runtime_call", func: "cs2_py_bool_str", args: [a], returnType: I8PTR, type: I8PTR };
+      if (a.type.kind === "f64")
+        return { kind: "runtime_call", func: "cs2_py_float_str", args: [a], returnType: I8PTR, type: I8PTR };
+      return a;
+    });
     return { kind: "runtime_call", func: "cs_console_log", args: printArgs, returnType: VOID, type: VOID };
   }
 
@@ -1659,14 +1665,16 @@ function lowerCall(node: SyntaxNode): HIRExpr {
   if (funcName === "sum") {
     const arg = args[0];
     if (arg.type.kind === "array") {
-      return { kind: "runtime_call", func: "cs2_num_array_sum", args: [arg], returnType: F64, type: F64 };
+      const retType = arg.type.element;
+      return { kind: "runtime_call", func: "cs2_num_array_sum", args: [arg], returnType: retType, type: retType };
     }
     return { kind: "literal_f64", value: 0, type: F64 };
   }
 
   if (funcName === "min") {
     if (args.length === 1 && args[0].type.kind === "array") {
-      return { kind: "runtime_call", func: "cs2_num_array_min", args: [args[0]], returnType: F64, type: F64 };
+      const retType = args[0].type.element;
+      return { kind: "runtime_call", func: "cs2_num_array_min", args: [args[0]], returnType: retType, type: retType };
     }
     if (args.length === 2) {
       return {
@@ -1681,7 +1689,8 @@ function lowerCall(node: SyntaxNode): HIRExpr {
 
   if (funcName === "max") {
     if (args.length === 1 && args[0].type.kind === "array") {
-      return { kind: "runtime_call", func: "cs2_num_array_max", args: [args[0]], returnType: F64, type: F64 };
+      const retType = args[0].type.element;
+      return { kind: "runtime_call", func: "cs2_num_array_max", args: [args[0]], returnType: retType, type: retType };
     }
     if (args.length === 2) {
       return {
@@ -2056,8 +2065,7 @@ function resolveType(node: SyntaxNode): HIRType {
     if (baseName === "list" && typeParams) {
       const elemNode = typeParams.namedChild(0);
       const elemType = elemNode ? resolveType(elemNode) : F64;
-      const storageType = elemType.kind === "i64" ? F64 : elemType;
-      return { kind: "array", element: storageType };
+      return { kind: "array", element: elemType };
     }
     if (baseName === "dict" && typeParams) {
       const keyNode = typeParams.namedChild(0);
@@ -2065,8 +2073,7 @@ function resolveType(node: SyntaxNode): HIRType {
       const rawKey = keyNode ? resolveType(keyNode) : I8PTR;
       const rawVal = valNode ? resolveType(valNode) : I8PTR;
       const keyType = rawKey.kind === "i64" ? F64 : rawKey;
-      const valType = rawVal.kind === "i64" ? F64 : rawVal;
-      return { kind: "map", key: keyType, value: valType };
+      return { kind: "map", key: keyType, value: rawVal };
     }
     if (baseName === "set" && typeParams) {
       const elemNode = typeParams.namedChild(0);
@@ -2106,7 +2113,7 @@ function inferType(node: SyntaxNode): HIRType {
       if (node.namedChildCount === 0) return { kind: "array", element: F64 };
       const first = node.namedChild(0)!;
       const t = inferType(first);
-      return { kind: "array", element: t.kind === "i64" ? F64 : t };
+      return { kind: "array", element: t };
     }
     case "dictionary": {
       if (node.namedChildCount === 0) return { kind: "map", key: I8PTR, value: I8PTR };
@@ -2117,7 +2124,7 @@ function inferType(node: SyntaxNode): HIRType {
         return {
           kind: "map",
           key: kRaw.kind === "i64" ? F64 : kRaw,
-          value: vRaw.kind === "i64" ? F64 : vRaw,
+          value: vRaw,
         };
       }
       return { kind: "map", key: I8PTR, value: I8PTR };
@@ -2189,7 +2196,7 @@ function lowerListComp(node: SyntaxNode): HIRExpr {
   const tmpVarId = freshId();
   locals.set(loopVarName, { id: tmpVarId, name: loopVarName, type: iterElemType });
   const typeCheckExpr = lowerExpr(bodyNode);
-  const resultElemType: HIRType = typeCheckExpr.type.kind === "i64" ? F64 : typeCheckExpr.type;
+  const resultElemType: HIRType = typeCheckExpr.type;
   locals = savedLocals;
   pendingStmts = savedPending;
 
@@ -2301,7 +2308,7 @@ function lowerDictComp(node: SyntaxNode): HIRExpr {
   const typeKeyExpr = lowerExpr(keyNode);
   const typeValExpr = lowerExpr(valNode);
   const keyType: HIRType = typeKeyExpr.type.kind === "i64" ? F64 : typeKeyExpr.type;
-  const valType: HIRType = typeValExpr.type.kind === "i64" ? F64 : typeValExpr.type;
+  const valType: HIRType = typeValExpr.type;
   locals = savedLocals;
   pendingStmts = savedPending;
 

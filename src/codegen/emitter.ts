@@ -243,6 +243,10 @@ function declareExterns(ctx: EmitContext): void {
   const pyBoolStrFn = m.addFunction("cs2_py_bool_str", pyBoolStrType);
   ctx.declareFunction("cs2_py_bool_str", pyBoolStrFn, pyBoolStrType);
 
+  const pyFloatStrType = m.functionType(m.ptr, [m.f64]);
+  const pyFloatStrFn = m.addFunction("cs2_py_float_str", pyFloatStrType);
+  ctx.declareFunction("cs2_py_float_str", pyFloatStrFn, pyFloatStrType);
+
   const fmtNumType = m.functionType(m.voidTy, [m.ptr, m.f64]);
   const fmtNumFn = m.addFunction("cs2_format_number", fmtNumType);
   ctx.declareFunction("cs2_format_number", fmtNumFn, fmtNumType);
