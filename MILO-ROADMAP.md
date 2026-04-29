@@ -55,21 +55,24 @@ Python-to-native compiler. Same HIR + emitter + C bridges as ChadScript v2 — o
 
 ## Phase 3: Comprehensions + More Builtins ✅
 - [x] List comprehensions: `[x * 2 for x in lst if x > 0]` → desugar to loop
-- [ ] Dict comprehensions: `{k: v for k, v in pairs}`
-- [ ] `set[T]` — reuse existing set bridges
-  - [ ] `set()` literal, `.add()`, `.remove()`, `in` operator
-  - [ ] `for x in s:`
+- [x] Dict comprehensions: `{k: v for k, v in pairs}`
+- [x] `set[T]` — reuse existing set bridges
+  - [x] `set()` literal, `.add()`, `.remove()`, `in` operator
+  - [x] `for x in s:`
 - [x] `enumerate(lst)` → yields `(i, elem)` pairs
 - [x] `zip(a, b)` → parallel iteration
-- [x] `sorted(lst, key=fn)`, `reversed(lst)`
-- [ ] `map(fn, lst)`, `filter(fn, lst)` — reuse `array_hof` HIR node
+- [x] `sorted(lst, key=fn)`, `reversed(lst)`, `sorted(lst, reverse=True)`
+- [x] `map(fn, lst)`, `filter(fn, lst)` — via `array_hof` HOF bridge
 - [x] `min()`, `max()`, `sum()`, `any()`, `all()`
-- [ ] `range(start, stop, step)` with negative step
-- [ ] Multiple return values: `def foo() -> tuple[int, str]:`
+- [x] `range(start, stop, step)` with negative step
+- [x] Multiple return values: `def foo() -> tuple[int, str]:`
 - [x] `math` module: `sqrt`, `floor`, `ceil`, `pi`, `e`, trig
+- [x] `lambda x: expr` — closures for HOF callbacks
+- [x] `Optional[T]`, `is None`, `is not None`
+- [x] `dict.get(k, default)`
 - [ ] Fix float printing: `3.0` should print `3.0` not `3` (Python-style repr)
 
-**Fixtures:** comprehensions, builtins ✅
+**Fixtures:** comprehensions, builtins, dict-comp, set-ops, lambda-hof, range-negative ✅
 
 ---
 
