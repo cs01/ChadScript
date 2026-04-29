@@ -163,7 +163,7 @@ function lowerIdentifier(node: SyntaxNode, ctx: LowerCtx): HIRExpr {
   const name = node.text;
   const local = ctx.locals.get(name);
   if (local) return { kind: "local_get", id: local.id, type: local.type };
-  if (name === "math" || name === "random" || name === "sys" || name === "os") return { kind: "literal_null", type: VOID };
+  if (name === "math" || name === "random" || name === "sys" || name === "os" || name === "json") return { kind: "literal_null", type: VOID };
   throw new Error(`undefined variable: ${name}`);
 }
 

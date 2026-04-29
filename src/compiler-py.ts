@@ -54,6 +54,7 @@ function findYyjson(): string {
 
 const TIMER_BRIDGE = join(ROOT, "c_bridges", "v2-timer-bridge.c");
 const JSON_BRIDGE = join(ROOT, "c_bridges", "v2-json-bridge.c");
+const PY_JSON_BRIDGE = join(ROOT, "c_bridges", "py-json-bridge.c");
 
 export async function compilePython(opts: CompileOptions): Promise<void> {
   const absPath = resolve(opts.input);
@@ -67,8 +68,9 @@ export async function compilePython(opts: CompileOptions): Promise<void> {
   );
   const timerObj = join(tmpdir(), `chad2py-timer-${process.pid}.o`);
   const jsonObj = join(tmpdir(), `chad2py-json-${process.pid}.o`);
+  const pyJsonObj = join(tmpdir(), `chad2py-pyjson-${process.pid}.o`);
   const yyjsonObj = join(tmpdir(), `chad2py-yyjson-${process.pid}.o`);
-  const allObjs = [...bridgeObjs, timerObj, jsonObj, yyjsonObj];
+  const allObjs = [...bridgeObjs, timerObj, jsonObj, pyJsonObj, yyjsonObj];
   const irPath = opts.emitIR ? opts.output + ".ll" : undefined;
 
   try {
@@ -89,6 +91,9 @@ export async function compilePython(opts: CompileOptions): Promise<void> {
       stdio: "inherit",
     });
     execSync(`clang -c -O2 -I${yyjsonDir} -o ${jsonObj} ${JSON_BRIDGE}`, {
+      stdio: "inherit",
+    });
+    execSync(`clang -c -O2 -I${yyjsonDir} -o ${pyJsonObj} ${PY_JSON_BRIDGE}`, {
       stdio: "inherit",
     });
     execSync(`clang -g -O2 -o ${opts.output} ${tmpObj} ${allObjs.join(" ")} -L${libuv.lib} -luv`, {

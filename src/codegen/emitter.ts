@@ -320,6 +320,22 @@ function declareExterns(ctx: EmitContext): void {
     ctx.declareFunction(name, fn, ft);
   }
 
+  const pyJsonFns: [string, any, any[]][] = [
+    ["cs2_py_json_dumps_str_str_map", m.ptr, [m.ptr]],
+    ["cs2_py_json_dumps_str_num_map", m.ptr, [m.ptr]],
+    ["cs2_py_json_dumps_str_array", m.ptr, [m.ptr]],
+    ["cs2_py_json_dumps_num_array", m.ptr, [m.ptr]],
+    ["cs2_py_json_loads_str_str_map", m.ptr, [m.ptr]],
+    ["cs2_py_json_loads_str_num_map", m.ptr, [m.ptr]],
+    ["cs2_py_json_loads_str_array", m.ptr, [m.ptr]],
+    ["cs2_py_json_loads_num_array", m.ptr, [m.ptr]],
+  ];
+  for (const [name, ret, params] of pyJsonFns) {
+    const ft = m.functionType(ret, params);
+    const fn = m.addFunction(name, ft);
+    ctx.declareFunction(name, fn, ft);
+  }
+
   const mathIntrinsics1: [string, string][] = [
     ["llvm.floor.f64", "cs_math_floor"],
     ["llvm.ceil.f64", "cs_math_ceil"],

@@ -125,6 +125,34 @@ export function lowerCall(node: SyntaxNode, ctx: LowerCtx): HIRExpr {
       }
     }
 
+    if (objName === "json") {
+      const jsonMethod = funcNode.namedChild(1)!.text;
+      if (jsonMethod === "dumps") {
+        const val = args[0];
+        const t = val.type;
+        if (t.kind === "i8ptr") return { kind: "runtime_call", func: "cs2_json_stringify_str", args: [val], returnType: I8PTR, type: I8PTR };
+        if (t.kind === "f64") return { kind: "runtime_call", func: "cs2_json_stringify_f64", args: [val], returnType: I8PTR, type: I8PTR };
+        if (t.kind === "i64") return { kind: "runtime_call", func: "cs2_json_stringify_f64", args: [coerceToF64(val)], returnType: I8PTR, type: I8PTR };
+        if (t.kind === "i1") return { kind: "runtime_call", func: "cs2_json_stringify_bool", args: [val], returnType: I8PTR, type: I8PTR };
+        if (t.kind === "array") {
+          const elem = (t as { kind: "array"; element: HIRType }).element;
+          const func = elem.kind === "i8ptr" ? "cs2_py_json_dumps_str_array" : "cs2_py_json_dumps_num_array";
+          return { kind: "runtime_call", func, args: [val], returnType: I8PTR, type: I8PTR };
+        }
+        if (t.kind === "map") {
+          const mt = t as { kind: "map"; key: HIRType; value: HIRType };
+          const func = mt.value.kind === "i8ptr" ? "cs2_py_json_dumps_str_str_map" : "cs2_py_json_dumps_str_num_map";
+          return { kind: "runtime_call", func, args: [val], returnType: I8PTR, type: I8PTR };
+        }
+        throw new Error(`json.dumps: unsupported type ${t.kind}`);
+      }
+      if (jsonMethod === "loads") {
+        const s = args[0];
+        const strStrMap: HIRType = { kind: "map", key: I8PTR, value: I8PTR };
+        return { kind: "runtime_call", func: "cs2_py_json_loads_str_str_map", args: [s], returnType: strStrMap, type: strStrMap };
+      }
+    }
+
     if (objName === "math") {
       const mathMethod = funcNode.namedChild(1)!.text;
       const mathMap: Record<string, string> = {
