@@ -724,6 +724,7 @@ export function lowerMethodCall(attrNode: SyntaxNode, args: HIRExpr[], ctx: Lowe
   }
 
   if (obj.type.kind === "i8ptr") {
+    const strArrTypeStr: HIRType = { kind: "array", element: I8PTR };
     const strMethods: Record<string, { func: string; returnType: HIRType }> = {
       upper: { func: "cs2_str_to_upper", returnType: I8PTR },
       lower: { func: "cs2_str_to_lower", returnType: I8PTR },
@@ -735,14 +736,21 @@ export function lowerMethodCall(attrNode: SyntaxNode, args: HIRExpr[], ctx: Lowe
       endswith: { func: "cs2_str_ends_with", returnType: I1 },
       find: { func: "cs2_str_index_of", returnType: I64 },
       index: { func: "cs2_str_index_of", returnType: I64 },
+      count: { func: "cs2_str_count", returnType: I64 },
+      isdigit: { func: "cs2_str_isdigit", returnType: I1 },
+      isalpha: { func: "cs2_str_isalpha", returnType: I1 },
+      isspace: { func: "cs2_str_isspace", returnType: I1 },
     };
     const info = strMethods[methodName];
     if (info) {
       return { kind: "runtime_call", func: info.func, args: [obj, ...args], returnType: info.returnType, type: info.returnType };
     }
+    if (methodName === "join") {
+      return { kind: "runtime_call", func: "cs2_str_join", args: [obj, args[0]], returnType: I8PTR, type: I8PTR };
+    }
     if (methodName === "split") {
-      const sep = args[0] ?? { kind: "literal_string", value: " ", type: I8PTR };
-      return { kind: "runtime_call", func: "cs2_str_split", args: [obj, sep], returnType: { kind: "array", element: I8PTR }, type: { kind: "array", element: I8PTR } };
+      if (args.length === 0) return { kind: "runtime_call", func: "cs2_str_split_whitespace", args: [obj], returnType: strArrTypeStr, type: strArrTypeStr };
+      return { kind: "runtime_call", func: "cs2_str_split", args: [obj, args[0]], returnType: strArrTypeStr, type: strArrTypeStr };
     }
     throw new Error(`unsupported string method: ${methodName}`);
   }

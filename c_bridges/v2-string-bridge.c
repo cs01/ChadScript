@@ -419,4 +419,75 @@ char *cs2_str_replace_all(const char *s, const char *search, const char *replace
 }
 
 #include <string.h>
+#include <ctype.h>
 int32_t cs2_str_equals(const char *a, const char *b) { return strcmp(a, b) == 0 ? 1 : 0; }
+
+typedef struct { char **data; int32_t length; int32_t capacity; } CS2StrArrJoin;
+
+char *cs2_str_join(const char *sep, CS2StrArrJoin *arr) {
+    if (!arr || arr->length == 0) { char *e = (char *)malloc(1); e[0] = '\0'; return e; }
+    size_t sep_len = sep ? strlen(sep) : 0;
+    size_t total = 0;
+    for (int i = 0; i < arr->length; i++) total += arr->data[i] ? strlen(arr->data[i]) : 0;
+    total += sep_len * (arr->length - 1) + 1;
+    char *buf = (char *)malloc(total);
+    size_t pos = 0;
+    for (int i = 0; i < arr->length; i++) {
+        if (i > 0 && sep) { memcpy(buf + pos, sep, sep_len); pos += sep_len; }
+        const char *s = arr->data[i] ? arr->data[i] : "";
+        size_t slen = strlen(s);
+        memcpy(buf + pos, s, slen);
+        pos += slen;
+    }
+    buf[pos] = '\0';
+    return buf;
+}
+
+int32_t cs2_str_count(const char *s, const char *sub) {
+    if (!sub || !*sub) return 0;
+    int32_t count = 0;
+    size_t sub_len = strlen(sub);
+    const char *p = s;
+    while ((p = strstr(p, sub)) != NULL) { count++; p += sub_len; }
+    return count;
+}
+
+int32_t cs2_str_isdigit(const char *s) {
+    if (!s || !*s) return 0;
+    for (const char *p = s; *p; p++) if (!isdigit((unsigned char)*p)) return 0;
+    return 1;
+}
+
+int32_t cs2_str_isalpha(const char *s) {
+    if (!s || !*s) return 0;
+    for (const char *p = s; *p; p++) if (!isalpha((unsigned char)*p)) return 0;
+    return 1;
+}
+
+int32_t cs2_str_isspace(const char *s) {
+    if (!s || !*s) return 0;
+    for (const char *p = s; *p; p++) if (!isspace((unsigned char)*p)) return 0;
+    return 1;
+}
+
+CS2StrArrJoin *cs2_str_split_whitespace(const char *s) {
+    CS2StrArrJoin *arr = (CS2StrArrJoin *)malloc(sizeof(CS2StrArrJoin));
+    arr->capacity = 8; arr->length = 0;
+    arr->data = (char **)malloc(sizeof(char *) * arr->capacity);
+    const char *p = s;
+    while (*p) {
+        while (*p && isspace((unsigned char)*p)) p++;
+        if (!*p) break;
+        const char *start = p;
+        while (*p && !isspace((unsigned char)*p)) p++;
+        size_t len = p - start;
+        char *tok = (char *)malloc(len + 1);
+        memcpy(tok, start, len); tok[len] = '\0';
+        if (arr->length >= arr->capacity) {
+            arr->capacity *= 2;
+            arr->data = (char **)realloc(arr->data, sizeof(char *) * arr->capacity);
+        }
+        arr->data[arr->length++] = tok;
+    }
+    return arr;
+}
