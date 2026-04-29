@@ -1,9 +1,9 @@
 import type { SyntaxNode } from "../parser-py.js";
 import type { HIRType, HIRExpr } from "./types.js";
-import { F64, I64, I1, I8PTR, VOID, BOXED } from "./types.js";
+import { F64, I64, I1, I8PTR, VOID, BOXED, DYNOBJ } from "./types.js";
 import type { LowerCtx } from "./lower-py-ctx.js";
 
-export { F64, I64, I1, I8PTR, VOID, BOXED };
+export { F64, I64, I1, I8PTR, VOID, BOXED, DYNOBJ };
 
 export function namedChildren(node: SyntaxNode): SyntaxNode[] {
   const result: SyntaxNode[] = [];
@@ -60,6 +60,7 @@ export function mapPrefix(keyType: HIRType, valueType: HIRType): string {
 }
 
 export function resolveArithResultType(a: HIRType, b: HIRType): HIRType {
+  if (a.kind === "boxed" || b.kind === "boxed") return BOXED;
   if (a.kind === "f64" || b.kind === "f64") return F64;
   if (a.kind === "i64" || b.kind === "i64") return I64;
   return F64;
@@ -145,7 +146,7 @@ export function inferType(node: SyntaxNode): HIRType {
       return { kind: "array", element: t };
     }
     case "dictionary": {
-      if (node.namedChildCount === 0) return { kind: "map", key: I8PTR, value: I8PTR };
+      if (node.namedChildCount === 0) return DYNOBJ;
       const pair = node.namedChild(0)!;
       if (pair.type === "pair") {
         const kRaw = inferType(pair.namedChild(0)!);

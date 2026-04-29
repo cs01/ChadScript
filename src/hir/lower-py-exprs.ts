@@ -1,6 +1,6 @@
 import type { SyntaxNode } from "../parser-py.js";
 import type { HIRType, HIRExpr, HIRStmt, HIRFunction, HIRParam } from "./types.js";
-import { F64, I64, I1, I8PTR, VOID } from "./types.js";
+import { F64, I64, I1, I8PTR, VOID, DYNOBJ } from "./types.js";
 import type { LowerCtx } from "./lower-py-ctx.js";
 import {
   coerceTo, coerceToF64, mapPrefix, resolveArithResultType,
@@ -443,6 +443,16 @@ function lowerSubscript(node: SyntaxNode, ctx: LowerCtx): HIRExpr {
       return { kind: "runtime_call", func: "cs2_deque_num_get", args: [arr, coerceTo(idx, I64)], returnType: I64, type: I64 };
   }
 
+  if (arr.type.kind === "dynobj") {
+    const key = coerceTo(idx, I8PTR);
+    return {
+      kind: "runtime_call",
+      func: "cs2_dynobj_get",
+      args: [arr, key],
+      returnType: DYNOBJ,
+      type: { kind: "boxed" },
+    };
+  }
   if (arr.type.kind === "i8ptr") {
     return {
       kind: "runtime_call",
@@ -501,6 +511,10 @@ function lowerAttribute(node: SyntaxNode, ctx: LowerCtx): HIRExpr {
 }
 
 function lowerDictLiteral(node: SyntaxNode, ctx: LowerCtx): HIRExpr {
+  if (node.namedChildCount === 0) {
+    return { kind: "alloc_dynobj", props: [], type: DYNOBJ };
+  }
+
   const entries: { key: HIRExpr; value: HIRExpr }[] = [];
   let keyType: HIRType = I8PTR;
   let valType: HIRType = I8PTR;

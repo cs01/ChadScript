@@ -1,6 +1,6 @@
 import type { SyntaxNode } from "../parser-py.js";
 import type { HIRType, HIRExpr } from "./types.js";
-import { I64, I1, I8PTR, VOID } from "./types.js";
+import { I64, I1, I8PTR, VOID, BOXED } from "./types.js";
 import type { LowerCtx } from "./lower-py-ctx.js";
 import { coerceTo, mapPrefix, extractStringContent } from "./lower-py-types.js";
 import { lowerBuiltinCall, lowerLambdaInline } from "./lower-py-builtins.js";
@@ -134,6 +134,13 @@ export function lowerCall(node: SyntaxNode, ctx: LowerCtx): HIRExpr {
       };
       callArgs = [...args.slice(0, vi), arrayExpr];
     }
+    callArgs = callArgs.map((a, i) => {
+      const paramType = fnInfo.params[i];
+      if (paramType?.kind === "boxed" && a.type.kind !== "boxed") {
+        return { kind: "box" as const, value: a, fromType: a.type, type: BOXED };
+      }
+      return a;
+    });
     return { kind: "call", callee: funcName, args: callArgs, returnType: fnInfo.returnType, type: fnInfo.returnType };
   }
 

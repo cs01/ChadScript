@@ -20,6 +20,7 @@ const BRIDGE_SRCS = [
   join(ROOT, "c_bridges", "v2-set-bridge.c"),
   join(ROOT, "c_bridges", "v2-error-bridge.c"),
   join(ROOT, "c_bridges", "v2-nanbox-bridge.c"),
+  join(ROOT, "c_bridges", "v2-dynobj-bridge.c"),
   join(ROOT, "c_bridges", "v2-promise-bridge.c"),
   join(ROOT, "c_bridges", "v2-process-bridge.c"),
   join(ROOT, "c_bridges", "v2-console-bridge.c"),

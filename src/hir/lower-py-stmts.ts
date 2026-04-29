@@ -1,6 +1,6 @@
 import type { SyntaxNode } from "../parser-py.js";
 import type { HIRType, HIRExpr, HIRStmt } from "./types.js";
-import { F64, I64, I1, I8PTR, VOID, BOXED } from "./types.js";
+import { F64, I64, I1, I8PTR, VOID, BOXED, DYNOBJ } from "./types.js";
 import type { LowerCtx } from "./lower-py-ctx.js";
 import {
   coerceTo, mapPrefix, resolveArithResultType,
@@ -93,6 +93,20 @@ export function lowerAssignment(node: SyntaxNode, ctx: LowerCtx): HIRStmt[] {
     const arrExpr = ctx.lowerExpr(nameNode.namedChild(0)!);
     const idxExpr = ctx.lowerExpr(nameNode.namedChild(1)!);
     const val = ctx.lowerExpr(valueNode!);
+    if (arrExpr.type.kind === "dynobj") {
+      const key = coerceTo(idxExpr, I8PTR);
+      const boxed: HIRExpr = { kind: "box", value: val, fromType: val.type, type: BOXED };
+      return [{
+        kind: "expr",
+        expr: {
+          kind: "runtime_call",
+          func: "cs2_dynobj_set",
+          args: [arrExpr, key, val.type.kind === "boxed" ? val : boxed],
+          returnType: VOID,
+          type: VOID,
+        },
+      }];
+    }
     if (arrExpr.type.kind === "map") {
       const mt = arrExpr.type as { kind: "map"; key: HIRType; value: HIRType };
       const prefix = mapPrefix(mt.key, mt.value);
