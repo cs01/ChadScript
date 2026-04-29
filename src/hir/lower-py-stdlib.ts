@@ -1,6 +1,6 @@
 import type { SyntaxNode } from "../parser-py.js";
 import type { HIRType, HIRExpr } from "./types.js";
-import { I64, I1, I8PTR, VOID, BOXED } from "./types.js";
+import { I64, I1, I8PTR, VOID, BOXED, DYNOBJ } from "./types.js";
 import type { LowerCtx } from "./lower-py-ctx.js";
 import { coerceTo, mapPrefix, extractStringContent } from "./lower-py-types.js";
 import { lowerBuiltinCall, lowerLambdaInline } from "./lower-py-builtins.js";
@@ -110,14 +110,22 @@ export function lowerCall(node: SyntaxNode, ctx: LowerCtx): HIRExpr {
 
   const classInfo = ctx.classes.get(funcName);
   if (classInfo) {
+    if (ctx.dynobjClasses.has(funcName)) {
+      const ctorInfo = ctx.functions.get(`${funcName}_constructor`);
+      let callArgs = args;
+      if (ctorInfo) {
+        callArgs = args.map((a, i) => {
+          const pt = ctorInfo.params[i];
+          if (pt?.kind === "boxed" && a.type.kind !== "boxed") {
+            return { kind: "box" as const, value: a, fromType: a.type, type: BOXED };
+          }
+          return a;
+        });
+      }
+      return { kind: "call", callee: `${funcName}_constructor`, args: callArgs, returnType: DYNOBJ, type: DYNOBJ };
+    }
     const thisType: HIRType = { kind: "ptr", pointee: funcName };
-    return {
-      kind: "call",
-      callee: `${funcName}_constructor`,
-      args,
-      returnType: thisType,
-      type: thisType,
-    };
+    return { kind: "call", callee: `${funcName}_constructor`, args, returnType: thisType, type: thisType };
   }
 
   const fnInfo = ctx.functions.get(funcName);
@@ -150,6 +158,18 @@ export function lowerCall(node: SyntaxNode, ctx: LowerCtx): HIRExpr {
 export function lowerMethodCall(attrNode: SyntaxNode, args: HIRExpr[], ctx: LowerCtx): HIRExpr {
   const obj = ctx.lowerExpr(attrNode.namedChild(0)!);
   const methodName = attrNode.namedChild(1)!.text;
+
+  if (obj.type.kind === "dynobj") {
+    const objName = attrNode.namedChild(0)!.text;
+    const className = ctx.instanceClasses.get(objName) ?? ctx.currentClassName ?? null;
+    if (className && ctx.dynobjClasses.has(className)) {
+      const fnKey = `${className}_${methodName}`;
+      const fnInfo = ctx.functions.get(fnKey);
+      const returnType = fnInfo?.returnType ?? VOID;
+      return { kind: "call", callee: fnKey, args: [obj, ...args], returnType, type: returnType };
+    }
+    throw new Error(`dynobj method call: cannot resolve class for ${objName}.${methodName}`);
+  }
 
   if (obj.type.kind === "ptr") {
     const cls = ctx.classes.get(obj.type.pointee);

@@ -10,7 +10,7 @@ import type {
   HIRGlobal,
   SourceInfo,
 } from "./types.js";
-import { F64, I64, I1, I8PTR, VOID, BOXED } from "./types.js";
+import { F64, I64, I1, I8PTR, VOID, BOXED, DYNOBJ } from "./types.js";
 import type { LowerCtx } from "./lower-py-ctx.js";
 import { resolveType, defaultValue, namedChildren } from "./lower-py-types.js";
 import { lowerExpr } from "./lower-py-exprs.js";
@@ -30,6 +30,8 @@ export function lowerPythonModule(
     functions: new Map(),
     classes: new Map(),
     classParents: new Map(),
+    dynobjClasses: new Set(),
+    instanceClasses: new Map(),
     currentClassName: null,
     pendingStmts: [],
     pendingFunctions: [],
@@ -146,6 +148,10 @@ function registerClass(node: SyntaxNode, ctx: LowerCtx): void {
     const typeNode = children.find((c) => c.type === "type");
     if (!typeNode) continue;
     fields.push({ name: nameNode.text, type: resolveType(typeNode, ctx) });
+  }
+
+  if (fields.length === 0 && !ctx.classParents.has(name)) {
+    ctx.dynobjClasses.add(name);
   }
 
   ctx.classes.set(name, { fields });
@@ -286,6 +292,9 @@ function lowerClass(
   ctx: LowerCtx,
 ): { hirClass: HIRClass; fns: HIRFunction[] } {
   const className = node.childForFieldName("name")!.text;
+  if (ctx.dynobjClasses.has(className)) {
+    return lowerDynobjClass(node, ctx);
+  }
   const body = node.childForFieldName("body")!;
   const classInfo = ctx.classes.get(className)!;
   const fns: HIRFunction[] = [];
@@ -478,6 +487,137 @@ function lowerMethod(
     params,
     returnType,
     body,
+    isAsync: false,
+    captures: [],
+  };
+}
+
+function lowerDynobjClass(
+  node: SyntaxNode,
+  ctx: LowerCtx,
+): { hirClass: HIRClass; fns: HIRFunction[] } {
+  const className = node.childForFieldName("name")!.text;
+  const body = node.childForFieldName("body")!;
+  const fns: HIRFunction[] = [];
+
+  for (let i = 0; i < body.namedChildCount; i++) {
+    const member = body.namedChild(i)!;
+    if (member.type !== "function_definition") continue;
+    const methodName = member.childForFieldName("name")!.text;
+    fns.push(lowerDynobjMethod(className, methodName, member, ctx));
+  }
+
+  if (!ctx.functions.has(`${className}___init__`)) {
+    const instanceId = ctx.freshId();
+    ctx.functions.set(`${className}_constructor`, { params: [], returnType: DYNOBJ });
+    fns.push({
+      name: `${className}_constructor`,
+      params: [],
+      returnType: DYNOBJ,
+      body: [
+        {
+          kind: "let", id: instanceId, name: "__self", type: DYNOBJ, mutable: false,
+          init: { kind: "runtime_call", func: "cs2_dynobj_new", args: [], returnType: DYNOBJ, type: DYNOBJ },
+        },
+        { kind: "return", value: { kind: "local_get", id: instanceId, type: DYNOBJ } },
+      ],
+      isAsync: false,
+      captures: [],
+    });
+  }
+
+  return { hirClass: { name: className, fields: [], methods: [] }, fns };
+}
+
+function lowerDynobjMethod(
+  className: string,
+  methodName: string,
+  methodDef: SyntaxNode,
+  ctx: LowerCtx,
+): HIRFunction {
+  const funcName = `${className}_${methodName}`;
+  const paramsNode = methodDef.childForFieldName("parameters")!;
+  const returnTypeNode = methodDef.childForFieldName("return_type");
+  const returnType = returnTypeNode ? resolveType(returnTypeNode, ctx) : VOID;
+
+  const thisId = ctx.freshId();
+  const savedLocals = new Map(ctx.locals);
+  ctx.locals = new Map();
+  ctx.locals.set("self", { id: thisId, name: "self", type: DYNOBJ });
+
+  const params: HIRParam[] = [{ id: thisId, name: "self", type: DYNOBJ }];
+
+  for (let i = 0; i < paramsNode.namedChildCount; i++) {
+    const p = paramsNode.namedChild(i)!;
+    if (p.type === "identifier" && p.text === "self") continue;
+    if (p.type === "typed_parameter" || p.type === "typed_default_parameter") {
+      const pName = p.namedChild(0)!.text;
+      const pType = resolveType(p.childForFieldName("type")!, ctx);
+      const id = ctx.freshId();
+      params.push({ id, name: pName, type: pType });
+      ctx.locals.set(pName, { id, name: pName, type: pType });
+    } else if (p.type === "identifier") {
+      const id = ctx.freshId();
+      params.push({ id, name: p.text, type: BOXED });
+      ctx.locals.set(p.text, { id, name: p.text, type: BOXED });
+    }
+  }
+
+  ctx.functions.set(funcName, { params: params.map((p) => p.type), returnType });
+
+  const savedClass = ctx.currentClassName;
+  ctx.currentClassName = className;
+  const hirBody = lowerBlock(methodDef.childForFieldName("body")!, ctx);
+  ctx.currentClassName = savedClass;
+
+  ctx.locals = savedLocals;
+
+  const inferredReturn = returnTypeNode ? returnType : (inferReturnType(hirBody) ?? returnType);
+  if (inferredReturn !== returnType) {
+    ctx.functions.set(funcName, { params: params.map((p) => p.type), returnType: inferredReturn });
+  }
+
+  if (methodName === "__init__") {
+    const constructorId = ctx.freshId();
+    const initParams = params.slice(1);
+    ctx.functions.set(`${className}_constructor`, {
+      params: initParams.map((p) => p.type),
+      returnType: DYNOBJ,
+    });
+    ctx.pendingFunctions.push({
+      name: `${className}_constructor`,
+      params: initParams,
+      returnType: DYNOBJ,
+      body: [
+        {
+          kind: "let", id: constructorId, name: "__self", type: DYNOBJ, mutable: false,
+          init: { kind: "runtime_call", func: "cs2_dynobj_new", args: [], returnType: DYNOBJ, type: DYNOBJ },
+        },
+        {
+          kind: "expr",
+          expr: {
+            kind: "call",
+            callee: funcName,
+            args: [
+              { kind: "local_get", id: constructorId, type: DYNOBJ },
+              ...initParams.map((p) => ({ kind: "local_get" as const, id: p.id, type: p.type })),
+            ],
+            returnType: VOID,
+            type: VOID,
+          },
+        },
+        { kind: "return", value: { kind: "local_get", id: constructorId, type: DYNOBJ } },
+      ],
+      isAsync: false,
+      captures: [],
+    });
+  }
+
+  return {
+    name: funcName,
+    params,
+    returnType: inferredReturn,
+    body: hirBody,
     isAsync: false,
     captures: [],
   };

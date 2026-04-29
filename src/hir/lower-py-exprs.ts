@@ -492,6 +492,16 @@ function lowerAttribute(node: SyntaxNode, ctx: LowerCtx): HIRExpr {
 
   const obj = ctx.lowerExpr(objNode);
 
+  if (obj.type.kind === "dynobj") {
+    return {
+      kind: "runtime_call",
+      func: "cs2_dynobj_get",
+      args: [obj, { kind: "literal_string", value: fieldName, type: I8PTR }],
+      returnType: { kind: "boxed" },
+      type: { kind: "boxed" },
+    };
+  }
+
   if (obj.type.kind === "ptr") {
     const cls = ctx.classes.get(obj.type.pointee);
     if (cls) {

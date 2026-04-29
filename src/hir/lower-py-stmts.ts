@@ -174,12 +174,35 @@ export function lowerAssignment(node: SyntaxNode, ctx: LowerCtx): HIRStmt[] {
     : inferredType;
   if (type.kind === "void") { type = I8PTR; init = { kind: "literal_null", type: I8PTR }; }
   ctx.locals.set(name, { id, name, type });
+
+  if (valueNode && valueNode.type === "call") {
+    const funcNode = valueNode.childForFieldName("function");
+    if (funcNode && funcNode.type === "identifier" && ctx.dynobjClasses.has(funcNode.text)) {
+      ctx.instanceClasses.set(name, funcNode.text);
+    }
+  }
+
   return [{ kind: "let", id, name, type, init, mutable: true }];
 }
 
 function lowerAttributeAssign(attrNode: SyntaxNode, valueNode: SyntaxNode | null, ctx: LowerCtx): HIRStmt[] {
   const obj = ctx.lowerExpr(attrNode.namedChild(0)!);
   const fieldName = attrNode.namedChild(1)!.text;
+
+  if (obj.type.kind === "dynobj") {
+    const val = valueNode ? ctx.lowerExpr(valueNode) : { kind: "literal_i64" as const, value: 0, type: I64 };
+    const boxed: HIRExpr = val.type.kind === "boxed" ? val : { kind: "box", value: val, fromType: val.type, type: { kind: "boxed" } as const };
+    return [{
+      kind: "expr",
+      expr: {
+        kind: "runtime_call",
+        func: "cs2_dynobj_set",
+        args: [obj, { kind: "literal_string", value: fieldName, type: I8PTR }, boxed],
+        returnType: VOID,
+        type: VOID,
+      },
+    }];
+  }
 
   if (obj.type.kind === "ptr") {
     const cls = ctx.classes.get(obj.type.pointee);

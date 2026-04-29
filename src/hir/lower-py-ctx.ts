@@ -22,6 +22,8 @@ export interface LowerCtx {
   functions: Map<string, FnInfo>;
   classes: Map<string, ClassInfo>;
   classParents: Map<string, string>;
+  dynobjClasses: Set<string>;
+  instanceClasses: Map<string, string>;
   currentClassName: string | null;
   pendingStmts: HIRStmt[];
   pendingFunctions: HIRFunction[];
