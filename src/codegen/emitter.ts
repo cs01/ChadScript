@@ -112,6 +112,15 @@ export function emitModule(mod: HIRModule, objectPath: string, irPath?: string):
 
   declareExterns(ctx);
 
+  for (const ef of mod.externFns) {
+    if (ctx.getDeclaredFunction(ef.name)) continue;
+    const paramTypes = ef.params.map((p) => llvmType(ctx, p.type));
+    const retType = llvmType(ctx, ef.returnType);
+    const fnType = m.functionType(retType, paramTypes, ef.variadic ?? false);
+    const fn = m.addFunction(ef.name, fnType);
+    ctx.declareFunction(ef.name, fn, fnType);
+  }
+
   for (const iface of mod.interfaces) {
     const fatTy = m.structCreateNamed(`${iface.name}_fat`);
     m.structSetBody(fatTy, [m.ptr, m.ptr]);

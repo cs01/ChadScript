@@ -296,12 +296,20 @@ export interface HIRGlobal {
   mutable: boolean;
 }
 
+export interface HIRExternFn {
+  name: string;
+  params: HIRParam[];
+  returnType: HIRType;
+  variadic?: boolean;
+}
+
 export interface HIRModule {
   functions: HIRFunction[];
   classes: HIRClass[];
   interfaces: HIRInterface[];
   globals: HIRGlobal[];
   init: HIRStmt[];
+  externFns: HIRExternFn[];
   sourceInfo?: SourceInfo;
 }
 

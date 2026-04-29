@@ -115,6 +115,7 @@ export function lowerModule(
   const hirInterfaces: import("./types.js").HIRInterface[] = [];
   const hirGlobals: import("./types.js").HIRGlobal[] = [];
   const init: HIRStmt[] = [];
+  const externFns: import("./types.js").HIRExternFn[] = [];
 
   functionRegistry.clear();
   classRegistry.clear();
@@ -303,6 +304,18 @@ export function lowerModule(
       functions.push(...fns);
     } else if (inner.type === "FunctionDeclaration") {
       if (isGenericFunction(inner as any)) continue;
+      if ((inner as any).declare) {
+        const info = functionRegistry.get((inner as any).identifier.value);
+        if (info) {
+          externFns.push({
+            name: (inner as any).identifier.value,
+            params: info.params,
+            returnType: info.returnType,
+            variadic: (inner as any).variadic ?? false,
+          });
+        }
+        continue;
+      }
       setIsModuleScope(false);
       functions.push(lowerFunctionDecl(inner));
       setIsModuleScope(true);
@@ -512,6 +525,7 @@ export function lowerModule(
     interfaces: hirInterfaces,
     globals: hirGlobals,
     init,
+    externFns,
     sourceInfo: si,
   };
 }
