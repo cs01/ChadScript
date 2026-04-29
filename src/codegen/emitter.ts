@@ -278,6 +278,28 @@ function declareExterns(ctx: EmitContext): void {
     ctx.declareFunction(name, fn, ft);
   }
 
+  const osFns: [string, any, any[]][] = [
+    ["cs2_os_getcwd", m.ptr, []],
+    ["cs2_os_path_exists", m.i32, [m.ptr]],
+    ["cs2_os_path_isfile", m.i32, [m.ptr]],
+    ["cs2_os_path_isdir", m.i32, [m.ptr]],
+    ["cs2_os_path_join", m.ptr, [m.ptr, m.ptr]],
+    ["cs2_os_path_basename", m.ptr, [m.ptr]],
+    ["cs2_os_path_dirname", m.ptr, [m.ptr]],
+    ["cs2_os_path_abspath", m.ptr, [m.ptr]],
+    ["cs2_os_path_splitext_name", m.ptr, [m.ptr]],
+    ["cs2_os_path_splitext_ext", m.ptr, [m.ptr]],
+    ["cs2_os_listdir", m.ptr, [m.ptr]],
+    ["cs2_os_getenv", m.ptr, [m.ptr]],
+    ["cs2_os_mkdir", m.i32, [m.ptr]],
+    ["cs2_os_remove", m.i32, [m.ptr]],
+  ];
+  for (const [name, ret, params] of osFns) {
+    const ft = m.functionType(ret, params);
+    const fn = m.addFunction(name, ft);
+    ctx.declareFunction(name, fn, ft);
+  }
+
   const mathIntrinsics1: [string, string][] = [
     ["llvm.floor.f64", "cs_math_floor"],
     ["llvm.ceil.f64", "cs_math_ceil"],
@@ -339,6 +361,7 @@ function declareExterns(ctx: EmitContext): void {
   ctx.declareFunction("_setjmp", setjmpFn, setjmpType);
 
   const bridgeFns: [string, any, any[]][] = [
+    ["cs2_str_equals", m.i32, [m.ptr, m.ptr]],
     ["cs2_str_length", m.i32, [m.ptr]],
     ["cs2_str_char_at", m.ptr, [m.ptr, m.i32]],
     ["cs2_str_index_of", m.i32, [m.ptr, m.ptr]],

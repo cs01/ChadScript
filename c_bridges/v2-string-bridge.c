@@ -417,3 +417,6 @@ char *cs2_str_replace_all(const char *s, const char *search, const char *replace
     }
     return result;
 }
+
+#include <string.h>
+int32_t cs2_str_equals(const char *a, const char *b) { return strcmp(a, b) == 0 ? 1 : 0; }

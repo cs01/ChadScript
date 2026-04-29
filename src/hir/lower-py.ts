@@ -1343,6 +1343,10 @@ function lowerAttribute(node: SyntaxNode): HIRExpr {
     }
   }
 
+  if (objNode.text === "os" && fieldName === "path") {
+    return { kind: "literal_null", type: VOID };
+  }
+
   const obj = lowerExpr(objNode);
 
   if (obj.type.kind === "ptr") {
@@ -1367,7 +1371,7 @@ function lowerIdentifier(node: SyntaxNode): HIRExpr {
   const name = node.text;
   const local = locals.get(name);
   if (local) return { kind: "local_get", id: local.id, type: local.type };
-  if (name === "math" || name === "random" || name === "sys") return { kind: "literal_null", type: VOID };
+  if (name === "math" || name === "random" || name === "sys" || name === "os") return { kind: "literal_null", type: VOID };
   throw new Error(`undefined variable: ${name}`);
 }
 
@@ -1497,6 +1501,11 @@ function lowerComparison(node: SyntaxNode): HIRExpr {
     return opText === "is not" ? { kind: "unary", op: "not", operand: cmp, type: I1 } : cmp;
   }
 
+  if ((opText === "==" || opText === "!=") && left.type.kind === "i8ptr" && right.type.kind === "i8ptr") {
+    const eqExpr: HIRExpr = { kind: "runtime_call", func: "cs2_str_equals", args: [left, right], returnType: I1, type: I1 };
+    return opText === "!=" ? { kind: "unary", op: "not", operand: eqExpr, type: I1 } : eqExpr;
+  }
+
   const opMap: Record<string, string> = {
     "==": "eq", "!=": "ne", "<": "lt", "<=": "le", ">": "gt", ">=": "ge",
   };
@@ -1572,6 +1581,58 @@ function lowerCall(node: SyntaxNode): HIRExpr {
       if (sysMethod === "exit") {
         const code = args[0] ? coerceTo(args[0], I64) : { kind: "literal_i64" as const, value: 0, type: I64 };
         return { kind: "runtime_call", func: "cs2_py_sys_exit", args: [code], returnType: VOID, type: VOID };
+      }
+    }
+
+    // os.method() and os.path.method()
+    if (objName === "os") {
+      const method = funcNode.namedChild(1)!.text;
+      if (method === "getcwd") {
+        return { kind: "runtime_call", func: "cs2_os_getcwd", args: [], returnType: I8PTR, type: I8PTR };
+      }
+      if (method === "listdir") {
+        const strArrType: HIRType = { kind: "array", element: I8PTR };
+        const path = args[0] ?? { kind: "runtime_call" as const, func: "cs2_os_getcwd", args: [], returnType: I8PTR, type: I8PTR };
+        return { kind: "runtime_call", func: "cs2_os_listdir", args: [path], returnType: strArrType, type: strArrType };
+      }
+      if (method === "getenv") {
+        const name = args[0];
+        return { kind: "runtime_call", func: "cs2_os_getenv", args: [name], returnType: I8PTR, type: I8PTR };
+      }
+      if (method === "mkdir") {
+        return { kind: "runtime_call", func: "cs2_os_mkdir", args: [args[0]], returnType: VOID, type: VOID };
+      }
+      if (method === "remove") {
+        return { kind: "runtime_call", func: "cs2_os_remove", args: [args[0]], returnType: VOID, type: VOID };
+      }
+    }
+
+    // os.path.method()
+    const objNode0 = funcNode.namedChild(0)!;
+    if (objNode0.type === "attribute" && objNode0.namedChild(0)!.text === "os" && objNode0.namedChild(1)!.text === "path") {
+      const method = funcNode.namedChild(1)!.text;
+      switch (method) {
+        case "exists":
+          return { kind: "runtime_call", func: "cs2_os_path_exists", args: [args[0]], returnType: I1, type: I1 };
+        case "isfile":
+          return { kind: "runtime_call", func: "cs2_os_path_isfile", args: [args[0]], returnType: I1, type: I1 };
+        case "isdir":
+          return { kind: "runtime_call", func: "cs2_os_path_isdir", args: [args[0]], returnType: I1, type: I1 };
+        case "join":
+          return args.slice(1).reduce((acc, seg) =>
+            ({ kind: "runtime_call" as const, func: "cs2_os_path_join", args: [acc, seg], returnType: I8PTR, type: I8PTR }),
+            args[0]);
+        case "basename":
+          return { kind: "runtime_call", func: "cs2_os_path_basename", args: [args[0]], returnType: I8PTR, type: I8PTR };
+        case "dirname":
+          return { kind: "runtime_call", func: "cs2_os_path_dirname", args: [args[0]], returnType: I8PTR, type: I8PTR };
+        case "abspath":
+          return { kind: "runtime_call", func: "cs2_os_path_abspath", args: [args[0]], returnType: I8PTR, type: I8PTR };
+        case "splitext": {
+          const nameE: HIRExpr = { kind: "runtime_call", func: "cs2_os_path_splitext_name", args: [args[0]], returnType: I8PTR, type: I8PTR };
+          const extE: HIRExpr = { kind: "runtime_call", func: "cs2_os_path_splitext_ext", args: [args[0]], returnType: I8PTR, type: I8PTR };
+          return { kind: "tuple", elements: [nameE, extE], type: { kind: "tuple", elements: [I8PTR, I8PTR] } as HIRType };
+        }
       }
     }
 

@@ -112,23 +112,26 @@ Python-to-native compiler. Same HIR + emitter + C bridges as ChadScript v2 — o
 
 ---
 
-## Phase 7: `*args` / `**kwargs` + Generators + `with`
-- [ ] `*args: int` → rest param → `%NumArray`
+## Phase 7: `*args` / `**kwargs` + Generators + `with` ✅ (partial)
+- [x] `*args: int` → rest param → `%NumArray`
 - [ ] `**kwargs: str` → runtime dict
 - [ ] `yield` / generators → state machine transform (same as ChadScript async)
-- [ ] `with` statement → desugar to try/finally + `__enter__`/`__exit__`
-- [ ] Walrus operator `:=`, starred unpacking `a, *rest = lst`
+- [x] `with` statement → desugar (simplified: bind alias, exec body)
+- [x] Walrus operator `:=`, starred unpacking `a, *rest = lst`
+- [x] `sys.argv`, `sys.exit` — `py-sys-bridge.c`
 
 ---
 
-## Phase 8: Stdlib C Bridges
+## Phase 8: Stdlib C Bridges ✅ (partial)
 - [ ] `py-io-bridge.c` — `open()`, file objects, context manager
 - [ ] `py-os-bridge.c` — `os.path`, `os.listdir`, `os.getcwd`, `os.environ`
-- [ ] `py-sys-bridge.c` — `sys.argv`, `sys.exit`, stdio
+- [x] `py-sys-bridge.c` — `sys.argv`, `sys.exit`, stdio
 - [ ] `py-json-bridge.c` — `json.loads` / `json.dumps` (reuse yyjson)
 - [ ] `py-re-bridge.c` — `re.match`, `re.search`, `re.findall` (reuse PCRE2)
-- [ ] `py-random-bridge.c` — `random.random()`, `random.randint()`, `random.choice()`
+- [x] `py-random-bridge.c` — `random.random()`, `random.randint()`, `random.choice()`, `random.shuffle()`, `random.uniform()`, `random.seed()`
 - [ ] `py-collections-bridge.c` — `Counter`, `defaultdict`, `deque`
+
+**Test runner:** `node --import tsx --test tests/py-test.ts` — auto-discovers all `.py` in `tests/fixtures-py/`, diffs stdout against `python3`. **21/21 pass.**
 
 ---
 
