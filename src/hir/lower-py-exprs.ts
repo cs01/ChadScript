@@ -370,9 +370,55 @@ function lowerListLiteral(node: SyntaxNode, ctx: LowerCtx): HIRExpr {
   };
 }
 
+function lowerSlice(arr: HIRExpr, sliceNode: SyntaxNode, ctx: LowerCtx): HIRExpr {
+  // Determine start/end by finding colon position among raw children
+  let colonIdx = -1;
+  for (let i = 0; i < sliceNode.childCount; i++) {
+    if (sliceNode.child(i)!.type === ":") { colonIdx = i; break; }
+  }
+  let startNode: SyntaxNode | null = null;
+  let endNode: SyntaxNode | null = null;
+  for (let i = 0; i < sliceNode.childCount; i++) {
+    const c = sliceNode.child(i)!;
+    if (!c.isNamed) continue;
+    if (i < colonIdx) startNode = c;
+    else if (i > colonIdx) endNode = c;
+  }
+
+  if (arr.type.kind === "i8ptr") {
+    const startExpr: HIRExpr = startNode
+      ? coerceTo(ctx.lowerExpr(startNode), I64)
+      : { kind: "literal_i64", value: 0, type: I64 };
+    const endExpr: HIRExpr = endNode
+      ? coerceTo(ctx.lowerExpr(endNode), I64)
+      : { kind: "runtime_call", func: "cs2_str_length", args: [arr], returnType: I64, type: I64 };
+    return { kind: "runtime_call", func: "cs2_str_slice", args: [arr, startExpr, endExpr], returnType: I8PTR, type: I8PTR };
+  }
+  if (arr.type.kind === "array") {
+    const elemType = (arr.type as { kind: "array"; element: HIRType }).element;
+    const prefix = elemType.kind === "i8ptr" ? "cs2_str_array" : "cs2_num_array";
+    const lenFn = `${prefix}_length`;
+    const sliceFn = `${prefix}_slice`;
+    const startExpr: HIRExpr = startNode
+      ? coerceTo(ctx.lowerExpr(startNode), I64)
+      : { kind: "literal_i64", value: 0, type: I64 };
+    const endExpr: HIRExpr = endNode
+      ? coerceTo(ctx.lowerExpr(endNode), I64)
+      : { kind: "runtime_call", func: lenFn, args: [arr], returnType: I64, type: I64 };
+    return { kind: "runtime_call", func: sliceFn, args: [arr, startExpr, endExpr], returnType: arr.type, type: arr.type };
+  }
+  throw new Error(`slice on unsupported type: ${arr.type.kind}`);
+}
+
 function lowerSubscript(node: SyntaxNode, ctx: LowerCtx): HIRExpr {
   const arr = ctx.lowerExpr(node.namedChild(0)!);
-  const idx = ctx.lowerExpr(node.namedChild(1)!);
+  const idxNode = node.namedChild(1)!;
+
+  if (idxNode.type === "slice") {
+    return lowerSlice(arr, idxNode, ctx);
+  }
+
+  const idx = ctx.lowerExpr(idxNode);
   if (arr.type.kind === "array") {
     return { kind: "index_get", array: arr, index: coerceTo(idx, I64), type: arr.type.element };
   }

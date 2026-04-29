@@ -37,6 +37,7 @@ double cs2_num_array_pop(NumArray *arr) {
 }
 
 double cs2_num_array_get(NumArray *arr, int32_t index) {
+    if (index < 0) index += arr->length;
     if (index < 0 || index >= arr->length) return 0.0;
     return arr->data[index];
 }
@@ -263,6 +264,7 @@ char *cs2_str_array_pop(StrArray *arr) {
 }
 
 char *cs2_str_array_get(StrArray *arr, int32_t index) {
+    if (index < 0) index += arr->length;
     if (index < 0 || index >= arr->length) return "";
     return arr->data[index];
 }
