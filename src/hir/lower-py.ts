@@ -29,6 +29,7 @@ let classes: Map<string, { fields: { name: string; type: HIRType }[] }>;
 let classParents: Map<string, string>;
 let currentClassName: string | null;
 let pendingStmts: HIRStmt[] = [];
+let pendingFunctions: HIRFunction[] = [];
 
 export function lowerPythonModule(
   root: SyntaxNode,
@@ -42,6 +43,7 @@ export function lowerPythonModule(
   classParents = new Map();
   currentClassName = null;
   pendingStmts = [];
+  pendingFunctions = [];
 
   const hirFunctions: HIRFunction[] = [];
   const hirClasses: HIRClass[] = [];
@@ -112,7 +114,7 @@ export function lowerPythonModule(
   };
 
   return {
-    functions: hirFunctions,
+    functions: [...pendingFunctions, ...hirFunctions],
     classes: hirClasses,
     interfaces: [],
     globals: hirGlobals,
@@ -1117,9 +1119,49 @@ function lowerExpr(node: SyntaxNode): HIRExpr {
       return lowerSubscript(node);
     case "attribute":
       return lowerAttribute(node);
+    case "lambda": {
+      const lambdaId = freshId();
+      const lambdaName = `__lambda_${lambdaId}`;
+      const fn = lowerLambda(node, lambdaName);
+      pendingFunctions.push(fn);
+      functions.set(lambdaName, { params: fn.params.map((p) => p.type), returnType: fn.returnType });
+      const closureType: HIRType = { kind: "closure", params: fn.params.map((p) => p.type), returnType: fn.returnType };
+      return { kind: "make_closure", funcName: lambdaName, captures: [], type: closureType };
+    }
     default:
       throw new Error(`unsupported expression: ${node.type} "${node.text}"`);
   }
+}
+
+function lowerLambda(node: SyntaxNode, name: string): HIRFunction {
+  const paramsNode = node.childForFieldName("parameters");
+  const savedLocals = new Map(locals);
+  const envParam: HIRParam = { id: freshId(), name: "__env", type: I8PTR };
+  const hirParams: HIRParam[] = [envParam];
+
+  if (paramsNode) {
+    for (let i = 0; i < paramsNode.namedChildCount; i++) {
+      const p = paramsNode.namedChild(i)!;
+      const paramId = freshId();
+      const paramName = p.type === "typed_parameter" ? p.namedChild(0)!.text : p.text;
+      const paramType = p.type === "typed_parameter" ? resolveType(p.childForFieldName("type")!) : F64;
+      hirParams.push({ id: paramId, name: paramName, type: paramType });
+      locals.set(paramName, { id: paramId, name: paramName, type: paramType });
+    }
+  }
+
+  const bodyNode = node.childForFieldName("body")!;
+  const bodyExpr = lowerExpr(bodyNode);
+  locals = savedLocals;
+
+  return {
+    name,
+    params: hirParams,
+    returnType: bodyExpr.type,
+    body: [{ kind: "return", value: bodyExpr }],
+    isAsync: false,
+    captures: [],
+  };
 }
 
 function lowerString(node: SyntaxNode): HIRExpr {
@@ -1341,14 +1383,14 @@ function lowerComparison(node: SyntaxNode): HIRExpr {
   }
 
   if (opText === "is" || opText === "is not") {
-    const commonType = resolveArithResultType(left.type, right.type);
-    const cmp: HIRExpr = {
-      kind: "binary",
-      op: "eq",
-      left: coerceTo(left, commonType),
-      right: coerceTo(right, commonType),
-      type: I1,
-    };
+    const isNullCheck = right.type.kind === "void" || (right.kind === "literal_null" as any);
+    let cmp: HIRExpr;
+    if (isNullCheck && left.type.kind === "ptr") {
+      cmp = { kind: "binary", op: "eq", left, right: { kind: "literal_null", type: left.type }, type: I1 };
+    } else {
+      const commonType = resolveArithResultType(left.type, right.type);
+      cmp = { kind: "binary", op: "eq", left: coerceTo(left, commonType), right: coerceTo(right, commonType), type: I1 };
+    }
     return opText === "is not" ? { kind: "unary", op: "not", operand: cmp, type: I1 } : cmp;
   }
 
@@ -1398,11 +1440,27 @@ function lowerCall(node: SyntaxNode): HIRExpr {
   const funcNode = node.childForFieldName("function")!;
   const argsNode = node.childForFieldName("arguments")!;
 
-  if (funcNode.type === "attribute") {
-    const args: HIRExpr[] = [];
+  function buildPositionalArgs(): HIRExpr[] {
+    const result: HIRExpr[] = [];
     for (let i = 0; i < argsNode.namedChildCount; i++) {
-      args.push(lowerExpr(argsNode.namedChild(i)!));
+      const a = argsNode.namedChild(i)!;
+      if (a.type !== "keyword_argument") result.push(lowerExpr(a));
     }
+    return result;
+  }
+
+  function getKwarg(name: string): SyntaxNode | undefined {
+    for (let i = 0; i < argsNode.namedChildCount; i++) {
+      const a = argsNode.namedChild(i)!;
+      if (a.type === "keyword_argument" && a.namedChild(0)!.text === name) {
+        return a.namedChild(1)!;
+      }
+    }
+    return undefined;
+  }
+
+  if (funcNode.type === "attribute") {
+    const args = buildPositionalArgs();
 
     // math.method(args)
     if (funcNode.namedChild(0)!.text === "math") {
@@ -1453,11 +1511,7 @@ function lowerCall(node: SyntaxNode): HIRExpr {
     return lowerMethodCall(funcNode, args);
   }
 
-  const args: HIRExpr[] = [];
-  for (let i = 0; i < argsNode.namedChildCount; i++) {
-    args.push(lowerExpr(argsNode.namedChild(i)!));
-  }
-
+  const args = buildPositionalArgs();
   const funcName = funcNode.text;
 
   if (funcName === "print") {
@@ -1577,10 +1631,33 @@ function lowerCall(node: SyntaxNode): HIRExpr {
       locals.set(copyName, { id: copyId, name: copyName, type: arg.type });
       pendingStmts.push({ kind: "let", id: copyId, name: copyName, type: arg.type, init: copyExpr, mutable: false });
       const copyRef: HIRExpr = { kind: "local_get", id: copyId, type: arg.type };
-      pendingStmts.push({
-        kind: "expr",
-        expr: { kind: "runtime_call", func: `${prefix}_sort`, args: [copyRef], returnType: VOID, type: VOID },
-      });
+      const keyNode = getKwarg("key");
+      if (keyNode && keyNode.type === "lambda") {
+        const lambdaId = freshId();
+        const lambdaName = `__lambda_${lambdaId}`;
+        const fn = lowerLambda(keyNode, lambdaName);
+        pendingFunctions.push(fn);
+        functions.set(lambdaName, { params: fn.params.map((p) => p.type), returnType: fn.returnType });
+        const closureType: HIRType = { kind: "closure", params: fn.params.map((p) => p.type), returnType: fn.returnType };
+        const closureExpr: HIRExpr = { kind: "make_closure", funcName: lambdaName, captures: [], type: closureType };
+        pendingStmts.push({
+          kind: "expr",
+          expr: { kind: "array_hof", method: "forEach", array: copyRef, callback: closureExpr,
+                  bridgeFunc: `${prefix}_sort_by`, returnType: VOID, type: VOID },
+        });
+      } else {
+        pendingStmts.push({
+          kind: "expr",
+          expr: { kind: "runtime_call", func: `${prefix}_sort`, args: [copyRef], returnType: VOID, type: VOID },
+        });
+      }
+      const reverseNode = getKwarg("reverse");
+      if (reverseNode && reverseNode.text === "True") {
+        pendingStmts.push({
+          kind: "expr",
+          expr: { kind: "runtime_call", func: `${prefix}_reverse`, args: [copyRef], returnType: VOID, type: VOID },
+        });
+      }
       return copyRef;
     }
     return arg;
@@ -1606,6 +1683,34 @@ function lowerCall(node: SyntaxNode): HIRExpr {
     return arg;
   }
 
+  if (funcName === "map") {
+    if (argsNode.namedChildCount >= 2) {
+      const fnNode = argsNode.namedChild(0)!;
+      const lstExpr = lowerExpr(argsNode.namedChild(1)!);
+      if (lstExpr.type.kind === "array") {
+        const closureExpr = lowerExpr(fnNode);
+        const prefix = lstExpr.type.element.kind === "i8ptr" ? "cs2_str_array" : "cs2_num_array";
+        return { kind: "array_hof", method: "map", array: lstExpr, callback: closureExpr,
+                 bridgeFunc: `${prefix}_map`, returnType: lstExpr.type, type: lstExpr.type };
+      }
+    }
+    return { kind: "alloc_array", elementType: F64, initialValues: [], type: { kind: "array", element: F64 } };
+  }
+
+  if (funcName === "filter") {
+    if (argsNode.namedChildCount >= 2) {
+      const fnNode = argsNode.namedChild(0)!;
+      const lstExpr = lowerExpr(argsNode.namedChild(1)!);
+      if (lstExpr.type.kind === "array") {
+        const closureExpr = lowerExpr(fnNode);
+        const prefix = lstExpr.type.element.kind === "i8ptr" ? "cs2_str_array" : "cs2_num_array";
+        return { kind: "array_hof", method: "filter", array: lstExpr, callback: closureExpr,
+                 bridgeFunc: `${prefix}_filter`, returnType: lstExpr.type, type: lstExpr.type };
+      }
+    }
+    return { kind: "alloc_array", elementType: F64, initialValues: [], type: { kind: "array", element: F64 } };
+  }
+
   if (funcName === "range") {
     return { kind: "literal_i64", value: 0, type: I64 };
   }
@@ -1616,6 +1721,7 @@ function lowerCall(node: SyntaxNode): HIRExpr {
   }
 
   if (funcName === "list") {
+    if (args.length === 1 && args[0].type.kind === "array") return args[0];
     return { kind: "alloc_array", elementType: F64, initialValues: [], type: { kind: "array", element: F64 } };
   }
 
@@ -1667,14 +1773,22 @@ function lowerMethodCall(attrNode: SyntaxNode, args: HIRExpr[]): HIRExpr {
     const mapType = obj.type;
     switch (methodName) {
       case "get": {
-        const getExpr: HIRExpr = {
+        if (args.length >= 2) {
+          return {
+            kind: "runtime_call",
+            func: `${prefix}_get_or`,
+            args: [obj, coerceTo(args[0], mt.key), coerceTo(args[1], mt.value)],
+            returnType: mt.value,
+            type: mt.value,
+          };
+        }
+        return {
           kind: "runtime_call",
           func: `${prefix}_get`,
           args: [obj, coerceTo(args[0], mt.key)],
           returnType: mt.value,
           type: mt.value,
         };
-        return getExpr;
       }
       case "pop":
         return { kind: "runtime_call", func: `${prefix}_delete`, args: [obj, coerceTo(args[0], mt.key)], returnType: I64, type: I64 };
@@ -1800,6 +1914,10 @@ function resolveType(node: SyntaxNode): HIRType {
       const keyType = rawKey.kind === "i64" ? F64 : rawKey;
       const valType = rawVal.kind === "i64" ? F64 : rawVal;
       return { kind: "map", key: keyType, value: valType };
+    }
+    if ((baseName === "Optional" || baseName === "Union") && typeParams) {
+      const inner = typeParams.namedChild(0);
+      return inner ? resolveType(inner) : BOXED;
     }
     return BOXED;
   }

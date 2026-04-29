@@ -409,6 +409,24 @@ void cs2_num_array_sort_fn(NumArray *arr, void *fn_ptr, void *env_ptr) {
     qsort(arr->data, arr->length, sizeof(double), cs2_custom_compare);
 }
 
+typedef struct { void *fn_ptr; void *env_ptr; } KeyCtx;
+static KeyCtx g_key_ctx;
+
+static int cs2_key_compare(const void *a, const void *b) {
+    double (*fn)(void *, double) = (double (*)(void *, double))g_key_ctx.fn_ptr;
+    double ka = fn(g_key_ctx.env_ptr, *(const double *)a);
+    double kb = fn(g_key_ctx.env_ptr, *(const double *)b);
+    if (ka < kb) return -1;
+    if (ka > kb) return 1;
+    return 0;
+}
+
+void cs2_num_array_sort_by(NumArray *arr, void *fn_ptr, void *env_ptr) {
+    g_key_ctx.fn_ptr = fn_ptr;
+    g_key_ctx.env_ptr = env_ptr;
+    qsort(arr->data, arr->length, sizeof(double), cs2_key_compare);
+}
+
 NumArray *cs2_num_array_map(NumArray *arr, void *fn_ptr, void *env_ptr) {
     double (*fn)(void *, double) = (double (*)(void *, double))fn_ptr;
     NumArray *result = cs2_num_array_new(arr->length);

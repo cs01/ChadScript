@@ -84,6 +84,11 @@ double cs2_str_num_map_get(StrNumMap *m, const char *key) {
     return 0.0 / 0.0;
 }
 
+double cs2_str_num_map_get_or(StrNumMap *m, const char *key, double def) {
+    int32_t idx = find_str_key(m->keys, m->length, key);
+    return idx >= 0 ? m->values[idx] : def;
+}
+
 int32_t cs2_str_num_map_has(StrNumMap *m, const char *key) {
     return find_str_key(m->keys, m->length, key) >= 0 ? 1 : 0;
 }
@@ -130,6 +135,11 @@ char *cs2_str_str_map_get(StrStrMap *m, const char *key) {
     int32_t idx = find_str_key(m->keys, m->length, key);
     if (idx >= 0) return m->values[idx];
     return NULL;
+}
+
+char *cs2_str_str_map_get_or(StrStrMap *m, const char *key, const char *def) {
+    int32_t idx = find_str_key(m->keys, m->length, key);
+    return idx >= 0 ? m->values[idx] : (char *)def;
 }
 
 int32_t cs2_str_str_map_has(StrStrMap *m, const char *key) {
