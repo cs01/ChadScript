@@ -1115,6 +1115,53 @@ function lowerCall(expr: CallExpression): HIRExpr {
     }
   }
 
+  if (
+    expr.callee.type === "MemberExpression" &&
+    expr.callee.object.type === "Identifier" &&
+    expr.callee.object.value === "Array" &&
+    expr.callee.property.type === "Identifier" &&
+    expr.callee.property.value === "isArray"
+  ) {
+    const arg = lowerExpr(expr.arguments[0].expression);
+    if (arg.type.kind === "array" || arg.type.kind === "dynarray") {
+      return { kind: "literal_bool", value: true, type: I1 };
+    }
+    return {
+      kind: "binary",
+      op: "ne" as BinaryOp,
+      left: arg,
+      right: { kind: "literal_null", type: arg.type },
+      type: I1,
+    };
+  }
+
+  if (
+    expr.callee.type === "MemberExpression" &&
+    expr.callee.object.type === "Identifier" &&
+    expr.callee.object.value === "Number" &&
+    expr.callee.property.type === "Identifier"
+  ) {
+    const method = expr.callee.property.value;
+    if (method === "isInteger") {
+      const arg = lowerExpr(expr.arguments[0].expression);
+      if (arg.type.kind === "i64") return { kind: "literal_bool", value: true, type: I1 };
+      const rem: HIRExpr = {
+        kind: "binary",
+        op: "rem" as BinaryOp,
+        left: coerce(arg, F64),
+        right: { kind: "literal_f64", value: 1.0, type: F64 },
+        type: F64,
+      };
+      return {
+        kind: "binary",
+        op: "eq" as BinaryOp,
+        left: rem,
+        right: { kind: "literal_f64", value: 0.0, type: F64 },
+        type: I1,
+      };
+    }
+  }
+
   if (expr.callee.type === "MemberExpression") {
     const obj = lowerExpr(expr.callee.object);
     if (obj.type.kind === "i8ptr") {
@@ -1131,6 +1178,20 @@ function lowerCall(expr: CallExpression): HIRExpr {
     }
     if (obj.type.kind === "regex") {
       return lowerRegexMethodCall(expr, obj);
+    }
+    if (obj.type.kind === "dynarray") {
+      return lowerDynarrayMethodCall(expr, obj);
+    }
+    if (obj.type.kind === "dynobj" || obj.type.kind === "boxed") {
+      const methodName = (expr.callee as MemberExpression).property;
+      if (methodName.type === "Identifier") {
+        const mn = (methodName as Identifier).value;
+        const arrayMethods = ["filter", "map", "forEach", "find", "findIndex", "every", "some", "push", "length"];
+        if (arrayMethods.includes(mn)) {
+          const asArr: HIRExpr = { ...obj, type: DYNARRAY };
+          return lowerDynarrayMethodCall(expr, asArr);
+        }
+      }
     }
     if (obj.type.kind === "ptr") {
       const pointee = (obj.type as { kind: "ptr"; pointee: string }).pointee;
@@ -2378,6 +2439,80 @@ function lowerRegexMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
   }
 }
 
+function lowerDynarrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
+  const member = expr.callee as MemberExpression;
+  const method = (member.property as Identifier).value;
+  const args = expr.arguments.map((a: any) => lowerExpr(a.expression));
+
+  if (method === "length") {
+    return {
+      kind: "runtime_call",
+      func: "cs2_dynarray_length",
+      args: [obj],
+      returnType: I64,
+      type: I64,
+    };
+  }
+
+  if (method === "push") {
+    const val = args[0];
+    let func = "cs2_dynarray_push_obj";
+    if (val.type.kind === "f64" || val.type.kind === "i64") func = "cs2_dynarray_push_f64";
+    else if (val.type.kind === "i8ptr") func = "cs2_dynarray_push_str";
+    else if (val.type.kind === "dynarray") func = "cs2_dynarray_push_arr";
+    return { kind: "runtime_call", func, args: [obj, val], returnType: VOID, type: VOID };
+  }
+
+  const hofMethods: Record<string, string> = {
+    filter: "cs2_dynarray_filter",
+    map: "cs2_dynarray_map",
+    forEach: "cs2_dynarray_forEach",
+    find: "cs2_dynarray_find",
+    findIndex: "cs2_dynarray_findIndex",
+    every: "cs2_dynarray_every",
+    some: "cs2_dynarray_some",
+  };
+
+  if (hofMethods[method]) {
+    const callback = args[0];
+    let returnType: HIRType;
+    switch (method) {
+      case "filter":
+        returnType = DYNARRAY;
+        break;
+      case "map":
+        returnType = DYNARRAY;
+        break;
+      case "forEach":
+        returnType = VOID;
+        break;
+      case "find":
+        returnType = DYNOBJ;
+        break;
+      case "findIndex":
+        returnType = F64;
+        break;
+      case "every":
+      case "some":
+        returnType = I1;
+        break;
+      default:
+        throw new Error(`unexpected dynarray hof: ${method}`);
+    }
+    return {
+      kind: "array_hof",
+      array: obj,
+      method,
+      callback,
+      bridgeFunc: hofMethods[method],
+      returnType,
+      type: returnType,
+    } as any;
+  }
+
+  compileError(`unsupported dynarray method: ${method}`, expr.span);
+}
+
 function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
   const member = expr.callee as MemberExpression;
   const method = (member.property as Identifier).value;
@@ -2616,7 +2751,7 @@ function lowerOptionalChain(expr: any): HIRExpr {
 
   if (base.type === "MemberExpression") {
     const obj = lowerExpr(base.object);
-    if (obj.type.kind !== "ptr") {
+    if (obj.type.kind !== "ptr" && obj.type.kind !== "dynobj" && obj.type.kind !== "boxed" && obj.type.kind !== "i8ptr") {
       compileError("optional chaining requires object type", expr.span);
     }
 
@@ -2643,7 +2778,7 @@ function lowerOptionalChain(expr: any): HIRExpr {
     if (callee.type === "OptionalChainingExpression" && callee.base.type === "MemberExpression") {
       const memberExpr = callee.base as MemberExpression;
       const obj = lowerExpr(memberExpr.object);
-      if (obj.type.kind !== "ptr") {
+      if (obj.type.kind !== "ptr" && obj.type.kind !== "dynobj" && obj.type.kind !== "boxed" && obj.type.kind !== "i8ptr") {
         compileError("optional chaining requires object type", expr.span);
       }
 
@@ -2960,6 +3095,15 @@ export function lowerMember(expr: MemberExpression): HIRExpr {
         type: I8PTR,
       };
     }
+    if (obj.type.kind === "dynarray") {
+      return {
+        kind: "runtime_call",
+        func: "cs2_dynarray_get_obj",
+        args: [obj, coerce(index, I64)],
+        returnType: DYNOBJ,
+        type: DYNOBJ,
+      };
+    }
     if (obj.type.kind === "dynobj" || obj.type.kind === "boxed") {
       const dynObj = obj.type.kind === "boxed" ? coerce(obj, DYNOBJ) : obj;
       return dynobj_get(dynObj, index);
@@ -2985,6 +3129,9 @@ export function lowerMember(expr: MemberExpression): HIRExpr {
         const elemType = (obj.type as { kind: "array"; element: HIRType }).element;
         const lenFn = `${arrayPrefix(elemType)}_length`;
         return { kind: "runtime_call", func: lenFn, args: [obj], returnType: I64, type: I64 };
+      }
+      if (obj.type.kind === "dynarray") {
+        return { kind: "runtime_call", func: "cs2_dynarray_length", args: [obj], returnType: I64, type: I64 };
       }
       if (
         obj.type.kind === "ptr" &&

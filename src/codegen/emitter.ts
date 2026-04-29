@@ -648,6 +648,13 @@ function declareExterns(ctx: EmitContext): void {
     ["cs2_dynarray_get_obj", m.ptr, [m.ptr, m.i32]],
     ["cs2_dynarray_get_arr", m.ptr, [m.ptr, m.i32]],
     ["cs2_dynarray_get_bool", m.i32, [m.ptr, m.i32]],
+    ["cs2_dynarray_filter", m.ptr, [m.ptr, m.ptr, m.ptr]],
+    ["cs2_dynarray_map", m.ptr, [m.ptr, m.ptr, m.ptr]],
+    ["cs2_dynarray_forEach", m.voidTy, [m.ptr, m.ptr, m.ptr]],
+    ["cs2_dynarray_find", m.ptr, [m.ptr, m.ptr, m.ptr]],
+    ["cs2_dynarray_findIndex", m.f64, [m.ptr, m.ptr, m.ptr]],
+    ["cs2_dynarray_every", m.f64, [m.ptr, m.ptr, m.ptr]],
+    ["cs2_dynarray_some", m.f64, [m.ptr, m.ptr, m.ptr]],
     ["cs2_json_parse_obj", m.ptr, [m.ptr]],
     ["cs2_json_parse_arr", m.ptr, [m.ptr]],
   ];

@@ -300,3 +300,66 @@ DynArray *cs2_dynarray_get_arr(DynArray *a, int32_t i) {
 int32_t cs2_dynarray_get_bool(DynArray *a, int32_t i) {
     return a->data[i].bool_val;
 }
+
+DynArray *cs2_dynarray_filter(DynArray *arr, void *fn_ptr, void *env_ptr) {
+    int32_t (*fn)(void *, DynObj *) = (int32_t (*)(void *, DynObj *))fn_ptr;
+    DynArray *result = cs2_dynarray_new();
+    for (int32_t i = 0; i < arr->length; i++) {
+        DynObj *elem = arr->data[i].obj_val;
+        if (fn(env_ptr, elem)) {
+            cs2_dynarray_push_obj(result, elem);
+        }
+    }
+    return result;
+}
+
+DynArray *cs2_dynarray_map(DynArray *arr, void *fn_ptr, void *env_ptr) {
+    DynObj *(*fn)(void *, DynObj *) = (DynObj *(*)(void *, DynObj *))fn_ptr;
+    DynArray *result = cs2_dynarray_new();
+    for (int32_t i = 0; i < arr->length; i++) {
+        DynObj *elem = arr->data[i].obj_val;
+        DynObj *mapped = fn(env_ptr, elem);
+        cs2_dynarray_push_obj(result, mapped);
+    }
+    return result;
+}
+
+void cs2_dynarray_forEach(DynArray *arr, void *fn_ptr, void *env_ptr) {
+    void (*fn)(void *, DynObj *) = (void (*)(void *, DynObj *))fn_ptr;
+    for (int32_t i = 0; i < arr->length; i++) {
+        fn(env_ptr, arr->data[i].obj_val);
+    }
+}
+
+DynObj *cs2_dynarray_find(DynArray *arr, void *fn_ptr, void *env_ptr) {
+    int32_t (*fn)(void *, DynObj *) = (int32_t (*)(void *, DynObj *))fn_ptr;
+    for (int32_t i = 0; i < arr->length; i++) {
+        DynObj *elem = arr->data[i].obj_val;
+        if (fn(env_ptr, elem)) return elem;
+    }
+    return NULL;
+}
+
+double cs2_dynarray_findIndex(DynArray *arr, void *fn_ptr, void *env_ptr) {
+    int32_t (*fn)(void *, DynObj *) = (int32_t (*)(void *, DynObj *))fn_ptr;
+    for (int32_t i = 0; i < arr->length; i++) {
+        if (fn(env_ptr, arr->data[i].obj_val)) return (double)i;
+    }
+    return -1.0;
+}
+
+double cs2_dynarray_every(DynArray *arr, void *fn_ptr, void *env_ptr) {
+    int32_t (*fn)(void *, DynObj *) = (int32_t (*)(void *, DynObj *))fn_ptr;
+    for (int32_t i = 0; i < arr->length; i++) {
+        if (!fn(env_ptr, arr->data[i].obj_val)) return 0.0;
+    }
+    return 1.0;
+}
+
+double cs2_dynarray_some(DynArray *arr, void *fn_ptr, void *env_ptr) {
+    int32_t (*fn)(void *, DynObj *) = (int32_t (*)(void *, DynObj *))fn_ptr;
+    for (int32_t i = 0; i < arr->length; i++) {
+        if (fn(env_ptr, arr->data[i].obj_val)) return 1.0;
+    }
+    return 0.0;
+}

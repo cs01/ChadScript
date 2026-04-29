@@ -951,6 +951,10 @@ function lowerForOf(stmt: any): HIRStmt[] {
     return lowerForOfMap(stmt, iteree);
   }
 
+  if (iteree.type.kind === "dynarray" || iteree.type.kind === "dynobj") {
+    return lowerForOfDynarray(stmt, iteree);
+  }
+
   if (iteree.type.kind !== "array") {
     compileError(`for...of requires array or map type, got ${iteree.type.kind}`, stmt.span);
   }
@@ -1040,6 +1044,94 @@ function lowerForOf(stmt: any): HIRStmt[] {
   };
 
   return [arrStore, iInit, forStmt];
+}
+
+function lowerForOfDynarray(stmt: any, iteree: HIRExpr): HIRStmt[] {
+  const arrType: HIRType = { kind: "dynarray" };
+  const actualArr: HIRExpr = iteree.type.kind === "dynobj" ? { ...iteree, type: arrType } : iteree;
+
+  const iId = freshId();
+  const arrId = freshId();
+  locals.set("__forof_darr", { id: arrId, type: arrType, mutable: false });
+  locals.set("__forof_i", { id: iId, type: I64, mutable: true });
+
+  const arrStore: HIRStmt = {
+    kind: "let",
+    id: arrId,
+    name: "__forof_darr",
+    type: arrType,
+    init: actualArr,
+    mutable: false,
+  };
+  const iInit: HIRStmt = {
+    kind: "let",
+    id: iId,
+    name: "__forof_i",
+    type: I64,
+    init: { kind: "literal_i64", value: 0, type: I64 },
+    mutable: true,
+  };
+
+  const lenExpr: HIRExpr = {
+    kind: "runtime_call",
+    func: "cs2_dynarray_length",
+    args: [{ kind: "local_get", id: arrId, type: arrType }],
+    returnType: I64,
+    type: I64,
+  };
+
+  const condition: HIRExpr = {
+    kind: "binary",
+    op: "lt",
+    left: { kind: "local_get", id: iId, type: I64 },
+    right: lenExpr,
+    type: I1,
+  };
+
+  const indexGet: HIRExpr = {
+    kind: "runtime_call",
+    func: "cs2_dynarray_get_obj",
+    args: [
+      { kind: "local_get", id: arrId, type: arrType },
+      { kind: "local_get", id: iId, type: I64 },
+    ],
+    returnType: DYNOBJ,
+    type: DYNOBJ,
+  };
+
+  const varDecl = stmt.left;
+  const varName = varDecl.declarations[0].id.value;
+  const elemId = freshId();
+  locals.set(varName, { id: elemId, type: DYNOBJ, mutable: false });
+
+  const elemLet: HIRStmt = {
+    kind: "let",
+    id: elemId,
+    name: varName,
+    type: DYNOBJ,
+    init: indexGet,
+    mutable: false,
+  };
+  const innerBody = lowerConsequent(stmt.body);
+
+  const update: HIRExpr = {
+    kind: "local_set",
+    id: iId,
+    value: {
+      kind: "binary",
+      op: "add",
+      left: { kind: "local_get", id: iId, type: I64 },
+      right: { kind: "literal_i64", value: 1, type: I64 },
+      type: I64,
+    },
+    type: I64,
+  };
+
+  return [
+    arrStore,
+    iInit,
+    { kind: "for", init: undefined, condition, update, body: [elemLet, ...innerBody] },
+  ];
 }
 
 function lowerForOfMap(stmt: any, mapExpr: HIRExpr): HIRStmt[] {
