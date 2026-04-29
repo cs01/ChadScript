@@ -42,6 +42,19 @@ double cs2_num_array_get(NumArray *arr, int32_t index) {
     return arr->data[index];
 }
 
+void cs2_num_array_insert(NumArray *arr, int32_t index, double value) {
+    if (index < 0) index += arr->length;
+    if (index < 0) index = 0;
+    if (index > arr->length) index = arr->length;
+    if (arr->length >= arr->capacity) {
+        arr->capacity *= 2;
+        arr->data = (double *)realloc(arr->data, sizeof(double) * arr->capacity);
+    }
+    memmove(arr->data + index + 1, arr->data + index, sizeof(double) * (arr->length - index));
+    arr->data[index] = value;
+    arr->length++;
+}
+
 void cs2_num_array_fill(NumArray *arr, double value) {
     for (int32_t i = 0; i < arr->length; i++) {
         arr->data[i] = value;
@@ -261,6 +274,19 @@ void cs2_str_array_push(StrArray *arr, const char *value) {
 char *cs2_str_array_pop(StrArray *arr) {
     if (arr->length <= 0) return "";
     return arr->data[--arr->length];
+}
+
+void cs2_str_array_insert(StrArray *arr, int32_t index, const char *value) {
+    if (index < 0) index += arr->length;
+    if (index < 0) index = 0;
+    if (index > arr->length) index = arr->length;
+    if (arr->length >= arr->capacity) {
+        arr->capacity *= 2;
+        arr->data = (char **)realloc(arr->data, sizeof(char *) * arr->capacity);
+    }
+    memmove(arr->data + index + 1, arr->data + index, sizeof(char *) * (arr->length - index));
+    arr->data[index] = (char *)value;
+    arr->length++;
 }
 
 char *cs2_str_array_get(StrArray *arr, int32_t index) {

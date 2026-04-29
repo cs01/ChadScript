@@ -2,7 +2,7 @@ import type { SyntaxNode } from "../parser-py.js";
 import type { HIRType, HIRExpr, HIRStmt, HIRFunction } from "./types.js";
 import { F64, I64, I1, I8PTR, VOID } from "./types.js";
 import type { LowerCtx } from "./lower-py-ctx.js";
-import { coerceTo, coerceToF64, mapPrefix, resolveType } from "./lower-py-types.js";
+import { coerceTo, coerceToF64, mapPrefix, resolveType, extractStringContent } from "./lower-py-types.js";
 
 export function lowerCall(node: SyntaxNode, ctx: LowerCtx): HIRExpr {
   const funcNode = node.childForFieldName("function")!;
@@ -719,6 +719,8 @@ export function lowerMethodCall(attrNode: SyntaxNode, args: HIRExpr[], ctx: Lowe
           returnType: I64,
           type: I64,
         };
+      case "insert":
+        return { kind: "runtime_call", func: `${prefix}_insert`, args: [obj, coerceTo(args[0], I64), coerceTo(args[1], elemType)], returnType: VOID, type: VOID };
       case "sort":
         return { kind: "runtime_call", func: `${prefix}_sort`, args: [obj], returnType: VOID, type: VOID };
       case "extend": {
@@ -768,6 +770,18 @@ export function lowerMethodCall(attrNode: SyntaxNode, args: HIRExpr[], ctx: Lowe
     if (methodName === "split") {
       if (args.length === 0) return { kind: "runtime_call", func: "cs2_str_split_whitespace", args: [obj], returnType: strArrTypeStr, type: strArrTypeStr };
       return { kind: "runtime_call", func: "cs2_str_split", args: [obj, args[0]], returnType: strArrTypeStr, type: strArrTypeStr };
+    }
+    if (methodName === "format") {
+      const fmtNode = attrNode.namedChild(0)!;
+      const fmtStr = extractStringContent(fmtNode);
+      const parts = fmtStr.split("{}");
+      let result: HIRExpr = { kind: "literal_string", value: parts[0], type: I8PTR };
+      for (let i = 0; i < args.length; i++) {
+        result = { kind: "runtime_call", func: "cs_string_concat", args: [result, args[i]], returnType: I8PTR, type: I8PTR };
+        const lit = parts[i + 1] ?? "";
+        if (lit) result = { kind: "runtime_call", func: "cs_string_concat", args: [result, { kind: "literal_string", value: lit, type: I8PTR }], returnType: I8PTR, type: I8PTR };
+      }
+      return result;
     }
     throw new Error(`unsupported string method: ${methodName}`);
   }

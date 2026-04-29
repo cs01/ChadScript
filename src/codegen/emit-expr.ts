@@ -800,6 +800,7 @@ function emitRuntimeCall(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_call
         // Only push/set/get_or value args are double; index args remain i32
         const needsF64 =
           (expr.func.endsWith("_push") && i === 1) ||
+          (expr.func.endsWith("_insert") && i === 2) ||
           ((expr.func.includes("_num_map_set") || expr.func.includes("_num_map_get_or")) && i === 2);
         const nativeI64Fn = expr.func === "cs2_random_randint" || expr.func === "cs2_random_seed" ||
           expr.func === "cs2_py_sys_exit" || expr.func === "cs2_deque_num_get";
