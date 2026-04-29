@@ -6,27 +6,61 @@
 
 ## What's Next
 
-### 1. Self-Hosting Prereqs — Language Gaps for Compiler Source
+### 1. Self-Hosting Blockers (diagnosed 2026-04-28)
 
-The compiler's own source uses TS features we haven't tested compiling yet. Audit + fill gaps:
+Attempted compiling all compiler source files. Current status per file:
 
-- [x] **Type-alias/interface parameter resolution** — three-phase registration (pre-register names → type aliases → full interfaces), object literal → struct coercion when target is interface/class, array element type propagation for ptr types
-- [x] `this.prop` for inherited class fields — parent chain traversal in field_get lookup
-- [x] `import.meta.url` + `new URL()` — compile-time evaluation of `import.meta.url` → `file://` string, `new URL(str).pathname` → extract pathname
-- [ ] MemberExpression callee — `module.method()` call patterns beyond destructured builtin imports (parser.ts)
-- [ ] Verify: compiler source files (src/**/*.ts) compile without errors
+| File | Status | Blocker |
+|------|--------|---------|
+| `src/errors.ts` | **compiles** | — |
+| `src/hir/lower-state.ts` | lowering OK, codegen crash | function ref as HOF callback (`arr.map(namedFn)`) |
+| `src/hir/lower.ts` | lowering error | type narrowing gap (`.value` on discriminated union typed as f64) |
+| `src/hir/lower-expr.ts` | linker error | cross-module function ref (`withLine` undeclared) |
+| `src/codegen/emitter.ts` | lowering error | `koffi.load()` — needs direct LLVM C bridge |
+| `src/compiler.ts` | lowering error | chained method calls (`.split().pop().replace()`) |
+| `src/parser.ts` | lowering error | `@swc/core.parseSync` — needs SWC C bridge |
 
-### 2. Self-Hosting (~500 LOC new)
+#### A. SWC C Bridge (~200 LOC Rust + ~100 LOC C)
 
-ChadScript compiles itself to a native binary. All stdlib prereqs are done (fs, path, child_process, Map, JSON). SWC Rust bridge built (libswc_bridge.a, 6.8MB). DynObj bridge operational with typed getters. JSON→DynObj converter done (yyjson).
+Replace `@swc/core` Node addon with direct C FFI. SWC Rust bridge already built (`libswc_bridge.a`). Remaining:
 
-- [x] `swc-bridge/src/lib.rs` — Rust static lib: `extern "C" fn swc_parse(source, len) -> json_ast`
-- [x] Compile to `libswc_bridge.a`, add to build system
-- [x] `c_bridges/v2-json-dynobj-bridge.c` — yyjson recursive JSON→DynObj converter
-- [x] `c_bridges/v2-dynobj-bridge.c` — DynObj runtime: typed getters (get_f64/get_str/get_obj/get_bool/get_arr), setters, has/tag/length
-- [x] DynObj property access in HIR lowering — target-type-aware getter selection at assignment boundary
-- [ ] Alternative parser path in `compiler.ts`: native binary calls C FFI instead of `@swc/core`
-- [ ] AST walker over DynObj: recursive traversal of SWC JSON AST for HIR lowering
+- [ ] Wire `cs2_swc_parse(char*)` into compiler.ts as alternative parser path
+- [ ] Verify AST shape matches — 65 node types, ~60 properties used by lowering
+
+#### B. LLVM C Bridge (~300 LOC)
+
+Replace koffi FFI with direct LLVM-C linkage. `emitter.ts` uses ~50-80 LLVM C API functions.
+
+- [ ] `v2-llvm-bridge.c` — thin wrappers around LLVM-C functions used by emitter
+- [ ] Declare all bridge functions in emitter.ts extern table
+- [ ] Link against libLLVM at compile time
+
+#### C. Language Feature Gaps
+
+- [ ] **Function refs as HOF callbacks** — `arr.map(namedFn)` needs closure wrapping for bare function pointers
+- [ ] **Type narrowing in conditionals** — `if (x.kind === "foo") x.value` should narrow `.value` type based on discriminant
+- [ ] **Chained method calls** — `a.b().c()` where callee is a nested MemberExpression
+- [ ] **Cross-module function resolution** — imported functions not found at link time
+
+#### D. Recently Fixed (2026-04-28)
+
+- [x] `ensureI1` coercion for branch conditions (non-boolean in if/while/for/&&/||)
+- [x] Builtin `Error` class registration (this.message/this.name in class methods)
+- [x] Optional chaining on dynobj/boxed/i8ptr types
+- [x] `Array.isArray()`, `Number.isInteger()`, `Object.hasOwn()`, `Array.from()` builtins
+- [x] Dynarray HOF support (filter/map/forEach/find/findIndex/every/some)
+- [x] Obj_array HOF support (C bridges + HIR dispatch)
+- [x] `TsConstAssertion` (as const) unwrapping
+- [x] `new Map()` without type args defaults to `Map<string, boxed>`
+- [x] `for (const [, v] of map)` — null-element destructuring
+- [x] `TsTypeAliasDeclaration`/`TsInterfaceDeclaration` in block scope
+- [x] String method dispatch on dynobj/boxed values (startsWith, slice, etc.)
+- [x] `JSON.stringify` on dynobj values
+
+### 2. Self-Hosting Milestone
+
+- [ ] All compiler source files pass lowering
+- [ ] All compiler source files pass codegen
 - [ ] **Milestone:** `./chad2 build src/compiler.ts -o chad2-native && ./chad2-native build hello.ts -o hello && ./hello`
 
 ### 3. AsyncLoweringPass — Real Async I/O (~800 LOC)
