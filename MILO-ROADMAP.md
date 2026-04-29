@@ -129,9 +129,9 @@ Python-to-native compiler. Same HIR + emitter + C bridges as ChadScript v2 — o
 - [x] `py-json-bridge.c` — `json.loads` / `json.dumps` (reuse yyjson)
 - [x] `py-re-bridge.c` — `re.match`, `re.search`, `re.findall` (reuse PCRE2)
 - [x] `py-random-bridge.c` — `random.random()`, `random.randint()`, `random.choice()`, `random.shuffle()`, `random.uniform()`, `random.seed()`
-- [ ] `py-collections-bridge.c` — `Counter`, `defaultdict`, `deque`
+- [x] `py-collections-bridge.c` — `Counter`, `defaultdict`, `deque`
 
-**Test runner:** `node --import tsx --test tests/py-test.ts` — auto-discovers all `.py` in `tests/fixtures-py/`, diffs stdout against `python3`. **25/25 pass.**
+**Test runner:** `node --import tsx --test tests/py-test.ts` — auto-discovers all `.py` in `tests/fixtures-py/`, diffs stdout against `python3`. **26/26 pass.**
 
 ---
 
