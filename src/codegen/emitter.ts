@@ -247,6 +247,18 @@ function declareExterns(ctx: EmitContext): void {
   const pyFloatStrFn = m.addFunction("cs2_py_float_str", pyFloatStrType);
   ctx.declareFunction("cs2_py_float_str", pyFloatStrFn, pyFloatStrType);
 
+  const pySetArgvType = m.functionType(m.voidTy, [m.i32, m.ptr]);
+  const pySetArgvFn = m.addFunction("cs2_py_set_argv", pySetArgvType);
+  ctx.declareFunction("cs2_py_set_argv", pySetArgvFn, pySetArgvType);
+
+  const pySysArgvType = m.functionType(m.ptr, []);
+  const pySysArgvFn = m.addFunction("cs2_py_sys_argv", pySysArgvType);
+  ctx.declareFunction("cs2_py_sys_argv", pySysArgvFn, pySysArgvType);
+
+  const pySysExitType = m.functionType(m.voidTy, [m.i64]);
+  const pySysExitFn = m.addFunction("cs2_py_sys_exit", pySysExitType);
+  ctx.declareFunction("cs2_py_sys_exit", pySysExitFn, pySysExitType);
+
   const fmtNumType = m.functionType(m.voidTy, [m.ptr, m.f64]);
   const fmtNumFn = m.addFunction("cs2_format_number", fmtNumType);
   ctx.declareFunction("cs2_format_number", fmtNumFn, fmtNumType);
@@ -817,6 +829,8 @@ function emitMain(ctx: EmitContext, mod: HIRModule): void {
   const argv = m.getParam(mainFn, 1);
   const processInit = ctx.getDeclaredFunction("cs2_process_init")!;
   m.buildCall(processInit.fnType, processInit.fn, [argc, argv], "");
+  const pySetArgv = ctx.getDeclaredFunction("cs2_py_set_argv");
+  if (pySetArgv) m.buildCall(pySetArgv.fnType, pySetArgv.fn, [argc, argv], "");
 
   for (const g of mod.globals) {
     if (g.init) {
@@ -829,6 +843,10 @@ function emitMain(ctx: EmitContext, mod: HIRModule): void {
   for (const stmt of mod.init) {
     emitStmt(ctx, stmt);
   }
+
+  // call the Python module entry point if it exists
+  const pyMain = ctx.getDeclaredFunction("__py_main");
+  if (pyMain) m.buildCall(pyMain.fnType, pyMain.fn, [], "");
 
   const runLoop = ctx.getDeclaredFunction("cs2_run_event_loop")!;
   m.buildCall(runLoop.fnType, runLoop.fn, [], "");

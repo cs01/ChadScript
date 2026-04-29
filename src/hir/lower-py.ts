@@ -24,7 +24,7 @@ interface Local {
 }
 
 let locals: Map<string, Local>;
-let functions: Map<string, { params: HIRType[]; returnType: HIRType }>;
+let functions: Map<string, { params: HIRType[]; returnType: HIRType; variadicIdx?: number }>;
 let classes: Map<string, { fields: { name: string; type: HIRType }[] }>;
 let classParents: Map<string, string>;
 let currentClassName: string | null;
@@ -97,7 +97,7 @@ export function lowerPythonModule(
   }
 
   hirFunctions.push({
-    name: "main",
+    name: "__py_main",
     params: [],
     returnType: I64,
     body: [
@@ -171,17 +171,25 @@ function registerFunction(node: SyntaxNode): void {
   const returnTypeNode = node.childForFieldName("return_type");
   const returnType = returnTypeNode ? resolveType(returnTypeNode) : VOID;
   const params: HIRType[] = [];
+  let variadicIdx: number | undefined;
 
   for (let i = 0; i < paramsNode.namedChildCount; i++) {
     const p = paramsNode.namedChild(i)!;
     if (p.type === "typed_parameter" || p.type === "typed_default_parameter") {
-      params.push(resolveType(p.childForFieldName("type")!));
+      const firstChild = p.namedChild(0)!;
+      if (firstChild.type === "list_splat_pattern") {
+        const elemType = resolveType(p.childForFieldName("type")!);
+        params.push({ kind: "array", element: elemType });
+        variadicIdx = i;
+      } else {
+        params.push(resolveType(p.childForFieldName("type")!));
+      }
     } else {
       params.push(BOXED);
     }
   }
 
-  functions.set(name, { params, returnType });
+  functions.set(name, { params, returnType, variadicIdx });
 }
 
 function lowerFunction(node: SyntaxNode): HIRFunction {
@@ -196,15 +204,20 @@ function lowerFunction(node: SyntaxNode): HIRFunction {
   const returnType = returnTypeNode ? resolveType(returnTypeNode) : VOID;
   const params: HIRParam[] = [];
 
+  let variadicIdx: number | undefined;
   for (let i = 0; i < paramsNode.namedChildCount; i++) {
     const p = paramsNode.namedChild(i)!;
     if (p.type === "typed_parameter" || p.type === "typed_default_parameter") {
-      const pName = p.namedChild(0)!.text;
+      const firstChild = p.namedChild(0)!;
+      const isSplat = firstChild.type === "list_splat_pattern";
+      const pName = isSplat ? firstChild.namedChild(0)!.text : firstChild.text;
       const pTypeNode = p.childForFieldName("type")!;
-      const pType = resolveType(pTypeNode);
+      const elemType = resolveType(pTypeNode);
+      const pType: HIRType = isSplat ? { kind: "array", element: elemType } : elemType;
       const id = freshId();
       params.push({ id, name: pName, type: pType });
       locals.set(pName, { id, name: pName, type: pType });
+      if (isSplat) variadicIdx = i;
     } else if (p.type === "identifier") {
       const pName = p.text;
       const id = freshId();
@@ -213,7 +226,7 @@ function lowerFunction(node: SyntaxNode): HIRFunction {
     }
   }
 
-  functions.set(name, { params: params.map((p) => p.type), returnType });
+  functions.set(name, { params: params.map((p) => p.type), returnType, variadicIdx });
 
   const hirBody = lowerBlock(body);
 
@@ -1320,6 +1333,14 @@ function lowerAttribute(node: SyntaxNode): HIRExpr {
     }
   }
 
+  if (objNode.text === "sys") {
+    const strArrType: HIRType = { kind: "array", element: I8PTR };
+    switch (fieldName) {
+      case "argv":
+        return { kind: "runtime_call", func: "cs2_py_sys_argv", args: [], returnType: strArrType, type: strArrType };
+    }
+  }
+
   const obj = lowerExpr(objNode);
 
   if (obj.type.kind === "ptr") {
@@ -1541,9 +1562,19 @@ function lowerCall(node: SyntaxNode): HIRExpr {
 
   if (funcNode.type === "attribute") {
     const args = buildPositionalArgs();
+    const objName = funcNode.namedChild(0)!.text;
+
+    // sys.method()
+    if (objName === "sys") {
+      const sysMethod = funcNode.namedChild(1)!.text;
+      if (sysMethod === "exit") {
+        const code = args[0] ? coerceTo(args[0], I64) : { kind: "literal_i64" as const, value: 0, type: I64 };
+        return { kind: "runtime_call", func: "cs2_py_sys_exit", args: [code], returnType: VOID, type: VOID };
+      }
+    }
 
     // math.method(args)
-    if (funcNode.namedChild(0)!.text === "math") {
+    if (objName === "math") {
       const mathMethod = funcNode.namedChild(1)!.text;
       const mathMap: Record<string, string> = {
         sqrt: "cs_math_sqrt",
@@ -1895,7 +1926,19 @@ function lowerCall(node: SyntaxNode): HIRExpr {
 
   const fnInfo = functions.get(funcName);
   if (fnInfo) {
-    return { kind: "call", callee: funcName, args, returnType: fnInfo.returnType, type: fnInfo.returnType };
+    let callArgs = args;
+    if (fnInfo.variadicIdx !== undefined) {
+      const vi = fnInfo.variadicIdx;
+      const elemType = (fnInfo.params[vi] as { kind: "array"; element: HIRType }).element;
+      const restArgs = args.slice(vi);
+      const arrayExpr: HIRExpr = {
+        kind: "alloc_array", elementType: elemType,
+        initialValues: restArgs.map((a) => coerceTo(a, elemType)),
+        type: { kind: "array", element: elemType },
+      };
+      callArgs = [...args.slice(0, vi), arrayExpr];
+    }
+    return { kind: "call", callee: funcName, args: callArgs, returnType: fnInfo.returnType, type: fnInfo.returnType };
   }
 
   return { kind: "call", callee: funcName, args, returnType: I64, type: I64 };
