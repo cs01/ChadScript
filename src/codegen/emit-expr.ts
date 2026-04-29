@@ -801,8 +801,12 @@ function emitRuntimeCall(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_call
         const needsF64 =
           (expr.func.endsWith("_push") && i === 1) ||
           ((expr.func.includes("_num_map_set") || expr.func.includes("_num_map_get_or")) && i === 2);
+        const nativeI64Fn = expr.func === "cs2_random_randint" || expr.func === "cs2_random_seed" ||
+          expr.func === "cs2_py_sys_exit";
         if (needsF64) {
           val = m.buildSIToFP(val, m.f64, "");
+        } else if (nativeI64Fn) {
+          // pass i64 as-is
         } else {
           val = m.buildTrunc(val, m.i32, "");
         }
@@ -820,7 +824,10 @@ function emitRuntimeCall(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_call
     if (expr.returnType.kind === "i64") {
       const isNumBridge = expr.func.includes("num_array") || expr.func.includes("_num_map_");
       const isLenFunc = expr.func.includes("_length") || expr.func.includes("_size");
-      if (isNumBridge && !isLenFunc) {
+      const isNativeI64 = expr.func === "cs2_random_randint" || expr.func === "cs2_py_sys_argc";
+      if (isNativeI64) {
+        // already i64, no conversion needed
+      } else if (isNumBridge && !isLenFunc) {
         result = m.buildFPToSI(result, m.i64, "");
       } else {
         result = m.buildSExt(result, m.i64, "");

@@ -263,6 +263,21 @@ function declareExterns(ctx: EmitContext): void {
   const fmtNumFn = m.addFunction("cs2_format_number", fmtNumType);
   ctx.declareFunction("cs2_format_number", fmtNumFn, fmtNumType);
 
+  const randomFns: [string, any, any[]][] = [
+    ["cs2_random_random", m.f64, []],
+    ["cs2_random_seed", m.voidTy, [m.i64]],
+    ["cs2_random_randint", m.i64, [m.i64, m.i64]],
+    ["cs2_random_uniform", m.f64, [m.f64, m.f64]],
+    ["cs2_random_choice_num", m.f64, [m.ptr]],
+    ["cs2_random_choice_str", m.ptr, [m.ptr]],
+    ["cs2_random_shuffle_num", m.voidTy, [m.ptr]],
+  ];
+  for (const [name, ret, params] of randomFns) {
+    const ft = m.functionType(ret, params);
+    const fn = m.addFunction(name, ft);
+    ctx.declareFunction(name, fn, ft);
+  }
+
   const mathIntrinsics1: [string, string][] = [
     ["llvm.floor.f64", "cs_math_floor"],
     ["llvm.ceil.f64", "cs_math_ceil"],

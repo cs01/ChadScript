@@ -576,15 +576,17 @@ function lowerAssignment(node: SyntaxNode): HIRStmt[] {
     ];
   }
 
-  const type = typeNode
+  const id = freshId();
+  const init = valueNode ? lowerExpr(valueNode) : undefined;
+  const inferredType = typeNode
     ? resolveType(typeNode)
     : valueNode
       ? inferType(valueNode)
       : BOXED;
-  const id = freshId();
+  const type = inferredType.kind === "boxed" && init && init.type.kind !== "boxed"
+    ? init.type
+    : inferredType;
   locals.set(name, { id, name, type });
-
-  const init = valueNode ? lowerExpr(valueNode) : undefined;
   return [{ kind: "let", id, name, type, init, mutable: true }];
 }
 
@@ -1365,7 +1367,7 @@ function lowerIdentifier(node: SyntaxNode): HIRExpr {
   const name = node.text;
   const local = locals.get(name);
   if (local) return { kind: "local_get", id: local.id, type: local.type };
-  if (name === "math") return { kind: "literal_null", type: VOID };
+  if (name === "math" || name === "random" || name === "sys") return { kind: "literal_null", type: VOID };
   throw new Error(`undefined variable: ${name}`);
 }
 
@@ -1570,6 +1572,43 @@ function lowerCall(node: SyntaxNode): HIRExpr {
       if (sysMethod === "exit") {
         const code = args[0] ? coerceTo(args[0], I64) : { kind: "literal_i64" as const, value: 0, type: I64 };
         return { kind: "runtime_call", func: "cs2_py_sys_exit", args: [code], returnType: VOID, type: VOID };
+      }
+    }
+
+    // random.method(args)
+    if (objName === "random") {
+      const randMethod = funcNode.namedChild(1)!.text;
+      switch (randMethod) {
+        case "random":
+          return { kind: "runtime_call", func: "cs2_random_random", args: [], returnType: F64, type: F64 };
+        case "seed": {
+          const s = args[0] ? coerceTo(args[0], I64) : { kind: "literal_i64" as const, value: 0, type: I64 };
+          return { kind: "runtime_call", func: "cs2_random_seed", args: [s], returnType: VOID, type: VOID };
+        }
+        case "randint": {
+          const a = coerceTo(args[0], I64);
+          const b = coerceTo(args[1], I64);
+          return { kind: "runtime_call", func: "cs2_random_randint", args: [a, b], returnType: I64, type: I64 };
+        }
+        case "uniform": {
+          const a = coerceToF64(args[0]);
+          const b = coerceToF64(args[1]);
+          return { kind: "runtime_call", func: "cs2_random_uniform", args: [a, b], returnType: F64, type: F64 };
+        }
+        case "choice": {
+          const lst = args[0];
+          if (lst.type.kind === "array") {
+            if (lst.type.element.kind === "i8ptr") {
+              return { kind: "runtime_call", func: "cs2_random_choice_str", args: [lst], returnType: I8PTR, type: I8PTR };
+            }
+            return { kind: "runtime_call", func: "cs2_random_choice_num", args: [lst], returnType: F64, type: F64 };
+          }
+          throw new Error("random.choice requires a list");
+        }
+        case "shuffle": {
+          const lst = args[0];
+          return { kind: "runtime_call", func: "cs2_random_shuffle_num", args: [lst], returnType: VOID, type: VOID };
+        }
       }
     }
 
