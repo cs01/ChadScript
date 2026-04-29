@@ -27,6 +27,7 @@ let locals: Map<string, Local>;
 let functions: Map<string, { params: HIRType[]; returnType: HIRType }>;
 let classes: Map<string, { fields: { name: string; type: HIRType }[] }>;
 let currentClassName: string | null;
+let pendingStmts: HIRStmt[] = [];
 
 export function lowerPythonModule(
   root: SyntaxNode,
@@ -38,6 +39,7 @@ export function lowerPythonModule(
   functions = new Map();
   classes = new Map();
   currentClassName = null;
+  pendingStmts = [];
 
   const hirFunctions: HIRFunction[] = [];
   const hirClasses: HIRClass[] = [];
@@ -72,9 +74,14 @@ export function lowerPythonModule(
       case "for_statement":
       case "try_statement":
       case "delete_statement":
-      case "raise_statement":
-        initStmts.push(...lowerStmt(child));
+      case "raise_statement": {
+        const prev = pendingStmts;
+        pendingStmts = [];
+        const lowered = lowerStmt(child);
+        initStmts.push(...pendingStmts, ...lowered);
+        pendingStmts = prev;
         break;
+      }
       case "import_statement":
       case "import_from_statement":
       case "comment":
@@ -393,7 +400,11 @@ function lowerMethod(
 function lowerBlock(node: SyntaxNode): HIRStmt[] {
   const stmts: HIRStmt[] = [];
   for (let i = 0; i < node.namedChildCount; i++) {
-    stmts.push(...lowerStmt(node.namedChild(i)!));
+    const prev = pendingStmts;
+    pendingStmts = [];
+    const lowered = lowerStmt(node.namedChild(i)!);
+    stmts.push(...pendingStmts, ...lowered);
+    pendingStmts = prev;
   }
   return stmts;
 }
@@ -943,6 +954,8 @@ function lowerExpr(node: SyntaxNode): HIRExpr {
       return lowerExpr(node.namedChild(0)!);
     case "list":
       return lowerListLiteral(node);
+    case "list_comprehension":
+      return lowerListComp(node);
     case "dictionary":
       return lowerDictLiteral(node);
     case "tuple":
@@ -1303,6 +1316,89 @@ function lowerCall(node: SyntaxNode): HIRExpr {
     return { kind: "literal_i1", value: false, type: I1 };
   }
 
+  if (funcName === "sum") {
+    const arg = args[0];
+    if (arg.type.kind === "array") {
+      return { kind: "runtime_call", func: "cs2_num_array_sum", args: [arg], returnType: F64, type: F64 };
+    }
+    return { kind: "literal_f64", value: 0, type: F64 };
+  }
+
+  if (funcName === "min") {
+    if (args.length === 1 && args[0].type.kind === "array") {
+      return { kind: "runtime_call", func: "cs2_num_array_min", args: [args[0]], returnType: F64, type: F64 };
+    }
+    if (args.length === 2) {
+      return {
+        kind: "runtime_call",
+        func: "cs_math_min",
+        args: [coerceToF64(args[0]), coerceToF64(args[1])],
+        returnType: F64, type: F64,
+      };
+    }
+    return args[0] ?? { kind: "literal_f64", value: 0, type: F64 };
+  }
+
+  if (funcName === "max") {
+    if (args.length === 1 && args[0].type.kind === "array") {
+      return { kind: "runtime_call", func: "cs2_num_array_max", args: [args[0]], returnType: F64, type: F64 };
+    }
+    if (args.length === 2) {
+      return {
+        kind: "runtime_call",
+        func: "cs_math_max",
+        args: [coerceToF64(args[0]), coerceToF64(args[1])],
+        returnType: F64, type: F64,
+      };
+    }
+    return args[0] ?? { kind: "literal_f64", value: 0, type: F64 };
+  }
+
+  if (funcName === "sorted") {
+    const arg = args[0];
+    if (arg.type.kind === "array") {
+      const prefix = arg.type.element.kind === "i8ptr" ? "cs2_str_array" : "cs2_num_array";
+      const copyExpr: HIRExpr = {
+        kind: "runtime_call", func: "cs2_num_array_copy", args: [arg], returnType: arg.type, type: arg.type,
+      };
+      const copyId = freshId();
+      const copyName = `__sorted_${copyId}`;
+      locals.set(copyName, { id: copyId, name: copyName, type: arg.type });
+      pendingStmts.push({ kind: "let", id: copyId, name: copyName, type: arg.type, init: copyExpr, mutable: false });
+      const copyRef: HIRExpr = { kind: "local_get", id: copyId, type: arg.type };
+      pendingStmts.push({
+        kind: "expr",
+        expr: { kind: "runtime_call", func: `${prefix}_sort`, args: [copyRef], returnType: VOID, type: VOID },
+      });
+      return copyRef;
+    }
+    return arg;
+  }
+
+  if (funcName === "reversed") {
+    const arg = args[0];
+    if (arg.type.kind === "array") {
+      const copyExpr: HIRExpr = {
+        kind: "runtime_call", func: "cs2_num_array_copy", args: [arg], returnType: arg.type, type: arg.type,
+      };
+      const copyId = freshId();
+      const copyName = `__reversed_${copyId}`;
+      locals.set(copyName, { id: copyId, name: copyName, type: arg.type });
+      pendingStmts.push({ kind: "let", id: copyId, name: copyName, type: arg.type, init: copyExpr, mutable: false });
+      const copyRef: HIRExpr = { kind: "local_get", id: copyId, type: arg.type };
+      pendingStmts.push({
+        kind: "expr",
+        expr: { kind: "runtime_call", func: "cs2_num_array_reverse", args: [copyRef], returnType: VOID, type: VOID },
+      });
+      return copyRef;
+    }
+    return arg;
+  }
+
+  if (funcName === "range") {
+    return { kind: "literal_i64", value: 0, type: I64 };
+  }
+
   if (funcName === "dict") {
     const mapType: HIRType = { kind: "map", key: I8PTR, value: I8PTR };
     return { kind: "alloc_map", keyType: I8PTR, valueType: I8PTR, entries: [], type: mapType };
@@ -1580,6 +1676,111 @@ function namedChildren(node: SyntaxNode): SyntaxNode[] {
   const result: SyntaxNode[] = [];
   for (let i = 0; i < node.namedChildCount; i++) result.push(node.namedChild(i)!);
   return result;
+}
+
+function lowerListComp(node: SyntaxNode): HIRExpr {
+  const bodyNode = node.namedChild(0)!;
+  const forClause = node.namedChild(1)!;
+  const lastChild = node.namedChild(node.namedChildCount - 1)!;
+  const ifClause = lastChild.type === "if_clause" ? lastChild : null;
+
+  const loopVarNode = forClause.namedChild(0)!;
+  const iterNode = forClause.namedChild(forClause.namedChildCount - 1)!;
+  const loopVarName = loopVarNode.text;
+
+  const iterExpr = lowerExpr(iterNode);
+  const iterElemType: HIRType = iterExpr.type.kind === "array" ? iterExpr.type.element : F64;
+  const iterPrefix = iterElemType.kind === "i8ptr" ? "cs2_str_array" : "cs2_num_array";
+
+  // Type-inference pass: determine result element type
+  const savedLocals = new Map(locals);
+  const savedPending = pendingStmts;
+  pendingStmts = [];
+  const tmpVarId = freshId();
+  locals.set(loopVarName, { id: tmpVarId, name: loopVarName, type: iterElemType });
+  const typeCheckExpr = lowerExpr(bodyNode);
+  const resultElemType: HIRType = typeCheckExpr.type.kind === "i64" ? F64 : typeCheckExpr.type;
+  locals = savedLocals;
+  pendingStmts = savedPending;
+
+  const resultType: HIRType = { kind: "array", element: resultElemType };
+  const arrPrefix = resultElemType.kind === "i8ptr" ? "cs2_str_array" : "cs2_num_array";
+
+  const resultId = freshId();
+  const iterArrId = freshId();
+  const iId = freshId();
+  const varId = freshId();
+  const resultName = `__cr${resultId}`;
+  const iterArrName = `__ci${iterArrId}`;
+  const iName = `__ci2${iId}`;
+
+  locals.set(resultName, { id: resultId, name: resultName, type: resultType });
+  locals.set(iterArrName, { id: iterArrId, name: iterArrName, type: iterExpr.type });
+  locals.set(iName, { id: iId, name: iName, type: I64 });
+  locals.set(loopVarName, { id: varId, name: loopVarName, type: iterElemType });
+
+  const resultRef: HIRExpr = { kind: "local_get", id: resultId, type: resultType };
+  const iterArrRef: HIRExpr = { kind: "local_get", id: iterArrId, type: iterExpr.type };
+  const iRef: HIRExpr = { kind: "local_get", id: iId, type: I64 };
+
+  const lenExpr: HIRExpr = {
+    kind: "runtime_call", func: `${iterPrefix}_length`,
+    args: [iterArrRef], returnType: I64, type: I64,
+  };
+
+  const bodyExpr = lowerExpr(bodyNode);
+  const pushStmt: HIRStmt = {
+    kind: "expr",
+    expr: {
+      kind: "runtime_call",
+      func: `${arrPrefix}_push`,
+      args: [resultRef, coerceTo(bodyExpr, resultElemType)],
+      returnType: VOID, type: VOID,
+    },
+  };
+
+  const elemLet: HIRStmt = {
+    kind: "let", id: varId, name: loopVarName, type: iterElemType,
+    init: { kind: "index_get", array: iterArrRef, index: iRef, type: iterElemType },
+    mutable: false,
+  };
+
+  let loopBody: HIRStmt[] = [elemLet];
+  if (ifClause) {
+    locals.set(loopVarName, { id: varId, name: loopVarName, type: iterElemType });
+    const condExpr = lowerExpr(ifClause.namedChild(0)!);
+    loopBody.push({ kind: "if", condition: condExpr, then: [pushStmt], else: undefined });
+  } else {
+    loopBody.push(pushStmt);
+  }
+
+  pendingStmts.push(
+    {
+      kind: "let", id: resultId, name: resultName, type: resultType,
+      init: { kind: "alloc_array", elementType: resultElemType, initialValues: [], type: resultType },
+      mutable: false,
+    },
+    {
+      kind: "let", id: iterArrId, name: iterArrName, type: iterExpr.type,
+      init: iterExpr, mutable: false,
+    },
+    {
+      kind: "let", id: iId, name: iName, type: I64,
+      init: { kind: "literal_i64", value: 0, type: I64 }, mutable: true,
+    },
+    {
+      kind: "for",
+      condition: { kind: "binary", op: "lt", left: iRef, right: lenExpr, type: I1 },
+      update: {
+        kind: "local_set", id: iId,
+        value: { kind: "binary", op: "add", left: iRef, right: { kind: "literal_i64", value: 1, type: I64 }, type: I64 },
+        type: I64,
+      },
+      body: loopBody,
+    }
+  );
+
+  return resultRef;
 }
 
 function lowerDictLiteral(node: SyntaxNode): HIRExpr {

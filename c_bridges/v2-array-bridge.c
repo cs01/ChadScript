@@ -359,6 +359,35 @@ void cs2_num_array_sort(NumArray *arr) {
     qsort(arr->data, arr->length, sizeof(double), cs2_num_compare_asc);
 }
 
+double cs2_num_array_sum(NumArray *arr) {
+    double s = 0.0;
+    for (int32_t i = 0; i < arr->length; i++) s += arr->data[i];
+    return s;
+}
+
+double cs2_num_array_min(NumArray *arr) {
+    if (arr->length == 0) return 0.0;
+    double m = arr->data[0];
+    for (int32_t i = 1; i < arr->length; i++) if (arr->data[i] < m) m = arr->data[i];
+    return m;
+}
+
+double cs2_num_array_max(NumArray *arr) {
+    if (arr->length == 0) return 0.0;
+    double m = arr->data[0];
+    for (int32_t i = 1; i < arr->length; i++) if (arr->data[i] > m) m = arr->data[i];
+    return m;
+}
+
+NumArray *cs2_num_array_copy(NumArray *arr) {
+    NumArray *r = (NumArray *)malloc(sizeof(NumArray));
+    r->capacity = arr->length > 0 ? arr->length : 8;
+    r->length = arr->length;
+    r->data = (double *)malloc(sizeof(double) * r->capacity);
+    for (int32_t i = 0; i < arr->length; i++) r->data[i] = arr->data[i];
+    return r;
+}
+
 typedef struct {
     void *fn_ptr;
     void *env_ptr;
