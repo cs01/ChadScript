@@ -9,6 +9,7 @@ export function lowerCall(node: SyntaxNode, ctx: LowerCtx): HIRExpr {
   const argsNode = node.childForFieldName("arguments")!;
 
   function buildPositionalArgs(): HIRExpr[] {
+    if (argsNode.type === "generator_expression") return [ctx.lowerExpr(argsNode)];
     const result: HIRExpr[] = [];
     for (let i = 0; i < argsNode.namedChildCount; i++) {
       const a = argsNode.namedChild(i)!;
