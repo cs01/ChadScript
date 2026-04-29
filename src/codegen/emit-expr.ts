@@ -12,6 +12,8 @@ import {
   LLVMRealOLE,
   LLVMRealOGT,
   LLVMRealOGE,
+  LLVMRealORD,
+  LLVMRealUNO,
 } from "./llvm.js";
 import {
   EmitContext,
@@ -68,7 +70,8 @@ export function emitExpr(ctx: EmitContext, expr: HIRExpr): any {
       throw new Error(`unresolved local id ${expr.id}`);
     }
     case "global_get": {
-      const g = ctx.getGlobal(expr.name)!;
+      const g = ctx.getGlobal(expr.name);
+      if (!g) throw new Error(`global_get: no alloc for "${expr.name}"`);
       const ty = llvmType(ctx, expr.type);
       return m.buildLoad(ty, g.alloc, "");
     }
@@ -98,12 +101,14 @@ export function emitExpr(ctx: EmitContext, expr: HIRExpr): any {
       m.buildCondBr(cond, thenBlock, elseBlock);
 
       m.positionAtEnd(thenBlock);
-      const thenVal = emitExpr(ctx, expr.then);
+      const thenRaw = emitExpr(ctx, expr.then);
+      const thenVal = coerceLLVM(ctx, thenRaw, expr.then.type, expr.type);
       const thenEndBlock = m.getInsertBlock();
       m.buildBr(mergeBlock);
 
       m.positionAtEnd(elseBlock);
-      const elseVal = emitExpr(ctx, expr.else);
+      const elseRaw = emitExpr(ctx, expr.else);
+      const elseVal = coerceLLVM(ctx, elseRaw, expr.else.type, expr.type);
       const elseEndBlock = m.getInsertBlock();
       m.buildBr(mergeBlock);
 
@@ -189,7 +194,7 @@ export function emitExpr(ctx: EmitContext, expr: HIRExpr): any {
 
 function emitArrayPrefix(elemType: HIRType): string {
   if (elemType.kind === "i8ptr") return "cs2_str_array";
-  if (elemType.kind === "ptr") return "cs2_obj_array";
+  if (elemType.kind === "ptr" || elemType.kind === "dynobj" || elemType.kind === "dynarray" || elemType.kind === "map") return "cs2_obj_array";
   return "cs2_num_array";
 }
 
@@ -257,6 +262,16 @@ function emitAllocStruct(ctx: EmitContext, expr: HIRExpr & { kind: "alloc_struct
       "",
     );
     m.buildStore(val, fieldPtr);
+  }
+
+  const ifaceInfo = ctx.getInterfaceType(expr.structName);
+  if (ifaceInfo) {
+    const fat = m.buildAlloca(ifaceInfo.fatType, "fat");
+    const dataSlot = m.buildGEP(ifaceInfo.fatType, fat, [m.constInt(m.i32, 0), m.constInt(m.i32, 0)], "");
+    m.buildStore(raw, dataSlot);
+    const vtableSlot = m.buildGEP(ifaceInfo.fatType, fat, [m.constInt(m.i32, 0), m.constInt(m.i32, 1)], "");
+    m.buildStore(m.constNull(m.ptr), vtableSlot);
+    return fat;
   }
 
   return raw;
@@ -379,8 +394,9 @@ function emitFieldGet(ctx: EmitContext, expr: HIRExpr & { kind: "field_get" }): 
   const ifaceInfo = ctx.getInterfaceType(typeName);
 
   if (ifaceInfo) {
-    const fatVal = emitExpr(ctx, expr.object);
-    const dataPtr = m.buildExtractValue(fatVal, 0, "data");
+    const fatPtr = emitExpr(ctx, expr.object);
+    const dataSlot = m.buildGEP(ifaceInfo.fatType, fatPtr, [m.constInt(m.i32, 0), m.constInt(m.i32, 0)], "");
+    const dataPtr = m.buildLoad(m.ptr, dataSlot, "data");
     const fieldPtr = m.buildGEP(
       ifaceInfo.layoutType,
       dataPtr,
@@ -427,22 +443,27 @@ function emitWrapInterface(ctx: EmitContext, expr: HIRExpr & { kind: "wrap_inter
   const vtableGlobal = ctx.getVtable(`${expr.className}_${expr.interfaceName}`);
   if (!vtableGlobal) throw new Error(`missing vtable: ${expr.className}_${expr.interfaceName}`);
   const ifaceInfo = ctx.getInterfaceType(expr.interfaceName);
-  if (!ifaceInfo) throw new Error(`unknown interface: ${expr.interfaceName}`);
+  if (!ifaceInfo) throw new Error(`unknown interface type: ${expr.interfaceName}`);
 
-  let fat = m.constNull(ifaceInfo.fatType);
-  fat = m.buildInsertValue(fat, dataPtr, 0, "");
-  fat = m.buildInsertValue(fat, vtableGlobal, 1, "");
+  const fat = m.buildAlloca(ifaceInfo.fatType, "fat");
+  const dataSlot = m.buildGEP(ifaceInfo.fatType, fat, [m.constInt(m.i32, 0), m.constInt(m.i32, 0)], "");
+  m.buildStore(dataPtr, dataSlot);
+  const vtableSlot = m.buildGEP(ifaceInfo.fatType, fat, [m.constInt(m.i32, 0), m.constInt(m.i32, 1)], "");
+  m.buildStore(vtableGlobal, vtableSlot);
   return fat;
 }
 
 function emitVtableCall(ctx: EmitContext, expr: HIRExpr & { kind: "vtable_call" }): any {
   const m = ctx.m;
-  const fatVal = emitExpr(ctx, expr.object);
-  const dataPtr = m.buildExtractValue(fatVal, 0, "data");
-  const vtablePtr = m.buildExtractValue(fatVal, 1, "vtable");
+  const fatPtr = emitExpr(ctx, expr.object);
 
   const ifaceInfo = ctx.getInterfaceType(expr.interfaceName);
   if (!ifaceInfo) throw new Error(`unknown interface: ${expr.interfaceName}`);
+
+  const dataSlot = m.buildGEP(ifaceInfo.fatType, fatPtr, [m.constInt(m.i32, 0), m.constInt(m.i32, 0)], "");
+  const dataPtr = m.buildLoad(m.ptr, dataSlot, "data");
+  const vtableSlot = m.buildGEP(ifaceInfo.fatType, fatPtr, [m.constInt(m.i32, 0), m.constInt(m.i32, 1)], "");
+  const vtablePtr = m.buildLoad(m.ptr, vtableSlot, "vtable");
 
   const methodCount = ifaceInfo.iface.methods.length;
   const vtableArrTy = m.arrayType(m.ptr, methodCount);
@@ -529,6 +550,17 @@ function emitBinary(ctx: EmitContext, expr: HIRExpr & { kind: "binary" }): any {
   const left = emitExpr(ctx, expr.left);
   const right = emitExpr(ctx, expr.right);
   const isFloat = expr.left.type.kind === "f64";
+
+  // f64 compared to undefined (literal_null with ptr type): use NaN-check semantics
+  // undefined maps to NaN in f64 space; fcmp ORD/UNO with self detects NaN
+  if (isFloat && expr.right.kind === "literal_null") {
+    if (expr.op === "ne") return m.buildFCmp(LLVMRealORD, left, left, "");
+    if (expr.op === "eq") return m.buildFCmp(LLVMRealUNO, left, left, "");
+  }
+  if (isFloat && expr.left.kind === "literal_null") {
+    if (expr.op === "ne") return m.buildFCmp(LLVMRealORD, right, right, "");
+    if (expr.op === "eq") return m.buildFCmp(LLVMRealUNO, right, right, "");
+  }
 
   switch (expr.op) {
     case "add":
@@ -649,9 +681,13 @@ function emitStringCompare(ctx: EmitContext, expr: HIRExpr & { kind: "binary" })
 function emitShortCircuit(ctx: EmitContext, expr: HIRExpr & { kind: "binary" }): any {
   const m = ctx.m;
   const fn = ctx.getCurrentFn();
+  const isBoolean = expr.type.kind === "i1";
 
   const leftRaw = emitExpr(ctx, expr.left);
   const leftCond = ensureI1(ctx, leftRaw, expr.left.type);
+  const leftCoerced = isBoolean
+    ? (expr.op === "or" ? m.constInt(m.i1, 1) : m.constInt(m.i1, 0))
+    : coerceLLVM(ctx, leftRaw, expr.left.type, expr.type);
   const leftBlock = m.getInsertBlock();
 
   const rhsBlock = m.appendBlock(fn, "sc.rhs");
@@ -666,18 +702,27 @@ function emitShortCircuit(ctx: EmitContext, expr: HIRExpr & { kind: "binary" }):
   m.positionAtEnd(rhsBlock);
   const rightRaw = emitExpr(ctx, expr.right);
   const rightCond = ensureI1(ctx, rightRaw, expr.right.type);
+  const rightCoerced = isBoolean
+    ? rightCond
+    : coerceLLVM(ctx, rightRaw, expr.right.type, expr.type);
   const rhsEndBlock = m.getInsertBlock();
   m.buildBr(mergeBlock);
 
   m.positionAtEnd(mergeBlock);
-  const phi = m.buildPhi(m.i1, "");
 
-  if (expr.op === "and") {
-    m.addIncoming(phi, [rightCond, m.constInt(m.i1, 0)], [rhsEndBlock, leftBlock]);
-  } else {
-    m.addIncoming(phi, [rightCond, m.constInt(m.i1, 1)], [rhsEndBlock, leftBlock]);
+  if (isBoolean) {
+    const phi = m.buildPhi(m.i1, "");
+    if (expr.op === "and") {
+      m.addIncoming(phi, [rightCond, m.constInt(m.i1, 0)], [rhsEndBlock, leftBlock]);
+    } else {
+      m.addIncoming(phi, [rightCond, m.constInt(m.i1, 1)], [rhsEndBlock, leftBlock]);
+    }
+    return phi;
   }
 
+  const ty = llvmType(ctx, expr.type);
+  const phi = m.buildPhi(ty, "");
+  m.addIncoming(phi, [rightCoerced, leftCoerced], [rhsEndBlock, leftBlock]);
   return phi;
 }
 
@@ -966,9 +1011,16 @@ function emitMathCall(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_call" }
 
   const args = expr.args.map((a) => {
     const val = emitExpr(ctx, a);
-    if (a.type.kind === "i64") {
-      return m.buildSIToFP(val, m.f64, "");
+    if (a.type.kind === "i64") return m.buildSIToFP(val, m.f64, "");
+    if (a.type.kind === "i1") {
+      const ext = m.buildZExt(val, m.i64, "");
+      return m.buildSIToFP(ext, m.f64, "");
     }
+    if (a.type.kind === "boxed") {
+      const fn = ctx.getDeclaredFunction("nanbox_to_f64")!;
+      return m.buildCall(fn.fnType, fn.fn, [val], "");
+    }
+    if (a.type.kind !== "f64") return m.constReal(m.f64, 0.0);
     return val;
   });
 
@@ -1238,6 +1290,16 @@ export function ensureI1(ctx: EmitContext, val: any, hirType: HIRType): any {
     case "i64":
       return m.buildICmp(LLVMIntNE, val, m.constInt(m.i64, 0), "");
     case "i8ptr":
+    case "dynobj":
+    case "dynarray":
+    case "map":
+    case "set":
+    case "array":
+    case "struct":
+    case "closure":
+    case "promise":
+    case "regex":
+      return m.buildICmp(LLVMIntNE, val, m.constNull(m.ptr), "");
     case "ptr":
       return m.buildICmp(LLVMIntNE, val, m.constNull(m.ptr), "");
     case "boxed":

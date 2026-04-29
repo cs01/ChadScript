@@ -462,13 +462,14 @@ export function withLine<T extends import("./types.js").HIRStmt>(
 
 export function arrayPrefix(elemType: HIRType): string {
   if (elemType.kind === "i8ptr") return "cs2_str_array";
-  if (elemType.kind === "ptr") return "cs2_obj_array";
+  if (elemType.kind === "ptr" || elemType.kind === "dynobj" || elemType.kind === "dynarray" || elemType.kind === "map") return "cs2_obj_array";
   return "cs2_num_array";
 }
 
 export function mapPrefix(keyType: HIRType, valueType: HIRType): string {
   const k = keyType.kind === "i8ptr" ? "str" : "num";
-  const v = valueType.kind === "i8ptr" ? "str" : "num";
+  const primitiveVal = valueType.kind === "i8ptr" || valueType.kind === "f64" || valueType.kind === "i64" || valueType.kind === "i1";
+  const v = valueType.kind === "i8ptr" ? "str" : primitiveVal ? "num" : "ptr";
   return `cs2_${k}_${v}_map`;
 }
 

@@ -49,6 +49,7 @@ const LLVMCreateBuilderInContext = lib.func("LLVMCreateBuilderInContext", Ref, [
 const LLVMDisposeBuilder = lib.func("LLVMDisposeBuilder", "void", [Ref]);
 const LLVMPositionBuilderAtEnd = lib.func("LLVMPositionBuilderAtEnd", "void", [Ref, Ref]);
 const LLVMGetInsertBlock = lib.func("LLVMGetInsertBlock", Ref, [Ref]);
+const LLVMGetBasicBlockTerminator = lib.func("LLVMGetBasicBlockTerminator", Ref, [Ref]);
 
 const LLVMConstInt = lib.func("LLVMConstInt", Ref, [Ref, "uint64", Bool]);
 const LLVMConstReal = lib.func("LLVMConstReal", Ref, [Ref, "double"]);
@@ -244,6 +245,8 @@ export const LLVMRealOLT = 4;
 export const LLVMRealOLE = 5;
 export const LLVMRealOGT = 2;
 export const LLVMRealOGE = 3;
+export const LLVMRealORD = 7;
+export const LLVMRealUNO = 8;
 
 export const LLVMPrivateLinkage = 8;
 export const LLVMCodeGenLevelDefault = 2;
@@ -356,6 +359,13 @@ export class LLVMModule {
 
   getInsertBlock(): any {
     return LLVMGetInsertBlock(this.builder);
+  }
+
+  currentBlockHasTerminator(): boolean {
+    const block = LLVMGetInsertBlock(this.builder);
+    if (!block) return false;
+    const term = LLVMGetBasicBlockTerminator(block);
+    return !!term;
   }
 
   constInt(type: any, val: number | bigint, signExtend = false): any {

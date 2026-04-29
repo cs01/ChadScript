@@ -186,11 +186,8 @@ export function llvmType(ctx: EmitContext, t: HIRType): any {
       return m.voidTy;
     case "boxed":
       return m.i64;
-    case "ptr": {
-      const ifaceInfo = ctx.getInterfaceType(t.pointee);
-      if (ifaceInfo) return ifaceInfo.fatType;
+    case "ptr":
       return m.ptr;
-    }
     case "array":
     case "struct":
       return m.ptr;
@@ -228,6 +225,9 @@ export function coerceLLVM(ctx: EmitContext, val: any, from: HIRType, to: HIRTyp
   if (from.kind === "boxed") {
     return emitUnboxValue(ctx, val, to);
   }
+  if (to.kind === "f64") return m.constReal(m.f64, 0.0);
+  if (to.kind === "i64") return m.constInt(m.i64, 0);
+  if (to.kind === "i1") return m.constInt(m.i1, 0);
   return val;
 }
 
@@ -255,7 +255,15 @@ export function emitBoxValue(ctx: EmitContext, val: any, from: HIRType): any {
       const fn = ctx.getDeclaredFunction("nanbox_from_ptr")!;
       return m.buildCall(fn.fnType, fn.fn, [val], "boxed");
     }
-    case "dynobj": {
+    case "dynobj":
+    case "dynarray":
+    case "map":
+    case "set":
+    case "array":
+    case "struct":
+    case "closure":
+    case "promise":
+    case "regex": {
       const fn = ctx.getDeclaredFunction("nanbox_from_ptr")!;
       return m.buildCall(fn.fnType, fn.fn, [val], "boxed");
     }
@@ -290,7 +298,15 @@ export function emitUnboxValue(ctx: EmitContext, val: any, to: HIRType): any {
       const fn = ctx.getDeclaredFunction("nanbox_to_ptr")!;
       return m.buildCall(fn.fnType, fn.fn, [val], "unboxed");
     }
-    case "dynobj": {
+    case "dynobj":
+    case "dynarray":
+    case "map":
+    case "set":
+    case "array":
+    case "struct":
+    case "closure":
+    case "promise":
+    case "regex": {
       const fn = ctx.getDeclaredFunction("nanbox_to_ptr")!;
       return m.buildCall(fn.fnType, fn.fn, [val], "unboxed");
     }
@@ -318,6 +334,8 @@ export function defaultInit(ctx: EmitContext, t: HIRType): any {
     case "promise":
     case "map":
     case "set":
+    case "dynobj":
+    case "dynarray":
       return m.constNull(m.ptr);
     case "boxed":
       return m.constInt(m.i64, 0x7ffc000000000001n);

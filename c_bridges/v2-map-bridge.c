@@ -346,3 +346,55 @@ CS2StrArr *cs2_num_str_map_values(NumStrMap *m) {
     for (int32_t i = 0; i < m->length; i++) a->data[i] = m->values[i];
     return a;
 }
+
+typedef struct {
+    char **keys;
+    void **values;
+    int32_t length;
+    int32_t capacity;
+} StrPtrMap;
+
+StrPtrMap *cs2_str_ptr_map_new(void) {
+    StrPtrMap *m = (StrPtrMap *)malloc(sizeof(StrPtrMap));
+    m->capacity = 8; m->length = 0;
+    m->keys = (char **)malloc(sizeof(char *) * m->capacity);
+    m->values = (void **)malloc(sizeof(void *) * m->capacity);
+    return m;
+}
+
+void cs2_str_ptr_map_set(StrPtrMap *m, const char *key, void *val) {
+    int32_t idx = find_str_key(m->keys, m->length, key);
+    if (idx >= 0) { m->values[idx] = val; return; }
+    if (m->length >= m->capacity) {
+        m->capacity *= 2;
+        m->keys = (char **)realloc(m->keys, sizeof(char *) * m->capacity);
+        m->values = (void **)realloc(m->values, sizeof(void *) * m->capacity);
+    }
+    m->keys[m->length] = (char *)key;
+    m->values[m->length] = val;
+    m->length++;
+}
+
+void *cs2_str_ptr_map_get(StrPtrMap *m, const char *key) {
+    int32_t idx = find_str_key(m->keys, m->length, key);
+    if (idx >= 0) return m->values[idx];
+    return NULL;
+}
+
+int32_t cs2_str_ptr_map_has(StrPtrMap *m, const char *key) {
+    return find_str_key(m->keys, m->length, key) >= 0 ? 1 : 0;
+}
+
+int32_t cs2_str_ptr_map_delete(StrPtrMap *m, const char *key) {
+    int32_t idx = find_str_key(m->keys, m->length, key);
+    if (idx < 0) return 0;
+    m->length--;
+    m->keys[idx] = m->keys[m->length];
+    m->values[idx] = m->values[m->length];
+    return 1;
+}
+
+int32_t cs2_str_ptr_map_size(StrPtrMap *m) { return m->length; }
+void cs2_str_ptr_map_clear(StrPtrMap *m) { m->length = 0; }
+const char *cs2_str_ptr_map_key_at(StrPtrMap *m, int32_t i) { return m->keys[i]; }
+void *cs2_str_ptr_map_value_at(StrPtrMap *m, int32_t i) { return m->values[i]; }

@@ -437,6 +437,9 @@ function declareExterns(ctx: EmitContext): void {
     ["cs2_obj_array_findIndex", m.f64, [m.ptr, m.ptr, m.ptr]],
     ["cs2_obj_array_every", m.f64, [m.ptr, m.ptr, m.ptr]],
     ["cs2_obj_array_some", m.f64, [m.ptr, m.ptr, m.ptr]],
+    ["cs2_obj_array_spread", m.voidTy, [m.ptr, m.ptr]],
+    ["cs2_obj_array_unshift", m.voidTy, [m.ptr, m.ptr]],
+    ["cs2_obj_array_join", m.ptr, [m.ptr, m.ptr]],
     ["cs2_try_enter", m.ptr, []],
     ["cs2_try_leave", m.voidTy, []],
     ["cs2_throw", m.voidTy, [m.ptr]],
@@ -600,6 +603,15 @@ function declareExterns(ctx: EmitContext): void {
     ["cs2_num_str_map_copy", m.ptr, [m.ptr]],
     ["cs2_num_str_map_key_at", m.f64, [m.ptr, m.i32]],
     ["cs2_num_str_map_value_at", m.ptr, [m.ptr, m.i32]],
+    ["cs2_str_ptr_map_new", m.ptr, []],
+    ["cs2_str_ptr_map_set", m.voidTy, [m.ptr, m.ptr, m.ptr]],
+    ["cs2_str_ptr_map_get", m.ptr, [m.ptr, m.ptr]],
+    ["cs2_str_ptr_map_has", m.i32, [m.ptr, m.ptr]],
+    ["cs2_str_ptr_map_delete", m.i32, [m.ptr, m.ptr]],
+    ["cs2_str_ptr_map_size", m.i32, [m.ptr]],
+    ["cs2_str_ptr_map_clear", m.voidTy, [m.ptr]],
+    ["cs2_str_ptr_map_key_at", m.ptr, [m.ptr, m.i32]],
+    ["cs2_str_ptr_map_value_at", m.ptr, [m.ptr, m.i32]],
     ["cs2_str_set_new", m.ptr, []],
     ["cs2_str_set_add", m.voidTy, [m.ptr, m.ptr]],
     ["cs2_str_set_has", m.i32, [m.ptr, m.ptr]],
@@ -665,6 +677,7 @@ function declareExterns(ctx: EmitContext): void {
     ["cs2_dynarray_findIndex", m.f64, [m.ptr, m.ptr, m.ptr]],
     ["cs2_dynarray_every", m.f64, [m.ptr, m.ptr, m.ptr]],
     ["cs2_dynarray_some", m.f64, [m.ptr, m.ptr, m.ptr]],
+    ["cs2_dynarray_flatMap", m.ptr, [m.ptr, m.ptr, m.ptr]],
     ["cs2_json_parse_obj", m.ptr, [m.ptr]],
     ["cs2_json_parse_arr", m.ptr, [m.ptr]],
   ];
@@ -768,15 +781,21 @@ function emitFunction(
     emitStmt(ctx, stmt);
   }
 
-  if (!blockTerminates(fn.body)) {
-    if (fn.isAsync && fn.returnType.kind === "promise") {
-      const promiseAlloc = ctx.getAsyncPromiseAlloc();
-      const promiseVal = m.buildLoad(m.ptr, promiseAlloc, "");
-      const resolveDecl = ctx.getDeclaredFunction("cs2_promise_resolve_void")!;
-      m.buildCall(resolveDecl.fnType, resolveDecl.fn, [promiseVal], "");
-      m.buildRet(promiseVal);
-    } else if (fn.returnType.kind === "void") {
-      m.buildRetVoid();
+  if (!m.currentBlockHasTerminator()) {
+    if (!blockTerminates(fn.body)) {
+      if (fn.isAsync && fn.returnType.kind === "promise") {
+        const promiseAlloc = ctx.getAsyncPromiseAlloc();
+        const promiseVal = m.buildLoad(m.ptr, promiseAlloc, "");
+        const resolveDecl = ctx.getDeclaredFunction("cs2_promise_resolve_void")!;
+        m.buildCall(resolveDecl.fnType, resolveDecl.fn, [promiseVal], "");
+        m.buildRet(promiseVal);
+      } else if (fn.returnType.kind === "void") {
+        m.buildRetVoid();
+      } else {
+        m.buildUnreachable();
+      }
+    } else {
+      m.buildUnreachable();
     }
   }
 }
@@ -870,9 +889,13 @@ function emitStmt(ctx: EmitContext, stmt: HIRStmt): void {
         }
         m.buildRet(promiseVal);
       } else if (stmt.value) {
-        let val = emitExpr(ctx, stmt.value);
-        val = coerceLLVM(ctx, val, stmt.value.type, ctx.currentReturnType);
-        m.buildRet(val);
+        const val = emitExpr(ctx, stmt.value);
+        if (ctx.currentReturnType.kind !== "void") {
+          const coerced = coerceLLVM(ctx, val, stmt.value.type, ctx.currentReturnType);
+          m.buildRet(coerced);
+        } else {
+          m.buildRetVoid();
+        }
       } else {
         m.buildRetVoid();
       }
@@ -892,6 +915,7 @@ function emitStmt(ctx: EmitContext, stmt: HIRStmt): void {
       for (const s of stmt.then) emitStmt(ctx, s);
       const thenTerminated = blockTerminates(stmt.then);
       if (!thenTerminated) m.buildBr(mergeBlock);
+      else if (!m.currentBlockHasTerminator()) m.buildUnreachable();
 
       let elseTerminated = false;
       if (stmt.else && elseBlock) {
@@ -899,6 +923,7 @@ function emitStmt(ctx: EmitContext, stmt: HIRStmt): void {
         for (const s of stmt.else) emitStmt(ctx, s);
         elseTerminated = blockTerminates(stmt.else);
         if (!elseTerminated) m.buildBr(mergeBlock);
+        else if (!m.currentBlockHasTerminator()) m.buildUnreachable();
       }
 
       if (!(thenTerminated && elseTerminated)) {
@@ -923,6 +948,7 @@ function emitStmt(ctx: EmitContext, stmt: HIRStmt): void {
       m.positionAtEnd(bodyBlock);
       for (const s of stmt.body) emitStmt(ctx, s);
       if (!stmtTerminates(stmt.body)) m.buildBr(condBlock);
+      else if (!m.currentBlockHasTerminator()) m.buildUnreachable();
 
       m.positionAtEnd(exitBlock);
       ctx.popLoop();
@@ -951,6 +977,7 @@ function emitStmt(ctx: EmitContext, stmt: HIRStmt): void {
       m.positionAtEnd(bodyBlock);
       for (const s of stmt.body) emitStmt(ctx, s);
       if (!stmtTerminates(stmt.body)) m.buildBr(updateBlock);
+      else if (!m.currentBlockHasTerminator()) m.buildUnreachable();
 
       m.positionAtEnd(updateBlock);
       if (stmt.update) emitExpr(ctx, stmt.update);
@@ -1057,6 +1084,8 @@ function emitSwitch(ctx: EmitContext, stmt: HIRStmt & { kind: "switch" }): void 
     for (const s of stmt.cases[i].body) emitStmt(ctx, s);
     if (!stmtTerminates(stmt.cases[i].body)) {
       m.buildBr(exitBlock);
+    } else if (!m.currentBlockHasTerminator()) {
+      m.buildUnreachable();
     }
   }
 

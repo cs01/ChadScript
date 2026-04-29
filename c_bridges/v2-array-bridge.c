@@ -156,6 +156,28 @@ void *cs2_obj_array_pop(ObjArray *arr) {
     return arr->data[--arr->length];
 }
 
+void cs2_obj_array_unshift(ObjArray *arr, void *value) {
+    cs2_obj_array_push(arr, NULL);
+    for (int32_t i = arr->length - 1; i > 0; i--) arr->data[i] = arr->data[i - 1];
+    arr->data[0] = value;
+}
+
+char *cs2_obj_array_join(ObjArray *arr, const char *sep) {
+    size_t sep_len = strlen(sep);
+    size_t total = 1;
+    for (int32_t i = 0; i < arr->length; i++) {
+        if (arr->data[i]) total += strlen((const char *)arr->data[i]);
+        if (i < arr->length - 1) total += sep_len;
+    }
+    char *result = (char *)malloc(total);
+    result[0] = '\0';
+    for (int32_t i = 0; i < arr->length; i++) {
+        if (arr->data[i]) strcat(result, (const char *)arr->data[i]);
+        if (i < arr->length - 1) strcat(result, sep);
+    }
+    return result;
+}
+
 void *cs2_obj_array_get(ObjArray *arr, int32_t index) {
     if (index < 0 || index >= arr->length) return NULL;
     return arr->data[index];
@@ -654,4 +676,8 @@ void cs2_print_str_array(StrArray *arr) {
     }
     if (arr->length > 0) printf(" ");
     printf("]");
+}
+
+void cs2_obj_array_spread(ObjArray *dest, ObjArray *src) {
+    for (int32_t i = 0; i < src->length; i++) cs2_obj_array_push(dest, src->data[i]);
 }

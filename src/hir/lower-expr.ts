@@ -334,7 +334,7 @@ function lowerUnary(expr: UnaryExpression): HIRExpr {
       const key: HIRExpr = { kind: "literal_string", value: (member.property as Identifier).value, type: I8PTR };
       return { kind: "runtime_call", func: "cs2_dynobj_delete", args: [dynObj, key], returnType: VOID, type: VOID };
     }
-    return { kind: "literal_bool", value: true, type: I1 };
+    return { kind: "literal_i1", value: true, type: I1 };
   }
   const operand = lowerExpr(expr.argument);
   let op: UnaryOp;
@@ -703,6 +703,17 @@ function dynobj_get_typed(obj: HIRExpr, key: HIRExpr, targetType: HIRType | null
           args: [obj, key],
           returnType: { kind: "boxed" },
           type: { kind: "boxed" },
+        };
+      case "map":
+      case "set":
+      case "dynobj":
+      case "ptr":
+        return {
+          kind: "runtime_call",
+          func: "cs2_dynobj_get_obj",
+          args: [obj, key],
+          returnType: targetType,
+          type: targetType,
         };
       default:
         break;
@@ -1164,7 +1175,7 @@ function lowerCall(expr: CallExpression): HIRExpr {
   ) {
     const arg = lowerExpr(expr.arguments[0].expression);
     if (arg.type.kind === "array" || arg.type.kind === "dynarray") {
-      return { kind: "literal_bool", value: true, type: I1 };
+      return { kind: "literal_i1", value: true, type: I1 };
     }
     return {
       kind: "binary",
@@ -1184,7 +1195,7 @@ function lowerCall(expr: CallExpression): HIRExpr {
     const method = expr.callee.property.value;
     if (method === "isInteger") {
       const arg = lowerExpr(expr.arguments[0].expression);
-      if (arg.type.kind === "i64") return { kind: "literal_bool", value: true, type: I1 };
+      if (arg.type.kind === "i64") return { kind: "literal_i1", value: true, type: I1 };
       const rem: HIRExpr = {
         kind: "binary",
         op: "rem" as BinaryOp,
@@ -1226,7 +1237,7 @@ function lowerCall(expr: CallExpression): HIRExpr {
         type: I1,
       };
     }
-    return { kind: "literal_bool", value: true, type: I1 };
+    return { kind: "literal_i1", value: true, type: I1 };
   }
 
   if (
@@ -1277,7 +1288,7 @@ function lowerCall(expr: CallExpression): HIRExpr {
       const methodName = (expr.callee as MemberExpression).property;
       if (methodName.type === "Identifier") {
         const mn = (methodName as Identifier).value;
-        const arrayMethods = ["filter", "map", "forEach", "find", "findIndex", "every", "some", "push", "length"];
+        const arrayMethods = ["filter", "map", "flatMap", "forEach", "find", "findIndex", "every", "some", "push", "length"];
         if (arrayMethods.includes(mn)) {
           const asArr: HIRExpr = { ...obj, type: DYNARRAY };
           return lowerDynarrayMethodCall(expr, asArr);
@@ -2603,6 +2614,7 @@ function lowerDynarrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
   const hofMethods: Record<string, string> = {
     filter: "cs2_dynarray_filter",
     map: "cs2_dynarray_map",
+    flatMap: "cs2_dynarray_flatMap",
     forEach: "cs2_dynarray_forEach",
     find: "cs2_dynarray_find",
     findIndex: "cs2_dynarray_findIndex",
@@ -2618,6 +2630,7 @@ function lowerDynarrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
         returnType = DYNARRAY;
         break;
       case "map":
+      case "flatMap":
         returnType = DYNARRAY;
         break;
       case "forEach":
@@ -2660,7 +2673,7 @@ function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
   type MethodInfo = { func: string; returnType: HIRType; argTypes?: HIRType[] };
   let info: MethodInfo | undefined;
 
-  const isObj = arrType.element.kind === "ptr";
+  const isObj = arrType.element.kind === "ptr" || arrType.element.kind === "dynobj" || arrType.element.kind === "dynarray" || arrType.element.kind === "map";
   if (method === "sort" && args.length > 0 && prefix === "cs2_num_array") {
     const callback = args[0];
     return {
@@ -2710,6 +2723,11 @@ function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
       splice: { func: "cs2_str_array_splice", returnType: obj.type, argTypes: [I64, I64] },
     };
     info = strMethods[method];
+  }
+
+  if (prefix === "cs2_obj_array") {
+    if (method === "unshift") info = { func: "cs2_obj_array_unshift", returnType: VOID, argTypes: [arrType.element] };
+    else if (method === "join") info = { func: "cs2_obj_array_join", returnType: I8PTR, argTypes: [I8PTR] };
   }
 
   if (
@@ -2924,12 +2942,9 @@ function lowerOptionalChain(expr: any): HIRExpr {
     if (callee.type === "OptionalChainingExpression" && callee.base.type === "MemberExpression") {
       const memberExpr = callee.base as MemberExpression;
       const obj = lowerExpr(memberExpr.object);
-      if (obj.type.kind !== "ptr" && obj.type.kind !== "dynobj" && obj.type.kind !== "boxed" && obj.type.kind !== "i8ptr") {
-        compileError("optional chaining requires object type", expr.span);
-      }
 
       const syntheticCall: any = { ...base, callee: memberExpr };
-      const callResult = lowerClassMethodCall(syntheticCall, obj);
+      const callResult = lowerCall(syntheticCall);
 
       const nullCond: HIRExpr = {
         kind: "binary",

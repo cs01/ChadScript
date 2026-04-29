@@ -1064,18 +1064,41 @@ function lowerForOf(stmt: any): HIRStmt[] {
   };
 
   const varDecl = stmt.left;
-  const varName = varDecl.declarations[0].id.value;
+  const declId = varDecl.declarations[0].id;
   const elemId = freshId();
-  locals.set(varName, { id: elemId, type: elemType, mutable: false });
+  const bodyStmts: HIRStmt[] = [];
 
-  const elemLet: HIRStmt = {
-    kind: "let",
-    id: elemId,
-    name: varName,
-    type: elemType,
-    init: indexGet,
-    mutable: false,
-  };
+  if (declId.type === "ObjectPattern") {
+    locals.set("__forof_elem", { id: elemId, type: elemType, mutable: false });
+    bodyStmts.push({ kind: "let", id: elemId, name: "__forof_elem", type: elemType, init: indexGet, mutable: false });
+    const elemGetExpr: HIRExpr = { kind: "local_get", id: elemId, type: elemType };
+    const props = (elemType as any).props as { name: string; type: HIRType }[] | undefined;
+    for (const prop of declId.properties) {
+      const fieldName: string = prop.key?.value ?? prop.value?.value;
+      const localName: string = prop.value?.value ?? fieldName;
+      const propInfo = props?.find((p: { name: string }) => p.name === fieldName);
+      const propType: HIRType = propInfo?.type ?? BOXED;
+      const propId = freshId();
+      locals.set(localName, { id: propId, type: propType, mutable: false });
+      const func = propType.kind === "i8ptr" ? "cs2_dynobj_get_str"
+                 : propType.kind === "f64" || propType.kind === "i64" ? "cs2_dynobj_get_f64"
+                 : propType.kind === "i1" ? "cs2_dynobj_get_bool"
+                 : "cs2_dynobj_get_obj";
+      const retType = propType.kind === "i8ptr" ? I8PTR
+                    : propType.kind === "f64" || propType.kind === "i64" ? F64
+                    : propType.kind === "i1" ? I1
+                    : propType;
+      const dynInit: HIRExpr = elemType.kind === "dynobj" || elemType.kind === "boxed"
+        ? { kind: "runtime_call", func, args: [elemGetExpr, { kind: "literal_string", value: fieldName, type: I8PTR }], returnType: retType, type: retType }
+        : { kind: "runtime_call", func, args: [elemGetExpr, { kind: "literal_string", value: fieldName, type: I8PTR }], returnType: retType, type: retType };
+      bodyStmts.push({ kind: "let", id: propId, name: localName, type: propType, init: dynInit, mutable: false });
+    }
+  } else {
+    const varName: string = declId.value;
+    locals.set(varName, { id: elemId, type: elemType, mutable: false });
+    bodyStmts.push({ kind: "let", id: elemId, name: varName, type: elemType, init: indexGet, mutable: false });
+  }
+
   const innerBody = lowerConsequent(stmt.body);
 
   const update: HIRExpr = {
@@ -1096,7 +1119,7 @@ function lowerForOf(stmt: any): HIRStmt[] {
     init: undefined,
     condition,
     update,
-    body: [elemLet, ...innerBody],
+    body: [...bodyStmts, ...innerBody],
   };
 
   return [arrStore, iInit, forStmt];
@@ -1156,18 +1179,30 @@ function lowerForOfDynarray(stmt: any, iteree: HIRExpr): HIRStmt[] {
   };
 
   const varDecl = stmt.left;
-  const varName = varDecl.declarations[0].id.value;
+  const declId = varDecl.declarations[0].id;
   const elemId = freshId();
-  locals.set(varName, { id: elemId, type: DYNOBJ, mutable: false });
+  const dynarrBodyStmts: HIRStmt[] = [];
 
-  const elemLet: HIRStmt = {
-    kind: "let",
-    id: elemId,
-    name: varName,
-    type: DYNOBJ,
-    init: indexGet,
-    mutable: false,
-  };
+  if (declId.type === "ObjectPattern") {
+    locals.set("__forof_elem", { id: elemId, type: DYNOBJ, mutable: false });
+    dynarrBodyStmts.push({ kind: "let", id: elemId, name: "__forof_elem", type: DYNOBJ, init: indexGet, mutable: false });
+    const elemGetExpr: HIRExpr = { kind: "local_get", id: elemId, type: DYNOBJ };
+    for (const prop of declId.properties) {
+      const fieldName: string = prop.key?.value ?? prop.value?.value;
+      const localName: string = prop.value?.value ?? fieldName;
+      const propId = freshId();
+      locals.set(localName, { id: propId, type: DYNOBJ, mutable: false });
+      dynarrBodyStmts.push({
+        kind: "let", id: propId, name: localName, type: DYNOBJ, mutable: false,
+        init: { kind: "runtime_call", func: "cs2_dynobj_get_obj", args: [elemGetExpr, { kind: "literal_string", value: fieldName, type: I8PTR }], returnType: DYNOBJ, type: DYNOBJ },
+      });
+    }
+  } else {
+    const varName: string = declId.value;
+    locals.set(varName, { id: elemId, type: DYNOBJ, mutable: false });
+    dynarrBodyStmts.push({ kind: "let", id: elemId, name: varName, type: DYNOBJ, init: indexGet, mutable: false });
+  }
+
   const innerBody = lowerConsequent(stmt.body);
 
   const update: HIRExpr = {
@@ -1186,7 +1221,7 @@ function lowerForOfDynarray(stmt: any, iteree: HIRExpr): HIRStmt[] {
   return [
     arrStore,
     iInit,
-    { kind: "for", init: undefined, condition, update, body: [elemLet, ...innerBody] },
+    { kind: "for", init: undefined, condition, update, body: [...dynarrBodyStmts, ...innerBody] },
   ];
 }
 

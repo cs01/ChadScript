@@ -376,3 +376,19 @@ double cs2_dynarray_some(DynArray *arr, void *fn_ptr, void *env_ptr) {
     }
     return 0.0;
 }
+
+DynArray *cs2_dynarray_flatMap(DynArray *arr, void *fn_ptr, void *env_ptr) {
+    DynArray *(*fn)(void *, DynObj *) = (DynArray *(*)(void *, DynObj *))fn_ptr;
+    DynArray *result = cs2_dynarray_new();
+    for (int32_t i = 0; i < arr->length; i++) {
+        DynObj *elem = arr->data[i].obj_val;
+        DynArray *sub = fn(env_ptr, elem);
+        if (sub) {
+            for (int32_t j = 0; j < sub->length; j++) {
+                dynarray_grow(result);
+                result->data[result->length++] = sub->data[j];
+            }
+        }
+    }
+    return result;
+}
