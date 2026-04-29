@@ -901,13 +901,17 @@ function lowerRangeFor(left: SyntaxNode, call: SyntaxNode, body: SyntaxNode): HI
   const id = freshId();
   locals.set(varName, { id, name: varName, type: I64 });
 
+  const isNegStep = step.kind === "literal_i64" && (step as any).value < 0
+    || step.kind === "unary" && (step as any).op === "neg";
+  const condOp = isNegStep ? "gt" : "lt";
+
   return [
     { kind: "let", id, name: varName, type: I64, init: start, mutable: true },
     {
       kind: "for",
       condition: {
         kind: "binary",
-        op: "lt",
+        op: condOp as any,
         left: { kind: "local_get", id, type: I64 },
         right: end,
         type: I1,
@@ -1110,6 +1114,8 @@ function lowerExpr(node: SyntaxNode): HIRExpr {
       return lowerListLiteral(node);
     case "list_comprehension":
       return lowerListComp(node);
+    case "dictionary_comprehension":
+      return lowerDictComp(node);
     case "dictionary":
       return lowerDictLiteral(node);
     case "tuple":
@@ -2107,6 +2113,104 @@ function lowerListComp(node: SyntaxNode): HIRExpr {
         value: { kind: "binary", op: "add", left: iRef, right: { kind: "literal_i64", value: 1, type: I64 }, type: I64 },
         type: I64,
       },
+      body: loopBody,
+    }
+  );
+
+  return resultRef;
+}
+
+function lowerDictComp(node: SyntaxNode): HIRExpr {
+  // {key_expr: val_expr for var in iterable [if cond]}
+  // namedChild(0) is a `pair` with key/value, namedChild(1) is for_in_clause
+  const pairNode = node.namedChild(0)!;
+  const keyNode = pairNode.type === "pair" ? pairNode.namedChild(0)! : pairNode;
+  const valNode = pairNode.type === "pair" ? pairNode.namedChild(1)! : node.namedChild(1)!;
+  const lastChild = node.namedChild(node.namedChildCount - 1)!;
+  const ifClause = lastChild.type === "if_clause" ? lastChild : null;
+  const forClause = node.namedChild(1)!;
+  const actualFor = ifClause ? node.namedChild(node.namedChildCount - 2)! : forClause;
+
+  const loopVarNode = actualFor.namedChild(0)!;
+  const iterNode = actualFor.namedChild(actualFor.namedChildCount - 1)!;
+  const loopVarName = loopVarNode.text;
+
+  const iterExpr = lowerExpr(iterNode);
+  const iterElemType: HIRType = iterExpr.type.kind === "array" ? iterExpr.type.element : F64;
+  const iterPrefix = iterElemType.kind === "i8ptr" ? "cs2_str_array" : "cs2_num_array";
+
+  // type inference pass
+  const savedLocals = new Map(locals);
+  const savedPending = pendingStmts;
+  pendingStmts = [];
+  const tmpId = freshId();
+  locals.set(loopVarName, { id: tmpId, name: loopVarName, type: iterElemType });
+  const typeKeyExpr = lowerExpr(keyNode);
+  const typeValExpr = lowerExpr(valNode);
+  const keyType: HIRType = typeKeyExpr.type.kind === "i64" ? F64 : typeKeyExpr.type;
+  const valType: HIRType = typeValExpr.type.kind === "i64" ? F64 : typeValExpr.type;
+  locals = savedLocals;
+  pendingStmts = savedPending;
+
+  const mapType: HIRType = { kind: "map", key: keyType, value: valType };
+  const prefix = mapPrefix(keyType, valType);
+
+  const resultId = freshId();
+  const iterArrId = freshId();
+  const iId = freshId();
+  const varId = freshId();
+  const resultName = `__dc${resultId}`;
+  const iterArrName = `__di${iterArrId}`;
+  const iName = `__di2${iId}`;
+
+  locals.set(resultName, { id: resultId, name: resultName, type: mapType });
+  locals.set(iterArrName, { id: iterArrId, name: iterArrName, type: iterExpr.type });
+  locals.set(iName, { id: iId, name: iName, type: I64 });
+  locals.set(loopVarName, { id: varId, name: loopVarName, type: iterElemType });
+
+  const resultRef: HIRExpr = { kind: "local_get", id: resultId, type: mapType };
+  const iterArrRef: HIRExpr = { kind: "local_get", id: iterArrId, type: iterExpr.type };
+  const iRef: HIRExpr = { kind: "local_get", id: iId, type: I64 };
+
+  const lenExpr: HIRExpr = {
+    kind: "runtime_call", func: `${iterPrefix}_length`,
+    args: [iterArrRef], returnType: I64, type: I64,
+  };
+
+  const keyExpr = coerceTo(lowerExpr(keyNode), keyType);
+  const valExpr = coerceTo(lowerExpr(valNode), valType);
+  const setStmt: HIRStmt = {
+    kind: "expr",
+    expr: { kind: "runtime_call", func: `${prefix}_set`, args: [resultRef, keyExpr, valExpr], returnType: VOID, type: VOID },
+  };
+
+  const elemLet: HIRStmt = {
+    kind: "let", id: varId, name: loopVarName, type: iterElemType,
+    init: { kind: "index_get", array: iterArrRef, index: iRef, type: iterElemType },
+    mutable: false,
+  };
+
+  const loopBody: HIRStmt[] = [elemLet];
+  if (ifClause) {
+    locals.set(loopVarName, { id: varId, name: loopVarName, type: iterElemType });
+    const condExpr = lowerExpr(ifClause.namedChild(0)!);
+    loopBody.push({ kind: "if", condition: condExpr, then: [setStmt], else: undefined });
+  } else {
+    loopBody.push(setStmt);
+  }
+
+  pendingStmts.push(
+    { kind: "let", id: resultId, name: resultName, type: mapType,
+      init: { kind: "alloc_map", keyType, valueType: valType, entries: [], type: mapType }, mutable: false },
+    { kind: "let", id: iterArrId, name: iterArrName, type: iterExpr.type, init: iterExpr, mutable: false },
+    { kind: "let", id: iId, name: iName, type: I64,
+      init: { kind: "literal_i64", value: 0, type: I64 }, mutable: true },
+    {
+      kind: "for",
+      condition: { kind: "binary", op: "lt", left: iRef, right: lenExpr, type: I1 },
+      update: { kind: "local_set", id: iId,
+        value: { kind: "binary", op: "add", left: iRef, right: { kind: "literal_i64", value: 1, type: I64 }, type: I64 },
+        type: I64 },
       body: loopBody,
     }
   );
