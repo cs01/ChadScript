@@ -1244,6 +1244,16 @@ function lowerCall(expr: CallExpression): HIRExpr {
           const asArr: HIRExpr = { ...obj, type: DYNARRAY };
           return lowerDynarrayMethodCall(expr, asArr);
         }
+        const stringMethods = [
+          "charAt", "indexOf", "includes", "startsWith", "endsWith", "slice",
+          "substring", "toUpperCase", "toLowerCase", "trim", "repeat", "replace",
+          "charCodeAt", "split", "padStart", "padEnd", "trimStart", "trimEnd",
+          "lastIndexOf", "at", "replaceAll",
+        ];
+        if (stringMethods.includes(mn)) {
+          const asStr: HIRExpr = coerce(obj, I8PTR);
+          return lowerStringMethodCall(expr, asStr);
+        }
       }
     }
     if (obj.type.kind === "ptr") {
@@ -2199,6 +2209,7 @@ function lowerJSONCall(expr: CallExpression): HIRExpr {
           args = [arg];
           break;
         case "boxed":
+        case "dynobj":
           func = "cs2_json_stringify_boxed";
           args = [coerce(arg, BOXED)];
           break;
