@@ -1175,7 +1175,16 @@ function lowerForOf(stmt: any): HIRStmt[] {
 
 function lowerForOfDynarray(stmt: any, iteree: HIRExpr): HIRStmt[] {
   const arrType: HIRType = { kind: "dynarray" };
-  const actualArr: HIRExpr = iteree.type.kind === "dynobj" ? { ...iteree, type: arrType } : iteree;
+  let actualArr: HIRExpr;
+  if (iteree.type.kind === "dynobj") {
+    if ((iteree as any).kind === "runtime_call" && (iteree as any).func === "cs2_dynobj_get_obj") {
+      actualArr = { ...(iteree as any), func: "cs2_dynobj_get_arr", returnType: arrType, type: arrType };
+    } else {
+      actualArr = { ...iteree, type: arrType };
+    }
+  } else {
+    actualArr = iteree;
+  }
 
   const iId = freshId();
   const arrId = freshId();

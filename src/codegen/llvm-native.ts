@@ -127,6 +127,7 @@ export const LLVMRealOGE = 3;
 export const LLVMRealORD = 7;
 export const LLVMRealUNO = 8;
 export const LLVMPrivateLinkage = 8;
+export const LLVMCodeGenLevelNone = 0;
 export const LLVMCodeGenLevelDefault = 2;
 export const LLVMRelocPIC = 1;
 export const LLVMCodeModelDefault = 0;

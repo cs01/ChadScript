@@ -221,6 +221,8 @@ export function coerceLLVM(ctx: EmitContext, val: string, from: HIRType, to: HIR
     const ext = m.buildZExt(val, m.i64, "");
     return m.buildSIToFP(ext, m.f64, "");
   }
+  const PTR_KINDS = ["i8ptr", "ptr", "dynobj", "dynarray", "struct", "array", "map", "set", "closure", "promise", "regex"] as const;
+  if (from.kind === "i1" && PTR_KINDS.includes(to.kind as any)) return m.constNull(m.ptr);
   if (to.kind === "boxed") {
     return emitBoxValue(ctx, val, from);
   }

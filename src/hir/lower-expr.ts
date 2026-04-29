@@ -1561,7 +1561,10 @@ function lowerCall(expr: CallExpression): HIRExpr {
       };
     }
     const args: HIRExpr[] = expr.arguments.map((a, i) => {
+      const paramType = fnInfo.params[i]?.type;
+      if (paramType?.kind === "ptr") setExpectedDeclType(paramType);
       let arg = lowerExpr(a.expression);
+      if (paramType?.kind === "ptr") setExpectedDeclType(null);
       if (fnInfo.params[i]) {
         arg = coerce(arg, fnInfo.params[i].type);
       }
@@ -2816,6 +2819,10 @@ function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
   }
 
   if (!info) compileError(`unsupported array method: ${method}`, expr.span);
+
+  if (method === "slice" && args.length === 1) {
+    args.push({ kind: "runtime_call", func: `${prefix}_length`, args: [obj], returnType: I64, type: I64 });
+  }
 
   const coercedArgs = info.argTypes ? args.map((a, i) => coerce(a, info!.argTypes![i])) : [];
 

@@ -1269,14 +1269,16 @@ function emitNullishCoalesce(ctx: EmitContext, expr: HIRExpr & { kind: "nullish_
   m.buildCondBr(isNull, rhsBlock, mergeBlock);
 
   m.positionAtEnd(rhsBlock);
-  const rightVal = emitExpr(ctx, expr.right);
+  const rightRaw = emitExpr(ctx, expr.right);
+  const rightVal = coerceLLVM(ctx, rightRaw, expr.right.type, expr.type);
   const rhsEndBlock = m.getInsertBlock();
   m.buildBr(mergeBlock);
 
   m.positionAtEnd(mergeBlock);
   const ty = llvmType(ctx, expr.type);
   const phi = m.buildPhi(ty, "nc");
-  m.addIncoming(phi, [rightVal, leftVal], [rhsEndBlock, leftBlock]);
+  const leftCoerced = coerceLLVM(ctx, leftVal, expr.left.type, expr.type);
+  m.addIncoming(phi, [rightVal, leftCoerced], [rhsEndBlock, leftBlock]);
   return phi;
 }
 

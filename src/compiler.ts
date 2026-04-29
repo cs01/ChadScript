@@ -13,6 +13,7 @@ export interface CompileOptions {
   output: string;
   emitIR?: boolean;
   llvm?: boolean;
+  swc?: boolean;
 }
 
 const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
@@ -68,6 +69,7 @@ function findRure(): string {
 const LLVM_BRIDGE = join(ROOT, "c_bridges", "v2-llvm-bridge.c");
 const LLVM_INCLUDE = "/opt/homebrew/opt/llvm/include";
 const LLVM_LIB = "/opt/homebrew/opt/llvm/lib";
+const SWC_BRIDGE_DIR = join(ROOT, "swc-bridge", "target", "release");
 
 const TIMER_BRIDGE = join(ROOT, "c_bridges", "v2-timer-bridge.c");
 const JSON_BRIDGE = join(ROOT, "c_bridges", "v2-json-bridge.c");
@@ -129,8 +131,9 @@ export function compile(opts: CompileOptions): void {
       cachedCompile(LLVM_BRIDGE, llvmObj, `-O2 -I${LLVM_INCLUDE}`);
     }
     const llvmFlags = opts.llvm ? ` -L${LLVM_LIB} -lLLVM-22` : "";
+    const swcFlags = opts.swc ? ` -L${SWC_BRIDGE_DIR} -lswc_bridge -Wl,-rpath,${SWC_BRIDGE_DIR}` : "";
     execSync(
-      `clang -g -O2 -o ${opts.output} ${tmpObj} ${allObjs.join(" ")} -L${libuv.lib} -luv -L${rureDir} -lrure${llvmFlags}`,
+      `clang -g -O2 -o ${opts.output} ${tmpObj} ${allObjs.join(" ")} -L${libuv.lib} -luv -L${rureDir} -lrure${llvmFlags}${swcFlags}`,
       { stdio: "inherit" },
     );
     if (process.platform === "darwin") {
