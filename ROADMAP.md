@@ -101,16 +101,20 @@ Scope: flat string-keyed hashmap only. No prototype chains, no `for...in`, no `O
 - [x] `DeadCodePass` — unreachable stmts after return/throw/break/continue
 - [x] `ConstantFoldingPass` — arithmetic, string, comparison, boolean, ternary folding
 
-### 7. npm Interop via libnode (~5-8K LOC)
+### 7. npm Interop via JS Compilation (~2-3K LOC)
 
-Embed Node.js for packages that can't be natively compiled. Your code compiles native, npm deps run in embedded Node.
+No embedded V8. Compile `.js` files same as `.ts` but treat everything as `any`/dynobj. Typed TS code = fast unboxed native. Untyped JS = slower dynobj dispatch. Same binary, one compilation model, zero marshaling boundary.
 
-- [ ] Port v1's libnode bridge (v1 already has working V8 + libnode bridges)
-- [ ] Import classifier: `import X from "express"` → check node_modules → JS runtime path
-- [ ] Native ↔ JS value marshaling (NaN-boxed ↔ JS runtime values)
+Architecture already supports this — dynobj IS a JS object, NaN-boxing IS JS values, `any` IS untyped JS semantics. Gradient from "works" to "fast": add types → compiler narrows → unboxed.
+
+- [ ] `.js` file parsing — SWC `syntax: "ecmascript"` instead of `"typescript"`
+- [ ] All-`any` inference mode — no type annotations → every var is `boxed`/`dynobj`
+- [ ] `Object.keys()`, `for...in`, `delete obj.key` — dynobj iteration/mutation ops
+- [ ] Prototype chain support — `__proto__` traversal for class-heavy JS packages
+- [ ] `node_modules` resolution — walk up dirs, check `package.json` main/exports
 - [ ] **Milestone:** `npm install lodash && chad2 build app.ts -o app && ./app` works
 
-Scope risk: native-calls-JS only (no JS→native callbacks) for v1. Skip Express-through-libnode — Phase 4's native Express covers servers.
+Won't support: `eval()`, `with`, `arguments` object, dynamic `require()`. Cover 90% of utility packages (lodash, date-fns, uuid, zod, etc.).
 
 ### 8. Polish + Parity (ongoing)
 
@@ -126,7 +130,7 @@ Scope risk: native-calls-JS only (no JS→native callbacks) for v1. Skip Express
 TS source → SWC parseSync → HIR lowering → Transform passes → LLVM C API (koffi) → clang link → binary
 ```
 
-Value strategy: **unboxed-first with NaN-boxing escape hatch.** Statically-typed values stay as raw f64/i64/i1/i8*. Dynamic types (`any`, unions) get NaN-boxed. Integer narrowing pass narrows `number` to i64 when provably integer-valued.
+Value strategy: **unboxed-first with NaN-boxing escape hatch.** Statically-typed values stay as raw f64/i64/i1/i8*. Dynamic types (`any`, unions) get NaN-boxed. Integer narrowing pass narrows `number` to i64 when provably integer-valued. JS files compile with all-`any` inference → dynobj/boxed throughout → correct but slower. Add types → compiler unboxes → native speed.
 
 ```
 src/
