@@ -561,6 +561,9 @@ export function lowerModuleItem(item: ModuleItem): HIRStmt[] {
       }
       return [];
     }
+    case "TsTypeAliasDeclaration":
+    case "TsInterfaceDeclaration":
+      return [];
     default:
       compileError(`unsupported statement type: ${item.type}`);
   }
