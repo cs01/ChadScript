@@ -1181,47 +1181,50 @@ function lowerForOfMap(stmt: any, mapExpr: HIRExpr): HIRStmt[] {
   const bodyVars: HIRStmt[] = [];
 
   if (declId.type === "ArrayPattern" && declId.elements.length === 2) {
-    const keyName = declId.elements[0].value;
-    const valName = declId.elements[1].value;
-    const keyId = freshId();
-    const valId = freshId();
-    locals.set(keyName, { id: keyId, type: mt.key, mutable: false });
-    locals.set(valName, { id: valId, type: mt.value, mutable: false });
-
-    bodyVars.push({
-      kind: "let",
-      id: keyId,
-      name: keyName,
-      type: mt.key,
-      init: {
-        kind: "runtime_call",
-        func: `${prefix}_key_at`,
-        args: [
-          { kind: "local_get", id: mapId, type: mapExpr.type },
-          { kind: "local_get", id: iId, type: I64 },
-        ],
-        returnType: mt.key,
+    if (declId.elements[0]) {
+      const keyName = declId.elements[0].value;
+      const keyId = freshId();
+      locals.set(keyName, { id: keyId, type: mt.key, mutable: false });
+      bodyVars.push({
+        kind: "let",
+        id: keyId,
+        name: keyName,
         type: mt.key,
-      },
-      mutable: false,
-    });
-    bodyVars.push({
-      kind: "let",
-      id: valId,
-      name: valName,
-      type: mt.value,
-      init: {
-        kind: "runtime_call",
-        func: `${prefix}_value_at`,
-        args: [
-          { kind: "local_get", id: mapId, type: mapExpr.type },
-          { kind: "local_get", id: iId, type: I64 },
-        ],
-        returnType: mt.value,
+        init: {
+          kind: "runtime_call",
+          func: `${prefix}_key_at`,
+          args: [
+            { kind: "local_get", id: mapId, type: mapExpr.type },
+            { kind: "local_get", id: iId, type: I64 },
+          ],
+          returnType: mt.key,
+          type: mt.key,
+        },
+        mutable: false,
+      });
+    }
+    if (declId.elements[1]) {
+      const valName = declId.elements[1].value;
+      const valId = freshId();
+      locals.set(valName, { id: valId, type: mt.value, mutable: false });
+      bodyVars.push({
+        kind: "let",
+        id: valId,
+        name: valName,
         type: mt.value,
-      },
-      mutable: false,
-    });
+        init: {
+          kind: "runtime_call",
+          func: `${prefix}_value_at`,
+          args: [
+            { kind: "local_get", id: mapId, type: mapExpr.type },
+            { kind: "local_get", id: iId, type: I64 },
+          ],
+          returnType: mt.value,
+          type: mt.value,
+        },
+        mutable: false,
+      });
+    }
   } else {
     compileError("for...of over Map requires [key, value] destructuring", stmt.span);
   }

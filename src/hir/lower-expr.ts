@@ -161,6 +161,8 @@ export function lowerExpr(expr: Expression): HIRExpr {
       }
       return arg;
     }
+    case "TsConstAssertion":
+      return lowerExpr((expr as any).expression);
     default:
       compileError(`unsupported expression type: ${expr.type}`, expr.span);
   }
@@ -1162,6 +1164,57 @@ function lowerCall(expr: CallExpression): HIRExpr {
     }
   }
 
+  if (
+    expr.callee.type === "MemberExpression" &&
+    expr.callee.object.type === "Identifier" &&
+    expr.callee.object.value === "Object" &&
+    expr.callee.property.type === "Identifier" &&
+    expr.callee.property.value === "hasOwn"
+  ) {
+    const obj = lowerExpr(expr.arguments[0].expression);
+    const key = lowerExpr(expr.arguments[1].expression);
+    if (obj.type.kind === "dynobj") {
+      return {
+        kind: "binary",
+        op: "ne" as BinaryOp,
+        left: {
+          kind: "runtime_call",
+          func: "cs2_dynobj_tag",
+          args: [obj, coerce(key, I8PTR)],
+          returnType: I64,
+          type: I64,
+        },
+        right: { kind: "literal_i64", value: -1, type: I64 },
+        type: I1,
+      };
+    }
+    return { kind: "literal_bool", value: true, type: I1 };
+  }
+
+  if (
+    expr.callee.type === "MemberExpression" &&
+    expr.callee.object.type === "Identifier" &&
+    expr.callee.object.value === "Array" &&
+    expr.callee.property.type === "Identifier" &&
+    expr.callee.property.value === "from"
+  ) {
+    const arg = lowerExpr(expr.arguments[0].expression);
+    if (arg.type.kind === "set") {
+      const st = arg.type as { kind: "set"; element: HIRType };
+      const prefix = setPrefix(st.element);
+      const arrayType: HIRType = { kind: "array", element: st.element };
+      return {
+        kind: "runtime_call",
+        func: `${prefix}_values`,
+        args: [arg],
+        returnType: arrayType,
+        type: arrayType,
+      };
+    }
+    if (arg.type.kind === "array" || arg.type.kind === "dynarray") return arg;
+    return arg;
+  }
+
   if (expr.callee.type === "MemberExpression") {
     const obj = lowerExpr(expr.callee.object);
     if (obj.type.kind === "i8ptr") {
@@ -1466,9 +1519,13 @@ function lowerNewExpr(expr: any): HIRExpr {
     };
   }
 
-  if (className === "Map" && expr.typeArguments?.params?.length === 2) {
-    const keyType = resolveTypeAnnotation(expr.typeArguments.params[0]);
-    const valueType = resolveTypeAnnotation(expr.typeArguments.params[1]);
+  if (className === "Map") {
+    let keyType: HIRType = I8PTR;
+    let valueType: HIRType = BOXED;
+    if (expr.typeArguments?.params?.length === 2) {
+      keyType = resolveTypeAnnotation(expr.typeArguments.params[0]);
+      valueType = resolveTypeAnnotation(expr.typeArguments.params[1]);
+    }
     const prefix = mapPrefix(keyType, valueType);
     const resultType: HIRType = { kind: "map", key: keyType, value: valueType };
     return {
@@ -2606,6 +2663,15 @@ function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
         every: "cs2_str_array_every",
         some: "cs2_str_array_some",
         reduce: "cs2_str_array_reduce",
+      },
+      cs2_obj_array: {
+        map: "cs2_obj_array_map",
+        filter: "cs2_obj_array_filter",
+        forEach: "cs2_obj_array_forEach",
+        find: "cs2_obj_array_find",
+        findIndex: "cs2_obj_array_findIndex",
+        every: "cs2_obj_array_every",
+        some: "cs2_obj_array_some",
       },
     };
     const funcs = hofMethods[prefix];

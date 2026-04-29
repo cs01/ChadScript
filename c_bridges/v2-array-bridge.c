@@ -170,6 +170,66 @@ int32_t cs2_obj_array_length(ObjArray *arr) {
     return arr->length;
 }
 
+ObjArray *cs2_obj_array_map(ObjArray *arr, void *fn_ptr, void *env_ptr) {
+    void *(*fn)(void *, void *) = (void *(*)(void *, void *))fn_ptr;
+    ObjArray *result = cs2_obj_array_new(arr->length);
+    for (int32_t i = 0; i < arr->length; i++) {
+        result->data[i] = fn(env_ptr, arr->data[i]);
+    }
+    result->length = arr->length;
+    return result;
+}
+
+ObjArray *cs2_obj_array_filter(ObjArray *arr, void *fn_ptr, void *env_ptr) {
+    int32_t (*fn)(void *, void *) = (int32_t (*)(void *, void *))fn_ptr;
+    ObjArray *result = cs2_obj_array_new(arr->length);
+    for (int32_t i = 0; i < arr->length; i++) {
+        if (fn(env_ptr, arr->data[i])) {
+            cs2_obj_array_push(result, arr->data[i]);
+        }
+    }
+    return result;
+}
+
+void cs2_obj_array_forEach(ObjArray *arr, void *fn_ptr, void *env_ptr) {
+    void (*fn)(void *, void *) = (void (*)(void *, void *))fn_ptr;
+    for (int32_t i = 0; i < arr->length; i++) {
+        fn(env_ptr, arr->data[i]);
+    }
+}
+
+void *cs2_obj_array_find(ObjArray *arr, void *fn_ptr, void *env_ptr) {
+    int32_t (*fn)(void *, void *) = (int32_t (*)(void *, void *))fn_ptr;
+    for (int32_t i = 0; i < arr->length; i++) {
+        if (fn(env_ptr, arr->data[i])) return arr->data[i];
+    }
+    return NULL;
+}
+
+double cs2_obj_array_findIndex(ObjArray *arr, void *fn_ptr, void *env_ptr) {
+    int32_t (*fn)(void *, void *) = (int32_t (*)(void *, void *))fn_ptr;
+    for (int32_t i = 0; i < arr->length; i++) {
+        if (fn(env_ptr, arr->data[i])) return (double)i;
+    }
+    return -1.0;
+}
+
+double cs2_obj_array_every(ObjArray *arr, void *fn_ptr, void *env_ptr) {
+    int32_t (*fn)(void *, void *) = (int32_t (*)(void *, void *))fn_ptr;
+    for (int32_t i = 0; i < arr->length; i++) {
+        if (!fn(env_ptr, arr->data[i])) return 0.0;
+    }
+    return 1.0;
+}
+
+double cs2_obj_array_some(ObjArray *arr, void *fn_ptr, void *env_ptr) {
+    int32_t (*fn)(void *, void *) = (int32_t (*)(void *, void *))fn_ptr;
+    for (int32_t i = 0; i < arr->length; i++) {
+        if (fn(env_ptr, arr->data[i])) return 1.0;
+    }
+    return 0.0;
+}
+
 void cs2_str_array_spread(StrArray *dest, StrArray *src) {
     int32_t needed = dest->length + src->length;
     if (needed > dest->capacity) {
