@@ -2,7 +2,7 @@
 
 ## Status
 
-145 parity tests passing. Phases 0–7 mostly complete: SWC parser, HIR pipeline, LLVM C API codegen (koffi FFI), unboxed-first with NaN-boxing escape hatch, integer narrowing, classes/interfaces/vtables, closures, generics (monomorphization), event loop (libuv), multi-file imports, and stdlib (fs, path, http, crypto, child_process, Buffer, process, console, JSON, RegExp, Map, Set, Date, os, Math, Promise.all/race/allSettled, enums, typed arrays). Dead code elimination and constant folding passes done. SWC Rust bridge (libswc_bridge.a) + DynObj C bridge + JSON→DynObj converter operational.
+160 parity tests passing. Phases 0–7 mostly complete: SWC parser, HIR pipeline, LLVM C API codegen (koffi FFI), unboxed-first with NaN-boxing escape hatch, integer narrowing, classes/interfaces/vtables, closures, generics (monomorphization), event loop (libuv), multi-file imports, and stdlib (fs, path, http, crypto, child_process, Buffer, process, console, JSON, RegExp, Map, Set, Date, os, Math, Promise.all/race/allSettled, enums, typed arrays). Dead code elimination and constant folding passes done. SWC Rust bridge (libswc_bridge.a) + DynObj C bridge + JSON→DynObj converter operational.
 
 ## What's Next
 
@@ -37,8 +37,10 @@ Replace koffi FFI with direct LLVM-C linkage. `emitter.ts` uses ~50-80 LLVM C AP
 
 #### C. Language Feature Gaps
 
-- [ ] **Function refs as HOF callbacks** — `arr.map(namedFn)` needs closure wrapping for bare function pointers
-- [ ] **Type narrowing in conditionals** — `if (x.kind === "foo") x.value` should narrow `.value` type based on discriminant
+- [x] **Function refs as HOF callbacks** — `arr.map(namedFn)` wraps named fn in closure
+- [x] **Type narrowing in conditionals** — `if (x.kind === "foo") x.value` narrows via variant literal matching
+- [x] **number.toString() / number.toFixed(n)** — cs2_number_to_string / cs2_number_to_fixed
+- [x] **boxed.toString()** — cs2_boxed_to_string handles all nan-box tags
 - [ ] **Chained method calls** — `a.b().c()` where callee is a nested MemberExpression
 - [ ] **Cross-module function resolution** — imported functions not found at link time
 

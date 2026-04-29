@@ -209,6 +209,16 @@ int32_t cs2_dynobj_has(DynObj *o, const char *key) {
     return find_key(o, key) >= 0 ? 1 : 0;
 }
 
+void cs2_dynobj_delete(DynObj *o, const char *key) {
+    int32_t idx = find_key(o, key);
+    if (idx < 0) return;
+    o->length--;
+    if (idx < (int32_t)o->length) {
+        o->keys[idx] = o->keys[o->length];
+        o->values[idx] = o->values[o->length];
+    }
+}
+
 int32_t cs2_dynobj_tag(DynObj *o, const char *key) {
     int32_t idx = find_key(o, key);
     if (idx >= 0) return o->values[idx].tag;

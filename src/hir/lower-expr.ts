@@ -43,6 +43,7 @@ import {
   setPrefix,
   genericFunctionTemplates,
   genericClassTemplates,
+  genericSpecializations,
   mangleGenericName,
   enumRegistry,
   builtinImports,
@@ -322,6 +323,19 @@ function lowerBinaryWithOp(op: BinaryOp, left: HIRExpr, right: HIRExpr): HIRExpr
 }
 
 function lowerUnary(expr: UnaryExpression): HIRExpr {
+  if (expr.operator === "delete" && (expr.argument as any).type === "MemberExpression") {
+    const member = expr.argument as MemberExpression;
+    const obj = lowerExpr(member.object);
+    if (
+      (obj.type.kind === "dynobj" || obj.type.kind === "boxed") &&
+      member.property.type === "Identifier"
+    ) {
+      const dynObj = obj.type.kind === "boxed" ? coerce(obj, DYNOBJ) : obj;
+      const key: HIRExpr = { kind: "literal_string", value: (member.property as Identifier).value, type: I8PTR };
+      return { kind: "runtime_call", func: "cs2_dynobj_delete", args: [dynObj, key], returnType: VOID, type: VOID };
+    }
+    return { kind: "literal_bool", value: true, type: I1 };
+  }
   const operand = lowerExpr(expr.argument);
   let op: UnaryOp;
   switch (expr.operator) {
@@ -1485,11 +1499,23 @@ function lowerCall(expr: CallExpression): HIRExpr {
     }
 
     const calleeName = fnAliases.get(expr.callee.value) || expr.callee.value;
-    const fnInfo = functionRegistry.get(calleeName);
+    let fnInfo = functionRegistry.get(calleeName);
+    let resolvedCallee = calleeName;
+    if (!fnInfo && genericFunctionTemplates.has(calleeName)) {
+      const template = genericFunctionTemplates.get(calleeName)!;
+      const anyArgs = template.typeParams.map(() => BOXED);
+      const mangledAny = mangleGenericName(calleeName, anyArgs);
+      if (!genericSpecializations.has(mangledAny)) {
+        const specialized = specializeFunction(calleeName, anyArgs);
+        if (specialized) pendingFunctions.push(specialized);
+      }
+      fnInfo = functionRegistry.get(mangledAny);
+      if (fnInfo) resolvedCallee = mangledAny;
+    }
     if (!fnInfo) {
       compileError(`call to undeclared function '${expr.callee.value}'`, expr.span);
     }
-    const restIdx = restParamRegistry.get(calleeName);
+    const restIdx = restParamRegistry.get(resolvedCallee);
     if (restIdx !== undefined) {
       const args: HIRExpr[] = [];
       for (let i = 0; i < restIdx; i++) {
@@ -1517,7 +1543,7 @@ function lowerCall(expr: CallExpression): HIRExpr {
       args.push(restArray);
       return {
         kind: "call",
-        callee: calleeName,
+        callee: resolvedCallee,
         args,
         returnType: fnInfo.returnType,
         type: fnInfo.returnType,
@@ -1538,7 +1564,7 @@ function lowerCall(expr: CallExpression): HIRExpr {
     }
     return {
       kind: "call",
-      callee: calleeName,
+      callee: resolvedCallee,
       args,
       returnType: fnInfo.returnType,
       type: fnInfo.returnType,
