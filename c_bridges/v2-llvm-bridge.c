@@ -2,6 +2,8 @@
 #include <llvm-c/TargetMachine.h>
 #include <llvm-c/Target.h>
 #include <llvm-c/DebugInfo.h>
+#include <llvm-c/Transforms/PassBuilder.h>
+#include <llvm-c/Error.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -40,6 +42,19 @@ int chad2_LLVMTargetMachineEmitToFile(void *tm, void *mod, const char *filename,
         (char *)filename, (LLVMCodeGenFileType)(int)type, &err);
     if (err) LLVMDisposeMessage(err);
     return r;
+}
+
+int chad2_LLVMRunPasses(void *mod, const char *passes, void *tm) {
+    LLVMPassBuilderOptionsRef opts = LLVMCreatePassBuilderOptions();
+    LLVMErrorRef err = LLVMRunPasses((LLVMModuleRef)mod, passes, (LLVMTargetMachineRef)tm, opts);
+    LLVMDisposePassBuilderOptions(opts);
+    if (err) {
+        char *msg = LLVMGetErrorMessage(err);
+        LLVMConsumeError(err);
+        LLVMDisposeMessage(msg);
+        return 1;
+    }
+    return 0;
 }
 
 /* ---- integer-param wrappers (number = f64 in ChadScript) ---- */

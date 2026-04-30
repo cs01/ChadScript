@@ -79,6 +79,8 @@ declare function LLVMInitializeX86Target(): void;
 declare function LLVMInitializeX86TargetMC(): void;
 declare function LLVMInitializeX86AsmPrinter(): void;
 
+declare function chad2_LLVMRunPasses(mod: string, passes: string, tm: string): number;
+
 declare function chad2_LLVMPointerTypeInContext(ctx: string, addrSpace: number): string;
 declare function chad2_LLVMGetParam(fn: string, index: number): string;
 declare function chad2_LLVMAppendBasicBlockInContext(ctx: string, fn: string, name: string): string;
@@ -435,6 +437,10 @@ export class LLVMModule {
       LLVMCodeGenLevelDefault, LLVMRelocPIC, LLVMCodeModelDefault);
     const dl = LLVMCreateTargetDataLayout(tm);
     LLVMSetModuleDataLayout(this.mod, dl);
+
+    if (chad2_LLVMRunPasses(this.mod, "default<O2>", tm) !== 0) {
+      throw new Error("LLVM optimization passes failed");
+    }
 
     if (chad2_LLVMTargetMachineEmitToFile(tm, this.mod, path, LLVMObjectFileType) !== 0) {
       throw new Error("Failed to emit object file");

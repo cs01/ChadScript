@@ -157,6 +157,12 @@ const LLVMTargetMachineEmitToFile = lib.func("LLVMTargetMachineEmitToFile", Bool
   koffi.out(koffi.pointer("char")),
 ]);
 
+const LLVMCreatePassBuilderOptions = lib.func("LLVMCreatePassBuilderOptions", Ref, []);
+const LLVMDisposePassBuilderOptions = lib.func("LLVMDisposePassBuilderOptions", "void", [Ref]);
+const LLVMRunPasses = lib.func("LLVMRunPasses", Ref, [Ref, "str", Ref, Ref]);
+const LLVMGetErrorMessage = lib.func("LLVMGetErrorMessage", "char *", [Ref]);
+const LLVMConsumeError = lib.func("LLVMConsumeError", "void", [Ref]);
+
 const LLVMInitializeAArch64TargetInfo = lib.func("LLVMInitializeAArch64TargetInfo", "void", []);
 const LLVMInitializeAArch64Target = lib.func("LLVMInitializeAArch64Target", "void", []);
 const LLVMInitializeAArch64TargetMC = lib.func("LLVMInitializeAArch64TargetMC", "void", []);
@@ -676,6 +682,15 @@ export class LLVMModule {
 
     const dl = LLVMCreateTargetDataLayout(tm);
     LLVMSetModuleDataLayout(this.mod, dl);
+
+    const passOpts = LLVMCreatePassBuilderOptions();
+    const passErr = LLVMRunPasses(this.mod, "default<O2>", tm, passOpts);
+    LLVMDisposePassBuilderOptions(passOpts);
+    if (passErr !== null) {
+      const msg = LLVMGetErrorMessage(passErr);
+      LLVMConsumeError(passErr);
+      throw new Error(`LLVM optimization passes failed: ${msg}`);
+    }
 
     const emitErr = [null];
     if (LLVMTargetMachineEmitToFile(tm, this.mod, path, LLVMObjectFileType, emitErr) !== 0) {
