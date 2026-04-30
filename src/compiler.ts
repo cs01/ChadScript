@@ -132,8 +132,9 @@ export function compile(opts: CompileOptions): void {
     }
     const llvmFlags = opts.llvm ? ` -L${LLVM_LIB} -lLLVM-22` : "";
     const swcFlags = opts.swc ? ` -L${SWC_BRIDGE_DIR} -lswc_bridge -Wl,-rpath,${SWC_BRIDGE_DIR}` : "";
+    const stackFlags = process.platform === "darwin" ? " -Wl,-stack_size,0x10000000" : " -Wl,-z,stacksize=268435456";
     execSync(
-      `clang -g -O2 -o ${opts.output} ${tmpObj} ${allObjs.join(" ")} -L${libuv.lib} -luv -L${rureDir} -lrure${llvmFlags}${swcFlags}`,
+      `clang -g -O2 -o ${opts.output} ${tmpObj} ${allObjs.join(" ")} -L${libuv.lib} -luv -L${rureDir} -lrure${llvmFlags}${swcFlags}${stackFlags}`,
       { stdio: "inherit" },
     );
     if (process.platform === "darwin") {
