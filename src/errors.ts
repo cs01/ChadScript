@@ -45,5 +45,5 @@ export class CompileError extends Error {
 }
 
 export function compileError(message: string, span?: Span): never {
-  throw new CompileError(message, span, currentFile, currentSource);
+  throw new CompileError(message, span, currentFile, currentSource).format();
 }

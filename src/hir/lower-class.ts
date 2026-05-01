@@ -107,11 +107,17 @@ export function registerClass(decl: any): void {
     }
     if (member.type === "ClassMethod" && member.key?.type === "Identifier") {
       const fn = member.function;
-      const params: HIRParam[] = fn.params.map((p: any, i: number) => ({
-        id: i + 1,
-        name: p.pat?.value || `p${i}`,
-        type: resolveTypeAnnotation(p.pat?.typeAnnotation),
-      }));
+      const params: HIRParam[] = fn.params.map((p: any, i: number) => {
+        if (p.pat?.type === "AssignmentPattern") {
+          const left = p.pat.left;
+          const right = p.pat.right;
+          const name: string = left.value || `p${i}`;
+          const type = left.typeAnnotation ? resolveTypeAnnotation(left.typeAnnotation) : BOXED;
+          const defVal = lowerExpr(right);
+          return { id: i + 1, name, type, defaultValue: defVal };
+        }
+        return { id: i + 1, name: p.pat?.value || `p${i}`, type: resolveTypeAnnotation(p.pat?.typeAnnotation) };
+      });
       const returnType = fn.returnType ? resolveTypeAnnotation(fn.returnType) : VOID;
       if (member.isStatic) {
         functionRegistry.set(`${name}_${member.key.value}`, { params, returnType });
@@ -330,7 +336,16 @@ function lowerMethod(
   const params: HIRParam[] = [{ id: thisId, name: "this", type: thisType }];
   const fn = method.function;
   for (const p of fn.params) {
-    if (p.pat?.type === "Identifier") {
+    if (p.pat?.type === "AssignmentPattern") {
+      const left = (p.pat as any).left;
+      const right = (p.pat as any).right;
+      const name = left.type === "Identifier" ? left.value : `p${params.length}`;
+      const type = left.typeAnnotation ? resolveTypeAnnotation(left.typeAnnotation) : BOXED;
+      const id = freshId();
+      const defVal = lowerExpr(right);
+      params.push({ id, name, type, defaultValue: defVal });
+      locals.set(name, { id, type, mutable: true });
+    } else if (p.pat?.type === "Identifier") {
       const id = freshId();
       const type = resolveTypeAnnotation(p.pat.typeAnnotation);
       params.push({ id, name: p.pat.value, type });
@@ -370,7 +385,16 @@ function lowerStaticMethod(className: string, method: any): HIRFunction {
   const params: HIRParam[] = [];
   const fn = method.function;
   for (const p of fn.params) {
-    if (p.pat?.type === "Identifier") {
+    if (p.pat?.type === "AssignmentPattern") {
+      const left = (p.pat as any).left;
+      const right = (p.pat as any).right;
+      const name = left.type === "Identifier" ? left.value : `p${params.length}`;
+      const type = left.typeAnnotation ? resolveTypeAnnotation(left.typeAnnotation) : BOXED;
+      const id = freshId();
+      const defVal = lowerExpr(right);
+      params.push({ id, name, type, defaultValue: defVal });
+      locals.set(name, { id, type, mutable: true });
+    } else if (p.pat?.type === "Identifier") {
       const id = freshId();
       const type = resolveTypeAnnotation(p.pat.typeAnnotation);
       params.push({ id, name: p.pat.value, type });

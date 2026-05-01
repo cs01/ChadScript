@@ -215,6 +215,15 @@ export function resolveTypeAnnotation(ann: any): HIRType {
     return { kind: "array", element: elem };
   }
 
+  if (ta.type === "TsTupleType") {
+    const elems: HIRType[] = (ta.elemTypes || []).map((e: any) =>
+      resolveTypeAnnotation(e.ty || e),
+    );
+    const first = elems[0] ?? BOXED;
+    const allSame = elems.every((e) => e.kind === first.kind);
+    return { kind: "array", element: allSame ? first : BOXED };
+  }
+
   if (ta.type === "TsTypeReference" && ta.typeName?.type === "Identifier") {
     const name = ta.typeName.value;
 
@@ -465,7 +474,7 @@ export function withLine<T extends import("./types.js").HIRStmt>(
 
 export function arrayPrefix(elemType: HIRType): string {
   if (elemType.kind === "i8ptr") return "cs2_str_array";
-  if (elemType.kind === "ptr" || elemType.kind === "dynobj" || elemType.kind === "dynarray" || elemType.kind === "map" || elemType.kind === "boxed") return "cs2_obj_array";
+  if (elemType.kind === "ptr" || elemType.kind === "dynobj" || elemType.kind === "dynarray" || elemType.kind === "map" || elemType.kind === "boxed" || elemType.kind === "array") return "cs2_obj_array";
   return "cs2_num_array";
 }
 

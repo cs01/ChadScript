@@ -194,7 +194,7 @@ export function emitExpr(ctx: EmitContext, expr: HIRExpr): any {
 
 function emitArrayPrefix(elemType: HIRType): string {
   if (elemType.kind === "i8ptr") return "cs2_str_array";
-  if (elemType.kind === "ptr" || elemType.kind === "dynobj" || elemType.kind === "dynarray" || elemType.kind === "map" || elemType.kind === "boxed") return "cs2_obj_array";
+  if (elemType.kind === "ptr" || elemType.kind === "dynobj" || elemType.kind === "dynarray" || elemType.kind === "map" || elemType.kind === "boxed" || elemType.kind === "array") return "cs2_obj_array";
   return "cs2_num_array";
 }
 

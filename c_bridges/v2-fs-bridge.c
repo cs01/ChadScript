@@ -79,3 +79,15 @@ int cs2_fs_stat_is_directory(const char *path) {
   if (stat(path, &st) != 0) return 0;
   return S_ISDIR(st.st_mode) ? 1 : 0;
 }
+
+void cs2_fs_copy_file_sync(const char *src, const char *dst) {
+  FILE *in = fopen(src, "rb");
+  if (!in) return;
+  FILE *out = fopen(dst, "wb");
+  if (!out) { fclose(in); return; }
+  char buf[65536];
+  size_t n;
+  while ((n = fread(buf, 1, sizeof(buf), in)) > 0) fwrite(buf, 1, n, out);
+  fclose(in);
+  fclose(out);
+}

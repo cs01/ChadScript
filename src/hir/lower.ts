@@ -632,6 +632,8 @@ export function lowerModuleItem(item: ModuleItem): HIRStmt[] {
     case "TryStatement":
       return [withLine(lowerTry(item as any), item)];
     case "FunctionDeclaration": {
+      registerFunction(item as FunctionDeclaration);
+      fnAliases.set((item as FunctionDeclaration).identifier.value, (item as FunctionDeclaration).identifier.value);
       const fn = lowerNestedFunctionDecl(item as FunctionDeclaration);
       pendingFunctions.push(fn);
       fnAliases.set(fn.name, fn.name);
@@ -1091,7 +1093,11 @@ function lowerTry(stmt: any): HIRStmt {
 }
 
 function lowerForOf(stmt: any): HIRStmt[] {
-  const iteree = lowerExpr(stmt.right);
+  let iteree = lowerExpr(stmt.right);
+
+  if (iteree.type.kind === "boxed") {
+    iteree = coerce(iteree, DYNARRAY);
+  }
 
   if (iteree.type.kind === "map") {
     return lowerForOfMap(stmt, iteree);
@@ -1182,6 +1188,25 @@ function lowerForOf(stmt: any): HIRStmt[] {
         ? { kind: "runtime_call", func, args: [elemGetExpr, { kind: "literal_string", value: fieldName, type: I8PTR }], returnType: retType, type: retType }
         : { kind: "runtime_call", func, args: [elemGetExpr, { kind: "literal_string", value: fieldName, type: I8PTR }], returnType: retType, type: retType };
       bodyStmts.push({ kind: "let", id: propId, name: localName, type: propType, init: dynInit, mutable: false });
+    }
+  } else if (declId.type === "ArrayPattern") {
+    locals.set("__forof_elem", { id: elemId, type: elemType, mutable: false });
+    bodyStmts.push({ kind: "let", id: elemId, name: "__forof_elem", type: elemType, init: indexGet, mutable: false });
+    const elemGetExpr: HIRExpr = { kind: "local_get", id: elemId, type: elemType };
+    const innerElemType = elemType.kind === "array" ? (elemType as { kind: "array"; element: HIRType }).element : BOXED;
+    for (let pi = 0; pi < declId.elements.length; pi++) {
+      const pat = declId.elements[pi];
+      if (!pat) continue;
+      const patName: string = pat.type === "Identifier" ? pat.value : `__pat${pi}`;
+      const patId = freshId();
+      locals.set(patName, { id: patId, type: innerElemType, mutable: false });
+      const patInit: HIRExpr = {
+        kind: "index_get",
+        array: elemGetExpr,
+        index: { kind: "literal_i64", value: pi, type: I64 },
+        type: innerElemType,
+      };
+      bodyStmts.push({ kind: "let", id: patId, name: patName, type: innerElemType, init: patInit, mutable: false });
     }
   } else {
     const varName: string = declId.value;

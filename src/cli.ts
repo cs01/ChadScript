@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import { compile } from "./compiler.js";
-import { CompileError } from "./errors.js";
 import { resolve } from "path";
 
 const argv0 = process.argv[0];
@@ -40,11 +39,8 @@ if (args[0] === "build") {
   try {
     compile({ input, output, emitIR, llvm, swc, substitutions });
   } catch (e) {
-    if (e instanceof CompileError) {
-      console.error(e.format());
-      process.exit(1);
-    }
-    throw e;
+    console.error(e);
+    process.exit(1);
   }
 } else {
   console.error(`unknown command: ${args[0]}`);

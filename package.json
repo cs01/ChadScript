@@ -14,7 +14,7 @@
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "bootstrap": "node --import tsx src/cli.ts build src/cli.ts -o /tmp/chad2-stage1 && /tmp/chad2-stage1 build src/cli.ts --substitute src/parser.ts=src/parser-bridge.ts --substitute src/codegen/llvm.ts=src/codegen/llvm-bridge.ts -o /tmp/chad2-stage2 && strip /tmp/chad2-stage1 && strip /tmp/chad2-stage2 && diff /tmp/chad2-stage1 /tmp/chad2-stage2 && echo 'bootstrap ok: stage1 == stage2'"
+    "bootstrap": "node --import tsx src/cli.ts build src/cli.ts --substitute src/parser.ts=src/parser-bridge.ts --substitute src/codegen/llvm.ts=src/codegen/llvm-bridge.ts --swc --llvm -o /tmp/chad2-stage1 && /tmp/chad2-stage1 build src/cli.ts --substitute src/parser.ts=src/parser-bridge.ts --substitute src/codegen/llvm.ts=src/codegen/llvm-bridge.ts --swc --llvm -o /tmp/chad2-stage2 && strip /tmp/chad2-stage1 && strip /tmp/chad2-stage2 && diff /tmp/chad2-stage1 /tmp/chad2-stage2 && echo 'bootstrap ok: stage1 == stage2'"
   },
   "dependencies": {
     "@swc/core": "^1.15.0",

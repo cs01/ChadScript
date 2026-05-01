@@ -27,6 +27,7 @@ import {
   closureInfoMap,
   currentClassName,
   expectedArrayElementType,
+  setExpectedArrayElementType,
   expectedMapType,
   expectedDeclType,
   setExpectedDeclType,
@@ -250,6 +251,38 @@ export function lowerBinary(expr: BinaryExpression): HIRExpr {
     return { kind: "nullish_coalesce", left, right, type: left.type };
   }
 
+  if (expr.operator === "in") {
+    const key = coerce(lowerExpr(expr.left), I8PTR);
+    const obj = lowerExpr(expr.right);
+    return {
+      kind: "binary",
+      op: "ne" as BinaryOp,
+      left: {
+        kind: "runtime_call",
+        func: "cs2_dynobj_tag",
+        args: [obj, key],
+        returnType: I64,
+        type: I64,
+      },
+      right: { kind: "literal_i64", value: -1, type: I64 },
+      type: I1,
+    };
+  }
+
+  if (expr.operator === "instanceof") {
+    const val = lowerExpr(expr.left);
+    const className =
+      expr.right.type === "Identifier" ? (expr.right as any).value : null;
+    if (
+      className &&
+      val.type.kind === "ptr" &&
+      (val.type as { kind: "ptr"; pointee: string }).pointee === className
+    ) {
+      return { kind: "literal_i1", value: true, type: I1 };
+    }
+    return { kind: "literal_i1", value: false, type: I1 };
+  }
+
   const isEqOp = expr.operator === "===" || expr.operator === "!==" || expr.operator === "==" || expr.operator === "!=";
   const leftIsMember = expr.left.type === "MemberExpression";
   const rightIsMember = expr.right.type === "MemberExpression";
@@ -280,11 +313,17 @@ export function lowerBinary(expr: BinaryExpression): HIRExpr {
   }
 
   if (op === "and" || op === "or") {
-    if (left.type.kind === "boxed") {
+    if (left.type.kind === "boxed" || right.type.kind === "boxed") {
+      if (left.type.kind !== "boxed") left = coerce(left, BOXED);
       if (right.type.kind !== "boxed") right = coerce(right, BOXED);
       return { kind: "binary", op, left, right, type: BOXED };
     }
-    return { kind: "binary", op, left, right, type: I1 };
+    if (left.type.kind === right.type.kind) {
+      return { kind: "binary", op, left, right, type: left.type };
+    }
+    left = coerce(left, BOXED);
+    right = coerce(right, BOXED);
+    return { kind: "binary", op, left, right, type: BOXED };
   }
 
   if (left.type.kind === "boxed" || right.type.kind === "boxed") {
@@ -620,8 +659,10 @@ function lowerArrayLiteral(expr: any): HIRExpr {
     const elemTarget = expectedArrayElementType;
     const elements = rawElements.map((e: any) => {
       if (elemTarget && elemTarget.kind === "ptr") setExpectedDeclType(elemTarget);
+      if (elemTarget && elemTarget.kind === "array") setExpectedArrayElementType((elemTarget as any).element);
       const result = lowerExpr(e.expression);
       if (elemTarget && elemTarget.kind === "ptr") setExpectedDeclType(null);
+      if (elemTarget && elemTarget.kind === "array") setExpectedArrayElementType(elemTarget);
       return result;
     });
     let elementType: HIRType = elemTarget || F64;
@@ -760,10 +801,10 @@ function dynobj_get_typed(obj: HIRExpr, key: HIRExpr, targetType: HIRType | null
   }
   return {
     kind: "runtime_call",
-    func: "cs2_dynobj_get_obj",
+    func: "cs2_dynobj_get_boxed",
     args: [obj, key],
-    returnType: DYNOBJ,
-    type: DYNOBJ,
+    returnType: BOXED,
+    type: BOXED,
   };
 }
 
@@ -872,6 +913,12 @@ function lowerCall(expr: CallExpression): HIRExpr {
         arg = coerce(arg, initInfo.params[i + 1].type);
       }
       args.push(arg);
+    }
+    if (initInfo) {
+      for (let i = args.length; i < initInfo.params.length; i++) {
+        const p = initInfo.params[i];
+        args.push(p.defaultValue ? coerce(p.defaultValue, p.type) : defaultValue(p.type));
+      }
     }
     return { kind: "call", callee: initFnName, args, returnType: VOID, type: VOID };
   }
@@ -1192,9 +1239,13 @@ function lowerCall(expr: CallExpression): HIRExpr {
     const funcName = `${className}_${methodName}`;
     const info = functionRegistry.get(funcName);
     if (info && !info.params.some((p: any) => p.name === "this")) {
-      const args = expr.arguments.map((a: any, i: number) =>
+      const args: HIRExpr[] = expr.arguments.map((a: any, i: number) =>
         coerce(lowerExpr(a.expression), info.params[i].type),
       );
+      for (let i = args.length; i < info.params.length; i++) {
+        const p = info.params[i];
+        args.push(p.defaultValue ? coerce(p.defaultValue, p.type) : defaultValue(p.type));
+      }
       return {
         kind: "call",
         callee: funcName,
@@ -1608,6 +1659,8 @@ function lowerCall(expr: CallExpression): HIRExpr {
       const p = fnInfo.params[i];
       if (p.defaultValue) {
         args.push(coerce(p.defaultValue, p.type));
+      } else {
+        args.push(defaultValue(p.type));
       }
     }
     return {
@@ -1766,13 +1819,19 @@ function lowerNewExpr(expr: any): HIRExpr {
   }
 
   const ctorInfo = functionRegistry.get(`${className}_constructor`);
-  const args = (expr.arguments || []).map((a: any, i: number) => {
+  const args: HIRExpr[] = (expr.arguments || []).map((a: any, i: number) => {
     let arg = lowerExpr(a.expression);
     if (ctorInfo && ctorInfo.params[i]) {
       arg = coerce(arg, ctorInfo.params[i].type);
     }
     return arg;
   });
+  if (ctorInfo) {
+    for (let i = args.length; i < ctorInfo.params.length; i++) {
+      const p = ctorInfo.params[i];
+      args.push(p.defaultValue ? coerce(p.defaultValue, p.type) : defaultValue(p.type));
+    }
+  }
 
   const resultType: HIRType = { kind: "ptr", pointee: className };
   return {
@@ -1899,6 +1958,14 @@ function lowerFsCall(expr: CallExpression): HIRExpr {
         returnType: VOID,
         type: VOID,
       };
+    case "copyFileSync":
+      return {
+        kind: "runtime_call",
+        func: "cs2_fs_copy_file_sync",
+        args: [lowerExpr(expr.arguments[0].expression), lowerExpr(expr.arguments[1].expression)],
+        returnType: VOID,
+        type: VOID,
+      };
     case "existsSync":
       return {
         kind: "runtime_call",
@@ -1976,25 +2043,25 @@ function matchCryptoChain(expr: CallExpression): HIRExpr | null {
       midMember.object.type === "CallExpression"
     ) {
       const innerCall = midMember.object as CallExpression;
-      if (innerCall.callee.type === "MemberExpression") {
-        const innerMember = innerCall.callee as MemberExpression;
-        if (
-          innerMember.object.type === "Identifier" &&
-          (innerMember.object as Identifier).value === "crypto" &&
-          innerMember.property.type === "Identifier" &&
-          (innerMember.property as Identifier).value === "createHash"
-        ) {
-          const algoArg = lowerExpr(innerCall.arguments[0].expression);
-          const dataArg = lowerExpr(midCall.arguments[0].expression);
-          const encodingArg = lowerExpr(expr.arguments[0].expression);
-          return {
-            kind: "runtime_call",
-            func: "cs2_crypto_hash",
-            args: [algoArg, dataArg, encodingArg],
-            returnType: I8PTR,
-            type: I8PTR,
-          };
-        }
+      const isCreateHash =
+        (innerCall.callee.type === "MemberExpression" &&
+          (innerCall.callee as MemberExpression).object.type === "Identifier" &&
+          ((innerCall.callee as MemberExpression).object as Identifier).value === "crypto" &&
+          (innerCall.callee as MemberExpression).property.type === "Identifier" &&
+          ((innerCall.callee as MemberExpression).property as Identifier).value === "createHash") ||
+        (innerCall.callee.type === "Identifier" &&
+          (innerCall.callee as Identifier).value === "createHash");
+      if (isCreateHash) {
+        const algoArg = lowerExpr(innerCall.arguments[0].expression);
+        const dataArg = lowerExpr(midCall.arguments[0].expression);
+        const encodingArg = lowerExpr(expr.arguments[0].expression);
+        return {
+          kind: "runtime_call",
+          func: "cs2_crypto_hash",
+          args: [algoArg, dataArg, encodingArg],
+          returnType: I8PTR,
+          type: I8PTR,
+        };
       }
     }
   }
@@ -2950,6 +3017,10 @@ export function lowerClassMethodCall(expr: CallExpression, obj: HIRExpr): HIRExp
     }
     args.push(arg);
   }
+  for (let i = args.length; i < resolved.fnInfo.params.length; i++) {
+    const p = resolved.fnInfo.params[i];
+    args.push(p.defaultValue ? coerce(p.defaultValue, p.type) : defaultValue(p.type));
+  }
 
   return {
     kind: "call",
@@ -3040,6 +3111,10 @@ function lowerGenericFunctionCall(expr: CallExpression): HIRExpr {
     }
     return arg;
   });
+  for (let i = args.length; i < fnInfo.params.length; i++) {
+    const p = fnInfo.params[i];
+    args.push(p.defaultValue ? coerce(p.defaultValue, p.type) : defaultValue(p.type));
+  }
 
   return {
     kind: "call",
@@ -3066,13 +3141,17 @@ function lowerGenericNewExpr(expr: any): HIRExpr {
     compileError(`failed to specialize generic class '${baseName}'`, expr.span);
   }
 
-  const args = (expr.arguments || []).map((a: any, i: number) => {
+  const args: HIRExpr[] = (expr.arguments || []).map((a: any, i: number) => {
     let arg = lowerExpr(a.expression);
     if (ctorInfo.params[i]) {
       arg = coerce(arg, ctorInfo.params[i].type);
     }
     return arg;
   });
+  for (let i = args.length; i < ctorInfo.params.length; i++) {
+    const p = ctorInfo.params[i];
+    args.push(p.defaultValue ? coerce(p.defaultValue, p.type) : defaultValue(p.type));
+  }
 
   const resultType: HIRType = { kind: "ptr", pointee: mangledName };
   return {
