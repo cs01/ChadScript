@@ -238,9 +238,12 @@ export function lowerNestedFunctionDecl(decl: FunctionDeclaration): HIRFunction 
     returnType = { kind: "promise", inner: returnType };
   }
 
+  const savedRetType = currentReturnType;
+  setCurrentReturnType(returnType);
   setIsModuleScope(false);
   const body = decl.body ? lowerBlock(decl.body) : [];
   setIsModuleScope(true);
+  setCurrentReturnType(savedRetType);
 
   if (returnType.kind === "void") {
     for (const s of body) {
