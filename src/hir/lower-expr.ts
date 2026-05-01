@@ -842,7 +842,8 @@ function lowerObjectLiteral(expr: any): HIRExpr {
   }
 
   if (expectedDeclType && expectedDeclType.kind === "ptr") {
-    const structName = (expectedDeclType as { kind: "ptr"; pointee: string }).pointee;
+    const capturedDeclType = expectedDeclType;
+    const structName = (capturedDeclType as { kind: "ptr"; pointee: string }).pointee;
     const layout = classRegistry.get(structName) || interfaceRegistry.get(structName);
     if (layout) {
       const propMap = new Map<string, any>();
@@ -866,7 +867,7 @@ function lowerObjectLiteral(expr: any): HIRExpr {
         kind: "alloc_struct",
         structName,
         fields,
-        type: expectedDeclType,
+        type: capturedDeclType,
       };
     }
   }
@@ -2790,9 +2791,10 @@ function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
   const prefix = arrayPrefix(arrType.element);
   const args = expr.arguments.map((a) => {
     if (method === "push" && arrType.element.kind === "ptr") {
+      const prev = expectedDeclType;
       setExpectedDeclType(arrType.element);
       const r = lowerExpr(a.expression);
-      setExpectedDeclType(null);
+      setExpectedDeclType(prev);
       return r;
     }
     return lowerExpr(a.expression);
