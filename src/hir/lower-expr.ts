@@ -1380,7 +1380,7 @@ function lowerCall(expr: CallExpression): HIRExpr {
         const mn = (methodName as Identifier).value;
         const isArrayMethod = mn === "filter" || mn === "map" || mn === "flatMap" || mn === "forEach" || mn === "find" || mn === "findIndex" || mn === "every" || mn === "some" || mn === "push" || mn === "length";
         if (isArrayMethod) {
-          const asArr: HIRExpr = { ...obj, type: DYNARRAY };
+          const asArr: HIRExpr = obj.type.kind === "boxed" ? coerce(obj, DYNARRAY) : { ...obj, type: DYNARRAY };
           return lowerDynarrayMethodCall(expr, asArr);
         }
         const isStringMethod = mn === "charAt" || mn === "indexOf" || mn === "includes" || mn === "startsWith" || mn === "endsWith" || mn === "slice" || mn === "substring" || mn === "toUpperCase" || mn === "toLowerCase" || mn === "trim" || mn === "repeat" || mn === "replace" || mn === "charCodeAt" || mn === "split" || mn === "padStart" || mn === "padEnd" || mn === "trimStart" || mn === "trimEnd" || mn === "lastIndexOf" || mn === "at" || mn === "replaceAll";
@@ -2887,6 +2887,9 @@ function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
     };
     const funcs = hofMethods[prefix];
     if (!funcs || !funcs[method]) compileError(`unsupported array method: ${method}`, expr.span);
+    const elemType: HIRType = obj.type.kind === "array"
+      ? (obj.type as { kind: "array"; element: HIRType }).element
+      : (prefix === "cs2_num_array" ? F64 : prefix === "cs2_str_array" ? I8PTR : BOXED);
     let returnType: HIRType;
     switch (method) {
       case "map":
@@ -2897,7 +2900,7 @@ function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
         returnType = VOID;
         break;
       case "find":
-        returnType = prefix === "cs2_num_array" ? F64 : I8PTR;
+        returnType = elemType;
         break;
       case "findIndex":
         returnType = F64;
@@ -2907,7 +2910,7 @@ function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
         returnType = { kind: "i1" };
         break;
       case "reduce":
-        returnType = prefix === "cs2_num_array" ? F64 : I8PTR;
+        returnType = elemType;
         break;
       default:
         throw new Error(`unexpected hof method: ${method}`);
@@ -3400,6 +3403,16 @@ export function lowerMember(expr: MemberExpression): HIRExpr {
         type: DYNOBJ,
       };
     }
+    if (obj.type.kind === "boxed" && (index.type.kind === "i64" || index.type.kind === "f64")) {
+      const arr = coerce(obj, DYNARRAY);
+      return {
+        kind: "runtime_call",
+        func: "cs2_dynarray_get_obj",
+        args: [arr, coerce(index, I64)],
+        returnType: DYNOBJ,
+        type: DYNOBJ,
+      };
+    }
     if (obj.type.kind === "dynobj" || obj.type.kind === "boxed") {
       const dynObj = obj.type.kind === "boxed" ? coerce(obj, DYNOBJ) : obj;
       return dynobj_get(dynObj, index);
@@ -3428,6 +3441,10 @@ export function lowerMember(expr: MemberExpression): HIRExpr {
       }
       if (obj.type.kind === "dynarray") {
         return { kind: "runtime_call", func: "cs2_dynarray_length", args: [obj], returnType: I64, type: I64 };
+      }
+      if (obj.type.kind === "boxed" || obj.type.kind === "dynobj") {
+        const arr = coerce(obj, DYNARRAY);
+        return { kind: "runtime_call", func: "cs2_dynarray_length", args: [arr], returnType: I64, type: I64 };
       }
       if (
         obj.type.kind === "ptr" &&
