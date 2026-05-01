@@ -44,11 +44,15 @@ DynObj *cs2_dynobj_new(void) {
     return o;
 }
 
+static int looks_like_nanbox_inline(void *p) {
+    unsigned long v = (unsigned long)p;
+    return (v & 0xFFF0000000000000UL) == 0x7FF0000000000000UL ||
+           (v & 0xFFF0000000000000UL) == 0x3FF0000000000000UL;
+}
+
 static int32_t find_key(DynObj *o, const char *key) {
-    if ((unsigned long)o > 0x7FF0000000000000UL) {
-        return -1;
-    }
-    if (!o || o->length < 0 || o->length > 1000) return -1;
+    if (!o || looks_like_nanbox_inline(o)) return -1;
+    if (o->length < 0 || o->length > 1000) return -1;
     for (int32_t i = 0; i < o->length; i++) {
         if (!o->keys[i]) return -1;
         if (strcmp(o->keys[i], key) == 0) return i;
@@ -220,8 +224,14 @@ double cs2_dynobj_get_f64(DynObj *o, const char *key) {
     return 0.0 / 0.0;
 }
 
+static int looks_like_nanbox(void *p) {
+    unsigned long v = (unsigned long)p;
+    return (v & 0xFFF0000000000000UL) == 0x7FF0000000000000UL ||
+           (v & 0xFFF0000000000000UL) == 0x3FF0000000000000UL;
+}
+
 char *cs2_dynobj_get_str(DynObj *o, const char *key) {
-    if (!o) return (char *)"";
+    if (!o || looks_like_nanbox(o)) return (char *)"";
     int32_t idx = find_key(o, key);
     if (idx >= 0 && o->values[idx].tag == TAG_STRING) return o->values[idx].str_val;
     return (char *)"";
