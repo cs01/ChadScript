@@ -6,8 +6,10 @@ export let lineOffsets: number[] = [];
 
 export function buildLineOffsets(source: string): number[] {
   const offsets = [0];
-  for (let i = 0; i < source.length; i++) {
-    if (source[i] === "\n") offsets.push(i + 1);
+  const len = source.length;
+  for (let i = 0; i < len; i++) {
+    const ch = source[i];
+    if (ch === "\n") offsets.push(i + 1);
   }
   return offsets;
 }
@@ -77,6 +79,7 @@ export const genericFunctionTemplates = new Map<string, { decl: any; typeParams:
 export const genericClassTemplates = new Map<string, { decl: any; typeParams: string[] }>();
 export const genericSpecializations = new Map<string, boolean>();
 export let typeParamContext: Map<string, HIRType> | null = null;
+export let pendingGenericClasses: { hirClass: import("./types.js").HIRClass; fns: import("./types.js").HIRFunction[] }[] = [];
 
 export function setTypeParamContext(ctx: Map<string, HIRType> | null): void {
   typeParamContext = ctx;
@@ -462,7 +465,7 @@ export function withLine<T extends import("./types.js").HIRStmt>(
 
 export function arrayPrefix(elemType: HIRType): string {
   if (elemType.kind === "i8ptr") return "cs2_str_array";
-  if (elemType.kind === "ptr" || elemType.kind === "dynobj" || elemType.kind === "dynarray" || elemType.kind === "map") return "cs2_obj_array";
+  if (elemType.kind === "ptr" || elemType.kind === "dynobj" || elemType.kind === "dynarray" || elemType.kind === "map" || elemType.kind === "boxed") return "cs2_obj_array";
   return "cs2_num_array";
 }
 
@@ -524,7 +527,13 @@ export function mapBinaryOp(op: string): BinaryOp {
   }
 }
 
-export const BITWISE_OPS: BinaryOp[] = ["bit_and", "bit_or", "bit_xor", "shl", "shr", "ushr"];
+export const BITWISE_OPS = new Set<string>();
+BITWISE_OPS.add("bit_and");
+BITWISE_OPS.add("bit_or");
+BITWISE_OPS.add("bit_xor");
+BITWISE_OPS.add("shl");
+BITWISE_OPS.add("shr");
+BITWISE_OPS.add("ushr");
 
 export const compoundOpMap: Record<string, BinaryOp> = {
   "+=": "add",

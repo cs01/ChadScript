@@ -377,8 +377,7 @@ void cs2_str_ptr_map_set(StrPtrMap *m, const char *key, void *val) {
 
 void *cs2_str_ptr_map_get(StrPtrMap *m, const char *key) {
     int32_t idx = find_str_key(m->keys, m->length, key);
-    if (idx >= 0) return m->values[idx];
-    return NULL;
+    return (idx >= 0) ? m->values[idx] : NULL;
 }
 
 int32_t cs2_str_ptr_map_has(StrPtrMap *m, const char *key) {

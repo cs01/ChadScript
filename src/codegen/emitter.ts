@@ -3,6 +3,7 @@ import { LLVMModule, LLVMIntEQ, LLVMIntNE, LLVMRealOEQ, LLVMPrivateLinkage } fro
 import {
   EmitContext,
   CaptureMap,
+  CaptureEnvEntry,
   llvmType,
   coerceLLVM,
   defaultInit,
@@ -15,7 +16,7 @@ import {
 } from "./emit-context.js";
 import { emitExpr, ensureI1 } from "./emit-expr.js";
 
-export type { CaptureMap } from "./emit-context.js";
+export type { CaptureMap, CaptureEnvEntry } from "./emit-context.js";
 
 export interface EmitResult {
   objectFile: string;
@@ -23,9 +24,6 @@ export interface EmitResult {
 }
 
 function buildCaptureMap(mod: HIRModule): CaptureMap {
-  const fnByName = new Map<string, HIRFunction>();
-  for (const fn of mod.functions) fnByName.set(fn.name, fn);
-
   const result: CaptureMap = new Map();
 
   for (const fn of mod.functions) {
@@ -38,15 +36,11 @@ function buildCaptureMap(mod: HIRModule): CaptureMap {
 
       const overlap = fn.captures.filter((cid) => outerIds.has(cid));
       if (overlap.length > 0) {
-        const existing = result.get(outerFn.name) || {
-          capturedIds: new Set<number>(),
-          envTypes: [],
-        };
+        const existing: CaptureEnvEntry[] = result.get(outerFn.name) || [];
         for (const cid of overlap) {
-          if (!existing.capturedIds.has(cid)) {
-            existing.capturedIds.add(cid);
+          if (!existing.find((e) => e.id === cid)) {
             const type = findLocalType(outerFn, cid);
-            existing.envTypes.push({ id: cid, type });
+            existing.push({ id: cid, type });
           }
         }
         result.set(outerFn.name, existing);
@@ -655,6 +649,7 @@ function declareExterns(ctx: EmitContext): void {
     ["cs2_dynobj_set_null", m.voidTy, [m.ptr, m.ptr]],
     ["cs2_dynobj_set_obj", m.voidTy, [m.ptr, m.ptr, m.ptr]],
     ["cs2_dynobj_set_arr", m.voidTy, [m.ptr, m.ptr, m.ptr]],
+    ["cs2_dynobj_set_boxed", m.voidTy, [m.ptr, m.ptr, m.i64]],
     ["cs2_dynobj_get_f64", m.f64, [m.ptr, m.ptr]],
     ["cs2_dynobj_get_str", m.ptr, [m.ptr, m.ptr]],
     ["cs2_dynobj_get_bool", m.i32, [m.ptr, m.ptr]],
@@ -748,18 +743,18 @@ function emitFunction(
     }
   } else {
     if (captureInfo) {
-      const fieldTypes = captureInfo.envTypes.map((e) => llvmType(ctx, e.type));
+      const fieldTypes = captureInfo.map((e) => llvmType(ctx, e.type));
       const envStructTy = m.structCreateNamed(`env_${fn.name}`);
       m.structSetBody(envStructTy, fieldTypes);
-      const envSize = m.constInt(m.i64, captureInfo.envTypes.length * 8);
+      const envSize = m.constInt(m.i64, captureInfo.length * 8);
       const mallocDecl = ctx.getDeclaredFunction("malloc")!;
       const rawEnv = m.buildCall(mallocDecl.fnType, mallocDecl.fn, [envSize], "env_raw");
       const envAlloca = m.buildAlloca(m.ptr, "env_ptr");
       m.buildStore(rawEnv, envAlloca);
       ctx.setEnvAlloc(envAlloca);
 
-      for (let i = 0; i < captureInfo.envTypes.length; i++) {
-        const e = captureInfo.envTypes[i];
+      for (let i = 0; i < captureInfo.length; i++) {
+        const e = captureInfo[i];
         ctx.setCapturedLocal(e.id, envAlloca, i, e.type);
       }
     }

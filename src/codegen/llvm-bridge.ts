@@ -249,7 +249,7 @@ export class LLVMModule {
     return term !== "";
   }
 
-  constInt(type: string, val: number, signExtend: boolean): string {
+  constInt(type: string, val: number, signExtend = false): string {
     const hi32 = Math.floor(val / 0x100000000);
     const lo32 = val >>> 0;
     return chad2_LLVMConstInt(type, hi32, lo32, signExtend ? 1 : 0);

@@ -1,7 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-
 #define DYNOBJ_INITIAL_CAP 8
 
 #define TAG_F64    0
@@ -157,6 +156,58 @@ void cs2_dynobj_set_arr(DynObj *o, const char *key, DynArray *val) {
     o->length++;
 }
 
+extern int nanbox_is_string(uint64_t v);
+extern int nanbox_is_ptr(uint64_t v);
+extern int nanbox_is_bool(uint64_t v);
+extern int nanbox_is_null(uint64_t v);
+extern int nanbox_is_number(uint64_t v);
+extern const char *nanbox_to_string(uint64_t v);
+extern void *nanbox_to_ptr(uint64_t v);
+extern double nanbox_to_f64(uint64_t v);
+
+static void dynobj_ensure_capacity(DynObj *o) {
+    if (o->length >= o->capacity) {
+        o->capacity *= 2;
+        o->keys = (char **)realloc(o->keys, sizeof(char *) * o->capacity);
+        o->values = (DynValue *)realloc(o->values, sizeof(DynValue) * o->capacity);
+    }
+}
+
+static void dynobj_set_value(DynObj *o, const char *key, int32_t tag, DynValue val) {
+    int32_t idx = find_key(o, key);
+    if (idx >= 0) {
+        o->values[idx] = val;
+        o->values[idx].tag = tag;
+        return;
+    }
+    dynobj_ensure_capacity(o);
+    o->keys[o->length] = (char *)key;
+    o->values[o->length] = val;
+    o->values[o->length].tag = tag;
+    o->length++;
+}
+
+void cs2_dynobj_set_boxed(DynObj *o, const char *key, uint64_t val) {
+    DynValue dv;
+    if (nanbox_is_string(val)) {
+        dv.tag = TAG_STRING;
+        dv.str_val = (char *)nanbox_to_string(val);
+    } else if (nanbox_is_ptr(val)) {
+        dv.tag = TAG_OBJECT;
+        dv.obj_val = nanbox_to_ptr(val);
+    } else if (nanbox_is_bool(val)) {
+        dv.tag = TAG_BOOL;
+        dv.bool_val = (val == 0x7FFC000000000004ULL) ? 1 : 0;
+    } else if (nanbox_is_null(val)) {
+        dv.tag = TAG_NULL;
+        dv.f64_val = 0;
+    } else {
+        dv.tag = TAG_F64;
+        dv.f64_val = nanbox_to_f64(val);
+    }
+    dynobj_set_value(o, key, dv.tag, dv);
+}
+
 double cs2_dynobj_get_f64(DynObj *o, const char *key) {
     int32_t idx = find_key(o, key);
     if (idx >= 0 && o->values[idx].tag == TAG_F64) return o->values[idx].f64_val;
@@ -164,9 +215,10 @@ double cs2_dynobj_get_f64(DynObj *o, const char *key) {
 }
 
 char *cs2_dynobj_get_str(DynObj *o, const char *key) {
+    if (!o) return (char *)"";
     int32_t idx = find_key(o, key);
     if (idx >= 0 && o->values[idx].tag == TAG_STRING) return o->values[idx].str_val;
-    return NULL;
+    return (char *)"";
 }
 
 int32_t cs2_dynobj_get_bool(DynObj *o, const char *key) {
@@ -176,14 +228,23 @@ int32_t cs2_dynobj_get_bool(DynObj *o, const char *key) {
 }
 
 DynObj *cs2_dynobj_get_obj(DynObj *o, const char *key) {
+    if (!o) return NULL;
     int32_t idx = find_key(o, key);
-    if (idx >= 0 && o->values[idx].tag == TAG_OBJECT) return (DynObj *)o->values[idx].obj_val;
-    return NULL;
+    if (idx < 0) return NULL;
+    switch (o->values[idx].tag) {
+        case TAG_OBJECT: return (DynObj *)o->values[idx].obj_val;
+        case TAG_ARRAY:  return (DynObj *)o->values[idx].arr_val;
+        case TAG_STRING: return (DynObj *)o->values[idx].str_val;
+        default:         return NULL;
+    }
 }
 
 DynArray *cs2_dynobj_get_arr(DynObj *o, const char *key) {
+    if (!o) return NULL;
     int32_t idx = find_key(o, key);
-    if (idx >= 0 && o->values[idx].tag == TAG_ARRAY) return (DynArray *)o->values[idx].arr_val;
+    if (idx < 0) return NULL;
+    if (o->values[idx].tag == TAG_ARRAY) return (DynArray *)o->values[idx].arr_val;
+    if (o->values[idx].tag == TAG_OBJECT) return (DynArray *)o->values[idx].obj_val;
     return NULL;
 }
 
@@ -193,6 +254,7 @@ extern uint64_t nanbox_from_bool(int32_t val);
 extern uint64_t nanbox_from_ptr(void *p);
 
 uint64_t cs2_dynobj_get_boxed(DynObj *o, const char *key) {
+    if (!o) return 0;
     int32_t idx = find_key(o, key);
     if (idx < 0) return 0;
     switch (o->values[idx].tag) {
@@ -286,6 +348,7 @@ void cs2_dynarray_push_bool(DynArray *a, int32_t val) {
 }
 
 int32_t cs2_dynarray_length(DynArray *a) {
+    if (!a) return 0;
     return a->length;
 }
 
@@ -303,6 +366,8 @@ char *cs2_dynarray_get_str(DynArray *a, int32_t i) {
 }
 
 DynObj *cs2_dynarray_get_obj(DynArray *a, int32_t i) {
+    if (!a || i < 0 || i >= a->length) return NULL;
+    if (a->data[i].tag != TAG_OBJECT) return NULL;
     return (DynObj *)a->data[i].obj_val;
 }
 

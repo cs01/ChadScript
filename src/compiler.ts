@@ -14,9 +14,18 @@ export interface CompileOptions {
   emitIR?: boolean;
   llvm?: boolean;
   swc?: boolean;
+  substitutions?: Map<string, string>;
 }
 
-const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
+function findRoot(): string {
+  const argv0 = process.argv[0];
+  if (argv0 && !argv0.endsWith("node") && !argv0.includes("tsx")) {
+    return dirname(argv0);
+  }
+  return join(dirname(new URL(import.meta.url).pathname), "..");
+}
+
+const ROOT = findRoot();
 const BRIDGE_SRCS = [
   join(ROOT, "c_bridges", "v2-string-bridge.c"),
   join(ROOT, "c_bridges", "v2-array-bridge.c"),
@@ -95,7 +104,7 @@ function cachedCompile(src: string, outObj: string, flags: string): void {
 }
 
 export function compile(opts: CompileOptions): void {
-  const hir = resolveModules(opts.input);
+  const hir = resolveModules(opts.input, opts.substitutions);
   constFoldPass(hir);
   deadCodePass(hir);
 

@@ -16,6 +16,9 @@
 #define MASK_QUIET    0x7FFC000000000000ULL
 #define MASK_PAYLOAD  0x0000FFFFFFFFFFFFULL
 
+typedef struct { void *keys; void *values; int32_t length; int32_t capacity; } DynObj;
+typedef struct { void *data; int32_t length; int32_t capacity; } DynArray;
+extern uint64_t nanbox_from_ptr(void *p);
 extern uint64_t nanbox_from_f64(double val);
 extern uint64_t nanbox_from_string(const char *s);
 extern uint64_t nanbox_from_bool(int val);
@@ -141,6 +144,9 @@ char *cs2_json_stringify_str_array(void *arr) {
     return result;
 }
 
+extern DynObj *cs2_json_parse_obj(const char *str);
+extern DynArray *cs2_json_parse_arr(const char *str);
+
 int64_t cs2_json_parse(const char *str) {
     if (!str) return (int64_t)TAG_NULL;
     yyjson_doc *doc = yyjson_read(str, strlen(str), 0);
@@ -162,6 +168,12 @@ int64_t cs2_json_parse(const char *str) {
         result = (int64_t)nanbox_from_bool(0);
     } else if (yyjson_is_null(root)) {
         result = (int64_t)TAG_NULL;
+    } else if (yyjson_is_obj(root)) {
+        yyjson_doc_free(doc);
+        return (int64_t)nanbox_from_ptr(cs2_json_parse_obj(str));
+    } else if (yyjson_is_arr(root)) {
+        yyjson_doc_free(doc);
+        return (int64_t)nanbox_from_ptr(cs2_json_parse_arr(str));
     } else {
         result = (int64_t)TAG_NULL;
     }

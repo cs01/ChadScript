@@ -3,31 +3,41 @@ import { LLVMModule } from "./llvm.js";
 
 export class EmitContext {
   readonly m: LLVMModule;
-  private localAllocs = new Map<number, any>();
-  private localNames = new Map<number, string>();
-  private globalValues = new Map<string, { alloc: any; type: HIRType }>();
-  private loopStack: { condBlock: any; exitBlock: any }[] = [];
-  private declaredFunctions = new Map<string, { fn: any; fnType: any }>();
-  private mathIntrinsics = new Map<string, { fn: any; fnType: any }>();
-  private structTypes = new Map<
-    string,
-    { llvmType: any; fields: { name: string; type: HIRType }[] }
-  >();
-  private interfaceTypes = new Map<
-    string,
-    { fatType: any; iface: import("../hir/types.js").HIRInterface; layoutType: any }
-  >();
-  private vtables = new Map<string, any>();
-  private closureType: any = null;
-  private capturedLocals = new Map<number, { envAlloc: any; index: number; type: HIRType }>();
-  private envAlloc: any = null;
-  private asyncPromiseAlloc: any = null;
-  private currentFn: any = null;
-  currentReturnType: HIRType = { kind: "void" };
-  diScope: any = null;
+  private localAllocs: Map<number, any>;
+  private localNames: Map<number, string>;
+  private globalValues: Map<string, { alloc: any; type: HIRType }>;
+  private loopStack: { condBlock: any; exitBlock: any }[];
+  private declaredFunctions: Map<string, { fn: any; fnType: any }>;
+  private mathIntrinsics: Map<string, { fn: any; fnType: any }>;
+  private structTypes: Map<string, { llvmType: any; fields: { name: string; type: HIRType }[] }>;
+  private interfaceTypes: Map<string, { fatType: any; iface: import("../hir/types.js").HIRInterface; layoutType: any }>;
+  private vtables: Map<string, any>;
+  private closureType: any;
+  private capturedLocals: Map<number, { envAlloc: any; index: number; type: HIRType }>;
+  private envAlloc: any;
+  private asyncPromiseAlloc: any;
+  private currentFn: any;
+  currentReturnType: HIRType;
+  diScope: any;
 
   constructor(m: LLVMModule) {
     this.m = m;
+    this.localAllocs = new Map();
+    this.localNames = new Map();
+    this.globalValues = new Map();
+    this.loopStack = [];
+    this.declaredFunctions = new Map();
+    this.mathIntrinsics = new Map();
+    this.structTypes = new Map();
+    this.interfaceTypes = new Map();
+    this.vtables = new Map();
+    this.closureType = null;
+    this.capturedLocals = new Map();
+    this.envAlloc = null;
+    this.asyncPromiseAlloc = null;
+    this.currentFn = null;
+    this.currentReturnType = { kind: "void" };
+    this.diScope = null;
   }
 
   registerLocal(id: number, name: string, alloc: any): void {
@@ -40,8 +50,8 @@ export class EmitContext {
   }
 
   resetLocals(): void {
-    this.localAllocs.clear();
-    this.localNames.clear();
+    this.localAllocs = new Map();
+    this.localNames = new Map();
   }
 
   pushLoop(condBlock: any, exitBlock: any): void {
@@ -158,18 +168,16 @@ export class EmitContext {
   }
 
   resetLocalsAndCaptures(): void {
-    this.localAllocs.clear();
-    this.localNames.clear();
-    this.capturedLocals.clear();
+    this.localAllocs = new Map();
+    this.localNames = new Map();
+    this.capturedLocals = new Map();
     this.envAlloc = null;
     this.asyncPromiseAlloc = null;
   }
 }
 
-export type CaptureMap = Map<
-  string,
-  { capturedIds: Set<number>; envTypes: { id: number; type: HIRType }[] }
->;
+export interface CaptureEnvEntry { id: number; type: HIRType; }
+export type CaptureMap = Map<string, CaptureEnvEntry[]>;
 
 export function llvmType(ctx: EmitContext, t: HIRType): any {
   const m = ctx.m;
@@ -340,7 +348,7 @@ export function defaultInit(ctx: EmitContext, t: HIRType): any {
     case "dynarray":
       return m.constNull(m.ptr);
     case "boxed":
-      return m.constInt(m.i64, 0x7ffc000000000001n);
+      return m.constBigInt(m.i64, "7ffc000000000001");
     default:
       return m.constInt(m.i64, 0);
   }

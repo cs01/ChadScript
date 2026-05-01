@@ -194,7 +194,7 @@ export function emitExpr(ctx: EmitContext, expr: HIRExpr): any {
 
 function emitArrayPrefix(elemType: HIRType): string {
   if (elemType.kind === "i8ptr") return "cs2_str_array";
-  if (elemType.kind === "ptr" || elemType.kind === "dynobj" || elemType.kind === "dynarray" || elemType.kind === "map") return "cs2_obj_array";
+  if (elemType.kind === "ptr" || elemType.kind === "dynobj" || elemType.kind === "dynarray" || elemType.kind === "map" || elemType.kind === "boxed") return "cs2_obj_array";
   return "cs2_num_array";
 }
 
@@ -266,7 +266,8 @@ function emitAllocStruct(ctx: EmitContext, expr: HIRExpr & { kind: "alloc_struct
 
   const ifaceInfo = ctx.getInterfaceType(expr.structName);
   if (ifaceInfo) {
-    const fat = m.buildAlloca(ifaceInfo.fatType, "fat");
+    const fatSize = m.sizeOf(ifaceInfo.fatType);
+    const fat = m.buildCall(malloc.fnType, malloc.fn, [fatSize], "fat");
     const dataSlot = m.buildGEP(ifaceInfo.fatType, fat, [m.constInt(m.i32, 0), m.constInt(m.i32, 0)], "");
     m.buildStore(raw, dataSlot);
     const vtableSlot = m.buildGEP(ifaceInfo.fatType, fat, [m.constInt(m.i32, 0), m.constInt(m.i32, 1)], "");
@@ -283,7 +284,8 @@ function emitAllocMap(
 ): any {
   const m = ctx.m;
   const k = expr.keyType.kind === "i8ptr" ? "str" : "num";
-  const v = expr.valueType.kind === "i8ptr" ? "str" : "num";
+  const primitiveVal = expr.valueType.kind === "i8ptr" || expr.valueType.kind === "f64" || expr.valueType.kind === "i64" || expr.valueType.kind === "i1";
+  const v = expr.valueType.kind === "i8ptr" ? "str" : primitiveVal ? "num" : "ptr";
   const prefix = `cs2_${k}_${v}_map`;
 
   let mapPtr: any;
@@ -337,11 +339,15 @@ function dynObjSetFunc(ctx: EmitContext, valueType: HIRType): { fn: any; fnType:
     case "i1":
       return ctx.getDeclaredFunction("cs2_dynobj_set_bool")!;
     case "dynobj":
+    case "ptr":
+    case "map":
+    case "set":
       return ctx.getDeclaredFunction("cs2_dynobj_set_obj")!;
     case "dynarray":
+    case "array":
       return ctx.getDeclaredFunction("cs2_dynobj_set_arr")!;
     case "boxed":
-      return ctx.getDeclaredFunction("cs2_dynobj_set_f64")!;
+      return ctx.getDeclaredFunction("cs2_dynobj_set_boxed")!;
     default:
       return null;
   }

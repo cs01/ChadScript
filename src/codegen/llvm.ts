@@ -378,6 +378,10 @@ export class LLVMModule {
     return LLVMConstInt(type, typeof val === "bigint" ? val : BigInt(val), signExtend ? 1 : 0);
   }
 
+  constBigInt(type: any, hexStr: string): any {
+    return LLVMConstInt(type, BigInt("0x" + hexStr), 0);
+  }
+
   constReal(type: any, val: number): any {
     return LLVMConstReal(type, val);
   }

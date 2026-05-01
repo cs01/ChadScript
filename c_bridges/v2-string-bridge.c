@@ -4,6 +4,7 @@
 #include <stdio.h>
 
 int32_t cs2_str_length(const char *s) {
+    if (!s) return 0;
     return (int32_t)strlen(s);
 }
 

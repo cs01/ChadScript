@@ -13,14 +13,14 @@ interface ParsedModule {
   absPath: string;
 }
 
-export function resolveModules(entryPath: string): HIRModule {
+export function resolveModules(entryPath: string, substitutions?: Map<string, string>): HIRModule {
   const absEntry = resolve(entryPath);
   const visited = new Map<string, ParsedModule>();
   const typeOnlyPaths = new Set<string>();
   const aliases: ImportAlias[] = [];
   const builtinImportList: BuiltinImport[] = [];
 
-  collectModules(absEntry, visited, aliases, typeOnlyPaths, builtinImportList);
+  collectModules(absEntry, visited, aliases, typeOnlyPaths, builtinImportList, substitutions);
 
   const mergedBody: ModuleItem[] = [];
   const TYPE_DECLS = new Set(["TsTypeAliasDeclaration", "TsInterfaceDeclaration", "TsEnumDeclaration"]);
@@ -70,6 +70,7 @@ function collectModules(
   aliases: ImportAlias[],
   typeOnlyPaths?: Set<string>,
   builtinImportList?: BuiltinImport[],
+  substitutions?: Map<string, string>,
 ): void {
   if (visited.has(absPath)) return;
 
@@ -95,18 +96,18 @@ function collectModules(
         const specifier = item.source.value;
         if (specifier.startsWith(".")) {
           try {
-            const resolvedPath = resolveImportPath(specifier, absPath);
+            const resolvedPath = applySubstitution(resolveImportPath(specifier, absPath), substitutions);
             if (typeOnlyPaths && !visited.has(resolvedPath)) {
               typeOnlyPaths.add(resolvedPath);
             }
-            collectModules(resolvedPath, visited, aliases, typeOnlyPaths, builtinImportList);
+            collectModules(resolvedPath, visited, aliases, typeOnlyPaths, builtinImportList, substitutions);
           } catch {}
         }
         continue;
       }
-      const resolvedPath = resolveImportPath(item.source.value, absPath);
+      const resolvedPath = applySubstitution(resolveImportPath(item.source.value, absPath), substitutions);
       if (typeOnlyPaths) typeOnlyPaths.delete(resolvedPath);
-      collectModules(resolvedPath, visited, aliases, typeOnlyPaths, builtinImportList);
+      collectModules(resolvedPath, visited, aliases, typeOnlyPaths, builtinImportList, substitutions);
 
       for (const s of item.specifiers) {
         if (s.type === "ImportSpecifier") {
@@ -123,8 +124,8 @@ function collectModules(
     ) {
       const decl = item as any;
       if (isBuiltinImport(decl.source.value)) continue;
-      const resolvedPath = resolveImportPath(decl.source.value, absPath);
-      collectModules(resolvedPath, visited, aliases, typeOnlyPaths, builtinImportList);
+      const resolvedPath = applySubstitution(resolveImportPath(decl.source.value, absPath), substitutions);
+      collectModules(resolvedPath, visited, aliases, typeOnlyPaths, builtinImportList, substitutions);
 
       for (const s of decl.specifiers) {
         if (s.type === "ExportSpecifier" && s.exported) {
@@ -137,6 +138,11 @@ function collectModules(
       }
     }
   }
+}
+
+function applySubstitution(absPath: string, substitutions?: Map<string, string>): string {
+  if (!substitutions) return absPath;
+  return substitutions.get(absPath) ?? absPath;
 }
 
 const BUILTIN_MODULES = new Set([

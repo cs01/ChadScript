@@ -49,6 +49,7 @@ import {
   builtinImports,
   sourceFilePath,
   narrowedLocals,
+  pendingGenericClasses,
 } from "./lower-state.js";
 
 import { lowerArrowOrFnExpr } from "./lower-func.js";
@@ -249,8 +250,28 @@ export function lowerBinary(expr: BinaryExpression): HIRExpr {
     return { kind: "nullish_coalesce", left, right, type: left.type };
   }
 
-  let left = lowerExpr(expr.left);
-  let right = lowerExpr(expr.right);
+  const isEqOp = expr.operator === "===" || expr.operator === "!==" || expr.operator === "==" || expr.operator === "!=";
+  const leftIsMember = expr.left.type === "MemberExpression";
+  const rightIsMember = expr.right.type === "MemberExpression";
+  const leftIsString = expr.left.type === "StringLiteral";
+  const rightIsString = expr.right.type === "StringLiteral";
+
+  let left: HIRExpr;
+  let right: HIRExpr;
+  if (isEqOp && leftIsMember && rightIsString) {
+    setExpectedDeclType(I8PTR);
+    left = lowerExpr(expr.left);
+    setExpectedDeclType(null);
+    right = lowerExpr(expr.right);
+  } else if (isEqOp && rightIsMember && leftIsString) {
+    left = lowerExpr(expr.left);
+    setExpectedDeclType(I8PTR);
+    right = lowerExpr(expr.right);
+    setExpectedDeclType(null);
+  } else {
+    left = lowerExpr(expr.left);
+    right = lowerExpr(expr.right);
+  }
   const op = mapBinaryOp(expr.operator);
 
   if (left.type.kind === "dynobj" || right.type.kind === "dynobj") {
@@ -258,10 +279,18 @@ export function lowerBinary(expr: BinaryExpression): HIRExpr {
     if (right.type.kind === "dynobj") right = coerce(right, BOXED);
   }
 
+  if (op === "and" || op === "or") {
+    if (left.type.kind === "boxed") {
+      if (right.type.kind !== "boxed") right = coerce(right, BOXED);
+      return { kind: "binary", op, left, right, type: BOXED };
+    }
+    return { kind: "binary", op, left, right, type: I1 };
+  }
+
   if (left.type.kind === "boxed" || right.type.kind === "boxed") {
     if (left.type.kind !== "boxed") left = coerce(left, BOXED);
     if (right.type.kind !== "boxed") right = coerce(right, BOXED);
-    const isComparison = ["eq", "ne", "lt", "le", "gt", "ge"].includes(op);
+    const isComparison = op === "eq" || op === "ne" || op === "lt" || op === "le" || op === "gt" || op === "ge";
     return { kind: "binary", op, left, right, type: isComparison ? I1 : BOXED };
   }
 
@@ -278,8 +307,15 @@ export function lowerBinary(expr: BinaryExpression): HIRExpr {
   if ((op === "eq" || op === "ne") && left.type.kind === "i8ptr" && right.type.kind === "i8ptr") {
     return { kind: "binary", op: op === "eq" ? "str_eq" : "str_ne", left, right, type: I1 };
   }
+  if ((op === "eq" || op === "ne") &&
+    ((left.type.kind === "dynobj" && right.type.kind === "i8ptr") ||
+     (left.type.kind === "i8ptr" && right.type.kind === "dynobj"))) {
+    const l = left.type.kind === "dynobj" ? { ...left, type: I8PTR } : left;
+    const r = right.type.kind === "dynobj" ? { ...right, type: I8PTR } : right;
+    return { kind: "binary", op: op === "eq" ? "str_eq" : "str_ne", left: l, right: r, type: I1 };
+  }
 
-  if (BITWISE_OPS.includes(op)) {
+  if (BITWISE_OPS.has(op)) {
     if (left.type.kind !== "i64") left = coerce(left, I64);
     if (right.type.kind !== "i64") right = coerce(right, I64);
     return { kind: "binary", op, left, right, type: I64 };
@@ -291,22 +327,18 @@ export function lowerBinary(expr: BinaryExpression): HIRExpr {
     return { kind: "binary", op, left, right, type: F64 };
   }
 
-  if (op === "and" || op === "or") {
-    return { kind: "binary", op, left, right, type: I1 };
-  }
-
   const operandType = resolveArithType(left.type, right.type);
   if (left.type.kind !== operandType.kind) left = coerce(left, operandType);
   if (right.type.kind !== operandType.kind) right = coerce(right, operandType);
 
-  const isComparison = ["eq", "ne", "lt", "le", "gt", "ge"].includes(op);
+  const isComparison = op === "eq" || op === "ne" || op === "lt" || op === "le" || op === "gt" || op === "ge";
   const resultType = isComparison ? I1 : operandType;
 
   return { kind: "binary", op, left, right, type: resultType };
 }
 
 function lowerBinaryWithOp(op: BinaryOp, left: HIRExpr, right: HIRExpr): HIRExpr {
-  if (BITWISE_OPS.includes(op)) {
+  if (BITWISE_OPS.has(op)) {
     if (left.type.kind !== "i64") left = coerce(left, I64);
     if (right.type.kind !== "i64") right = coerce(right, I64);
     return { kind: "binary", op, left, right, type: I64 };
@@ -642,7 +674,12 @@ function lowerArrayLiteral(expr: any): HIRExpr {
   };
 }
 
+export const untypedDynObjAccesses: string[] = [];
+
 function dynobj_get(obj: HIRExpr, key: HIRExpr): HIRExpr {
+  if (key.kind === "literal_string") {
+    untypedDynObjAccesses.push(`.${(key as any).value}`);
+  }
   return {
     kind: "runtime_call",
     func: "cs2_dynobj_get_obj",
@@ -701,12 +738,11 @@ function dynobj_get_typed(obj: HIRExpr, key: HIRExpr, targetType: HIRType | null
           kind: "runtime_call",
           func: "cs2_dynobj_get_boxed",
           args: [obj, key],
-          returnType: { kind: "boxed" },
-          type: { kind: "boxed" },
+          returnType: BOXED,
+          type: BOXED,
         };
       case "map":
       case "set":
-      case "dynobj":
       case "ptr":
         return {
           kind: "runtime_call",
@@ -718,6 +754,9 @@ function dynobj_get_typed(obj: HIRExpr, key: HIRExpr, targetType: HIRType | null
       default:
         break;
     }
+  }
+  if (key.kind === "literal_string") {
+    untypedDynObjAccesses.push(`.${(key as any).value} (typed fallthrough, target=${targetType?.kind})`);
   }
   return {
     kind: "runtime_call",
@@ -1288,18 +1327,13 @@ function lowerCall(expr: CallExpression): HIRExpr {
       const methodName = (expr.callee as MemberExpression).property;
       if (methodName.type === "Identifier") {
         const mn = (methodName as Identifier).value;
-        const arrayMethods = ["filter", "map", "flatMap", "forEach", "find", "findIndex", "every", "some", "push", "length"];
-        if (arrayMethods.includes(mn)) {
+        const isArrayMethod = mn === "filter" || mn === "map" || mn === "flatMap" || mn === "forEach" || mn === "find" || mn === "findIndex" || mn === "every" || mn === "some" || mn === "push" || mn === "length";
+        if (isArrayMethod) {
           const asArr: HIRExpr = { ...obj, type: DYNARRAY };
           return lowerDynarrayMethodCall(expr, asArr);
         }
-        const stringMethods = [
-          "charAt", "indexOf", "includes", "startsWith", "endsWith", "slice",
-          "substring", "toUpperCase", "toLowerCase", "trim", "repeat", "replace",
-          "charCodeAt", "split", "padStart", "padEnd", "trimStart", "trimEnd",
-          "lastIndexOf", "at", "replaceAll",
-        ];
-        if (stringMethods.includes(mn)) {
+        const isStringMethod = mn === "charAt" || mn === "indexOf" || mn === "includes" || mn === "startsWith" || mn === "endsWith" || mn === "slice" || mn === "substring" || mn === "toUpperCase" || mn === "toLowerCase" || mn === "trim" || mn === "repeat" || mn === "replace" || mn === "charCodeAt" || mn === "split" || mn === "padStart" || mn === "padEnd" || mn === "trimStart" || mn === "trimEnd" || mn === "lastIndexOf" || mn === "at" || mn === "replaceAll";
+        if (isStringMethod) {
           const asStr: HIRExpr = coerce(obj, I8PTR);
           return lowerStringMethodCall(expr, asStr);
         }
@@ -1562,9 +1596,9 @@ function lowerCall(expr: CallExpression): HIRExpr {
     }
     const args: HIRExpr[] = expr.arguments.map((a, i) => {
       const paramType = fnInfo.params[i]?.type;
-      if (paramType?.kind === "ptr") setExpectedDeclType(paramType);
+      if (paramType?.kind === "ptr" || paramType?.kind === "i8ptr") setExpectedDeclType(paramType);
       let arg = lowerExpr(a.expression);
-      if (paramType?.kind === "ptr") setExpectedDeclType(null);
+      if (paramType?.kind === "ptr" || paramType?.kind === "i8ptr") setExpectedDeclType(null);
       if (fnInfo.params[i]) {
         arg = coerce(arg, fnInfo.params[i].type);
       }
@@ -2428,7 +2462,9 @@ function lowerMapMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
   switch (method) {
     case "set": {
       const key = coerce(lowerExpr(expr.arguments[0].expression), mt.key);
+      if (mt.value.kind === "ptr") setExpectedDeclType(mt.value);
       const val = coerce(lowerExpr(expr.arguments[1].expression), mt.value);
+      if (mt.value.kind === "ptr") setExpectedDeclType(null);
       return {
         kind: "runtime_call",
         func: `${prefix}_set`,
@@ -2508,7 +2544,9 @@ function lowerSetMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
 
   switch (method) {
     case "add": {
+      if (st.element.kind === "i8ptr") setExpectedDeclType(I8PTR);
       const val = coerce(lowerExpr(expr.arguments[0].expression), st.element);
+      if (st.element.kind === "i8ptr") setExpectedDeclType(null);
       return {
         kind: "runtime_call",
         func: `${prefix}_add`,
@@ -2518,7 +2556,9 @@ function lowerSetMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
       };
     }
     case "has": {
+      if (st.element.kind === "i8ptr") setExpectedDeclType(I8PTR);
       const val = coerce(lowerExpr(expr.arguments[0].expression), st.element);
+      if (st.element.kind === "i8ptr") setExpectedDeclType(null);
       return {
         kind: "runtime_call",
         func: `${prefix}_has`,
@@ -2528,7 +2568,9 @@ function lowerSetMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
       };
     }
     case "delete": {
+      if (st.element.kind === "i8ptr") setExpectedDeclType(I8PTR);
       const val = coerce(lowerExpr(expr.arguments[0].expression), st.element);
+      if (st.element.kind === "i8ptr") setExpectedDeclType(null);
       return {
         kind: "runtime_call",
         func: `${prefix}_delete`,
@@ -3015,9 +3057,7 @@ function lowerGenericNewExpr(expr: any): HIRExpr {
 
   const result = specializeClass(baseName, typeArgs);
   if (result) {
-    (lowerGenericNewExpr as any).__pendingClasses =
-      (lowerGenericNewExpr as any).__pendingClasses || [];
-    (lowerGenericNewExpr as any).__pendingClasses.push(result);
+    pendingGenericClasses.push(result);
   }
 
   const ctorName = `${mangledName}_constructor`;
@@ -3048,8 +3088,8 @@ export function drainPendingGenericClasses(): {
   hirClass: import("./types.js").HIRClass;
   fns: import("./types.js").HIRFunction[];
 }[] {
-  const pending = (lowerGenericNewExpr as any).__pendingClasses || [];
-  (lowerGenericNewExpr as any).__pendingClasses = [];
+  const pending = pendingGenericClasses.slice();
+  pendingGenericClasses.length = 0;
   return pending;
 }
 

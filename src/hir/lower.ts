@@ -74,7 +74,7 @@ import {
   registerClass,
   lowerClassDecl,
 } from "./lower-class.js";
-import { lowerExpr, drainPendingGenericClasses } from "./lower-expr.js";
+import { lowerExpr, drainPendingGenericClasses, untypedDynObjAccesses } from "./lower-expr.js";
 import { lowerFunctionDecl, lowerArrowOrFnExpr, lowerNestedFunctionDecl } from "./lower-func.js";
 import {
   isGenericFunction,
@@ -109,6 +109,7 @@ export function lowerModule(
   filename?: string,
   importAliases?: ImportAlias[],
   builtinImportList?: BuiltinImport[],
+  bodyOverride?: any[],
 ): HIRModule {
   const functions: HIRFunction[] = [];
   const hirClasses: import("./types.js").HIRClass[] = [];
@@ -134,9 +135,13 @@ export function lowerModule(
   setTypeParamContext(null);
   setNextId(0);
   setIsModuleScope(true);
-  setSourceText(source || "");
-  setLineOffsets(buildLineOffsets(source || ""));
-  setSourceFilePath(filename || null);
+  const src = source ? source : "";
+  setSourceText(src);
+  setLineOffsets(buildLineOffsets(src));
+  const fname = filename ? filename : null;
+  setSourceFilePath(fname);
+
+  const body = bodyOverride ? bodyOverride : ast.body;
 
   const errorThisType: HIRType = { kind: "ptr", pointee: "Error" };
   classRegistry.set("Error", {
@@ -202,28 +207,32 @@ export function lowerModule(
     }
   }
 
-  for (const item of ast.body) {
+  for (const item of body) {
     const inner = unwrapExport(item);
     if ((inner as any).type === "TsInterfaceDeclaration") {
       interfaceRegistry.set((inner as any).id.value, { fields: [], methods: [] });
     }
   }
 
-  for (const item of ast.body) {
+  for (const item of body) {
     const inner = unwrapExport(item) as any;
     if (inner.type === "TsTypeAliasDeclaration" && inner.id?.type === "Identifier") {
       typeAliasRegistry.set(inner.id.value, resolveTypeAnnotation(inner.typeAnnotation));
     }
   }
 
-  for (const item of ast.body) {
+
+
+  for (const item of body) {
     const inner = unwrapExport(item);
     if ((inner as any).type === "TsInterfaceDeclaration") {
       registerInterface(inner as any);
     }
   }
 
-  for (const item of ast.body) {
+
+
+  for (const item of body) {
     const inner = unwrapExport(item);
     if (inner.type === "ClassDeclaration") {
       if (isGenericClass(inner as any)) {
@@ -234,7 +243,9 @@ export function lowerModule(
     }
   }
 
-  for (const item of ast.body) {
+
+
+  for (const item of body) {
     const inner = unwrapExport(item);
     if (inner.type === "FunctionDeclaration") {
       if (isGenericFunction(inner as any)) {
@@ -245,7 +256,9 @@ export function lowerModule(
     }
   }
 
-  for (const item of ast.body) {
+
+
+  for (const item of body) {
     const inner = unwrapExport(item);
     if ((inner as any).type === "TsEnumDeclaration") {
       const enumDecl = inner as any;
@@ -287,7 +300,9 @@ export function lowerModule(
     }
   }
 
-  for (const item of ast.body) {
+
+
+  for (const item of body) {
     const inner = unwrapExport(item);
     if (inner.type !== "VariableDeclaration") continue;
     const varDecl0 = inner as VariableDeclaration;
@@ -321,22 +336,23 @@ export function lowerModule(
     }
   }
 
-  for (const item of ast.body) {
+  for (const item of body) {
     const inner = unwrapExport(item);
-    if (inner.type === "ImportDeclaration") {
+    switch ((inner as any).type) {
+    case "ImportDeclaration":
+    case "TsInterfaceDeclaration":
+    case "TsEnumDeclaration":
+    case "TsTypeAliasDeclaration":
       continue;
-    } else if ((inner as any).type === "TsInterfaceDeclaration") {
-      continue;
-    } else if ((inner as any).type === "TsEnumDeclaration") {
-      continue;
-    } else if ((inner as any).type === "TsTypeAliasDeclaration") {
-      continue;
-    } else if (inner.type === "ClassDeclaration") {
+    case "ClassDeclaration":
       if (isGenericClass(inner as any)) continue;
-      const { hirClass, fns } = lowerClassDecl(inner as any);
-      hirClasses.push(hirClass);
-      functions.push(...fns);
-    } else if (inner.type === "FunctionDeclaration") {
+      {
+        const { hirClass, fns } = lowerClassDecl(inner as any);
+        hirClasses.push(hirClass);
+        functions.push(...fns);
+      }
+      break;
+    case "FunctionDeclaration":
       if (isGenericFunction(inner as any)) continue;
       if ((inner as any).declare) {
         const info = functionRegistry.get((inner as any).identifier.value);
@@ -353,7 +369,8 @@ export function lowerModule(
       setIsModuleScope(false);
       functions.push(lowerFunctionDecl(inner));
       setIsModuleScope(true);
-    } else if (inner.type === "VariableDeclaration") {
+      break;
+    case "VariableDeclaration": {
       const varDecl = inner as VariableDeclaration;
       for (const d of varDecl.declarations) {
         if (d.id.type === "ArrayPattern") {
@@ -512,9 +529,12 @@ export function lowerModule(
           }
         }
       }
-    } else {
+      break;
+    }
+    default: {
       const stmts = lowerModuleItem(inner);
       init.push(...stmts);
+    }
     }
   }
 
@@ -551,6 +571,23 @@ export function lowerModule(
       directory: lastSlash >= 0 ? filename.slice(0, lastSlash) : ".",
       source,
     };
+  }
+
+  if (untypedDynObjAccesses.length > 0) {
+    const seen = new Set<string>();
+    const unique: string[] = [];
+    for (const a of untypedDynObjAccesses) {
+      if (!seen.has(a)) {
+        seen.add(a);
+        unique.push(a);
+      }
+    }
+    console.error(`\n[ERROR] ${unique.length} untyped dynobj field accesses (will be BOXED at runtime):`);
+    for (const a of unique) {
+      console.error(`  ${a}`);
+    }
+    console.error("");
+    untypedDynObjAccesses.length = 0;
   }
 
   return {
@@ -1001,7 +1038,12 @@ function lowerDoWhile(stmt: any): HIRStmt {
 }
 
 function lowerSwitch(stmt: any): HIRStmt {
+  const allStringCases = stmt.cases.every((c: any) =>
+    !c.test || c.test.type === "StringLiteral"
+  );
+  if (allStringCases) setExpectedDeclType(I8PTR);
   const discriminant = lowerExpr(stmt.discriminant);
+  if (allStringCases) setExpectedDeclType(null);
   const cases: import("./types.js").HIRSwitchCase[] = stmt.cases.map((c: any) => ({
     test: c.test ? lowerExpr(c.test) : undefined,
     body: c.consequent.flatMap((s: any) => lowerModuleItem(s)),
