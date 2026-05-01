@@ -215,6 +215,20 @@ ObjArray *cs2_obj_array_map(ObjArray *arr, void *fn_ptr, void *env_ptr) {
     return result;
 }
 
+ObjArray *cs2_obj_array_flatMap(ObjArray *arr, void *fn_ptr, void *env_ptr) {
+    ObjArray *(*fn)(void *, void *) = (ObjArray *(*)(void *, void *))fn_ptr;
+    ObjArray *result = cs2_obj_array_new(4);
+    for (int32_t i = 0; i < arr->length; i++) {
+        ObjArray *sub = fn(env_ptr, arr->data[i]);
+        if (sub) {
+            for (int32_t j = 0; j < sub->length; j++) {
+                cs2_obj_array_push(result, sub->data[j]);
+            }
+        }
+    }
+    return result;
+}
+
 ObjArray *cs2_obj_array_filter(ObjArray *arr, void *fn_ptr, void *env_ptr) {
     int32_t (*fn)(void *, void *) = (int32_t (*)(void *, void *))fn_ptr;
     ObjArray *result = cs2_obj_array_new(arr->length);

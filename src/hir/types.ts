@@ -191,7 +191,7 @@ export type HIRExpr =
   | {
       kind: "array_hof";
       array: HIRExpr;
-      method: "map" | "filter" | "forEach" | "find" | "findIndex" | "every" | "some" | "reduce";
+      method: "map" | "filter" | "forEach" | "find" | "findIndex" | "every" | "some" | "reduce" | "flatMap";
       callback: HIRExpr;
       bridgeFunc: string;
       returnType: HIRType;

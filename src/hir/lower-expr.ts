@@ -793,6 +793,7 @@ function dynobj_get_typed(obj: HIRExpr, key: HIRExpr, targetType: HIRType | null
       case "map":
       case "set":
       case "ptr":
+      case "array":
         return {
           kind: "runtime_call",
           func: "cs2_dynobj_get_obj",
@@ -2879,7 +2880,8 @@ function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
     method === "findIndex" ||
     method === "every" ||
     method === "some" ||
-    method === "reduce"
+    method === "reduce" ||
+    method === "flatMap"
   ) {
     const callback = args[0];
     const hofMethods: Record<string, Record<string, string>> = {
@@ -2911,6 +2913,7 @@ function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
         findIndex: "cs2_obj_array_findIndex",
         every: "cs2_obj_array_every",
         some: "cs2_obj_array_some",
+        flatMap: "cs2_obj_array_flatMap",
       },
     };
     const funcs = hofMethods[prefix];
@@ -2939,6 +2942,9 @@ function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
         break;
       case "reduce":
         returnType = elemType;
+        break;
+      case "flatMap":
+        returnType = obj.type;
         break;
       default:
         throw new Error(`unexpected hof method: ${method}`);

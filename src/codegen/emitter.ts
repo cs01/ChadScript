@@ -445,6 +445,7 @@ function declareExterns(ctx: EmitContext): void {
     ["cs2_obj_array_set", m.voidTy, [m.ptr, m.i32, m.ptr]],
     ["cs2_obj_array_length", m.i32, [m.ptr]],
     ["cs2_obj_array_map", m.ptr, [m.ptr, m.ptr, m.ptr]],
+    ["cs2_obj_array_flatMap", m.ptr, [m.ptr, m.ptr, m.ptr]],
     ["cs2_obj_array_filter", m.ptr, [m.ptr, m.ptr, m.ptr]],
     ["cs2_obj_array_forEach", m.voidTy, [m.ptr, m.ptr, m.ptr]],
     ["cs2_obj_array_find", m.ptr, [m.ptr, m.ptr, m.ptr]],
