@@ -122,9 +122,7 @@ export function compile(opts: CompileOptions): void {
   const irPath = opts.emitIR ? opts.output + ".ll" : undefined;
 
   try {
-    console.error("[DBG] compile: before emitModule");
     emitModule(hir, tmpObj, irPath);
-    console.error("[DBG] compile: after emitModule");
 
     if (opts.emitIR) return;
 

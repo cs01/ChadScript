@@ -108,7 +108,6 @@ function findClosureFuncNames(mod: HIRModule, names: Set<string>): void {
 }
 
 export function emitModule(mod: HIRModule, objectPath: string, irPath?: string): void {
-  console.error("[DBG] em start");
   const m = new LLVMModule("chadscript");
   const ctx = new EmitContext(m);
 
@@ -116,9 +115,7 @@ export function emitModule(mod: HIRModule, objectPath: string, irPath?: string):
     m.initDebugInfo(mod.sourceInfo.filename, mod.sourceInfo.directory);
   }
 
-  console.error("[DBG] em declareExterns");
   declareExterns(ctx);
-  console.error("[DBG] em externFns");
 
   for (const ef of mod.externFns) {
     if (ctx.getDeclaredFunction(ef.name)) continue;
@@ -129,9 +126,7 @@ export function emitModule(mod: HIRModule, objectPath: string, irPath?: string):
     ctx.declareFunction(ef.name, fn, fnType);
   }
 
-  console.error("[DBG] em ifaces=" + mod.interfaces.length);
   for (const iface of mod.interfaces) {
-    console.error("[DBG] em iface=" + iface.name);
     const fatTy = m.structCreateNamed(`${iface.name}_fat`);
     m.structSetBody(fatTy, [m.ptr, m.ptr]);
     const fieldLayoutTy = m.structCreateNamed(`${iface.name}_layout`);
@@ -140,24 +135,14 @@ export function emitModule(mod: HIRModule, objectPath: string, irPath?: string):
     ctx.registerInterfaceType(iface.name, fatTy, iface, fieldLayoutTy);
     ctx.registerStructType(iface.name, fieldLayoutTy, iface.fields);
   }
-  console.error("[DBG] em classes=" + mod.classes.length);
-  for (let cidx = 0; cidx < mod.classes.length; cidx++) {
-    const cls = mod.classes[cidx];
-    console.error("[DBG] em cls[" + cidx + "]=" + cls.name + " fields=" + cls.fields.length);
-  }
 
-  console.error("[DBG] em classes loop start");
   for (const cls of mod.classes) {
-    console.error("[DBG] em building " + cls.name);
     const fieldTypes = cls.fields.map((f) => llvmType(ctx, f.type));
-    console.error("[DBG] em building " + cls.name + " fieldTypes done");
     const structTy = m.structCreateNamed(cls.name);
     m.structSetBody(structTy, fieldTypes);
     ctx.registerStructType(cls.name, structTy, cls.fields);
   }
-  console.error("[DBG] em classes loop done");
 
-  console.error("[DBG] em globals=" + mod.globals.length);
   for (const g of mod.globals) {
     const ty = llvmType(ctx, g.type);
     const globalVar = m.addGlobal(`g_${g.name}`, ty);

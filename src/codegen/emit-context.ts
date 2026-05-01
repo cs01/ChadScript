@@ -182,7 +182,6 @@ export type CaptureMap = Map<string, CaptureEnvEntry[]>;
 export function llvmType(ctx: EmitContext, t: HIRType): any {
   const m = ctx.m;
   if (!t || !t.kind) {
-    console.error("[DBG] llvmType: t bad");
     return m.ptr;
   }
   switch (t.kind) {
