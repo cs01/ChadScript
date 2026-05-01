@@ -271,6 +271,7 @@ export interface HIRFunction {
   body: HIRStmt[];
   isAsync: boolean;
   captures: number[];
+  parentFn?: string;
   line?: number;
 }
 

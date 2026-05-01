@@ -15,6 +15,8 @@ import {
   resolveTypeAnnotation,
   defaultValue,
   offsetToLine,
+  currentLoweringFn,
+  setCurrentLoweringFn,
 } from "./lower-state.js";
 import { lowerExpr } from "./lower-expr.js";
 import { lowerBlock } from "./lower.js";
@@ -212,6 +214,8 @@ function lowerConstructorPair(
 ): { constructor: HIRFunction; init: HIRFunction } {
   const savedLocals = new Map(locals);
   const savedNextId = nextId;
+  const savedFn = currentLoweringFn;
+  setCurrentLoweringFn(`${className}_init`);
   locals.clear();
   setNextId(0);
 
@@ -271,6 +275,7 @@ function lowerConstructorPair(
   locals.clear();
   for (const [k, v] of savedLocals) locals.set(k, v);
   setNextId(savedNextId);
+  setCurrentLoweringFn(savedFn);
 
   const initParams: HIRParam[] = [{ id: 0, name: "this", type: thisType }, ...ctorParams];
   const init: HIRFunction = {
@@ -326,6 +331,8 @@ function lowerMethod(
 ): HIRFunction {
   const savedLocals = new Map(locals);
   const savedNextId = nextId;
+  const savedFn = currentLoweringFn;
+  setCurrentLoweringFn(`${className}_${method.key.value}`);
   locals.clear();
   setNextId(0);
 
@@ -364,6 +371,7 @@ function lowerMethod(
   locals.clear();
   for (const [k, v] of savedLocals) locals.set(k, v);
   setNextId(savedNextId);
+  setCurrentLoweringFn(savedFn);
 
   return {
     name: `${className}_${method.key.value}`,
@@ -379,6 +387,8 @@ function lowerMethod(
 function lowerStaticMethod(className: string, method: any): HIRFunction {
   const savedLocals = new Map(locals);
   const savedNextId = nextId;
+  const savedFn = currentLoweringFn;
+  setCurrentLoweringFn(`${className}_${method.key.value}`);
   locals.clear();
   setNextId(0);
 
@@ -411,6 +421,7 @@ function lowerStaticMethod(className: string, method: any): HIRFunction {
   locals.clear();
   for (const [k, v] of savedLocals) locals.set(k, v);
   setNextId(savedNextId);
+  setCurrentLoweringFn(savedFn);
 
   return {
     name: `${className}_${method.key.value}`,

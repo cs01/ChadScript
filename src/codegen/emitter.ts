@@ -25,11 +25,22 @@ export interface EmitResult {
 
 function buildCaptureMap(mod: HIRModule): CaptureMap {
   const result: CaptureMap = new Map();
+  const byName = new Map<string, HIRFunction>();
+  for (const fn of mod.functions) byName.set(fn.name, fn);
 
   for (const fn of mod.functions) {
     if (fn.captures.length === 0) continue;
-    for (const outerFn of mod.functions) {
-      if (outerFn === fn) continue;
+    const outers: HIRFunction[] = [];
+    if (fn.parentFn) {
+      const direct = byName.get(fn.parentFn);
+      if (direct) outers.push(direct);
+    } else {
+      for (const outerFn of mod.functions) {
+        if (outerFn === fn) continue;
+        outers.push(outerFn);
+      }
+    }
+    for (const outerFn of outers) {
       const outerIds = new Set<number>();
       collectLocalIds(outerFn.body, outerIds);
       for (const p of outerFn.params) outerIds.add(p.id);
@@ -443,6 +454,7 @@ function declareExterns(ctx: EmitContext): void {
     ["cs2_obj_array_spread", m.voidTy, [m.ptr, m.ptr]],
     ["cs2_obj_array_unshift", m.voidTy, [m.ptr, m.ptr]],
     ["cs2_obj_array_join", m.ptr, [m.ptr, m.ptr]],
+    ["cs2_obj_array_slice", m.ptr, [m.ptr, m.i32, m.i32]],
     ["cs2_try_enter", m.ptr, []],
     ["cs2_try_leave", m.voidTy, []],
     ["cs2_throw", m.voidTy, [m.ptr]],

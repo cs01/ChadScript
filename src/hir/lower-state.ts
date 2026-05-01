@@ -132,6 +132,11 @@ export function setNextId(n: number): void {
   nextId = n;
 }
 
+export let currentLoweringFn: string | null = null;
+export function setCurrentLoweringFn(name: string | null): void {
+  currentLoweringFn = name;
+}
+
 export function setIsModuleScope(v: boolean): void {
   isModuleScope = v;
 }

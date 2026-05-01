@@ -18,6 +18,8 @@ import {
   coerce,
   offsetToLine,
   incNextAnonId,
+  currentLoweringFn,
+  setCurrentLoweringFn,
 } from "./lower-state.js";
 import { lowerExpr } from "./lower-expr.js";
 import { lowerBlock } from "./lower.js";
@@ -25,6 +27,8 @@ import { lowerBlock } from "./lower.js";
 export function lowerFunctionDecl(decl: FunctionDeclaration): HIRFunction {
   const savedLocals = new Map(locals);
   const savedNextId = nextId;
+  const savedFn = currentLoweringFn;
+  setCurrentLoweringFn(decl.identifier.value);
 
   const params: HIRParam[] = [];
   for (const param of decl.params) {
@@ -86,6 +90,7 @@ export function lowerFunctionDecl(decl: FunctionDeclaration): HIRFunction {
   locals.clear();
   for (const [k, v] of savedLocals) locals.set(k, v);
   setNextId(savedNextId + params.length);
+  setCurrentLoweringFn(savedFn);
 
   return fn;
 }
@@ -96,6 +101,9 @@ export function lowerArrowOrFnExpr(expr: any, varName: string): HIRFunction {
   const savedNextId = nextId;
   const savedOuterLocals = outerLocals;
   const savedCapturedIds = capturedIds;
+  const savedFn = currentLoweringFn;
+  const parentFn = currentLoweringFn;
+  setCurrentLoweringFn(fnName);
 
   setOuterLocals(new Map(savedLocals));
   setCapturedIds(new Set<number>());
@@ -169,6 +177,7 @@ export function lowerArrowOrFnExpr(expr: any, varName: string): HIRFunction {
   setNextId(savedNextId);
   setOuterLocals(savedOuterLocals);
   setCapturedIds(savedCapturedIds);
+  setCurrentLoweringFn(savedFn);
 
   return {
     name: fnName,
@@ -177,6 +186,7 @@ export function lowerArrowOrFnExpr(expr: any, varName: string): HIRFunction {
     body,
     isAsync: expr.async || false,
     captures,
+    parentFn,
     line: expr.span ? offsetToLine(expr.span.start) : undefined,
   };
 }
@@ -186,6 +196,9 @@ export function lowerNestedFunctionDecl(decl: FunctionDeclaration): HIRFunction 
   const savedNextId = nextId;
   const savedOuterLocals = outerLocals;
   const savedCapturedIds = capturedIds;
+  const savedFn = currentLoweringFn;
+  const parentFn = currentLoweringFn;
+  setCurrentLoweringFn(decl.identifier.value);
 
   setOuterLocals(new Map(savedLocals));
   setCapturedIds(new Set<number>());
@@ -242,6 +255,7 @@ export function lowerNestedFunctionDecl(decl: FunctionDeclaration): HIRFunction 
   setNextId(savedNextId);
   setOuterLocals(savedOuterLocals);
   setCapturedIds(savedCapturedIds);
+  setCurrentLoweringFn(savedFn);
 
   return {
     name: decl.identifier.value,
@@ -250,6 +264,7 @@ export function lowerNestedFunctionDecl(decl: FunctionDeclaration): HIRFunction 
     body,
     isAsync: decl.async,
     captures,
+    parentFn,
     line: decl.span ? offsetToLine(decl.span.start) : undefined,
   };
 }
