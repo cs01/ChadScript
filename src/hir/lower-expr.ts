@@ -868,7 +868,15 @@ function lowerObjectLiteral(expr: any): HIRExpr {
       const fields: HIRExpr[] = layout.fields.map((f: { name: string; type: HIRType }) => {
         const prop = propMap.get(f.name);
         if (!prop) return defaultValue(f.type);
-        const valExpr = prop.type === "Identifier" ? lowerExpr(prop) : lowerExpr(prop.value);
+        const propVal = prop.type === "Identifier" ? prop : prop.value;
+        if (f.type.kind === "array") {
+          setExpectedArrayElementType((f.type as any).element);
+        } else if (f.type.kind === "ptr") {
+          setExpectedDeclType(f.type);
+        }
+        const valExpr = lowerExpr(propVal);
+        if (f.type.kind === "array") setExpectedArrayElementType(null);
+        else if (f.type.kind === "ptr") setExpectedDeclType(null);
         return coerce(valExpr, f.type);
       });
       return {

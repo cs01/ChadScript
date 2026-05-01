@@ -136,19 +136,12 @@ export function emitModule(mod: HIRModule, objectPath: string, irPath?: string):
     ctx.registerStructType(iface.name, fieldLayoutTy, iface.fields);
   }
 
-  console.error("[DBG] em classes loop, count=" + mod.classes.length);
   for (const cls of mod.classes) {
-    console.error("[DBG] em cls=" + cls.name);
     const fieldTypes = cls.fields.map((f) => llvmType(ctx, f.type));
-    console.error("[DBG] em cls fieldTypes len=" + fieldTypes.length);
     const structTy = m.structCreateNamed(cls.name);
-    console.error("[DBG] em cls struct created, calling structSetBody");
     m.structSetBody(structTy, fieldTypes, false);
-    console.error("[DBG] em cls structSetBody done");
     ctx.registerStructType(cls.name, structTy, cls.fields);
-    console.error("[DBG] em cls registered");
   }
-  console.error("[DBG] em classes done");
 
   for (const g of mod.globals) {
     const ty = llvmType(ctx, g.type);
@@ -721,22 +714,31 @@ function emitFunction(
   closureFuncs?: Set<string>,
   mod?: HIRModule,
 ): void {
+  console.error("[DBG] emitFunction " + fn.name);
   const m = ctx.m;
   ctx.resetLocalsAndCaptures();
+  console.error("[DBG] ef " + fn.name + " resetLocalsAndCaptures done");
   ctx.currentReturnType = fn.returnType;
+  console.error("[DBG] ef " + fn.name + " currentReturnType set");
 
   const decl = ctx.getDeclaredFunction(fn.name)!;
+  console.error("[DBG] ef " + fn.name + " getDeclaredFunction ok=" + !!decl);
   const llvmFn = decl.fn;
   ctx.setCurrentFn(llvmFn);
+  console.error("[DBG] ef " + fn.name + " setCurrentFn done");
 
   const diScope = fn.line ? m.createDebugFunction(llvmFn, fn.name, fn.line) : null;
+  console.error("[DBG] ef " + fn.name + " diScope=" + !!diScope);
   ctx.diScope = diScope;
   if (diScope && fn.line) {
     m.setDebugLocation(fn.line, 0, diScope);
   }
+  console.error("[DBG] ef " + fn.name + " debug set");
 
   const entry = m.appendBlock(llvmFn, "entry");
+  console.error("[DBG] ef " + fn.name + " appendBlock");
   m.positionAtEnd(entry);
+  console.error("[DBG] ef " + fn.name + " positionAtEnd");
 
   if (diScope && fn.line) {
     m.setDebugLocation(fn.line, 0, diScope);
@@ -745,6 +747,7 @@ function emitFunction(
   const isClosure = closureFuncs?.has(fn.name) || false;
   const captureInfo = capturedByOuter?.get(fn.name);
 
+  console.error("[DBG] ef " + fn.name + " isClosure=" + isClosure);
   if (isClosure) {
     const envParam = m.getParam(llvmFn, 0);
     const envAlloca = m.buildAlloca(m.ptr, "env");
@@ -782,18 +785,26 @@ function emitFunction(
       }
     }
 
+    console.error("[DBG] ef " + fn.name + " params loop, count=" + fn.params.length);
     for (let i = 0; i < fn.params.length; i++) {
       const p = fn.params[i];
+      console.error("[DBG] ef " + fn.name + " param[" + i + "] start");
+      console.error("[DBG] ef " + fn.name + " param[" + i + "] name=" + p.name + " id=" + p.id);
       const captured = ctx.getCapturedLocal(p.id);
+      console.error("[DBG] ef " + fn.name + " param[" + i + "] captured=" + !!captured);
       if (captured) {
         emitCapturedStore(ctx, captured, m.getParam(llvmFn, i), p.type);
       } else {
         const ty = llvmType(ctx, p.type);
+        console.error("[DBG] ef " + fn.name + " param[" + i + "] ty=" + !!ty);
         const alloc = m.buildAlloca(ty, p.name);
+        console.error("[DBG] ef " + fn.name + " param[" + i + "] alloca done");
         m.buildStore(m.getParam(llvmFn, i), alloc);
+        console.error("[DBG] ef " + fn.name + " param[" + i + "] store done");
         ctx.registerLocal(p.id, p.name, alloc);
       }
     }
+    console.error("[DBG] ef " + fn.name + " params loop done");
   }
 
   if (fn.isAsync && fn.returnType.kind === "promise") {
@@ -804,9 +815,12 @@ function emitFunction(
     ctx.setAsyncPromiseAlloc(promiseAlloc);
   }
 
+  console.error("[DBG] emitFunction " + fn.name + " body stmts=" + fn.body.length);
   for (const stmt of fn.body) {
+    console.error("[DBG] emitFunction " + fn.name + " stmt.kind=" + stmt.kind);
     emitStmt(ctx, stmt);
   }
+  console.error("[DBG] emitFunction " + fn.name + " body done");
 
   if (!m.currentBlockHasTerminator()) {
     if (!blockTerminates(fn.body)) {
