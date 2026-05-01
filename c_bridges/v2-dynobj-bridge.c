@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <stdio.h>
 #define DYNOBJ_INITIAL_CAP 8
 
 #define TAG_F64    0
@@ -44,7 +45,12 @@ DynObj *cs2_dynobj_new(void) {
 }
 
 static int32_t find_key(DynObj *o, const char *key) {
+    if ((unsigned long)o > 0x7FF0000000000000UL) {
+        return -1;
+    }
+    if (!o || o->length < 0 || o->length > 1000) return -1;
     for (int32_t i = 0; i < o->length; i++) {
+        if (!o->keys[i]) return -1;
         if (strcmp(o->keys[i], key) == 0) return i;
     }
     return -1;

@@ -844,7 +844,7 @@ function lowerObjectLiteral(expr: any): HIRExpr {
   if (expectedDeclType && expectedDeclType.kind === "ptr") {
     const capturedDeclType = expectedDeclType;
     const structName = (capturedDeclType as { kind: "ptr"; pointee: string }).pointee;
-    const layout = classRegistry.get(structName) || interfaceRegistry.get(structName);
+    const layout = classRegistry.get(structName);
     if (layout) {
       const propMap = new Map<string, any>();
       for (const prop of expr.properties) {
