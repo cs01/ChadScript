@@ -137,6 +137,11 @@ export function setCurrentLoweringFn(name: string | null): void {
   currentLoweringFn = name;
 }
 
+export let currentReturnType: HIRType | null = null;
+export function setCurrentReturnType(t: HIRType | null): void {
+  currentReturnType = t;
+}
+
 export function setIsModuleScope(v: boolean): void {
   isModuleScope = v;
 }

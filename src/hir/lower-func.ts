@@ -20,6 +20,8 @@ import {
   incNextAnonId,
   currentLoweringFn,
   setCurrentLoweringFn,
+  currentReturnType,
+  setCurrentReturnType,
 } from "./lower-state.js";
 import { lowerExpr } from "./lower-expr.js";
 import { lowerBlock } from "./lower.js";
@@ -64,7 +66,10 @@ export function lowerFunctionDecl(decl: FunctionDeclaration): HIRFunction {
     returnType = { kind: "promise", inner: returnType };
   }
 
+  const savedRetType = currentReturnType;
+  setCurrentReturnType(returnType);
   const body = decl.body ? lowerBlock(decl.body) : [];
+  setCurrentReturnType(savedRetType);
 
   if (returnType.kind === "void") {
     for (const s of body) {

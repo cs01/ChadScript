@@ -44,6 +44,7 @@ import {
   setExpectedArrayElementType,
   setExpectedMapType,
   setExpectedDeclType,
+  currentReturnType,
   incNextAnonId,
   setSourceText,
   setLineOffsets,
@@ -923,10 +924,17 @@ function lowerObjectDestructuring(d: any, mutable: boolean): HIRStmt[] {
 }
 
 function lowerReturn(stmt: ReturnStatement): HIRStmt {
-  return {
-    kind: "return",
-    value: stmt.argument ? lowerExpr(stmt.argument) : undefined,
-  };
+  let value: HIRExpr | undefined;
+  if (stmt.argument) {
+    if (currentReturnType && currentReturnType.kind === "ptr") {
+      setExpectedDeclType(currentReturnType);
+      value = lowerExpr(stmt.argument);
+      setExpectedDeclType(null);
+    } else {
+      value = lowerExpr(stmt.argument);
+    }
+  }
+  return { kind: "return", value };
 }
 
 function detectNarrowing(test: any): { varName: string; fieldName: string; literal: string } | null {

@@ -110,46 +110,46 @@ function foldStmts(stmts: HIRStmt[]): void {
   for (const stmt of stmts) {
     switch (stmt.kind) {
       case "expr":
-        (stmt as any).expr = foldExpr((stmt as any).expr);
+        stmt.expr = foldExpr(stmt.expr);
         break;
       case "return":
-        if ((stmt as any).value) (stmt as any).value = foldExpr((stmt as any).value);
+        if (stmt.value) stmt.value = foldExpr(stmt.value);
         break;
       case "let":
-        if ((stmt as any).init) (stmt as any).init = foldExpr((stmt as any).init);
+        if (stmt.init) stmt.init = foldExpr(stmt.init);
         break;
       case "assign":
-        (stmt as any).value = foldExpr((stmt as any).value);
+        stmt.value = foldExpr(stmt.value);
         break;
       case "if":
-        (stmt as any).condition = foldExpr((stmt as any).condition);
-        foldStmts((stmt as any).then);
-        if ((stmt as any).else) foldStmts((stmt as any).else);
+        stmt.condition = foldExpr(stmt.condition);
+        foldStmts(stmt.then);
+        if (stmt.else) foldStmts(stmt.else);
         break;
       case "while":
-        (stmt as any).condition = foldExpr((stmt as any).condition);
-        foldStmts((stmt as any).body);
+        stmt.condition = foldExpr(stmt.condition);
+        foldStmts(stmt.body);
         break;
       case "for":
-        if ((stmt as any).init) foldStmts([(stmt as any).init]);
-        if ((stmt as any).condition) (stmt as any).condition = foldExpr((stmt as any).condition);
-        if ((stmt as any).update) (stmt as any).update = foldExpr((stmt as any).update);
-        foldStmts((stmt as any).body);
+        if (stmt.init) foldStmts([stmt.init]);
+        if (stmt.condition) stmt.condition = foldExpr(stmt.condition);
+        if (stmt.update) stmt.update = foldExpr(stmt.update);
+        foldStmts(stmt.body);
         break;
       case "switch":
-        (stmt as any).discriminant = foldExpr((stmt as any).discriminant);
-        for (const c of (stmt as any).cases) {
+        stmt.discriminant = foldExpr(stmt.discriminant);
+        for (const c of stmt.cases) {
           if (c.test) c.test = foldExpr(c.test);
           foldStmts(c.body);
         }
         break;
       case "try":
-        foldStmts((stmt as any).body);
-        if ((stmt as any).catch) foldStmts((stmt as any).catch.body);
-        if ((stmt as any).finally) foldStmts((stmt as any).finally);
+        foldStmts(stmt.body);
+        if (stmt.catch) foldStmts(stmt.catch.body);
+        if (stmt.finally) foldStmts(stmt.finally);
         break;
       case "throw":
-        (stmt as any).value = foldExpr((stmt as any).value);
+        stmt.value = foldExpr(stmt.value);
         break;
     }
   }
