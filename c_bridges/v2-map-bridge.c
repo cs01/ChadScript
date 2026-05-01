@@ -397,3 +397,68 @@ int32_t cs2_str_ptr_map_size(StrPtrMap *m) { return m->length; }
 void cs2_str_ptr_map_clear(StrPtrMap *m) { m->length = 0; }
 const char *cs2_str_ptr_map_key_at(StrPtrMap *m, int32_t i) { return m->keys[i]; }
 void *cs2_str_ptr_map_value_at(StrPtrMap *m, int32_t i) { return m->values[i]; }
+
+typedef struct {
+    double *keys;
+    void **values;
+    int32_t length;
+    int32_t capacity;
+} NumPtrMap;
+
+NumPtrMap *cs2_num_ptr_map_new(void) {
+    NumPtrMap *m = (NumPtrMap *)malloc(sizeof(NumPtrMap));
+    m->capacity = 8; m->length = 0;
+    m->keys = (double *)malloc(sizeof(double) * m->capacity);
+    m->values = (void **)malloc(sizeof(void *) * m->capacity);
+    return m;
+}
+
+void cs2_num_ptr_map_set(NumPtrMap *m, double key, void *val) {
+    int32_t idx = find_num_key(m->keys, m->length, key);
+    if (idx >= 0) { m->values[idx] = val; return; }
+    if (m->length >= m->capacity) {
+        m->capacity *= 2;
+        m->keys = (double *)realloc(m->keys, sizeof(double) * m->capacity);
+        m->values = (void **)realloc(m->values, sizeof(void *) * m->capacity);
+    }
+    m->keys[m->length] = key;
+    m->values[m->length] = val;
+    m->length++;
+}
+
+void *cs2_num_ptr_map_get(NumPtrMap *m, double key) {
+    int32_t idx = find_num_key(m->keys, m->length, key);
+    return (idx >= 0) ? m->values[idx] : NULL;
+}
+
+int32_t cs2_num_ptr_map_has(NumPtrMap *m, double key) {
+    return find_num_key(m->keys, m->length, key) >= 0 ? 1 : 0;
+}
+
+int32_t cs2_num_ptr_map_delete(NumPtrMap *m, double key) {
+    int32_t idx = find_num_key(m->keys, m->length, key);
+    if (idx < 0) return 0;
+    m->length--;
+    m->keys[idx] = m->keys[m->length];
+    m->values[idx] = m->values[m->length];
+    return 1;
+}
+
+int32_t cs2_num_ptr_map_size(NumPtrMap *m) { return m->length; }
+void cs2_num_ptr_map_clear(NumPtrMap *m) { m->length = 0; }
+double cs2_num_ptr_map_key_at(NumPtrMap *m, int32_t i) { return m->keys[i]; }
+void *cs2_num_ptr_map_value_at(NumPtrMap *m, int32_t i) { return m->values[i]; }
+
+NumPtrMap *cs2_num_ptr_map_copy(NumPtrMap *src) {
+    NumPtrMap *m = cs2_num_ptr_map_new();
+    for (int32_t i = 0; i < src->length; i++) cs2_num_ptr_map_set(m, src->keys[i], src->values[i]);
+    return m;
+}
+
+CS2NumArr *cs2_num_ptr_map_keys(NumPtrMap *m) {
+    CS2NumArr *a = (CS2NumArr *)malloc(sizeof(CS2NumArr));
+    a->data = (double *)malloc(sizeof(double) * (m->length < 4 ? 4 : m->length));
+    a->length = m->length; a->capacity = m->length < 4 ? 4 : m->length;
+    for (int32_t i = 0; i < m->length; i++) a->data[i] = m->keys[i];
+    return a;
+}
