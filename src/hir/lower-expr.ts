@@ -793,13 +793,20 @@ function dynobj_get_typed(obj: HIRExpr, key: HIRExpr, targetType: HIRType | null
       case "map":
       case "set":
       case "ptr":
-      case "array":
         return {
           kind: "runtime_call",
           func: "cs2_dynobj_get_obj",
           args: [obj, key],
           returnType: targetType,
           type: targetType,
+        };
+      case "array":
+        return {
+          kind: "runtime_call",
+          func: "cs2_dynobj_get_boxed",
+          args: [obj, key],
+          returnType: BOXED,
+          type: BOXED,
         };
       default:
         break;

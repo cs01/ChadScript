@@ -19,6 +19,11 @@ import type {
   HIRExpr,
   HIRType,
   HIRParam,
+  HIRClass,
+  HIRInterface,
+  HIRGlobal,
+  HIRExternFn,
+  HIRSwitchCase,
   SourceInfo,
 } from "./types.js";
 import { F64, I64, I1, I8PTR, VOID, BOXED, DYNOBJ, DYNARRAY } from "./types.js";
@@ -113,11 +118,11 @@ export function lowerModule(
   bodyOverride?: any[],
 ): HIRModule {
   const functions: HIRFunction[] = [];
-  const hirClasses: import("./types.js").HIRClass[] = [];
+  const hirClasses: HIRClass[] = [];
   const hirInterfaces: import("./types.js").HIRInterface[] = [];
-  const hirGlobals: import("./types.js").HIRGlobal[] = [];
+  const hirGlobals: HIRGlobal[] = [];
   const init: HIRStmt[] = [];
-  const externFns: import("./types.js").HIRExternFn[] = [];
+  const externFns: HIRExternFn[] = [];
 
   functionRegistry.clear();
   classRegistry.clear();
