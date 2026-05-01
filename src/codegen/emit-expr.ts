@@ -414,37 +414,16 @@ function emitFieldGet(ctx: EmitContext, expr: HIRExpr & { kind: "field_get" }): 
   const ifaceInfo = ctx.getInterfaceType(typeName);
 
   if (ifaceInfo) {
-    let dynObjPtr = emitExpr(ctx, expr.object);
-    if (expr.object.type.kind === "boxed") {
-      const fn = ctx.getDeclaredFunction("nanbox_to_ptr")!;
-      dynObjPtr = m.buildCall(fn.fnType, fn.fn, [dynObjPtr], "");
-    }
-    const fieldName = expr.fieldName;
-    const keyStr = m.buildGlobalStringPtr(fieldName, "key");
-    const fty = expr.type.kind;
-    let func: string;
-    switch (fty) {
-      case "f64":
-      case "i64":
-        func = "cs2_dynobj_get_f64";
-        break;
-      case "i8ptr":
-        func = "cs2_dynobj_get_str";
-        break;
-      case "i1":
-        func = "cs2_dynobj_get_bool";
-        break;
-      case "boxed":
-        func = "cs2_dynobj_get_boxed";
-        break;
-      default:
-        func = "cs2_dynobj_get_obj";
-    }
-    const decl = ctx.getDeclaredFunction(func)!;
-    let result = m.buildCall(decl.fnType, decl.fn, [dynObjPtr, keyStr], "");
-    if (fty === "i64") result = m.buildFPToSI(result, m.i64, "");
-    if (fty === "i1") result = m.buildICmp(LLVMIntNE, result, m.constInt(m.i32, 0), "");
-    return result;
+    const fatPtr = emitExpr(ctx, expr.object);
+    const dataSlot = m.buildGEP(ifaceInfo.fatType, fatPtr, [m.constInt(m.i32, 0), m.constInt(m.i32, 0)], "");
+    const dataPtr = m.buildLoad(m.ptr, dataSlot, "data");
+    const fieldPtr = m.buildGEP(
+      ifaceInfo.layoutType,
+      dataPtr,
+      [m.constInt(m.i32, 0), m.constInt(m.i32, expr.index)],
+      "",
+    );
+    return m.buildLoad(llvmType(ctx, expr.type), fieldPtr, "");
   }
 
   const obj = emitExpr(ctx, expr.object);
