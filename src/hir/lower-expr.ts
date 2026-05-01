@@ -2789,6 +2789,16 @@ function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
   const method = (member.property as Identifier).value;
   const arrType = obj.type as { kind: "array"; element: HIRType };
   const prefix = arrayPrefix(arrType.element);
+  if (method === "push" && expr.arguments.some((a: any) => a.spread)) {
+    const src = lowerExpr(expr.arguments[0].expression);
+    return {
+      kind: "runtime_call",
+      func: `${prefix}_spread`,
+      args: [obj, src],
+      returnType: VOID,
+      type: VOID,
+    };
+  }
   const args = expr.arguments.map((a) => {
     if (method === "push" && arrType.element.kind === "ptr") {
       const prev = expectedDeclType;
