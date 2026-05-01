@@ -460,16 +460,23 @@ function emitFieldSet(ctx: EmitContext, expr: HIRExpr & { kind: "field_set" }): 
 function emitWrapInterface(ctx: EmitContext, expr: HIRExpr & { kind: "wrap_interface" }): any {
   const m = ctx.m;
   const dataPtr = emitExpr(ctx, expr.value);
-  const vtableGlobal = ctx.getVtable(`${expr.className}_${expr.interfaceName}`);
-  if (!vtableGlobal) throw new Error(`missing vtable: ${expr.className}_${expr.interfaceName}`);
   const ifaceInfo = ctx.getInterfaceType(expr.interfaceName);
   if (!ifaceInfo) throw new Error(`unknown interface type: ${expr.interfaceName}`);
+
+  let vtablePtr: any;
+  if (expr.className) {
+    const vt = ctx.getVtable(`${expr.className}_${expr.interfaceName}`);
+    if (!vt) throw new Error(`missing vtable: ${expr.className}_${expr.interfaceName}`);
+    vtablePtr = vt;
+  } else {
+    vtablePtr = m.constNull(m.ptr);
+  }
 
   const fat = m.buildAlloca(ifaceInfo.fatType, "fat");
   const dataSlot = m.buildGEP(ifaceInfo.fatType, fat, [m.constInt(m.i32, 0), m.constInt(m.i32, 0)], "");
   m.buildStore(dataPtr, dataSlot);
   const vtableSlot = m.buildGEP(ifaceInfo.fatType, fat, [m.constInt(m.i32, 0), m.constInt(m.i32, 1)], "");
-  m.buildStore(vtableGlobal, vtableSlot);
+  m.buildStore(vtablePtr, vtableSlot);
   return fat;
 }
 

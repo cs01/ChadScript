@@ -2786,9 +2786,17 @@ function lowerDynarrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
 function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
   const member = expr.callee as MemberExpression;
   const method = (member.property as Identifier).value;
-  const args = expr.arguments.map((a) => lowerExpr(a.expression));
   const arrType = obj.type as { kind: "array"; element: HIRType };
   const prefix = arrayPrefix(arrType.element);
+  const args = expr.arguments.map((a) => {
+    if (method === "push" && arrType.element.kind === "ptr") {
+      setExpectedDeclType(arrType.element);
+      const r = lowerExpr(a.expression);
+      setExpectedDeclType(null);
+      return r;
+    }
+    return lowerExpr(a.expression);
+  });
 
   type MethodInfo = { func: string; returnType: HIRType; argTypes?: HIRType[] };
   let info: MethodInfo | undefined;

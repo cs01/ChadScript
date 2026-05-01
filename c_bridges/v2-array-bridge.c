@@ -1,7 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <execinfo.h>
 
 typedef struct {
     double *data;
@@ -180,13 +179,7 @@ char *cs2_obj_array_join(ObjArray *arr, const char *sep) {
 }
 
 void *cs2_obj_array_get(ObjArray *arr, int32_t index) {
-    if (!arr || (unsigned long)arr < 0x100000000UL || (unsigned long)arr > 0xffffffffffUL) {
-        fprintf(stderr, "cs2_obj_array_get: bad ptr %p index=%d\n", arr, index);
-        void *bt[20]; int n = backtrace(bt, 20);
-        char **syms = backtrace_symbols(bt, n);
-        for (int i = 0; i < n; i++) fprintf(stderr, "  %s\n", syms[i]);
-        abort();
-    }
+    if (!arr) return NULL;
     if (index < 0 || index >= arr->length) return NULL;
     return arr->data[index];
 }
@@ -198,10 +191,6 @@ void cs2_obj_array_set(ObjArray *arr, int32_t index, void *value) {
 
 int32_t cs2_obj_array_length(ObjArray *arr) {
     if (!arr) return 0;
-    if ((unsigned long)arr < 0x100000000UL) {
-        fprintf(stderr, "cs2_obj_array_length: bad ptr %p\n", arr);
-        abort();
-    }
     return arr->length;
 }
 

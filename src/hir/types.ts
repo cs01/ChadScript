@@ -161,7 +161,7 @@ export type HIRExpr =
   | {
       kind: "wrap_interface";
       value: HIRExpr;
-      className: string;
+      className?: string;
       interfaceName: string;
       type: HIRType;
     }
