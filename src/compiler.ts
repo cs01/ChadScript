@@ -104,9 +104,13 @@ function cachedCompile(src: string, outObj: string, flags: string): void {
 }
 
 export function compile(opts: CompileOptions): void {
+  console.error("[DBG] compile start input=" + opts.input);
   const hir = resolveModules(opts.input, opts.substitutions);
+  console.error("[DBG] resolveModules done fns=" + hir.functions.length);
   constFoldPass(hir);
+  console.error("[DBG] constFoldPass done fns=" + hir.functions.length);
   deadCodePass(hir);
+  console.error("[DBG] deadCodePass done fns=" + hir.functions.length);
 
   const tmpObj = join(tmpdir(), `chad2-${process.pid}.o`);
   const bridgeObjs = BRIDGE_SRCS.map((_, i) =>

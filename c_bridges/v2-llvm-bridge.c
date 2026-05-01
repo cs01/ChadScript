@@ -219,3 +219,9 @@ void *chad2_LLVMDIBuilderCreateDebugLocation(void *ctx, double line, double col,
         (LLVMContextRef)ctx, (unsigned)line, (unsigned)col,
         (LLVMMetadataRef)scope, (LLVMMetadataRef)inlinedAt);
 }
+
+int chad2_LLVMBuilderHasTerminator(void *builder) {
+    LLVMBasicBlockRef bb = LLVMGetInsertBlock((LLVMBuilderRef)builder);
+    if (!bb) return 0;
+    return LLVMGetBasicBlockTerminator(bb) != NULL ? 1 : 0;
+}

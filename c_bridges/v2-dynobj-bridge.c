@@ -315,6 +315,21 @@ DynArray *cs2_dynarray_new(void) {
     return a;
 }
 
+typedef struct { void **data; int32_t length; int32_t capacity; } TypedObjArray;
+
+DynArray *cs2_dynarray_from_obj_array(TypedObjArray *src) {
+    if (!src) return NULL;
+    DynArray *a = (DynArray *)malloc(sizeof(DynArray));
+    a->capacity = src->length < DYNOBJ_INITIAL_CAP ? DYNOBJ_INITIAL_CAP : src->length;
+    a->length = src->length;
+    a->data = (DynValue *)malloc(sizeof(DynValue) * a->capacity);
+    for (int32_t i = 0; i < src->length; i++) {
+        a->data[i].tag = TAG_OBJECT;
+        a->data[i].obj_val = src->data[i];
+    }
+    return a;
+}
+
 static void dynarray_grow(DynArray *a) {
     if (a->length >= a->capacity) {
         a->capacity *= 2;

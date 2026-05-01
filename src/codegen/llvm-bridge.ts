@@ -21,6 +21,7 @@ declare function LLVMDisposeBuilder(b: string): void;
 declare function LLVMPositionBuilderAtEnd(b: string, block: string): void;
 declare function LLVMGetInsertBlock(b: string): string;
 declare function LLVMGetBasicBlockTerminator(block: string): string;
+declare function chad2_LLVMBuilderHasTerminator(b: string): number;
 declare function LLVMConstNull(type: string): string;
 declare function LLVMGetUndef(type: string): string;
 declare function LLVMBuildAdd(b: string, lhs: string, rhs: string, name: string): string;
@@ -243,10 +244,7 @@ export class LLVMModule {
   }
 
   currentBlockHasTerminator(): boolean {
-    const block = LLVMGetInsertBlock(this.builder);
-    if (block === "") return false;
-    const term = LLVMGetBasicBlockTerminator(block);
-    return term !== "";
+    return chad2_LLVMBuilderHasTerminator(this.builder) !== 0;
   }
 
   constInt(type: string, val: number, signExtend = false): string {

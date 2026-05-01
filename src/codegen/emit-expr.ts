@@ -390,13 +390,19 @@ function emitAllocDynObj(
 
   for (const prop of expr.props) {
     const keyVal = m.buildGlobalStringPtr(prop.key, "");
-    const val = emitExpr(ctx, prop.value);
-    const setFn = dynObjSetFunc(ctx, prop.value.type);
+    let val = emitExpr(ctx, prop.value);
+    let valType = prop.value.type;
+    if (valType.kind === "array") {
+      const conv = ctx.getDeclaredFunction("cs2_dynarray_from_obj_array")!;
+      val = m.buildCall(conv.fnType, conv.fn, [val], "darr");
+      valType = { kind: "dynarray" };
+    }
+    const setFn = dynObjSetFunc(ctx, valType);
     if (setFn) {
-      if (prop.value.type.kind === "i64") {
+      if (valType.kind === "i64") {
         const asF64 = m.buildSIToFP(val, m.f64, "");
         m.buildCall(setFn.fnType, setFn.fn, [objPtr, keyVal, asF64], "");
-      } else if (prop.value.type.kind === "i1") {
+      } else if (valType.kind === "i1") {
         const asI32 = m.buildZExt(val, m.i32, "");
         m.buildCall(setFn.fnType, setFn.fn, [objPtr, keyVal, asI32], "");
       } else {

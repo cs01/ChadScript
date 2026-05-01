@@ -107,7 +107,10 @@ function findClosureFuncNames(mod: HIRModule, names: Set<string>): void {
   scanStmts(mod.init);
 }
 
+let __emCount = 0;
 export function emitModule(mod: HIRModule, objectPath: string, irPath?: string): void {
+  __emCount++;
+  console.error("[DBG] emitModule#" + __emCount + " start fns=" + mod.functions.length + " classes=" + mod.classes.length);
   const m = new LLVMModule("chadscript");
   const ctx = new EmitContext(m);
 
@@ -169,11 +172,16 @@ export function emitModule(mod: HIRModule, objectPath: string, irPath?: string):
 
   buildVtables(ctx, mod);
 
-  for (const fn of mod.functions) {
+  console.error("[DBG] em loop fns=" + mod.functions.length);
+  for (let __i = 0; __i < mod.functions.length; __i++) {
+    const fn = mod.functions[__i];
+    console.error("[DBG] em fn[" + __i + "]=" + fn.name);
     emitFunction(ctx, fn, capturedByOuter, closureFuncs, mod);
   }
+  console.error("[DBG] em loop done");
 
   emitMain(ctx, mod);
+  console.error("[DBG] em emitMain done");
 
   m.finalizeDebugInfo();
 
@@ -685,6 +693,7 @@ function declareExterns(ctx: EmitContext): void {
     ["cs2_dynobj_tag", m.i32, [m.ptr, m.ptr]],
     ["cs2_dynobj_length", m.i32, [m.ptr]],
     ["cs2_dynarray_new", m.ptr, []],
+    ["cs2_dynarray_from_obj_array", m.ptr, [m.ptr]],
     ["cs2_dynarray_push_f64", m.voidTy, [m.ptr, m.f64]],
     ["cs2_dynarray_push_str", m.voidTy, [m.ptr, m.ptr]],
     ["cs2_dynarray_push_obj", m.voidTy, [m.ptr, m.ptr]],
@@ -808,12 +817,18 @@ function emitFunction(
     ctx.setAsyncPromiseAlloc(promiseAlloc);
   }
 
+  console.error("[DBG] ef " + fn.name + " stmts start, count=" + fn.body.length);
   for (const stmt of fn.body) {
+    console.error("[DBG] ef " + fn.name + " stmt.kind=" + stmt.kind);
     emitStmt(ctx, stmt);
   }
+  console.error("[DBG] ef " + fn.name + " stmts done");
+  console.error("[DBG] ef " + fn.name + " about to check terminator");
 
   if (!m.currentBlockHasTerminator()) {
+    console.error("[DBG] ef " + fn.name + " no terminator, retKind=" + fn.returnType.kind);
     if (!blockTerminates(fn.body)) {
+      console.error("[DBG] ef " + fn.name + " body does not terminate");
       if (fn.isAsync && fn.returnType.kind === "promise") {
         const promiseAlloc = ctx.getAsyncPromiseAlloc();
         const promiseVal = m.buildLoad(m.ptr, promiseAlloc, "");
@@ -821,7 +836,9 @@ function emitFunction(
         m.buildCall(resolveDecl.fnType, resolveDecl.fn, [promiseVal], "");
         m.buildRet(promiseVal);
       } else if (fn.returnType.kind === "void") {
+        console.error("[DBG] ef " + fn.name + " buildRetVoid");
         m.buildRetVoid();
+        console.error("[DBG] ef " + fn.name + " buildRetVoid done");
       } else {
         m.buildUnreachable();
       }
@@ -829,6 +846,7 @@ function emitFunction(
       m.buildUnreachable();
     }
   }
+  console.error("[DBG] ef " + fn.name + " complete");
 }
 
 function findCaptureType(fn: HIRFunction, captureId: number, mod?: HIRModule): HIRType {
@@ -844,21 +862,27 @@ function findCaptureType(fn: HIRFunction, captureId: number, mod?: HIRModule): H
 }
 
 function emitMain(ctx: EmitContext, mod: HIRModule): void {
+  console.error("[DBG] emitMain start");
   const m = ctx.m;
   ctx.resetLocalsAndCaptures();
 
   const mainType = m.functionType(m.i32, [m.i32, m.ptr]);
+  console.error("[DBG] emitMain mainType");
   const mainFn = m.addFunction("main", mainType);
+  console.error("[DBG] emitMain mainFn");
   ctx.setCurrentFn(mainFn);
 
   const entry = m.appendBlock(mainFn, "entry");
   m.positionAtEnd(entry);
+  console.error("[DBG] emitMain entry block");
 
   const argc = m.getParam(mainFn, 0);
   const argv = m.getParam(mainFn, 1);
   const processInit = ctx.getDeclaredFunction("cs2_process_init")!;
   m.buildCall(processInit.fnType, processInit.fn, [argc, argv], "");
+  console.error("[DBG] emitMain process_init call");
 
+  console.error("[DBG] emitMain globals=" + mod.globals.length);
   for (const g of mod.globals) {
     if (g.init) {
       const val = emitExpr(ctx, g.init);
@@ -866,15 +890,24 @@ function emitMain(ctx: EmitContext, mod: HIRModule): void {
       m.buildStore(val, globalInfo.alloc);
     }
   }
+  console.error("[DBG] emitMain globals done");
 
-  for (const stmt of mod.init) {
+  console.error("[DBG] emitMain init stmts=" + mod.init.length);
+  for (let __i = 0; __i < mod.init.length; __i++) {
+    const stmt = mod.init[__i];
+    console.error("[DBG] emitMain init[" + __i + "] kind:");
+    console.error(stmt.kind);
+    console.error("[DBG] emitMain init[" + __i + "] pre-emit");
     emitStmt(ctx, stmt);
+    console.error("[DBG] emitMain init[" + __i + "] done");
   }
+  console.error("[DBG] emitMain init done");
 
   const runLoop = ctx.getDeclaredFunction("cs2_run_event_loop")!;
   m.buildCall(runLoop.fnType, runLoop.fn, [], "");
 
   m.buildRet(m.constInt(m.i32, 0));
+  console.error("[DBG] emitMain done");
 }
 
 function emitStmt(ctx: EmitContext, stmt: HIRStmt): void {
