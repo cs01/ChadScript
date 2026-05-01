@@ -2940,6 +2940,10 @@ function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
 
   if (!info) compileError(`unsupported array method: ${method}`, expr.span);
 
+  if (method === "slice" && args.length === 0) {
+    args.push({ kind: "literal_i64", value: 0, type: I64 });
+    args.push({ kind: "runtime_call", func: `${prefix}_length`, args: [obj], returnType: I64, type: I64 });
+  }
   if (method === "slice" && args.length === 1) {
     args.push({ kind: "runtime_call", func: `${prefix}_length`, args: [obj], returnType: I64, type: I64 });
   }
