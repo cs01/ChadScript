@@ -3077,7 +3077,7 @@ function lowerOptionalChain(expr: any): HIRExpr {
 
   if (base.type === "MemberExpression") {
     const obj = lowerExpr(base.object);
-    if (obj.type.kind !== "ptr" && obj.type.kind !== "dynobj" && obj.type.kind !== "boxed" && obj.type.kind !== "i8ptr") {
+    if (obj.type.kind !== "ptr" && obj.type.kind !== "dynobj" && obj.type.kind !== "boxed" && obj.type.kind !== "i8ptr" && obj.type.kind !== "array" && obj.type.kind !== "dynarray" && obj.type.kind !== "map") {
       compileError("optional chaining requires object type", expr.span);
     }
 
