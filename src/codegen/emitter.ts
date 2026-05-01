@@ -136,12 +136,19 @@ export function emitModule(mod: HIRModule, objectPath: string, irPath?: string):
     ctx.registerStructType(iface.name, fieldLayoutTy, iface.fields);
   }
 
+  console.error("[DBG] em classes loop, count=" + mod.classes.length);
   for (const cls of mod.classes) {
+    console.error("[DBG] em cls=" + cls.name);
     const fieldTypes = cls.fields.map((f) => llvmType(ctx, f.type));
+    console.error("[DBG] em cls fieldTypes len=" + fieldTypes.length);
     const structTy = m.structCreateNamed(cls.name);
-    m.structSetBody(structTy, fieldTypes);
+    console.error("[DBG] em cls struct created, calling structSetBody");
+    m.structSetBody(structTy, fieldTypes, false);
+    console.error("[DBG] em cls structSetBody done");
     ctx.registerStructType(cls.name, structTy, cls.fields);
+    console.error("[DBG] em cls registered");
   }
+  console.error("[DBG] em classes done");
 
   for (const g of mod.globals) {
     const ty = llvmType(ctx, g.type);

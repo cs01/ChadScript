@@ -179,7 +179,7 @@ export class EmitContext {
 export interface CaptureEnvEntry { id: number; type: HIRType; }
 export type CaptureMap = Map<string, CaptureEnvEntry[]>;
 
-export function llvmType(ctx: EmitContext, t: HIRType): any {
+export function llvmType(ctx: EmitContext, t: HIRType): string {
   const m = ctx.m;
   if (!t || !t.kind) {
     return m.ptr;
