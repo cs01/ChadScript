@@ -146,6 +146,11 @@ export type HIRExpr =
       type: HIRType;
     }
   | {
+      kind: "alloc_dynarray";
+      initialValues: HIRExpr[];
+      type: HIRType;
+    }
+  | {
       kind: "runtime_call";
       func: string;
       args: HIRExpr[];

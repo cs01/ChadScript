@@ -665,6 +665,14 @@ function lowerArrayLiteral(expr: any): HIRExpr {
       if (elemTarget && elemTarget.kind === "array") setExpectedArrayElementType(elemTarget);
       return result;
     });
+    if (!elemTarget && (expectedDeclType?.kind === "boxed" || expectedDeclType?.kind === "dynarray")) {
+      const boxedElems = elements.map((e) => (e.type.kind === "boxed" ? e : coerce(e, BOXED)));
+      return {
+        kind: "alloc_dynarray",
+        initialValues: boxedElems,
+        type: DYNARRAY,
+      };
+    }
     let elementType: HIRType = elemTarget || F64;
     if (!elemTarget && elements.length > 0) {
       if (elements.some((e: HIRExpr) => e.type.kind === "i8ptr")) elementType = I8PTR;
@@ -2749,7 +2757,7 @@ function lowerDynarrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr {
         returnType = VOID;
         break;
       case "find":
-        returnType = DYNOBJ;
+        returnType = BOXED;
         break;
       case "findIndex":
         returnType = F64;

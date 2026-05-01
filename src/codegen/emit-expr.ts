@@ -138,6 +138,8 @@ export function emitExpr(ctx: EmitContext, expr: HIRExpr): any {
       return emitAllocSet(ctx, expr as HIRExpr & { kind: "alloc_set" });
     case "alloc_dynobj":
       return emitAllocDynObj(ctx, expr as HIRExpr & { kind: "alloc_dynobj" });
+    case "alloc_dynarray":
+      return emitAllocDynarray(ctx, expr as HIRExpr & { kind: "alloc_dynarray" });
     case "field_get":
       return emitFieldGet(ctx, expr as HIRExpr & { kind: "field_get" });
     case "field_set":
@@ -216,6 +218,18 @@ function emitAllocArray(ctx: EmitContext, expr: HIRExpr & { kind: "alloc_array" 
     }
   }
 
+  return arr;
+}
+
+function emitAllocDynarray(ctx: EmitContext, expr: HIRExpr & { kind: "alloc_dynarray" }): any {
+  const m = ctx.m;
+  const newDecl = ctx.getDeclaredFunction("cs2_dynarray_new")!;
+  const pushDecl = ctx.getDeclaredFunction("cs2_dynarray_push_boxed")!;
+  const arr = m.buildCall(newDecl.fnType, newDecl.fn, [], "dynarr");
+  for (const valExpr of expr.initialValues) {
+    const v = emitExpr(ctx, valExpr);
+    m.buildCall(pushDecl.fnType, pushDecl.fn, [arr, v], "");
+  }
   return arr;
 }
 

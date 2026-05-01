@@ -379,75 +379,133 @@ int32_t cs2_dynarray_get_bool(DynArray *a, int32_t i) {
     return a->data[i].bool_val;
 }
 
+extern int nanbox_is_string(uint64_t v);
+extern int nanbox_is_ptr(uint64_t v);
+extern int nanbox_is_bool(uint64_t v);
+extern int nanbox_is_null(uint64_t v);
+
+#define BOXED_FALSE 0x7FFC000000000003ULL
+#define BOXED_NULL  0x7FFC000000000005ULL
+
+static int boxed_truthy(uint64_t v) {
+    if (v == 0) return 0;
+    if (v == BOXED_FALSE) return 0;
+    if (v == BOXED_NULL) return 0;
+    if (nanbox_is_string(v)) {
+        const char *s = nanbox_to_string(v);
+        return s && s[0] != '\0';
+    }
+    return 1;
+}
+
+void cs2_dynarray_push_boxed(DynArray *a, uint64_t val) {
+    dynarray_grow(a);
+    DynValue *dv = &a->data[a->length];
+    if (nanbox_is_string(val)) {
+        dv->tag = TAG_STRING;
+        dv->str_val = (char *)nanbox_to_string(val);
+    } else if (nanbox_is_ptr(val)) {
+        dv->tag = TAG_OBJECT;
+        dv->obj_val = nanbox_to_ptr(val);
+    } else if (nanbox_is_bool(val)) {
+        dv->tag = TAG_BOOL;
+        dv->bool_val = (val == 0x7FFC000000000004ULL) ? 1 : 0;
+    } else if (nanbox_is_null(val)) {
+        dv->tag = TAG_NULL;
+        dv->f64_val = 0;
+    } else {
+        dv->tag = TAG_F64;
+        dv->f64_val = nanbox_to_f64(val);
+    }
+    a->length++;
+}
+
+uint64_t cs2_dynarray_get_boxed(DynArray *a, int32_t i) {
+    if (!a || i < 0 || i >= a->length) return 0;
+    DynValue *dv = &a->data[i];
+    switch (dv->tag) {
+        case TAG_F64:    return nanbox_from_f64(dv->f64_val);
+        case TAG_STRING: return nanbox_from_string(dv->str_val);
+        case TAG_BOOL:   return nanbox_from_bool(dv->bool_val);
+        case TAG_OBJECT: return nanbox_from_ptr(dv->obj_val);
+        case TAG_ARRAY:  return nanbox_from_ptr(dv->arr_val);
+        default:         return 0;
+    }
+}
+
 DynArray *cs2_dynarray_filter(DynArray *arr, void *fn_ptr, void *env_ptr) {
-    int32_t (*fn)(void *, DynObj *) = (int32_t (*)(void *, DynObj *))fn_ptr;
+    uint64_t (*fn)(void *, uint64_t) = (uint64_t (*)(void *, uint64_t))fn_ptr;
     DynArray *result = cs2_dynarray_new();
     for (int32_t i = 0; i < arr->length; i++) {
-        DynObj *elem = arr->data[i].obj_val;
-        if (fn(env_ptr, elem)) {
-            cs2_dynarray_push_obj(result, elem);
+        uint64_t elem = cs2_dynarray_get_boxed(arr, i);
+        if (boxed_truthy(fn(env_ptr, elem))) {
+            dynarray_grow(result);
+            result->data[result->length++] = arr->data[i];
         }
     }
     return result;
 }
 
 DynArray *cs2_dynarray_map(DynArray *arr, void *fn_ptr, void *env_ptr) {
-    DynObj *(*fn)(void *, DynObj *) = (DynObj *(*)(void *, DynObj *))fn_ptr;
+    uint64_t (*fn)(void *, uint64_t) = (uint64_t (*)(void *, uint64_t))fn_ptr;
     DynArray *result = cs2_dynarray_new();
     for (int32_t i = 0; i < arr->length; i++) {
-        DynObj *elem = arr->data[i].obj_val;
-        DynObj *mapped = fn(env_ptr, elem);
-        cs2_dynarray_push_obj(result, mapped);
+        uint64_t elem = cs2_dynarray_get_boxed(arr, i);
+        cs2_dynarray_push_boxed(result, fn(env_ptr, elem));
     }
     return result;
 }
 
 void cs2_dynarray_forEach(DynArray *arr, void *fn_ptr, void *env_ptr) {
-    void (*fn)(void *, DynObj *) = (void (*)(void *, DynObj *))fn_ptr;
+    uint64_t (*fn)(void *, uint64_t) = (uint64_t (*)(void *, uint64_t))fn_ptr;
     for (int32_t i = 0; i < arr->length; i++) {
-        fn(env_ptr, arr->data[i].obj_val);
+        fn(env_ptr, cs2_dynarray_get_boxed(arr, i));
     }
 }
 
-DynObj *cs2_dynarray_find(DynArray *arr, void *fn_ptr, void *env_ptr) {
-    int32_t (*fn)(void *, DynObj *) = (int32_t (*)(void *, DynObj *))fn_ptr;
+uint64_t cs2_dynarray_find(DynArray *arr, void *fn_ptr, void *env_ptr) {
+    uint64_t (*fn)(void *, uint64_t) = (uint64_t (*)(void *, uint64_t))fn_ptr;
     for (int32_t i = 0; i < arr->length; i++) {
-        DynObj *elem = arr->data[i].obj_val;
-        if (fn(env_ptr, elem)) return elem;
+        uint64_t elem = cs2_dynarray_get_boxed(arr, i);
+        if (boxed_truthy(fn(env_ptr, elem))) return elem;
     }
-    return NULL;
+    return 0;
 }
 
 double cs2_dynarray_findIndex(DynArray *arr, void *fn_ptr, void *env_ptr) {
-    int32_t (*fn)(void *, DynObj *) = (int32_t (*)(void *, DynObj *))fn_ptr;
+    uint64_t (*fn)(void *, uint64_t) = (uint64_t (*)(void *, uint64_t))fn_ptr;
     for (int32_t i = 0; i < arr->length; i++) {
-        if (fn(env_ptr, arr->data[i].obj_val)) return (double)i;
+        uint64_t elem = cs2_dynarray_get_boxed(arr, i);
+        if (boxed_truthy(fn(env_ptr, elem))) return (double)i;
     }
     return -1.0;
 }
 
 double cs2_dynarray_every(DynArray *arr, void *fn_ptr, void *env_ptr) {
-    int32_t (*fn)(void *, DynObj *) = (int32_t (*)(void *, DynObj *))fn_ptr;
+    uint64_t (*fn)(void *, uint64_t) = (uint64_t (*)(void *, uint64_t))fn_ptr;
     for (int32_t i = 0; i < arr->length; i++) {
-        if (!fn(env_ptr, arr->data[i].obj_val)) return 0.0;
+        uint64_t elem = cs2_dynarray_get_boxed(arr, i);
+        if (!boxed_truthy(fn(env_ptr, elem))) return 0.0;
     }
     return 1.0;
 }
 
 double cs2_dynarray_some(DynArray *arr, void *fn_ptr, void *env_ptr) {
-    int32_t (*fn)(void *, DynObj *) = (int32_t (*)(void *, DynObj *))fn_ptr;
+    uint64_t (*fn)(void *, uint64_t) = (uint64_t (*)(void *, uint64_t))fn_ptr;
     for (int32_t i = 0; i < arr->length; i++) {
-        if (fn(env_ptr, arr->data[i].obj_val)) return 1.0;
+        uint64_t elem = cs2_dynarray_get_boxed(arr, i);
+        if (boxed_truthy(fn(env_ptr, elem))) return 1.0;
     }
     return 0.0;
 }
 
 DynArray *cs2_dynarray_flatMap(DynArray *arr, void *fn_ptr, void *env_ptr) {
-    DynArray *(*fn)(void *, DynObj *) = (DynArray *(*)(void *, DynObj *))fn_ptr;
+    uint64_t (*fn)(void *, uint64_t) = (uint64_t (*)(void *, uint64_t))fn_ptr;
     DynArray *result = cs2_dynarray_new();
     for (int32_t i = 0; i < arr->length; i++) {
-        DynObj *elem = arr->data[i].obj_val;
-        DynArray *sub = fn(env_ptr, elem);
+        uint64_t elem = cs2_dynarray_get_boxed(arr, i);
+        uint64_t r = fn(env_ptr, elem);
+        DynArray *sub = nanbox_is_ptr(r) ? (DynArray *)nanbox_to_ptr(r) : NULL;
         if (sub) {
             for (int32_t j = 0; j < sub->length; j++) {
                 dynarray_grow(result);
