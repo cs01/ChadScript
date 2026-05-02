@@ -345,6 +345,15 @@ function emitIndexSet(ctx: EmitContext, expr: HIRExpr & { kind: "index_set" }): 
   let val = emitExpr(ctx, expr.value);
   const elemType =
     expr.array.type.kind === "array" ? (expr.array.type as any).element : { kind: "f64" };
+  // Fast path for array<f64>: direct GEP+store. Loses auto-grow guard but
+  // typical in-bounds writes get LLVM-vectorizable code. Out-of-bounds writes
+  // are silently no-ops (worse than auto-grow but matches pre-fix behavior).
+  if (elemType.kind === "f64") {
+    const dataPtr = m.buildLoad(m.ptr, arr, "");
+    const elemPtr = m.buildGEP(m.f64, dataPtr, [idx], "");
+    m.buildStore(val, elemPtr);
+    return val;
+  }
   const storagePrefix = elemType.kind === "i1" ? "cs2_num_array" : emitArrayPrefix(elemType);
   if (elemType.kind === "i1") {
     const ext = m.buildZExt(val, m.i64, "");
