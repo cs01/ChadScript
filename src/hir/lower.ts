@@ -935,6 +935,12 @@ function lowerReturn(stmt: ReturnStatement): HIRStmt {
       setExpectedDeclType(currentReturnType);
       value = lowerExpr(stmt.argument);
       setExpectedDeclType(null);
+    } else if (currentReturnType && currentReturnType.kind === "array") {
+      setExpectedArrayElementType((currentReturnType as { kind: "array"; element: HIRType }).element);
+      setExpectedDeclType(currentReturnType);
+      value = lowerExpr(stmt.argument);
+      setExpectedDeclType(null);
+      setExpectedArrayElementType(null);
     } else {
       value = lowerExpr(stmt.argument);
     }

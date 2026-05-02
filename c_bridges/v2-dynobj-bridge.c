@@ -331,6 +331,19 @@ DynArray *cs2_dynarray_from_obj_array(TypedObjArray *src) {
     return a;
 }
 
+TypedObjArray *cs2_obj_array_from_dynarray(DynArray *src) {
+    if (!src) return NULL;
+    if (src->length < 0 || src->length > 1000000) return NULL;
+    TypedObjArray *a = (TypedObjArray *)malloc(sizeof(TypedObjArray));
+    a->capacity = src->length < 4 ? 4 : src->length;
+    a->length = src->length;
+    a->data = (void **)malloc(sizeof(void *) * a->capacity);
+    for (int32_t i = 0; i < src->length; i++) {
+        a->data[i] = src->data[i].obj_val;
+    }
+    return a;
+}
+
 static void dynarray_grow(DynArray *a) {
     if (a->length >= a->capacity) {
         a->capacity *= 2;
