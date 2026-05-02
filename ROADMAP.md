@@ -6,7 +6,14 @@
 
 ## Known Bugs
 
-- **Stage1 self-host O2 crashes** in `Call parameter type does not match function signature`. Root cause: in `declareExterns`, the table-driven loop iterates `[name, ret, params: string[]]` tuples. When stage1 reads `entry[2]` (the inner `string[]` of LLVMTypeRefs), the StrArray's data pointers are corrupt (`0x7fff...` style high-mem garbage). Outer ObjArray length and inner StrArray length are correct, but the elements aren't the original `m.i32`/`m.ptr` pointers. Stage1 native miscompiles the nested array literal inside the tuple. Workaround: stage1 binary uses O0 only. Stage0 (koffi-based) is unaffected. Fix path: investigate `alloc_array` lowering for arrays-inside-mixed-tuples, or rewrite `declareExterns` to avoid nested array literals.
+- **Mixed-type tuple lowering**: `[a: string, b: string, c: string[]][]` collapses to `array<BOXED>` per `lower-state.ts:228` (TsTupleType). Each tuple element gets NaN-boxed when stored, including nested arrays. Workaround applied in declareExterns (avoid tuples). Real fix: support proper tuple types in HIR.
+- **Stage1 silent emitModule exit at O2**: distinct from the now-fixed verifier crash. `[compile] emitModule start` prints, then exit 0 with no binary. Needs trace through emitObjectFile's runPasses → emit_to_file path in stage1 native.
+
+## Perf Hotspots (vs perry)
+
+- **string_concat 0.38s vs 0.00s**: `result = result + "x"` × 100k is O(n²) — every concat does `strlen+strlen+malloc+strcpy+strcat`. Fix path: detect `var = var + expr` / `var += str` pattern in lowering, emit `cs_string_append_inplace` (realloc + memcpy) for amortized O(n).
+- **closure 22x slower**: `compute(i)` in tight loop. IR shows `sitofp i64→f64`, `call compute(double)`, `fptosi double→i64` per iter. Conversions kill perf. Fix path: integer-narrowing pass should infer compute's return type from body when params are integer-narrowed.
+- **matrix_multiply 4x**: each `arr[i]` calls `cs2_num_array_get` with bounds check, kills auto-vectorize. Fix path: emit direct GEP for `array<f64>` index access in tight contexts.
 
 ## 1. Self-Hosting (active blocker)
 
