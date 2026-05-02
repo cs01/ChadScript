@@ -91,14 +91,21 @@ export function lowerExpr(expr: Expression): HIRExpr {
       return lowerMember(expr);
     case "ParenthesisExpression":
       return lowerExpr(expr.expression);
-    case "ConditionalExpression":
+    case "ConditionalExpression": {
+      const condTest = lowerExpr(expr.test);
+      const condThen = lowerExpr(expr.consequent);
+      const condElse = lowerExpr(expr.alternate);
+      const commonType: HIRType = condThen.type.kind === condElse.type.kind ? condThen.type : BOXED;
+      const thenCoerced = condThen.type.kind !== commonType.kind ? coerce(condThen, commonType) : condThen;
+      const elseCoerced = condElse.type.kind !== commonType.kind ? coerce(condElse, commonType) : condElse;
       return {
         kind: "conditional",
-        condition: lowerExpr(expr.test),
-        then: lowerExpr(expr.consequent),
-        else: lowerExpr(expr.alternate),
-        type: lowerExpr(expr.consequent).type,
+        condition: condTest,
+        then: thenCoerced,
+        else: elseCoerced,
+        type: commonType,
       };
+    }
     case "ArrayExpression":
       return lowerArrayLiteral(expr);
     case "ObjectExpression":
