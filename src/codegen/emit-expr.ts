@@ -318,6 +318,13 @@ function emitIndexGet(ctx: EmitContext, expr: HIRExpr & { kind: "index_get" }): 
   }
   const elemType =
     expr.array.type.kind === "array" ? (expr.array.type as any).element : { kind: "f64" };
+  // Fast path for array<f64>: direct GEP+load, skip bounds-checked C call.
+  // Layout: { data: f64*, length: i32, capacity: i32 } — data at offset 0.
+  if (elemType.kind === "f64") {
+    const dataPtr = m.buildLoad(m.ptr, arr, "");
+    const elemPtr = m.buildGEP(m.f64, dataPtr, [idx], "");
+    return m.buildLoad(m.f64, elemPtr, "");
+  }
   const storagePrefix = elemType.kind === "i1" ? "cs2_num_array" : emitArrayPrefix(elemType);
   const getFn = `${storagePrefix}_get`;
   const decl = ctx.getDeclaredFunction(getFn)!;
