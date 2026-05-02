@@ -54,7 +54,16 @@ double cs2_num_array_at(NumArray *arr, int32_t index) {
 }
 
 void cs2_num_array_set(NumArray *arr, int32_t index, double value) {
-    if (index < 0 || index >= arr->length) return;
+    if (index < 0) return;
+    if (index >= arr->capacity) {
+        int32_t new_cap = arr->capacity > 0 ? arr->capacity : 4;
+        while (new_cap <= index) new_cap *= 2;
+        arr->data = (double *)realloc(arr->data, sizeof(double) * new_cap);
+        arr->capacity = new_cap;
+    }
+    while (arr->length <= index) {
+        arr->data[arr->length++] = 0.0;
+    }
     arr->data[index] = value;
 }
 
@@ -185,7 +194,16 @@ void *cs2_obj_array_get(ObjArray *arr, int32_t index) {
 }
 
 void cs2_obj_array_set(ObjArray *arr, int32_t index, void *value) {
-    if (index < 0 || index >= arr->length) return;
+    if (index < 0) return;
+    if (index >= arr->capacity) {
+        int32_t new_cap = arr->capacity > 0 ? arr->capacity : 4;
+        while (new_cap <= index) new_cap *= 2;
+        arr->data = (void **)realloc(arr->data, sizeof(void *) * new_cap);
+        arr->capacity = new_cap;
+    }
+    while (arr->length <= index) {
+        arr->data[arr->length++] = NULL;
+    }
     arr->data[index] = value;
 }
 
@@ -323,7 +341,16 @@ char *cs2_str_array_at(StrArray *arr, int32_t index) {
 }
 
 void cs2_str_array_set(StrArray *arr, int32_t index, const char *value) {
-    if (index < 0 || index >= arr->length) return;
+    if (index < 0) return;
+    if (index >= arr->capacity) {
+        int32_t new_cap = arr->capacity > 0 ? arr->capacity : 4;
+        while (new_cap <= index) new_cap *= 2;
+        arr->data = (char **)realloc(arr->data, sizeof(char *) * new_cap);
+        arr->capacity = new_cap;
+    }
+    while (arr->length <= index) {
+        arr->data[arr->length++] = NULL;
+    }
     arr->data[index] = (char *)value;
 }
 

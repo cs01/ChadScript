@@ -216,7 +216,9 @@ export function lowerExpr(expr: Expression): HIRExpr {
 }
 
 function lowerNumericLiteral(lit: NumericLiteral): HIRExpr {
-  if (Number.isInteger(lit.value) && Math.abs(lit.value) <= Number.MAX_SAFE_INTEGER) {
+  const raw = (lit as any).raw as string | undefined;
+  const isFloatLiteral = raw !== undefined && (raw.includes(".") || raw.includes("e") || raw.includes("E"));
+  if (!isFloatLiteral && Number.isInteger(lit.value) && Math.abs(lit.value) <= Number.MAX_SAFE_INTEGER) {
     return { kind: "literal_i64", value: lit.value, type: I64 };
   }
   return { kind: "literal_f64", value: lit.value, type: F64 };

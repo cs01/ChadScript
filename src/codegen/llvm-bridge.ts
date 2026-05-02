@@ -436,7 +436,7 @@ export class LLVMModule {
     const dl = LLVMCreateTargetDataLayout(tm);
     LLVMSetModuleDataLayout(this.mod, dl);
 
-    if (chad2_LLVMRunPasses(this.mod, "default<O0>", tm) !== 0) {
+    if (chad2_LLVMRunPasses(this.mod, "default<O2>", tm) !== 0) {
       throw new Error("LLVM optimization passes failed");
     }
 
