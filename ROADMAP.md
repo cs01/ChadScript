@@ -4,10 +4,9 @@
 
 160 parity tests passing (50 fixture files). SWC parser, HIR pipeline, LLVM C API codegen (koffi FFI), unboxed/NaN-boxing, integer narrowing, classes/interfaces/vtables, closures, generics, event loop (libuv), multi-file imports, stdlib, dead code elimination, constant folding, SWC Rust bridge, DynObj bridge, JSON→DynObj all operational.
 
-## Known Bugs (need fix)
+## Known Bugs
 
-- **Float literal narrowing**: `let x = 1.0` narrows to i64 (Number.isInteger(1.0) === true). All float math then truncates. Affects mandelbrot, math_intensive, loop_data_dependent. Fix: use `lit.raw.includes(".")` or check declared type before narrowing in `lowerNumericLiteral`.
-- **Array index-assign doesn't grow**: `arr[i] = v` on empty `number[]` silently no-ops. Only `push()` grows. Affects sieve, array_write/read, nested_loops. Fix: `cs2_num_array_set` (and obj/str variants) should auto-grow when `index >= length`.
+- **Stage1 self-host O2 crashes** in `Call parameter type does not match function signature`. Root cause: in `declareExterns`, the table-driven loop iterates `[name, ret, params: string[]]` tuples. When stage1 reads `entry[2]` (the inner `string[]` of LLVMTypeRefs), the StrArray's data pointers are corrupt (`0x7fff...` style high-mem garbage). Outer ObjArray length and inner StrArray length are correct, but the elements aren't the original `m.i32`/`m.ptr` pointers. Stage1 native miscompiles the nested array literal inside the tuple. Workaround: stage1 binary uses O0 only. Stage0 (koffi-based) is unaffected. Fix path: investigate `alloc_array` lowering for arrays-inside-mixed-tuples, or rewrite `declareExterns` to avoid nested array literals.
 
 ## 1. Self-Hosting (active blocker)
 
