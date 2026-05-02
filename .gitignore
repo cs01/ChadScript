@@ -16,3 +16,5 @@ vendor/
 !.claude/rules.md
 .cache/
 swc-bridge/target/
+chad2-native*
+chad2-native*.dSYM/

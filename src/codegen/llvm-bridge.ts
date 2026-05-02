@@ -387,9 +387,9 @@ export class LLVMModule {
     }
   }
 
-  private diBuilder: string;
-  private diFile: string;
-  private diCU: string;
+  private diBuilder: string = "";
+  private diFile: string = "";
+  private diCU: string = "";
 
   initDebugInfo(filename: string, directory: string): void {
     this.diBuilder = LLVMCreateDIBuilder(this.mod);
@@ -436,7 +436,7 @@ export class LLVMModule {
     const dl = LLVMCreateTargetDataLayout(tm);
     LLVMSetModuleDataLayout(this.mod, dl);
 
-    if (chad2_LLVMRunPasses(this.mod, "default<O2>", tm) !== 0) {
+    if (chad2_LLVMRunPasses(this.mod, "default<O0>", tm) !== 0) {
       throw new Error("LLVM optimization passes failed");
     }
 

@@ -97,10 +97,10 @@ function cachedCompile(src: string, outObj: string, flags: string): void {
   const cached = join(BRIDGE_CACHE_DIR, `${hash}-${src.split("/").pop()!.replace(".c", ".o")}`);
   if (existsSync(cached)) {
     copyFileSync(cached, outObj);
-    return;
+  } else {
+    execSync(`clang -c ${flags} -o ${outObj} ${src}`, { stdio: "inherit" });
+    copyFileSync(outObj, cached);
   }
-  execSync(`clang -c ${flags} -o ${outObj} ${src}`, { stdio: "inherit" });
-  copyFileSync(outObj, cached);
 }
 
 export function compile(opts: CompileOptions): void {
@@ -109,7 +109,7 @@ export function compile(opts: CompileOptions): void {
   deadCodePass(hir);
 
   const tmpObj = join(tmpdir(), `chad2-${process.pid}.o`);
-  const bridgeObjs = BRIDGE_SRCS.map((_, i) =>
+  const bridgeObjs = BRIDGE_SRCS.map((_: string, i: number): string =>
     join(tmpdir(), `chad2-bridge-${process.pid}-${i}.o`),
   );
   const timerObj = join(tmpdir(), `chad2-timer-${process.pid}.o`);
@@ -119,7 +119,7 @@ export function compile(opts: CompileOptions): void {
   const llvmObj = join(tmpdir(), `chad2-llvm-${process.pid}.o`);
   const allObjs = [...bridgeObjs, timerObj, jsonObj, yyjsonObj, httpObj];
   if (opts.llvm) allObjs.push(llvmObj);
-  const irPath = opts.emitIR ? opts.output + ".ll" : undefined;
+  const irPath = opts.emitIR ? opts.output + ".ll" : "";
 
   try {
     emitModule(hir, tmpObj, irPath);

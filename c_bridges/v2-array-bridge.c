@@ -206,10 +206,10 @@ ObjArray *cs2_obj_array_slice(ObjArray *arr, int32_t start, int32_t end) {
 }
 
 ObjArray *cs2_obj_array_map(ObjArray *arr, void *fn_ptr, void *env_ptr) {
-    void *(*fn)(void *, void *) = (void *(*)(void *, void *))fn_ptr;
+    void *(*fn)(void *, void *, double) = (void *(*)(void *, void *, double))fn_ptr;
     ObjArray *result = cs2_obj_array_new(arr->length);
     for (int32_t i = 0; i < arr->length; i++) {
-        result->data[i] = fn(env_ptr, arr->data[i]);
+        result->data[i] = fn(env_ptr, arr->data[i], (double)i);
     }
     result->length = arr->length;
     return result;
@@ -230,10 +230,10 @@ ObjArray *cs2_obj_array_flatMap(ObjArray *arr, void *fn_ptr, void *env_ptr) {
 }
 
 ObjArray *cs2_obj_array_filter(ObjArray *arr, void *fn_ptr, void *env_ptr) {
-    int32_t (*fn)(void *, void *) = (int32_t (*)(void *, void *))fn_ptr;
+    int32_t (*fn)(void *, void *, double) = (int32_t (*)(void *, void *, double))fn_ptr;
     ObjArray *result = cs2_obj_array_new(arr->length);
     for (int32_t i = 0; i < arr->length; i++) {
-        if (fn(env_ptr, arr->data[i])) {
+        if (fn(env_ptr, arr->data[i], (double)i)) {
             cs2_obj_array_push(result, arr->data[i]);
         }
     }
@@ -241,9 +241,9 @@ ObjArray *cs2_obj_array_filter(ObjArray *arr, void *fn_ptr, void *env_ptr) {
 }
 
 void cs2_obj_array_forEach(ObjArray *arr, void *fn_ptr, void *env_ptr) {
-    void (*fn)(void *, void *) = (void (*)(void *, void *))fn_ptr;
+    void (*fn)(void *, void *, double) = (void (*)(void *, void *, double))fn_ptr;
     for (int32_t i = 0; i < arr->length; i++) {
-        fn(env_ptr, arr->data[i]);
+        fn(env_ptr, arr->data[i], (double)i);
     }
 }
 
@@ -430,20 +430,20 @@ void cs2_num_array_sort_fn(NumArray *arr, void *fn_ptr, void *env_ptr) {
 }
 
 NumArray *cs2_num_array_map(NumArray *arr, void *fn_ptr, void *env_ptr) {
-    double (*fn)(void *, double) = (double (*)(void *, double))fn_ptr;
+    double (*fn)(void *, double, double) = (double (*)(void *, double, double))fn_ptr;
     NumArray *result = cs2_num_array_new(arr->length);
     for (int32_t i = 0; i < arr->length; i++) {
-        result->data[i] = fn(env_ptr, arr->data[i]);
+        result->data[i] = fn(env_ptr, arr->data[i], (double)i);
     }
     result->length = arr->length;
     return result;
 }
 
 NumArray *cs2_num_array_filter(NumArray *arr, void *fn_ptr, void *env_ptr) {
-    int32_t (*fn)(void *, double) = (int32_t (*)(void *, double))fn_ptr;
+    int32_t (*fn)(void *, double, double) = (int32_t (*)(void *, double, double))fn_ptr;
     NumArray *result = cs2_num_array_new(arr->length);
     for (int32_t i = 0; i < arr->length; i++) {
-        if (fn(env_ptr, arr->data[i])) {
+        if (fn(env_ptr, arr->data[i], (double)i)) {
             cs2_num_array_push(result, arr->data[i]);
         }
     }
@@ -451,27 +451,27 @@ NumArray *cs2_num_array_filter(NumArray *arr, void *fn_ptr, void *env_ptr) {
 }
 
 void cs2_num_array_forEach(NumArray *arr, void *fn_ptr, void *env_ptr) {
-    void (*fn)(void *, double) = (void (*)(void *, double))fn_ptr;
+    void (*fn)(void *, double, double) = (void (*)(void *, double, double))fn_ptr;
     for (int32_t i = 0; i < arr->length; i++) {
-        fn(env_ptr, arr->data[i]);
+        fn(env_ptr, arr->data[i], (double)i);
     }
 }
 
 StrArray *cs2_str_array_map(StrArray *arr, void *fn_ptr, void *env_ptr) {
-    char *(*fn)(void *, const char *) = (char *(*)(void *, const char *))fn_ptr;
+    char *(*fn)(void *, const char *, double) = (char *(*)(void *, const char *, double))fn_ptr;
     StrArray *result = cs2_str_array_new(arr->length);
     for (int32_t i = 0; i < arr->length; i++) {
-        result->data[i] = fn(env_ptr, arr->data[i]);
+        result->data[i] = fn(env_ptr, arr->data[i], (double)i);
     }
     result->length = arr->length;
     return result;
 }
 
 StrArray *cs2_str_array_filter(StrArray *arr, void *fn_ptr, void *env_ptr) {
-    int32_t (*fn)(void *, const char *) = (int32_t (*)(void *, const char *))fn_ptr;
+    int32_t (*fn)(void *, const char *, double) = (int32_t (*)(void *, const char *, double))fn_ptr;
     StrArray *result = cs2_str_array_new(arr->length);
     for (int32_t i = 0; i < arr->length; i++) {
-        if (fn(env_ptr, arr->data[i])) {
+        if (fn(env_ptr, arr->data[i], (double)i)) {
             cs2_str_array_push(result, arr->data[i]);
         }
     }
@@ -479,9 +479,9 @@ StrArray *cs2_str_array_filter(StrArray *arr, void *fn_ptr, void *env_ptr) {
 }
 
 void cs2_str_array_forEach(StrArray *arr, void *fn_ptr, void *env_ptr) {
-    void (*fn)(void *, const char *) = (void (*)(void *, const char *))fn_ptr;
+    void (*fn)(void *, const char *, double) = (void (*)(void *, const char *, double))fn_ptr;
     for (int32_t i = 0; i < arr->length; i++) {
-        fn(env_ptr, arr->data[i]);
+        fn(env_ptr, arr->data[i], (double)i);
     }
 }
 

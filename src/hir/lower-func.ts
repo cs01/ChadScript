@@ -55,7 +55,7 @@ export function lowerFunctionDecl(decl: FunctionDeclaration): HIRFunction {
       locals.set(name, { id, type, mutable: true });
     } else if (param.pat.type === "Identifier") {
       const id = freshId();
-      const type = resolveTypeAnnotation(param.pat.typeAnnotation);
+      const type = resolveTypeAnnotation((param.pat as any).typeAnnotation);
       params.push({ id, name: param.pat.value, type });
       locals.set(param.pat.value, { id, type, mutable: true });
     }
@@ -107,7 +107,7 @@ export function lowerArrowOrFnExpr(expr: any, varName: string): HIRFunction {
   const savedOuterLocals = outerLocals;
   const savedCapturedIds = capturedIds;
   const savedFn = currentLoweringFn;
-  const parentFn = currentLoweringFn;
+  const parentFn = currentLoweringFn ?? undefined;
   setCurrentLoweringFn(fnName);
 
   setOuterLocals(new Map(savedLocals));
@@ -202,7 +202,7 @@ export function lowerNestedFunctionDecl(decl: FunctionDeclaration): HIRFunction 
   const savedOuterLocals = outerLocals;
   const savedCapturedIds = capturedIds;
   const savedFn = currentLoweringFn;
-  const parentFn = currentLoweringFn;
+  const parentFn = currentLoweringFn ?? undefined;
   setCurrentLoweringFn(decl.identifier.value);
 
   setOuterLocals(new Map(savedLocals));
@@ -227,7 +227,7 @@ export function lowerNestedFunctionDecl(decl: FunctionDeclaration): HIRFunction 
       restParamRegistry.set(decl.identifier.value, params.length - 1);
     } else if (param.pat.type === "Identifier") {
       const id = freshId();
-      const type = resolveTypeAnnotation(param.pat.typeAnnotation);
+      const type = resolveTypeAnnotation((param.pat as any).typeAnnotation);
       params.push({ id, name: param.pat.value, type });
       locals.set(param.pat.value, { id, type, mutable: true });
     }

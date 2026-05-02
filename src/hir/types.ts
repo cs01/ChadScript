@@ -44,7 +44,9 @@ export type BinaryOp =
   | "bit_xor"
   | "shl"
   | "shr"
-  | "ushr";
+  | "ushr"
+  | "str_eq"
+  | "str_ne";
 
 export type UnaryOp = "neg" | "not" | "bit_not" | "typeof";
 

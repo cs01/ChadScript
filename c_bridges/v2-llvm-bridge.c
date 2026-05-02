@@ -5,6 +5,7 @@
 #include <llvm-c/DebugInfo.h>
 #include <llvm-c/Transforms/PassBuilder.h>
 #include <llvm-c/Error.h>
+#include <llvm-c/Analysis.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
