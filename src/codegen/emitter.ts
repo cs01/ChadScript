@@ -179,6 +179,8 @@ export function emitModule(mod: HIRModule, objectPath: string, irPath?: string):
 
   if (irPath) {
     m.printToFile(irPath);
+    m.dispose();
+    return;
   }
 
   m.emitObjectFile(objectPath);
