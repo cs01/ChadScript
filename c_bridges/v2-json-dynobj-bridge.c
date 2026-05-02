@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <stdio.h>
 #include "../vendor/yyjson/yyjson.h"
 
 #define TAG_F64    0
