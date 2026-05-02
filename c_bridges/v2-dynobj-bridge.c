@@ -319,6 +319,7 @@ typedef struct { void **data; int32_t length; int32_t capacity; } TypedObjArray;
 
 DynArray *cs2_dynarray_from_obj_array(TypedObjArray *src) {
     if (!src) return NULL;
+    if (src->length < 0 || src->length > 1000000) return NULL;
     DynArray *a = (DynArray *)malloc(sizeof(DynArray));
     a->capacity = src->length < DYNOBJ_INITIAL_CAP ? DYNOBJ_INITIAL_CAP : src->length;
     a->length = src->length;
