@@ -1,7 +1,7 @@
 import type { HIRModule, HIRExpr, HIRStmt, HIRFunction } from "../hir/types.js";
 import { I64, F64 } from "../hir/types.js";
 
-const SAFE_OPS = new Set(["add", "sub"]);
+const SAFE_OPS = new Set(["add", "sub", "mul", "rem"]);
 const CMP_OPS = new Set(["eq", "ne", "lt", "le", "gt", "ge"]);
 const ARITH_OPS = new Set(["add", "sub", "mul", "rem"]);
 
@@ -19,75 +19,79 @@ function isIntLiteralInit(e: HIRExpr | undefined): boolean {
   return false;
 }
 
-function isSafeIntPureExpr(expr: HIRExpr, name: string): boolean {
+function isSafeIntPureExpr(expr: HIRExpr, name: string, eligible: Set<string>): boolean {
   switch (expr.kind) {
     case "literal_i64":
       return true;
     case "literal_f64":
       return Number.isInteger(expr.value) && Math.abs(expr.value) <= Number.MAX_SAFE_INTEGER;
     case "global_get":
-      return expr.name === name;
+      if (expr.name === name) return true;
+      if (eligible.has(expr.name)) return true;
+      return expr.type.kind === "i64";
+    case "local_get":
+      return expr.type.kind === "i64";
     case "binary":
       if (!SAFE_OPS.has(expr.op)) return false;
-      return isSafeIntPureExpr(expr.left, name) && isSafeIntPureExpr(expr.right, name);
+      return isSafeIntPureExpr(expr.left, name, eligible) && isSafeIntPureExpr(expr.right, name, eligible);
     case "widen_f64":
     case "narrow_i64":
-      return isSafeIntPureExpr(expr.value, name);
+      return isSafeIntPureExpr(expr.value, name, eligible);
     default:
       return false;
   }
 }
 
-function visitExpr(expr: HIRExpr, info: Map<string, GlobalState>): void {
+function visitExpr(expr: HIRExpr, info: Map<string, GlobalState>, candidates: Set<string>): void {
   if (expr.kind === "global_set") {
     const cur = info.get(expr.name);
-    if (cur && !isSafeIntPureExpr(expr.value, expr.name)) cur.hasIncompatibleWrite = true;
-    visitExpr(expr.value, info);
+    if (cur && !isSafeIntPureExpr(expr.value, expr.name, candidates)) cur.hasIncompatibleWrite = true;
+    visitExpr(expr.value, info, candidates);
     return;
   }
   switch (expr.kind) {
     case "binary":
-      visitExpr(expr.left, info);
-      visitExpr(expr.right, info);
+      visitExpr(expr.left, info, candidates);
+      visitExpr(expr.right, info, candidates);
       return;
     case "unary":
-      visitExpr(expr.operand, info);
+      visitExpr(expr.operand, info, candidates);
       return;
     case "call":
     case "runtime_call":
-      for (const a of expr.args) visitExpr(a, info);
+      for (const a of expr.args) visitExpr(a, info, candidates);
       return;
     case "vtable_call":
-      visitExpr(expr.object, info);
-      for (const a of expr.args) visitExpr(a, info);
+      visitExpr(expr.object, info, candidates);
+      for (const a of expr.args) visitExpr(a, info, candidates);
       return;
     case "call_closure":
-      visitExpr(expr.callee, info);
-      for (const a of expr.args) visitExpr(a, info);
+      visitExpr(expr.callee, info, candidates);
+      for (const a of expr.args) visitExpr(a, info, candidates);
       return;
     case "conditional":
-      visitExpr(expr.condition, info);
-      visitExpr(expr.then, info);
-      visitExpr(expr.else, info);
+      visitExpr(expr.condition, info, candidates);
+      visitExpr(expr.then, info, candidates);
+      visitExpr(expr.else, info, candidates);
       return;
     case "field_get":
-      visitExpr(expr.object, info);
+      visitExpr(expr.object, info, candidates);
       return;
     case "field_set":
-      visitExpr(expr.object, info);
-      visitExpr(expr.value, info);
+      visitExpr(expr.object, info, candidates);
+      visitExpr(expr.value, info, candidates);
       return;
     case "index_get":
-      visitExpr(expr.array, info);
-      visitExpr(expr.index, info);
+      visitExpr(expr.array, info, candidates);
+      visitExpr(expr.index, info, candidates);
       return;
     case "index_set":
-      visitExpr(expr.array, info);
-      visitExpr(expr.index, info);
-      visitExpr(expr.value, info);
+      visitExpr(expr.array, info, candidates);
+      visitExpr(expr.index, info, candidates);
+      visitExpr(expr.value, info, candidates);
       return;
     case "local_set":
-      visitExpr(expr.value, info);
+      visitExpr(expr.value, info, candidates);
       return;
     case "narrow_i64":
     case "widen_f64":
@@ -95,40 +99,40 @@ function visitExpr(expr: HIRExpr, info: Map<string, GlobalState>): void {
     case "unbox":
     case "await":
     case "wrap_interface":
-      visitExpr(expr.value, info);
+      visitExpr(expr.value, info, candidates);
       return;
     case "alloc_array":
-      for (const v of expr.initialValues) visitExpr(v, info);
+      for (const v of expr.initialValues) visitExpr(v, info, candidates);
       return;
     case "alloc_struct":
-      for (const v of expr.fields) visitExpr(v, info);
+      for (const v of expr.fields) visitExpr(v, info, candidates);
       return;
     case "alloc_dynobj":
-      for (const p of expr.props as any[]) visitExpr(p.value, info);
-      if (expr.spreadSource) visitExpr(expr.spreadSource, info);
+      for (const p of expr.props as any[]) visitExpr(p.value, info, candidates);
+      if (expr.spreadSource) visitExpr(expr.spreadSource, info, candidates);
       return;
     case "alloc_dynarray":
-      for (const v of expr.elements as any[]) visitExpr(v, info);
+      for (const v of expr.elements as any[]) visitExpr(v, info, candidates);
       return;
     case "alloc_array_spread":
-      for (const e of expr.elements as any[]) visitExpr(e.value, info);
+      for (const e of expr.elements as any[]) visitExpr(e.value, info, candidates);
       return;
     case "alloc_map":
       for (const e of expr.entries as any[]) {
-        visitExpr(e.key, info);
-        visitExpr(e.value, info);
+        visitExpr(e.key, info, candidates);
+        visitExpr(e.value, info, candidates);
       }
       return;
     case "alloc_set":
-      for (const v of expr.elements as any[]) visitExpr(v, info);
+      for (const v of expr.elements as any[]) visitExpr(v, info, candidates);
       return;
     case "nullish_coalesce":
-      visitExpr(expr.left, info);
-      visitExpr(expr.right, info);
+      visitExpr(expr.left, info, candidates);
+      visitExpr(expr.right, info, candidates);
       return;
     case "array_hof":
-      visitExpr(expr.array, info);
-      visitExpr(expr.callback, info);
+      visitExpr(expr.array, info, candidates);
+      visitExpr(expr.callback, info, candidates);
       return;
     case "make_closure":
       return;
@@ -137,45 +141,45 @@ function visitExpr(expr: HIRExpr, info: Map<string, GlobalState>): void {
   }
 }
 
-function visitStmt(stmt: HIRStmt, info: Map<string, GlobalState>): void {
+function visitStmt(stmt: HIRStmt, info: Map<string, GlobalState>, candidates: Set<string>): void {
   switch (stmt.kind) {
     case "let":
-      if (stmt.init) visitExpr(stmt.init, info);
+      if (stmt.init) visitExpr(stmt.init, info, candidates);
       return;
     case "expr":
-      visitExpr(stmt.expr, info);
+      visitExpr(stmt.expr, info, candidates);
       return;
     case "return":
-      if (stmt.value) visitExpr(stmt.value, info);
+      if (stmt.value) visitExpr(stmt.value, info, candidates);
       return;
     case "if":
-      visitExpr(stmt.condition, info);
-      stmt.then.forEach((s) => visitStmt(s, info));
-      stmt.else?.forEach((s) => visitStmt(s, info));
+      visitExpr(stmt.condition, info, candidates);
+      stmt.then.forEach((s) => visitStmt(s, info, candidates));
+      stmt.else?.forEach((s) => visitStmt(s, info, candidates));
       return;
     case "while":
-      visitExpr(stmt.condition, info);
-      stmt.body.forEach((s) => visitStmt(s, info));
+      visitExpr(stmt.condition, info, candidates);
+      stmt.body.forEach((s) => visitStmt(s, info, candidates));
       return;
     case "for":
-      if (stmt.init) visitStmt(stmt.init, info);
-      if (stmt.condition) visitExpr(stmt.condition, info);
-      if (stmt.update) visitExpr(stmt.update, info);
-      stmt.body.forEach((s) => visitStmt(s, info));
+      if (stmt.init) visitStmt(stmt.init, info, candidates);
+      if (stmt.condition) visitExpr(stmt.condition, info, candidates);
+      if (stmt.update) visitExpr(stmt.update, info, candidates);
+      stmt.body.forEach((s) => visitStmt(s, info, candidates));
       return;
     case "throw":
-      visitExpr(stmt.value, info);
+      visitExpr(stmt.value, info, candidates);
       return;
     case "try":
-      stmt.body.forEach((s) => visitStmt(s, info));
-      stmt.catch?.body.forEach((s) => visitStmt(s, info));
-      stmt.finally?.forEach((s) => visitStmt(s, info));
+      stmt.body.forEach((s) => visitStmt(s, info, candidates));
+      stmt.catch?.body.forEach((s) => visitStmt(s, info, candidates));
+      stmt.finally?.forEach((s) => visitStmt(s, info, candidates));
       return;
     case "switch":
-      visitExpr(stmt.discriminant, info);
+      visitExpr(stmt.discriminant, info, candidates);
       for (const c of stmt.cases) {
-        if (c.test) visitExpr(c.test, info);
-        c.body.forEach((s) => visitStmt(s, info));
+        if (c.test) visitExpr(c.test, info, candidates);
+        c.body.forEach((s) => visitStmt(s, info, candidates));
       }
       return;
     default:
@@ -392,8 +396,8 @@ function rewriteStmt(stmt: HIRStmt, eligible: Set<string>): HIRStmt {
   }
 }
 
-function visitFn(fn: HIRFunction, info: Map<string, GlobalState>): void {
-  for (const s of fn.body) visitStmt(s, info);
+function visitFn(fn: HIRFunction, info: Map<string, GlobalState>, candidates: Set<string>): void {
+  for (const s of fn.body) visitStmt(s, info, candidates);
 }
 
 function rewriteFn(fn: HIRFunction, eligible: Set<string>): void {
@@ -408,9 +412,10 @@ export function narrowGlobalsPass(mod: HIRModule): void {
   }
   if (info.size === 0) return;
 
-  for (const s of mod.init) visitStmt(s, info);
-  for (const fn of mod.functions) visitFn(fn, info);
-  for (const cls of mod.classes) for (const m of cls.methods) visitFn(m, info);
+  const candidates = new Set(info.keys());
+  for (const s of mod.init) visitStmt(s, info, candidates);
+  for (const fn of mod.functions) visitFn(fn, info, candidates);
+  for (const cls of mod.classes) for (const m of cls.methods) visitFn(m, info, candidates);
 
   const eligible = new Set<string>();
   for (const gi of info.values()) {

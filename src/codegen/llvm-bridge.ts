@@ -133,6 +133,7 @@ export const LLVMInternalLinkage = 8;
 export const LLVMPrivateLinkage = 9;
 export const LLVMCodeGenLevelNone = 0;
 export const LLVMCodeGenLevelDefault = 2;
+export const LLVMCodeGenLevelAggressive = 3;
 export const LLVMRelocPIC = 1;
 export const LLVMCodeModelDefault = 0;
 export const LLVMObjectFileType = 1;
@@ -432,12 +433,12 @@ export class LLVMModule {
     const target = chad2_LLVMGetTargetFromTriple(triple);
     if (target === "") throw new Error("Failed to get target from triple");
 
-    const tm = LLVMCreateTargetMachine(target, triple, "generic", "",
-      LLVMCodeGenLevelDefault, LLVMRelocPIC, LLVMCodeModelDefault);
+    const tm = LLVMCreateTargetMachine(target, triple, "", "",
+      LLVMCodeGenLevelAggressive, LLVMRelocPIC, LLVMCodeModelDefault);
     const dl = LLVMCreateTargetDataLayout(tm);
     LLVMSetModuleDataLayout(this.mod, dl);
 
-    if (chad2_LLVMRunPasses(this.mod, "default<O2>", tm) !== 0) {
+    if (chad2_LLVMRunPasses(this.mod, "default<O3>", tm) !== 0) {
       throw new Error("LLVM optimization passes failed");
     }
 

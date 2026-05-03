@@ -132,6 +132,8 @@ const LLVMPrintModuleToFile = lib.func("LLVMPrintModuleToFile", Bool, [
 const LLVMDisposeMessage = lib.func("LLVMDisposeMessage", "void", [Ref]);
 
 const LLVMGetDefaultTargetTriple = lib.func("LLVMGetDefaultTargetTriple", "char *", []);
+const LLVMGetHostCPUName = lib.func("LLVMGetHostCPUName", "char *", []);
+const LLVMGetHostCPUFeatures = lib.func("LLVMGetHostCPUFeatures", "char *", []);
 const LLVMGetTargetFromTriple = lib.func("LLVMGetTargetFromTriple", Bool, [
   "str",
   koffi.out(koffi.pointer(Ref)),
@@ -261,6 +263,7 @@ export const LLVMRealUNO = 8;
 export const LLVMInternalLinkage = 8;
 export const LLVMPrivateLinkage = 9;
 export const LLVMCodeGenLevelDefault = 2;
+export const LLVMCodeGenLevelAggressive = 3;
 export const LLVMRelocPIC = 1;
 export const LLVMCodeModelDefault = 0;
 export const LLVMObjectFileType = 1;
@@ -682,9 +685,9 @@ export class LLVMModule {
     const tm = LLVMCreateTargetMachine(
       target,
       triple,
-      "generic",
       "",
-      LLVMCodeGenLevelDefault,
+      "",
+      LLVMCodeGenLevelAggressive,
       LLVMRelocPIC,
       LLVMCodeModelDefault,
     );
@@ -693,7 +696,7 @@ export class LLVMModule {
     LLVMSetModuleDataLayout(this.mod, dl);
 
     const passOpts = LLVMCreatePassBuilderOptions();
-    const passErr = LLVMRunPasses(this.mod, "default<O2>", tm, passOpts);
+    const passErr = LLVMRunPasses(this.mod, "default<O3>", tm, passOpts);
     LLVMDisposePassBuilderOptions(passOpts);
     if (passErr !== null) {
       const msg = LLVMGetErrorMessage(passErr);
