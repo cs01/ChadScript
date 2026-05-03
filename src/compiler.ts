@@ -53,6 +53,7 @@ const BRIDGE_SRCS = [
   join(ROOT, "c_bridges", "v2-dynobj-bridge.c"),
   join(ROOT, "c_bridges", "v2-json-dynobj-bridge.c"),
   join(ROOT, "c_bridges", "v2-runtime.c"),
+  join(ROOT, "c_bridges", "v2-arena-bridge.c"),
 ];
 
 function findLibuv(): { include: string; lib: string } {
