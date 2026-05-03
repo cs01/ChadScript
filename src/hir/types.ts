@@ -113,6 +113,7 @@ export type HIRExpr =
       kind: "alloc_struct";
       structName: string;
       fields: HIRExpr[];
+      placement?: "arena" | "heap";
       type: HIRType;
     }
   | {

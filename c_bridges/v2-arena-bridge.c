@@ -5,6 +5,8 @@
 extern void *GC_malloc(size_t);
 extern void *GC_malloc_atomic(size_t);
 
+static __thread int g_arena_depth = 0;
+
 #define ARENA_CHUNK_SIZE (1024 * 1024)
 #define ARENA_ALIGN 8
 
@@ -55,9 +57,11 @@ static int g_mark_top = 0;
 
 void cs2_arena_save(void) {
     if (g_mark_top >= 256) return;
+    if (!g_cur) g_cur = new_chunk(0);
     g_mark_stack[g_mark_top].chunk = g_cur;
-    g_mark_stack[g_mark_top].used = g_cur ? g_cur->used : 0;
+    g_mark_stack[g_mark_top].used = g_cur->used;
     g_mark_top++;
+    g_arena_depth++;
 }
 
 void cs2_arena_restore(void) {
@@ -65,4 +69,15 @@ void cs2_arena_restore(void) {
     g_mark_top--;
     g_cur = g_mark_stack[g_mark_top].chunk;
     if (g_cur) g_cur->used = g_mark_stack[g_mark_top].used;
+    if (g_arena_depth > 0) g_arena_depth--;
+}
+
+void *cs2_alloc(int64_t size) {
+    if (g_arena_depth > 0) return cs2_arena_alloc(size);
+    return GC_malloc((size_t)size);
+}
+
+void *cs2_alloc_atomic(int64_t size) {
+    if (g_arena_depth > 0) return cs2_arena_alloc(size);
+    return GC_malloc_atomic((size_t)size);
 }

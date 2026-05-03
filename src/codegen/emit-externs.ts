@@ -31,10 +31,10 @@ export function declareExterns(ctx: EmitContext): void {
   ctx.declareFunction("strlen", strlenFn, strlenType);
 
   const mallocType = m.functionType(m.ptr, [m.i64]);
-  const mallocFn = m.addFunction("GC_malloc", mallocType);
+  const mallocFn = m.addFunction("cs2_alloc", mallocType);
   ctx.declareFunction("malloc", mallocFn, mallocType);
 
-  const mallocAtomicFn = m.addFunction("GC_malloc_atomic", mallocType);
+  const mallocAtomicFn = m.addFunction("cs2_alloc_atomic", mallocType);
   ctx.declareFunction("malloc_atomic", mallocAtomicFn, mallocType);
 
   const strcpyType = m.functionType(m.ptr, [m.ptr, m.ptr]);
@@ -64,6 +64,12 @@ export function declareExterns(ctx: EmitContext): void {
   const arenaResetType = m.functionType(m.voidTy, []);
   const arenaResetFn = m.addFunction("cs2_arena_reset", arenaResetType);
   ctx.declareFunction("cs2_arena_reset", arenaResetFn, arenaResetType);
+
+  const arenaSaveFn = m.addFunction("cs2_arena_save", arenaResetType);
+  ctx.declareFunction("cs2_arena_save", arenaSaveFn, arenaResetType);
+
+  const arenaRestoreFn = m.addFunction("cs2_arena_restore", arenaResetType);
+  ctx.declareFunction("cs2_arena_restore", arenaRestoreFn, arenaResetType);
 
   const mathIntrinsics1: [string, string][] = [
     ["llvm.floor.f64", "cs_math_floor"],

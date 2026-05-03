@@ -77,7 +77,10 @@ export function emitAllocStruct(ctx: EmitContext, expr: HIRExpr & { kind: "alloc
 
   const size = m.sizeOf(structInfo.llvmType);
   const allFieldsAtomic = expr.fields.every((f) => isAtomicType(f.type));
-  const allocName = allFieldsAtomic ? "malloc_atomic" : "malloc";
+  let allocName: string;
+  if (expr.placement === "arena") allocName = "cs2_arena_alloc";
+  else if (allFieldsAtomic) allocName = "malloc_atomic";
+  else allocName = "malloc";
   const malloc = ctx.getDeclaredFunction(allocName)!;
   const raw = m.buildCall(malloc.fnType, malloc.fn, [size], "obj");
 

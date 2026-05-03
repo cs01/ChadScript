@@ -7,6 +7,7 @@ import { narrowFnsPass } from "./transforms/narrow-fns.js";
 import { concatBuilderPass } from "./transforms/concat-builder.js";
 import { narrowLocalsPass } from "./transforms/narrow-locals.js";
 import { narrowGlobalsPass } from "./transforms/narrow-globals.js";
+import { arenifyLoopsPass } from "./transforms/arenify-loops.js";
 import { unlinkSync, existsSync, readFileSync, mkdirSync, copyFileSync } from "fs";
 import { createHash } from "crypto";
 import { execSync } from "child_process";
@@ -126,6 +127,7 @@ export function compile(opts: CompileOptions): void {
   narrowFpPass(hir);
   concatBuilderPass(hir);
   deadCodePass(hir);
+  arenifyLoopsPass(hir);
 
   const tmpObj = join(tmpdir(), `chad2-${process.pid}.o`);
   const bridgeObjs = BRIDGE_SRCS.map((_: string, i: number): string =>
