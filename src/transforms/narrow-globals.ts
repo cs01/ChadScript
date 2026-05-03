@@ -20,7 +20,6 @@ function isIntLiteralInit(e: HIRExpr | undefined): boolean {
 }
 
 function isSafeIntPureExpr(expr: HIRExpr, name: string, eligible: Set<string>): boolean {
-  if (expr.type.kind === "i64") return true;
   switch (expr.kind) {
     case "literal_i64":
       return true;
@@ -28,7 +27,13 @@ function isSafeIntPureExpr(expr: HIRExpr, name: string, eligible: Set<string>): 
       return Number.isInteger(expr.value) && Math.abs(expr.value) <= Number.MAX_SAFE_INTEGER;
     case "global_get":
       if (expr.name === name) return true;
-      return eligible.has(expr.name);
+      if (eligible.has(expr.name)) return true;
+      return expr.type.kind === "i64";
+    case "local_get":
+      return expr.type.kind === "i64";
+    case "call":
+    case "runtime_call":
+      return expr.type.kind === "i64";
     case "binary":
       if (!SAFE_OPS.has(expr.op)) return false;
       return isSafeIntPureExpr(expr.left, name, eligible) && isSafeIntPureExpr(expr.right, name, eligible);
