@@ -199,9 +199,8 @@ function emitToString(ctx: EmitContext, arg: HIRExpr, val: any): any {
     const fmtNum = ctx.getDeclaredFunction("cs2_format_number")!;
     m.buildCall(fmtNum.fnType, fmtNum.fn, [buf, val], "");
   } else if (arg.type.kind === "i64") {
-    const fmt = m.buildGlobalStringPtr("%ld", "fmt");
-    const sprintf = ctx.getDeclaredFunction("sprintf")!;
-    m.buildCall(sprintf.fnType, sprintf.fn, [buf, fmt, val], "");
+    const itoa = ctx.getDeclaredFunction("cs2_int_to_str")!;
+    m.buildCall(itoa.fnType, itoa.fn, [buf, val], "");
   } else if (arg.type.kind === "i1") {
     const trueStr = m.buildGlobalStringPtr("true", "true");
     const falseStr = m.buildGlobalStringPtr("false", "false");

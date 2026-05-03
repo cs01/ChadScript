@@ -306,10 +306,19 @@ double cs2_math_random(void) {
     return (double)rand() / (double)RAND_MAX;
 }
 
+int32_t cs2_int_to_str(char *buf, int64_t v);
+
 static void cs2_shortest_repr(char *buf, int bufsz, double val) {
     if (val != val) { snprintf(buf, bufsz, "NaN"); return; }
     if (val == 1.0/0.0) { snprintf(buf, bufsz, "Infinity"); return; }
     if (val == -1.0/0.0) { snprintf(buf, bufsz, "-Infinity"); return; }
+    if (val >= -9.2233720368547e18 && val <= 9.2233720368547e18) {
+        int64_t iv = (int64_t)val;
+        if ((double)iv == val && bufsz >= 22) {
+            cs2_int_to_str(buf, iv);
+            return;
+        }
+    }
     for (int prec = 1; prec <= 21; prec++) {
         snprintf(buf, bufsz, "%.*g", prec, val);
         double reparsed;
@@ -347,6 +356,21 @@ char *cs2_number_to_string(double val) {
     char *buf = (char *)malloc(32);
     cs2_shortest_repr(buf, 32, val);
     return buf;
+}
+
+int32_t cs2_int_to_str(char *buf, int64_t v) {
+    char tmp[24];
+    int n = 0;
+    uint64_t uv;
+    int neg = 0;
+    if (v < 0) { neg = 1; uv = (uint64_t)(-(v + 1)) + 1; } else { uv = (uint64_t)v; }
+    if (uv == 0) tmp[n++] = '0';
+    else { while (uv) { tmp[n++] = (char)('0' + (uv % 10)); uv /= 10; } }
+    int out = 0;
+    if (neg) buf[out++] = '-';
+    while (n > 0) buf[out++] = tmp[--n];
+    buf[out] = '\0';
+    return out;
 }
 
 char *cs2_number_to_fixed(double val, double digits) {

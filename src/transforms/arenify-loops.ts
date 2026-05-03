@@ -2,6 +2,9 @@ import type { HIRModule, HIRExpr, HIRStmt, HIRFunction, HIRType } from "../hir/t
 
 const ALLOC_KINDS = new Set([
   "alloc_struct",
+  "alloc_dynobj",
+  "alloc_dynarray",
+  "alloc_array",
 ]);
 
 function isAllocExpr(e: HIRExpr): boolean {
@@ -55,7 +58,7 @@ function visitExprForEscape(e: HIRExpr | undefined, ctx: AnalysisCtx, escapeNext
       visitExprForEscape(e.operand, ctx, false);
       return;
     case "runtime_call":
-      for (const a of e.args) visitExprForEscape(a, ctx, true);
+      for (const a of e.args) visitExprForEscape(a, ctx, false);
       return;
     case "vtable_call":
       visitExprForEscape(e.object, ctx, true);
@@ -86,9 +89,19 @@ function visitExprForEscape(e: HIRExpr | undefined, ctx: AnalysisCtx, escapeNext
       if (e.type.kind === "ptr") ctx.hasAlloc = true;
       for (const a of e.args) visitExprForEscape(a, ctx, true);
       return;
-    case "alloc_array":
     case "alloc_dynobj":
+      ctx.hasAlloc = true;
+      for (const p of e.props) visitExprForEscape(p.value, ctx, true);
+      if (e.spreadSource) visitExprForEscape(e.spreadSource, ctx, true);
+      return;
     case "alloc_dynarray":
+      ctx.hasAlloc = true;
+      for (const v of e.initialValues) visitExprForEscape(v, ctx, true);
+      return;
+    case "alloc_array":
+      ctx.hasAlloc = true;
+      for (const v of e.initialValues) visitExprForEscape(v, ctx, true);
+      return;
     case "alloc_array_spread":
     case "alloc_map":
     case "alloc_set":

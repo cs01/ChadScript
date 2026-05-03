@@ -57,6 +57,10 @@ export function declareExterns(ctx: EmitContext): void {
   const fmtNumFn = m.addFunction("cs2_format_number", fmtNumType);
   ctx.declareFunction("cs2_format_number", fmtNumFn, fmtNumType);
 
+  const intToStrType = m.functionType(m.i32, [m.ptr, m.i64]);
+  const intToStrFn = m.addFunction("cs2_int_to_str", intToStrType);
+  ctx.declareFunction("cs2_int_to_str", intToStrFn, intToStrType);
+
   const arenaAllocType = m.functionType(m.ptr, [m.i64]);
   const arenaAllocFn = m.addFunction("cs2_arena_alloc", arenaAllocType);
   ctx.declareFunction("cs2_arena_alloc", arenaAllocFn, arenaAllocType);

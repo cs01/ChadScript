@@ -4,6 +4,7 @@
 #include <math.h>
 #include <stdio.h>
 #define DYNOBJ_INITIAL_CAP 8
+#define DYNOBJ_INLINE_CAP 4
 
 #define TAG_F64    0
 #define TAG_STRING 1
@@ -26,12 +27,15 @@ typedef struct {
 #define DYNOBJ_MAGIC 0x444F424A
 #define DYNARRAY_MAGIC 0x44415252
 
-typedef struct {
+typedef struct DynObj {
     int32_t magic;
-    char **keys;
-    DynValue *values;
     int32_t length;
     int32_t capacity;
+    int32_t _pad;
+    char **keys;
+    DynValue *values;
+    char *inline_keys[DYNOBJ_INLINE_CAP];
+    DynValue inline_values[DYNOBJ_INLINE_CAP];
 } DynObj;
 
 typedef struct {
@@ -50,11 +54,23 @@ int32_t cs2_dyn_kind(void *p) {
 DynObj *cs2_dynobj_new(void) {
     DynObj *o = (DynObj *)malloc(sizeof(DynObj));
     o->magic = DYNOBJ_MAGIC;
-    o->capacity = DYNOBJ_INITIAL_CAP;
+    o->capacity = DYNOBJ_INLINE_CAP;
     o->length = 0;
-    o->keys = (char **)malloc(sizeof(char *) * o->capacity);
-    o->values = (DynValue *)malloc(sizeof(DynValue) * o->capacity);
+    o->keys = o->inline_keys;
+    o->values = o->inline_values;
     return o;
+}
+
+static void dynobj_promote(DynObj *o, int32_t needed) {
+    int32_t new_cap = o->capacity * 2;
+    while (new_cap < needed) new_cap *= 2;
+    char **nk = (char **)malloc(sizeof(char *) * new_cap);
+    DynValue *nv = (DynValue *)malloc(sizeof(DynValue) * new_cap);
+    memcpy(nk, o->keys, sizeof(char *) * o->length);
+    memcpy(nv, o->values, sizeof(DynValue) * o->length);
+    o->keys = nk;
+    o->values = nv;
+    o->capacity = new_cap;
 }
 
 static int looks_like_nanbox_inline(void *p) {
@@ -65,10 +81,15 @@ static int looks_like_nanbox_inline(void *p) {
 
 static int32_t find_key(DynObj *o, const char *key) {
     if (!o || looks_like_nanbox_inline(o)) return -1;
-    if (o->length < 0 || o->length > 1000) return -1;
-    for (int32_t i = 0; i < o->length; i++) {
-        if (!o->keys[i]) return -1;
-        if (strcmp(o->keys[i], key) == 0) return i;
+    if (o->length < 0 || o->length > 1000000) return -1;
+    int32_t n = o->length;
+    char **ks = o->keys;
+    for (int32_t i = 0; i < n; i++) {
+        if (ks[i] == key) return i;
+    }
+    for (int32_t i = 0; i < n; i++) {
+        if (!ks[i]) return -1;
+        if (strcmp(ks[i], key) == 0) return i;
     }
     return -1;
 }
@@ -81,9 +102,7 @@ void cs2_dynobj_set_f64(DynObj *o, const char *key, double val) {
         return;
     }
     if (o->length >= o->capacity) {
-        o->capacity *= 2;
-        o->keys = (char **)realloc(o->keys, sizeof(char *) * o->capacity);
-        o->values = (DynValue *)realloc(o->values, sizeof(DynValue) * o->capacity);
+        dynobj_promote(o, o->length + 1);
     }
     o->keys[o->length] = (char *)key;
     o->values[o->length].tag = TAG_F64;
@@ -99,9 +118,7 @@ void cs2_dynobj_set_str(DynObj *o, const char *key, const char *val) {
         return;
     }
     if (o->length >= o->capacity) {
-        o->capacity *= 2;
-        o->keys = (char **)realloc(o->keys, sizeof(char *) * o->capacity);
-        o->values = (DynValue *)realloc(o->values, sizeof(DynValue) * o->capacity);
+        dynobj_promote(o, o->length + 1);
     }
     o->keys[o->length] = (char *)key;
     o->values[o->length].tag = TAG_STRING;
@@ -117,9 +134,7 @@ void cs2_dynobj_set_bool(DynObj *o, const char *key, int32_t val) {
         return;
     }
     if (o->length >= o->capacity) {
-        o->capacity *= 2;
-        o->keys = (char **)realloc(o->keys, sizeof(char *) * o->capacity);
-        o->values = (DynValue *)realloc(o->values, sizeof(DynValue) * o->capacity);
+        dynobj_promote(o, o->length + 1);
     }
     o->keys[o->length] = (char *)key;
     o->values[o->length].tag = TAG_BOOL;
@@ -134,9 +149,7 @@ void cs2_dynobj_set_null(DynObj *o, const char *key) {
         return;
     }
     if (o->length >= o->capacity) {
-        o->capacity *= 2;
-        o->keys = (char **)realloc(o->keys, sizeof(char *) * o->capacity);
-        o->values = (DynValue *)realloc(o->values, sizeof(DynValue) * o->capacity);
+        dynobj_promote(o, o->length + 1);
     }
     o->keys[o->length] = (char *)key;
     o->values[o->length].tag = TAG_NULL;
@@ -151,9 +164,7 @@ void cs2_dynobj_set_obj(DynObj *o, const char *key, DynObj *val) {
         return;
     }
     if (o->length >= o->capacity) {
-        o->capacity *= 2;
-        o->keys = (char **)realloc(o->keys, sizeof(char *) * o->capacity);
-        o->values = (DynValue *)realloc(o->values, sizeof(DynValue) * o->capacity);
+        dynobj_promote(o, o->length + 1);
     }
     o->keys[o->length] = (char *)key;
     o->values[o->length].tag = TAG_OBJECT;
@@ -169,9 +180,7 @@ void cs2_dynobj_set_arr(DynObj *o, const char *key, DynArray *val) {
         return;
     }
     if (o->length >= o->capacity) {
-        o->capacity *= 2;
-        o->keys = (char **)realloc(o->keys, sizeof(char *) * o->capacity);
-        o->values = (DynValue *)realloc(o->values, sizeof(DynValue) * o->capacity);
+        dynobj_promote(o, o->length + 1);
     }
     o->keys[o->length] = (char *)key;
     o->values[o->length].tag = TAG_ARRAY;
@@ -190,9 +199,7 @@ extern double nanbox_to_f64(uint64_t v);
 
 static void dynobj_ensure_capacity(DynObj *o) {
     if (o->length >= o->capacity) {
-        o->capacity *= 2;
-        o->keys = (char **)realloc(o->keys, sizeof(char *) * o->capacity);
-        o->values = (DynValue *)realloc(o->values, sizeof(DynValue) * o->capacity);
+        dynobj_promote(o, o->length + 1);
     }
 }
 

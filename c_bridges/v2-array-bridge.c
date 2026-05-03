@@ -3,31 +3,46 @@
 #include <string.h>
 #include <stdio.h>
 
+#define ARRAY_INLINE_CAP 8
+
 typedef struct {
     double *data;
     int32_t length;
     int32_t capacity;
+    double inline_data[ARRAY_INLINE_CAP];
 } NumArray;
 
 typedef struct {
     char **data;
     int32_t length;
     int32_t capacity;
+    char *inline_data[ARRAY_INLINE_CAP];
 } StrArray;
 
 NumArray *cs2_num_array_new(int32_t capacity) {
-    if (capacity < 4) capacity = 4;
     NumArray *arr = (NumArray *)malloc(sizeof(NumArray));
-    arr->data = (double *)malloc(sizeof(double) * capacity);
+    if (capacity <= ARRAY_INLINE_CAP) {
+        arr->data = arr->inline_data;
+        arr->capacity = ARRAY_INLINE_CAP;
+    } else {
+        arr->data = (double *)malloc(sizeof(double) * capacity);
+        arr->capacity = capacity;
+    }
     arr->length = 0;
-    arr->capacity = capacity;
     return arr;
+}
+
+static void num_array_grow(NumArray *arr) {
+    int32_t new_cap = arr->capacity * 2;
+    double *nd = (double *)malloc(sizeof(double) * new_cap);
+    memcpy(nd, arr->data, sizeof(double) * arr->length);
+    arr->data = nd;
+    arr->capacity = new_cap;
 }
 
 void cs2_num_array_push(NumArray *arr, double value) {
     if (arr->length >= arr->capacity) {
-        arr->capacity *= 2;
-        arr->data = (double *)realloc(arr->data, sizeof(double) * arr->capacity);
+        num_array_grow(arr);
     }
     arr->data[arr->length++] = value;
 }
@@ -59,7 +74,9 @@ void cs2_num_array_set(NumArray *arr, int32_t index, double value) {
     if (index >= arr->capacity) {
         int32_t new_cap = arr->capacity > 0 ? arr->capacity : 4;
         while (new_cap <= index) new_cap *= 2;
-        arr->data = (double *)realloc(arr->data, sizeof(double) * new_cap);
+        double *nd = (double *)malloc(sizeof(double) * new_cap);
+        memcpy(nd, arr->data, sizeof(double) * arr->length);
+        arr->data = nd;
         arr->capacity = new_cap;
     }
     while (arr->length <= index) {
@@ -132,7 +149,9 @@ void cs2_num_array_spread(NumArray *dest, NumArray *src) {
     int32_t needed = dest->length + src->length;
     if (needed > dest->capacity) {
         while (dest->capacity < needed) dest->capacity *= 2;
-        dest->data = (double *)realloc(dest->data, sizeof(double) * dest->capacity);
+        double *nd = (double *)malloc(sizeof(double) * dest->capacity);
+        memcpy(nd, dest->data, sizeof(double) * dest->length);
+        dest->data = nd;
     }
     memcpy(dest->data + dest->length, src->data, sizeof(double) * src->length);
     dest->length = needed;
@@ -613,8 +632,7 @@ double cs2_num_array_shift(NumArray *arr) {
 
 void cs2_num_array_unshift(NumArray *arr, double value) {
     if (arr->length >= arr->capacity) {
-        arr->capacity *= 2;
-        arr->data = (double *)realloc(arr->data, sizeof(double) * arr->capacity);
+        num_array_grow(arr);
     }
     for (int32_t i = arr->length; i > 0; i--) arr->data[i] = arr->data[i-1];
     arr->data[0] = value;
