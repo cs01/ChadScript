@@ -31,7 +31,7 @@ export function declareExterns(ctx: EmitContext): void {
   ctx.declareFunction("strlen", strlenFn, strlenType);
 
   const mallocType = m.functionType(m.ptr, [m.i64]);
-  const mallocFn = m.addFunction("malloc", mallocType);
+  const mallocFn = m.addFunction("GC_malloc", mallocType);
   ctx.declareFunction("malloc", mallocFn, mallocType);
 
   const strcpyType = m.functionType(m.ptr, [m.ptr, m.ptr]);
@@ -53,6 +53,14 @@ export function declareExterns(ctx: EmitContext): void {
   const fmtNumType = m.functionType(m.voidTy, [m.ptr, m.f64]);
   const fmtNumFn = m.addFunction("cs2_format_number", fmtNumType);
   ctx.declareFunction("cs2_format_number", fmtNumFn, fmtNumType);
+
+  const arenaAllocType = m.functionType(m.ptr, [m.i64]);
+  const arenaAllocFn = m.addFunction("cs2_arena_alloc", arenaAllocType);
+  ctx.declareFunction("cs2_arena_alloc", arenaAllocFn, arenaAllocType);
+
+  const arenaResetType = m.functionType(m.voidTy, []);
+  const arenaResetFn = m.addFunction("cs2_arena_reset", arenaResetType);
+  ctx.declareFunction("cs2_arena_reset", arenaResetFn, arenaResetType);
 
   const mathIntrinsics1: [string, string][] = [
     ["llvm.floor.f64", "cs_math_floor"],

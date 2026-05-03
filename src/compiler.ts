@@ -74,6 +74,14 @@ function findYyjson(): string {
   throw new Error("yyjson not found — expected vendor/yyjson with yyjson.c and yyjson.h");
 }
 
+function findBdwgc(): { include: string; lib: string } {
+  const dir = join(ROOT, "vendor", "bdwgc");
+  const lib = join(dir, "build", "libgc.a");
+  const inc = join(dir, "include");
+  if (existsSync(lib) && existsSync(inc)) return { include: inc, lib: dir + "/build" };
+  throw new Error("bdwgc not found — expected vendor/bdwgc/build/libgc.a and vendor/bdwgc/include");
+}
+
 function findRure(): string {
   const dir = join(ROOT, "vendor", "rure");
   if (existsSync(join(dir, "librure.a"))) {
@@ -140,9 +148,10 @@ export function compile(opts: CompileOptions): void {
     const libuv = findLibuv();
     const yyjsonDir = findYyjson();
     const rureDir = findRure();
+    const bdwgc = findBdwgc();
 
     for (let i = 0; i < BRIDGE_SRCS.length; i++) {
-      cachedCompile(BRIDGE_SRCS[i], bridgeObjs[i], "-O2");
+      cachedCompile(BRIDGE_SRCS[i], bridgeObjs[i], `-O2 -I${bdwgc.include}`);
     }
     cachedCompile(TIMER_BRIDGE, timerObj, `-O2 -I${libuv.include}`);
     cachedCompile(HTTP_BRIDGE, httpObj, `-O2 -I${libuv.include}`);
@@ -154,7 +163,7 @@ export function compile(opts: CompileOptions): void {
     const llvmFlags = opts.llvm ? ` -L${LLVM_LIB} -lLLVM-22` : "";
     const swcFlags = opts.swc ? ` -L${SWC_BRIDGE_DIR} -lswc_bridge -Wl,-rpath,${SWC_BRIDGE_DIR}` : "";
     execSync(
-      `clang -g -O2 -o ${opts.output} ${tmpObj} ${allObjs.join(" ")} -L${libuv.lib} -luv -L${rureDir} -lrure${llvmFlags}${swcFlags}`,
+      `clang -g -O2 -o ${opts.output} ${tmpObj} ${allObjs.join(" ")} -L${libuv.lib} -luv -L${rureDir} -lrure -L${bdwgc.lib} -lgc${llvmFlags}${swcFlags}`,
       { stdio: "inherit" },
     );
     if (process.platform === "darwin") {

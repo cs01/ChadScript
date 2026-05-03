@@ -1,3 +1,4 @@
+#include "cs2-alloc.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>

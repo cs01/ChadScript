@@ -192,8 +192,8 @@ function emitToString(ctx: EmitContext, arg: HIRExpr, val: any): any {
     return m.buildCall(unbox.fnType, unbox.fn, [boxedStr], "");
   }
 
-  const malloc = ctx.getDeclaredFunction("malloc")!;
-  const buf = m.buildCall(malloc.fnType, malloc.fn, [m.constInt(m.i64, 32)], "buf");
+  const arena = ctx.getDeclaredFunction("cs2_arena_alloc")!;
+  const buf = m.buildCall(arena.fnType, arena.fn, [m.constInt(m.i64, 32)], "buf");
 
   if (arg.type.kind === "f64") {
     const fmtNum = ctx.getDeclaredFunction("cs2_format_number")!;
@@ -233,7 +233,7 @@ function emitStringConcat(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_cal
   const rightStr = emitToString(ctx, rightArg, rightVal);
 
   const strlen = ctx.getDeclaredFunction("strlen")!;
-  const malloc = ctx.getDeclaredFunction("malloc")!;
+  const arena = ctx.getDeclaredFunction("cs2_arena_alloc")!;
   const strcpy = ctx.getDeclaredFunction("strcpy")!;
   const strcat = ctx.getDeclaredFunction("strcat")!;
 
@@ -241,7 +241,7 @@ function emitStringConcat(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_cal
   const lenR = m.buildCall(strlen.fnType, strlen.fn, [rightStr], "");
   const totalLen = m.buildAdd(lenL, lenR, "");
   const totalLen1 = m.buildAdd(totalLen, m.constInt(m.i64, 1), "");
-  const buf = m.buildCall(malloc.fnType, malloc.fn, [totalLen1], "");
+  const buf = m.buildCall(arena.fnType, arena.fn, [totalLen1], "");
   m.buildCall(strcpy.fnType, strcpy.fn, [buf, leftStr], "");
   m.buildCall(strcat.fnType, strcat.fn, [buf, rightStr], "");
   return buf;
