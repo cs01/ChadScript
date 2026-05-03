@@ -34,6 +34,9 @@ export function declareExterns(ctx: EmitContext): void {
   const mallocFn = m.addFunction("GC_malloc", mallocType);
   ctx.declareFunction("malloc", mallocFn, mallocType);
 
+  const mallocAtomicFn = m.addFunction("GC_malloc_atomic", mallocType);
+  ctx.declareFunction("malloc_atomic", mallocAtomicFn, mallocType);
+
   const strcpyType = m.functionType(m.ptr, [m.ptr, m.ptr]);
   const strcpyFn = m.addFunction("strcpy", strcpyType);
   ctx.declareFunction("strcpy", strcpyFn, strcpyType);

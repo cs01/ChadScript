@@ -66,13 +66,19 @@ export function emitAllocArraySpread(
   return arr;
 }
 
+function isAtomicType(t: HIRType): boolean {
+  return t.kind === "f64" || t.kind === "i64" || t.kind === "i1";
+}
+
 export function emitAllocStruct(ctx: EmitContext, expr: HIRExpr & { kind: "alloc_struct" }): any {
   const m = ctx.m;
   const structInfo = ctx.getStructType(expr.structName);
   if (!structInfo) throw new Error(`unknown struct type: ${expr.structName}`);
 
   const size = m.sizeOf(structInfo.llvmType);
-  const malloc = ctx.getDeclaredFunction("malloc")!;
+  const allFieldsAtomic = expr.fields.every((f) => isAtomicType(f.type));
+  const allocName = allFieldsAtomic ? "malloc_atomic" : "malloc";
+  const malloc = ctx.getDeclaredFunction(allocName)!;
   const raw = m.buildCall(malloc.fnType, malloc.fn, [size], "obj");
 
   for (let i = 0; i < expr.fields.length; i++) {
