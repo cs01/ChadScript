@@ -572,6 +572,9 @@ export function lowerJSONCall(expr: CallExpression): HIRExpr {
             case "i8ptr":
               func = "cs2_json_stringify_str_array";
               break;
+            case "boxed":
+              func = "cs2_json_stringify_obj_array";
+              break;
             default:
               throw new Error(
                 `unsupported array element type for JSON.stringify: ${elemType.kind}`,
@@ -580,6 +583,10 @@ export function lowerJSONCall(expr: CallExpression): HIRExpr {
           args = [arg];
           break;
         }
+        case "dynarray":
+          func = "cs2_json_stringify_dynarray";
+          args = [arg];
+          break;
         default:
           throw new Error(`unsupported type for JSON.stringify: ${argType.kind}`);
       }
@@ -597,10 +604,10 @@ export function lowerJSONCall(expr: CallExpression): HIRExpr {
       if (arg.type.kind !== "i8ptr") arg = coerce(arg, I8PTR);
       return {
         kind: "runtime_call",
-        func: "cs2_json_parse_obj",
+        func: "cs2_json_parse",
         args: [arg],
-        returnType: DYNOBJ,
-        type: DYNOBJ,
+        returnType: BOXED,
+        type: BOXED,
       };
     }
     default:

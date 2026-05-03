@@ -23,6 +23,7 @@ typedef struct {
 } DynValue;
 
 typedef struct {
+    int32_t magic;
     char **keys;
     DynValue *values;
     int32_t length;
@@ -30,6 +31,7 @@ typedef struct {
 } DynObj;
 
 typedef struct {
+    int32_t magic;
     DynValue *data;
     int32_t length;
     int32_t capacity;
@@ -114,6 +116,131 @@ static DynArray *convert_arr(yyjson_val *arr) {
         }
     }
     return a;
+}
+
+#define NB_TAG_UNDEFINED 0x7FFC000000000001ULL
+#define NB_TAG_NULL      0x7FFC000000000002ULL
+#define NB_TAG_FALSE     0x7FFC000000000003ULL
+#define NB_TAG_TRUE      0x7FFC000000000004ULL
+#define NB_TAG_PTR       0x7FFD000000000000ULL
+#define NB_TAG_INT       0x7FFE000000000000ULL
+#define NB_TAG_STRING    0x7FFF000000000000ULL
+#define NB_MASK_QUIET    0x7FFC000000000000ULL
+#define NB_MASK_PAYLOAD  0x0000FFFFFFFFFFFFULL
+
+typedef struct {
+    void **data;
+    int32_t length;
+    int32_t capacity;
+} ObjArrayLocal;
+
+static yyjson_mut_val *dynobj_to_yyjson(yyjson_mut_doc *doc, DynObj *o);
+static yyjson_mut_val *dynarray_to_yyjson(yyjson_mut_doc *doc, DynArray *a);
+static yyjson_mut_val *boxed_to_yyjson(yyjson_mut_doc *doc, uint64_t v);
+
+static yyjson_mut_val *dynvalue_to_yyjson(yyjson_mut_doc *doc, DynValue *v) {
+    switch (v->tag) {
+        case TAG_F64: {
+            double d = v->f64_val;
+            if (d == (double)(int64_t)d && d >= -9007199254740992.0 && d <= 9007199254740992.0) {
+                return yyjson_mut_int(doc, (int64_t)d);
+            }
+            return yyjson_mut_real(doc, d);
+        }
+        case TAG_STRING: return yyjson_mut_str(doc, v->str_val ? v->str_val : "");
+        case TAG_BOOL:   return yyjson_mut_bool(doc, v->bool_val);
+        case TAG_NULL:   return yyjson_mut_null(doc);
+        case TAG_OBJECT: return dynobj_to_yyjson(doc, (DynObj *)v->obj_val);
+        case TAG_ARRAY:  return dynarray_to_yyjson(doc, (DynArray *)v->arr_val);
+        default:         return yyjson_mut_null(doc);
+    }
+}
+
+static yyjson_mut_val *dynobj_to_yyjson(yyjson_mut_doc *doc, DynObj *o) {
+    if (!o) return yyjson_mut_null(doc);
+    yyjson_mut_val *root = yyjson_mut_obj(doc);
+    for (int32_t i = 0; i < o->length; i++) {
+        const char *k = o->keys[i];
+        yyjson_mut_val *v = dynvalue_to_yyjson(doc, &o->values[i]);
+        yyjson_mut_obj_add(root, yyjson_mut_str(doc, k ? k : ""), v);
+    }
+    return root;
+}
+
+static yyjson_mut_val *dynarray_to_yyjson(yyjson_mut_doc *doc, DynArray *a) {
+    if (!a) return yyjson_mut_null(doc);
+    yyjson_mut_val *root = yyjson_mut_arr(doc);
+    for (int32_t i = 0; i < a->length; i++) {
+        yyjson_mut_arr_append(root, dynvalue_to_yyjson(doc, &a->data[i]));
+    }
+    return root;
+}
+
+static yyjson_mut_val *boxed_to_yyjson(yyjson_mut_doc *doc, uint64_t v) {
+    if (v == NB_TAG_NULL || v == NB_TAG_UNDEFINED) return yyjson_mut_null(doc);
+    if (v == NB_TAG_TRUE) return yyjson_mut_bool(doc, 1);
+    if (v == NB_TAG_FALSE) return yyjson_mut_bool(doc, 0);
+    if ((v & 0xFFFF000000000000ULL) == NB_TAG_STRING) {
+        const char *s = (const char *)(uintptr_t)(v & NB_MASK_PAYLOAD);
+        return yyjson_mut_str(doc, s ? s : "");
+    }
+    if ((v & 0xFFFF000000000000ULL) == NB_TAG_INT) {
+        int32_t ival = (int32_t)(v & NB_MASK_PAYLOAD);
+        if (v & 0x0000800000000000ULL) ival |= (int32_t)0xFFFF0000;
+        return yyjson_mut_int(doc, (int64_t)ival);
+    }
+    if ((v & 0xFFFF000000000000ULL) == NB_TAG_PTR) {
+        void *p = (void *)(uintptr_t)(v & NB_MASK_PAYLOAD);
+        if (p) {
+            int32_t magic = *(int32_t *)p;
+            if (magic == 0x44415252) return dynarray_to_yyjson(doc, (DynArray *)p);
+            if (magic == 0x444F424A) return dynobj_to_yyjson(doc, (DynObj *)p);
+        }
+        return yyjson_mut_null(doc);
+    }
+    if ((v & NB_MASK_QUIET) != NB_MASK_QUIET) {
+        double d;
+        memcpy(&d, &v, 8);
+        if (d == (double)(int64_t)d && d >= -9007199254740992.0 && d <= 9007199254740992.0) {
+            return yyjson_mut_int(doc, (int64_t)d);
+        }
+        return yyjson_mut_real(doc, d);
+    }
+    return yyjson_mut_null(doc);
+}
+
+char *cs2_json_stringify_dynobj(DynObj *o) {
+    yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
+    yyjson_mut_doc_set_root(doc, dynobj_to_yyjson(doc, o));
+    size_t len;
+    char *result = yyjson_mut_write(doc, 0, &len);
+    yyjson_mut_doc_free(doc);
+    return result;
+}
+
+char *cs2_json_stringify_dynarray(DynArray *a) {
+    yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
+    yyjson_mut_doc_set_root(doc, dynarray_to_yyjson(doc, a));
+    size_t len;
+    char *result = yyjson_mut_write(doc, 0, &len);
+    yyjson_mut_doc_free(doc);
+    return result;
+}
+
+char *cs2_json_stringify_obj_array(ObjArrayLocal *arr) {
+    yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
+    yyjson_mut_val *root = yyjson_mut_arr(doc);
+    yyjson_mut_doc_set_root(doc, root);
+    if (arr) {
+        for (int32_t i = 0; i < arr->length; i++) {
+            uint64_t v = (uint64_t)(uintptr_t)arr->data[i];
+            yyjson_mut_arr_append(root, boxed_to_yyjson(doc, v));
+        }
+    }
+    size_t len;
+    char *result = yyjson_mut_write(doc, 0, &len);
+    yyjson_mut_doc_free(doc);
+    return result;
 }
 
 DynObj *cs2_json_parse_obj(const char *str) {

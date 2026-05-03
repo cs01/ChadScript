@@ -298,6 +298,15 @@ export function lowerMember(expr: MemberExpression): HIRExpr {
     }
     if (obj.type.kind === "dynobj" || obj.type.kind === "boxed") {
       const dynObj = obj.type.kind === "boxed" ? coerce(obj, DYNOBJ) : obj;
+      if (index.type.kind === "i8ptr") {
+        return {
+          kind: "runtime_call",
+          func: "cs2_dynobj_get_boxed",
+          args: [dynObj, index],
+          returnType: BOXED,
+          type: BOXED,
+        };
+      }
       return dynobj_get(dynObj, index);
     }
     compileError("unsupported computed member access", expr.span);

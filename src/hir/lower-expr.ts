@@ -422,6 +422,15 @@ export function lowerBinary(expr: BinaryExpression): HIRExpr {
 }
 
 function lowerBinaryWithOp(op: BinaryOp, left: HIRExpr, right: HIRExpr): HIRExpr {
+  if (op === "add" && (left.type.kind === "i8ptr" || right.type.kind === "i8ptr")) {
+    return {
+      kind: "runtime_call",
+      func: "cs_string_concat",
+      args: [left, right],
+      returnType: I8PTR,
+      type: I8PTR,
+    };
+  }
   if (BITWISE_OPS.has(op)) {
     if (left.type.kind !== "i64") left = coerce(left, I64);
     if (right.type.kind !== "i64") right = coerce(right, I64);
@@ -609,10 +618,47 @@ function lowerAssignment(expr: AssignmentExpression): HIRExpr {
           };
         }
       }
+      if (obj.type.kind === "dynobj" || obj.type.kind === "boxed") {
+        const dynObj = obj.type.kind === "boxed" ? coerce(obj, DYNOBJ) : obj;
+        const keyStr = index.type.kind !== "i8ptr" ? coerce(index, I8PTR) : index;
+        const { func: setFunc, valueType: setValType } = dynobjSetFuncForType(value.type);
+        const coercedVal = setValType && value.type.kind !== setValType.kind ? coerce(value, setValType) : value;
+        return {
+          kind: "runtime_call",
+          func: setFunc,
+          args: [dynObj, keyStr, coercedVal],
+          returnType: VOID,
+          type: VOID,
+        };
+      }
     }
   }
 
   return value;
+}
+
+function dynobjSetFuncForType(t: HIRType): { func: string; valueType: HIRType | null } {
+  switch (t.kind) {
+    case "f64":
+    case "i64":
+      return { func: "cs2_dynobj_set_f64", valueType: F64 };
+    case "i8ptr":
+      return { func: "cs2_dynobj_set_str", valueType: I8PTR };
+    case "i1":
+      return { func: "cs2_dynobj_set_bool", valueType: I1 };
+    case "dynobj":
+    case "ptr":
+    case "map":
+    case "set":
+      return { func: "cs2_dynobj_set_obj", valueType: null };
+    case "dynarray":
+    case "array":
+      return { func: "cs2_dynobj_set_arr", valueType: null };
+    case "boxed":
+      return { func: "cs2_dynobj_set_boxed", valueType: BOXED };
+    default:
+      return { func: "cs2_dynobj_set_boxed", valueType: BOXED };
+  }
 }
 
 function lowerTemplateLiteral(expr: any): HIRExpr {

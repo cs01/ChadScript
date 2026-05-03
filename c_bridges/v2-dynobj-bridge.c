@@ -22,7 +22,11 @@ typedef struct {
     };
 } DynValue;
 
+#define DYNOBJ_MAGIC 0x444F424A
+#define DYNARRAY_MAGIC 0x44415252
+
 typedef struct {
+    int32_t magic;
     char **keys;
     DynValue *values;
     int32_t length;
@@ -30,13 +34,21 @@ typedef struct {
 } DynObj;
 
 typedef struct {
+    int32_t magic;
     DynValue *data;
     int32_t length;
     int32_t capacity;
 } DynArray;
 
+int32_t cs2_dyn_kind(void *p) {
+    if (!p) return 0;
+    int32_t m = *(int32_t *)p;
+    return m;
+}
+
 DynObj *cs2_dynobj_new(void) {
     DynObj *o = (DynObj *)malloc(sizeof(DynObj));
+    o->magic = DYNOBJ_MAGIC;
     o->capacity = DYNOBJ_INITIAL_CAP;
     o->length = 0;
     o->keys = (char **)malloc(sizeof(char *) * o->capacity);
@@ -308,7 +320,8 @@ int32_t cs2_dynobj_length(DynObj *o) {
 }
 
 DynArray *cs2_dynarray_new(void) {
-    DynArray *a = (DynArray *)malloc(sizeof(DynArray));
+    DynArray *a = (DynArray *)malloc(sizeof(DynArray)); a->magic = DYNARRAY_MAGIC;
+    a->magic = DYNARRAY_MAGIC;
     a->capacity = DYNOBJ_INITIAL_CAP;
     a->length = 0;
     a->data = (DynValue *)malloc(sizeof(DynValue) * a->capacity);
@@ -320,13 +333,79 @@ typedef struct { void **data; int32_t length; int32_t capacity; } TypedObjArray;
 DynArray *cs2_dynarray_from_obj_array(TypedObjArray *src) {
     if (!src) return NULL;
     if (src->length < 0 || src->length > 1000000) return NULL;
-    DynArray *a = (DynArray *)malloc(sizeof(DynArray));
+    DynArray *a = (DynArray *)malloc(sizeof(DynArray)); a->magic = DYNARRAY_MAGIC;
     a->capacity = src->length < DYNOBJ_INITIAL_CAP ? DYNOBJ_INITIAL_CAP : src->length;
     a->length = src->length;
     a->data = (DynValue *)malloc(sizeof(DynValue) * a->capacity);
     for (int32_t i = 0; i < src->length; i++) {
         a->data[i].tag = TAG_OBJECT;
         a->data[i].obj_val = src->data[i];
+    }
+    return a;
+}
+
+DynArray *cs2_dynarray_from_str_array(TypedObjArray *src) {
+    if (!src) return NULL;
+    if (src->length < 0 || src->length > 1000000) return NULL;
+    DynArray *a = (DynArray *)malloc(sizeof(DynArray)); a->magic = DYNARRAY_MAGIC;
+    a->capacity = src->length < DYNOBJ_INITIAL_CAP ? DYNOBJ_INITIAL_CAP : src->length;
+    a->length = src->length;
+    a->data = (DynValue *)malloc(sizeof(DynValue) * a->capacity);
+    for (int32_t i = 0; i < src->length; i++) {
+        a->data[i].tag = TAG_STRING;
+        a->data[i].str_val = (char *)src->data[i];
+    }
+    return a;
+}
+
+typedef struct { double *data; int32_t length; int32_t capacity; } TypedNumArray;
+
+DynArray *cs2_dynarray_from_num_array(TypedNumArray *src) {
+    if (!src) return NULL;
+    if (src->length < 0 || src->length > 1000000) return NULL;
+    DynArray *a = (DynArray *)malloc(sizeof(DynArray)); a->magic = DYNARRAY_MAGIC;
+    a->capacity = src->length < DYNOBJ_INITIAL_CAP ? DYNOBJ_INITIAL_CAP : src->length;
+    a->length = src->length;
+    a->data = (DynValue *)malloc(sizeof(DynValue) * a->capacity);
+    for (int32_t i = 0; i < src->length; i++) {
+        a->data[i].tag = TAG_F64;
+        a->data[i].f64_val = src->data[i];
+    }
+    return a;
+}
+
+DynArray *cs2_dynarray_from_boxed_array(TypedObjArray *src) {
+    if (!src) return NULL;
+    if (src->length < 0 || src->length > 1000000) return NULL;
+    DynArray *a = (DynArray *)malloc(sizeof(DynArray)); a->magic = DYNARRAY_MAGIC;
+    a->capacity = src->length < DYNOBJ_INITIAL_CAP ? DYNOBJ_INITIAL_CAP : src->length;
+    a->length = src->length;
+    a->data = (DynValue *)malloc(sizeof(DynValue) * a->capacity);
+    for (int32_t i = 0; i < src->length; i++) {
+        uint64_t v = (uint64_t)(uintptr_t)src->data[i];
+        if ((v & 0xFFFC000000000000ULL) != 0x7FFC000000000000ULL) {
+            double d;
+            memcpy(&d, &v, 8);
+            a->data[i].tag = TAG_F64;
+            a->data[i].f64_val = d;
+        } else if ((v & 0xFFFF000000000000ULL) == 0x7FFF000000000000ULL) {
+            a->data[i].tag = TAG_STRING;
+            a->data[i].str_val = (char *)(uintptr_t)(v & 0x0000FFFFFFFFFFFFULL);
+        } else if ((v & 0xFFFF000000000000ULL) == 0x7FFE000000000000ULL) {
+            int32_t ival = (int32_t)(v & 0x0000FFFFFFFFFFFFULL);
+            if (v & 0x0000800000000000ULL) ival |= (int32_t)0xFFFF0000;
+            a->data[i].tag = TAG_F64;
+            a->data[i].f64_val = (double)ival;
+        } else if ((v & 0xFFFF000000000000ULL) == 0x7FFD000000000000ULL) {
+            a->data[i].tag = TAG_OBJECT;
+            a->data[i].obj_val = (void *)(uintptr_t)(v & 0x0000FFFFFFFFFFFFULL);
+        } else if (v == 0x7FFC000000000004ULL) {
+            a->data[i].tag = TAG_BOOL; a->data[i].bool_val = 1;
+        } else if (v == 0x7FFC000000000003ULL) {
+            a->data[i].tag = TAG_BOOL; a->data[i].bool_val = 0;
+        } else {
+            a->data[i].tag = TAG_NULL;
+        }
     }
     return a;
 }

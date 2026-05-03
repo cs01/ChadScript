@@ -312,6 +312,20 @@ function rewriteExprInner(expr: HIRExpr, eligible: Set<number>): HIRExpr {
       return { ...expr, initialValues: expr.initialValues.map((v) => rewriteExpr(v, eligible)) };
     case "alloc_struct":
       return { ...expr, fields: expr.fields.map((v) => rewriteExpr(v, eligible)) };
+    case "alloc_dynobj":
+      return {
+        ...expr,
+        props: expr.props.map((p: any) => ({ ...p, value: rewriteExpr(p.value, eligible) })),
+        spreadSource: expr.spreadSource ? rewriteExpr(expr.spreadSource, eligible) : expr.spreadSource,
+      };
+    case "alloc_dynarray":
+      return { ...expr, elements: expr.elements.map((v: any) => rewriteExpr(v, eligible)) };
+    case "alloc_array_spread":
+      return { ...expr, elements: expr.elements.map((e: any) => ({ ...e, value: rewriteExpr(e.value, eligible) })) };
+    case "alloc_map":
+      return { ...expr, entries: expr.entries.map((e: any) => ({ key: rewriteExpr(e.key, eligible), value: rewriteExpr(e.value, eligible) })) };
+    case "alloc_set":
+      return { ...expr, elements: expr.elements.map((v: any) => rewriteExpr(v, eligible)) };
     case "nullish_coalesce":
       return { ...expr, left: rewriteExpr(expr.left, eligible), right: rewriteExpr(expr.right, eligible) };
     case "array_hof":

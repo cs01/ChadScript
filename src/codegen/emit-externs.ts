@@ -321,6 +321,9 @@ export function declareExterns(ctx: EmitContext): void {
     dcl(ctx, "cs2_json_stringify_boxed", m.ptr, [m.i64]);
     dcl(ctx, "cs2_json_stringify_num_array", m.ptr, [m.ptr]);
     dcl(ctx, "cs2_json_stringify_str_array", m.ptr, [m.ptr]);
+    dcl(ctx, "cs2_json_stringify_dynobj", m.ptr, [m.ptr]);
+    dcl(ctx, "cs2_json_stringify_dynarray", m.ptr, [m.ptr]);
+    dcl(ctx, "cs2_json_stringify_obj_array", m.ptr, [m.ptr]);
     dcl(ctx, "cs2_json_parse", m.i64, [m.ptr]);
     dcl(ctx, "cs2_process_init", m.voidTy, [m.i32, m.ptr]);
     dcl(ctx, "cs2_process_argv_array", m.ptr, []);
@@ -484,6 +487,9 @@ export function declareExterns(ctx: EmitContext): void {
     dcl(ctx, "cs2_dynobj_length", m.i32, [m.ptr]);
     dcl(ctx, "cs2_dynarray_new", m.ptr, []);
     dcl(ctx, "cs2_dynarray_from_obj_array", m.ptr, [m.ptr]);
+    dcl(ctx, "cs2_dynarray_from_str_array", m.ptr, [m.ptr]);
+    dcl(ctx, "cs2_dynarray_from_num_array", m.ptr, [m.ptr]);
+    dcl(ctx, "cs2_dynarray_from_boxed_array", m.ptr, [m.ptr]);
     dcl(ctx, "cs2_obj_array_from_dynarray", m.ptr, [m.ptr]);
     dcl(ctx, "cs2_dynarray_push_f64", m.voidTy, [m.ptr, m.f64]);
     dcl(ctx, "cs2_dynarray_push_str", m.voidTy, [m.ptr, m.ptr]);

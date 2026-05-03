@@ -70,6 +70,16 @@ function rewrite(expr: HIRExpr): HIRExpr {
       return { ...expr, initialValues: expr.initialValues.map(rewrite) };
     case "alloc_struct":
       return { ...expr, fields: expr.fields.map(rewrite) };
+    case "alloc_dynobj":
+      return {
+        ...expr,
+        props: (expr as any).props.map((p: any) => ({ ...p, value: rewrite(p.value) })),
+        spreadSource: (expr as any).spreadSource ? rewrite((expr as any).spreadSource) : (expr as any).spreadSource,
+      };
+    case "alloc_dynarray":
+      return { ...expr, elements: (expr as any).elements.map(rewrite) };
+    case "alloc_array_spread":
+      return { ...expr, elements: (expr as any).elements.map((e: any) => ({ ...e, value: rewrite(e.value) })) };
     case "box":
       return { ...expr, value: rewrite(expr.value) };
     case "unbox":

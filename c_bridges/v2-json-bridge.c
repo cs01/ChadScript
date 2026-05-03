@@ -16,8 +16,8 @@
 #define MASK_QUIET    0x7FFC000000000000ULL
 #define MASK_PAYLOAD  0x0000FFFFFFFFFFFFULL
 
-typedef struct { void *keys; void *values; int32_t length; int32_t capacity; } DynObj;
-typedef struct { void *data; int32_t length; int32_t capacity; } DynArray;
+typedef struct { int32_t magic; void *keys; void *values; int32_t length; int32_t capacity; } DynObj;
+typedef struct { int32_t magic; void *data; int32_t length; int32_t capacity; } DynArray;
 extern uint64_t nanbox_from_ptr(void *p);
 extern uint64_t nanbox_from_f64(double val);
 extern uint64_t nanbox_from_string(const char *s);
@@ -86,6 +86,9 @@ char *cs2_json_stringify_null(void) {
     return strdup_safe("null");
 }
 
+extern char *cs2_json_stringify_dynobj(DynObj *o);
+extern char *cs2_json_stringify_dynarray(DynArray *a);
+
 char *cs2_json_stringify_boxed(uint64_t v) {
     if (v == TAG_NULL) return strdup_safe("null");
     if (v == TAG_UNDEFINED) return strdup_safe("undefined");
@@ -98,6 +101,16 @@ char *cs2_json_stringify_boxed(uint64_t v) {
 
     if ((v & 0xFFFF000000000000ULL) == TAG_INT) {
         return cs2_json_stringify_i64(nanbox_to_i64(v));
+    }
+
+    if ((v & 0xFFFF000000000000ULL) == TAG_PTR) {
+        void *p = (void *)(uintptr_t)(v & MASK_PAYLOAD);
+        if (p) {
+            int32_t magic = *(int32_t *)p;
+            if (magic == 0x44415252) return cs2_json_stringify_dynarray((DynArray *)p);
+            if (magic == 0x444F424A) return cs2_json_stringify_dynobj((DynObj *)p);
+        }
+        return strdup_safe("null");
     }
 
     if ((v & MASK_QUIET) != MASK_QUIET) {

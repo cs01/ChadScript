@@ -202,9 +202,13 @@ export function emitAllocDynObj(
     let valType = prop.value.type;
     if (valType.kind === "array") {
       const elKind = (valType as any).element?.kind;
-      const isPtrLike = elKind === "ptr" || elKind === "dynobj" || elKind === "dynarray" || elKind === "map" || elKind === "boxed" || elKind === "array" || elKind === "i8ptr";
-      if (isPtrLike) {
-        const conv = ctx.getDeclaredFunction("cs2_dynarray_from_obj_array")!;
+      let convName: string | null = null;
+      if (elKind === "i8ptr") convName = "cs2_dynarray_from_str_array";
+      else if (elKind === "f64" || elKind === "i64") convName = "cs2_dynarray_from_num_array";
+      else if (elKind === "boxed") convName = "cs2_dynarray_from_boxed_array";
+      else if (elKind === "ptr" || elKind === "dynobj" || elKind === "dynarray" || elKind === "map" || elKind === "array") convName = "cs2_dynarray_from_obj_array";
+      if (convName) {
+        const conv = ctx.getDeclaredFunction(convName)!;
         val = m.buildCall(conv.fnType, conv.fn, [val], "darr");
         valType = { kind: "dynarray" };
       }

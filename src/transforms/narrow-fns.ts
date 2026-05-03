@@ -217,6 +217,16 @@ function rewriteCallSites(narrowed: Set<string>, expr: HIRExpr): HIRExpr {
       return { ...expr, initialValues: expr.initialValues.map((v) => rewriteCallSites(narrowed, v)) };
     case "alloc_struct":
       return { ...expr, fields: expr.fields.map((v) => rewriteCallSites(narrowed, v)) };
+    case "alloc_dynobj":
+      return {
+        ...expr,
+        props: (expr as any).props.map((p: any) => ({ ...p, value: rewriteCallSites(narrowed, p.value) })),
+        spreadSource: (expr as any).spreadSource ? rewriteCallSites(narrowed, (expr as any).spreadSource) : (expr as any).spreadSource,
+      };
+    case "alloc_dynarray":
+      return { ...expr, elements: (expr as any).elements.map((v: any) => rewriteCallSites(narrowed, v)) };
+    case "alloc_array_spread":
+      return { ...expr, elements: (expr as any).elements.map((e: any) => ({ ...e, value: rewriteCallSites(narrowed, e.value) })) };
     case "box":
       return { ...expr, value: rewriteCallSites(narrowed, expr.value) };
     case "unbox":
