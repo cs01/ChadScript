@@ -112,8 +112,8 @@ export function compile(opts: CompileOptions): void {
   const hir = resolveModules(opts.input, opts.substitutions);
   constFoldPass(hir);
   narrowLocalsPass(hir);
-  narrowGlobalsPass(hir);
   narrowFnsPass(hir);
+  narrowGlobalsPass(hir);
   narrowFpPass(hir);
   concatBuilderPass(hir);
   deadCodePass(hir);

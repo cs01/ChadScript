@@ -20,6 +20,7 @@ function isIntLiteralInit(e: HIRExpr | undefined): boolean {
 }
 
 function isSafeIntPureExpr(expr: HIRExpr, name: string, eligible: Set<string>): boolean {
+  if (expr.type.kind === "i64") return true;
   switch (expr.kind) {
     case "literal_i64":
       return true;
@@ -27,10 +28,7 @@ function isSafeIntPureExpr(expr: HIRExpr, name: string, eligible: Set<string>): 
       return Number.isInteger(expr.value) && Math.abs(expr.value) <= Number.MAX_SAFE_INTEGER;
     case "global_get":
       if (expr.name === name) return true;
-      if (eligible.has(expr.name)) return true;
-      return expr.type.kind === "i64";
-    case "local_get":
-      return expr.type.kind === "i64";
+      return eligible.has(expr.name);
     case "binary":
       if (!SAFE_OPS.has(expr.op)) return false;
       return isSafeIntPureExpr(expr.left, name, eligible) && isSafeIntPureExpr(expr.right, name, eligible);
@@ -210,8 +208,11 @@ function rewriteValueAsI64(expr: HIRExpr, eligible: Set<string>): HIRExpr {
       return rewriteValueAsI64(expr.value, eligible);
     case "narrow_i64":
       return rewriteValueAsI64(expr.value, eligible);
-    default:
-      return expr;
+    default: {
+      const r = rewriteExpr(expr, eligible);
+      if (r.kind === "widen_f64" && r.value.type.kind === "i64") return r.value;
+      return r;
+    }
   }
 }
 
@@ -247,10 +248,12 @@ function tryStripToI64(expr: HIRExpr, eligible: Set<string>): HIRExpr | null {
   }
 }
 
+const STMT_LIKE_KINDS = new Set(["global_set", "local_set", "field_set", "index_set"]);
+
 function rewriteExpr(expr: HIRExpr, eligible: Set<string>): HIRExpr {
   const origTypeKind = expr.type.kind;
   const out = rewriteExprInner(expr, eligible);
-  if (origTypeKind === "f64" && out.type.kind === "i64") {
+  if (origTypeKind === "f64" && out.type.kind === "i64" && !STMT_LIKE_KINDS.has(out.kind)) {
     return { kind: "widen_f64", value: out, type: F64 };
   }
   return out;

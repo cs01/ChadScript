@@ -79,7 +79,14 @@ Compile `.js` as all-`any`/dynobj. No V8. Same binary, zero marshaling. Typed TS
 
 Won't support: `eval()`, `with`, `arguments`, dynamic `require()`.
 
-## 7. Polish (ongoing)
+## 7. Multi-Language Frontends
+
+HIR is language-neutral — new frontends are ~3K LOC of parsing + lowering. Same backend, same optimizations, same native binary.
+
+- **Python** — PoC on `python-poc` branch. Use LibCST (Rust parser, `/Users/csmith/git/LibCST`) as SWC-equivalent: fast, full typed AST, Meta-maintained. Wire via JSON dump or koffi FFI.
+- **Ruby, Go, others** — future. tree-sitter grammars available as fallback for languages without an SWC-equivalent parser.
+
+## 8. Polish (ongoing)
 
 - [ ] DWARF debug info
 - [ ] Incremental compilation
