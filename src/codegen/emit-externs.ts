@@ -137,6 +137,8 @@ export function declareExterns(ctx: EmitContext): void {
     dcl(ctx, "cs2_str_last_index_of", m.f64, [m.ptr, m.ptr]);
     dcl(ctx, "cs2_str_at", m.ptr, [m.ptr, m.i32]);
     dcl(ctx, "cs2_str_replace_all", m.ptr, [m.ptr, m.ptr, m.ptr]);
+    dcl(ctx, "cs2_string_builder_init", m.ptr, [m.ptr]);
+    dcl(ctx, "cs2_string_builder_append", m.ptr, [m.ptr, m.ptr]);
     dcl(ctx, "cs2_parse_float", m.f64, [m.ptr]);
     dcl(ctx, "cs2_parse_int", m.f64, [m.ptr]);
     dcl(ctx, "cs2_number_to_string", m.ptr, [m.f64]);

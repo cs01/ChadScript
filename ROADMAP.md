@@ -11,9 +11,11 @@
 
 ## Perf Hotspots (vs perry)
 
-- **string_concat 0.38s vs 0.00s**: `result = result + "x"` × 100k is O(n²) — every concat does `strlen+strlen+malloc+strcpy+strcat`. Fix path: detect `var = var + expr` / `var += str` pattern in lowering, emit `cs_string_append_inplace` (realloc + memcpy) for amortized O(n).
+- ~~**string_concat O(n²)**~~ — fixed via `concatBuilderPass` + `cs2_string_builder_init/append`. Detects `var = var + expr` (mutable string locals with literal init); allocates header'd buffer (magic + len + cap) and uses `realloc` doubling for amortized O(1) append. Chained concats `r = r + a + b + c` rewritten to nested `builder_append` calls. Globals and reassigned locals fall back to old path.
+- ~~**arr[i]=v growth crash**~~ — fast-path GEP+store now bounds-checked: `if idx < length` direct store else `cs2_num_array_set` (grow + bump length). Restores correctness without losing in-loop vectorization (length load hoists via LICM).
 - **closure 22x slower**: `compute(i)` in tight loop. IR shows `sitofp i64→f64`, `call compute(double)`, `fptosi double→i64` per iter. Conversions kill perf. Fix path: integer-narrowing pass should infer compute's return type from body when params are integer-narrowed.
-- **matrix_multiply 4x**: each `arr[i]` calls `cs2_num_array_get` with bounds check, kills auto-vectorize. Fix path: emit direct GEP for `array<f64>` index access in tight contexts.
+- **matrix_multiply 4x**: each `arr[i]` calls `cs2_num_array_get` with bounds check, kills auto-vectorize. Fix path: emit direct GEP for `array<f64>` index access in tight contexts. (Done; still on hot list because read fast path leaves a residual cmp.)
+- **17_loop_data_dependent**: chad's `let seed = 42` was inferring i64 (overflow-free), diverging from node's f64 LCG sequence. Fix: untyped mutable `let x = <integer>` now lowers to f64 (TS-compatible). New `narrowLocalsPass` claws back perf for pure counter locals (init `literal_i64`, only assigned via `add`/`sub` of self + integer literals). Loop counters narrow to i64, loop bodies icmp/srem instead of fcmp/frem.
 
 ## 1. Self-Hosting (active blocker)
 

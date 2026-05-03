@@ -513,7 +513,7 @@ export function lowerModule(
           setExpectedArrayElementType(null);
           setExpectedMapType(null);
           setExpectedDeclType(null);
-          const type =
+          let type =
             declType.kind !== "boxed"
               ? declType
               : rawInit && (rawInit.type.kind === "dynobj" || rawInit.type.kind === "dynarray")
@@ -523,6 +523,9 @@ export function lowerModule(
                   : rawInit
                     ? rawInit.type
                     : BOXED;
+          if (mutable && !hasAnnotation && type.kind === "i64" && rawInit && rawInit.kind === "literal_i64") {
+            type = { kind: "f64" };
+          }
           const coercedInit =
             rawInit && rawInit.type.kind !== type.kind ? coerce(rawInit, type) : rawInit;
 
@@ -706,7 +709,7 @@ function lowerVarDecl(decl: VariableDeclaration): HIRStmt[] {
       setExpectedArrayElementType(null);
       setExpectedMapType(null);
       setExpectedDeclType(null);
-      const type =
+      let type =
         declType.kind !== "boxed"
           ? declType
           : init && (init.type.kind === "dynobj" || init.type.kind === "dynarray")
@@ -716,6 +719,9 @@ function lowerVarDecl(decl: VariableDeclaration): HIRStmt[] {
               : init
                 ? init.type
                 : BOXED;
+      if (mutable && !hasAnnotation && type.kind === "i64" && init && init.kind === "literal_i64") {
+        type = { kind: "f64" };
+      }
       const coercedInit = init && init.type.kind !== type.kind ? coerce(init, type) : init;
 
       locals.set(d.id.value, { id, type, mutable });

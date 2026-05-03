@@ -14,6 +14,10 @@ export function emitRuntimeCall(ctx: EmitContext, expr: HIRExpr & { kind: "runti
     return emitStringConcat(ctx, expr);
   }
 
+  if (expr.func === "cs2_string_builder_append") {
+    return emitBuilderAppend(ctx, expr);
+  }
+
   if (
     expr.func === "cs_console_log" ||
     expr.func === "cs_console_error" ||
@@ -205,6 +209,17 @@ function emitToString(ctx: EmitContext, arg: HIRExpr, val: any): any {
   }
 
   return buf;
+}
+
+function emitBuilderAppend(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_call" }): any {
+  const m = ctx.m;
+  const leftArg = expr.args[0];
+  const rightArg = expr.args[1];
+  const leftVal = emitExpr(ctx, leftArg);
+  const rightVal = emitExpr(ctx, rightArg);
+  const rightStr = emitToString(ctx, rightArg, rightVal);
+  const fn = ctx.getDeclaredFunction("cs2_string_builder_append")!;
+  return m.buildCall(fn.fnType, fn.fn, [leftVal, rightStr], "");
 }
 
 function emitStringConcat(ctx: EmitContext, expr: HIRExpr & { kind: "runtime_call" }): any {

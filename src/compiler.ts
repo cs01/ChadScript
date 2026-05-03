@@ -4,6 +4,8 @@ import { deadCodePass } from "./transforms/dead-code.js";
 import { constFoldPass } from "./transforms/const-fold.js";
 import { narrowFpPass } from "./transforms/narrow-fp.js";
 import { narrowFnsPass } from "./transforms/narrow-fns.js";
+import { concatBuilderPass } from "./transforms/concat-builder.js";
+import { narrowLocalsPass } from "./transforms/narrow-locals.js";
 import { unlinkSync, existsSync, readFileSync, mkdirSync, copyFileSync } from "fs";
 import { createHash } from "crypto";
 import { execSync } from "child_process";
@@ -108,8 +110,10 @@ function cachedCompile(src: string, outObj: string, flags: string): void {
 export function compile(opts: CompileOptions): void {
   const hir = resolveModules(opts.input, opts.substitutions);
   constFoldPass(hir);
+  narrowLocalsPass(hir);
   narrowFnsPass(hir);
   narrowFpPass(hir);
+  concatBuilderPass(hir);
   deadCodePass(hir);
 
   const tmpObj = join(tmpdir(), `chad2-${process.pid}.o`);

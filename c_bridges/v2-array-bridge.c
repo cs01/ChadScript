@@ -179,11 +179,19 @@ char *cs2_obj_array_join(ObjArray *arr, const char *sep) {
         if (i < arr->length - 1) total += sep_len;
     }
     char *result = (char *)malloc(total);
-    result[0] = '\0';
+    size_t pos = 0;
     for (int32_t i = 0; i < arr->length; i++) {
-        if (arr->data[i]) strcat(result, (const char *)arr->data[i]);
-        if (i < arr->length - 1) strcat(result, sep);
+        if (arr->data[i]) {
+            size_t l = strlen((const char *)arr->data[i]);
+            memcpy(result + pos, arr->data[i], l);
+            pos += l;
+        }
+        if (i < arr->length - 1) {
+            memcpy(result + pos, sep, sep_len);
+            pos += sep_len;
+        }
     }
+    result[pos] = '\0';
     return result;
 }
 

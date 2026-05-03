@@ -6,6 +6,7 @@ import {
   LLVMIntSLE,
   LLVMIntSGT,
   LLVMIntSGE,
+  LLVMIntULT,
   LLVMRealOEQ,
   LLVMRealONE,
   LLVMRealOLT,
@@ -345,13 +346,28 @@ function emitIndexSet(ctx: EmitContext, expr: HIRExpr & { kind: "index_set" }): 
   let val = emitExpr(ctx, expr.value);
   const elemType =
     expr.array.type.kind === "array" ? (expr.array.type as any).element : { kind: "f64" };
-  // Fast path for array<f64>: direct GEP+store. Loses auto-grow guard but
-  // typical in-bounds writes get LLVM-vectorizable code. Out-of-bounds writes
-  // are silently no-ops (worse than auto-grow but matches pre-fix behavior).
+  // Fast path for array<f64>: branch on idx<length. In-bounds: direct
+  // GEP+store (LLVM can hoist length load, often vectorize). Out-of-bounds:
+  // call cs2_num_array_set which grows + bumps length.
   if (elemType.kind === "f64") {
+    const fn = ctx.getCurrentFn();
+    const lenSlot = m.buildGEP(m.i8, arr, [m.constInt(m.i64, 8)], "");
+    const len = m.buildLoad(m.i32, lenSlot, "");
+    const inBounds = m.buildICmp(LLVMIntULT, idx, len, "");
+    const fastBlock = m.appendBlock(fn, "set.fast");
+    const slowBlock = m.appendBlock(fn, "set.slow");
+    const mergeBlock = m.appendBlock(fn, "set.merge");
+    m.buildCondBr(inBounds, fastBlock, slowBlock);
+    m.positionAtEnd(fastBlock);
     const dataPtr = m.buildLoad(m.ptr, arr, "");
     const elemPtr = m.buildGEP(m.f64, dataPtr, [idx], "");
     m.buildStore(val, elemPtr);
+    m.buildBr(mergeBlock);
+    m.positionAtEnd(slowBlock);
+    const setFn = ctx.getDeclaredFunction("cs2_num_array_set")!;
+    m.buildCall(setFn.fnType, setFn.fn, [arr, idx, val], "");
+    m.buildBr(mergeBlock);
+    m.positionAtEnd(mergeBlock);
     return val;
   }
   const storagePrefix = elemType.kind === "i1" ? "cs2_num_array" : emitArrayPrefix(elemType);

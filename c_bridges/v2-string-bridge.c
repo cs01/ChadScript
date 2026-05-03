@@ -2,6 +2,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdio.h>
+#include <stdint.h>
 
 int32_t cs2_str_length(const char *s) {
     if (!s) return 0;
@@ -396,4 +397,47 @@ char *cs2_str_replace_all(const char *s, const char *search, const char *replace
         p = found + searchlen;
     }
     return result;
+}
+
+typedef struct {
+    uint64_t magic;
+    size_t len;
+    size_t cap;
+} CsStrHdr;
+
+#define CS_STR_BUILDER_MAGIC 0xC4AD5712C0DE0001ULL
+
+char *cs2_string_builder_init(const char *initial) {
+    size_t init_len = initial ? strlen(initial) : 0;
+    size_t cap = init_len < 16 ? 16 : init_len * 2;
+    CsStrHdr *h = (CsStrHdr *)malloc(sizeof(CsStrHdr) + cap + 1);
+    h->magic = CS_STR_BUILDER_MAGIC;
+    h->len = init_len;
+    h->cap = cap;
+    char *buf = (char *)(h + 1);
+    if (init_len) memcpy(buf, initial, init_len);
+    buf[init_len] = '\0';
+    return buf;
+}
+
+char *cs2_string_builder_append(char *left, const char *right) {
+    if (!right) return left;
+    CsStrHdr *h = (CsStrHdr *)left - 1;
+    if (h->magic != CS_STR_BUILDER_MAGIC) {
+        char *fresh = cs2_string_builder_init(left);
+        return cs2_string_builder_append(fresh, right);
+    }
+    size_t rlen = strlen(right);
+    size_t needed = h->len + rlen;
+    if (needed >= h->cap) {
+        size_t newcap = h->cap;
+        while (newcap <= needed) newcap *= 2;
+        h = (CsStrHdr *)realloc(h, sizeof(CsStrHdr) + newcap + 1);
+        h->cap = newcap;
+        left = (char *)(h + 1);
+    }
+    memcpy(left + h->len, right, rlen);
+    h->len += rlen;
+    left[h->len] = '\0';
+    return left;
 }
