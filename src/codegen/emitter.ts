@@ -1,5 +1,5 @@
 import type { HIRModule, HIRFunction, HIRStmt, HIRExpr, HIRType } from "../hir/types.js";
-import { LLVMModule, LLVMIntEQ, LLVMIntNE, LLVMRealOEQ, LLVMPrivateLinkage } from "./llvm.js";
+import { LLVMModule, LLVMIntEQ, LLVMIntNE, LLVMRealOEQ, LLVMPrivateLinkage, LLVMInternalLinkage } from "./llvm.js";
 import {
   EmitContext,
   CaptureMap,
@@ -148,6 +148,7 @@ export function emitModule(mod: HIRModule, objectPath: string, irPath: string = 
     const ty = llvmType(ctx, g.type);
     const globalVar = m.addGlobal(`g_${g.name}`, ty);
     m.setInitializer(globalVar, defaultInit(ctx, g.type));
+    m.setLinkage(globalVar, LLVMInternalLinkage);
     ctx.registerGlobal(g.name, globalVar, g.type);
   }
 
