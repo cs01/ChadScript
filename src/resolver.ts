@@ -263,12 +263,8 @@ function modulePrefix(absPath: string): string {
   return base.replace(/[^a-zA-Z0-9]/g, "_");
 }
 
-function walkRename(node: any, renames: Map<string, string>): void {
+function walkRenameNode(node: any, renames: Map<string, string>): void {
   if (!node || typeof node !== "object") return;
-  if (Array.isArray(node)) {
-    for (let i = 0; i < node.length; i++) walkRename(node[i], renames);
-    return;
-  }
   if (node.type === "Identifier" && typeof node.value === "string") {
     const r = renames.get(node.value);
     if (r !== undefined) node.value = r;
@@ -282,12 +278,16 @@ function walkRename(node: any, renames: Map<string, string>): void {
     if (isMember && k === "property" && child.type === "Identifier") continue;
     if (isPropKey && k === "key" && child.type === "Identifier") continue;
     if (k === "imported" || k === "exported" || k === "orig") continue;
-    walkRename(child, renames);
+    if (Array.isArray(child)) {
+      for (let i = 0; i < child.length; i++) walkRenameNode(child[i], renames);
+    } else {
+      walkRenameNode(child, renames);
+    }
   }
 }
 
 function renameIdents(items: ModuleItem[], renames: Map<string, string>): void {
-  walkRename(items, renames);
+  for (let i = 0; i < items.length; i++) walkRenameNode(items[i], renames);
 }
 
 function resolveExportedFrom(
