@@ -641,7 +641,8 @@ function emitSwitch(ctx: EmitContext, stmt: HIRStmt & { kind: "switch" }): void 
     m.positionAtEnd(caseBlocks[i]);
     for (const s of stmt.cases[i].body) emitStmt(ctx, s);
     if (!stmtTerminates(stmt.cases[i].body)) {
-      m.buildBr(exitBlock);
+      const fallThrough = i + 1 < caseBlocks.length ? caseBlocks[i + 1] : exitBlock;
+      m.buildBr(fallThrough);
     } else if (!m.currentBlockHasTerminator()) {
       m.buildUnreachable();
     }
