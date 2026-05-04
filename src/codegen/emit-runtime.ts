@@ -77,7 +77,7 @@ export function emitRuntimeCall(ctx: EmitContext, expr: HIRExpr & { kind: "runti
     return result;
   }
 
-  return m.constInt(m.i64, 0);
+  throw new Error(`unknown runtime call: ${expr.func}`);
 }
 
 function emitPrintValue(ctx: EmitContext, arg: HIRExpr, val: any, isLast: boolean): void {

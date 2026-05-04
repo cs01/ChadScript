@@ -327,6 +327,24 @@ int32_t cs2_dynobj_length(DynObj *o) {
     return o->length;
 }
 
+const char *cs2_dynobj_key_at(DynObj *o, int32_t i) {
+    if (!o || i < 0 || i >= o->length) return NULL;
+    return o->keys[i];
+}
+
+typedef struct { char **data; int32_t length; int32_t capacity; } StrArrayHeader;
+extern StrArrayHeader *cs2_str_array_new(int32_t capacity);
+extern void cs2_str_array_push(StrArrayHeader *arr, const char *value);
+
+StrArrayHeader *cs2_dynobj_keys(DynObj *o) {
+    StrArrayHeader *result = cs2_str_array_new(o ? o->length : 0);
+    if (!o) return result;
+    for (int32_t i = 0; i < o->length; i++) {
+        cs2_str_array_push(result, o->keys[i]);
+    }
+    return result;
+}
+
 DynArray *cs2_dynarray_new(void) {
     DynArray *a = (DynArray *)malloc(sizeof(DynArray)); a->magic = DYNARRAY_MAGIC;
     a->magic = DYNARRAY_MAGIC;
