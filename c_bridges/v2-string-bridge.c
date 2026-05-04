@@ -91,6 +91,21 @@ char *cs2_str_substring(const char *s, int32_t start, int32_t end) {
     return result;
 }
 
+char *cs2_str_substr(const char *s, int32_t start, int32_t count) {
+    int32_t len = (int32_t)strlen(s);
+    if (start < 0) start = len + start;
+    if (start < 0) start = 0;
+    if (start > len) start = len;
+    if (count < 0) count = 0;
+    int32_t end = start + count;
+    if (end > len) end = len;
+    int32_t rlen = end - start;
+    char *result = (char *)malloc(rlen + 1);
+    memcpy(result, s + start, rlen);
+    result[rlen] = '\0';
+    return result;
+}
+
 char *cs2_str_to_upper(const char *s) {
     size_t len = strlen(s);
     char *result = (char *)malloc(len + 1);

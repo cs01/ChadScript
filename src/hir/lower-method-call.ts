@@ -52,6 +52,7 @@ export function lowerStringMethodCall(expr: CallExpression, obj: HIRExpr): HIREx
       endsWith: { func: "cs2_str_ends_with", returnType: I1, argTypes: [I8PTR] },
       slice: { func: "cs2_str_slice", returnType: I8PTR, argTypes: [I64, I64] },
       substring: { func: "cs2_str_substring", returnType: I8PTR, argTypes: [I64, I64] },
+      substr: { func: "cs2_str_substr", returnType: I8PTR, argTypes: [I64, I64] },
       toUpperCase: { func: "cs2_str_to_upper", returnType: I8PTR },
       toLowerCase: { func: "cs2_str_to_lower", returnType: I8PTR },
       trim: { func: "cs2_str_trim", returnType: I8PTR },

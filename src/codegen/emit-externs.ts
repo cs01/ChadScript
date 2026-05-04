@@ -143,6 +143,7 @@ export function declareExterns(ctx: EmitContext): void {
     dcl(ctx, "cs2_str_ends_with", m.i32, [m.ptr, m.ptr]);
     dcl(ctx, "cs2_str_slice", m.ptr, [m.ptr, m.i32, m.i32]);
     dcl(ctx, "cs2_str_substring", m.ptr, [m.ptr, m.i32, m.i32]);
+    dcl(ctx, "cs2_str_substr", m.ptr, [m.ptr, m.i32, m.i32]);
     dcl(ctx, "cs2_str_to_upper", m.ptr, [m.ptr]);
     dcl(ctx, "cs2_str_to_lower", m.ptr, [m.ptr]);
     dcl(ctx, "cs2_str_trim", m.ptr, [m.ptr]);
