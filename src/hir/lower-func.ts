@@ -22,6 +22,7 @@ import {
   setCurrentLoweringFn,
   currentReturnType,
   setCurrentReturnType,
+  expectedClosureParamTypes,
 } from "./lower-state.js";
 import { lowerExpr } from "./lower-expr.js";
 import { lowerBlock } from "./lower.js";
@@ -148,7 +149,12 @@ export function lowerArrowOrFnExpr(expr: any, varName: string): HIRFunction {
       locals.set(name, { id, type, mutable: true });
     } else if (pat.type === "Identifier") {
       const id = freshId();
-      const type = resolveTypeAnnotation(pat.typeAnnotation);
+      let type: HIRType;
+      if (!pat.typeAnnotation && expectedClosureParamTypes && expectedClosureParamTypes[params.length]) {
+        type = expectedClosureParamTypes[params.length];
+      } else {
+        type = resolveTypeAnnotation(pat.typeAnnotation);
+      }
       params.push({ id, name: pat.value, type });
       locals.set(pat.value, { id, type, mutable: true });
     }

@@ -36,6 +36,11 @@ export function offsetToLine(offset: number): number {
 export let nextId = 0;
 export const locals = new Map<string, { id: number; type: HIRType; mutable: boolean }>();
 export const catchParamIds = new Set<number>();
+
+export let expectedClosureParamTypes: HIRType[] | null = null;
+export function setExpectedClosureParamTypes(types: HIRType[] | null): void {
+  expectedClosureParamTypes = types;
+}
 export const globals = new Map<string, { type: HIRType; mutable: boolean }>();
 export const functionRegistry = new Map<string, { params: HIRParam[]; returnType: HIRType }>();
 export const classRegistry = new Map<

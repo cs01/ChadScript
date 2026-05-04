@@ -14,6 +14,7 @@ import {
   mapPrefix,
   setPrefix,
   coerce,
+  setExpectedClosureParamTypes,
 } from "./lower-state.js";
 import { lowerExpr } from "./lower-expr.js";
 
@@ -370,6 +371,22 @@ export function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExp
       setExpectedDeclType(arrType.element);
       const r = lowerExpr(a.expression);
       setExpectedDeclType(prev);
+      return r;
+    }
+    if (
+      (method === "sort" || method === "map" || method === "filter" ||
+       method === "forEach" || method === "find" || method === "findIndex" ||
+       method === "every" || method === "some" || method === "reduce") &&
+      (a.expression.type === "ArrowFunctionExpression" || a.expression.type === "FunctionExpression")
+    ) {
+      const elem = arrType.element;
+      let paramTypes: HIRType[];
+      if (method === "sort") paramTypes = [elem, elem];
+      else if (method === "reduce") paramTypes = [elem, elem];
+      else paramTypes = [elem, F64];
+      setExpectedClosureParamTypes(paramTypes);
+      const r = lowerExpr(a.expression);
+      setExpectedClosureParamTypes(null);
       return r;
     }
     return lowerExpr(a.expression);
