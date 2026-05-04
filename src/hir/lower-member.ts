@@ -6,7 +6,7 @@ import {
   locals, globals, classRegistry, interfaceRegistry, expectedDeclType,
   enumRegistry, builtinImports, narrowedLocals, coerce,
   pendingGenericClasses, sourceFilePath, mapPrefix, arrayPrefix, setPrefix,
-  setExpectedDeclType,
+  setExpectedDeclType, catchParamIds,
 } from "./lower-state.js";
 import { lowerExpr } from "./lower-expr.js";
 
@@ -314,6 +314,19 @@ export function lowerMember(expr: MemberExpression): HIRExpr {
 
   if (expr.property.type === "Identifier") {
     const propName = expr.property.value;
+
+    if (propName === "message") {
+      let inner: any = expr.object;
+      while (inner && (inner.type === "TsAsExpression" || inner.type === "TsNonNullExpression" || inner.type === "ParenthesisExpression")) {
+        inner = inner.expression;
+      }
+      if (inner && inner.type === "Identifier") {
+        const local = locals.get(inner.value);
+        if (local && catchParamIds.has(local.id)) {
+          return { kind: "local_get", id: local.id, type: I8PTR };
+        }
+      }
+    }
 
     if (propName === "length") {
       const obj = lowerExpr(expr.object);

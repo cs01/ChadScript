@@ -73,6 +73,7 @@ import {
   narrowedLocals,
   pushNarrowing,
   popNarrowing,
+  catchParamIds,
 } from "./lower-state.js";
 import {
   registerFunction,
@@ -920,8 +921,8 @@ function lowerThrow(stmt: any): HIRStmt {
   if (value.type.kind !== "i8ptr") {
     value = {
       kind: "runtime_call",
-      func: "cs2_format_number_to_str",
-      args: [value],
+      func: "cs2_number_to_string",
+      args: [coerce(value, F64)],
       returnType: I8PTR,
       type: I8PTR,
     };
@@ -936,6 +937,7 @@ function lowerTry(stmt: any): HIRStmt {
     const paramName = stmt.handler.param?.value || "__err";
     const paramId = freshId();
     locals.set(paramName, { id: paramId, type: I8PTR, mutable: false });
+    catchParamIds.add(paramId);
     const catchBody = lowerBlock(stmt.handler.body);
     catchClause = { paramId, paramName, body: catchBody };
   }
