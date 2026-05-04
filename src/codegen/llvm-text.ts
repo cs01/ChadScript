@@ -80,13 +80,13 @@ function joinStrs(arr: string[], sep: string): string {
 }
 
 export class LLVMModule {
-  readonly i1 = "i1";
-  readonly i8 = "i8";
-  readonly i32 = "i32";
-  readonly i64 = "i64";
-  readonly f64 = "double";
-  readonly voidTy = "void";
-  readonly ptr = "ptr";
+  i1: string;
+  i8: string;
+  i32: string;
+  i64: string;
+  f64: string;
+  voidTy: string;
+  ptr: string;
 
   private _nextId: number;
   private _globals: string[];
@@ -102,6 +102,13 @@ export class LLVMModule {
   private _blockNameCounters: Map<string, number>;
 
   constructor(_name: string) {
+    this.i1 = "i1";
+    this.i8 = "i8";
+    this.i32 = "i32";
+    this.i64 = "i64";
+    this.f64 = "double";
+    this.voidTy = "void";
+    this.ptr = "ptr";
     this._nextId = 0;
     this._globals = [];
     this._structs = new Map<string, { fields: string[] }>();

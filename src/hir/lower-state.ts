@@ -429,6 +429,30 @@ export function coerce(
   if (expr.type.kind === "boxed" && target.kind !== "boxed") {
     return { kind: "unbox", value: expr, toType: target, type: target };
   }
+  if (expr.type.kind === "dynarray" && target.kind === "array") {
+    return {
+      kind: "runtime_call",
+      func: "cs2_obj_array_from_dynarray",
+      args: [expr],
+      returnType: target,
+      type: target,
+    };
+  }
+  if (expr.type.kind === "array" && target.kind === "dynarray") {
+    const elKind = ((expr.type as any).element as HIRType | undefined)?.kind;
+    let convName: string;
+    if (elKind === "i8ptr") convName = "cs2_dynarray_from_str_array";
+    else if (elKind === "f64" || elKind === "i64") convName = "cs2_dynarray_from_num_array";
+    else if (elKind === "boxed") convName = "cs2_dynarray_from_boxed_array";
+    else convName = "cs2_dynarray_from_obj_array";
+    return {
+      kind: "runtime_call",
+      func: convName,
+      args: [expr],
+      returnType: DYNARRAY,
+      type: DYNARRAY,
+    };
+  }
   return expr;
 }
 

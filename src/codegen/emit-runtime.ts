@@ -58,16 +58,23 @@ export function emitRuntimeCall(ctx: EmitContext, expr: HIRExpr & { kind: "runti
 
   const bridgeFn = ctx.getDeclaredFunction(expr.func);
   if (bridgeFn) {
-    const args = expr.args.map((a) => {
+    const ptrSlotFunc = /_obj_array_(push|unshift|set|fill|spread)$|_ptr_map_set$/.test(expr.func);
+    const args = expr.args.map((a, i) => {
       let val = emitExpr(ctx, a);
       if (a.type.kind === "i64") {
-        val = m.buildTrunc(val, m.i32, "");
+        if (ptrSlotFunc && i > 0) {
+          val = m.buildIntToPtr(val, m.ptr, "");
+        } else {
+          val = m.buildTrunc(val, m.i32, "");
+        }
       } else if (
         a.type.kind === "i1" &&
         (expr.func.includes("num_array") || expr.func.includes("num_map"))
       ) {
         const ext = m.buildZExt(val, m.i64, "");
         val = m.buildSIToFP(ext, m.f64, "");
+      } else if (a.type.kind === "boxed" && ptrSlotFunc && i > 0) {
+        val = m.buildIntToPtr(val, m.ptr, "");
       }
       return val;
     });

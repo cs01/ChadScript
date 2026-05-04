@@ -20,8 +20,12 @@ export function emitAllocArray(ctx: EmitContext, expr: HIRExpr & { kind: "alloc_
 
   if (expr.initialValues.length > 0) {
     const pushDecl = ctx.getDeclaredFunction(pushFn)!;
+    const isObjArr = prefix === "cs2_obj_array";
     for (const valExpr of expr.initialValues) {
-      const v = emitExpr(ctx, valExpr);
+      let v = emitExpr(ctx, valExpr);
+      if (isObjArr && (valExpr.type.kind === "boxed" || valExpr.type.kind === "i64")) {
+        v = m.buildIntToPtr(v, m.ptr, "");
+      }
       m.buildCall(pushDecl.fnType, pushDecl.fn, [arr, v], "");
     }
   }
@@ -53,12 +57,16 @@ export function emitAllocArraySpread(
 
   const arr = m.buildCall(newDecl.fnType, newDecl.fn, [m.constInt(m.i32, 4)], "arr");
 
+  const isObjArr = prefix === "cs2_obj_array";
   for (const el of expr.elements) {
     if (el.spread) {
       const src = emitExpr(ctx, el.value);
       m.buildCall(spreadDecl.fnType, spreadDecl.fn, [arr, src], "");
     } else {
-      const v = emitExpr(ctx, el.value);
+      let v = emitExpr(ctx, el.value);
+      if (isObjArr && (el.value.type.kind === "boxed" || el.value.type.kind === "i64")) {
+        v = m.buildIntToPtr(v, m.ptr, "");
+      }
       m.buildCall(pushDecl.fnType, pushDecl.fn, [arr, v], "");
     }
   }
