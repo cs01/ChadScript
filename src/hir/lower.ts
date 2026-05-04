@@ -628,6 +628,31 @@ export function lowerModuleItem(item: ModuleItem): HIRStmt[] {
       return [withLine(lowerFor(item), item)];
     case "ForOfStatement":
       return lowerForOf(item as any, lowerConsequent);
+    case "ForInStatement": {
+      const inStmt = item as any;
+      const span = inStmt.span;
+      const objectKeysCall = {
+        type: "CallExpression",
+        span,
+        callee: {
+          type: "MemberExpression",
+          span,
+          object: { type: "Identifier", span, value: "Object", optional: false, ctxt: 0 },
+          property: { type: "Identifier", span, value: "keys", optional: false, ctxt: 0 },
+        },
+        arguments: [{ expression: inStmt.right, spread: null }],
+        typeArguments: null,
+      };
+      const synthForOf = {
+        type: "ForOfStatement",
+        span,
+        await: null,
+        left: inStmt.left,
+        right: objectKeysCall,
+        body: inStmt.body,
+      };
+      return lowerForOf(synthForOf, lowerConsequent);
+    }
     case "DoWhileStatement":
       return [withLine(lowerDoWhile(item as any), item)];
     case "SwitchStatement":
