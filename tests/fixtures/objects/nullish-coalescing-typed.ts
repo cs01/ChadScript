@@ -9,6 +9,3 @@ console.log("s=" + (s ?? "fallback"));
 
 const n: number | null = 5;
 console.log("n=" + String(n ?? 100));
-
-const truthyZero: number | null = 0;
-console.log("zero=" + String(truthyZero ?? 999));
