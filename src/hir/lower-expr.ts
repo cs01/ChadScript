@@ -296,6 +296,18 @@ export function lowerBinary(expr: BinaryExpression): HIRExpr {
     return { kind: "nullish_coalesce", left, right, type: left.type };
   }
 
+  if (expr.operator === "**") {
+    const left = coerce(lowerExpr(expr.left), F64);
+    const right = coerce(lowerExpr(expr.right), F64);
+    return {
+      kind: "runtime_call",
+      func: "cs_math_pow",
+      args: [left, right],
+      returnType: F64,
+      type: F64,
+    };
+  }
+
   if (expr.operator === "in") {
     const key = coerce(lowerExpr(expr.left), I8PTR);
     const obj = lowerExpr(expr.right);
