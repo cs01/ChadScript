@@ -558,6 +558,14 @@ char *cs2_dynarray_get_str(DynArray *a, int32_t i) {
     return a->data[i].str_val;
 }
 
+int32_t cs2_is_array(uint64_t v) {
+    if ((v & 0xFFFF000000000000ULL) != 0x7FFD000000000000ULL) return 0;
+    void *p = (void *)(uintptr_t)(v & 0x0000FFFFFFFFFFFFULL);
+    if (!p) return 0;
+    int32_t magic = *(int32_t *)p;
+    return magic == DYNARRAY_MAGIC;
+}
+
 DynObj *cs2_dynarray_get_obj(DynArray *a, int32_t i) {
     if (!a || i < 0 || i >= a->length) return NULL;
     if (a->data[i].tag != TAG_OBJECT) return NULL;

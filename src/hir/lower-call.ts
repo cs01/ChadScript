@@ -413,11 +413,14 @@ export function lowerCall(expr: CallExpression): HIRExpr {
     if (arg.type.kind === "array" || arg.type.kind === "dynarray") {
       return { kind: "literal_i1", value: true, type: I1 };
     }
+    if (arg.type.kind === "dynobj" || arg.type.kind === "ptr") {
+      return { kind: "literal_i1", value: false, type: I1 };
+    }
     return {
-      kind: "binary",
-      op: "ne" as BinaryOp,
-      left: arg,
-      right: { kind: "literal_null", type: arg.type },
+      kind: "runtime_call",
+      func: "cs2_is_array",
+      args: [coerce(arg, BOXED)],
+      returnType: I1,
       type: I1,
     };
   }

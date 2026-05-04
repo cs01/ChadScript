@@ -192,7 +192,11 @@ export function emitAllocDynObj(
   let objPtr: any;
 
   if (expr.spreadSource) {
-    const src = emitExpr(ctx, expr.spreadSource);
+    let src = emitExpr(ctx, expr.spreadSource);
+    if (expr.spreadSource.type.kind === "boxed") {
+      const nanboxToPtr = ctx.getDeclaredFunction("nanbox_to_ptr")!;
+      src = m.buildCall(nanboxToPtr.fnType, nanboxToPtr.fn, [src], "src_ptr");
+    }
     const copyFn = ctx.getDeclaredFunction("cs2_dynobj_copy");
     if (copyFn) {
       objPtr = m.buildCall(copyFn.fnType, copyFn.fn, [src], "obj");
