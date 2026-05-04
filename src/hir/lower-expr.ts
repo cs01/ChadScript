@@ -577,12 +577,29 @@ function lowerAssignment(expr: AssignmentExpression): HIRExpr {
     if (member.property.type === "Identifier") {
       const obj = lowerExpr(member.object);
       if (obj.type.kind === "ptr") {
-        const className = (obj.type as { kind: "ptr"; pointee: string }).pointee;
-        const classInfo = classRegistry.get(className);
+        const typeName = (obj.type as { kind: "ptr"; pointee: string }).pointee;
+        const classInfo = classRegistry.get(typeName);
         if (classInfo) {
           const fieldIdx = classInfo.fields.findIndex((f) => f.name === (member.property as any).value);
           if (fieldIdx >= 0) {
             const field = classInfo.fields[fieldIdx];
+            const coercedValue =
+              value.type.kind !== field.type.kind ? coerce(value, field.type) : value;
+            return {
+              kind: "field_set",
+              object: obj,
+              fieldName: member.property.value,
+              index: fieldIdx,
+              value: coercedValue,
+              type: field.type,
+            };
+          }
+        }
+        const ifaceInfo = interfaceRegistry.get(typeName);
+        if (ifaceInfo) {
+          const fieldIdx = ifaceInfo.fields.findIndex((f) => f.name === (member.property as any).value);
+          if (fieldIdx >= 0) {
+            const field = ifaceInfo.fields[fieldIdx];
             const coercedValue =
               value.type.kind !== field.type.kind ? coerce(value, field.type) : value;
             return {

@@ -243,11 +243,27 @@ function emitFieldGet(ctx: EmitContext, expr: HIRExpr & { kind: "field_get" }): 
 
 function emitFieldSet(ctx: EmitContext, expr: HIRExpr & { kind: "field_set" }): any {
   const m = ctx.m;
-  const obj = emitExpr(ctx, expr.object);
   const val = emitExpr(ctx, expr.value);
-  const className = (expr.object.type as { kind: "ptr"; pointee: string }).pointee;
-  const structInfo = ctx.getStructType(className);
-  if (!structInfo) throw new Error(`unknown struct type: ${className}`);
+  const typeName = (expr.object.type as { kind: "ptr"; pointee: string }).pointee;
+  const ifaceInfo = ctx.getInterfaceType(typeName);
+
+  if (ifaceInfo) {
+    const fatPtr = emitExpr(ctx, expr.object);
+    const dataSlot = m.buildGEP(ifaceInfo.fatType, fatPtr, [m.constInt(m.i32, 0), m.constInt(m.i32, 0)], "");
+    const dataPtr = m.buildLoad(m.ptr, dataSlot, "data");
+    const fieldPtr = m.buildGEP(
+      ifaceInfo.layoutType,
+      dataPtr,
+      [m.constInt(m.i32, 0), m.constInt(m.i32, expr.index)],
+      "",
+    );
+    m.buildStore(val, fieldPtr);
+    return val;
+  }
+
+  const obj = emitExpr(ctx, expr.object);
+  const structInfo = ctx.getStructType(typeName);
+  if (!structInfo) throw new Error(`unknown struct type: ${typeName}`);
 
   const fieldPtr = m.buildGEP(
     structInfo.llvmType,
