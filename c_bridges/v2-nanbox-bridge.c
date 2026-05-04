@@ -97,6 +97,7 @@ const char *nanbox_to_string(uint64_t v) {
     if ((v & 0xFFFF000000000000ULL) == TAG_STRING) {
         return (const char *)(uintptr_t)(v & MASK_PAYLOAD);
     }
+    if (v == TAG_NULL || v == TAG_UNDEFINED) return NULL;
     return "";
 }
 
