@@ -118,13 +118,25 @@ export function lowerMapMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr 
     }
     case "get": {
       const key = coerce(lowerExpr(expr.arguments[0].expression), mt.key);
-      return {
+      const isBoolInNumMap = mt.value.kind === "i1" && prefix.endsWith("_num_map");
+      const callRetType = isBoolInNumMap ? F64 : mt.value;
+      const callExpr: HIRExpr = {
         kind: "runtime_call",
         func: `${prefix}_get`,
         args: [obj, key],
-        returnType: mt.value,
-        type: mt.value,
+        returnType: callRetType,
+        type: callRetType,
       };
+      if (isBoolInNumMap) {
+        return {
+          kind: "binary",
+          op: "ne",
+          left: callExpr,
+          right: { kind: "literal_f64", value: 0, type: F64 },
+          type: I1,
+        };
+      }
+      return callExpr;
     }
     case "has": {
       const key = coerce(lowerExpr(expr.arguments[0].expression), mt.key);

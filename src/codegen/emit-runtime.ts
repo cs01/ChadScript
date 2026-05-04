@@ -62,7 +62,10 @@ export function emitRuntimeCall(ctx: EmitContext, expr: HIRExpr & { kind: "runti
       let val = emitExpr(ctx, a);
       if (a.type.kind === "i64") {
         val = m.buildTrunc(val, m.i32, "");
-      } else if (a.type.kind === "i1" && expr.func.includes("num_array")) {
+      } else if (
+        a.type.kind === "i1" &&
+        (expr.func.includes("num_array") || expr.func.includes("num_map"))
+      ) {
         const ext = m.buildZExt(val, m.i64, "");
         val = m.buildSIToFP(ext, m.f64, "");
       }

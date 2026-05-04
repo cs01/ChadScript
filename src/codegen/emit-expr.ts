@@ -720,6 +720,10 @@ function emitNullishCoalesce(ctx: EmitContext, expr: HIRExpr & { kind: "nullish_
     } else {
       isNull = m.buildICmp(LLVMIntEQ, leftVal, m.constInt(m.i64, 9221120237041090562), "is_null");
     }
+  } else if (expr.left.type.kind === "f64") {
+    isNull = m.buildFCmp(LLVMRealUNO, leftVal, leftVal, "is_nan");
+  } else if (expr.left.type.kind === "i64" || expr.left.type.kind === "i1") {
+    isNull = m.constInt(m.i1, 0);
   } else {
     isNull = m.buildICmp(LLVMIntEQ, leftVal, m.constNull(m.ptr), "is_null");
   }
