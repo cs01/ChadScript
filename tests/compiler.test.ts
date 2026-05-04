@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import { strict as assert } from "node:assert";
 import { execSync } from "child_process";
-import { mkdtempSync, readdirSync, rmSync, statSync } from "fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 
@@ -89,6 +89,21 @@ describe("chadscript v2 compiler", { concurrency: 8 }, () => {
       assert.equal(compileAndRun(fixture), expected);
     });
   }
+});
+
+describe("source hygiene", () => {
+  it("no accidental llvm-text imports", () => {
+    const codegen = join(import.meta.dirname, "..", "src", "codegen");
+    for (const f of readdirSync(codegen)) {
+      if (f === "llvm-text.ts") continue;
+      if (!f.endsWith(".ts")) continue;
+      const content = readFileSync(join(codegen, f), "utf-8");
+      assert.ok(
+        !content.includes('"./llvm-text.js"') && !content.includes('"./llvm-text"'),
+        `${f} must not import llvm-text directly — use --substitute flag for bootstrap`,
+      );
+    }
+  });
 });
 
 describe("compile errors", () => {

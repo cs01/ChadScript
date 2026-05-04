@@ -297,6 +297,9 @@ export class LLVMModule {
   private functions = new Map<string, any>();
   private globals = new Map<string, any>();
 
+  private targetMachine: any;
+  private dataLayout: any;
+
   constructor(name: string) {
     initTargets();
     this.ctx = LLVMContextCreate();
@@ -313,12 +316,30 @@ export class LLVMModule {
 
     const triple = LLVMGetDefaultTargetTriple();
     LLVMSetTarget(this.mod, triple);
+
+    const targetArr = [null];
+    const errArr = [null];
+    if (LLVMGetTargetFromTriple(triple, targetArr, errArr) === 0) {
+      this.targetMachine = LLVMCreateTargetMachine(
+        targetArr[0],
+        triple,
+        "",
+        "",
+        LLVMCodeGenLevelAggressive,
+        LLVMRelocPIC,
+        LLVMCodeModelDefault,
+      );
+      this.dataLayout = LLVMCreateTargetDataLayout(this.targetMachine);
+      LLVMSetModuleDataLayout(this.mod, this.dataLayout);
+    }
   }
 
   dispose(): void {
     if (this.diBuilder) LLVMDisposeDIBuilder(this.diBuilder);
     LLVMDisposeBuilder(this.builder);
     LLVMDisposeModule(this.mod);
+    if (this.dataLayout) LLVMDisposeTargetData(this.dataLayout);
+    if (this.targetMachine) LLVMDisposeTargetMachine(this.targetMachine);
     LLVMContextDispose(this.ctx);
   }
 
@@ -673,30 +694,12 @@ export class LLVMModule {
   }
 
   emitObjectFile(path: string): void {
-    const triple = LLVMGetDefaultTargetTriple();
-    const targetArr = [null];
-    const errArr = [null];
-
-    if (LLVMGetTargetFromTriple(triple, targetArr, errArr) !== 0) {
-      throw new Error("Failed to get target from triple");
+    if (!this.targetMachine) {
+      throw new Error("Failed to create target machine");
     }
 
-    const target = targetArr[0];
-    const tm = LLVMCreateTargetMachine(
-      target,
-      triple,
-      "",
-      "",
-      LLVMCodeGenLevelAggressive,
-      LLVMRelocPIC,
-      LLVMCodeModelDefault,
-    );
-
-    const dl = LLVMCreateTargetDataLayout(tm);
-    LLVMSetModuleDataLayout(this.mod, dl);
-
     const passOpts = LLVMCreatePassBuilderOptions();
-    const passErr = LLVMRunPasses(this.mod, "default<O3>", tm, passOpts);
+    const passErr = LLVMRunPasses(this.mod, "default<O3>", this.targetMachine, passOpts);
     LLVMDisposePassBuilderOptions(passOpts);
     if (passErr !== null) {
       const msg = LLVMGetErrorMessage(passErr);
@@ -705,11 +708,8 @@ export class LLVMModule {
     }
 
     const emitErr = [null];
-    if (LLVMTargetMachineEmitToFile(tm, this.mod, path, LLVMObjectFileType, emitErr) !== 0) {
+    if (LLVMTargetMachineEmitToFile(this.targetMachine, this.mod, path, LLVMObjectFileType, emitErr) !== 0) {
       throw new Error("Failed to emit object file");
     }
-
-    LLVMDisposeTargetData(dl);
-    LLVMDisposeTargetMachine(tm);
   }
 }

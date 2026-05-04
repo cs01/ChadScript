@@ -420,13 +420,14 @@ export function narrowGlobalsPass(mod: HIRModule): void {
   }
   if (info.size === 0) return;
 
-  const candidates = new Set(info.keys());
+  const candidates = new Set<string>();
+  for (const [k, _ig] of info) candidates.add(k);
   for (const s of mod.init) visitStmt(s, info, candidates);
   for (const fn of mod.functions) visitFn(fn, info, candidates);
   for (const cls of mod.classes) for (const m of cls.methods) visitFn(m, info, candidates);
 
   const eligible = new Set<string>();
-  for (const gi of info.values()) {
+  for (const [_gk, gi] of info) {
     if (!gi.hasIncompatibleWrite) eligible.add(gi.name);
   }
   if (eligible.size === 0) return;

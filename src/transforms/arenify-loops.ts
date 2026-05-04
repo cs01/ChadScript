@@ -16,6 +16,7 @@ function isAllocExpr(e: HIRExpr): boolean {
 interface AnalysisCtx {
   allocLocals: Set<number>;
   escaped: Set<number>;
+  hasEscapedAlloc: boolean;
   hasAlloc: boolean;
   hasUnknownEscape: boolean;
 }
@@ -24,7 +25,10 @@ function visitExprForEscape(e: HIRExpr | undefined, ctx: AnalysisCtx, escapeNext
   if (!e) return;
   switch (e.kind) {
     case "local_get":
-      if (escapeNext && ctx.allocLocals.has(e.id)) ctx.escaped.add(e.id);
+      if (escapeNext && ctx.allocLocals.has(e.id)) {
+        ctx.escaped.add(e.id);
+        ctx.hasEscapedAlloc = true;
+      }
       return;
     case "local_set":
       visitExprForEscape(e.value, ctx, false);
@@ -303,8 +307,9 @@ function arenifyForLoop(s: HIRStmt): HIRStmt {
   if (s.kind !== "for" && s.kind !== "while") return s;
 
   const ctx: AnalysisCtx = {
-    allocLocals: new Set(),
-    escaped: new Set(),
+    allocLocals: new Set<number>(),
+    escaped: new Set<number>(),
+    hasEscapedAlloc: false,
     hasAlloc: false,
     hasUnknownEscape: false,
   };
@@ -317,9 +322,7 @@ function arenifyForLoop(s: HIRStmt): HIRStmt {
 
   if (!ctx.hasAlloc) return s;
   if (ctx.hasUnknownEscape) return s;
-  for (const id of ctx.allocLocals) {
-    if (ctx.escaped.has(id)) return s;
-  }
+  if (ctx.hasEscapedAlloc) return s;
 
   const newBody = [
     makeArenaCallStmt("cs2_arena_save"),

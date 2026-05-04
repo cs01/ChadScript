@@ -22,15 +22,22 @@ function offsetToLineCol(source: string, offset: number): { line: number; col: n
   return { line, col };
 }
 
-export class CompileError extends Error {
+export class CompileError {
+  message: string;
+  span: Span | undefined;
+  file: string | undefined;
+  source: string | undefined;
+
   constructor(
     message: string,
-    public span?: Span,
-    public file?: string,
-    public source?: string,
+    span?: Span,
+    file?: string,
+    source?: string,
   ) {
-    super(message);
-    this.name = "CompileError";
+    this.message = message;
+    this.span = span;
+    this.file = file;
+    this.source = source;
   }
 
   format(): string {

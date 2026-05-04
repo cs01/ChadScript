@@ -148,7 +148,8 @@ function tryNarrow(fn: HIRFunction): boolean {
   if (fn.params.length === 0) return false;
   if (fn.params.some((p) => p.type.kind !== "f64")) return false;
   if (fn.returnType.kind !== "f64" && fn.returnType.kind !== "void") return false;
-  const paramIds = new Set(fn.params.map((p) => p.id));
+  const paramIds = new Set<number>();
+  for (const p of fn.params) paramIds.add(p.id);
   const localIds = new Set<number>();
   for (const s of fn.body) {
     if (!isPureStmt(s, fn.name, paramIds, localIds)) return false;

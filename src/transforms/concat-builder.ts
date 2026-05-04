@@ -102,7 +102,7 @@ function visitExpr(
       const cur = info.get(expr.id);
       if (cur) {
         if (isAppendOf(expr.id, expr.value)) {
-          if (inLoop) cur.appendSites++;
+          if (inLoop) cur.appendSites = cur.appendSites + 1;
           visitExpr((expr.value as HIRExpr & { kind: "runtime_call" }).args[1], info, gInfo, inLoop);
         } else {
           cur.hasIncompatibleWrite = true;
@@ -117,7 +117,7 @@ function visitExpr(
       const cur = gInfo.get(expr.name);
       if (cur) {
         if (isAppendOfGlobal(expr.name, expr.value)) {
-          if (inLoop) cur.appendSites++;
+          if (inLoop) cur.appendSites = cur.appendSites + 1;
           visitExpr((expr.value as HIRExpr & { kind: "runtime_call" }).args[1], info, gInfo, inLoop);
         } else if (expr.value.kind === "literal_string") {
           cur.initSites = (cur.initSites ?? 0) + 1;
@@ -407,7 +407,7 @@ function processBody(body: HIRStmt[], gInfo: Map<string, GlobalInfo>, eligibleGl
   const info = new Map<number, LocalInfo>();
   for (const s of body) visitStmt(s, info, gInfo, false);
   const eligibleLocals = new Set<number>();
-  for (const li of info.values()) {
+  for (const [_ck, li] of info) {
     if (li.hasIncompatibleWrite) continue;
     if (!li.declaredHere) continue;
     if (!li.initIsStringLiteral) continue;
@@ -440,7 +440,7 @@ export function concatBuilderPass(mod: HIRModule): void {
   visitOnlyForGlobals(mod.init, gInfo);
 
   const eligibleGlobals = new Set<string>();
-  for (const gi of gInfo.values()) {
+  for (const [_gk, gi] of gInfo) {
     if (gi.hasIncompatibleWrite) continue;
     if (gi.appendSites < 1) continue;
     eligibleGlobals.add(gi.name);

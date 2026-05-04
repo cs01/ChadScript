@@ -65,7 +65,9 @@ function buildCaptureMap(mod: HIRModule): CaptureMap {
 
 function findLocalType(fn: HIRFunction, id: number): HIRType {
   for (const p of fn.params) if (p.id === id) return p.type;
-  return findLocalTypeInStmts(fn.body, id) || { kind: "f64" };
+  const t = findLocalTypeInStmts(fn.body, id);
+  if (!t) throw new Error(`capture type not found for local ${id} in ${fn.name}`);
+  return t;
 }
 
 function findClosureFuncNames(mod: HIRModule, names: Set<string>): void {
@@ -337,7 +339,25 @@ function findCaptureType(fn: HIRFunction, captureId: number, mod?: HIRModule): H
       if (t) return t;
     }
   }
-  return findLocalTypeInStmts(fn.body, captureId) || { kind: "f64" };
+  const own = findLocalTypeInStmts(fn.body, captureId);
+  if (own) return own;
+  if (mod) {
+    for (const mfn of mod.functions) {
+      for (const p of mfn.params) if (p.id === captureId) return p.type;
+      const t = findLocalTypeInStmts(mfn.body, captureId);
+      if (t) return t;
+    }
+    for (const cls of mod.classes) {
+      for (const meth of cls.methods) {
+        for (const p of meth.params) if (p.id === captureId) return p.type;
+        const t = findLocalTypeInStmts(meth.body, captureId);
+        if (t) return t;
+      }
+    }
+    const initT = findLocalTypeInStmts(mod.init, captureId);
+    if (initT) return initT;
+  }
+  throw new Error(`capture type not found for local ${captureId} in closure ${fn.name}`);
 }
 
 function emitMain(ctx: EmitContext, mod: HIRModule): void {

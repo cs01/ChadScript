@@ -126,6 +126,9 @@ export function emitExpr(ctx: EmitContext, expr: HIRExpr): any {
       m.buildBr(mergeBlock);
 
       m.positionAtEnd(mergeBlock);
+      if (expr.type.kind === "void") {
+        return m.constNull(m.ptr);
+      }
       const ty = llvmType(ctx, expr.type);
       const phi = m.buildPhi(ty, "");
       m.addIncoming(phi, [thenVal, elseVal], [thenEndBlock, elseEndBlock]);
@@ -317,10 +320,14 @@ function emitIndexGet(ctx: EmitContext, expr: HIRExpr & { kind: "index_get" }): 
   if (expr.index.type.kind === "i64") {
     idx = m.buildTrunc(idx, m.i32, "");
   }
-  const elemType =
-    expr.array.type.kind === "array" ? (expr.array.type as any).element : { kind: "f64" };
-  // Fast path for array<f64>: direct GEP+load, skip bounds-checked C call.
-  // Layout: { data: f64*, length: i32, capacity: i32 } — data at offset 0.
+  let elemType: HIRType;
+  if (expr.array.type.kind === "array") {
+    elemType = (expr.array.type as any).element;
+  } else if (expr.array.type.kind === "dynarray") {
+    elemType = { kind: "f64" };
+  } else {
+    throw new Error(`index_get on non-array type: ${expr.array.type.kind}`);
+  }
   if (elemType.kind === "f64") {
     const dataPtr = m.buildLoad(m.ptr, arr, "");
     const elemPtr = m.buildGEP(m.f64, dataPtr, [idx], "");
@@ -344,11 +351,14 @@ function emitIndexSet(ctx: EmitContext, expr: HIRExpr & { kind: "index_set" }): 
     idx = m.buildTrunc(idx, m.i32, "");
   }
   let val = emitExpr(ctx, expr.value);
-  const elemType =
-    expr.array.type.kind === "array" ? (expr.array.type as any).element : { kind: "f64" };
-  // Fast path for array<f64>: branch on idx<length. In-bounds: direct
-  // GEP+store (LLVM can hoist length load, often vectorize). Out-of-bounds:
-  // call cs2_num_array_set which grows + bumps length.
+  let elemType: HIRType;
+  if (expr.array.type.kind === "array") {
+    elemType = (expr.array.type as any).element;
+  } else if (expr.array.type.kind === "dynarray") {
+    elemType = { kind: "f64" };
+  } else {
+    throw new Error(`index_set on non-array type: ${expr.array.type.kind}`);
+  }
   if (elemType.kind === "f64") {
     const fn = ctx.getCurrentFn();
     const lenSlot = m.buildGEP(m.i8, arr, [m.constInt(m.i64, 8)], "");

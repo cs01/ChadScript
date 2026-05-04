@@ -399,7 +399,7 @@ function processBody(body: HIRStmt[]): HIRStmt[] {
   const info = new Map<number, LocalState>();
   for (const s of body) visitStmt(s, info);
   const eligible = new Set<number>();
-  for (const li of info.values()) {
+  for (const [_lk, li] of info) {
     if (li.hasIncompatibleWrite) continue;
     if (!li.initIsIntLiteral) continue;
     eligible.add(li.id);

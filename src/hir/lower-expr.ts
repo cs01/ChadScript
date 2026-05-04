@@ -485,9 +485,6 @@ function lowerUnary(expr: UnaryExpression): HIRExpr {
 
 function lowerUpdate(expr: UpdateExpression): HIRExpr {
   const arg = lowerExpr(expr.argument);
-  if (arg.kind !== "local_get" && arg.kind !== "global_get") {
-    throw new Error("update expression on non-local/global");
-  }
   const one: HIRExpr =
     arg.type.kind === "i64"
       ? { kind: "literal_i64", value: 1, type: I64 }
@@ -507,6 +504,28 @@ function lowerUpdate(expr: UpdateExpression): HIRExpr {
       value: newVal,
       type: arg.type,
     };
+  }
+  if (arg.kind === "field_get") {
+    return {
+      kind: "field_set",
+      object: arg.object,
+      fieldName: arg.fieldName,
+      index: arg.index,
+      value: newVal,
+      type: arg.type,
+    } as HIRExpr;
+  }
+  if (arg.kind === "index_get") {
+    return {
+      kind: "index_set",
+      object: arg.object,
+      index: (arg as any).index,
+      value: newVal,
+      type: arg.type,
+    } as HIRExpr;
+  }
+  if (arg.kind !== "local_get") {
+    throw new Error("update expression on unsupported target: " + arg.kind);
   }
   return {
     kind: "local_set",

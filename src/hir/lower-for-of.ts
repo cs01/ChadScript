@@ -7,6 +7,7 @@ import {
   coerce,
   arrayPrefix,
   mapPrefix,
+  setPrefix,
 } from "./lower-state.js";
 import { lowerExpr } from "./lower-expr.js";
 

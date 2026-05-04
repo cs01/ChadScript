@@ -110,7 +110,13 @@ export function lowerArrowOrFnExpr(expr: any, varName: string): HIRFunction {
   const parentFn = currentLoweringFn ?? undefined;
   setCurrentLoweringFn(fnName);
 
-  setOuterLocals(new Map(savedLocals));
+  const merged = new Map(savedLocals);
+  if (savedOuterLocals) {
+    for (const [k, v] of savedOuterLocals) {
+      if (!merged.has(k)) merged.set(k, v);
+    }
+  }
+  setOuterLocals(merged);
   setCapturedIds(new Set<number>());
   locals.clear();
   let maxOuterId = 0;
@@ -205,7 +211,13 @@ export function lowerNestedFunctionDecl(decl: FunctionDeclaration): HIRFunction 
   const parentFn = currentLoweringFn ?? undefined;
   setCurrentLoweringFn(decl.identifier.value);
 
-  setOuterLocals(new Map(savedLocals));
+  const merged = new Map(savedLocals);
+  if (savedOuterLocals) {
+    for (const [k, v] of savedOuterLocals) {
+      if (!merged.has(k)) merged.set(k, v);
+    }
+  }
+  setOuterLocals(merged);
   setCapturedIds(new Set<number>());
   locals.clear();
   let maxOuterId = 0;
