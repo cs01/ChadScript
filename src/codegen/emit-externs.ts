@@ -352,6 +352,7 @@ export function declareExterns(ctx: EmitContext): void {
     dcl(ctx, "cs2_process_cwd", m.ptr, []);
     dcl(ctx, "cs2_process_platform", m.ptr, []);
     dcl(ctx, "cs2_process_exit", m.voidTy, [m.i32]);
+    dcl(ctx, "cs2_process_get_pid", m.i64, []);
     dcl(ctx, "cs2_console_time", m.voidTy, [m.ptr]);
     dcl(ctx, "cs2_console_time_end", m.voidTy, [m.ptr]);
     dcl(ctx, "cs2_stderr_str", m.voidTy, [m.ptr]);
@@ -373,6 +374,7 @@ export function declareExterns(ctx: EmitContext): void {
     dcl(ctx, "cs2_fs_readdir_sync", m.ptr, [m.ptr]);
     dcl(ctx, "cs2_fs_mkdir_sync", m.i32, [m.ptr]);
     dcl(ctx, "cs2_fs_unlink_sync", m.voidTy, [m.ptr]);
+    dcl(ctx, "cs2_fs_copy_file_sync", m.voidTy, [m.ptr, m.ptr]);
     dcl(ctx, "cs2_fs_stat_is_file", m.i32, [m.ptr]);
     dcl(ctx, "cs2_fs_stat_is_directory", m.i32, [m.ptr]);
     dcl(ctx, "cs2_exec_sync", m.ptr, [m.ptr]);
@@ -508,6 +510,8 @@ export function declareExterns(ctx: EmitContext): void {
     dcl(ctx, "cs2_dynobj_length", m.i32, [m.ptr]);
     dcl(ctx, "cs2_dynobj_key_at", m.ptr, [m.ptr, m.i32]);
     dcl(ctx, "cs2_dynobj_keys", m.ptr, [m.ptr]);
+    dcl(ctx, "cs2_dynobj_values", m.ptr, [m.ptr]);
+    dcl(ctx, "cs2_dynobj_entries", m.ptr, [m.ptr]);
     dcl(ctx, "cs2_dynarray_new", m.ptr, []);
     dcl(ctx, "cs2_dynarray_from_obj_array", m.ptr, [m.ptr]);
     dcl(ctx, "cs2_dynarray_from_str_array", m.ptr, [m.ptr]);

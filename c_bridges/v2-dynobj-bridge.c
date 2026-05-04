@@ -345,6 +345,32 @@ StrArrayHeader *cs2_dynobj_keys(DynObj *o) {
     return result;
 }
 
+extern DynArray *cs2_dynarray_new(void);
+extern void cs2_dynarray_push_str(DynArray *a, const char *val);
+extern void cs2_dynarray_push_boxed(DynArray *a, uint64_t val);
+extern void cs2_dynarray_push_arr(DynArray *a, DynArray *val);
+
+DynArray *cs2_dynobj_values(DynObj *o) {
+    DynArray *result = cs2_dynarray_new();
+    if (!o) return result;
+    for (int32_t i = 0; i < o->length; i++) {
+        cs2_dynarray_push_boxed(result, cs2_dynobj_get_boxed(o, o->keys[i]));
+    }
+    return result;
+}
+
+DynArray *cs2_dynobj_entries(DynObj *o) {
+    DynArray *result = cs2_dynarray_new();
+    if (!o) return result;
+    for (int32_t i = 0; i < o->length; i++) {
+        DynArray *pair = cs2_dynarray_new();
+        cs2_dynarray_push_str(pair, o->keys[i]);
+        cs2_dynarray_push_boxed(pair, cs2_dynobj_get_boxed(o, o->keys[i]));
+        cs2_dynarray_push_arr(result, pair);
+    }
+    return result;
+}
+
 DynArray *cs2_dynarray_new(void) {
     DynArray *a = (DynArray *)malloc(sizeof(DynArray)); a->magic = DYNARRAY_MAGIC;
     a->magic = DYNARRAY_MAGIC;

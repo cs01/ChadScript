@@ -481,17 +481,29 @@ export function lowerCall(expr: CallExpression): HIRExpr {
     expr.callee.object.type === "Identifier" &&
     expr.callee.object.value === "Object" &&
     expr.callee.property.type === "Identifier" &&
-    expr.callee.property.value === "keys"
+    (expr.callee.property.value === "keys" ||
+      expr.callee.property.value === "values" ||
+      expr.callee.property.value === "entries")
   ) {
+    const method = expr.callee.property.value;
     const obj = lowerExpr(expr.arguments[0].expression);
     const objCoerced = coerce(obj, DYNOBJ);
-    const stringArrayType: HIRType = { kind: "array", element: I8PTR };
+    if (method === "keys") {
+      const stringArrayType: HIRType = { kind: "array", element: I8PTR };
+      return {
+        kind: "runtime_call",
+        func: "cs2_dynobj_keys",
+        args: [objCoerced],
+        returnType: stringArrayType,
+        type: stringArrayType,
+      };
+    }
     return {
       kind: "runtime_call",
-      func: "cs2_dynobj_keys",
+      func: method === "values" ? "cs2_dynobj_values" : "cs2_dynobj_entries",
       args: [objCoerced],
-      returnType: stringArrayType,
-      type: stringArrayType,
+      returnType: DYNARRAY,
+      type: DYNARRAY,
     };
   }
 
