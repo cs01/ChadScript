@@ -718,7 +718,7 @@ function emitNullishCoalesce(ctx: EmitContext, expr: HIRExpr & { kind: "nullish_
       const r = m.buildCall(TAG_NULL.fnType, TAG_NULL.fn, [leftVal], "is_null_nanbox");
       isNull = m.buildICmp(LLVMIntNE, r, m.constInt(m.i32, 0), "is_null");
     } else {
-      isNull = m.buildICmp(LLVMIntEQ, leftVal, m.constInt(m.i64, 0x7FFC000000000002n as any), "is_null");
+      isNull = m.buildICmp(LLVMIntEQ, leftVal, m.constInt(m.i64, 9221120237041090562), "is_null");
     }
   } else {
     isNull = m.buildICmp(LLVMIntEQ, leftVal, m.constNull(m.ptr), "is_null");
