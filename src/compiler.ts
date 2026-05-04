@@ -126,7 +126,6 @@ export function compile(opts: CompileOptions): void {
   narrowFpPass(hir);
   concatBuilderPass(hir);
   deadCodePass(hir);
-
   const tmpObj = join(tmpdir(), `chad2-${process.pid}.o`);
   const bridgeObjs = BRIDGE_SRCS.map((_: string, i: number): string =>
     join(tmpdir(), `chad2-bridge-${process.pid}-${i}.o`),

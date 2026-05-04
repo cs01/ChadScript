@@ -88,20 +88,33 @@ export class LLVMModule {
   readonly voidTy = "void";
   readonly ptr = "ptr";
 
-  private _nextId = 0;
-  private _globals: string[] = [];
-  private _structs: Map<string, { fields: string[] }> = new Map();
-  private _functions: Map<string, FnInfo> = new Map();
-  private _fnTypes: Map<string, FnTypeInfo> = new Map();
-  private _globalTypes: Map<string, string> = new Map();
-  private _globalLinkage: Map<string, string> = new Map();
-  private _globalInit: Map<string, string> = new Map();
-  private _valueTypes: Map<string, string> = new Map();
-  private _curBlock: BlockInfo | null = null;
-  private _stringCounter = 0;
-  private _blockNameCounters: Map<string, number> = new Map();
+  private _nextId: number;
+  private _globals: string[];
+  private _structs: Map<string, { fields: string[] }>;
+  private _functions: Map<string, FnInfo>;
+  private _fnTypes: Map<string, FnTypeInfo>;
+  private _globalTypes: Map<string, string>;
+  private _globalLinkage: Map<string, string>;
+  private _globalInit: Map<string, string>;
+  private _valueTypes: Map<string, string>;
+  private _curBlock: BlockInfo | null;
+  private _stringCounter: number;
+  private _blockNameCounters: Map<string, number>;
 
-  constructor(_name: string) {}
+  constructor(_name: string) {
+    this._nextId = 0;
+    this._globals = [];
+    this._structs = new Map<string, { fields: string[] }>();
+    this._functions = new Map<string, FnInfo>();
+    this._fnTypes = new Map<string, FnTypeInfo>();
+    this._globalTypes = new Map<string, string>();
+    this._globalLinkage = new Map<string, string>();
+    this._globalInit = new Map<string, string>();
+    this._valueTypes = new Map<string, string>();
+    this._curBlock = null;
+    this._stringCounter = 0;
+    this._blockNameCounters = new Map<string, number>();
+  }
 
   dispose(): void {}
 

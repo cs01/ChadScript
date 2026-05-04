@@ -384,8 +384,10 @@ function emitMain(ctx: EmitContext, mod: HIRModule): void {
     }
   }
 
+  let _idx = 0;
   for (const stmt of mod.init) {
     emitStmt(ctx, stmt);
+    _idx++;
   }
 
   const runLoop = ctx.getDeclaredFunction("cs2_run_event_loop")!;
