@@ -431,6 +431,20 @@ export class LLVMModule {
     return this._v(r, toTy);
   }
 
+  buildPtrToInt(val: any, destTy: any, name = ""): any {
+    const toTy = this._tyStr(destTy);
+    const r = this._fresh(name);
+    this._emit(r + " = ptrtoint " + this._tyOf(val) + " " + this._refOf(val) + " to " + toTy);
+    return this._v(r, toTy);
+  }
+
+  buildIntToPtr(val: any, destTy: any, name = ""): any {
+    const toTy = this._tyStr(destTy);
+    const r = this._fresh(name);
+    this._emit(r + " = inttoptr " + this._tyOf(val) + " " + this._refOf(val) + " to " + toTy);
+    return this._v(r, toTy);
+  }
+
   private _binOp(op: string, lhs: any, rhs: any, name: string): any {
     const ty = this._tyOf(lhs);
     const r = this._fresh(name);
@@ -607,6 +621,16 @@ export class LLVMModule {
     return null;
   }
 
+  terminateAllBlocks(fn: any): void {
+    const fnInfo = fn as FnInfo;
+    for (const block of fnInfo.blocks) {
+      if (!block.hasTerminator) {
+        block.lines.push("  unreachable");
+        block.hasTerminator = true;
+      }
+    }
+  }
+
   buildCall(fnType: any, fn: any, args: any[], name = ""): any {
     const typeInfo = this._fnTypes.get(fnType);
     let fnRef: string;
@@ -753,10 +777,9 @@ export class LLVMModule {
     writeFileSync(irPath, this._buildIR());
     if (process.env.CHAD2_VERIFY) {
       try {
-        execSync(LLVM_PATH + "/opt -passes=verify -disable-output " + irPath, { stdio: "pipe" });
-      } catch (e: any) {
-        const stderr = e.stderr ? e.stderr.toString() : "";
-        throw new Error("LLVM IR verification failed:\n" + stderr);
+        execSync(LLVM_PATH + "/opt -passes=verify -disable-output " + irPath, { stdio: "inherit" });
+      } catch {
+        throw new Error("LLVM IR verification failed");
       }
     }
     try {

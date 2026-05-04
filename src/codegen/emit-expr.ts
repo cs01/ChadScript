@@ -355,6 +355,8 @@ function emitIndexGet(ctx: EmitContext, expr: HIRExpr & { kind: "index_get" }): 
   let result = m.buildCall(decl.fnType, decl.fn, [arr, idx], "");
   if (elemType.kind === "i1") {
     result = m.buildFCmp(LLVMRealONE, result, m.constReal(m.f64, 0.0), "");
+  } else if (elemType.kind === "boxed" && storagePrefix === "cs2_obj_array") {
+    result = m.buildPtrToInt(result, m.i64, "");
   }
   return result;
 }
@@ -400,6 +402,8 @@ function emitIndexSet(ctx: EmitContext, expr: HIRExpr & { kind: "index_set" }): 
   if (elemType.kind === "i1") {
     const ext = m.buildZExt(val, m.i64, "");
     val = m.buildSIToFP(ext, m.f64, "");
+  } else if (elemType.kind === "boxed" && storagePrefix === "cs2_obj_array") {
+    val = m.buildIntToPtr(val, m.ptr, "");
   }
   const setFn = `${storagePrefix}_set`;
   const decl = ctx.getDeclaredFunction(setFn)!;

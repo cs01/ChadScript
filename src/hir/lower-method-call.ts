@@ -10,6 +10,7 @@ import { compileError } from "../errors.js";
 import {
   expectedDeclType,
   setExpectedDeclType,
+  setExpectedArrayElementType,
   arrayPrefix,
   mapPrefix,
   setPrefix,
@@ -106,8 +107,10 @@ export function lowerMapMethodCall(expr: CallExpression, obj: HIRExpr): HIRExpr 
     case "set": {
       const key = coerce(lowerExpr(expr.arguments[0].expression), mt.key);
       if (mt.value.kind === "ptr") setExpectedDeclType(mt.value);
+      else if (mt.value.kind === "array") setExpectedArrayElementType((mt.value as any).element);
       const val = coerce(lowerExpr(expr.arguments[1].expression), mt.value);
       if (mt.value.kind === "ptr") setExpectedDeclType(null);
+      else if (mt.value.kind === "array") setExpectedArrayElementType(null);
       return {
         kind: "runtime_call",
         func: `${prefix}_set`,

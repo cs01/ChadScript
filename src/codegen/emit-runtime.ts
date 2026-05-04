@@ -76,6 +76,8 @@ export function emitRuntimeCall(ctx: EmitContext, expr: HIRExpr & { kind: "runti
       result = m.buildSExt(result, m.i64, "");
     } else if (expr.returnType.kind === "i1") {
       result = m.buildICmp(LLVMIntNE, result, m.constInt(m.i32, 0), "");
+    } else if (expr.returnType.kind === "boxed" && /_ptr_map_get$|_obj_array_get$/.test(expr.func)) {
+      result = m.buildPtrToInt(result, m.i64, "");
     }
     return result;
   }

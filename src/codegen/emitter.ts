@@ -328,6 +328,7 @@ function emitFunction(
       m.buildUnreachable();
     }
   }
+  m.terminateAllBlocks(ctx.getCurrentFn());
 }
 
 function findCaptureType(fn: HIRFunction, captureId: number, mod?: HIRModule): HIRType {
@@ -619,6 +620,12 @@ function emitSwitch(ctx: EmitContext, stmt: HIRStmt & { kind: "switch" }): void 
       } else if (discType.kind === "i8ptr") {
         const strcmp = ctx.getDeclaredFunction("strcmp")!;
         const result = m.buildCall(strcmp.fnType, strcmp.fn, [discVal, testVal], "");
+        cmp = m.buildICmp(LLVMIntEQ, result, m.constInt(m.i32, 0), "");
+      } else if (discType.kind === "boxed" && c.test.type.kind === "i8ptr") {
+        const unbox = ctx.getDeclaredFunction("nanbox_to_string")!;
+        const discStr = m.buildCall(unbox.fnType, unbox.fn, [discVal], "");
+        const strcmp = ctx.getDeclaredFunction("strcmp")!;
+        const result = m.buildCall(strcmp.fnType, strcmp.fn, [discStr, testVal], "");
         cmp = m.buildICmp(LLVMIntEQ, result, m.constInt(m.i32, 0), "");
       } else {
         cmp = m.buildICmp(LLVMIntEQ, discVal, testVal, "");

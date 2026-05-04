@@ -29,6 +29,8 @@ const LLVMStructCreateNamed = lib.func("LLVMStructCreateNamed", Ref, [Ref, "str"
 const LLVMStructSetBody = lib.func("LLVMStructSetBody", "void", [Ref, RefArr, "uint", Bool]);
 const LLVMSizeOf = lib.func("LLVMSizeOf", Ref, [Ref]);
 const LLVMBuildBitCast = lib.func("LLVMBuildBitCast", Ref, [Ref, Ref, Ref, "str"]);
+const LLVMBuildPtrToInt = lib.func("LLVMBuildPtrToInt", Ref, [Ref, Ref, Ref, "str"]);
+const LLVMBuildIntToPtr = lib.func("LLVMBuildIntToPtr", Ref, [Ref, Ref, Ref, "str"]);
 
 const LLVMFunctionType = lib.func("LLVMFunctionType", Ref, [Ref, RefArr, "uint", Bool]);
 
@@ -50,6 +52,8 @@ const LLVMDisposeBuilder = lib.func("LLVMDisposeBuilder", "void", [Ref]);
 const LLVMPositionBuilderAtEnd = lib.func("LLVMPositionBuilderAtEnd", "void", [Ref, Ref]);
 const LLVMGetInsertBlock = lib.func("LLVMGetInsertBlock", Ref, [Ref]);
 const LLVMGetBasicBlockTerminator = lib.func("LLVMGetBasicBlockTerminator", Ref, [Ref]);
+const LLVMGetFirstBasicBlock = lib.func("LLVMGetFirstBasicBlock", Ref, [Ref]);
+const LLVMGetNextBasicBlock = lib.func("LLVMGetNextBasicBlock", Ref, [Ref]);
 
 const LLVMConstInt = lib.func("LLVMConstInt", Ref, [Ref, "uint64", Bool]);
 const LLVMConstReal = lib.func("LLVMConstReal", Ref, [Ref, "double"]);
@@ -455,6 +459,12 @@ export class LLVMModule {
   buildBitCast(val: any, destTy: any, name = ""): any {
     return LLVMBuildBitCast(this.builder, val, destTy, name);
   }
+  buildPtrToInt(val: any, destTy: any, name = ""): any {
+    return LLVMBuildPtrToInt(this.builder, val, destTy, name);
+  }
+  buildIntToPtr(val: any, destTy: any, name = ""): any {
+    return LLVMBuildIntToPtr(this.builder, val, destTy, name);
+  }
 
   buildAdd(lhs: any, rhs: any, name = ""): any {
     return LLVMBuildAdd(this.builder, lhs, rhs, name);
@@ -556,6 +566,18 @@ export class LLVMModule {
 
   buildUnreachable(): any {
     return LLVMBuildUnreachable(this.builder);
+  }
+
+  terminateAllBlocks(fn: any): void {
+    let bb = LLVMGetFirstBasicBlock(fn);
+    while (bb !== null) {
+      const term = LLVMGetBasicBlockTerminator(bb);
+      if (term === null) {
+        LLVMPositionBuilderAtEnd(this.builder, bb);
+        LLVMBuildUnreachable(this.builder);
+      }
+      bb = LLVMGetNextBasicBlock(bb);
+    }
   }
 
   buildCall(fnType: any, fn: any, args: any[], name = ""): any {
