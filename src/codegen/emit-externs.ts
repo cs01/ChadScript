@@ -204,6 +204,10 @@ export function declareExterns(ctx: EmitContext): void {
     dcl(ctx, "cs2_num_array_new", m.ptr, [m.i32]);
     dcl(ctx, "cs2_num_array_push", m.voidTy, [m.ptr, m.f64]);
     dcl(ctx, "cs2_num_array_pop", m.f64, [m.ptr]);
+    dcl(ctx, "cs2_num_array_last_index_of", m.i32, [m.ptr, m.f64]);
+    dcl(ctx, "cs2_num_array_copy_within", m.voidTy, [m.ptr, m.i32, m.i32]);
+    dcl(ctx, "cs2_num_array_reduce_right", m.f64, [m.ptr, m.ptr, m.ptr, m.f64]);
+    dcl(ctx, "cs2_str_array_last_index_of", m.i32, [m.ptr, m.ptr]);
     dcl(ctx, "cs2_num_array_get", m.f64, [m.ptr, m.i32]);
     dcl(ctx, "cs2_num_array_at", m.f64, [m.ptr, m.i32]);
     dcl(ctx, "cs2_num_array_fill", m.voidTy, [m.ptr, m.f64]);

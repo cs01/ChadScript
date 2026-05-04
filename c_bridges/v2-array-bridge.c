@@ -96,6 +96,42 @@ int32_t cs2_num_array_index_of(NumArray *arr, double value) {
     return -1;
 }
 
+int32_t cs2_num_array_last_index_of(NumArray *arr, double value) {
+    for (int32_t i = arr->length - 1; i >= 0; i--) {
+        if (arr->data[i] == value) return i;
+    }
+    return -1;
+}
+
+void cs2_num_array_copy_within(NumArray *arr, int32_t target, int32_t start) {
+    int32_t len = arr->length;
+    if (target < 0) target = len + target;
+    if (start < 0) start = len + start;
+    if (target < 0) target = 0;
+    if (start < 0) start = 0;
+    if (target >= len || start >= len) return;
+    int32_t count = len - start;
+    if (target + count > len) count = len - target;
+    if (target > start) {
+        for (int32_t i = count - 1; i >= 0; i--) {
+            arr->data[target + i] = arr->data[start + i];
+        }
+    } else {
+        for (int32_t i = 0; i < count; i++) {
+            arr->data[target + i] = arr->data[start + i];
+        }
+    }
+}
+
+double cs2_num_array_reduce_right(NumArray *arr, void *fn_ptr, void *env_ptr, double init) {
+    double (*fn)(void *, double, double, double) = (double (*)(void *, double, double, double))fn_ptr;
+    double acc = init;
+    for (int32_t i = arr->length - 1; i >= 0; i--) {
+        acc = fn(env_ptr, acc, arr->data[i], (double)i);
+    }
+    return acc;
+}
+
 int32_t cs2_num_array_includes(NumArray *arr, double value) {
     for (int32_t i = 0; i < arr->length; i++) {
         if (arr->data[i] == value) return 1;
@@ -388,6 +424,13 @@ int32_t cs2_str_array_length(StrArray *arr) {
 
 int32_t cs2_str_array_index_of(StrArray *arr, const char *value) {
     for (int32_t i = 0; i < arr->length; i++) {
+        if (strcmp(arr->data[i], value) == 0) return i;
+    }
+    return -1;
+}
+
+int32_t cs2_str_array_last_index_of(StrArray *arr, const char *value) {
+    for (int32_t i = arr->length - 1; i >= 0; i--) {
         if (strcmp(arr->data[i], value) == 0) return i;
     }
     return -1;

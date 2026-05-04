@@ -419,6 +419,8 @@ export function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExp
   } else if (prefix === "cs2_num_array") {
     const numMethods: Record<string, MethodInfo> = {
       indexOf: { func: "cs2_num_array_index_of", returnType: I64, argTypes: [F64] },
+      lastIndexOf: { func: "cs2_num_array_last_index_of", returnType: I64, argTypes: [F64] },
+      copyWithin: { func: "cs2_num_array_copy_within", returnType: VOID, argTypes: [I64, I64] },
       includes: { func: "cs2_num_array_includes", returnType: I64, argTypes: [F64] },
       slice: { func: "cs2_num_array_slice", returnType: obj.type, argTypes: [I64, I64] },
       reverse: { func: "cs2_num_array_reverse", returnType: VOID },
@@ -434,6 +436,7 @@ export function lowerArrayMethodCall(expr: CallExpression, obj: HIRExpr): HIRExp
   } else if (prefix === "cs2_str_array") {
     const strMethods: Record<string, MethodInfo> = {
       indexOf: { func: "cs2_str_array_index_of", returnType: I64, argTypes: [I8PTR] },
+      lastIndexOf: { func: "cs2_str_array_last_index_of", returnType: I64, argTypes: [I8PTR] },
       includes: { func: "cs2_str_array_includes", returnType: I64, argTypes: [I8PTR] },
       slice: { func: "cs2_str_array_slice", returnType: obj.type, argTypes: [I64, I64] },
       reverse: { func: "cs2_str_array_reverse", returnType: VOID },
