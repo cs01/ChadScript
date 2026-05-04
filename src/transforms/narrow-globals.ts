@@ -115,7 +115,7 @@ function visitExpr(expr: HIRExpr, info: Map<string, GlobalState>, candidates: Se
       if (expr.spreadSource) visitExpr(expr.spreadSource, info, candidates);
       return;
     case "alloc_dynarray":
-      for (const v of expr.elements as any[]) visitExpr(v, info, candidates);
+      for (const v of (expr as any).initialValues as any[]) visitExpr(v, info, candidates);
       return;
     case "alloc_array_spread":
       for (const e of expr.elements as any[]) visitExpr(e.value, info, candidates);
@@ -335,7 +335,7 @@ function rewriteExprInner(expr: HIRExpr, eligible: Set<string>): HIRExpr {
         spreadSource: expr.spreadSource ? rewriteExpr(expr.spreadSource, eligible) : expr.spreadSource,
       };
     case "alloc_dynarray":
-      return { ...expr, elements: expr.elements.map((v: any) => rewriteExpr(v, eligible)) };
+      return { ...expr, initialValues: (expr as any).initialValues.map((v: any) => rewriteExpr(v, eligible)) };
     case "alloc_array_spread":
       return { ...expr, elements: expr.elements.map((e: any) => ({ ...e, value: rewriteExpr(e.value, eligible) })) };
     case "alloc_map":

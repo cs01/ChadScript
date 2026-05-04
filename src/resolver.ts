@@ -7,10 +7,28 @@ import { resolve, dirname } from "path";
 import type { HIRModule } from "./hir/types.js";
 import type { Module, ModuleItem } from "@swc/core";
 
+interface ImportSpec {
+  imported: string;
+  local: string;
+}
+
+interface ImportInfo {
+  sourcePath: string;
+  specifiers: ImportSpec[];
+}
+
+interface ReexportSpec {
+  sourcePath: string;
+  exported: string;
+  original: string;
+}
+
 interface ParsedModule {
   ast: Module;
   source: string;
   absPath: string;
+  imports: ImportInfo[];
+  reexports: ReexportSpec[];
 }
 
 export function resolveModules(entryPath: string, substitutions?: Map<string, string>): HIRModule {
@@ -57,7 +75,7 @@ export function resolveModules(entryPath: string, substitutions?: Map<string, st
     }
   }
 
-  deduplicateFunctionNames(moduleItems, entryItems, absEntry);
+  qualifyAllModules(visited, moduleItems, entryItems, absEntry);
 
   for (const [, items] of moduleItems) {
     for (const item of items) mergedBody.push(item);
@@ -87,7 +105,9 @@ function collectModules(
 
   const source = readFileSync(absPath, "utf-8");
   const ast = parseFile(absPath);
-  visited.set(absPath, { ast, source, absPath });
+  const imports: ImportInfo[] = [];
+  const reexports: ReexportSpec[] = [];
+  visited.set(absPath, { ast, source, absPath, imports, reexports });
 
   for (const item of ast.body) {
     if (item.type === "ImportDeclaration") {
@@ -120,14 +140,19 @@ function collectModules(
       if (typeOnlyPaths) typeOnlyPaths.delete(resolvedPath);
       collectModules(resolvedPath, visited, aliases, typeOnlyPaths, builtinImportList, substitutions);
 
+      const specs: ImportSpec[] = [];
       for (const s of item.specifiers) {
         if (s.type === "ImportSpecifier") {
           const imported = s.imported?.value || s.local.value;
           const local = s.local.value;
+          specs.push({ imported, local });
           if (local !== imported) {
             aliases.push({ local, imported });
           }
         }
+      }
+      if (specs.length > 0) {
+        imports.push({ sourcePath: resolvedPath, specifiers: specs });
       }
     } else if (
       item.type === "ExportNamedDeclaration" &&
@@ -139,9 +164,10 @@ function collectModules(
       collectModules(resolvedPath, visited, aliases, typeOnlyPaths, builtinImportList, substitutions);
 
       for (const s of decl.specifiers) {
-        if (s.type === "ExportSpecifier" && s.exported) {
+        if (s.type === "ExportSpecifier") {
           const orig = s.orig.value;
-          const exported = s.exported.value;
+          const exported = s.exported ? s.exported.value : orig;
+          reexports.push({ sourcePath: resolvedPath, exported, original: orig });
           if (orig !== exported) {
             aliases.push({ local: exported, imported: orig });
           }
@@ -203,17 +229,26 @@ function resolveImportPath(specifier: string, fromPath: string): string {
   return resolved;
 }
 
-function getFnNamesFromItems(items: ModuleItem[]): Map<string, boolean> {
+function getDeclNamesFromItems(items: ModuleItem[]): Map<string, boolean> {
   const names = new Map<string, boolean>();
   for (const item of items) {
     const d = item as any;
+    if (d.declare) continue;
     if (d.type === "FunctionDeclaration" && d.identifier?.type === "Identifier") {
       names.set(d.identifier.value, true);
     }
+    if (d.type === "ClassDeclaration" && d.identifier?.type === "Identifier") {
+      names.set(d.identifier.value, true);
+    }
+    if (d.type === "TsEnumDeclaration" && d.id?.type === "Identifier") {
+      names.set(d.id.value, true);
+    }
+    if (d.type === "TsTypeAliasDeclaration" && d.id?.type === "Identifier") {
+      names.set(d.id.value, true);
+    }
     if (d.type === "VariableDeclaration") {
       for (const decl of d.declarations) {
-        if (decl.id?.type === "Identifier" && decl.init &&
-            (decl.init.type === "ArrowFunctionExpression" || decl.init.type === "FunctionExpression")) {
+        if (decl.id?.type === "Identifier") {
           names.set(decl.id.value, true);
         }
       }
@@ -228,11 +263,23 @@ function modulePrefix(absPath: string): string {
 }
 
 function renameIdents(items: ModuleItem[], renames: Map<string, string>): void {
-  const result = JSON.stringify(items, function(key, value) {
-    if (key === "value" && typeof value === "string" && this.type === "Identifier") {
+  const result = JSON.stringify(items, function (key, value) {
+    if (key === "property" && this && this.type === "MemberExpression" &&
+        value && typeof value === "object" && value.type === "Identifier") {
+      return { ...value, __skipRename: true };
+    }
+    if (key === "key" && this && (this.type === "KeyValueProperty" || this.type === "ObjectProperty" || this.type === "ClassProperty" || this.type === "MethodProperty") &&
+        value && typeof value === "object" && value.type === "Identifier") {
+      return { ...value, __skipRename: true };
+    }
+    if (this && this.type === "ClassMethod" && key === "key" && value && typeof value === "object" && value.type === "Identifier") {
+      return { ...value, __skipRename: true };
+    }
+    if (key === "value" && typeof value === "string" && this && this.type === "Identifier" && !this.__skipRename) {
       const r = renames.get(value);
       if (r !== undefined) return r;
     }
+    if (key === "__skipRename") return undefined;
     return value;
   });
   const parsed = JSON.parse(result);
@@ -240,50 +287,73 @@ function renameIdents(items: ModuleItem[], renames: Map<string, string>): void {
   for (let i = 0; i < parsed.length; i++) items.push(parsed[i]);
 }
 
-function deduplicateFunctionNames(
+function resolveExportedFrom(
+  visited: Map<string, ParsedModule>,
+  localNamesByPath: Map<string, Map<string, boolean>>,
+  sourcePath: string,
+  exportedName: string,
+  seen: Set<string>,
+): { path: string; name: string } | null {
+  const key = sourcePath + "::" + exportedName;
+  if (seen.has(key)) return null;
+  seen.add(key);
+
+  const localNames = localNamesByPath.get(sourcePath);
+  if (localNames && localNames.has(exportedName)) {
+    return { path: sourcePath, name: exportedName };
+  }
+
+  const mod = visited.get(sourcePath);
+  if (!mod) return null;
+
+  for (const r of mod.reexports) {
+    if (r.exported === exportedName) {
+      const resolved = resolveExportedFrom(visited, localNamesByPath, r.sourcePath, r.original, seen);
+      if (resolved) return resolved;
+    }
+  }
+
+  return { path: sourcePath, name: exportedName };
+}
+
+function qualifyAllModules(
+  visited: Map<string, ParsedModule>,
   moduleItems: Map<string, ModuleItem[]>,
   entryItems: ModuleItem[],
-  _entryPath: string,
+  entryPath: string,
 ): void {
-  const fnCount = new Map<string, number>();
-  for (const [, items] of moduleItems) {
-    for (const [name, _v] of getFnNamesFromItems(items)) {
-      fnCount.set(name, (fnCount.get(name) || 0) + 1);
-    }
-  }
-  for (const [name, _ve] of getFnNamesFromItems(entryItems)) {
-    fnCount.set(name, (fnCount.get(name) || 0) + 1);
+  const allModules: Array<{ path: string; items: ModuleItem[] }> = [];
+  for (const [path, items] of moduleItems) allModules.push({ path, items });
+  allModules.push({ path: entryPath, items: entryItems });
+
+  const localNamesByPath = new Map<string, Map<string, boolean>>();
+  for (const { path, items } of allModules) {
+    localNamesByPath.set(path, getDeclNamesFromItems(items));
   }
 
-  const collisions = new Map<string, boolean>();
-  for (const [name, count] of fnCount) {
-    if (count > 1) collisions.set(name, true);
-  }
-  if (collisions.size === 0) return;
-
-  for (const [path, items] of moduleItems) {
-    const localNames = getFnNamesFromItems(items);
-    const renames = new Map<string, string>();
+  for (const { path, items } of allModules) {
     const prefix = modulePrefix(path);
-    for (const [name, _lv] of localNames) {
-      if (collisions.has(name)) {
-        renames.set(name, prefix + "__" + name);
+    const renames = new Map<string, string>();
+
+    const localNames = localNamesByPath.get(path)!;
+    for (const [name, _v] of localNames) {
+      renames.set(name, prefix + "__" + name);
+    }
+
+    const mod = visited.get(path);
+    if (mod) {
+      for (const imp of mod.imports) {
+        for (const spec of imp.specifiers) {
+          const target = resolveExportedFrom(visited, localNamesByPath, imp.sourcePath, spec.imported, new Set<string>());
+          if (target) {
+            renames.set(spec.local, modulePrefix(target.path) + "__" + target.name);
+          }
+        }
       }
     }
+
     if (renames.size > 0) {
       renameIdents(items, renames);
     }
-  }
-
-  const entryNames = getFnNamesFromItems(entryItems);
-  const entryRenames = new Map<string, string>();
-  const ePrefix = modulePrefix(_entryPath);
-  for (const [name, _ev] of entryNames) {
-    if (collisions.has(name)) {
-      entryRenames.set(name, ePrefix + "__" + name);
-    }
-  }
-  if (entryRenames.size > 0) {
-    renameIdents(entryItems, entryRenames);
   }
 }

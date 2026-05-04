@@ -77,7 +77,7 @@ function rewrite(expr: HIRExpr): HIRExpr {
         spreadSource: (expr as any).spreadSource ? rewrite((expr as any).spreadSource) : (expr as any).spreadSource,
       };
     case "alloc_dynarray":
-      return { ...expr, elements: (expr as any).elements.map(rewrite) };
+      return { ...expr, initialValues: (expr as any).initialValues.map(rewrite) };
     case "alloc_array_spread":
       return { ...expr, elements: (expr as any).elements.map((e: any) => ({ ...e, value: rewrite(e.value) })) };
     case "box":

@@ -196,7 +196,7 @@ export function resetState(): void {
 export function resolveTypeAnnotation(ann: any): HIRType {
   if (!ann) return BOXED;
 
-  const ta = ann.typeAnnotation || ann;
+  const ta = ann.type === "TsTypeAnnotation" ? ann.typeAnnotation : ann;
   if (!ta) return BOXED;
 
   if (ta.type === "TsKeywordType") {

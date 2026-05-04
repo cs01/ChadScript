@@ -319,7 +319,7 @@ function rewriteExprInner(expr: HIRExpr, eligible: Set<number>): HIRExpr {
         spreadSource: expr.spreadSource ? rewriteExpr(expr.spreadSource, eligible) : expr.spreadSource,
       };
     case "alloc_dynarray":
-      return { ...expr, elements: expr.elements.map((v: any) => rewriteExpr(v, eligible)) };
+      return { ...expr, initialValues: (expr as any).initialValues.map((v: any) => rewriteExpr(v, eligible)) };
     case "alloc_array_spread":
       return { ...expr, elements: expr.elements.map((e: any) => ({ ...e, value: rewriteExpr(e.value, eligible) })) };
     case "alloc_map":
