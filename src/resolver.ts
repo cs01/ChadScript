@@ -77,7 +77,8 @@ export function resolveModules(entryPath: string, substitutions?: Map<string, st
 
   qualifyAllModules(visited, moduleItems, entryItems, absEntry);
 
-  for (const [, items] of moduleItems) {
+  for (const [path, items] of moduleItems) {
+    if (path === absEntry) continue;
     for (const item of items) mergedBody.push(item);
   }
   for (const item of entryItems) mergedBody.push(item);
@@ -262,29 +263,31 @@ function modulePrefix(absPath: string): string {
   return base.replace(/[^a-zA-Z0-9]/g, "_");
 }
 
+function walkRename(node: any, renames: Map<string, string>): void {
+  if (!node || typeof node !== "object") return;
+  if (Array.isArray(node)) {
+    for (let i = 0; i < node.length; i++) walkRename(node[i], renames);
+    return;
+  }
+  if (node.type === "Identifier" && typeof node.value === "string") {
+    const r = renames.get(node.value);
+    if (r !== undefined) node.value = r;
+  }
+  const isMember = node.type === "MemberExpression";
+  const isPropKey = node.type === "KeyValueProperty" || node.type === "ObjectProperty" ||
+    node.type === "ClassProperty" || node.type === "MethodProperty" || node.type === "ClassMethod";
+  for (const k in node) {
+    const child = node[k];
+    if (!child || typeof child !== "object") continue;
+    if (isMember && k === "property" && child.type === "Identifier") continue;
+    if (isPropKey && k === "key" && child.type === "Identifier") continue;
+    if (k === "imported" || k === "exported" || k === "orig") continue;
+    walkRename(child, renames);
+  }
+}
+
 function renameIdents(items: ModuleItem[], renames: Map<string, string>): void {
-  const result = JSON.stringify(items, function (key, value) {
-    if (key === "property" && this && this.type === "MemberExpression" &&
-        value && typeof value === "object" && value.type === "Identifier") {
-      return { ...value, __skipRename: true };
-    }
-    if (key === "key" && this && (this.type === "KeyValueProperty" || this.type === "ObjectProperty" || this.type === "ClassProperty" || this.type === "MethodProperty") &&
-        value && typeof value === "object" && value.type === "Identifier") {
-      return { ...value, __skipRename: true };
-    }
-    if (this && this.type === "ClassMethod" && key === "key" && value && typeof value === "object" && value.type === "Identifier") {
-      return { ...value, __skipRename: true };
-    }
-    if (key === "value" && typeof value === "string" && this && this.type === "Identifier" && !this.__skipRename) {
-      const r = renames.get(value);
-      if (r !== undefined) return r;
-    }
-    if (key === "__skipRename") return undefined;
-    return value;
-  });
-  const parsed = JSON.parse(result);
-  items.length = 0;
-  for (let i = 0; i < parsed.length; i++) items.push(parsed[i]);
+  walkRename(items, renames);
 }
 
 function resolveExportedFrom(
@@ -322,16 +325,14 @@ function qualifyAllModules(
   entryItems: ModuleItem[],
   entryPath: string,
 ): void {
-  const allModules: Array<{ path: string; items: ModuleItem[] }> = [];
-  for (const [path, items] of moduleItems) allModules.push({ path, items });
-  allModules.push({ path: entryPath, items: entryItems });
+  moduleItems.set(entryPath, entryItems);
 
   const localNamesByPath = new Map<string, Map<string, boolean>>();
-  for (const { path, items } of allModules) {
+  for (const [path, items] of moduleItems) {
     localNamesByPath.set(path, getDeclNamesFromItems(items));
   }
 
-  for (const { path, items } of allModules) {
+  for (const [path, items] of moduleItems) {
     const prefix = modulePrefix(path);
     const renames = new Map<string, string>();
 
