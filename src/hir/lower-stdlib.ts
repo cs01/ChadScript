@@ -522,6 +522,19 @@ export function lowerMathCall(expr: CallExpression): HIRExpr {
       return { kind: "runtime_call", func: "cs_math_sign", args, returnType: F64, type: F64 };
     case "clz32":
       return { kind: "runtime_call", func: "cs_math_clz32", args, returnType: F64, type: F64 };
+    case "max":
+    case "min": {
+      const func = `cs_math_${method}`;
+      if (args.length === 0) {
+        return { kind: "literal_f64", value: method === "max" ? -Infinity : Infinity, type: F64 };
+      }
+      if (args.length === 1) return args[0];
+      let acc: HIRExpr = { kind: "runtime_call", func, args: [args[0], args[1]], returnType: F64, type: F64 };
+      for (let i = 2; i < args.length; i++) {
+        acc = { kind: "runtime_call", func, args: [acc, args[i]], returnType: F64, type: F64 };
+      }
+      return acc;
+    }
     default: {
       const func = `cs_math_${method}`;
       return { kind: "runtime_call", func, args, returnType: F64, type: F64 };
