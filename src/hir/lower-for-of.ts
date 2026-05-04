@@ -28,6 +28,18 @@ export function lowerForOf(stmt: any, lowerConsequent: LowerConsequent): HIRStmt
     return lowerForOfDynarray(stmt, iteree, lowerConsequent);
   }
 
+  if (iteree.type.kind === "set") {
+    const elemType = (iteree.type as { kind: "set"; element: HIRType }).element;
+    const arrayType: HIRType = { kind: "array", element: elemType };
+    iteree = {
+      kind: "runtime_call",
+      func: `${setPrefix(elemType)}_values`,
+      args: [iteree],
+      returnType: arrayType,
+      type: arrayType,
+    };
+  }
+
   if (iteree.type.kind !== "array") {
     compileError(`for...of requires array or map type, got ${iteree.type.kind}`, stmt.span);
   }
