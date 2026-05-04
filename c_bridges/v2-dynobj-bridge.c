@@ -327,6 +327,23 @@ int32_t cs2_dynobj_length(DynObj *o) {
     return o->length;
 }
 
+DynObj *cs2_dynobj_copy(DynObj *src) {
+    DynObj *o = (DynObj *)malloc(sizeof(DynObj));
+    o->magic = DYNOBJ_MAGIC;
+    o->capacity = DYNOBJ_INLINE_CAP;
+    o->length = 0;
+    o->keys = o->inline_keys;
+    o->values = o->inline_values;
+    if (!src) return o;
+    if (src->length > o->capacity) dynobj_promote(o, src->length);
+    for (int32_t i = 0; i < src->length; i++) {
+        o->keys[i] = src->keys[i];
+        o->values[i] = src->values[i];
+    }
+    o->length = src->length;
+    return o;
+}
+
 const char *cs2_dynobj_key_at(DynObj *o, int32_t i) {
     if (!o || i < 0 || i >= o->length) return NULL;
     return o->keys[i];

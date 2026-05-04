@@ -510,6 +510,7 @@ export function declareExterns(ctx: EmitContext): void {
     dcl(ctx, "cs2_dynobj_length", m.i32, [m.ptr]);
     dcl(ctx, "cs2_dynobj_key_at", m.ptr, [m.ptr, m.i32]);
     dcl(ctx, "cs2_dynobj_keys", m.ptr, [m.ptr]);
+    dcl(ctx, "cs2_dynobj_copy", m.ptr, [m.ptr]);
     dcl(ctx, "cs2_dynobj_values", m.ptr, [m.ptr]);
     dcl(ctx, "cs2_dynobj_entries", m.ptr, [m.ptr]);
     dcl(ctx, "cs2_dynarray_new", m.ptr, []);
