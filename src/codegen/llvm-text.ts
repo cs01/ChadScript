@@ -751,6 +751,14 @@ export class LLVMModule {
     const irPath = base + ".ll";
     const bcPath = base + ".bc";
     writeFileSync(irPath, this._buildIR());
+    if (process.env.CHAD2_VERIFY) {
+      try {
+        execSync(LLVM_PATH + "/opt -passes=verify -disable-output " + irPath, { stdio: "pipe" });
+      } catch (e: any) {
+        const stderr = e.stderr ? e.stderr.toString() : "";
+        throw new Error("LLVM IR verification failed:\n" + stderr);
+      }
+    }
     try {
       execSync(
         LLVM_PATH + "/opt -O3 -o " + bcPath + " " + irPath +

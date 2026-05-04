@@ -130,6 +130,11 @@ const LLVMPrintModuleToFile = lib.func("LLVMPrintModuleToFile", Bool, [
   koffi.out(koffi.pointer("char")),
 ]);
 const LLVMDisposeMessage = lib.func("LLVMDisposeMessage", "void", [Ref]);
+const LLVMVerifyModule = lib.func("LLVMVerifyModule", Bool, [
+  Ref,
+  "int",
+  koffi.out(koffi.pointer("char *")),
+]);
 
 const LLVMGetDefaultTargetTriple = lib.func("LLVMGetDefaultTargetTriple", "char *", []);
 const LLVMGetHostCPUName = lib.func("LLVMGetHostCPUName", "char *", []);
@@ -644,7 +649,7 @@ export class LLVMModule {
 
     const dwarfVal = LLVMValueAsMetadata(LLVMConstInt(this.i32, 4, 0));
     const diVerVal = LLVMValueAsMetadata(LLVMConstInt(this.i32, 3, 0));
-    LLVMAddModuleFlag(this.mod, 2, "Dwarf Version", 13, dwarfVal);
+    LLVMAddModuleFlag(this.mod, 1, "Dwarf Version", 13, dwarfVal);
     LLVMAddModuleFlag(this.mod, 1, "Debug Info Version", 18, diVerVal);
   }
 
@@ -690,6 +695,14 @@ export class LLVMModule {
   finalizeDebugInfo(): void {
     if (this.diBuilder) {
       LLVMDIBuilderFinalize(this.diBuilder);
+    }
+    if (process.env.CHAD2_VERIFY) {
+      const errArr = [null];
+      const failed = LLVMVerifyModule(this.mod, 2, errArr);
+      if (failed !== 0) {
+        const msg = errArr[0] ? String(errArr[0]) : "(no message)";
+        throw new Error(`LLVM module verification failed:\n${msg}`);
+      }
     }
   }
 
