@@ -440,7 +440,8 @@ export function lowerModule(
 
             for (const { fieldName, localName } of resolveObjectDestructProps(d.id.properties)) {
               const propInfo = props.find((p) => p.name === fieldName);
-              const propType = propInfo ? propInfo.type : DYNOBJ;
+              let propType = propInfo ? propInfo.type : DYNOBJ;
+              if (propType.kind === "i64") propType = F64;
               const key: HIRExpr = { kind: "literal_string", value: fieldName, type: I8PTR };
               const fieldGet = dynObjGetForType(
                 { kind: "global_get", name: tmpName, type: initExpr.type },

@@ -138,7 +138,8 @@ export function lowerObjectDestructuring(d: any, mutable: boolean): HIRStmt[] {
 
     for (const { fieldName, localName, span } of resolveObjectDestructProps(d.id.properties)) {
       const propInfo = props.find((p) => p.name === fieldName);
-      const propType = propInfo ? propInfo.type : DYNOBJ;
+      let propType = propInfo ? propInfo.type : DYNOBJ;
+      if (propType.kind === "i64") propType = F64;
       const elemId = freshId();
       const key: HIRExpr = { kind: "literal_string", value: fieldName, type: I8PTR };
       const fieldGet = dynObjGetForType(
