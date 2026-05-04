@@ -1015,7 +1015,7 @@ function lowerObjectLiteral(expr: any): HIRExpr {
     }
   }
 
-  const props: { key: string; value: HIRExpr }[] = [];
+  const props: { key: string; value: HIRExpr; keyExpr?: HIRExpr }[] = [];
   let spreadSource: HIRExpr | undefined;
   for (const prop of expr.properties) {
     if (prop.type === "SpreadElement") {
@@ -1028,6 +1028,12 @@ function lowerObjectLiteral(expr: any): HIRExpr {
       continue;
     }
     const keyNode = prop.key;
+    if (keyNode.type === "Computed") {
+      const keyExpr = lowerExpr(keyNode.expression);
+      const value = lowerExpr(prop.value);
+      props.push({ key: "", value, keyExpr });
+      continue;
+    }
     const keyStr =
       keyNode.type === "Identifier"
         ? keyNode.value

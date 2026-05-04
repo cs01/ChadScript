@@ -144,7 +144,7 @@ export type HIRExpr =
     }
   | {
       kind: "alloc_dynobj";
-      props: { key: string; value: HIRExpr }[];
+      props: { key: string; value: HIRExpr; keyExpr?: HIRExpr }[];
       spreadSource?: HIRExpr;
       type: HIRType;
     }

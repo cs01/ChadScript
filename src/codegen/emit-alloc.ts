@@ -206,7 +206,9 @@ export function emitAllocDynObj(
   }
 
   for (const prop of expr.props) {
-    const keyVal = m.buildGlobalStringPtr(prop.key, "");
+    const keyVal = (prop as any).keyExpr
+      ? emitExpr(ctx, (prop as any).keyExpr)
+      : m.buildGlobalStringPtr(prop.key, "");
     let val = emitExpr(ctx, prop.value);
     let valType = prop.value.type;
     if (valType.kind === "array") {
