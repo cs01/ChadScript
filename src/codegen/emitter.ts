@@ -384,10 +384,8 @@ function emitMain(ctx: EmitContext, mod: HIRModule): void {
     }
   }
 
-  const arenaReset = ctx.getDeclaredFunction("cs2_arena_reset")!;
   for (const stmt of mod.init) {
     emitStmt(ctx, stmt);
-    m.buildCall(arenaReset.fnType, arenaReset.fn, [], "");
   }
 
   const runLoop = ctx.getDeclaredFunction("cs2_run_event_loop")!;

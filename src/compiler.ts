@@ -7,7 +7,6 @@ import { narrowFnsPass } from "./transforms/narrow-fns.js";
 import { concatBuilderPass } from "./transforms/concat-builder.js";
 import { narrowLocalsPass } from "./transforms/narrow-locals.js";
 import { narrowGlobalsPass } from "./transforms/narrow-globals.js";
-import { arenifyLoopsPass } from "./transforms/arenify-loops.js";
 import { unlinkSync, existsSync, readFileSync, mkdirSync, copyFileSync } from "fs";
 import { createHash } from "crypto";
 import { execSync } from "child_process";
@@ -127,7 +126,6 @@ export function compile(opts: CompileOptions): void {
   narrowFpPass(hir);
   concatBuilderPass(hir);
   deadCodePass(hir);
-  arenifyLoopsPass(hir);
 
   const tmpObj = join(tmpdir(), `chad2-${process.pid}.o`);
   const bridgeObjs = BRIDGE_SRCS.map((_: string, i: number): string =>
@@ -138,7 +136,14 @@ export function compile(opts: CompileOptions): void {
   const yyjsonObj = join(tmpdir(), `chad2-yyjson-${process.pid}.o`);
   const httpObj = join(tmpdir(), `chad2-http-${process.pid}.o`);
   const llvmObj = join(tmpdir(), `chad2-llvm-${process.pid}.o`);
-  const allObjs = [...bridgeObjs, timerObj, jsonObj, yyjsonObj, httpObj];
+  const allObjs: string[] = [];
+  for (const b of bridgeObjs) {
+    allObjs.push(b);
+  }
+  allObjs.push(timerObj);
+  allObjs.push(jsonObj);
+  allObjs.push(yyjsonObj);
+  allObjs.push(httpObj);
   if (opts.llvm) allObjs.push(llvmObj);
   const irPath = opts.emitIR ? opts.output + ".ll" : "";
 
