@@ -83,6 +83,13 @@ export function lowerStringMethodCall(expr: CallExpression, obj: HIRExpr): HIREx
     args.push({ kind: "literal_string", value: " ", type: I8PTR });
   }
 
+  if ((method === "slice" || method === "substring" || method === "substr") && args.length < 2) {
+    if (args.length === 0) {
+      args.push({ kind: "literal_i64", value: 0, type: I64 });
+    }
+    args.push({ kind: "runtime_call", func: "cs2_str_length", args: [obj], returnType: I64, type: I64 });
+  }
+
   const coercedArgs = info.argTypes ? args.map((a, i) => coerce(a, info.argTypes![i])) : [];
 
   const bridgeRetType = info.returnType;

@@ -29,6 +29,7 @@ import {
   expectedArrayElementType,
   setExpectedArrayElementType,
   expectedMapType,
+  setExpectedMapType,
   expectedDeclType,
   setExpectedDeclType,
   freshId,
@@ -551,6 +552,20 @@ function lowerAssignment(expr: AssignmentExpression): HIRExpr {
   const op = expr.operator;
   let value: HIRExpr;
 
+  let lhsType: HIRType | null = null;
+  if (op === "=" && expr.left.type === "Identifier") {
+    const localL = locals.get(expr.left.value);
+    if (localL) lhsType = localL.type;
+    else if (outerLocals) {
+      const outerL = outerLocals.get(expr.left.value);
+      if (outerL) lhsType = outerL.type;
+    }
+    if (!lhsType) {
+      const globalL = globals.get(expr.left.value);
+      if (globalL) lhsType = globalL.type;
+    }
+  }
+
   if (op !== "=" && expr.left.type === "Identifier") {
     const left = lowerIdentifier(expr.left);
     const right = lowerExpr(expr.right);
@@ -558,7 +573,21 @@ function lowerAssignment(expr: AssignmentExpression): HIRExpr {
     if (!binOp) compileError(`unsupported assignment operator: ${op}`, expr.span);
     value = lowerBinaryWithOp(binOp, left, right);
   } else {
-    value = lowerExpr(expr.right);
+    if (lhsType && lhsType.kind === "ptr") {
+      setExpectedDeclType(lhsType);
+      value = lowerExpr(expr.right);
+      setExpectedDeclType(null);
+    } else if (lhsType && lhsType.kind === "array") {
+      setExpectedArrayElementType((lhsType as { kind: "array"; element: HIRType }).element);
+      value = lowerExpr(expr.right);
+      setExpectedArrayElementType(null);
+    } else if (lhsType && lhsType.kind === "map") {
+      setExpectedMapType(lhsType);
+      value = lowerExpr(expr.right);
+      setExpectedMapType(null);
+    } else {
+      value = lowerExpr(expr.right);
+    }
   }
 
   if (expr.left.type === "Identifier") {
