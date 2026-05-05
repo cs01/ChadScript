@@ -57,6 +57,10 @@ declare function LLVMBuildPhi(b: string, type: string, name: string): string;
 declare function LLVMBuildTrunc(b: string, val: string, destTy: string, name: string): string;
 declare function LLVMBuildZExt(b: string, val: string, destTy: string, name: string): string;
 declare function LLVMBuildSExt(b: string, val: string, destTy: string, name: string): string;
+declare function LLVMBuildPtrToInt(b: string, val: string, destTy: string, name: string): string;
+declare function LLVMBuildIntToPtr(b: string, val: string, destTy: string, name: string): string;
+declare function LLVMGetFirstBasicBlock(fn: string): string;
+declare function LLVMGetNextBasicBlock(block: string): string;
 declare function LLVMBuildFPToSI(b: string, val: string, destTy: string, name: string): string;
 declare function LLVMBuildSIToFP(b: string, val: string, destTy: string, name: string): string;
 declare function LLVMValueAsMetadata(val: string): string;
@@ -344,6 +348,20 @@ export class LLVMModule {
   buildSExt(val: string, destTy: string, name: string): string { return LLVMBuildSExt(this.builder, val, destTy, name); }
   buildFPToSI(val: string, destTy: string, name: string): string { return LLVMBuildFPToSI(this.builder, val, destTy, name); }
   buildSIToFP(val: string, destTy: string, name: string): string { return LLVMBuildSIToFP(this.builder, val, destTy, name); }
+  buildPtrToInt(val: string, destTy: string, name: string): string { return LLVMBuildPtrToInt(this.builder, val, destTy, name); }
+  buildIntToPtr(val: string, destTy: string, name: string): string { return LLVMBuildIntToPtr(this.builder, val, destTy, name); }
+
+  terminateAllBlocks(fn: string): void {
+    let bb = LLVMGetFirstBasicBlock(fn);
+    while (bb !== "") {
+      const term = LLVMGetBasicBlockTerminator(bb);
+      if (term === "") {
+        LLVMPositionBuilderAtEnd(this.builder, bb);
+        LLVMBuildUnreachable(this.builder);
+      }
+      bb = LLVMGetNextBasicBlock(bb);
+    }
+  }
 
   buildICmp(pred: number, lhs: string, rhs: string, name: string): string {
     return chad2_LLVMBuildICmp(this.builder, pred, lhs, rhs, name);
