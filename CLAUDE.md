@@ -1,33 +1,21 @@
 # ChadScript Rules
 
-## Worktree Rule
+## Workflow (relaxed 2026-07)
 
-**ALWAYS work on a git worktree and branch. NEVER modify files directly on `main`.** `main` must always remain clean. Every piece of work — features, bug fixes, docs, even CLAUDE.md edits — must happen on a dedicated branch in a worktree:
+**Committing directly to `main` is fine.** Worktrees and PRs are optional, not required. Pick whatever
+is lowest-friction for the task:
 
-```bash
-git worktree add .worktrees/<name> -b <branch-name>
-cd .worktrees/<name>
-# do work, commit, then open a PR
-```
+- Small/independent changes: commit straight to `main` and push.
+- Larger or riskier changes you want reviewed in isolation: use a branch (and optionally a worktree + PR).
 
-## Autonomous PR Workflow
+CI is not a hard gate anymore — a red CI run does not block landing. Still, don't knowingly break the
+build; run `npm run verify:quick` (or at least the relevant tests) before pushing when practical, and fix
+regressions you introduce.
 
-Agents can work autonomously end-to-end: create worktrees, make changes, push branches, create PRs,
-monitor CI, and merge when green. You have push access to feature branches and merge access to PRs.
+Agents have push access to `main` and feature branches and merge access to PRs. When you do open a PR,
+still see it through (monitor, fix, merge) rather than leaving it orphaned.
 
-1. Create a worktree and branch
-2. Make changes, run `npm run verify:quick`, commit
-3. `git push origin <branch>` — push to remote
-4. `gh pr create` — open a PR
-5. `gh pr checks <number>` — monitor CI
-6. When CI is green: `gh pr merge <number> --squash --delete-branch` — merge to main
-7. Clean up: `cd /Users/csmith/git/ChadScript && git worktree remove .worktrees/<name>`
-8. Pull main and continue with next task
-
-**Every PR must be seen through to completion** — don't just open and walk away. Monitor CI, fix failures,
-merge when green, delete the remote branch, and remove the local worktree.
-
-**Never push to main directly.** Always go through PRs.
+Worktree tip (when you do use one): each worktree builds its own `vendor/` — see "Worktree Setup" below.
 
 ## PR title + body format
 
