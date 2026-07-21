@@ -68,8 +68,10 @@ class Gen {
       const r = this.rng();
       if (r < 0.25 && this.vars.length > 0) return this.pick(this.vars);
       if (r < 0.45) {
-        const fn = this.pick(["floor", "ceil", "round", "trunc", "abs"]);
-        // fractional argument → integer result (targets the integer-narrowing bug class)
+        // Only integer-izing functions here: Math.abs(3.2) stays 3.2 and would leak a float
+        // into output (a formatting divergence, not a real bug). floor/ceil/round/trunc all
+        // return an integer from a fractional arg — and target the integer-narrowing bug class.
+        const fn = this.pick(["floor", "ceil", "round", "trunc"]);
         const whole = this.int(20);
         const frac = this.pick([".25", ".5", ".7", ".9"]);
         return `Math.${fn}(${whole}${frac})`;
