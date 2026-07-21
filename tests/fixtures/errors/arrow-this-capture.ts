@@ -1,4 +1,5 @@
 // @test-compile-error: Arrow functions cannot capture 'this'
+// @test-compile-error-native: accessed outside of class method or constructor
 
 class Foo {
   value: number;

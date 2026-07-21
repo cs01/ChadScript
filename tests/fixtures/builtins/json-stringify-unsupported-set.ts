@@ -1,4 +1,4 @@
-// @test-compile-error: unsupported type — only string, number, boolean, interface, string[], number[], and object[] are supported
+// @test-compile-error: Set is not JSON-serializable
 const s: Set<number> = new Set();
 s.add(1);
 JSON.stringify(s);
