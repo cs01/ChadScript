@@ -129,4 +129,5 @@ See [`examples/cli-tools/`](examples/cli-tools/) for a suite of Unix tool replac
 - [Installation](https://cs01.github.io/ChadScript/getting-started/installation)
 - [Quickstart](https://cs01.github.io/ChadScript/getting-started/quickstart)
 - [Supported Features](https://cs01.github.io/ChadScript/language/features)
+- [Supported subset contract](https://cs01.github.io/ChadScript/language/supported-subset)
 - [Standard Library](https://cs01.github.io/ChadScript/stdlib/)

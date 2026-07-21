@@ -2,6 +2,8 @@
 
 ChadScript is a statically-typed subset of TypeScript that compiles to native code. You write standard TypeScript — variables, functions, classes, interfaces, async/await, modules — and the compiler handles the rest.
 
+> The precise, machine-checked boundary of that subset — what compiles, what is rejected with a diagnostic, and what is unclassified — is the [Supported subset contract](./supported-subset.md).
+
 **Can I parse JSON?** Yes. `JSON.parse<T>()` and `JSON.stringify()` are built in — define an interface for your data shape, and the compiler handles the rest. See [`cjq`](https://github.com/cs01/ChadScript/blob/main/examples/cli-tools/cjq.ts) — a jq clone written in ChadScript.
 
 **Can I query a database?** Yes. SQLite is built in — `sqlite.open()`, `sqlite.query()`, parameterized queries, transactions. See [`cql`](https://github.com/cs01/ChadScript/blob/main/examples/cli-tools/cql.ts) — run SQL on CSV files, compiled to a native binary.
