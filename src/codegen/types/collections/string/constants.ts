@@ -100,6 +100,24 @@ export function convertNumberToString(ctx: IGeneratorContext, numValue: string):
   return heapPtr;
 }
 
+// Number.toString(radix): defer base selection to the runtime bridge, which renders integer
+// values in base 2..36 and falls back to the decimal formatter for base 10 / non-integers.
+export function convertNumberToStringRadix(
+  ctx: IGeneratorContext,
+  numValue: string,
+  radixValue: string,
+): string {
+  const dblValue = ctx.ensureDouble(numValue);
+  const dblRadix = ctx.ensureDouble(radixValue);
+  const heapPtr = ctx.emitCall(
+    "i8*",
+    "@cs_num_to_str_radix",
+    `double ${dblValue}, double ${dblRadix}`,
+  );
+  ctx.setVariableType(heapPtr, "i8*");
+  return heapPtr;
+}
+
 export function convertNumberToFixed(
   ctx: IGeneratorContext,
   numValue: string,

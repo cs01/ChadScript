@@ -4,6 +4,7 @@ import { IGeneratorContext, IStringGenerator } from "../../infrastructure/genera
 import {
   createStringConstant,
   convertNumberToString,
+  convertNumberToStringRadix,
   convertNumberToFixed,
 } from "./string/constants.js";
 import { generateStringConcat, generateStringConcatDirect } from "./string/concatenation.js";
@@ -56,6 +57,10 @@ export class StringGenerator implements IStringGenerator {
 
   doConvertNumberToString(numValue: string): string {
     return convertNumberToString(this.ctx, numValue);
+  }
+
+  doConvertNumberToStringRadix(numValue: string, radixValue: string): string {
+    return convertNumberToStringRadix(this.ctx, numValue, radixValue);
   }
 
   doConvertNumberToFixed(numValue: string, precisionValue: string): string {

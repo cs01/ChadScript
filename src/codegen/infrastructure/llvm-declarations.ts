@@ -254,6 +254,7 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += "declare %StringArray* @cs_str_array_to_lower(%StringArray*)\n";
   ir += "declare void @cs_str_cache_invalidate()\n";
   ir += "declare i8* @cs_num_to_str(double)\n";
+  ir += "declare i8* @cs_num_to_str_radix(double, double)\n";
   ir += "\n";
 
   ir += "declare i32 @system(i8*)\n";

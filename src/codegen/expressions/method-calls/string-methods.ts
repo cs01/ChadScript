@@ -682,6 +682,11 @@ export function handleNumberToString(
   params: string[],
 ): string {
   const numValue = ctx.generateExpression(expr.object, params);
+  // Number.toString(radix): honor an explicit base argument (e.g. (255).toString(16) === "ff").
+  if (expr.args.length >= 1) {
+    const radixValue = ctx.generateExpression(expr.args[0], params);
+    return ctx.stringGen.doConvertNumberToStringRadix(numValue, radixValue);
+  }
   return ctx.stringGen.doConvertNumberToString(numValue);
 }
 

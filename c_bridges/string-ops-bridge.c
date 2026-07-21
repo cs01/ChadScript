@@ -11,6 +11,42 @@ extern void *GC_malloc(size_t size);
 // Matches JS semantics for integer-valued doubles (no trailing ".0"),
 // and falls back to snprintf("%.15g") for non-integers and specials.
 // Returns arena-allocated null-terminated string.
+char *cs_num_to_str(double val); // defined below; used by the radix path's fallbacks
+
+// Number.prototype.toString(radix). JS renders an integer in the given base 2..36 with
+// lowercase digits and a leading '-' for negatives. Non-integer values and base 10 defer to
+// the default decimal formatter (JS's fractional-radix rendering is out of scope for now).
+char *cs_num_to_str_radix(double val, double radix_d) {
+    int radix = (int)radix_d;
+    if (radix == 10 || radix < 2 || radix > 36) return cs_num_to_str(val);
+    if (!isfinite(val)) return cs_num_to_str(val); // NaN/Inf → JS spelling via default path
+    double truncated = (double)(int64_t)val;
+    if (truncated != val || val < -9007199254740992.0 || val > 9007199254740992.0) {
+        return cs_num_to_str(val); // non-integer (or out of exact int range) → decimal fallback
+    }
+    int64_t n = (int64_t)val;
+    int negative = n < 0;
+    uint64_t u = negative ? ((uint64_t)(-(n + 1)) + 1) : (uint64_t)n; // safe for INT64_MIN
+    char buf[72]; // up to 64 base-2 digits + sign + null
+    int pos = 71;
+    buf[pos--] = '\0';
+    const char *digits = "0123456789abcdefghijklmnopqrstuvwxyz";
+    if (u == 0) {
+        buf[pos--] = '0';
+    } else {
+        while (u != 0) {
+            buf[pos--] = digits[u % (uint64_t)radix];
+            u /= (uint64_t)radix;
+        }
+    }
+    if (negative) buf[pos--] = '-';
+    size_t start = (size_t)(pos + 1);
+    size_t len = 71 - start;
+    char *out = (char *)cs_arena_alloc(len + 1);
+    memcpy(out, buf + start, len + 1);
+    return out;
+}
+
 char *cs_num_to_str(double val) {
     // Fast path: integer-valued doubles in [-2^53, 2^53]. The %.15g format
     // produces pure integer text for these, so we can itoa directly.
@@ -51,7 +87,21 @@ char *cs_num_to_str(double val) {
             return out;
         }
     }
-    // Fallback: non-integer, NaN, or Infinity.
+    // JS spells non-finite values "Infinity"/"-Infinity"/"NaN", not C's inf/nan.
+    if (isnan(val)) {
+        char *out = (char *)cs_arena_alloc(4);
+        memcpy(out, "NaN", 4);
+        return out;
+    }
+    if (isinf(val)) {
+        const char *s = (val < 0) ? "-Infinity" : "Infinity";
+        size_t len = strlen(s);
+        char *out = (char *)cs_arena_alloc(len + 1);
+        memcpy(out, s, len + 1);
+        return out;
+    }
+
+    // Fallback: non-integer.
     char tmp[48];
     int n = snprintf(tmp, sizeof(tmp), "%.15g", val);
     if (n < 0) n = 0;

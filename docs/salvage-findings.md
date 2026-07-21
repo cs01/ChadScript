@@ -16,22 +16,21 @@ Status legend: **fixed** · **open** · **intentional** (documented ChadScript�
   disqualifying any variable consumed by a `Math.*` builtin from integer narrowing
   (`src/codegen/infrastructure/integer-analysis.ts`). Guarded by the differential harness.
 
+## Fixed (cont.)
+
+- **`Number.toString(radix)` ignored the radix.** `(255).toString(16)` gave `"255"`, not
+  `"ff"`. Fixed: `handleNumberToString` now forwards the radix to a new runtime helper
+  `cs_num_to_str_radix` (bases 2..36, lowercase digits, `-` for negatives; base 10 and
+  non-integers defer to the decimal formatter).
+- **Non-finite numbers printed C-style.** `1/0` gave `"inf"`, `0/0` gave `"nan"`. Fixed:
+  `cs_num_to_str` now emits the JS spellings `"Infinity"`/`"-Infinity"`/`"NaN"`.
+
 ## Open — silent divergences (wrong output, no error)
 
-These are the dangerous class: the compiler produces a value that differs from JS without
-any diagnostic. Priority for either a fix or a clean rejection.
-
-- **`Number.toString(radix)` ignores the radix.** `(255).toString(16)` → chad `"255"`,
-  Node `"ff"`. `handleNumberToString` drops the argument. **Self-host floor:** `src/` uses
-  `.toString(16)` (`marshal-wrapper.ts`, `diagnostics/tracers.ts`), so this must be *fixed*
-  (support at least radix 2/8/16), not rejected.
 - **Bitwise shift is 64-bit, not JS's 32-bit.** `1 << 40` → chad `1099511627776`, Node `256`
   (JS masks the shift count to 5 bits and truncates operands to int32). Divergence for shift
-  counts ≥ 32 and for results outside int32. Fix by masking to JS semantics, or reject
-  shifts that can exceed int32. Niche.
-- **Non-finite numbers print C-style.** `1/0` → chad `"inf"`, Node `"Infinity"`; also expect
-  `-Infinity`/`NaN` vs `-inf`/`nan`. The `snprintf("%g", …)` formatter emits `inf`/`nan`.
-  Fix the number→string path to emit the JS spellings.
+  counts ≥ 32 and for results outside int32. Broad change (affects all bitwise ops incl.
+  `>>> 0`); deferred pending a decision on adopting JS int32 bitwise semantics wholesale.
 
 ## Open — likely-intentional but worth a decision
 
