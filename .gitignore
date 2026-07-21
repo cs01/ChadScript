@@ -91,3 +91,5 @@ benchmarks/tools/httpbench
 
 # Coverage
 coverage/
+
+.baseline-build/
