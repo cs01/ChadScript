@@ -93,3 +93,7 @@ benchmarks/tools/httpbench
 coverage/
 
 .baseline-build/
+
+.diff-build/
+
+tests/baseline/differential-exec.json

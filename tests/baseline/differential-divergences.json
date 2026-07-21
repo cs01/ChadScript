@@ -1,0 +1,101 @@
+{
+  "note": "Known divergences between the ChadScript-compiled binary and the Node oracle.",
+  "divergences": {
+    "tests/fixtures/arithmetic/math-functions.ts": {
+      "category": "suspected-miscompile",
+      "note": "Math.ceil/round on a function-parameter argument is truncated by unsound i64 integer-narrowing (parameter narrowed to int before the float builtin). Tracked for fix."
+    },
+    "tests/fixtures/arrays/array-at.ts": {
+      "category": "chadscript-semantics",
+      "note": "out-of-bounds access returns clamped/empty, not undefined as in JS. Fixture asserts ChadScript behavior."
+    },
+    "tests/fixtures/arrays/array-bounds-check.ts": {
+      "category": "chadscript-semantics",
+      "note": "out-of-bounds access returns clamped/empty, not undefined as in JS. Fixture asserts ChadScript behavior."
+    },
+    "tests/fixtures/arrays/array-methods.ts": {
+      "category": "chadscript-semantics",
+      "note": "out-of-bounds access returns clamped/empty, not undefined as in JS. Fixture asserts ChadScript behavior."
+    },
+    "tests/fixtures/arrays/assignment-bounds.ts": {
+      "category": "chadscript-semantics",
+      "note": "out-of-bounds access returns clamped/empty, not undefined as in JS. Fixture asserts ChadScript behavior."
+    },
+    "tests/fixtures/arrays/string-array-bounds-check.ts": {
+      "category": "chadscript-semantics",
+      "note": "out-of-bounds access returns clamped/empty, not undefined as in JS. Fixture asserts ChadScript behavior."
+    },
+    "tests/fixtures/builtins/class-field-map-keys.ts": {
+      "category": "js-semantics",
+      "note": "console/object formatting differs from Node util.inspect (arrays/maps/classes/interfaces print differently)."
+    },
+    "tests/fixtures/builtins/console-log-array.ts": {
+      "category": "js-semantics",
+      "note": "console/object formatting differs from Node util.inspect (arrays/maps/classes/interfaces print differently)."
+    },
+    "tests/fixtures/builtins/console-log-class.ts": {
+      "category": "js-semantics",
+      "note": "console/object formatting differs from Node util.inspect (arrays/maps/classes/interfaces print differently)."
+    },
+    "tests/fixtures/builtins/console-log-interface.ts": {
+      "category": "js-semantics",
+      "note": "console/object formatting differs from Node util.inspect (arrays/maps/classes/interfaces print differently)."
+    },
+    "tests/fixtures/builtins/console-log-map.ts": {
+      "category": "js-semantics",
+      "note": "console/object formatting differs from Node util.inspect (arrays/maps/classes/interfaces print differently)."
+    },
+    "tests/fixtures/builtins/json-stringify-unsupported-map.ts": {
+      "category": "js-semantics",
+      "note": "console/object formatting differs from Node util.inspect (arrays/maps/classes/interfaces print differently)."
+    },
+    "tests/fixtures/edge-cases/array-index-float-conversion.ts": {
+      "category": "chadscript-semantics",
+      "note": "intentional: float array index truncates to int (arr[2.7]->arr[2]); JS yields undefined. Fixture asserts the ChadScript exit code."
+    },
+    "tests/fixtures/error-handling/try-catch-cross-function.ts": {
+      "category": "js-semantics",
+      "note": "ChadScript Error objects stringify to the bare message, not \"Error: <message>\" as in V8."
+    },
+    "tests/fixtures/error-handling/try-catch-deep-propagation.ts": {
+      "category": "js-semantics",
+      "note": "ChadScript Error objects stringify to the bare message, not \"Error: <message>\" as in V8."
+    },
+    "tests/fixtures/error-handling/try-catch-rethrow.ts": {
+      "category": "js-semantics",
+      "note": "ChadScript Error objects stringify to the bare message, not \"Error: <message>\" as in V8."
+    },
+    "tests/fixtures/error-handling/try-catch-throw.ts": {
+      "category": "js-semantics",
+      "note": "ChadScript Error objects stringify to the bare message, not \"Error: <message>\" as in V8."
+    },
+    "tests/fixtures/objects/object-method.ts": {
+      "category": "chadscript-semantics",
+      "note": "intentional quirk: obj.add(...) resolves to a free function add(); JS throws on calling a number. Fixture asserts ChadScript behavior."
+    },
+    "tests/fixtures/strings/string-at.ts": {
+      "category": "chadscript-semantics",
+      "note": "out-of-bounds access returns clamped/empty, not undefined as in JS. Fixture asserts ChadScript behavior."
+    },
+    "tests/fixtures/strings/string-char-bounds-check.ts": {
+      "category": "chadscript-semantics",
+      "note": "out-of-bounds access returns clamped/empty, not undefined as in JS. Fixture asserts ChadScript behavior."
+    },
+    "tests/fixtures/strings/string-charat-bounds.ts": {
+      "category": "chadscript-semantics",
+      "note": "out-of-bounds access returns clamped/empty, not undefined as in JS. Fixture asserts ChadScript behavior."
+    },
+    "tests/fixtures/strings/string-lastindexof-fromindex.ts": {
+      "category": "chadscript-semantics",
+      "note": "out-of-bounds access returns clamped/empty, not undefined as in JS. Fixture asserts ChadScript behavior."
+    },
+    "tests/fixtures/strings/string-methods.ts": {
+      "category": "js-semantics",
+      "note": "a boolean concatenated into a string prints 1/0, not true/false."
+    },
+    "tests/fixtures/test-runner/failures.ts": {
+      "category": "js-semantics",
+      "note": "test-runner output/formatting differs from the Node run."
+    }
+  }
+}
