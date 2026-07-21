@@ -11,6 +11,7 @@ import type {
   WhileStatement,
   IfStatement,
   ForStatement,
+  ReturnStatement,
   NumberNode,
   BinaryNode,
   UnaryNode,
@@ -216,6 +217,88 @@ class IntegerAnalyzer {
     }
   }
 
+  private addUniqueName(arr: string[], name: string): void {
+    for (let i = 0; i < arr.length; i++) {
+      if (arr[i] === name) return;
+    }
+    arr.push(name);
+  }
+
+  private containsName(arr: string[], name: string): boolean {
+    for (let i = 0; i < arr.length; i++) {
+      if (arr[i] === name) return true;
+    }
+    return false;
+  }
+
+  // Collect variable names used as an argument to a Math.* builtin. Narrowing such a variable
+  // to i64 truncates its fractional part before the builtin runs (e.g. Math.ceil(x) with
+  // x=3.2 computes ceil(3)=3 instead of 4), so these variables must be excluded from
+  // integer narrowing. Conservative: narrowing fewer variables is always correct.
+  private collectMathArgVars(stmts: Statement[], out: string[]): void {
+    for (let si = 0; si < stmts.length; si++) {
+      this.scanStatementForMathArgs(stmts[si], out);
+    }
+  }
+
+  private scanStatementForMathArgs(stmt: Statement, out: string[]): void {
+    if (!stmt) return;
+    const t = stmt.type;
+    if (t === "variable_declaration") {
+      this.scanExprForMathArgs((stmt as VariableDeclaration).value, out);
+    } else if (t === "assignment") {
+      this.scanExprForMathArgs((stmt as AssignmentStatement).value, out);
+    } else if (t === "return") {
+      this.scanExprForMathArgs((stmt as ReturnStatement).value, out);
+    } else if (t === "if") {
+      const ifStmt = stmt as IfStatement;
+      this.scanExprForMathArgs(ifStmt.condition, out);
+      this.collectMathArgVars(ifStmt.thenBlock.statements, out);
+      if (ifStmt.elseBlock) this.collectMathArgVars(ifStmt.elseBlock.statements, out);
+    } else if (t === "while" || t === "do_while") {
+      const loop = stmt as WhileStatement;
+      this.scanExprForMathArgs(loop.condition, out);
+      this.collectMathArgVars(loop.body.statements, out);
+    } else if (t === "for") {
+      const forStmt = stmt as ForStatement;
+      if (forStmt.init) this.scanStatementForMathArgs(forStmt.init as Statement, out);
+      if (forStmt.condition) this.scanExprForMathArgs(forStmt.condition, out);
+      if (forStmt.update) this.scanStatementForMathArgs(forStmt.update as Statement, out);
+      this.collectMathArgVars(forStmt.body.statements, out);
+    } else {
+      // Bare expression statement: the expression may be stored directly as the statement.
+      this.scanExprForMathArgs(stmt as unknown as Expression, out);
+    }
+  }
+
+  private scanExprForMathArgs(expr: Expression | null | undefined, out: string[]): void {
+    if (!expr) return;
+    const t = (expr as Expression).type;
+    if (t === "method_call") {
+      const mc = expr as MethodCallNode;
+      const obj = mc.object as VariableNode;
+      if (obj && obj.type === "variable" && obj.name === "Math") {
+        for (let i = 0; i < mc.args.length; i++) {
+          const a = mc.args[i] as VariableNode;
+          if (a && a.type === "variable") this.addUniqueName(out, a.name);
+        }
+      }
+      this.scanExprForMathArgs(mc.object, out);
+      for (let i = 0; i < mc.args.length; i++) this.scanExprForMathArgs(mc.args[i], out);
+    } else if (t === "call") {
+      const c = expr as CallNode;
+      for (let i = 0; i < c.args.length; i++) this.scanExprForMathArgs(c.args[i], out);
+    } else if (t === "binary") {
+      const b = expr as BinaryNode;
+      this.scanExprForMathArgs(b.left, out);
+      this.scanExprForMathArgs(b.right, out);
+    } else if (t === "unary") {
+      this.scanExprForMathArgs((expr as UnaryNode).operand, out);
+    } else if (t === "member_access") {
+      this.scanExprForMathArgs((expr as MemberAccessNode).object, out);
+    }
+  }
+
   findI64EligibleVariables(statements: Statement[], paramNames?: string[]): string[] {
     if (!statements || !statements.length) return [];
 
@@ -226,9 +309,15 @@ class IntegerAnalyzer {
     const isConst: number[] = [];
     const pendingDecls: VariableDeclaration[] = [];
 
+    // Variables consumed by a Math.* float builtin must never be narrowed (see method doc).
+    // Excluding them up front also stops the narrowing from propagating (e.g. m = x * x).
+    const floatVars: string[] = [];
+    this.collectMathArgVars(statements, floatVars);
+
     this.candidateNames = [];
     if (paramNames) {
       for (let pi = 0; pi < paramNames.length; pi++) {
+        if (this.containsName(floatVars, paramNames[pi])) continue;
         candidates.push(paramNames[pi]);
         isConst.push(0);
         this.candidateNames.push(paramNames[pi]);
@@ -238,6 +327,7 @@ class IntegerAnalyzer {
     for (let di = 0; di < allDecls.length; di++) {
       const varDecl = allDecls[di];
       if (!varDecl.value) continue;
+      if (this.containsName(floatVars, varDecl.name)) continue;
       if (this.isIntegerExpressionForCandidacy(varDecl.value)) {
         candidates.push(varDecl.name);
         isConst.push(varDecl.kind === "const" ? 1 : 0);

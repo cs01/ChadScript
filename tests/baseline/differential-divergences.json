@@ -1,10 +1,6 @@
 {
   "note": "Known divergences between the ChadScript-compiled binary and the Node oracle.",
   "divergences": {
-    "tests/fixtures/arithmetic/math-functions.ts": {
-      "category": "suspected-miscompile",
-      "note": "Math.ceil/round on a function-parameter argument is truncated by unsound i64 integer-narrowing (parameter narrowed to int before the float builtin). Tracked for fix."
-    },
     "tests/fixtures/arrays/array-at.ts": {
       "category": "chadscript-semantics",
       "note": "out-of-bounds access returns clamped/empty, not undefined as in JS. Fixture asserts ChadScript behavior."
