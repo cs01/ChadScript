@@ -25,10 +25,21 @@ const compiler = `${compilerBase} build`;
 const compilerLabel = compilerBase.includes("chad-node") ? "node" : "native";
 const buildDir = process.env.CHADC_BUILD_DIR || ".build";
 
+// A negative fixture that runs longer than this is treated as a hang (the compiler
+// should reject bad input promptly), turning it into a test failure rather than a pass.
+const COMPILE_ERROR_TIMEOUT_MS = Number(process.env.CHADC_COMPILE_ERROR_TIMEOUT_MS || 60000);
+
 describe(`ChadScript Compiler (${compilerLabel})`, () => {
   describe("Compilation and Execution", { concurrency: 32 }, () => {
     for (const testCase of testCases) {
       if (testCase.nativeOnly && compilerLabel === "node") continue;
+      // A negative fixture may be quarantined under the native host when the native
+      // compiler has a known gap (missing semantic check → internal error or invalid IR).
+      // The skip is loud and reason-tagged so it reads as tracked debt, not coverage.
+      if (testCase.nativeSkipReason && compilerLabel === "native") {
+        console.warn(`[native-skip] ${testCase.fixture}: ${testCase.nativeSkipReason}`);
+        continue;
+      }
       it(testCase.description, async () => {
         const fixturePath = testCase.fixture; // Use relative path, not resolved
         // Binaries now go in .build/ directory
@@ -48,22 +59,67 @@ describe(`ChadScript Compiler (${compilerLabel})`, () => {
         }
 
         try {
-          // Compile-error tests: assert compilation fails with expected message
+          // Compile-error tests: a negative fixture passes ONLY on a clean, documented
+          // compile failure — the compiler must exit normally with a nonzero code, print
+          // the expected diagnostic, and produce no executable. A crash (SIGSEGV/SIGABRT),
+          // a timeout, or a nonzero exit without the diagnostic is a TEST FAILURE, not a
+          // pass. (Salvage plan PR 1.1: stop accepting crashes as diagnostics.)
           if (testCase.compileError) {
+            // Native and node can legitimately diagnose the same rejected program with
+            // different wording; assert whichever this host actually emits.
+            const expectedDiagnostic =
+              compilerLabel === "native" && testCase.compileErrorNative
+                ? testCase.compileErrorNative
+                : testCase.compileError;
             await assert.rejects(
               async () => {
-                await execAsync(`${compiler} ${fixturePath} -o ${exeFile}`);
+                await execAsync(`${compiler} ${fixturePath} -o ${exeFile}`, {
+                  timeout: COMPILE_ERROR_TIMEOUT_MS,
+                });
               },
               (err: any) => {
                 const output = (err.stderr || "") + (err.stdout || "") + (err.message || "");
-                // Native compiler may crash on emitError — accept any non-zero exit,
-                // but verify the message when available
-                if (output.includes(testCase.compileError!)) {
-                  return true;
+                // A timeout kill (exec sets `killed` + SIGTERM) means the compiler hung
+                // instead of diagnosing — that is a failure, not a compile error.
+                if (err.killed) {
+                  throw new Error(
+                    `compile-error fixture ${fixturePath} timed out after ${COMPILE_ERROR_TIMEOUT_MS}ms ` +
+                      `instead of emitting the diagnostic "${expectedDiagnostic}".`,
+                  );
                 }
-                // Crashed or exited without the expected message — still a compile failure
-                const exitCode = err.code || err.status || 1;
-                assert.ok(exitCode !== 0, `Expected compilation to fail, but it succeeded`);
+                // A signal kill (SIGSEGV/SIGABRT/…) means the compiler crashed. The native
+                // compiler cannot throw, so an unchecked emitError path aborts the process —
+                // that must be fixed in the compiler, not accepted here.
+                if (err.signal) {
+                  throw new Error(
+                    `compile-error fixture ${fixturePath} crashed with signal ${err.signal} ` +
+                      `instead of emitting the diagnostic "${expectedDiagnostic}".`,
+                  );
+                }
+                // Require a clean numeric nonzero exit code. `err.code` is the process exit
+                // code (a number) on a normal exit, and null when signal-killed.
+                const exitCode = err.code;
+                if (typeof exitCode !== "number" || exitCode === 0) {
+                  throw new Error(
+                    `compile-error fixture ${fixturePath} did not exit with a clean nonzero code ` +
+                      `(code=${err.code}, signal=${err.signal}).`,
+                  );
+                }
+                // The expected diagnostic fragment is mandatory — a nonzero exit for some
+                // unrelated reason must not count as diagnosing the intended error.
+                if (!output.includes(expectedDiagnostic)) {
+                  throw new Error(
+                    `compile-error fixture ${fixturePath} exited ${exitCode} but its output did not ` +
+                      `contain the expected diagnostic "${expectedDiagnostic}".\nActual output:\n${output}`,
+                  );
+                }
+                // A diagnosed compile error must not also produce an executable.
+                if (fsSync.existsSync(exeFile)) {
+                  throw new Error(
+                    `compile-error fixture ${fixturePath} produced an executable at ${exeFile} ` +
+                      `despite reporting a compile error.`,
+                  );
+                }
                 return true;
               },
             );

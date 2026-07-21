@@ -2,13 +2,15 @@
 // Replaces the manually-maintained test-fixtures.ts registry.
 //
 // Annotation format (in the first 10 lines of each fixture file):
-//   // @test-exit-code: 12       — assert process exits with code 12
-//   // @test-compile-error: msg  — assert compilation fails with error containing "msg"
-//   // @test-args: hello world   — pass CLI args to the compiled binary
-//   // @test-description: ...    — custom test description
-//   // @test-native-only         — skip when running with node compiler
-//   // @test-skip                — exclude from auto-discovery
-//   // @test-requires-env: VAR   — skip unless process.env.VAR is set and non-empty
+//   // @test-exit-code: 12          — assert process exits with code 12
+//   // @test-compile-error: msg     — assert compilation fails with error containing "msg"
+//   // @test-compile-error-native: msg — native host asserts this message instead (host divergence)
+//   // @test-args: hello world      — pass CLI args to the compiled binary
+//   // @test-description: ...       — custom test description
+//   // @test-native-only            — skip when running with node compiler
+//   // @test-native-skip: reason    — skip under native host; reason is MANDATORY and logged
+//   // @test-skip                   — exclude from auto-discovery
+//   // @test-requires-env: VAR      — skip unless process.env.VAR is set and non-empty
 //
 // Defaults (no annotation needed):
 //   expectTestPassed: true — asserts stdout contains TEST_PASSED and exit code 0
@@ -24,17 +26,25 @@ export interface TestCase {
   expectedExitCode?: number;
   expectTestPassed?: boolean;
   compileError?: string;
+  // Native host emits a different (but still clean and real) diagnostic for the same
+  // rejected program; assert this fragment under the native compiler instead.
+  compileErrorNative?: string;
   args?: string[];
   nativeOnly?: boolean;
+  // Skip this fixture under the native host. Carries a mandatory human reason describing
+  // the known native gap so the divergence is tracked, not silently blessed.
+  nativeSkipReason?: string;
 }
 
 interface ParsedAnnotations {
   exitCode?: number;
   compileError?: string;
+  compileErrorNative?: string;
   args?: string[];
   description?: string;
   skip: boolean;
   nativeOnly: boolean;
+  nativeSkipReason?: string;
   requiresEnv?: string;
 }
 
@@ -65,9 +75,20 @@ function parseAnnotations(filePath: string): ParsedAnnotations {
       result.args = argsMatch[1].trim().split(/\s+/);
     }
 
-    const compileErrorMatch = trimmed.match(/^\/\/\s*@test-compile-error:\s*(.+)/);
-    if (compileErrorMatch) {
-      result.compileError = compileErrorMatch[1].trim();
+    const compileErrorNativeMatch = trimmed.match(/^\/\/\s*@test-compile-error-native:\s*(.+)/);
+    if (compileErrorNativeMatch) {
+      result.compileErrorNative = compileErrorNativeMatch[1].trim();
+    } else {
+      // else-guard: the -native form must not also match the plain form below
+      const compileErrorMatch = trimmed.match(/^\/\/\s*@test-compile-error:\s*(.+)/);
+      if (compileErrorMatch) {
+        result.compileError = compileErrorMatch[1].trim();
+      }
+    }
+
+    const nativeSkipMatch = trimmed.match(/^\/\/\s*@test-native-skip:\s*(.+)/);
+    if (nativeSkipMatch) {
+      result.nativeSkipReason = nativeSkipMatch[1].trim();
     }
 
     const descMatch = trimmed.match(/^\/\/\s*@test-description:\s*(.+)/);
@@ -133,6 +154,12 @@ export function discoverTests(fixturesDir: string = "tests/fixtures"): TestCase[
 
     if (annotations.compileError) {
       testCase.compileError = annotations.compileError;
+      if (annotations.compileErrorNative) {
+        testCase.compileErrorNative = annotations.compileErrorNative;
+      }
+      if (annotations.nativeSkipReason) {
+        testCase.nativeSkipReason = annotations.nativeSkipReason;
+      }
     } else if (annotations.exitCode !== undefined) {
       testCase.expectedExitCode = annotations.exitCode;
     } else {
