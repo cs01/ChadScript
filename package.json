@@ -31,7 +31,8 @@
     "format:check": "prettier --check .",
     "prepare": "HOOKS=$(git rev-parse --git-common-dir)/hooks && git config core.hooksPath \"$HOOKS\" && cp scripts/pre-commit \"$HOOKS/pre-commit\" && chmod +x \"$HOOKS/pre-commit\" && cp scripts/pre-push \"$HOOKS/pre-push\" && chmod +x \"$HOOKS/pre-push\"",
     "baseline": "node --import tsx scripts/compiler-baseline.ts",
-    "diff-exec": "node --import tsx scripts/differential-exec.ts"
+    "diff-exec": "node --import tsx scripts/differential-exec.ts",
+    "diff-fuzz": "node --import tsx scripts/diff-fuzz.ts"
   },
   "keywords": [
     "compiler",
