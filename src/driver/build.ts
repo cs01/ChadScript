@@ -9,7 +9,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { lower } from "../lower/lower.js";
 import { generate } from "../codegen/codegen.js";
-import { CLANG } from "./toolchain.js";
+import { CLANG, GC_FLAGS } from "./toolchain.js";
 import type { LoadedProgram } from "../frontend/program.js";
 
 const runtimeDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "runtime");
@@ -41,6 +41,7 @@ export function build(loaded: LoadedProgram, opts: BuildOptions): void {
       llPath,
       ...runtimeSources,
       "-lm", // `%` on doubles lowers to an fmod libcall in libm; macOS auto-links it, Linux doesn't
+      ...GC_FLAGS, // Boehm GC (libgc)
       "-o",
       opts.outPath,
     ],

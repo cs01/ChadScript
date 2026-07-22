@@ -34,6 +34,7 @@ export function generate(hmod: HModule): string {
   mod.declareExtern("cs_num_to_string", T.ptr, [T.double]);
   mod.declareExtern("cs_bool_to_string", T.ptr, [T.i32]);
   mod.declareExtern("cs_str_eq", T.i32, [T.ptr, T.ptr]);
+  mod.declareExtern("cs_gc_init", T.void, []);
   mod.declareExtern("exit", T.void, [T.i32]);
 
   // User functions first (order doesn't matter — LLVM resolves calls by name, so recursion and
@@ -43,6 +44,7 @@ export function generate(hmod: HModule): string {
   // The synthesized entry function holds the top-level statements.
   const main = mod.defineFunc("main", T.i32, []);
   const ctx: Ctx = { mod, fn: main, vars: new Map(), breakTargets: [], continueTargets: [] };
+  ctx.fn.callVoid("@cs_gc_init", []); // start Boehm GC before any allocation
   emitStatements(hmod.topLevel, ctx);
   main.ret(imm(T.i32, 0));
   return mod.render();

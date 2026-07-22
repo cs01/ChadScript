@@ -22,21 +22,23 @@ jobs:
 
       # LLVM (clang + opt). Installed as versioned binaries on Linux; point the compiler at
       # them via CHAD_CLANG / CHAD_OPT (see src/driver/toolchain.ts).
-      - name: Install LLVM (Linux)
+      - name: Install LLVM + Boehm GC (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-18 llvm-18
+          sudo apt-get install -y clang-18 llvm-18 libgc-dev
           echo "CHAD_CLANG=clang-18" >> "$GITHUB_ENV"
           echo "CHAD_OPT=opt-18" >> "$GITHUB_ENV"
+          # libgc-dev installs into system paths; no CHAD_GC_PREFIX needed.
 
-      - name: Install LLVM (macOS)
+      - name: Install LLVM + Boehm GC (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install llvm
+          brew install llvm bdw-gc
           PREFIX="$(brew --prefix llvm)"
           echo "CHAD_CLANG=$PREFIX/bin/clang" >> "$GITHUB_ENV"
           echo "CHAD_OPT=$PREFIX/bin/opt" >> "$GITHUB_ENV"
+          echo "CHAD_GC_PREFIX=$(brew --prefix bdw-gc)" >> "$GITHUB_ENV"
 
       - run: bun install --frozen-lockfile
 
