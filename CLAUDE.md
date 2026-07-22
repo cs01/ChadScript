@@ -1,409 +1,75 @@
-# ChadScript Rules
-
-## Workflow (relaxed 2026-07)
-
-**Committing directly to `main` is fine.** Worktrees and PRs are optional, not required. Pick whatever
-is lowest-friction for the task:
-
-- Small/independent changes: commit straight to `main` and push.
-- Larger or riskier changes you want reviewed in isolation: use a branch (and optionally a worktree + PR).
-
-CI is not a hard gate anymore — a red CI run does not block landing. Still, don't knowingly break the
-build; run `npm run verify:quick` (or at least the relevant tests) before pushing when practical, and fix
-regressions you introduce.
-
-Agents have push access to `main` and feature branches and merge access to PRs. When you do open a PR,
-still see it through (monitor, fix, merge) rather than leaving it orphaned.
-
-Worktree tip (when you do use one): each worktree builds its own `vendor/` — see "Worktree Setup" below.
-
-## PR title + body format
-
-**Title**: `[topic] change` — topic is the area touched (e.g. `codegen`, `parser-native`, `ci`, `stdlib/net`, `llvm-builder`). Change is the one-line summary of what this PR does. **Never** use internal step/phase names like "phase 3 step 2" or "step4-phase1b" in the title — those mean nothing to anyone reading the PR list.
-
-Good:
-- `[codegen] seed symbol table on typed let-decl without init`
-- `[parser-native] restore trailing return in bare switch case bodies`
-- `[llvm-builder] add 5 remaining opcode wrappers`
-
-Bad:
-- `step4-phase1b: remaining ops`
-- `phase-e step 5 part 3 follow-up`
-
-**Body** must include **Before** and **After** sections describing the user-facing change (or, if purely internal, the behavior difference before vs after). Add `## Description` with any additional context. Example:
-
-```
-## Before
-Compiler failed with "Method 'on' on 'sock' is not supported" when using `let sock: Socket;` followed by a conditional assignment.
-
-## After
-`sock.on(...)` resolves correctly via the declared `Socket` interface regardless of how `sock` is later assigned.
-
-## Description
-Seeds the symbol table with the declared type at decl-without-init sites in variable-allocator. ~6 LOC fix.
-```
-
-If the PR is purely internal (no user-visible effect), state that explicitly in **After**: `No user-facing change. Internal refactor only.`
-
-## Testing & Commit Workflow
-
-After completing each todo:
-
-1. Run unit tests
-2. If tests pass, commit the changes
-3. If tests fail, fix them before moving to the next todo
-4. Never move on to the next todo while tests are failing
-
-## Self-Hosting Verification
-
-Before considering any feature complete, run the full self-hosting chain:
-
-1. `npm run verify` — runs tests and self-hosting in parallel (preferred)
-2. `npm run verify:quick` — same but skips Stage 2 (day-to-day dev)
-
-Or manually:
-
-1. `npm test` — all tests pass (auto-uses native compiler if `.build/chad` exists)
-2. `bash scripts/self-hosting.sh` — full 3-stage self-hosting
-3. `bash scripts/self-hosting.sh --quick` — skip Stage 2
-
-New features have complex side effects that may not be caught by unit tests alone. A change that passes all tests can still break self-hosting. The Stage 2 test is the true verification — it proves the compiler's output is correct enough to compile itself.
-
-## Versioning & Releases
-
-Version is defined in one place: `package.json`. `npm run build` auto-generates `src/version.ts` via the `prebuild` script (`scripts/gen-version.js`). Both `chad-node.ts` and `chad-native.ts` import `VERSION` from there.
-
-To bump a version:
-1. Edit `version` in `package.json`
-2. `npm run build` (regenerates `src/version.ts`)
-3. Merge to main
-4. `git tag v<version> && git push origin v<version>` — CI creates a GitHub Release with binaries
-
-## Stale Native Compiler
-
-After a rebase or merge that brings in new codegen features, `.build/chad` becomes stale — it was compiled
-from the old source and doesn't know how to compile the new features. **Rebuild it**:
-
-```bash
-rm -f .build/chad && node dist/chad-node.js build src/chad-native.ts -o .build/chad
-```
-
-Tests auto-detect `.build/chad` and use it over `node dist/chad-node.js`. A stale native compiler causes
-mysterious test failures that pass fine with the node compiler.
-
-## Worktree Setup
-
-Each worktree builds its own `vendor/` — do not symlink it from another worktree or the main repo. Different branches may have different `c_bridges/` sources, and a shared vendor dir causes races and silent corruption when multiple agents build concurrently.
-
-```bash
-bash scripts/build-vendor.sh
-```
-
-`npm test` rebuilds `dist/` only if `src/` is newer, and builds `.build/chad` only if missing.
-
-# ChadScript Architecture Guide
-
-## What It Is
-
-TypeScript-to-native compiler using LLVM IR. Compiles .ts/.js files to native binaries via: Parser → AST → Semantic Analysis → LLVM IR Codegen → clang (compile + link) → native binary.
-
-## Key Directories
-
-| Dir                                       | Purpose                                                                           |
-| ----------------------------------------- | --------------------------------------------------------------------------------- |
-| `src/semantic/`                           | Semantic analysis passes run before codegen (closure mutation, union types)       |
-| `src/codegen/`                            | LLVM IR code generation (the core)                                                |
-| `src/codegen/expressions/method-calls.ts` | Central dispatcher for all `object.method()` calls                                |
-| `src/codegen/types/collections/string/`   | String method IR generators (manipulation.ts, search.ts, split.ts, etc.)          |
-| `src/codegen/types/collections/string.ts` | `StringGenerator` facade that delegates to sub-modules                            |
-| `src/codegen/types/collections/array.ts`  | `ArrayGenerator` facade that delegates to sub-modules                             |
-| `src/codegen/types/collections/array/`    | Array sub-modules (literal, mutators, search-predicate, iteration, combine, etc.) |
-| `src/codegen/stdlib/`                     | Built-in module generators (console.ts, process.ts, fs.ts, math.ts, etc.)         |
-| `src/codegen/infrastructure/`             | Core: generator-context.ts, symbol-table.ts, type-resolver.ts                     |
-| `src/codegen/llvm-generator.ts`           | Main orchestrator, delegates to sub-generators                                    |
-| `src/ast/types.ts`                        | AST node type definitions                                                         |
-| `tests/compiler.test.ts`                  | Main test suite                                                                   |
-| `tests/test-discovery.ts`                 | Auto-discovers test fixtures via `@test` annotations                              |
-| `tests/fixtures/`                         | Test fixture programs organized by category (auto-discovered)                     |
-| `c_bridges/`                              | C bridge files for complex runtime helpers (regex, json, os, etc.)                |
-
-## How to Add a New String Method
-
-1. **IR Generation**: Add function in `src/codegen/types/collections/string/manipulation.ts` (or search.ts, etc.)
-2. **Facade**: Add `doGenerateX()` in `src/codegen/types/collections/string.ts` (StringGenerator class)
-3. **Dispatch**: Add `if (method === 'x')` block in `src/codegen/expressions/method-calls.ts`
-4. **Handler**: Add `private handleX()` method in method-calls.ts
-5. **Test**: Add fixture in `tests/fixtures/strings/` (auto-discovered, no registry needed)
-
-**NOTE**: Prefer direct field access (`ctx.stringGen.doMethod()`) over adding wrapper methods to `IGeneratorContext`. Concrete type propagation in `loadFieldValue` (member.ts) ensures chained access through interface fields works in the native compiler.
-
-## How to Add a New Built-in (process.x, console.x, etc.)
-
-1. Check if existing generator handles it (e.g., `src/codegen/stdlib/process.ts`)
-2. Most built-ins are handled inline in `method-calls.ts` for performance
-3. For member access (not method calls), look at `src/codegen/expressions/member.ts`
-4. Test: add fixture in `tests/fixtures/builtins/` (auto-discovered, no registry needed)
-
-## Struct Types
-
-| LLVM Type                                | JS Type                                   |
-| ---------------------------------------- | ----------------------------------------- |
-| `%Array = type { double*, i32, i32 }`    | `number[]` (data ptr, length, capacity)   |
-| `%StringArray = type { i8**, i32, i32 }` | `string[]`                                |
-| `%ObjectArray = type { i8*, i32, i32 }`  | `object[]`                                |
-| `%Uint8Array = type { i8*, i32, i32 }`   | `Uint8Array` (data ptr, length, capacity) |
-| `i8*`                                    | `string` (null-terminated C string)       |
-| `double`                                 | `number`                                  |
-| `i1`                                     | `boolean`                                 |
-
-## Test Patterns
-
-Tests are auto-discovered from `tests/fixtures/` via `@test` annotations in `tests/test-discovery.ts`.
-No manual registry — just add a fixture file and it's picked up automatically.
-
-Annotation format (in the first 10 lines of each fixture file):
-
-- `// @test-exit-code: 12` — assert process exits with code 12
-- `// @test-args: hello world` — pass CLI args to the compiled binary
-- `// @test-description: ...` — custom test description
-- `// @test-skip` — exclude from auto-discovery
-
-Defaults (no annotation needed):
-
-- `expectTestPassed: true` — asserts stdout contains `TEST_PASSED` and exit code 0
-- Description auto-generated from filename: `string-split-length.ts` → `string split length`
-
-Run tests: `npm test` or `npm run test:full` (via `node scripts/test.js`)
-Run tests + self-hosting: `npm run verify` (or `npm run verify:quick` to skip Stage 2)
-Build: `npm run build` (TypeScript → dist/)
-
-Tests auto-detect `.build/chad` and use it instead of `node dist/chad-node.js` (~10x faster per compile).
-`compiler.test.ts` runs at concurrency 32; `smoke.test.ts` at concurrency 8.
-
-## Useful Patterns
-
-- `ctx.nextTemp()` — get next SSA temp variable name (%1, %2, etc.)
-- `ctx.nextLabel(prefix)` — get next unique label for control flow
-- `ctx.emit(line)` — emit a line of LLVM IR
-- `ctx.generateExpression(expr, params)` — recursively generate an expression
-- `ctx.setVariableType(name, type)` — tell the type system what type a temp is
-- `createStringConstant(ctx, value)` — create a global string constant, returns i8\*
-- `GC_malloc_atomic(size)` — allocate GC'd memory for non-pointer data (strings)
-- `GC_malloc(size)` — allocate GC'd memory that may contain pointers
-
-## Structured IR Builders
-
-Prefer structured builder methods over raw `ctx.emit()` for all supported instructions:
-
-**Memory & access:** `emitStore`, `emitLoad`, `emitGep`, `emitCall`, `emitCallVoid`, `emitBitcast`
-**Comparison:** `emitIcmp`, `emitFcmp`
-**Control flow:** `emitBr`, `emitBrCond`, `emitLabel`, `emitRet`, `emitRetVoid`, `emitUnreachable`
-**Arithmetic:** `emitAdd`, `emitSub`, `emitMul`, `emitFAdd`, `emitFSub`, `emitFMul`, `emitFDiv`, `emitSRem`, `emitFRem`, `emitFNeg`
-**Casts:** `emitZext`, `emitSext`, `emitTrunc`, `emitSitofp`, `emitFptosi`, `emitPtrtoint`, `emitInttoptr`
-**Bitwise:** `emitAnd`, `emitOr`, `emitXor`, `emitShl`, `emitAShr`, `emitLShr`
-**Other:** `emitPhi`, `emitSelect`, `emitAlloca`
-
-Keep `ctx.emit()` only for: `inbounds` GEP, `!tbaa` metadata, `call void @llvm.memcpy`, and other
-exotic instructions without builders.
-
-## Terminator Classification
-
-LLVM basic blocks must end with exactly one terminator instruction (`ret`, `br`, `unreachable`, `switch`).
-Rather than parsing emitted strings to detect terminators, we use a parallel `outputIsTerminator: boolean[]`
-that auto-classifies every instruction at `emit()` time. Use `ctx.lastInstructionIsTerminator()` to check.
-
-**Single source of truth**: The classification logic lives in `terminator-classifier.ts` as a standalone
-function. Both `BaseGenerator` and `MockGeneratorContext` delegate to it. To add a new terminator
-(e.g., `invoke`, `indirectbr`), update `classifyTerminator()` in that one file.
-
-Builder methods (`emitRet`, `emitRetVoid`, `emitBr`, `emitBrCond`, `emitUnreachable`, `emitLabel`) are
-available on `BaseGenerator`, `LLVMGenerator`, and `MockGeneratorContext` for type-safe terminator emission.
-
-## Method Dispatch Flow
-
-`method-calls.ts` → `generateMethodCall()` checks object type and method name:
-
-1. Static methods first (Object.keys, Array.from, Promise.all, etc.)
-2. Built-in objects (console, process, fs, path, JSON, Math, Date)
-3. String methods (trim, indexOf, split, replace, etc.)
-4. Array methods (push, pop, map, filter, find, etc.)
-5. Map/Set methods
-6. Class/interface method dispatch (vtable lookup)
-
-## C Bridges
-
-For complex runtime logic (nested loops, string manipulation, data structure building), prefer writing
-C bridge functions in `c_bridges/` over raw LLVM IR string concatenation. C bridges are easier to read,
-debug, and maintain.
-
-Pattern:
-
-1. Create `c_bridges/your-bridge.c` with `cs_` prefixed functions
-2. Add build step in `scripts/build-vendor.sh` (compile to `.o`)
-3. Declare extern functions in LLVM IR and call them from codegen
-4. Add conditional linking in `src/compiler.ts` and `src/native-compiler-lib.ts`
-5. Add to `scripts/build-target-sdk.sh` bridge list (cross-compile SDK packaging)
-6. Add to `ci.yml` in all 4 places: Linux verify loop, Linux release copy, macOS verify loop, macOS release copy
-
-Existing bridges: `regex-bridge.c`, `yyjson-bridge.c`, `os-bridge.c`, `child-process-bridge.c`,
-`child-process-spawn.c`, `lws-bridge.c`, `treesitter-bridge.c`.
-
-### child_process.spawn — bidirectional stdio
-
-`child_process.spawn()` returns an opaque handle (`i8*`) for long-lived children with
-interactive stdio (DAP adapters, REPL subprocesses, etc.):
-
-```ts
-const h = child_process.spawn("lldb-dap", [], onStdout, onStderr, onExit);
-child_process.writeStdin(h, "Content-Length: 42\r\n\r\n{...}");
-child_process.endStdin(h);      // sends EOF
-child_process.kill(h, 15);      // optional signum, default SIGTERM
-```
-
-Handle lifecycle is refcounted in `child-process-spawn.c` (proc + 3 pipes each hold a ref;
-freed when all closed). `onExit` fires once after stdout/stderr/proc all close; stdin close
-doesn't gate exit (user controls it). Writes after child exit, `kill` after exit, and
-`writeStdin`/`endStdin` on null handles are all no-ops — never crash.
-
-## Codegen Quick Rules
-
-1. **Hoist allocas to entry block** — never in conditional branches
-2. **Store pointers as `i8*`** — `double` loses 64-bit precision
-3. **Check class before interface** — try `findClassImplementingInterface()` BEFORE `interfaceStructGen.hasInterface()`
-4. **Load array values in objects** — load the value, don't pass the alloca
-5. **Type cast field order must match FULL struct layout** — when the type extends a parent interface, the struct includes ALL parent fields. `as { name, closureInfo }` on a `LiftedFunction extends FunctionNode` (10 fields) reads index 1 instead of index 9. Include every field.
-6. **`ret void` not `unreachable`** at end of void functions
-7. **Class structs: boolean is `i1`; Interface structs: boolean is `double`**
-8. **Propagate declared type before generating RHS for collection fields** — when a class field is typed `Set<string>`, `Map<K,V>`, etc., call `setCurrentDeclaredSetType` / `setCurrentDeclaredMapType` before `generateExpression` on the RHS so that `new Set()` / `new Map()` without explicit type args picks the right generator. See `handleClassFieldAssignment` in `assignment-generator.ts`.
-9. **Set feature flags when emitting gated extern calls** — runtime declarations for C bridges (yyjson, curl, etc.) are conditionally emitted behind flags like `usesJson`, `usesCurl`. Any code path that emits `call @csyyjson_*` must call `ctx.setUsesJson(true)`, etc. Missing this causes "undefined value" errors from `clang` because the `declare` is never emitted.
-
-## Interface Field Iteration
-
-When building field lists for an interface (keys/types arrays for ObjectMetadata), always use
-`getAllInterfaceFields(interfaceDef)` instead of `interfaceDef.fields`. The latter only returns the
-interface's OWN fields, missing inherited fields from `extends`. This causes wrong GEP indices for
-any interface with inheritance. All current allocation methods (`allocateDeclaredInterface`,
-`allocateMemberAccessInterface`, `allocateFunctionInterfaceReturn`, etc.) use `getAllInterfaceFields`
-correctly — maintain this when adding new ones.
-
-## Loop Style
-
-Prefer `for...of` over index-based `for` loops when iterating arrays — it's fully supported and more idiomatic:
-
-```typescript
-for (const item of items) { ... }         // good
-for (let i = 0; i < items.length; i++) {} // only when index is needed
-```
-
-## Code Style
-
-- Prettier auto-formats code; run `npm run format` to fix, `npm run format:check` to verify
-- One-line comments are helpful on dense codegen blocks — explain the "why" or the LLVM IR pattern, not the "what"
-- Use named AST types from `src/ast/types.ts` for type assertions instead of inline `as { ... }` structs
-- There are several MASSIVE files. Where possible, do not add to them. Make a new file, and leave a comment in the other file to not touch it anymore, and to progressively break it down into smaller files.
-
-## Investigating Suspected Bugs
-
-**Tiny synthetic experiments beat speculative code changes.** When a PR causes a Stage 0→1 segfault and the cause is unclear, the productive move is a 10-line fixture targeting one specific suspected pattern, compiled with the actual native compiler — not a new sema rule based on a guess.
-
-The Apr 2026 sweep showed five "Patterns That Crash" prose rules were either already enforced or wrong about the actual bug class. Every PR built on those rules (#679, #681, #682) failed Stage 0→1 in ways that could have been ruled out in minutes by an EXP-style fixture.
-
-Workflow:
-1. Form one falsifiable hypothesis ("X causes Y").
-2. Write a `<50` LOC `.ts` fixture that should trigger Y if X is the cause.
-3. Compile with `.build/chad build /tmp/fixture.ts -o /tmp/out` and run.
-4. Output deterministically tells you yes/no.
-5. Only then write a sema rule, and only with that fixture as the positive test.
-
-The `/tmp/exp[1-8]-*.ts` series in this branch's history is the format. Don't ship a checker for a bug class you can't reproduce in `< 20` LOC.
-
-## Patterns That Crash Native Code
-
-These rules used to be honor-system prose; the project is moving them into enforced sema passes one at a time. Each item below links to the checker (if shipped) or the synthetic repro fixture (if just observed).
-
-1. **`alloca` for collection structs stored in class fields** — `%Set`, `%StringSet`, `%Map`, and similar structs must be heap-allocated via `GC_malloc`, not `alloca`. Stack-allocated structs become dangling pointers when stored in a class field after the constructor returns. Use `emitCall("i8*", "@GC_malloc", "i64 N") + emitBitcast(...)` instead of `emit("... = alloca %Foo")`. (Not yet enforced.)
-
-2. **`||` / `??` fallback to object literal opacifies the result type.** `const x = foo.bar || { field: [] }` followed by `x.field` reads garbage memory. **Enforced** by `src/semantic/or-fallback-checker.ts`. Synthetic repro: `tests/fixtures/errors/or-fallback-object-literal.ts`.
-
-> The previous "Patterns That Crash" list also included rules about inline `as { ... }` casts, partial AST types like `FunctionMeta`, and "type assertions must include every parent-extends field." Synthetic experiments (Apr 2026) showed those rules were either already caught by `src/semantic/type-assertion-checker.ts` (the prefix verifier) or were not actually the bug class they claimed to be — the parser auto-fills missing fields for both `let x: Foo = {...}` and `{...} as Foo`. Removed to avoid steering future work toward false leads. The actual unaccounted-for hazard is **inline `as { ... }` on an `object`/opaque-typed source** (no source interface for the prefix checker to compare against) — synthetic repro at `/tmp/exp7-fresh-inline.ts`, sema rule pending.
-
-## Stage 0 Compatibility
-
-Self-hosting limitations:
-
-- **No import aliases** — `import { foo as bar }` compiles `bar(...)` as `@_cs_bar` which doesn't match the original `@_cs_foo`. Use the original name.
-- **No union type parameters in standalone functions** — `fn(x: Expression)` where `Expression` is a union emits the TS type name literally. Keep union-typed parameters in class methods.
-
-## Module System
-
-ChadScript merges all imported files into one flat AST. `export default` maps the local import name to the exported name via `importAliases` (resolved in `resolveImportAlias()`). Re-exports synthesize `ImportDeclaration` entries — semantically equivalent to imports.
-
-## Discriminated Dispatch — No Silent Defaults
-
-When dispatching on a discriminated value (ArrayKind, SymbolKind, etc.), ALWAYS use `switch` with
-explicit cases and `throw` on default. NEVER use if/else chains with a silent fallthrough return.
-
-```typescript
-// WRONG — silent fallthrough hides missing cases
-function toLlvm(kind: number): string {
-  if (kind === ArrayKind_Number) return "%Array*";
-  if (kind === ArrayKind_String) return "%StringArray*";
-  return "i8*"; // silent garbage for any new kind
-}
-
-// RIGHT — switch + throw, crashes loud on unhandled case
-function toLlvm(kind: number): string {
-  switch (kind) {
-    case ArrayKind_Number: return "%Array*";
-    case ArrayKind_String: return "%StringArray*";
-    case ArrayKind_Object: return "%ObjectArray*";
-    default: throw new Error(`unknown ArrayKind ${kind}`);
-  }
-}
-```
-
-For TypeScript-only code (not self-hosted), use literal union types + `never` for compile-time
-exhaustiveness: `type ArrayKind = 0 | 1 | 2 | 3 | 4;` with
-`default: { const _: never = kind; throw new Error(...); }`.
-
-## Enums — Not Supported
-
-Enum declarations emit a compile error with a suggestion to use `as const` objects instead. The semantic
-pass `enum-checker.ts` rejects all enums before codegen. The compiler's own internal "enums" (SymbolKind,
-VarKind, LogLevel) were converted to plain `const` number values (e.g., `const SymbolKind_Number = 0`).
-
-## Optional Method Calls (`?.()`)
-
-`MethodCallNode.optional` (must be at END of interface — see rule #3 above) triggers null-check branching in `generateOptionalMethodCall` in `method-calls.ts`. Pattern: evaluate object → icmp null → branch → phi merge, similar to `generateOptionalChain` for property access.
-
-## Async/Await Type Tracking
-
-`allocateAwaitResult` in `variable-allocator.ts` must inspect the awaited expression to determine the correct SymbolKind. Default is `i8*`/string, but `Promise.all()` resolves to `%ObjectArray*`. For each new async API that resolves to a specific type, add a detection case to `allocateAwaitResult`.
-
-## Semantic Analysis Passes
-
-Semantic passes live in `src/semantic/` and run before codegen (called from `LLVMGenerator.generateParts()`).
-They catch errors that would produce silently wrong native code — the native compiler can't throw exceptions
-at runtime, so these must be compile-time errors.
-
-Current passes:
-
-- **`closure-mutation-checker.ts`** — ChadScript closures capture by value. Mutating a variable after capture
-  produces silently wrong results. This pass detects post-capture assignments and emits a compile error.
-- **`union-type-checker.ts`** — Type alias unions like `type Mixed = string | number` bypass the inline union
-  check. This pass resolves aliases and rejects unions whose members map to different LLVM representations.
-
-To add a new semantic pass: create `src/semantic/your-check.ts`, export a `checkX(ast: AST): void` function,
-and call it from `generateParts()` in `llvm-generator.ts`.
-
-## LLVMGenerator.reset()
-
-New per-function state goes in `BaseGenerator.reset()` if it's a base field, or after `super.reset()` in the override for LLVMGenerator-only fields.
-
-## Expression Orchestrator — No Silent Nulls
-
-`orchestrator.ts` must **never** silently generate null pointers (`inttoptr i64 0 to i8*`) for unrecognized
-expressions. These nulls are UB that LLVM `-O2` can exploit to prune unrelated code paths. Both fallback
-paths (empty type, unsupported type) now call `ctx.emitError()` which is `never`-typed — it exits the
-compiler immediately. If a new expression type is added to the parser, add a handler in the orchestrator;
-don't rely on a fallback.
+# ChadScript v2 Rules (the `v2` branch)
+
+Read `PLAN.md` first — it is the charter (mission, language contract, architecture,
+phases, locked decisions). This file is the standing law for every session.
+
+This branch is the from-scratch rewrite. `main` holds the dead v1 compiler — never land
+work there; recover v1 code with `git show main:<path>`. Commit directly to this branch
+and push (`origin v2`); no PRs required.
+
+## The constitution (never violate)
+
+1. **tsc is the type oracle.** No custom type inference anywhere. Frontend = TypeScript
+   Compiler API at max strictness; zero diagnostics or the program is not ours to compile.
+2. **Reject, don't approximate.** If we can't compile a construct with Node-identical
+   semantics, the validator rejects it with an error code + span + suggested rewrite.
+   "Compiles but diverges from Node" is a P0 bug, no exceptions.
+3. **Sema before codegen, totally.** Every HIR node carries a `TypeId` before the backend
+   runs. Backend has zero inference; missing annotation = `ice()` (never-typed throw).
+4. **Node is the semantics oracle.** Default test = diff stdout/exit-code of native binary
+   vs Node on the same source. No self-reporting TEST_PASSED fixtures.
+5. **No silent anything.** Discriminated dispatch = `switch` + `never` exhaustiveness +
+   throw default. No fallback IR, no default types, no null-pointer placeholders.
+6. **Never self-host.** The compiler runs on Node, forever.
+
+## Workflow
+
+- Every commit: differential suite + rejection suite green. New behavior → new fixture in
+  the same commit, fixture written first.
+- Suspected miscompile: write a <50-LOC synthetic fixture, compile, run, confirm the
+  mechanism — before any fix or fix-plan. No LOC estimates for unconfirmed hypotheses.
+- Optimization passes land flag-off, get fuzzer-gated nightly runs, then flip on.
+- Estimates in LOC, never time.
+- Commits: one line, all lowercase.
+
+## Code style
+
+- New feature = new file. No file grows past ~800 lines; split first.
+- TypeScript for the compiler (strict), C for the runtime (`cs_` prefix, kept from v1).
+- C runtime ABI: JS numbers cross the boundary as `double`, never `int`/`long`
+  (silent ABI mismatch class from v1).
+- Comments explain WHY (constraints, invariants, IR patterns), not what.
+- Strings in the runtime are UTF-8 `{ptr, len}` — never rely on NUL termination.
+  JS-exact semantics guaranteed for ASCII; unicode decision revisits at Phase 4
+  (see PLAN.md "Decisions locked").
+
+## IR builder discipline
+
+- All IR goes through the typed builder: values are `{name, type}` records; a
+  `BasicBlock` requires exactly one terminator by construction.
+- Raw string emission into IR is banned outside the builder module itself.
+- Every compile verifies: clang rejects bad IR; CI also runs `opt -passes=verify` per
+  fixture at -O0 and -O2, and diffs -O0 vs -O2 program output (difference = UB = P0).
+
+## Testing
+
+- `tests/fixtures/**` auto-discovered. Two kinds:
+  - differential: run under Node and as native binary, diff stdout + exit code.
+  - rejection: `// @expect-reject: CS1234` — must fail with that code.
+- Every validator rule has ≥1 rejection fixture. Every accepted construct has ≥1
+  differential fixture.
+- Fuzzer: seeded, ASCII-only strings for now, grammar covers only the accepted subset,
+  diffs against Node. Smoke run in CI; long runs nightly.
+- The ~730 v1 fixtures currently in `tests/fixtures/` are UNTRIAGED raw material —
+  presence does not imply the construct is in the subset. Triage per phase (PLAN.md
+  "Kept in-tree").
+
+## Salvage map
+
+- `tests/fixtures/`, `examples/`, `lib/` — v1 programs, triage before trusting.
+- `c_bridges/` — yyjson/os/child-process/regex bridges (keep the `cs_` prefix).
+- `scripts/differential-exec.ts`, `diff-fuzz.ts`, `compiler-baseline.ts` — v1 harness
+  logic to port (they reference deleted paths; don't run as-is).
+- `scripts/build-vendor.sh`, `vendor-pins.sh` — vendor builds (Boehm etc.), trim to needs.
+- `docs/salvage-findings.md` — divergence catalog; treat as a semantics checklist.
+- Anything else from v1: `git show main:<path>`.

@@ -1,6 +1,0 @@
-{
-  "include": ["dist/**"],
-  "exclude": ["dist/parser-native/**", "dist/chad-native*"],
-  "reporter": ["text", "html"],
-  "report-dir": "coverage"
-}

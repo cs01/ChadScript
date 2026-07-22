@@ -1,66 +1,22 @@
 {
   "name": "chadscript",
-  "version": "0.3.0-beta",
-  "description": "A JavaScript to native code compiler using LLVM",
+  "version": "2.0.0-dev",
+  "description": "AOT compiler for a principled, statically analyzable subset of TypeScript",
   "type": "module",
-  "main": "dist/chad-node.js",
-  "bin": {
-    "chad": "./dist/chad-node.js"
-  },
-  "scripts": {
-    "compile": "tsx src/chad-node.ts build",
-    "prebuild": "node scripts/gen-version.js",
-    "build": "tsc",
-    "test": "npm run test:native",
-    "test:both": "npm run test:node && npm run test:native",
-    "test:node": "node scripts/test.js --node",
-    "test:native": "node scripts/test.js --native",
-    "test:fast": "npm run build && CHADC_COMPILER='.build/chad' node --import tsx --test tests/smoke.test.ts",
-    "test:verbose": "node --import tsx --test --test-reporter=spec tests/**/*.test.ts",
-    "cli-tests": "node --import tsx scripts/run-cli-tests.ts",
-    "check-progress": "node --import tsx scripts/check-progress.ts",
-    "examples": "node scripts/run-examples.js",
-    "typecheck": "tsc --noEmit",
-    "check": "tsc --noEmit && npm run test:fast",
-    "test:parity": "npm run build && node --import tsx --test tests/ast-parity.test.ts",
-    "verify": "bash scripts/verify.sh",
-    "verify:quick": "bash scripts/verify.sh --quick",
-    "coverage": "CHADC_COMPILER='node dist/chad-node.js' c8 node --import tsx --test tests/compiler.test.ts tests/unit/symbol-table.test.ts tests/unit/type-system.test.ts",
-    "coverage:report": "c8 report",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
-    "prepare": "HOOKS=$(git rev-parse --git-common-dir)/hooks && git config core.hooksPath \"$HOOKS\" && cp scripts/pre-commit \"$HOOKS/pre-commit\" && chmod +x \"$HOOKS/pre-commit\" && cp scripts/pre-push \"$HOOKS/pre-push\" && chmod +x \"$HOOKS/pre-push\"",
-    "baseline": "node --import tsx scripts/compiler-baseline.ts",
-    "diff-exec": "node --import tsx scripts/differential-exec.ts",
-    "diff-fuzz": "node --import tsx scripts/diff-fuzz.ts"
-  },
-  "keywords": [
-    "compiler",
-    "llvm",
-    "javascript",
-    "native"
-  ],
-  "author": "Chad Smith",
   "license": "MIT",
+  "author": "Chad Smith",
   "repository": {
     "type": "git",
     "url": "https://github.com/cs01/ChadScript.git"
   },
-  "homepage": "https://chadscript.dev",
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
   "devDependencies": {
-    "@types/express": "^5.0.6",
-    "@types/node": "^20.0.0",
-    "c8": "^11.0.0",
-    "date-fns": "^4.1.0",
+    "@types/node": "^22.0.0",
     "prettier": "^3.8.1",
-    "ts-node": "^10.9.0",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3"
-  },
-  "dependencies": {
-    "express": "^5.2.1",
-    "ms": "^2.1.3",
-    "tree-sitter": "^0.21.1",
-    "tree-sitter-typescript": "^0.23.2"
   }
 }
