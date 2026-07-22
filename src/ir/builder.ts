@@ -199,6 +199,12 @@ export class FuncBuilder {
     this.current.terminate("ret void");
   }
 
+  // Marks a block as never reached (e.g. the merge block after a non-void function whose every
+  // path returns). tsc's exhaustiveness guarantees make these genuinely dead.
+  unreachable(): void {
+    this.current.terminate("unreachable");
+  }
+
   finish(): string {
     for (const b of this.blocks) {
       if (!b.isTerminated) ice(`function ${this.name} block ${b.label} has no terminator`);

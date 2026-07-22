@@ -7,9 +7,9 @@
 // Never reach back to the AST or checker from this file.
 
 import { ice } from "../diagnostics.js";
-import { ModuleBuilder, imm } from "../ir/builder.js";
+import { ModuleBuilder, imm, type Value } from "../ir/builder.js";
 import { T } from "../ir/types.js";
-import type { HModule, HStmt, HExpr } from "../hir/nodes.js";
+import type { HModule, HStmt, HExpr, HFunc } from "../hir/nodes.js";
 import {
   evalNumber,
   evalBool,
@@ -30,11 +30,41 @@ export function generate(hmod: HModule): string {
   mod.declareExtern("cs_print_newline", T.void, []);
   mod.declareExtern("exit", T.void, [T.i32]);
 
-  const fn = mod.defineFunc("main", T.i32, []);
-  const ctx: Ctx = { mod, fn, vars: new Map() };
-  for (const stmt of hmod.statements) emitStatement(stmt, ctx);
-  fn.ret(imm(T.i32, 0));
+  // User functions first (order doesn't matter — LLVM resolves calls by name, so recursion and
+  // mutual recursion just work).
+  for (const f of hmod.functions) emitFunction(f, mod);
+
+  // The synthesized entry function holds the top-level statements.
+  const main = mod.defineFunc("main", T.i32, []);
+  const ctx: Ctx = { mod, fn: main, vars: new Map() };
+  for (const stmt of hmod.topLevel) emitStatement(stmt, ctx);
+  main.ret(imm(T.i32, 0));
   return mod.render();
+}
+
+function emitFunction(f: HFunc, mod: ModuleBuilder): void {
+  const retType = f.returnType ? irTypeOf(f.returnType) : T.void;
+  const irParams: Value[] = f.params.map((p, i) => ({ name: `%arg${i}`, type: irTypeOf(p.type) }));
+  const fn = mod.defineFunc(f.name, retType, irParams);
+  const ctx: Ctx = { mod, fn, vars: new Map() };
+
+  // Copy each parameter into a stack slot so it can be reassigned like any local (JS allows
+  // reassigning parameters), and bind the name to that slot.
+  f.params.forEach((p, i) => {
+    const ptr = fn.alloca(irTypeOf(p.type));
+    fn.store(irParams[i]!, ptr);
+    ctx.vars.set(p.name, { ptr, vtype: p.type });
+  });
+
+  for (const stmt of f.body) emitStatement(stmt, ctx);
+
+  // Terminate any fall-through. tsc guarantees a non-void function returns on every reachable
+  // path, so an un-terminated tail block is either the implicit end of a void function or a
+  // genuinely-unreachable merge block.
+  if (!fn.currentBlock.isTerminated) {
+    if (f.returnType === null) fn.retVoid();
+    else fn.unreachable();
+  }
 }
 
 // Print one value with no separator or newline, dispatched on its resolved type.
@@ -70,6 +100,20 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
       // JS exit code: evaluate the number, truncate to i32.
       ctx.fn.callVoid("@exit", [ctx.fn.fptosi_i32(evalNumber(stmt.code, ctx))]);
       return;
+
+    case "return":
+      if (stmt.value) ctx.fn.ret(evalValue(stmt.value, ctx));
+      else ctx.fn.retVoid();
+      return;
+
+    case "callStmt": {
+      // Result discarded. A void callee uses callVoid; a value-returning callee is called and
+      // its result ignored.
+      const args = stmt.args.map((a) => evalValue(a, ctx));
+      if (stmt.returnType === null) ctx.fn.callVoid(`@${stmt.name}`, args);
+      else ctx.fn.call(`@${stmt.name}`, irTypeOf(stmt.returnType), args);
+      return;
+    }
 
     case "varDecl": {
       // Allocate a slot, evaluate the initializer, store it, and bind the name.

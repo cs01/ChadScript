@@ -43,7 +43,17 @@ const ALLOWED_KINDS: ReadonlySet<ts.SyntaxKind> = new Set([
   ts.SyntaxKind.IfStatement,
   ts.SyntaxKind.WhileStatement,
   ts.SyntaxKind.ForStatement,
+  ts.SyntaxKind.ReturnStatement,
   ts.SyntaxKind.Block,
+  // Functions (Phase 1).
+  ts.SyntaxKind.FunctionDeclaration,
+  ts.SyntaxKind.Parameter,
+  // Primitive type annotations (type position only; lower reads types from the checker, so
+  // these nodes are inert — admitting them just lets annotations through).
+  ts.SyntaxKind.NumberKeyword,
+  ts.SyntaxKind.StringKeyword,
+  ts.SyntaxKind.BooleanKeyword,
+  ts.SyntaxKind.VoidKeyword,
   // `i++` / `i--` (statement/for-update position). Only ++/-- exist as postfix, so the whole
   // kind is admitted; prefix ++/-- is gated via SUPPORTED_UNARY_OPS below.
   ts.SyntaxKind.PostfixUnaryExpression,

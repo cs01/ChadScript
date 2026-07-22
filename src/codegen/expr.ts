@@ -39,6 +39,13 @@ export function lookupVar(name: string, ctx: Ctx): { ptr: Value; vtype: ValueTyp
   return slot;
 }
 
+// A value-returning call: evaluate each argument to a Value, then call. The callee's IR name
+// is its HIR name; the return IR type comes from the call's resolved (non-void) type.
+export function evalCall(expr: Extract<HExpr, { kind: "call" }>, ctx: Ctx): Value {
+  const args = expr.args.map((a) => evalValue(a, ctx));
+  return ctx.fn.call(`@${expr.name}`, irTypeOf(expr.type), args);
+}
+
 // Evaluate any supported HExpr to an IR Value, dispatched on its resolved type.
 export function evalValue(expr: HExpr, ctx: Ctx): Value {
   switch (expr.type.kind) {
@@ -60,6 +67,8 @@ export function evalString(expr: HExpr, ctx: Ctx): Value {
       return ctx.mod.cstring(expr.value);
     case "varRef":
       return ctx.fn.load(T.ptr, lookupVar(expr.name, ctx).ptr);
+    case "call":
+      return evalCall(expr, ctx);
     default:
       return ice(`evalString: unhandled string expression ${expr.kind}`);
   }
@@ -80,6 +89,9 @@ export function evalNumber(expr: HExpr, ctx: Ctx): Value {
 
     case "varRef":
       return ctx.fn.load(T.double, lookupVar(expr.name, ctx).ptr);
+
+    case "call":
+      return evalCall(expr, ctx);
 
     case "unary": {
       const op = expr.op;
@@ -146,6 +158,9 @@ export function evalBool(expr: HExpr, ctx: Ctx): Value {
 
     case "varRef":
       return ctx.fn.load(T.i1, lookupVar(expr.name, ctx).ptr);
+
+    case "call":
+      return evalCall(expr, ctx);
 
     case "binary":
       return evalComparison(expr, ctx);

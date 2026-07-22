@@ -12,7 +12,7 @@
 import ts from "typescript";
 import { ice } from "../diagnostics.js";
 import type { LoadedProgram } from "../frontend/program.js";
-import type { HModule, HStmt, HExpr, UnaryOp, BinaryOp } from "../hir/nodes.js";
+import type { HModule, HStmt, HExpr, HFunc, UnaryOp, BinaryOp } from "../hir/nodes.js";
 import { VT } from "../hir/types.js";
 import type { ValueType } from "../hir/types.js";
 
@@ -26,11 +26,36 @@ interface LowerCtx {
 
 export function lower(loaded: LoadedProgram): HModule {
   const ctx: LowerCtx = { checker: loaded.checker, names: new Map(), counter: { n: 0 } };
-  const statements: HStmt[] = [];
+  const functions: HFunc[] = [];
+  const topLevel: HStmt[] = [];
   for (const sf of loaded.sourceFiles) {
-    for (const stmt of sf.statements) statements.push(...lowerStatement(stmt, ctx));
+    for (const stmt of sf.statements) {
+      if (ts.isFunctionDeclaration(stmt)) {
+        functions.push(lowerFunction(stmt, ctx));
+      } else {
+        topLevel.push(...lowerStatement(stmt, ctx));
+      }
+    }
   }
-  return { statements };
+  return { functions, topLevel };
+}
+
+function lowerFunction(decl: ts.FunctionDeclaration, ctx: LowerCtx): HFunc {
+  if (!decl.name) ice("lower: anonymous function declaration not supported");
+  if (!decl.body) ice("lower: function without a body (overload/declare) not supported");
+  const params = decl.parameters.map((p) => {
+    if (!ts.isIdentifier(p.name)) ice("lower: destructured parameters not supported yet");
+    if (p.dotDotDotToken) ice("lower: rest parameters not supported yet");
+    if (p.questionToken || p.initializer)
+      ice("lower: optional/default parameters not supported yet");
+    return { name: nameOf(p.name, ctx), type: valueTypeOf(p.name, ctx) };
+  });
+  return {
+    name: nameOf(decl.name, ctx),
+    params,
+    returnType: returnTypeOf(decl, ctx),
+    body: lowerStatements(decl.body.statements, ctx),
+  };
 }
 
 // The stable HIR name for the variable an identifier resolves to. Falls back to the source
@@ -70,6 +95,9 @@ function lowerStatement(stmt: ts.Statement, ctx: LowerCtx): HStmt[] {
   }
   if (ts.isForStatement(stmt)) {
     return [lowerFor(stmt, ctx)];
+  }
+  if (ts.isReturnStatement(stmt)) {
+    return [{ kind: "return", value: stmt.expression ? lowerExpr(stmt.expression, ctx) : null }];
   }
   if (ts.isBlock(stmt)) {
     // A bare block just contributes its statements (flattened; scoping is enforced by tsc, and
@@ -192,9 +220,41 @@ function lowerCallStatement(call: ts.CallExpression, ctx: LowerCtx): HStmt {
       if (call.arguments.length !== 1 || !arg) ice("lower: process.exit expects one argument");
       return { kind: "processExit", code: lowerExpr(arg, ctx) };
     }
-    default:
-      return ice(`lower: unsupported call ${target}`);
+    default: {
+      // A user-function call in statement position: evaluate for effect, discard the result
+      // (which may be void).
+      if (!ts.isIdentifier(call.expression)) {
+        return ice(`lower: unsupported call target ${ts.SyntaxKind[call.expression.kind]}`);
+      }
+      return {
+        kind: "callStmt",
+        name: nameOf(call.expression, ctx),
+        args: call.arguments.map((a) => lowerExpr(a, ctx)),
+        returnType: callReturnType(call, ctx),
+      };
+    }
   }
+}
+
+// A call to a user function `foo(args)` used as a value — callee must be a plain identifier
+// (no methods yet) and the return type must be non-void (tsc rejects void in value position).
+function lowerCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
+  if (!ts.isIdentifier(call.expression)) {
+    return ice(`lower: unsupported call target ${ts.SyntaxKind[call.expression.kind]}`);
+  }
+  return {
+    kind: "call",
+    name: nameOf(call.expression, ctx),
+    args: call.arguments.map((a) => lowerExpr(a, ctx)),
+    type: valueTypeOf(call, ctx),
+  };
+}
+
+// The return type of a call as a ValueType, or null if void.
+function callReturnType(call: ts.CallExpression, ctx: LowerCtx): ValueType | null {
+  const t = ctx.checker.getTypeAtLocation(call);
+  if (t.flags & (ts.TypeFlags.Void | ts.TypeFlags.Undefined)) return null;
+  return valueTypeOfTsType(t, call);
 }
 
 function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
@@ -216,6 +276,9 @@ function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
       // A bare identifier in expression position is a variable reference (callees like
       // console.log are handled separately in calleeName, never through lowerExpr).
       return { kind: "varRef", name: nameOf(expr as ts.Identifier, ctx), type };
+
+    case ts.SyntaxKind.CallExpression:
+      return lowerCall(expr as ts.CallExpression, ctx);
 
     case ts.SyntaxKind.ParenthesizedExpression:
       return lowerExpr((expr as ts.ParenthesizedExpression).expression, ctx);
@@ -244,13 +307,30 @@ function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
 // The checker is the oracle: map its resolved type to our ValueType. Anything outside the
 // currently-supported domain is an ICE (the validator should have rejected it upstream).
 function resolveType(expr: ts.Expression, ctx: LowerCtx): ValueType {
-  const flags = ctx.checker.getTypeAtLocation(expr).flags;
+  return valueTypeOf(expr, ctx);
+}
+
+function valueTypeOf(node: ts.Node, ctx: LowerCtx): ValueType {
+  return valueTypeOfTsType(ctx.checker.getTypeAtLocation(node), node);
+}
+
+function valueTypeOfTsType(t: ts.Type, node: ts.Node): ValueType {
+  const flags = t.flags;
   if (flags & ts.TypeFlags.NumberLike) return VT.number;
   if (flags & ts.TypeFlags.StringLike) return VT.string;
   if (flags & ts.TypeFlags.BooleanLike) return VT.boolean;
   if (flags & ts.TypeFlags.Null) return VT.null;
   if (flags & ts.TypeFlags.Undefined) return VT.undefined;
-  return ice(`lower: unsupported value type (flags ${flags}) at ${ts.SyntaxKind[expr.kind]}`);
+  return ice(`lower: unsupported value type (flags ${flags}) at ${ts.SyntaxKind[node.kind]}`);
+}
+
+// A function's return type as a ValueType, or null for void.
+function returnTypeOf(decl: ts.FunctionDeclaration, ctx: LowerCtx): ValueType | null {
+  const sig = ctx.checker.getSignatureFromDeclaration(decl);
+  if (!sig) return ice("lower: could not resolve function signature");
+  const ret = ctx.checker.getReturnTypeOfSignature(sig);
+  if (ret.flags & (ts.TypeFlags.Void | ts.TypeFlags.Undefined)) return null;
+  return valueTypeOfTsType(ret, decl);
 }
 
 function isAssignmentOp(kind: ts.SyntaxKind): boolean {

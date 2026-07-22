@@ -6,7 +6,21 @@
 import type { ValueType } from "./types.js";
 
 export interface HModule {
-  statements: HStmt[];
+  functions: HFunc[];
+  // Top-level statements — lowered into the synthesized `main` entry function.
+  topLevel: HStmt[];
+}
+
+export interface HParam {
+  name: string;
+  type: ValueType;
+}
+
+export interface HFunc {
+  name: string; // unique HIR name (symbol-resolved), used as the LLVM function name
+  params: HParam[];
+  returnType: ValueType | null; // null = void
+  body: HStmt[];
 }
 
 export type HStmt =
@@ -27,7 +41,11 @@ export type HStmt =
   // `for (init; cond; update) { body }`. `cond` null means an always-true loop. init/update
   // are statement lists (a decl or assignment). The update block is kept distinct from the body
   // so `continue` can target it once supported.
-  | { kind: "for"; init: HStmt[]; cond: HExpr | null; update: HStmt[]; body: HStmt[] };
+  | { kind: "for"; init: HStmt[]; cond: HExpr | null; update: HStmt[]; body: HStmt[] }
+  // `return expr;` (value null for a bare `return;` in a void function).
+  | { kind: "return"; value: HExpr | null }
+  // A call in statement position — result discarded. `returnType` null means a void function.
+  | { kind: "callStmt"; name: string; args: HExpr[]; returnType: ValueType | null };
 
 export type UnaryOp = "neg" | "pos";
 // Arithmetic ops produce a number; comparison ops (lt..ne) produce a boolean. The `type`
@@ -50,5 +68,7 @@ export type HExpr =
   | { kind: "stringLit"; value: string; type: ValueType }
   | { kind: "boolLit"; value: boolean; type: ValueType }
   | { kind: "varRef"; name: string; type: ValueType }
+  // Call to a user function by its resolved HIR name. `type` is the return type.
+  | { kind: "call"; name: string; args: HExpr[]; type: ValueType }
   | { kind: "unary"; op: UnaryOp; operand: HExpr; type: ValueType }
   | { kind: "binary"; op: BinaryOp; left: HExpr; right: HExpr; type: ValueType };
