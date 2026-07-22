@@ -99,6 +99,14 @@ function lowerStatement(stmt: ts.Statement, ctx: LowerCtx): HStmt[] {
   if (ts.isReturnStatement(stmt)) {
     return [{ kind: "return", value: stmt.expression ? lowerExpr(stmt.expression, ctx) : null }];
   }
+  if (ts.isBreakStatement(stmt)) {
+    if (stmt.label) ice("lower: labeled break not supported yet");
+    return [{ kind: "break" }];
+  }
+  if (ts.isContinueStatement(stmt)) {
+    if (stmt.label) ice("lower: labeled continue not supported yet");
+    return [{ kind: "continue" }];
+  }
   if (ts.isBlock(stmt)) {
     // A bare block just contributes its statements (flattened; scoping is enforced by tsc, and
     // shadowing is safe because names are symbol-unique).

@@ -40,17 +40,27 @@ export function generate(hmod: HModule): string {
 
   // The synthesized entry function holds the top-level statements.
   const main = mod.defineFunc("main", T.i32, []);
-  const ctx: Ctx = { mod, fn: main, vars: new Map() };
-  for (const stmt of hmod.topLevel) emitStatement(stmt, ctx);
+  const ctx: Ctx = { mod, fn: main, vars: new Map(), loops: [] };
+  emitStatements(hmod.topLevel, ctx);
   main.ret(imm(T.i32, 0));
   return mod.render();
+}
+
+// Emit a statement list, stopping as soon as the current block is terminated (by a return,
+// break, or continue). The remaining statements are unreachable, and emitting into a terminated
+// block is an ICE — so this is how dead code after a jump is correctly dropped.
+function emitStatements(stmts: HStmt[], ctx: Ctx): void {
+  for (const s of stmts) {
+    if (ctx.fn.currentBlock.isTerminated) return;
+    emitStatement(s, ctx);
+  }
 }
 
 function emitFunction(f: HFunc, mod: ModuleBuilder): void {
   const retType = f.returnType ? irTypeOf(f.returnType) : T.void;
   const irParams: Value[] = f.params.map((p, i) => ({ name: `%arg${i}`, type: irTypeOf(p.type) }));
   const fn = mod.defineFunc(f.name, retType, irParams);
-  const ctx: Ctx = { mod, fn, vars: new Map() };
+  const ctx: Ctx = { mod, fn, vars: new Map(), loops: [] };
 
   // Copy each parameter into a stack slot so it can be reassigned like any local (JS allows
   // reassigning parameters), and bind the name to that slot.
@@ -60,7 +70,7 @@ function emitFunction(f: HFunc, mod: ModuleBuilder): void {
     ctx.vars.set(p.name, { ptr, vtype: p.type });
   });
 
-  for (const stmt of f.body) emitStatement(stmt, ctx);
+  emitStatements(f.body, ctx);
 
   // Terminate any fall-through. tsc guarantees a non-void function returns on every reachable
   // path, so an un-terminated tail block is either the implicit end of a void function or a
@@ -144,14 +154,14 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
       ctx.fn.brCond(cond, thenB, elseB ?? endB);
 
       ctx.fn.switchTo(thenB);
-      for (const s of stmt.then) emitStatement(s, ctx);
-      // A branch body may already have terminated (e.g. a nested return once we have it); only
-      // add the jump to the merge block if control can still fall through.
+      emitStatements(stmt.then, ctx);
+      // A branch body may already have terminated (a return/break/continue); only jump to the
+      // merge block if control can still fall through.
       if (!ctx.fn.currentBlock.isTerminated) ctx.fn.br(endB);
 
       if (elseB) {
         ctx.fn.switchTo(elseB);
-        for (const s of stmt.otherwise!) emitStatement(s, ctx);
+        emitStatements(stmt.otherwise!, ctx);
         if (!ctx.fn.currentBlock.isTerminated) ctx.fn.br(endB);
       }
 
@@ -169,15 +179,18 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
       ctx.fn.brCond(toBool(stmt.cond, ctx), bodyB, endB);
 
       ctx.fn.switchTo(bodyB);
-      for (const s of stmt.body) emitStatement(s, ctx);
-      if (!ctx.fn.currentBlock.isTerminated) ctx.fn.br(headerB); // loop back to re-check cond
+      // break → end, continue → header (re-check condition).
+      ctx.loops.push({ breakTo: endB, continueTo: headerB });
+      emitStatements(stmt.body, ctx);
+      ctx.loops.pop();
+      if (!ctx.fn.currentBlock.isTerminated) ctx.fn.br(headerB);
 
       ctx.fn.switchTo(endB);
       return;
     }
 
     case "for": {
-      for (const s of stmt.init) emitStatement(s, ctx);
+      emitStatements(stmt.init, ctx);
       const headerB = ctx.fn.newBlock("for.header");
       const bodyB = ctx.fn.newBlock("for.body");
       const latchB = ctx.fn.newBlock("for.latch"); // runs the update, then re-checks
@@ -190,14 +203,31 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
       else ctx.fn.br(bodyB);
 
       ctx.fn.switchTo(bodyB);
-      for (const s of stmt.body) emitStatement(s, ctx);
+      // break → end, continue → latch (so the update still runs before re-checking).
+      ctx.loops.push({ breakTo: endB, continueTo: latchB });
+      emitStatements(stmt.body, ctx);
+      ctx.loops.pop();
       if (!ctx.fn.currentBlock.isTerminated) ctx.fn.br(latchB);
 
       ctx.fn.switchTo(latchB);
-      for (const s of stmt.update) emitStatement(s, ctx);
+      emitStatements(stmt.update, ctx);
       ctx.fn.br(headerB);
 
       ctx.fn.switchTo(endB);
+      return;
+    }
+
+    case "break": {
+      const loop = ctx.loops[ctx.loops.length - 1];
+      if (!loop) ice("codegen: break outside a loop");
+      ctx.fn.br(loop.breakTo);
+      return;
+    }
+
+    case "continue": {
+      const loop = ctx.loops[ctx.loops.length - 1];
+      if (!loop) ice("codegen: continue outside a loop");
+      ctx.fn.br(loop.continueTo);
       return;
     }
 

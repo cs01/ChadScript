@@ -44,6 +44,9 @@ export type HStmt =
   | { kind: "for"; init: HStmt[]; cond: HExpr | null; update: HStmt[]; body: HStmt[] }
   // `return expr;` (value null for a bare `return;` in a void function).
   | { kind: "return"; value: HExpr | null }
+  // `break;` / `continue;` — target the innermost enclosing loop (no labels yet).
+  | { kind: "break" }
+  | { kind: "continue" }
   // A call in statement position — result discarded. `returnType` null means a void function.
   | { kind: "callStmt"; name: string; args: HExpr[]; returnType: ValueType | null };
 

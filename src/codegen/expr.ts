@@ -4,16 +4,31 @@
 // straight to LLVM float instructions.
 
 import { ice } from "../diagnostics.js";
-import { fimm, imm, type Value, type ModuleBuilder, type FuncBuilder } from "../ir/builder.js";
+import {
+  fimm,
+  imm,
+  type Value,
+  type ModuleBuilder,
+  type FuncBuilder,
+  type BasicBlock,
+} from "../ir/builder.js";
 import { T, type IrType } from "../ir/types.js";
 import type { HExpr, BinaryOp } from "../hir/nodes.js";
 import type { ValueType } from "../hir/types.js";
+
+// The block a `break` / `continue` jumps to, for the innermost enclosing loop.
+export interface LoopTargets {
+  breakTo: BasicBlock;
+  continueTo: BasicBlock;
+}
 
 export interface Ctx {
   mod: ModuleBuilder;
   fn: FuncBuilder;
   // Live variable slots: name → its stack pointer + resolved type.
   vars: Map<string, { ptr: Value; vtype: ValueType }>;
+  // Enclosing loops, innermost last. break/continue target the top.
+  loops: LoopTargets[];
 }
 
 // The machine representation of a source-level type.
