@@ -28,6 +28,9 @@ interface LowerCtx {
   // The declared return type of the function whose body is being lowered — used to coerce a
   // returned value into an optional slot. null = void / top level.
   currentReturnType: ValueType | null;
+  // The base class name while lowering a subclass's members, for `super(...)` / `super.m(...)`
+  // dispatch. null when the class has no `extends` (or outside a class).
+  currentBaseClass: string | null;
   // Output list of all functions, incl. lambdas lifted from arrow/function expressions.
   functions: HFunc[];
 }
@@ -50,6 +53,7 @@ export function lower(loaded: LoadedProgram): HModule {
     counter: { n: 0 },
     currentThis: null,
     currentReturnType: null,
+    currentBaseClass: null,
     functions: [],
   };
   const topLevel: HStmt[] = [];
@@ -79,6 +83,35 @@ function lowerClass(decl: ts.ClassDeclaration, ctx: LowerCtx): HFunc[] {
   const instanceType = ctx.checker.getDeclaredTypeOfSymbol(classSym);
   const thisType = valueTypeOfTsType(instanceType, decl.name, ctx.checker);
 
+  // Base class (single inheritance): the name backs `super(...)` and inherited-method dispatch.
+  const baseTypes = ctx.checker.getBaseTypes(instanceType as ts.InterfaceType);
+  const baseType = baseTypes.find((b) => {
+    const d = b.symbol?.valueDeclaration;
+    return d && ts.isClassDeclaration(d);
+  });
+  const baseClassName = baseType?.symbol?.name ?? null;
+
+  // Method override needs virtual dispatch (a vtable), which is not implemented yet. Static
+  // dispatch would silently call the wrong method through a base-typed reference, so REJECT an
+  // override loudly rather than miscompile. (Inheriting a method unchanged is fine.)
+  if (baseType) {
+    const baseMethods = new Set(
+      ctx.checker
+        .getPropertiesOfType(baseType)
+        .filter(isMethodSymbol)
+        .map((s) => s.name),
+    );
+    for (const m of decl.members) {
+      if (ts.isMethodDeclaration(m) && ts.isIdentifier(m.name) && baseMethods.has(m.name.text)) {
+        ice(
+          `lower: method override (${className}.${m.name.text}) not supported yet — needs virtual dispatch`,
+        );
+      }
+    }
+  }
+
+  const savedBase = ctx.currentBaseClass;
+  ctx.currentBaseClass = baseClassName;
   const funcs: HFunc[] = [];
   for (const member of decl.members) {
     if (ts.isMethodDeclaration(member) || ts.isConstructorDeclaration(member)) {
@@ -90,6 +123,7 @@ function lowerClass(decl: ts.ClassDeclaration, ctx: LowerCtx): HFunc[] {
       ice(`lower: unsupported class member ${ts.SyntaxKind[member.kind]}`);
     }
   }
+  ctx.currentBaseClass = savedBase;
   return funcs;
 }
 
@@ -521,8 +555,36 @@ function lowerVarDecl(decl: ts.VariableDeclaration, ctx: LowerCtx): HStmt {
   return { kind: "varDecl", name: nameOf(decl.name, ctx), init, type: declaredType };
 }
 
+// The class that DEFINES a method (walks to its declaring class), so an inherited method
+// dispatches to the base class that implements it. Falls back to the static receiver class.
+function methodDefiningClass(name: ts.MemberName, ctx: LowerCtx, fallback: string): string {
+  const sym = ctx.checker.getSymbolAtLocation(name);
+  const d = sym?.valueDeclaration ?? sym?.declarations?.[0];
+  if (d && (ts.isMethodDeclaration(d) || ts.isMethodSignature(d))) {
+    const parent = d.parent;
+    if (parent && ts.isClassDeclaration(parent) && parent.name) return parent.name.text;
+  }
+  return fallback;
+}
+
+// A `varRef` to the current `this` — the receiver used for `super(...)` / `super.m(...)` calls.
+function thisRef(ctx: LowerCtx): HExpr {
+  if (!ctx.currentThis) return ice("lower: `super`/`this` used outside a method");
+  return { kind: "varRef", name: ctx.currentThis.name, type: ctx.currentThis.type };
+}
+
 function lowerCallStatement(call: ts.CallExpression, ctx: LowerCtx): HStmt {
   const target = calleeName(call.expression);
+  // `super(...)` — delegate to the base constructor with `this` prepended.
+  if (call.expression.kind === ts.SyntaxKind.SuperKeyword) {
+    if (!ctx.currentBaseClass) return ice("lower: `super()` with no base class");
+    return {
+      kind: "callStmt",
+      name: `${ctx.currentBaseClass}.constructor`,
+      args: [thisRef(ctx), ...call.arguments.map((a) => lowerExpr(a, ctx))],
+      returnType: null,
+    };
+  }
 
   switch (target) {
     case "console.log":
@@ -540,12 +602,23 @@ function lowerCallStatement(call: ts.CallExpression, ctx: LowerCtx): HStmt {
         if (isMathNamespace(pa.expression)) {
           return { kind: "exprStmt", expr: lowerMethodCall(call, ctx) };
         }
+        // `super.m(...)` → non-virtual call into the base class with `this` as the receiver.
+        if (pa.expression.kind === ts.SyntaxKind.SuperKeyword) {
+          if (!ctx.currentBaseClass) return ice("lower: `super` with no base class");
+          return {
+            kind: "callStmt",
+            name: `${ctx.currentBaseClass}.${pa.name.text}`,
+            args: [thisRef(ctx), ...call.arguments.map((a) => lowerExpr(a, ctx))],
+            returnType: callReturnType(call, ctx),
+          };
+        }
         const recvType = resolveType(pa.expression, ctx);
         // A class method (possibly void) → callStmt with `this` prepended, so void methods work.
+        // Dispatch to the class that DEFINES the method (an inherited method lives on the base).
         if (recvType.kind === "object" && recvType.className !== undefined) {
           return {
             kind: "callStmt",
-            name: `${recvType.className}.${pa.name.text}`,
+            name: `${methodDefiningClass(pa.name, ctx, recvType.className)}.${pa.name.text}`,
             args: [lowerExpr(pa.expression, ctx), ...call.arguments.map((a) => lowerExpr(a, ctx))],
             returnType: callReturnType(call, ctx),
           };
@@ -688,6 +761,18 @@ function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
       type: VT.number,
     };
   }
+  // `super.m(args)` in value position → non-virtual base call with `this` as the receiver.
+  if (pa.expression.kind === ts.SyntaxKind.SuperKeyword) {
+    if (!ctx.currentBaseClass) return ice("lower: `super` with no base class");
+    const rt = callReturnType(call, ctx);
+    if (rt === null) ice(`lower: void method super.${pa.name.text} used as a value`);
+    return {
+      kind: "call",
+      name: `${ctx.currentBaseClass}.${pa.name.text}`,
+      args: [thisRef(ctx), ...call.arguments.map((a) => lowerExpr(a, ctx))],
+      type: rt,
+    };
+  }
   const recvType = resolveType(pa.expression, ctx);
   const method = pa.name.text;
   if (recvType.kind === "array") {
@@ -797,13 +882,13 @@ function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
       type: callReturnType(call, ctx) ?? VT.string,
     };
   }
-  // Class method: `obj.m(args)` → call `Class.m(obj, args)`. Non-void (value position).
+  // Class method: `obj.m(args)` → call `DefiningClass.m(obj, args)`. Non-void (value position).
   if (recvType.kind === "object" && recvType.className !== undefined) {
     const rt = callReturnType(call, ctx);
     if (rt === null) ice(`lower: void method .${method} used as a value`);
     return {
       kind: "call",
-      name: `${recvType.className}.${method}`,
+      name: `${methodDefiningClass(pa.name, ctx, recvType.className)}.${method}`,
       args: [lowerExpr(pa.expression, ctx), ...call.arguments.map((a) => lowerExpr(a, ctx))],
       type: rt,
     };
@@ -1093,6 +1178,33 @@ function valueTypeOf(node: ts.Node, ctx: LowerCtx): ValueType {
   return valueTypeOfTsType(ctx.checker.getTypeAtLocation(node), node, ctx.checker);
 }
 
+// Collect a class's DATA fields in BASE-FIRST declaration order into `out` (name → type),
+// recursing into base classes before adding the class's own fields. First writer wins, so an
+// inherited field keeps its base-class slot even if mentioned again. Methods are excluded.
+function collectClassDataFields(
+  t: ts.Type,
+  node: ts.Node,
+  checker: ts.TypeChecker,
+  out: Map<string, ValueType>,
+): void {
+  for (const base of checker.getBaseTypes(t as ts.InterfaceType)) {
+    const bd = base.symbol?.valueDeclaration;
+    if (bd && ts.isClassDeclaration(bd)) collectClassDataFields(base, node, checker, out);
+  }
+  const decl = t.symbol?.valueDeclaration;
+  if (!decl || !ts.isClassDeclaration(decl)) return;
+  for (const m of decl.members) {
+    if (!ts.isPropertyDeclaration(m) || !ts.isIdentifier(m.name)) continue;
+    if (out.has(m.name.text)) continue;
+    const sym = checker.getSymbolAtLocation(m.name)!;
+    let ft = valueTypeOfTsType(checker.getTypeOfSymbolAtLocation(sym, node), node, checker);
+    if (sym.flags & ts.SymbolFlags.Optional && ft.kind !== "optional") {
+      ft = { kind: "optional", inner: ft };
+    }
+    out.set(m.name.text, ft);
+  }
+}
+
 function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChecker): ValueType {
   const flags = t.flags;
   if (flags & ts.TypeFlags.NumberLike) return VT.number;
@@ -1126,8 +1238,17 @@ function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChecker): 
     // `className` enables method dispatch.
     const classDecl = t.symbol?.valueDeclaration;
     const isClass = classDecl !== undefined && ts.isClassDeclaration(classDecl);
+    if (isClass) {
+      // Class instance: lay fields out BASE-FIRST (a subclass record is a prefix-compatible
+      // superset of its base), so a derived instance is usable through a base-typed reference.
+      // getPropertiesOfType returns derived-first, so walk the heritage chain ourselves.
+      const ordered = new Map<string, ValueType>();
+      collectClassDataFields(t, node, checker, ordered);
+      const fields = [...ordered].map(([name, type]) => ({ name, type }));
+      return { kind: "object", shape: { fields }, className: t.symbol!.name };
+    }
     const props = checker.getPropertiesOfType(t).filter((sym) => !isMethodSymbol(sym));
-    if (props.length > 0 || isClass) {
+    if (props.length > 0) {
       const fields = props.map((sym) => {
         let ft = valueTypeOfTsType(checker.getTypeOfSymbolAtLocation(sym, node), node, checker);
         // With exactOptionalPropertyTypes, `x?: T` has type T; the `?` is a symbol flag. Model
@@ -1137,10 +1258,7 @@ function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChecker): 
         }
         return { name: sym.name, type: ft };
       });
-      const className = isClass ? t.symbol!.name : undefined;
-      return className !== undefined
-        ? { kind: "object", shape: { fields }, className }
-        : { kind: "object", shape: { fields } };
+      return { kind: "object", shape: { fields } };
     }
   }
   // Narrowing produces unions (e.g. `switch (n) { case 0: case 1: }` narrows n to `0 | 1`). A

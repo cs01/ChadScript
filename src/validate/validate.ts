@@ -68,6 +68,9 @@ const ALLOWED_KINDS: ReadonlySet<ts.SyntaxKind> = new Set([
   ts.SyntaxKind.PropertyDeclaration,
   ts.SyntaxKind.NewExpression,
   ts.SyntaxKind.ThisKeyword,
+  ts.SyntaxKind.HeritageClause, // `extends Base`
+  ts.SyntaxKind.ExpressionWithTypeArguments, // the `Base` in an extends clause
+  ts.SyntaxKind.SuperKeyword, // `super(...)` / `super.method(...)`
   // Closures / first-class functions.
   ts.SyntaxKind.ArrowFunction,
   ts.SyntaxKind.FunctionExpression,
