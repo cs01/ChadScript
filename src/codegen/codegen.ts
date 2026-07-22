@@ -40,6 +40,7 @@ export function generate(hmod: HModule): string {
   mod.declareExtern("cs_to_int32", T.i32, [T.double]); // ECMAScript ToInt32 for bitwise ops
   mod.declareExtern("cs_str_concat", T.ptr, [T.ptr, T.ptr]);
   mod.declareExtern("cs_num_to_string", T.ptr, [T.double]);
+  mod.declareExtern("cs_num_to_string_radix", T.ptr, [T.double, T.double]);
   mod.declareExtern("cs_bool_to_string", T.ptr, [T.i32]);
   mod.declareExtern("cs_str_eq", T.i32, [T.ptr, T.ptr]);
   // Math.* : libm (double→double) + JS-semantics helpers.

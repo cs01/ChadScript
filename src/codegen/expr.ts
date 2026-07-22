@@ -972,6 +972,14 @@ export function evalString(expr: HExpr, ctx: Ctx): Value {
       return evalMemberGet(expr, ctx);
     case "strMethod":
       return evalStrMethod(expr, ctx);
+    case "numToString":
+      return expr.radix === null
+        ? ctx.fn.call("@cs_num_to_string", T.ptr, [evalNumber(expr.value, ctx)])
+        : ctx.fn.call("@cs_num_to_string_radix", T.ptr, [
+            evalNumber(expr.value, ctx),
+            evalNumber(expr.radix, ctx),
+          ]);
+
     case "arrayJoin":
       return evalArrayJoin(expr, ctx);
     case "coalesce":

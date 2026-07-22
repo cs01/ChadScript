@@ -1,0 +1,12 @@
+console.log((255).toString());
+console.log((255).toString(16));
+console.log((255).toString(2));
+console.log((3.14).toString());
+console.log((3.14).toString(2));
+console.log((-255).toString(16));
+console.log((0).toString(16));
+console.log((35).toString(36));
+const r = 8;
+console.log((64).toString(r));
+console.log((0.5).toString(2));
+console.log((100.125).toString(16));

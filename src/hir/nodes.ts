@@ -122,6 +122,8 @@ export type HExpr =
   | { kind: "callClosure"; callee: HExpr; args: HExpr[]; type: ValueType }
   // Ternary `cond ? whenTrue : whenFalse`. Both arms share the result `type` (tsc's common type).
   | { kind: "conditional"; cond: HExpr; whenTrue: HExpr; whenFalse: HExpr; type: ValueType }
+  // `n.toString(radix?)` → string. `radix` null means base 10 (shortest round-trip).
+  | { kind: "numToString"; value: HExpr; radix: HExpr | null; type: ValueType }
   // `str.length` → number.
   | { kind: "strLen"; str: HExpr; type: ValueType }
   // A `string.method(args)` builtin. `method` is the JS name; result type is `type`.

@@ -1048,6 +1048,18 @@ function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
     }
     return ice(`lower: unsupported set method .${method}`);
   }
+  if (recvType.kind === "number") {
+    if (method === "toString") {
+      const radix = call.arguments[0];
+      return {
+        kind: "numToString",
+        value: receiver,
+        radix: radix ? lowerExpr(radix, ctx) : null,
+        type: VT.string,
+      };
+    }
+    return ice(`lower: unsupported number method .${method}`);
+  }
   if (recvType.kind === "string") {
     return {
       kind: "strMethod",

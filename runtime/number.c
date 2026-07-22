@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <gc.h>
 
 // Shortest decimal for a finite, positive x: fills `digits` with the significant digit string
 // (no point, no sign, no trailing zeros) and returns via *nOut the ECMAScript `n` (the power
@@ -121,4 +122,76 @@ void cs_num_to_str(double x, char *out) {
     return;
   }
   format_positive(x, out);
+}
+
+// Number.prototype.toString(radix) for radix in [2,36]. Ported from V8's DoubleToRadixCString so
+// the digit sequence (integer + fractional, with correct round-to-nearest carry) matches Node
+// byte-for-byte. radix 10, NaN, ±0, and ±Infinity are handled by the caller via cs_num_to_str.
+static const char kRadixChars[] = "0123456789abcdefghijklmnopqrstuvwxyz";
+char *cs_num_to_radix(double value, int radix) {
+  const int kBufSize = 2200;
+  char buffer[kBufSize];
+  int integer_cursor = kBufSize / 2;
+  int fraction_cursor = integer_cursor;
+
+  int negative = value < 0;
+  if (negative) value = -value;
+
+  double integer = floor(value);
+  double fraction = value - integer;
+
+  // Fractional part: multiply-extract with a half-ULP delta driving termination + rounding.
+  double delta = 0.5 * (nextafter(value, (double)INFINITY) - value);
+  double smallest = nextafter(0.0, (double)INFINITY);
+  if (delta < smallest) delta = smallest;
+  if (fraction >= delta) {
+    buffer[fraction_cursor++] = '.';
+    for (;;) {
+      fraction *= radix;
+      delta *= radix;
+      int digit = (int)fraction;
+      buffer[fraction_cursor++] = kRadixChars[digit];
+      fraction -= digit;
+      if (fraction > 0.5 || (fraction == 0.5 && (digit & 1))) {
+        if (fraction + delta > 1) {
+          // Round up: carry back through the already-written digits.
+          for (;;) {
+            fraction_cursor--;
+            if (fraction_cursor == kBufSize / 2) {
+              integer += 1; // carry into the integer part
+              break;
+            }
+            char c = buffer[fraction_cursor];
+            int d = c > '9' ? (c - 'a' + 10) : (c - '0');
+            if (d + 1 < radix) {
+              buffer[fraction_cursor++] = kRadixChars[d + 1];
+              break;
+            }
+          }
+          break;
+        }
+      }
+      if (fraction < delta) break;
+    }
+  }
+
+  // Integer part, written downward. For values >= 2^53 the ULP exceeds 1, so shift by radix and
+  // pad with zeros (matches V8's exponent-driven path); rare in practice.
+  while (integer >= 9007199254740992.0) {
+    integer /= radix;
+    buffer[--integer_cursor] = '0';
+  }
+  do {
+    double remainder = fmod(integer, radix);
+    buffer[--integer_cursor] = kRadixChars[(int)remainder];
+    integer = (integer - remainder) / radix;
+  } while (integer > 0);
+
+  int len = fraction_cursor - integer_cursor;
+  char *result = GC_malloc((size_t)len + (negative ? 1 : 0) + 1);
+  int k = 0;
+  if (negative) result[k++] = '-';
+  for (int i = integer_cursor; i < fraction_cursor; i++) result[k++] = buffer[i];
+  result[k] = '\0';
+  return result;
 }

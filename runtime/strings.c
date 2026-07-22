@@ -4,6 +4,7 @@
 // string pointer held in a local (alloca/register) keeps its buffer alive.
 
 #include <string.h>
+#include <math.h>
 #include <gc.h>
 #include "number.h"
 #include "strings.h"
@@ -29,6 +30,17 @@ char *cs_num_to_string(double x) {
 }
 
 const char *cs_bool_to_string(int b) { return b ? "true" : "false"; }
+
+// Number.prototype.toString(radix). radix 10 (and NaN/±0/±Infinity, whose spelling is radix-
+// independent) use the base-10 formatter; other radices use the ported V8 algorithm.
+extern char *cs_num_to_radix(double value, int radix);
+char *cs_num_to_string_radix(double x, double dradix) {
+  int radix = (int)dradix;
+  if (radix == 10 || isnan(x) || x == 0.0 || isinf(x)) {
+    return cs_num_to_string(x);
+  }
+  return cs_num_to_radix(x, radix);
+}
 
 // String equality (for `switch` on strings, and later `===`). 1 if equal, else 0.
 int cs_str_eq(const char *a, const char *b) { return strcmp(a, b) == 0 ? 1 : 0; }
