@@ -18,7 +18,7 @@ import type { ValueType } from "../hir/types.js";
 import { evalMathCall } from "./math.js";
 import { evalMapPtr, evalMapGet, evalSetPtr, evalSetPredicate } from "./collections.js";
 import { evalStrMethod } from "./strings.js";
-import { evalArrayHof, evalArraySort } from "./array.js";
+import { evalArrayHof, evalArraySort, evalArraySearch, evalArrayJoin } from "./array.js";
 import { evalObjectPtr, evalMemberGet, headerOffset } from "./objects.js";
 import {
   evalOptionalPtr,
@@ -219,53 +219,6 @@ export function emitStrictEq(a: Value, b: Value, type: ValueType, ctx: Ctx): Val
   }
 }
 
-// `arr.includes(x)` / `arr.indexOf(x)` share a linear scan with early exit. `wantIndex` picks
-// the return: the matching index as a number (−1 if none), or a boolean found-flag.
-export function evalArraySearch(
-  array: HExpr,
-  value: HExpr,
-  elementType: ValueType,
-  wantIndex: boolean,
-  ctx: Ctx,
-): Value {
-  const arrSlot = ctx.fn.alloca(T.ptr);
-  ctx.fn.store(evalArrayPtr(array, ctx), arrSlot);
-  const target = evalValue(value, ctx); // evaluated once, before the loop
-  const idxSlot = ctx.fn.alloca(T.i32);
-  ctx.fn.store(imm(T.i32, 0), idxSlot);
-
-  const headerB = ctx.fn.newBlock("find.header");
-  const bodyB = ctx.fn.newBlock("find.body");
-  const contB = ctx.fn.newBlock("find.cont");
-  const endB = ctx.fn.newBlock("find.end");
-
-  ctx.fn.br(headerB);
-  ctx.fn.switchTo(headerB);
-  const i = ctx.fn.load(T.i32, idxSlot);
-  const len = ctx.fn.call("@cs_array_len", T.i32, [ctx.fn.load(T.ptr, arrSlot)]);
-  ctx.fn.brCond(ctx.fn.icmp("slt", i, len), bodyB, endB);
-
-  ctx.fn.switchTo(bodyB);
-  const elem = arrayElementAt(ctx.fn.load(T.ptr, arrSlot), i, elementType, ctx);
-  ctx.fn.brCond(emitStrictEq(elem, target, elementType, ctx), endB, contB); // match → stop
-
-  ctx.fn.switchTo(contB);
-  ctx.fn.store(ctx.fn.iadd(i, imm(T.i32, 1)), idxSlot);
-  ctx.fn.br(headerB);
-
-  ctx.fn.switchTo(endB);
-  // On a match we exited from bodyB with idxSlot holding the found index; if the header's
-  // condition failed we fell through with idx == len (no match).
-  const found = ctx.fn.icmp(
-    "slt",
-    ctx.fn.load(T.i32, idxSlot),
-    ctx.fn.call("@cs_array_len", T.i32, [ctx.fn.load(T.ptr, arrSlot)]),
-  );
-  if (!wantIndex) return found;
-  // indexOf: the found index as a number, or -1.
-  return ctx.fn.select(found, ctx.fn.sitofp(ctx.fn.load(T.i32, idxSlot)), fimm(-1));
-}
-
 // Coerce an already-computed Value to its JS string form (a ptr), per its type.
 export function coerceValueToString(v: Value, type: ValueType, ctx: Ctx): Value {
   switch (type.kind) {
@@ -278,47 +231,6 @@ export function coerceValueToString(v: Value, type: ValueType, ctx: Ctx): Value 
     default:
       return ice(`coerceValueToString: ${type.kind} not supported`);
   }
-}
-
-// `arr.join(sep)`: fold the elements into a string, separated by `sep` (default ","). The
-// separator is prepended before every element except the first (via a select on the index).
-export function evalArrayJoin(expr: Extract<HExpr, { kind: "arrayJoin" }>, ctx: Ctx): Value {
-  const arrSlot = ctx.fn.alloca(T.ptr);
-  ctx.fn.store(evalArrayPtr(expr.array, ctx), arrSlot);
-  const sep = expr.separator ? evalString(expr.separator, ctx) : ctx.mod.cstring(",");
-  const empty = ctx.mod.cstring("");
-  const resultSlot = ctx.fn.alloca(T.ptr);
-  ctx.fn.store(empty, resultSlot);
-  const idxSlot = ctx.fn.alloca(T.i32);
-  ctx.fn.store(imm(T.i32, 0), idxSlot);
-
-  const headerB = ctx.fn.newBlock("join.header");
-  const bodyB = ctx.fn.newBlock("join.body");
-  const endB = ctx.fn.newBlock("join.end");
-
-  ctx.fn.br(headerB);
-  ctx.fn.switchTo(headerB);
-  const i = ctx.fn.load(T.i32, idxSlot);
-  const len = ctx.fn.call("@cs_array_len", T.i32, [ctx.fn.load(T.ptr, arrSlot)]);
-  ctx.fn.brCond(ctx.fn.icmp("slt", i, len), bodyB, endB);
-
-  ctx.fn.switchTo(bodyB);
-  const arr = ctx.fn.load(T.ptr, arrSlot);
-  const idx = ctx.fn.load(T.i32, idxSlot);
-  const elemStr = coerceValueToString(
-    arrayElementAt(arr, idx, expr.elementType, ctx),
-    expr.elementType,
-    ctx,
-  );
-  const prefix = ctx.fn.select(ctx.fn.icmp("eq", idx, imm(T.i32, 0)), empty, sep);
-  let acc = ctx.fn.call("@cs_str_concat", T.ptr, [ctx.fn.load(T.ptr, resultSlot), prefix]);
-  acc = ctx.fn.call("@cs_str_concat", T.ptr, [acc, elemStr]);
-  ctx.fn.store(acc, resultSlot);
-  ctx.fn.store(ctx.fn.iadd(idx, imm(T.i32, 1)), idxSlot);
-  ctx.fn.br(headerB);
-
-  ctx.fn.switchTo(endB);
-  return ctx.fn.load(T.ptr, resultSlot);
 }
 
 export function lookupVar(name: string, ctx: Ctx): { ptr: Value; vtype: ValueType } {
