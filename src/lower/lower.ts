@@ -514,6 +514,15 @@ function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
     }
     return ice(`lower: unsupported array method .${method}`);
   }
+  if (recvType.kind === "string") {
+    return {
+      kind: "strMethod",
+      method,
+      receiver: lowerExpr(pa.expression, ctx),
+      args: call.arguments.map((a) => lowerExpr(a, ctx)),
+      type: callReturnType(call, ctx) ?? VT.string,
+    };
+  }
   // Class method: `obj.m(args)` → call `Class.m(obj, args)`. Non-void (value position).
   if (recvType.kind === "object" && recvType.className !== undefined) {
     const rt = callReturnType(call, ctx);
@@ -598,6 +607,9 @@ function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
       const objType = resolveType(pa.expression, ctx);
       if (pa.name.text === "length" && objType.kind === "array") {
         return { kind: "arrayLen", array: lowerExpr(pa.expression, ctx), type };
+      }
+      if (pa.name.text === "length" && objType.kind === "string") {
+        return { kind: "strLen", str: lowerExpr(pa.expression, ctx), type };
       }
       if (objType.kind === "object") {
         const slot = objType.shape.fields.findIndex((f) => f.name === pa.name.text);

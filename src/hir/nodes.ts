@@ -98,6 +98,10 @@ export type HExpr =
   | { kind: "call"; name: string; args: HExpr[]; type: ValueType }
   // A `Math.*` builtin call (number-valued). `fn` is the method name (floor/sqrt/pow/...).
   | { kind: "mathCall"; fn: string; args: HExpr[]; type: ValueType }
+  // `str.length` → number.
+  | { kind: "strLen"; str: HExpr; type: ValueType }
+  // A `string.method(args)` builtin. `method` is the JS name; result type is `type`.
+  | { kind: "strMethod"; method: string; receiver: HExpr; args: HExpr[]; type: ValueType }
   // Array literal `[a, b, ...]`. `type` is the array type; each element is boxed per element type.
   | { kind: "arrayLit"; elements: HExpr[]; type: ValueType }
   // `arr.length` → number.

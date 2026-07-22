@@ -180,6 +180,30 @@ export function evalMathCall(expr: Extract<HExpr, { kind: "mathCall" }>, ctx: Ct
   return ice(`codegen: Math.${expr.fn} not supported yet`);
 }
 
+// String methods: each maps to a runtime call. `ret` picks the IR return type and any bool
+// conversion (the runtime returns i32 0/1 for predicates).
+const STR_METHODS: Record<string, { fn: string; ret: "string" | "number" | "bool" }> = {
+  toUpperCase: { fn: "@cs_str_upper", ret: "string" },
+  toLowerCase: { fn: "@cs_str_lower", ret: "string" },
+  trim: { fn: "@cs_str_trim", ret: "string" },
+  repeat: { fn: "@cs_str_repeat", ret: "string" },
+  includes: { fn: "@cs_str_includes", ret: "bool" },
+  startsWith: { fn: "@cs_str_starts_with", ret: "bool" },
+  endsWith: { fn: "@cs_str_ends_with", ret: "bool" },
+  indexOf: { fn: "@cs_str_index_of", ret: "number" },
+};
+
+export function evalStrMethod(expr: Extract<HExpr, { kind: "strMethod" }>, ctx: Ctx): Value {
+  const m = STR_METHODS[expr.method];
+  if (!m) return ice(`codegen: string method .${expr.method} not supported yet`);
+  const recv = evalString(expr.receiver, ctx);
+  const args = expr.args.map((a) => evalValue(a, ctx));
+  const retType = m.ret === "string" ? T.ptr : m.ret === "number" ? T.double : T.i32;
+  const raw = ctx.fn.call(m.fn, retType, [recv, ...args]);
+  // Predicates return i32 0/1 — narrow to i1.
+  return m.ret === "bool" ? ctx.fn.icmp("ne", raw, imm(T.i32, 0)) : raw;
+}
+
 // Evaluate any supported HExpr to an IR Value, dispatched on its resolved type.
 export function evalValue(expr: HExpr, ctx: Ctx): Value {
   switch (expr.type.kind) {
@@ -222,6 +246,8 @@ export function evalString(expr: HExpr, ctx: Ctx): Value {
       return evalTemplate(expr, ctx);
     case "memberGet":
       return evalMemberGet(expr, ctx);
+    case "strMethod":
+      return evalStrMethod(expr, ctx);
     default:
       return ice(`evalString: unhandled string expression ${expr.kind}`);
   }
@@ -273,6 +299,12 @@ export function evalNumber(expr: HExpr, ctx: Ctx): Value {
 
     case "mathCall":
       return evalMathCall(expr, ctx);
+
+    case "strLen":
+      return ctx.fn.sitofp(ctx.fn.call("@cs_str_len", T.i32, [evalString(expr.str, ctx)]));
+
+    case "strMethod":
+      return evalStrMethod(expr, ctx);
 
     case "arrayLen":
       // JS .length is a number; the runtime returns an i32 count.
@@ -435,6 +467,9 @@ export function evalBool(expr: HExpr, ctx: Ctx): Value {
 
     case "memberGet":
       return evalMemberGet(expr, ctx);
+
+    case "strMethod":
+      return evalStrMethod(expr, ctx);
 
     default:
       return ice(`evalBool: unhandled boolean expression ${expr.kind}`);

@@ -52,6 +52,16 @@ export function generate(hmod: HModule): string {
     mod.declareExtern(f, T.double, [T.double]);
   }
   mod.declareExtern("pow", T.double, [T.double, T.double]);
+  // String methods.
+  mod.declareExtern("cs_str_len", T.i32, [T.ptr]);
+  for (const f of ["cs_str_upper", "cs_str_lower", "cs_str_trim"]) {
+    mod.declareExtern(f, T.ptr, [T.ptr]);
+  }
+  mod.declareExtern("cs_str_repeat", T.ptr, [T.ptr, T.double]);
+  mod.declareExtern("cs_str_index_of", T.double, [T.ptr, T.ptr]);
+  for (const f of ["cs_str_includes", "cs_str_starts_with", "cs_str_ends_with"]) {
+    mod.declareExtern(f, T.i32, [T.ptr, T.ptr]);
+  }
   mod.declareExtern("cs_gc_init", T.void, []);
   mod.declareExtern("cs_gc_alloc", T.ptr, [T.i64]);
   mod.declareExtern("cs_array_new", T.ptr, []);
