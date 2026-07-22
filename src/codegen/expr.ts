@@ -291,6 +291,36 @@ export function evalNullCheck(expr: Extract<HExpr, { kind: "nullCheck" }>, ctx: 
   return ctx.fn.icmp(expr.isEqual ? "eq" : "ne", opt, ctx.mod.externGlobal(marker));
 }
 
+// `===`/`!==` between an optional (`T | undefined`) and a CONCRETE value of the inner type — e.g.
+// `str.at(i) !== "h"`, `parts[0] === "apple"`. (Optional-vs-null/undefined lowers to a nullCheck
+// instead.) JS: an absent optional never equals a concrete value, so `===` is false / `!==` true
+// when absent; when present, unwrap and compare the inner values by their type.
+function evalOptionalEquality(optExpr: HExpr, otherExpr: HExpr, isNe: boolean, ctx: Ctx): Value {
+  if (optExpr.type.kind !== "optional") return ice("evalOptionalEquality: not optional-typed");
+  const innerType = optExpr.type.inner;
+  const opt = evalOptionalPtr(optExpr, ctx);
+  const other = evalValue(otherExpr, ctx); // evaluate once, before the branch (dominates both)
+  const result = ctx.fn.alloca(T.i1);
+  const absentB = ctx.fn.newBlock("opteq.absent");
+  const presentB = ctx.fn.newBlock("opteq.present");
+  const endB = ctx.fn.newBlock("opteq.end");
+
+  ctx.fn.brCond(isNullishPtr(opt, ctx), absentB, presentB);
+
+  ctx.fn.switchTo(absentB); // absent ≠ any concrete value
+  ctx.fn.store(imm(T.i1, isNe ? 1 : 0), result);
+  ctx.fn.br(endB);
+
+  ctx.fn.switchTo(presentB);
+  const inner = unboxSlot(ctx.fn.load(T.i64, opt), innerType, ctx);
+  const eq = emitStrictEq(inner, other, innerType, ctx);
+  ctx.fn.store(isNe ? ctx.fn.logicalNot(eq) : eq, result);
+  ctx.fn.br(endB);
+
+  ctx.fn.switchTo(endB);
+  return ctx.fn.load(T.i1, result);
+}
+
 // `a ?? b`: if `a` is nullish (undefined OR null), use `b`; else unwrap the boxed inner value.
 export function evalCoalesce(expr: Extract<HExpr, { kind: "coalesce" }>, ctx: Ctx): Value {
   const opt = evalOptionalPtr(expr.left, ctx);
@@ -1552,6 +1582,14 @@ function evalComparison(expr: Extract<HExpr, { kind: "binary" }>, ctx: Ctx): Val
   }
   if (op === "eq" || op === "ne") {
     const operandType = expr.left.type.kind;
+    // Optional vs concrete (`str.at(i) !== "h"`). One side is `T | undefined`, the other a plain
+    // inner value. Both-optional isn't emitted by the fixtures yet — leave it to the loud default.
+    const rightOpt = expr.right.type.kind === "optional";
+    if ((operandType === "optional") !== rightOpt) {
+      const optExpr = operandType === "optional" ? expr.left : expr.right;
+      const otherExpr = operandType === "optional" ? expr.right : expr.left;
+      return evalOptionalEquality(optExpr, otherExpr, op === "ne", ctx);
+    }
     if (operandType === "number") {
       // === → oeq (NaN===NaN false); !== → une (= !oeq, so NaN!==NaN true). Using ordered
       // `one` for !== would wrongly make NaN!==NaN false — a JS divergence.
