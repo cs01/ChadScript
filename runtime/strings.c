@@ -32,6 +32,57 @@ char *cs_num_to_string(double x) {
 
 const char *cs_bool_to_string(int b) { return b ? "true" : "false"; }
 
+// util.inspect number: like Number::toString, except -0 prints as "-0" (Node shows the sign in
+// inspect output, unlike String(-0)).
+char *cs_inspect_num(double x) {
+  if (x == 0.0 && signbit(x)) {
+    char *r = GC_malloc(3);
+    r[0] = '-';
+    r[1] = '0';
+    r[2] = '\0';
+    return r;
+  }
+  return cs_num_to_string(x);
+}
+
+// util.inspect string: quoted. Node prefers single quotes; if the string has a single quote but
+// no double quote it uses double quotes; otherwise single quotes with `'` escaped. Backslash and
+// the common control chars (\n \t \r) are escaped too.
+char *cs_inspect_str(const char *s) {
+  size_t n = strlen(s);
+  int has_single = 0, has_double = 0;
+  for (size_t i = 0; i < n; i++) {
+    if (s[i] == '\'') has_single = 1;
+    else if (s[i] == '"') has_double = 1;
+  }
+  char quote = (has_single && !has_double) ? '"' : '\'';
+  // Worst case every char becomes 2 bytes, plus the two quotes and NUL.
+  char *r = GC_malloc(n * 2 + 3);
+  size_t o = 0;
+  r[o++] = quote;
+  for (size_t i = 0; i < n; i++) {
+    char c = s[i];
+    if (c == quote || c == '\\') {
+      r[o++] = '\\';
+      r[o++] = c;
+    } else if (c == '\n') {
+      r[o++] = '\\';
+      r[o++] = 'n';
+    } else if (c == '\t') {
+      r[o++] = '\\';
+      r[o++] = 't';
+    } else if (c == '\r') {
+      r[o++] = '\\';
+      r[o++] = 'r';
+    } else {
+      r[o++] = c;
+    }
+  }
+  r[o++] = quote;
+  r[o] = '\0';
+  return r;
+}
+
 static int str_is_ws(unsigned char c) {
   return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\v' || c == '\f';
 }

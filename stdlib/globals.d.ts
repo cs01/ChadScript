@@ -10,7 +10,7 @@ declare const console: {
    * Prints its arguments space-separated, followed by a newline (Node semantics). Each value
    * is formatted per its type: numbers JS-exactly, booleans as "true"/"false", strings as-is.
    */
-  log(...values: (string | number | boolean | null | undefined)[]): void;
+  log(...values: unknown[]): void;
 };
 
 declare const process: {

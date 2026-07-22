@@ -32,6 +32,7 @@ import {
   evalVirtualCallStmt,
   type Ctx,
 } from "./expr.js";
+import { inspect } from "./inspect.js";
 
 export function generate(hmod: HModule): string {
   const mod = new ModuleBuilder();
@@ -45,6 +46,8 @@ export function generate(hmod: HModule): string {
   mod.declareExtern("cs_num_to_string", T.ptr, [T.double]);
   mod.declareExtern("cs_num_to_string_radix", T.ptr, [T.double, T.double]);
   mod.declareExtern("cs_string_to_number", T.double, [T.ptr]);
+  mod.declareExtern("cs_inspect_num", T.ptr, [T.double]);
+  mod.declareExtern("cs_inspect_str", T.ptr, [T.ptr]);
   mod.declareExtern("cs_bool_to_string", T.ptr, [T.i32]);
   mod.declareExtern("cs_str_eq", T.i32, [T.ptr, T.ptr]);
   // Math.* : libm (double→double) + JS-semantics helpers.
@@ -219,6 +222,13 @@ function emitPrintComputed(val: Value, type: ValueType, ctx: Ctx): void {
       return;
     case "boolean":
       ctx.fn.callVoid("@cs_print_bool", [ctx.fn.zextI1ToI32(val)]);
+      return;
+    case "array":
+    case "object":
+    case "map":
+    case "set":
+      // Containers print in util.inspect form; strings inside get quoted.
+      ctx.fn.callVoid("@cs_print_cstr", [inspect(val, type, ctx)]);
       return;
     default:
       ice(`codegen: console.log of ${type.kind} not supported yet`);

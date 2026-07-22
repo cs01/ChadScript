@@ -1516,19 +1516,31 @@ function resolveType(expr: ts.Expression, ctx: LowerCtx): ValueType {
   // NOT trusted blindly: as a `.concat()` argument it is `ConcatArray<T>` (an interface, not
   // Array), which must not be mistaken for an object.
   if (ts.isArrayLiteralExpression(expr)) {
+    // Ignore an element type that carries no representation (never/unknown/any) — e.g. from an
+    // `unknown[]` contextual type (console.log's parameter).
+    const usable = (t: ts.Type | undefined): boolean =>
+      t !== undefined &&
+      !(t.flags & (ts.TypeFlags.Never | ts.TypeFlags.Unknown | ts.TypeFlags.Any));
     const ownElem = arrayElementType(checker.getTypeAtLocation(expr), checker);
-    if (ownElem && !(ownElem.flags & ts.TypeFlags.Never)) {
-      return VT.array(valueTypeOfTsType(ownElem, expr, checker));
-    }
+    if (usable(ownElem)) return VT.array(valueTypeOfTsType(ownElem!, expr, checker));
     const ctxT = checker.getContextualType(expr);
     const ctxElem = ctxT ? arrayElementType(ctxT, checker) : undefined;
-    if (ctxElem) return VT.array(valueTypeOfTsType(ctxElem, expr, checker));
+    if (usable(ctxElem)) return VT.array(valueTypeOfTsType(ctxElem!, expr, checker));
+    // An empty literal with no usable element type: the element type is irrelevant (nothing is
+    // stored or formatted), so a harmless placeholder keeps `console.log([])` compiling.
+    if (expr.elements.length === 0) return VT.array(VT.number);
     return valueTypeOfTsType(checker.getTypeAtLocation(expr), expr, checker);
   }
 
-  // Object literals take their shape from the declared type (the named interface) when present.
+  // Object literals take their shape from the declared type (the named interface) when present,
+  // but ignore an unknown/any contextual type (console.log's parameter) — use the literal's own
+  // inferred shape then.
   if (ts.isObjectLiteralExpression(expr)) {
-    const t = checker.getContextualType(expr) ?? checker.getTypeAtLocation(expr);
+    const ct = checker.getContextualType(expr);
+    const t =
+      ct && !(ct.flags & (ts.TypeFlags.Unknown | ts.TypeFlags.Any))
+        ? ct
+        : checker.getTypeAtLocation(expr);
     return valueTypeOfTsType(t, expr, checker);
   }
   return valueTypeOf(expr, ctx);

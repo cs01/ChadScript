@@ -77,7 +77,7 @@ export function boxSlot(v: Value, elemType: ValueType, ctx: Ctx): Value {
   }
 }
 
-function unboxSlot(slot: Value, elemType: ValueType, ctx: Ctx): Value {
+export function unboxSlot(slot: Value, elemType: ValueType, ctx: Ctx): Value {
   switch (elemType.kind) {
     case "number":
       return ctx.fn.bitcastI64ToDouble(slot);
