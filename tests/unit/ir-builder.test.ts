@@ -38,13 +38,28 @@ test("a minimal function renders valid-looking IR", () => {
   assert.match(ir, /ret i32 0/);
 });
 
-test("cstring interns a NUL-terminated byte array and returns a ptr value", () => {
+test("cstring interns a {ptr,len} CsString and returns a ptr value", () => {
   const mod = new ModuleBuilder();
   const v = mod.cstring("hi");
   assert.equal(v.type.kind, "ptr");
   const ir = mod.render();
-  // "hi" = 2 bytes + NUL = length 3, bytes 68 69, trailing \00.
-  assert.match(ir, /\[3 x i8\] c"\\68\\69\\00"/);
+  // UTF-8 {data,len} ABI: raw bytes (NO trailing NUL — length is carried) + a {ptr,i64} header.
+  assert.match(ir, /@\.str0\.data = private unnamed_addr constant \[2 x i8\] c"\\68\\69"/);
+  assert.match(
+    ir,
+    /@\.str0 = private unnamed_addr constant \{ ptr, i64 \} \{ ptr @\.str0\.data, i64 2 \}/,
+  );
+});
+
+test("cstring of the empty string carries len 0", () => {
+  const mod = new ModuleBuilder();
+  mod.cstring("");
+  const ir = mod.render();
+  assert.match(ir, /@\.str0\.data = private unnamed_addr constant \[1 x i8\] zeroinitializer/);
+  assert.match(
+    ir,
+    /@\.str0 = private unnamed_addr constant \{ ptr, i64 \} \{ ptr @\.str0\.data, i64 0 \}/,
+  );
 });
 
 test("allocas render at the top of the entry block, before other instructions", () => {
