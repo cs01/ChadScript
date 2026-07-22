@@ -208,10 +208,17 @@ function notInSubset(what: string, node: ts.Node, sf: ts.SourceFile): Diagnostic
   };
 }
 
-// Punctuation and structural keyword tokens are not independently gated — their parent node
-// kind is what the allowlist decides on. Everything from the first keyword up to the last
-// punctuation token falls in this band.
+// Punctuation and template-fragment tokens are not independently gated — their parent node kind
+// is what the allowlist decides on. But literal-VALUE tokens (Numeric/BigInt/String/Jsx/Regex/
+// NoSubstitutionTemplate, the FirstLiteralToken..LastLiteralToken band) are semantically load-
+// bearing: each must be individually allowlisted or rejected. Leaving them in the trivial band
+// let un-admitted literals (bigint, JSX text, regex) silently slip default-deny and ICE in
+// lowering — a fail-OPEN hole. Excluding them makes the admitted ones (StringLiteral, NumericLiteral,
+// NoSubstitutionTemplateLiteral) pass via ALLOWED_KINDS and the rest reject as CS1000.
 function isTrivialToken(kind: ts.SyntaxKind): boolean {
+  if (kind >= ts.SyntaxKind.FirstLiteralToken && kind <= ts.SyntaxKind.LastLiteralToken) {
+    return false;
+  }
   return kind >= ts.SyntaxKind.FirstToken && kind <= ts.SyntaxKind.LastPunctuation;
 }
 
