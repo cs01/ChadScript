@@ -99,3 +99,4 @@ coverage/
 tests/baseline/differential-exec.json
 
 .diff-fuzz/
+.fuzz/

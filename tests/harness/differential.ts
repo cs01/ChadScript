@@ -6,7 +6,7 @@
 // and we run `opt -passes=verify` on the emitted IR. Any mismatch is a failure.
 
 import { execFileSync } from "node:child_process";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadProgram } from "../../src/frontend/program.js";
@@ -32,6 +32,15 @@ function run(cmd: string, args: string[]): RunResult {
 export interface Divergence {
   kind: "stdout" | "exit" | "opt-verify";
   detail: string;
+}
+
+// Run the differential check on in-memory source (writes it to a temp .ts first). Used by the
+// fuzzer, where programs are generated rather than stored as fixtures.
+export function differentialSource(source: string, tag = "gen"): Divergence[] {
+  const dir = mkdtempSync(join(tmpdir(), "chadv2-src-"));
+  const path = join(dir, `${tag}.ts`);
+  writeFileSync(path, source);
+  return differential(path);
 }
 
 // Compiles + runs the fixture every way and returns any divergences (empty = all agree).

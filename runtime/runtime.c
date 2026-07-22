@@ -3,6 +3,7 @@
 // C cstrings (Phase 0); real JS strings become {ptr,len} in Phase 1+.
 
 #include <stdio.h>
+#include <math.h>
 #include "number.h"
 
 // console.log is variadic and space-separated (Node: `console.log(a, b)` → "a b\n"). Codegen
@@ -12,6 +13,13 @@
 void cs_print_cstr(const char *s) { fputs(s, stdout); }
 
 void cs_print_f64(double x) {
+  // console.log distinguishes negative zero — Node's util.inspect prints "-0" — even though
+  // Number::toString (cs_num_to_str) gives "0". This -0 handling is specific to console.log;
+  // String()/template coercion (which will use cs_num_to_str) must keep "0".
+  if (x == 0.0 && signbit(x)) {
+    fputs("-0", stdout);
+    return;
+  }
   char buf[40];
   cs_num_to_str(x, buf);
   fputs(buf, stdout);

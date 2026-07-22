@@ -16,6 +16,7 @@
     "chad": "bun run src/cli.ts",
     "typecheck": "tsc --noEmit",
     "test": "bun test --timeout 60000 tests/",
+    "fuzz": "bun run scripts/fuzz.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
