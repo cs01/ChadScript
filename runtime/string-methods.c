@@ -67,8 +67,13 @@ int cs_str_cmp(const CsString *a, const CsString *b) {
   return 0;
 }
 
-double cs_str_index_of(const CsString *s, const CsString *sub) {
-  return (double)cs_mem_find(s->data, s->len, sub->data, sub->len, 0);
+// JS indexOf(sub, fromIndex): search begins at fromIndex, clamped to [0, len]. A negative or NaN
+// fromIndex clamps to 0; one past the end returns -1 (or `len` for an empty needle, per mem_find).
+double cs_str_index_of(const CsString *s, const CsString *sub, double dfrom) {
+  long from = (long)dfrom;
+  if (from < 0) from = 0;
+  if ((size_t)from > s->len) from = (long)s->len;
+  return (double)cs_mem_find(s->data, s->len, sub->data, sub->len, (size_t)from);
 }
 
 int cs_str_starts_with(const CsString *s, const CsString *p) {

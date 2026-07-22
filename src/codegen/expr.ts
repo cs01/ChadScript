@@ -992,7 +992,6 @@ const STR_METHODS: Record<string, { fn: string; ret: StrRet }> = {
   includes: { fn: "@cs_str_includes", ret: "bool" },
   startsWith: { fn: "@cs_str_starts_with", ret: "bool" },
   endsWith: { fn: "@cs_str_ends_with", ret: "bool" },
-  indexOf: { fn: "@cs_str_index_of", ret: "number" },
 };
 
 function strRetIrType(ret: StrRet) {
@@ -1018,6 +1017,12 @@ export function evalStrMethod(expr: Extract<HExpr, { kind: "strMethod" }>, ctx: 
     const fn = expr.method === "padStart" ? "@cs_str_pad_start" : "@cs_str_pad_end";
     const padArg = args.length >= 2 ? args[1]! : ctx.mod.cstring(" ");
     return ctx.fn.call(fn, T.ptr, [recv, args[0]!, padArg]);
+  }
+
+  // indexOf(sub, fromIndex?): the optional second arg defaults to 0 (search from the start).
+  if (expr.method === "indexOf") {
+    const from = args.length >= 2 ? args[1]! : fimm(0);
+    return ctx.fn.call("@cs_str_index_of", T.double, [recv, args[0]!, from]);
   }
 
   // String.prototype.concat(...args): variadic, so it doesn't fit the fixed-shape table — fold the
