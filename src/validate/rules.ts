@@ -261,6 +261,64 @@ const COLLECTION_METHODS: Record<"map" | "set", ReadonlySet<string>> = {
   set: new Set(["add", "has", "delete", "keys", "values"]),
 };
 
+// The instance methods codegen/lowering actually dispatch. Mirrors STR_METHODS + the special-cased
+// forms in evalStrMethod/strAt (strings) and the array-method dispatch in lowerMethodCall (arrays).
+// Kept as allowlists (default-DENY): any method absent here rejects, so an un-probed method fails
+// closed rather than ICE'ing. The differential/valall gates catch an accidental over-rejection.
+const STRING_METHODS: ReadonlySet<string> = new Set([
+  "toUpperCase",
+  "toLowerCase",
+  "trim",
+  "trimStart",
+  "trimEnd",
+  "replaceAll",
+  "repeat",
+  "charAt",
+  "replace",
+  "split",
+  "includes",
+  "concat",
+  "endsWith",
+  "indexOf",
+  "lastIndexOf",
+  "padStart",
+  "padEnd",
+  "slice",
+  "startsWith",
+  "substr",
+  "substring",
+  "at",
+]);
+const ARRAY_METHODS: ReadonlySet<string> = new Set([
+  "push",
+  "pop",
+  "shift",
+  "join",
+  "at",
+  "flat",
+  "flatMap",
+  "includes",
+  "indexOf",
+  "reduce",
+  "map",
+  "filter",
+  "forEach",
+  "find",
+  "findIndex",
+  "some",
+  "every",
+  "sort",
+  "reverse",
+  "slice",
+  "concat",
+]);
+
+// True when `expr`'s type is an array (`T[]` / ReadonlyArray). Tuples are out of the subset already.
+function isArrayTyped(expr: ts.Expression, checker: ts.TypeChecker): boolean {
+  const name = checker.getTypeAtLocation(expr).symbol?.name;
+  return name === "Array" || name === "ReadonlyArray";
+}
+
 // Whether `expr` is a Map or Set (by the global type's symbol name), else null.
 function collectionKind(expr: ts.Expression, checker: ts.TypeChecker): "map" | "set" | null {
   const name = checker.getTypeAtLocation(expr).symbol?.name;
@@ -355,6 +413,23 @@ function checkCall(node: ts.CallExpression, hit: Hit, checker: ts.TypeChecker): 
         CODE.COLLECTION_METHOD,
         `\`${coll === "map" ? "Map" : "Set"}.${m}\` is not supported yet`,
         `supported: ${[...COLLECTION_METHODS[coll]].join(", ")} (iterate via .keys()/.values())`,
+      );
+    }
+    // String instance methods: default-DENY against the set codegen dispatches (charCodeAt has its
+    // own CS1216 rule, so skip it here to avoid a duplicate diagnostic).
+    if (m !== "charCodeAt" && !STRING_METHODS.has(m) && isStringTyped(recv, checker)) {
+      return hit(
+        CODE.STRING_METHOD,
+        `\`String.prototype.${m}\` is not supported yet`,
+        `supported string methods: ${[...STRING_METHODS].join(", ")}`,
+      );
+    }
+    // Array instance methods: default-DENY against the set lowering dispatches.
+    if (!ARRAY_METHODS.has(m) && isArrayTyped(recv, checker)) {
+      return hit(
+        CODE.ARRAY_METHOD,
+        `\`Array.prototype.${m}\` is not supported yet`,
+        `supported array methods: ${[...ARRAY_METHODS].join(", ")}`,
       );
     }
 

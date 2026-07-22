@@ -30,6 +30,8 @@ export const CODE = {
   STDLIB_STATIC: "CS1220", // unsupported namespace static (Array.*/Number.*/Object.* beyond allow)
   NUMBER_METHOD: "CS1221", // unsupported number instance method (toFixed/toPrecision/toExponential)
   COLLECTION_METHOD: "CS1222", // unsupported Map/Set instance method (forEach/entries/clear/…)
+  STRING_METHOD: "CS1223", // unsupported string instance method (normalize/localeCompare/match/…)
+  ARRAY_METHOD: "CS1224", // unsupported array instance method (fill/copyWithin/splice/…)
 } as const;
 
 export type Code = (typeof CODE)[keyof typeof CODE];
