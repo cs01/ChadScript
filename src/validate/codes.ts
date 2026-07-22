@@ -21,6 +21,8 @@ export const CODE = {
   EVAL_OR_FUNCTION_CTOR: "CS1211", // eval / new Function
   VAR: "CS1212", // `var` (use let/const)
   REGEX: "CS1213", // regex literals / RegExp — a later phase, not yet in the subset
+  JSON_API: "CS1214", // JSON.stringify / JSON.parse — a later phase
+  DATE_API: "CS1215", // Date — a later phase
 } as const;
 
 export type Code = (typeof CODE)[keyof typeof CODE];

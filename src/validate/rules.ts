@@ -128,6 +128,22 @@ function checkCall(node: ts.CallExpression, hit: Hit): Diagnostic | null {
   if (isNamedIdent(node.expression, "eval")) {
     return hit(CODE.EVAL_OR_FUNCTION_CTOR, "`eval` is not supported", "there is no dynamic eval");
   }
+  // JSON.* and Date.* are later phases — reject at validate so they fail closed with a rewrite,
+  // rather than reaching the backend and ICE'ing (`unsupported method .stringify on object`).
+  if (ts.isPropertyAccessExpression(node.expression)) {
+    const recv = node.expression.expression;
+    const m = node.expression.name.text;
+    if (isNamedIdent(recv, "JSON") && (m === "stringify" || m === "parse")) {
+      return hit(
+        CODE.JSON_API,
+        `\`JSON.${m}\` is not supported yet`,
+        "JSON is a later phase; build or read the structure field-by-field for now",
+      );
+    }
+    if (isNamedIdent(recv, "Date")) {
+      return hit(CODE.DATE_API, `\`Date.${m}\` is not supported yet`, "Date is a later phase");
+    }
+  }
   return null;
 }
 
@@ -138,6 +154,9 @@ function checkNew(node: ts.NewExpression, hit: Hit): Diagnostic | null {
       "the `Function` constructor is not supported",
       "write the function directly",
     );
+  }
+  if (isNamedIdent(node.expression, "Date")) {
+    return hit(CODE.DATE_API, "`new Date()` is not supported yet", "Date is a later phase");
   }
   return null;
 }
