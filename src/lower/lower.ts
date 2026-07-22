@@ -179,6 +179,17 @@ function lowerCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
       type: resolveType(call, ctx),
     };
   }
+  // A call to an `async function` spawns a fiber (result is Promise<T>) instead of running it now.
+  const fnDecl = sym!.valueDeclaration as ts.FunctionDeclaration;
+  const isAsync = fnDecl.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword) ?? false;
+  if (isAsync) {
+    return {
+      kind: "asyncCall",
+      name: nameOf(call.expression, ctx),
+      args: lowerCallArgs(call, ctx),
+      type: valueTypeOf(call, ctx), // Promise<T>
+    };
+  }
   return {
     kind: "call",
     name: nameOf(call.expression, ctx),
@@ -366,6 +377,10 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
   // Calls compute their own result type (and some, like `map.keys()`, have a tsc type — an
   // iterator — that is outside the subset), so lower them before resolving the tsc type eagerly.
   if (ts.isCallExpression(expr)) return lowerCall(expr, ctx);
+  if (ts.isAwaitExpression(expr)) {
+    // `await p` → suspend until p settles, yield its inner value. resolveType unwraps the promise.
+    return { kind: "await", value: lowerExpr(expr.expression, ctx), type: resolveType(expr, ctx) };
+  }
   const type = resolveType(expr, ctx);
   switch (expr.kind) {
     case ts.SyntaxKind.NullKeyword:

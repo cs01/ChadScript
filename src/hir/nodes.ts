@@ -38,6 +38,9 @@ export interface HFunc {
   // A lifted lambda takes a hidden `env` pointer as its first LLVM parameter and binds these
   // captured variables from it at entry. Empty/undefined for ordinary functions.
   captures?: HCapture[];
+  // An `async function`: codegen emits it as a fiber body (`cs_fiber_return` on completion) and a
+  // CALL to it spawns a fiber (yielding a Promise) rather than running it synchronously.
+  async?: boolean;
 }
 
 export type HStmt =
@@ -311,6 +314,12 @@ export type HExpr =
       args: HExpr[];
       type: ValueType;
     }
+  // `await promiseExpr`: suspend the current fiber until the promise settles, then yield its inner
+  // value (or throw its rejection). `value` is promise-typed; `type` is the awaited inner type.
+  | { kind: "await"; value: HExpr; type: ValueType }
+  // A call to an `async function`: spawns a fiber (cs_fiber_spawn) rather than running the callee
+  // synchronously; `type` is the resulting `Promise<T>`. Args are packed into the fiber's env.
+  | { kind: "asyncCall"; name: string; args: HExpr[]; type: ValueType }
   | { kind: "unary"; op: UnaryOp; operand: HExpr; type: ValueType }
   | { kind: "binary"; op: BinaryOp; left: HExpr; right: HExpr; type: ValueType }
   // Short-circuiting `&&` / `||`. JS VALUE semantics: the result IS one of the operands (not a

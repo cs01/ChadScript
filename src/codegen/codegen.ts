@@ -89,6 +89,11 @@ export function generate(hmod: HModule): string {
   }
   mod.declareExtern("cs_gc_init", T.void, []);
   mod.declareExtern("cs_gc_alloc", T.ptr, [T.i64]);
+  // Async runtime (runtime/async.c): fibers, promises, await, and the microtask event loop.
+  mod.declareExtern("cs_fiber_spawn", T.ptr, [T.ptr, T.ptr]);
+  mod.declareExtern("cs_fiber_return", T.void, [T.i64]);
+  mod.declareExtern("cs_await", T.i64, [T.ptr]);
+  mod.declareExtern("cs_run_event_loop", T.void, []);
   mod.declareExtern("cs_array_new", T.ptr, []);
   mod.declareExtern("cs_array_push", T.i32, [T.ptr, T.i64]);
   mod.declareExtern("cs_array_len", T.i32, [T.ptr]);
@@ -156,7 +161,10 @@ export function generate(hmod: HModule): string {
   };
   ctx.fn.callVoid("@cs_gc_init", []); // start Boehm GC before any allocation
   emitStatements(hmod.topLevel, ctx);
-  main.ret(imm(T.i32, 0));
+  // Drain the microtask queue before exit (async bodies suspended at `await` run to completion),
+  // matching Node. A no-op when nothing async was queued.
+  if (!ctx.fn.currentBlock.isTerminated) ctx.fn.callVoid("@cs_run_event_loop", []);
+  if (!ctx.fn.currentBlock.isTerminated) main.ret(imm(T.i32, 0));
   return mod.render();
 }
 
@@ -171,16 +179,17 @@ function emitStatements(stmts: HStmt[], ctx: Ctx): void {
 }
 
 function emitFunction(f: HFunc, mod: ModuleBuilder): void {
-  const retType = f.returnType ? irTypeOf(f.returnType) : T.void;
+  const isAsync = f.async ?? false;
   const captures = f.captures ?? [];
-  // EVERY lambda (a function with a `captures` list, even empty) takes a hidden `env` pointer as
-  // its first LLVM parameter, because callClosure always passes one. Top-level functions
-  // (captures === undefined) do not.
-  const hasEnv = f.captures !== undefined;
-  const declaredParams: Value[] = f.params.map((p, i) => ({
-    name: `%arg${hasEnv ? i + 1 : i}`,
-    type: irTypeOf(p.type),
-  }));
+  // An async function is emitted as a fiber body `void @name(ptr env)` — it resolves its result via
+  // cs_fiber_return, so its LLVM return is void; its args are packed into `env`. Ordinary lambdas
+  // (a `captures` list, even empty) also take a hidden env ptr; top-level functions do not.
+  const retType = isAsync ? T.void : f.returnType ? irTypeOf(f.returnType) : T.void;
+  const hasEnv = isAsync || f.captures !== undefined;
+  // Async args come from `env` (like captures), so there are no separate LLVM param slots for them.
+  const declaredParams: Value[] = isAsync
+    ? []
+    : f.params.map((p, i) => ({ name: `%arg${hasEnv ? i + 1 : i}`, type: irTypeOf(p.type) }));
   const irParams: Value[] = hasEnv
     ? [{ name: "%arg0", type: T.ptr }, ...declaredParams]
     : declaredParams;
@@ -193,36 +202,49 @@ function emitFunction(f: HFunc, mod: ModuleBuilder): void {
     continueTargets: [],
     finallyStack: [],
     fnReturnType: f.returnType,
+    asyncFn: isAsync,
   };
 
-  // Bind captured variables from the env record (env is %arg0). Each is stored in a fresh local
-  // slot so the body reads it like any variable.
-  if (hasEnv) {
+  if (isAsync) {
+    // Unpack the async function's arguments from the env record (%arg0), each into a local slot.
     const env = irParams[0]!;
-    captures.forEach((c, i) => {
+    f.params.forEach((p, i) => {
       const raw = fn.load(T.i64, fn.gepSlot(env, i));
-      const ptr = fn.alloca(irTypeOf(c.type));
-      fn.store(unboxSlotValue(raw, c.type, ctx), ptr);
-      ctx.vars.set(c.name, { ptr, vtype: c.type });
+      const ptr = fn.alloca(irTypeOf(p.type));
+      fn.store(unboxSlotValue(raw, p.type, ctx), ptr);
+      ctx.vars.set(p.name, { ptr, vtype: p.type });
+    });
+  } else {
+    // Bind captured variables from the env record (env is %arg0), then declared params.
+    if (hasEnv) {
+      const env = irParams[0]!;
+      captures.forEach((c, i) => {
+        const raw = fn.load(T.i64, fn.gepSlot(env, i));
+        const ptr = fn.alloca(irTypeOf(c.type));
+        fn.store(unboxSlotValue(raw, c.type, ctx), ptr);
+        ctx.vars.set(c.name, { ptr, vtype: c.type });
+      });
+    }
+    // Copy each declared parameter into a stack slot so it can be reassigned like any local.
+    f.params.forEach((p, i) => {
+      const ptr = fn.alloca(irTypeOf(p.type));
+      fn.store(declaredParams[i]!, ptr);
+      ctx.vars.set(p.name, { ptr, vtype: p.type });
     });
   }
 
-  // Copy each declared parameter into a stack slot so it can be reassigned like any local (JS
-  // allows reassigning parameters), and bind the name to that slot.
-  f.params.forEach((p, i) => {
-    const ptr = fn.alloca(irTypeOf(p.type));
-    fn.store(declaredParams[i]!, ptr);
-    ctx.vars.set(p.name, { ptr, vtype: p.type });
-  });
-
   emitStatements(f.body, ctx);
 
-  // Terminate any fall-through. tsc guarantees a non-void function returns on every reachable
-  // path, so an un-terminated tail block is either the implicit end of a void function or a
-  // genuinely-unreachable merge block.
+  // Terminate any fall-through. An async body that falls off resolves with `undefined`.
   if (!fn.currentBlock.isTerminated) {
-    if (f.returnType === null) fn.retVoid();
-    else fn.unreachable();
+    if (isAsync) {
+      fn.callVoid("@cs_fiber_return", [imm(T.i64, 0)]);
+      fn.retVoid();
+    } else if (f.returnType === null) {
+      fn.retVoid();
+    } else {
+      fn.unreachable();
+    }
   }
 }
 
@@ -523,6 +545,17 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
         ctx.fn.store(imm(T.i32, C_RETURN), frame.code);
         if (stmt.value && frame.retVal) ctx.fn.store(evalValue(stmt.value, ctx), frame.retVal);
         ctx.fn.br(frame.cleanupEntry);
+        return;
+      }
+      if (ctx.asyncFn) {
+        // An async return resolves this fiber's result promise (boxed by the inner type), then the
+        // fiber body returns void.
+        const boxed =
+          stmt.value && ctx.fnReturnType
+            ? boxSlot(evalValue(stmt.value, ctx), ctx.fnReturnType, ctx)
+            : imm(T.i64, 0);
+        ctx.fn.callVoid("@cs_fiber_return", [boxed]);
+        ctx.fn.retVoid();
         return;
       }
       if (stmt.value) ctx.fn.ret(evalValue(stmt.value, ctx));

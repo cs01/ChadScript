@@ -46,6 +46,9 @@ export interface Ctx {
   finallyStack: TryFrame[];
   // The current function's declared return type (for the abrupt-return value slot); null = void.
   fnReturnType?: ValueType | null;
+  // Set while emitting an `async function` body: `return v` resolves the fiber's promise via
+  // cs_fiber_return(boxSlot(v)) instead of an ordinary `ret`, and the LLVM function returns void.
+  asyncFn?: boolean;
 }
 
 // A break/continue target block plus the finally-nesting depth at the enclosing loop/switch entry.
@@ -92,6 +95,8 @@ export function irTypeOf(vt: ValueType): IrType {
       return T.ptr; // pointer to the runtime CsSet
     case "unknown":
       return T.ptr; // pointer to a CsThrown (a caught value)
+    case "promise":
+      return T.ptr; // pointer to a runtime Promise
     case "null":
     case "undefined":
       return ice(`irTypeOf: ${vt.kind} has no storage representation yet`);
@@ -114,6 +119,7 @@ export function boxSlot(v: Value, elemType: ValueType, ctx: Ctx): Value {
     case "map":
     case "set":
     case "unknown":
+    case "promise":
       return ctx.fn.ptrToI64(v); // all pointer-represented
     case "boolean":
       return ctx.fn.zextI1ToI64(v);
@@ -134,6 +140,7 @@ export function unboxSlot(slot: Value, elemType: ValueType, ctx: Ctx): Value {
     case "map":
     case "set":
     case "unknown":
+    case "promise":
       return ctx.fn.i64ToPtr(slot);
     case "boolean":
       return ctx.fn.truncI64ToI1(slot);
@@ -242,6 +249,31 @@ export function lookupVar(name: string, ctx: Ctx): { ptr: Value; vtype: ValueTyp
 
 // A value-returning call: evaluate each argument to a Value, then call. The callee's IR name
 // is its HIR name; the return IR type comes from the call's resolved (non-void) type.
+// A call to an async function: pack the args into a GC env record and spawn a fiber running the
+// callee's `void @name(ptr env)` body. Yields the fiber's result Promise (a ptr).
+export function evalAsyncCall(expr: Extract<HExpr, { kind: "asyncCall" }>, ctx: Ctx): Value {
+  const inner = expr.type.kind === "promise" ? expr.type.inner : ice("asyncCall not promise-typed");
+  void inner;
+  let env: Value;
+  if (expr.args.length === 0) {
+    env = ctx.fn.nullPtr();
+  } else {
+    env = ctx.fn.call("@cs_gc_alloc", T.ptr, [imm(T.i64, expr.args.length * 8)]);
+    expr.args.forEach((a, i) => {
+      ctx.fn.store(boxSlot(evalValue(a, ctx), a.type, ctx), ctx.fn.gepSlot(env, i));
+    });
+  }
+  return ctx.fn.call("@cs_fiber_spawn", T.ptr, [{ name: `@${expr.name}`, type: T.ptr }, env]);
+}
+
+// `await p`: suspend until the promise settles, then unbox its value to the awaited inner type. A
+// rejection is thrown into this fiber by cs_await (via the handler chain), so nothing to do here.
+export function evalAwait(expr: Extract<HExpr, { kind: "await" }>, ctx: Ctx): Value {
+  const promise = evalValue(expr.value, ctx);
+  const raw = ctx.fn.call("@cs_await", T.i64, [promise]);
+  return unboxSlot(raw, expr.type, ctx);
+}
+
 export function evalCall(expr: Extract<HExpr, { kind: "call" }>, ctx: Ctx): Value {
   const args = expr.args.map((a) => evalValue(a, ctx));
   return ctx.fn.call(`@${expr.name}`, irTypeOf(expr.type), args);
@@ -353,6 +385,9 @@ export function evalValue(expr: HExpr, ctx: Ctx): Value {
   // before the type switch so forEach's `undefined` result type doesn't hit the default ICE.
   if (expr.kind === "arrayHof") return evalArrayHof(expr, ctx);
   if (expr.kind === "conditional") return evalConditional(expr, ctx);
+  // `await` yields its inner-typed value; handle before the type switch so it dispatches by result
+  // type regardless (a number `await`, a string `await`, …).
+  if (expr.kind === "await") return evalAwait(expr, ctx);
   switch (expr.type.kind) {
     case "number":
       return evalNumber(expr, ctx);
@@ -376,6 +411,10 @@ export function evalValue(expr: HExpr, ctx: Ctx): Value {
       // A caught value (CsThrown*): only a `varRef` (the catch binding) produces one directly.
       if (expr.kind === "varRef") return ctx.fn.load(T.ptr, lookupVar(expr.name, ctx).ptr);
       return ice(`evalValue: unknown expression ${expr.kind}`);
+    case "promise":
+      if (expr.kind === "asyncCall") return evalAsyncCall(expr, ctx);
+      if (expr.kind === "varRef") return ctx.fn.load(T.ptr, lookupVar(expr.name, ctx).ptr);
+      return ice(`evalValue: promise expression ${expr.kind} not supported yet`);
     default:
       return ice(`evalValue: ${expr.type.kind} not supported yet`);
   }
@@ -383,6 +422,7 @@ export function evalValue(expr: HExpr, ctx: Ctx): Value {
 
 // Evaluate a string-typed HExpr to a ptr Value (cstring for a literal; a load for a varRef).
 export function evalString(expr: HExpr, ctx: Ctx): Value {
+  if (expr.kind === "await") return evalAwait(expr, ctx);
   switch (expr.kind) {
     case "stringLit":
       return ctx.mod.cstring(expr.value);
@@ -597,6 +637,7 @@ function evalBooleanConvert(value: HExpr, ctx: Ctx): Value {
 
 // Evaluate a boolean-typed HExpr to an i1 Value.
 export function evalBool(expr: HExpr, ctx: Ctx): Value {
+  if (expr.kind === "await") return evalAwait(expr, ctx);
   switch (expr.kind) {
     case "boolLit":
       return imm(T.i1, expr.value ? 1 : 0);

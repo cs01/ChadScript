@@ -399,6 +399,14 @@ export function lowerCallStatement(call: ts.CallExpression, ctx: LowerCtx): HStm
       if (!ts.isIdentifier(call.expression)) {
         return ice(`lower: unsupported call target ${ts.SyntaxKind[call.expression.kind]}`);
       }
+      // An async call in statement position must SPAWN a fiber (and discard the promise), not call
+      // the body directly — route through lowerExpr so it becomes an asyncCall.
+      const fnDecl = ctx.checker.getSymbolAtLocation(call.expression)?.valueDeclaration;
+      const isAsync =
+        fnDecl !== undefined &&
+        ts.isFunctionDeclaration(fnDecl) &&
+        (fnDecl.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword) ?? false);
+      if (isAsync) return { kind: "exprStmt", expr: lowerExpr(call, ctx) };
       return {
         kind: "callStmt",
         name: nameOf(call.expression, ctx),

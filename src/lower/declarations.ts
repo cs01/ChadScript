@@ -314,12 +314,16 @@ export function lowerFunction(decl: ts.FunctionDeclaration, ctx: LowerCtx): HFun
     // the trailing arguments into it, so the callee treats it like any array parameter.
     return { name: nameOf(p.name, ctx), type: valueTypeOf(p.name, ctx) };
   });
-  const returnType = returnTypeOf(decl, ctx);
+  const isAsync = decl.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword) ?? false;
+  // An async function's declared return is `Promise<T>`; the BODY returns T (the value cs_fiber_return
+  // resolves the promise with), so lower the body against the inner type.
+  const declaredRet = returnTypeOf(decl, ctx);
+  const returnType = isAsync && declaredRet?.kind === "promise" ? declaredRet.inner : declaredRet;
   const saved = ctx.currentReturnType;
   ctx.currentReturnType = returnType;
   const body = lowerStatements(decl.body.statements, ctx);
   ctx.currentReturnType = saved;
-  return { name: nameOf(decl.name, ctx), params, returnType, body };
+  return { name: nameOf(decl.name, ctx), params, returnType, body, async: isAsync };
 }
 
 // Object literal → fields in SHAPE (record-slot) order, regardless of source property order.

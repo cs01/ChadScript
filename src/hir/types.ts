@@ -43,7 +43,10 @@ export type ValueType =
   | { kind: "set"; element: ValueType }
   // `unknown` — currently only the value bound by `catch (e)`. Runtime rep: pointer to a CsThrown
   // ({isError, message}). Usable via `String(e)` and `e instanceof Error`; not printable directly.
-  | { kind: "unknown" };
+  | { kind: "unknown" }
+  // `Promise<T>` — the result of an async-function call. Runtime rep: pointer to a runtime Promise
+  // (see runtime/async.c). `await` unwraps it to `inner`; the value crosses as a boxed i64 slot.
+  | { kind: "promise"; inner: ValueType };
 
 export const VT = {
   number: { kind: "number" } as ValueType,
@@ -55,4 +58,5 @@ export const VT = {
   array: (element: ValueType): ValueType => ({ kind: "array", element }),
   map: (key: ValueType, value: ValueType): ValueType => ({ kind: "map", key, value }),
   set: (element: ValueType): ValueType => ({ kind: "set", element }),
+  promise: (inner: ValueType): ValueType => ({ kind: "promise", inner }),
 } as const;

@@ -93,6 +93,16 @@ export function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChe
       const args = checker.getTypeArguments(ref);
       if (args.length === 1) return VT.set(valueTypeOfTsType(args[0]!, node, checker));
     }
+    // `Promise<T>`: the result of an async call. `Promise<void>`'s inner is modeled as `undefined`
+    // (don't recurse into the `void` type, which has no ValueType).
+    if (ref.symbol?.name === "Promise") {
+      const a = checker.getTypeArguments(ref)[0];
+      const inner =
+        a && !(a.flags & (ts.TypeFlags.Void | ts.TypeFlags.Undefined))
+          ? valueTypeOfTsType(a, node, checker)
+          : VT.undefined;
+      return VT.promise(inner);
+    }
     // A closed object shape (interface / type literal / class instance). Its DATA properties
     // become record slots — methods are dispatched to functions, not stored. A class instance's
     // `className` enables method dispatch.

@@ -44,8 +44,10 @@ struct Fiber {
   ucontext_t ctx;
   void (*body)(void *);
   void *arg;
-  Promise *result;   // resolved with the body's return value on completion
-  int64_t resumeVal; // value handed to the fiber when the scheduler resumes it
+  Promise *result;      // resolved with the body's return value on completion
+  int64_t resumeVal;    // value handed to the fiber when the scheduler resumes it
+  ucontext_t *ret_ctx;  // where to switch back on suspend/completion (the caller that entered us —
+                        // the scheduler, OR an outer fiber that spawned us synchronously)
   int done;
   // This fiber's own exception-handler stack (empty until it enters a `try`). Saved here while the
   // fiber is suspended; installed as the active stack while it runs.
@@ -69,6 +71,7 @@ static void cs_enter_fiber(Fiber *f, ucontext_t *from) {
   cs_handler_ctx_set(f->h_stack, f->h_n, f->h_cap);
   Fiber *prev = cs_current_fiber;
   cs_current_fiber = f;
+  f->ret_ctx = from; // the fiber suspends/completes back to whoever entered it
   swapcontext(from, &f->ctx);
   cs_current_fiber = prev;
   cs_handler_ctx_get(&f->h_stack, &f->h_n, &f->h_cap); // the fiber's stack may have grown
@@ -149,8 +152,8 @@ static void cs_fiber_trampoline(void) {
   Fiber *self = cs_current_fiber;
   self->body(self->arg);
   self->done = 1;
-  // Back to the scheduler; it will not resume this fiber again.
-  swapcontext(&self->ctx, &cs_sched_ctx);
+  // Back to whoever entered us; we will not be resumed again.
+  swapcontext(&self->ctx, self->ret_ctx);
 }
 
 // Called by an async function body (codegen) at its return: resolve this fiber's result promise.
@@ -178,7 +181,8 @@ Promise *cs_fiber_spawn(void (*body)(void *), void *arg) {
   f->ctx.uc_link = &cs_sched_ctx;
   makecontext(&f->ctx, cs_fiber_trampoline, 0);
 
-  cs_enter_fiber(f, &cs_sched_ctx); // run until first suspend/completion, with f's handler stack
+  ucontext_t *from = cs_current_fiber ? &cs_current_fiber->ctx : &cs_sched_ctx;
+  cs_enter_fiber(f, from); // run until first suspend/completion, with f's handler stack
   return f->result;
 }
 
@@ -201,12 +205,12 @@ int64_t cs_await(Promise *p) {
       while (t->next) t = t->next;
       t->next = w;
     }
-    swapcontext(&self->ctx, &cs_sched_ctx); // suspend until settled
+    swapcontext(&self->ctx, self->ret_ctx); // suspend until settled
   } else {
     // Already settled: still yield a microtask to preserve ordering.
     self->resumeVal = p->value;
     cs_mtq_push(self);
-    swapcontext(&self->ctx, &cs_sched_ctx);
+    swapcontext(&self->ctx, self->ret_ctx);
   }
   // Resumed: the promise is now settled. A rejection surfaces as a throw into this fiber.
   if (p->state == CS_REJECTED) cs_throw(p->reason);

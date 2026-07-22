@@ -72,3 +72,22 @@ extension. See `async-gate-status.md`.
 Slices 1–4 green as differential fixtures (async program stdout+exit == Node), all existing suites
 green, `docs/SUBSET.md` regenerated to include the admitted async syntax. At that point errors+async
 are both met and v2 can merge to main.
+
+## Slice 1 status (in progress)
+
+The full lowering + codegen plumbing is implemented and committed but **async is still gated at
+validate** (AsyncKeyword/AwaitExpression not yet in ALLOWED_KINDS), because a bug remains:
+
+- WORKS end-to-end (verified manually): async functions with **parameters**, and up to **one
+  `await` per async function body** (`async function f(n){ return n*2 } async function run(){
+  console.log(await f(21)) } run()` prints 42, matching Node). The fiber-body ABI, env pack/unpack,
+  `cs_fiber_return`, spawn-in-statement-position, and the top-level `cs_run_event_loop` drive all
+  work.
+- BROKEN: **two or more `await`s in a single async function body** — the second suspend-then-resume
+  produces no output (a ucontext scheduling bug: reusing the single `cs_sched_ctx` as both the
+  scheduler context and nested-spawn return target aliases when a resumed fiber suspends again).
+
+Per the charter (no silent divergence), async stays rejected until multi-await works. Next: fix the
+ucontext scheduling so a fiber can suspend→resume→suspend correctly (likely give the event loop a
+dedicated context distinct from nested-spawn return targets, or drive all resumes from one loop
+context). Then admit `async`/`await` + land the slice-1 differential fixture.

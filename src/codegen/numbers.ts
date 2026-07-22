@@ -19,6 +19,7 @@ import {
   evalCallClosure,
   evalVirtualCall,
   evalConditional,
+  evalAwait,
 } from "./expr.js";
 import { evalArrayHof, evalArraySearch } from "./array.js";
 import { evalMapPtr, evalSetPtr } from "./collections.js";
@@ -29,6 +30,7 @@ import { evalStrMethod } from "./strings.js";
 
 // Evaluate a number-typed HExpr to a double Value.
 export function evalNumber(expr: HExpr, ctx: Ctx): Value {
+  if (expr.kind === "await") return evalAwait(expr, ctx);
   switch (expr.kind) {
     case "numberLit":
       return fimm(expr.value);
