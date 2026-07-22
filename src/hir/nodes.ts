@@ -169,6 +169,10 @@ export type HExpr =
   | { kind: "arrayPush"; array: HExpr; value: HExpr; elementType: ValueType; type: ValueType }
   // `arr.pop()` / `arr.shift()` → `element | undefined`. `fn` is the runtime entry point.
   | { kind: "arrayPop"; array: HExpr; fn: string; type: ValueType }
+  // `arr.at(i)` → `element | undefined` (negative index counts from the end).
+  | { kind: "arrayAt"; array: HExpr; index: HExpr; type: ValueType }
+  // `str.at(i)` → `string | undefined`.
+  | { kind: "strAt"; str: HExpr; index: HExpr; type: ValueType }
   // `arr.join(sep?)` → string. `separator` null means the default ",". Each element is coerced.
   | {
       kind: "arrayJoin";

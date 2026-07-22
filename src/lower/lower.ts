@@ -902,6 +902,14 @@ function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
         type: VT.string,
       };
     }
+    if (method === "at") {
+      return {
+        kind: "arrayAt",
+        array: receiver,
+        index: lowerExpr(call.arguments[0]!, ctx),
+        type: resolveType(call, ctx), // element | undefined
+      };
+    }
     if (method === "includes" || method === "indexOf") {
       return {
         kind: "arraySearch",
@@ -1068,6 +1076,14 @@ function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
     return ice(`lower: unsupported number method .${method}`);
   }
   if (recvType.kind === "string") {
+    if (method === "at") {
+      return {
+        kind: "strAt",
+        str: receiver,
+        index: lowerExpr(call.arguments[0]!, ctx),
+        type: resolveType(call, ctx), // string | undefined
+      };
+    }
     return {
       kind: "strMethod",
       method,

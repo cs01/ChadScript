@@ -81,6 +81,24 @@ static char *substr(const char *s, size_t a, size_t b) {
   return r;
 }
 
+extern char cs_undefined_marker; // the `undefined` sentinel (see nullable.c)
+
+// `str.at(i)` → `string | undefined`: the 1-char string at i (negative counts from the end), or
+// undefined when out of range. Returns the optional pointer directly (box of the string ptr, or
+// the sentinel), matching the nullable representation.
+void *cs_str_at(const char *s, double di) {
+  long n = (long)strlen(s);
+  long i = (long)di;
+  if (i < 0) i += n;
+  if (i < 0 || i >= n) return &cs_undefined_marker;
+  char *c = GC_malloc(2);
+  c[0] = s[i];
+  c[1] = '\0';
+  long *box = GC_malloc(sizeof(long));
+  *box = (long)(intptr_t)c;
+  return box;
+}
+
 // JS charAt: the 1-char string at i, or "" if out of range.
 char *cs_str_char_at(const char *s, double di) {
   long n = (long)strlen(s);

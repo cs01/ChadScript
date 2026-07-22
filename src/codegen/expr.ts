@@ -150,6 +150,16 @@ export function evalOptionalPtr(expr: HExpr, ctx: Ctx): Value {
   if (expr.kind === "varRef") return ctx.fn.load(T.ptr, lookupVar(expr.name, ctx).ptr);
   if (expr.kind === "arrayPop")
     return ctx.fn.call(`@${expr.fn}`, T.ptr, [evalArrayPtr(expr.array, ctx)]);
+  if (expr.kind === "arrayAt")
+    return ctx.fn.call("@cs_array_at", T.ptr, [
+      evalArrayPtr(expr.array, ctx),
+      evalNumber(expr.index, ctx),
+    ]);
+  if (expr.kind === "strAt")
+    return ctx.fn.call("@cs_str_at", T.ptr, [
+      evalString(expr.str, ctx),
+      evalNumber(expr.index, ctx),
+    ]);
   if (expr.kind === "memberGet") return evalMemberGet(expr, ctx); // an optional field
   if (expr.kind === "wrap") return evalWrap(expr, ctx);
   if (expr.kind === "undefinedOpt") return ctx.mod.externGlobal("cs_undefined_marker");

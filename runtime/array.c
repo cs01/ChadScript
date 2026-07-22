@@ -61,6 +61,14 @@ void cs_array_extend(CsArray *dst, CsArray *src) {
   for (int32_t i = 0; i < src->len; i++) cs_array_push(dst, src->data[i]);
 }
 
+// `arr.at(i)` → `element | undefined`. A negative index counts from the end (JS semantics).
+void *cs_array_at(CsArray *a, double di) {
+  long i = (long)di;
+  if (i < 0) i += a->len;
+  if (i < 0 || i >= a->len) return &cs_undefined_marker;
+  return box_slot(a->data[i]);
+}
+
 // pop: remove + return the last element as `element | undefined` (empty → undefined sentinel).
 void *cs_array_pop(CsArray *a) {
   if (a->len == 0) return &cs_undefined_marker;
