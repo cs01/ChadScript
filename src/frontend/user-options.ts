@@ -13,6 +13,11 @@ export const USER_COMPILER_OPTIONS: ts.CompilerOptions = {
   moduleResolution: ts.ModuleResolutionKind.Bundler,
   lib: ["lib.es2023.d.ts"],
 
+  // User programs get ONLY the ChadScript global environment (stdlib/globals.d.ts, injected
+  // in program.ts) — never @types/node or the DOM lib. `types: []` disables automatic @types
+  // inclusion so a program cannot typecheck against globals we don't actually compile.
+  types: [],
+
   // The strictness that makes the checker's answers trustworthy.
   strict: true,
   noUncheckedIndexedAccess: true,

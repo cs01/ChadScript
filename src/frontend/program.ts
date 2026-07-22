@@ -4,8 +4,19 @@
 // un-typecheckable program has no trustworthy types for us to lower.
 
 import ts from "typescript";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { type Diagnostic, type Span, DiagnosticError } from "../diagnostics.js";
 import { USER_COMPILER_OPTIONS } from "./user-options.js";
+
+// The ambient global environment injected into every user program (console, process, ...).
+const GLOBALS_DTS = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "stdlib",
+  "globals.d.ts",
+);
 
 export interface LoadedProgram {
   program: ts.Program;
@@ -17,7 +28,7 @@ export interface LoadedProgram {
 // Load + typecheck `entryFile`. Throws DiagnosticError with CS0001 for each tsc diagnostic.
 export function loadProgram(entryFile: string): LoadedProgram {
   const program = ts.createProgram({
-    rootNames: [entryFile],
+    rootNames: [GLOBALS_DTS, entryFile],
     options: USER_COMPILER_OPTIONS,
   });
 

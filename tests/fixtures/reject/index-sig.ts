@@ -3,4 +3,3 @@ interface Bag {
   [k: string]: number;
 }
 const b: Bag = {};
-console.log(b);

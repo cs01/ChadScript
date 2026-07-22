@@ -3,4 +3,4 @@ enum Color {
   Red,
   Green,
 }
-console.log(Color.Red);
+const c = Color.Red;
