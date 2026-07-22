@@ -38,7 +38,7 @@ jobs:
           echo "CHAD_CLANG=$PREFIX/bin/clang" >> "$GITHUB_ENV"
           echo "CHAD_OPT=$PREFIX/bin/opt" >> "$GITHUB_ENV"
 
-      - run: bun install
+      - run: bun install --frozen-lockfile
 
       - name: Typecheck
         run: bun run typecheck
