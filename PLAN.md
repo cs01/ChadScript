@@ -240,6 +240,14 @@ Each phase = a sequence of agent-sized commits. **Gate to exit a phase: all diff
 fixtures green, all rejection fixtures green, fuzzer clean over the phase's grammar,
 `opt -verify` clean.** LOC are estimates for planning, not quotas.
 
+> **Status (2026-07-22, 256 tests green):** Phases 0–2 DONE. Phase 3 mostly done (closures,
+> nullable/tagged-`T|null|undefined`, classes with vtable virtual dispatch + `instanceof`;
+> interfaces = plain object shapes, no itable fat-pointers yet; generics NOT done, treated as
+> optional per user). Phase 4 partial (Map/Set, Math.\*, Number/String conversions, many string
+> methods, `console.log` util.inspect done; JSON/Date/fs/process NOT done). **Phase 5 (errors) is
+> next — user requires try/catch/throw + Phase 6 async before "done".** `toString(radix)` done;
+> `toFixed` deferred (needs JS dtoa).
+
 ### Phase 0 — Skeleton + oracle harness (~3K LOC)
 
 - New `package.json`/`tsconfig.json` for the compiler itself (strict), prettier, CI
