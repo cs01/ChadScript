@@ -41,6 +41,12 @@ Agents should work one bounded semantic slice at a time. Each slice has an accep
 rejection boundary, implementation, and the full gates. After that slice, stop and update the phase
 status instead of selecting another feature merely because context or token budget remains.
 
+During the validator audit, the default repair for an admitted construct that reaches an ICE is a
+validator rejection with a focused rejection fixture. Implementing the construct is appropriate
+only when it is already part of the chosen release profile and its Node semantics can be made exact.
+Do not use untriaged v1 fixtures as a feature queue or count newly passing v1 fixtures as evidence
+that the recovery audit is converging.
+
 ## Gate before further async work
 
 The stackful-fiber approach can remain: it keeps lowering readable and is a reasonable tradeoff
@@ -155,6 +161,12 @@ Add differential fixtures for embedded NUL immediately. Then make a deliberate P
 implement UTF-16-code-unit semantics over UTF-8 storage, or validator-gate operations that cannot
 be exact for non-ASCII strings. Never document general JS string compatibility while indexing
 bytes.
+
+`charCodeAt` and relational string comparison were admitted during the recovery audit using UTF-8
+byte behavior. Their ASCII fixtures are insufficient: both operations accept arbitrary runtime
+strings, while Node uses UTF-16 code units. Either implement the exact semantics and add non-ASCII
+differential fixtures or reject these operations until that work is chosen. This is a correctness
+gate, not optional breadth.
 
 ## Runtime and stdlib discipline
 

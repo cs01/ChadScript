@@ -257,6 +257,8 @@ fixtures green, all rejection fixtures green, fuzzer clean over the phase's gram
 > Follow the review's recovery sequence one bounded semantic slice at a time; do not resume broad
 > feature accumulation until the Phase 5, string ABI, and validator audits are closed or explicitly
 > deferred with compile-time rejection.
+> Validator-audit holes default to rejection, not new stdlib breadth. Resolve the review's Unicode
+> blockers for `charCodeAt` and string comparison before treating the string audit as complete.
 
 ### Phase 0 — Skeleton + oracle harness (~3K LOC)
 
