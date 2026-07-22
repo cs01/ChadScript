@@ -556,6 +556,16 @@ function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
         type: resolveType(call, ctx), // element | undefined
       };
     }
+    if (method === "join") {
+      const sep = call.arguments[0];
+      return {
+        kind: "arrayJoin",
+        array: lowerExpr(pa.expression, ctx),
+        separator: sep ? lowerExpr(sep, ctx) : null,
+        elementType: recvType.element,
+        type: VT.string,
+      };
+    }
     return ice(`lower: unsupported array method .${method}`);
   }
   if (recvType.kind === "string") {

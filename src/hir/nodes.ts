@@ -125,6 +125,14 @@ export type HExpr =
   | { kind: "arrayPush"; array: HExpr; value: HExpr; elementType: ValueType; type: ValueType }
   // `arr.pop()` / `arr.shift()` → `element | undefined`. `fn` is the runtime entry point.
   | { kind: "arrayPop"; array: HExpr; fn: string; type: ValueType }
+  // `arr.join(sep?)` → string. `separator` null means the default ",". Each element is coerced.
+  | {
+      kind: "arrayJoin";
+      array: HExpr;
+      separator: HExpr | null;
+      elementType: ValueType;
+      type: ValueType;
+    }
   // Object literal `{ f: v, ... }`. `fields` are in SHAPE (record-slot) order — lower reorders
   // the source properties to match the declared shape.
   | { kind: "objectLit"; fields: HExpr[]; type: ValueType }

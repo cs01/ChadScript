@@ -277,6 +277,16 @@ export class FuncBuilder {
     return result;
   }
 
+  // select i1 cond, a, b — a and b must share a type.
+  select(cond: Value, a: Value, b: Value): Value {
+    if (cond.type.kind !== "i1") ice(`select cond must be i1, got ${cond.type.kind}`);
+    if (a.type.kind !== b.type.kind) ice(`select arms differ: ${a.type.kind}/${b.type.kind}`);
+    const result = this.nextTemp(a.type);
+    const ty = llvmType(a.type);
+    this.current.add(`${result.name} = select i1 ${cond.name}, ${ty} ${a.name}, ${ty} ${b.name}`);
+    return result;
+  }
+
   // Logical not on an i1: xor with true.
   logicalNot(a: Value): Value {
     if (a.type.kind !== "i1") ice(`logicalNot requires an i1 operand, got ${a.type.kind}`);

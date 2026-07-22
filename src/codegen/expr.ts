@@ -254,6 +254,61 @@ export function arrayElementAt(arr: Value, i: Value, elemType: ValueType, ctx: C
   return unboxSlot(ctx.fn.call("@cs_array_get", T.i64, [arr, i]), elemType, ctx);
 }
 
+// Coerce an already-computed Value to its JS string form (a ptr), per its type.
+export function coerceValueToString(v: Value, type: ValueType, ctx: Ctx): Value {
+  switch (type.kind) {
+    case "string":
+      return v;
+    case "number":
+      return ctx.fn.call("@cs_num_to_string", T.ptr, [v]);
+    case "boolean":
+      return ctx.fn.call("@cs_bool_to_string", T.ptr, [ctx.fn.zextI1ToI32(v)]);
+    default:
+      return ice(`coerceValueToString: ${type.kind} not supported`);
+  }
+}
+
+// `arr.join(sep)`: fold the elements into a string, separated by `sep` (default ","). The
+// separator is prepended before every element except the first (via a select on the index).
+export function evalArrayJoin(expr: Extract<HExpr, { kind: "arrayJoin" }>, ctx: Ctx): Value {
+  const arrSlot = ctx.fn.alloca(T.ptr);
+  ctx.fn.store(evalArrayPtr(expr.array, ctx), arrSlot);
+  const sep = expr.separator ? evalString(expr.separator, ctx) : ctx.mod.cstring(",");
+  const empty = ctx.mod.cstring("");
+  const resultSlot = ctx.fn.alloca(T.ptr);
+  ctx.fn.store(empty, resultSlot);
+  const idxSlot = ctx.fn.alloca(T.i32);
+  ctx.fn.store(imm(T.i32, 0), idxSlot);
+
+  const headerB = ctx.fn.newBlock("join.header");
+  const bodyB = ctx.fn.newBlock("join.body");
+  const endB = ctx.fn.newBlock("join.end");
+
+  ctx.fn.br(headerB);
+  ctx.fn.switchTo(headerB);
+  const i = ctx.fn.load(T.i32, idxSlot);
+  const len = ctx.fn.call("@cs_array_len", T.i32, [ctx.fn.load(T.ptr, arrSlot)]);
+  ctx.fn.brCond(ctx.fn.icmp("slt", i, len), bodyB, endB);
+
+  ctx.fn.switchTo(bodyB);
+  const arr = ctx.fn.load(T.ptr, arrSlot);
+  const idx = ctx.fn.load(T.i32, idxSlot);
+  const elemStr = coerceValueToString(
+    arrayElementAt(arr, idx, expr.elementType, ctx),
+    expr.elementType,
+    ctx,
+  );
+  const prefix = ctx.fn.select(ctx.fn.icmp("eq", idx, imm(T.i32, 0)), empty, sep);
+  let acc = ctx.fn.call("@cs_str_concat", T.ptr, [ctx.fn.load(T.ptr, resultSlot), prefix]);
+  acc = ctx.fn.call("@cs_str_concat", T.ptr, [acc, elemStr]);
+  ctx.fn.store(acc, resultSlot);
+  ctx.fn.store(ctx.fn.iadd(idx, imm(T.i32, 1)), idxSlot);
+  ctx.fn.br(headerB);
+
+  ctx.fn.switchTo(endB);
+  return ctx.fn.load(T.ptr, resultSlot);
+}
+
 export function lookupVar(name: string, ctx: Ctx): { ptr: Value; vtype: ValueType } {
   const slot = ctx.vars.get(name);
   if (!slot) ice(`codegen: reference to unbound variable ${name}`);
@@ -372,6 +427,8 @@ export function evalString(expr: HExpr, ctx: Ctx): Value {
       return evalMemberGet(expr, ctx);
     case "strMethod":
       return evalStrMethod(expr, ctx);
+    case "arrayJoin":
+      return evalArrayJoin(expr, ctx);
     case "coalesce":
       return evalCoalesce(expr, ctx);
     case "unwrap":
