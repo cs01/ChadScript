@@ -41,6 +41,7 @@ const ALLOWED_KINDS: ReadonlySet<ts.SyntaxKind> = new Set([
   ts.SyntaxKind.VariableDeclaration,
   // Control flow (Phase 1).
   ts.SyntaxKind.IfStatement,
+  ts.SyntaxKind.WhileStatement,
   ts.SyntaxKind.Block,
 ]);
 

@@ -101,6 +101,23 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
       return;
     }
 
+    case "while": {
+      const headerB = ctx.fn.newBlock("while.header");
+      const bodyB = ctx.fn.newBlock("while.body");
+      const endB = ctx.fn.newBlock("while.end");
+
+      ctx.fn.br(headerB); // enter the loop
+      ctx.fn.switchTo(headerB);
+      ctx.fn.brCond(toBool(stmt.cond, ctx), bodyB, endB);
+
+      ctx.fn.switchTo(bodyB);
+      for (const s of stmt.body) emitStatement(s, ctx);
+      if (!ctx.fn.currentBlock.isTerminated) ctx.fn.br(headerB); // loop back to re-check cond
+
+      ctx.fn.switchTo(endB);
+      return;
+    }
+
     default:
       ice(`codegen: unhandled statement ${(stmt as { kind: string }).kind}`);
   }

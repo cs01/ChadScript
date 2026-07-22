@@ -63,6 +63,15 @@ function lowerStatement(stmt: ts.Statement, ctx: LowerCtx): HStmt[] {
   if (ts.isIfStatement(stmt)) {
     return [lowerIf(stmt, ctx)];
   }
+  if (ts.isWhileStatement(stmt)) {
+    return [
+      {
+        kind: "while",
+        cond: lowerExpr(stmt.expression, ctx),
+        body: lowerBranchBody(stmt.statement, ctx),
+      },
+    ];
+  }
   if (ts.isBlock(stmt)) {
     // A bare block just contributes its statements (flattened; scoping is enforced by tsc, and
     // shadowing is safe because names are symbol-unique).

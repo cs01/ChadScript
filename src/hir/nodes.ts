@@ -20,7 +20,9 @@ export type HStmt =
   | { kind: "assign"; name: string; value: HExpr }
   // `if (cond) { then } else { otherwise }`. `otherwise` is null when there is no else.
   // `cond` is evaluated for JS truthiness (see codegen toBool).
-  | { kind: "if"; cond: HExpr; then: HStmt[]; otherwise: HStmt[] | null };
+  | { kind: "if"; cond: HExpr; then: HStmt[]; otherwise: HStmt[] | null }
+  // `while (cond) { body }` — cond re-evaluated (truthiness) before each iteration.
+  | { kind: "while"; cond: HExpr; body: HStmt[] };
 
 export type UnaryOp = "neg" | "pos";
 // Arithmetic ops produce a number; comparison ops (lt..ne) produce a boolean. The `type`
