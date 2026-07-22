@@ -36,6 +36,15 @@ export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
   if (ts.isIdentifier(pa.expression) && pa.expression.text === "Object") {
     return lowerObjectNamespace(pa.name.text, call.arguments[0]!, ctx);
   }
+  // `Promise.resolve(v)` → a fulfilled promise carrying v (validate allowlists the static name).
+  if (ts.isIdentifier(pa.expression) && pa.expression.text === "Promise") {
+    if (pa.name.text !== "resolve") ice(`lower: unsupported Promise.${pa.name.text}`);
+    return {
+      kind: "promiseResolve",
+      value: lowerExpr(call.arguments[0]!, ctx),
+      type: resolveType(call, ctx),
+    };
+  }
   // `super.m(args)` in value position → non-virtual base call with `this` as the receiver.
   if (pa.expression.kind === ts.SyntaxKind.SuperKeyword) {
     if (!ctx.currentBaseClass) return ice("lower: `super` with no base class");

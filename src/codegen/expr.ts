@@ -20,7 +20,7 @@ import { evalMapPtr, evalMapGet, evalSetPtr, evalSetPredicate } from "./collecti
 import { evalStrMethod } from "./strings.js";
 import { evalArrayHof, evalArraySort, evalArraySearch, evalArrayJoin } from "./array.js";
 import { evalObjectPtr, evalMemberGet, headerOffset } from "./objects.js";
-import { evalAsyncCall, evalAwait } from "./async.js";
+import { evalAsyncCall, evalAwait, evalPromiseResolve } from "./async.js";
 import { evalNumber } from "./numbers.js";
 import {
   evalOptionalPtr,
@@ -389,6 +389,7 @@ export function evalValue(expr: HExpr, ctx: Ctx): Value {
       return ice(`evalValue: unknown expression ${expr.kind}`);
     case "promise":
       if (expr.kind === "asyncCall") return evalAsyncCall(expr, ctx);
+      if (expr.kind === "promiseResolve") return evalPromiseResolve(expr, ctx);
       if (expr.kind === "varRef") return ctx.fn.load(T.ptr, lookupVar(expr.name, ctx).ptr);
       return ice(`evalValue: promise expression ${expr.kind} not supported yet`);
     default:

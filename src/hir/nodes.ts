@@ -320,6 +320,9 @@ export type HExpr =
   // A call to an `async function`: spawns a fiber (cs_fiber_spawn) rather than running the callee
   // synchronously; `type` is the resulting `Promise<T>`. Args are packed into the fiber's env.
   | { kind: "asyncCall"; name: string; args: HExpr[]; type: ValueType }
+  // `Promise.resolve(v)`: wrap an already-available value in a fulfilled promise. `value` is the
+  // inner value; `type` is the resulting `Promise<T>`.
+  | { kind: "promiseResolve"; value: HExpr; type: ValueType }
   | { kind: "unary"; op: UnaryOp; operand: HExpr; type: ValueType }
   | { kind: "binary"; op: BinaryOp; left: HExpr; right: HExpr; type: ValueType }
   // Short-circuiting `&&` / `||`. JS VALUE semantics: the result IS one of the operands (not a

@@ -27,6 +27,17 @@ export function evalAsyncCall(expr: Extract<HExpr, { kind: "asyncCall" }>, ctx: 
   return ctx.fn.call("@cs_fiber_spawn", T.ptr, [{ name: `@${expr.name}`, type: T.ptr }, env]);
 }
 
+// `Promise.resolve(v)` → box v to a slot and wrap it in an already-fulfilled promise.
+export function evalPromiseResolve(
+  expr: Extract<HExpr, { kind: "promiseResolve" }>,
+  ctx: Ctx,
+): Value {
+  const inner =
+    expr.type.kind === "promise" ? expr.type.inner : ice("promiseResolve not promise-typed");
+  const boxed = boxSlot(evalValue(expr.value, ctx), inner, ctx);
+  return ctx.fn.call("@cs_promise_resolved", T.ptr, [boxed]);
+}
+
 export function evalAwait(expr: Extract<HExpr, { kind: "await" }>, ctx: Ctx): Value {
   const promise = evalValue(expr.value, ctx);
   const raw = ctx.fn.call("@cs_await", T.i64, [promise]);

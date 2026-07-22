@@ -483,6 +483,7 @@ const GLOBAL_RECEIVERS: ReadonlySet<string> = new Set([
   "String",
   "Number",
   "Array",
+  "Promise",
 ]);
 
 // A class-instance type (its symbol is declared by a `class`), vs a plain object/interface type.
@@ -501,6 +502,9 @@ export const NAMESPACE_STATIC_ALLOW: Record<string, ReadonlySet<string>> = {
   // Math methods codegen actually lowers (evalMathCall). Others (hypot/pow/random/sin/…) ICE, so
   // reject them here. Math CONSTANTS (Math.PI) are property reads, not calls — unaffected.
   Math: new Set(["floor", "ceil", "trunc", "abs", "sqrt", "round", "sign", "pow", "max", "min"]),
+  // Promise statics codegen lowers. `all`/`race`/`allSettled`/`reject` are later slices, so they
+  // reject here until implemented.
+  Promise: new Set(["resolve"]),
 };
 
 function checkNew(node: ts.NewExpression, hit: Hit): Diagnostic | null {

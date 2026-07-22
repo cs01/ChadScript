@@ -194,6 +194,7 @@ diagnostic — there is no "compiles but behaves differently than Node" third ca
 - `Math`: `abs`, `ceil`, `floor`, `max`, `min`, `pow`, `round`, `sign`, `sqrt`, `trunc`
 - `Number`: _(none)_
 - `Object`: `keys`, `values`
+- `Promise`: `resolve`
 
 ## Rejection codes
 
