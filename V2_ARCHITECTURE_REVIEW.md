@@ -9,6 +9,112 @@ Reviewed base: local `v2` at `c7611775`, rebased onto `origin/v2` at `47620004`
 Continue V2. The July reset is a credible replacement compiler and is substantially healthier than both V1
 and the May rewrite.
 
+## Follow-up Status - 2026-07-22 15:02
+
+The recovery work through `2974bd71` closed most findings in this review:
+
+- differential execution now distinguishes normal exit, signal death, timeout, and infrastructure failure
+- a `verifyHir()` boundary runs before codegen
+- the admission-ICE corpus and method allowlists fail unsupported combinations at validation
+- all compiler source files are under the 800-line limit, enforced by a ratchet test
+- runtime objects use a content- and configuration-addressed cache
+- `docs/SUBSET.md` is generated from validator tables and checked for drift
+- the stale NUL-terminated-string unit test was corrected
+- async waiters are FIFO, the microtask queue grows without dropping work, promise rejection resumes by
+  throwing, handler stacks are stored per fiber, and boxing/rooting rules have focused C tests
+
+The sections below remain useful background, but completed items should not be reimplemented. The following
+issues are still open and are the current review findings.
+
+### A. `verifyHir()` checks presence, not semantic consistency
+
+The verifier walks every node and proves each expression has a `{ kind }` type object. It does not yet prove
+the type relationships described in Blocking Finding 2.
+
+For example, it currently accepts malformed HIR where:
+
+- `varDecl.type` differs from `init.type`
+- an assignment value differs from the binding type
+- a return value differs from the function return type
+- binary/logical operands are incompatible with the operator or result
+- conditional arms differ from the conditional result type
+- an array element differs from the array element type
+- a call's arguments or result differ from the declared function signature
+- a map/set key or value differs from its collection type
+- `await.value` is not `Promise<T>` or the result is not `T`
+
+Required follow-up:
+
+- Add structural `ValueType` equality.
+- Give verification a binding/function/class signature environment.
+- Validate operand/result relationships for every HIR node, not only traversal and type presence.
+- Extend malformed-HIR tests with wrong-but-present types.
+
+### B. Async escaping throws do not reject the result promise
+
+`cs_fiber_trampoline()` calls the compiled body directly. A fresh fiber begins with an empty handler stack.
+If an async body throws without catching the value inside that same body, `cs_throw()` sees no handler and
+terminates the process. JavaScript instead returns/rejects the async function's result promise; the caller may
+catch that rejection at `await`.
+
+This applies to throws before the first `await`, after resumption, and errors propagated from a synchronous
+callee. The existing rejection-resumption test starts with an already-rejected promise and tests the awaiting
+side; it does not test an async producer throwing into its own result promise.
+
+Required follow-up before admitting async syntax:
+
+- Install a fiber-root exception handler around every async body invocation.
+- On escape, reject `Fiber.result` with the caught `CsThrown` and return to the fiber's caller/scheduler.
+- Add C/runtime and eventual Node differential tests for throws before the first await, after an await, and in
+  a nested synchronous call.
+- Assert that calling the async function itself does not synchronously terminate or throw.
+
+### C. Multi-await scheduling remains broken
+
+The codegen slice is correctly kept behind validation because a fiber that suspends, resumes, and suspends a
+second time aliases the shared scheduler context and produces no continuation output.
+
+Required follow-up:
+
+- Separate the event-loop scheduler context from nested-spawn return contexts.
+- Test two and three awaits in one body, nested async calls, already-settled awaits, and interleaved fibers.
+- Do not admit `AsyncKeyword` or `AwaitExpression` until those cases pass differentially at O0 and O2.
+
+### D. Unicode gating remains incomplete and gives unsafe rewrite advice
+
+The runtime deliberately stores UTF-8 bytes, but several admitted APIs interpret byte offsets as JavaScript
+UTF-16 code-unit indices. `charCodeAt`, string indexing, string `for...of`, and relational comparison are now
+rejected, but the same issue remains for:
+
+- `.length`, `.charAt()`, and `.at()`
+- `.slice()`, `.substring()`, and `.substr()`
+- positional `.includes()`, `.indexOf()`, `.lastIndexOf()`, `.startsWith()`, and `.endsWith()`
+- `split("")` and replacement behavior that operates per byte rather than per code point/code unit
+
+Current CS1216 suggestions recommend `.charAt()`, `.at()`, and `.length`, which are themselves byte-indexed.
+Also, the `charCodeAt` property rule is name-only and rejects a user-defined non-string method with that name.
+
+Required follow-up:
+
+- Either reject non-ASCII strings at a provable boundary or gate every operation whose semantics are not
+  UTF-8-byte invariant.
+- Type-guard `charCodeAt` rejection by receiver, as the other method allowlists do.
+- Remove rewrite suggestions that point to another divergent operation.
+- Add non-ASCII rejection or behavior fixtures; ASCII fixtures cannot prove this boundary.
+
+### E. Synthesized derived constructors do not forward inherited arguments
+
+A derived class with field initializers but no explicit constructor gets a synthesized zero-argument
+constructor that invokes `super()` with no arguments. JavaScript's default derived constructor behaves like
+`constructor(...args) { super(...args); }` before running derived field initializers.
+
+Required follow-up:
+
+- Either synthesize the inherited constructor signature and forward every argument, then run derived field
+  initializers, or reject this class shape at validation.
+- Add a differential fixture with a parameterized base constructor, a derived field initializer, no explicit
+  derived constructor, and `new Derived(arg)`.
+
 The earlier review of the cached May `origin/dev` branch is obsolete. The current V2 is a new architecture:
 
 - approximately 6,100 lines across `src/`
