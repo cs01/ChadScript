@@ -390,6 +390,9 @@ function lowerStatement(stmt: ts.Statement, ctx: LowerCtx): HStmt[] {
     );
     return [{ kind: "return", value }];
   }
+  if (ts.isThrowStatement(stmt)) {
+    return [lowerThrow(stmt.expression, ctx)];
+  }
   if (ts.isBreakStatement(stmt)) {
     if (stmt.label) ice("lower: labeled break not supported yet");
     return [{ kind: "break" }];
@@ -407,6 +410,27 @@ function lowerStatement(stmt: ts.Statement, ctx: LowerCtx): HStmt[] {
     return lowerStatements(stmt.statements, ctx);
   }
   return ice(`lower: unsupported statement ${ts.SyntaxKind[stmt.kind]}`);
+}
+
+// `throw expr` (interim). Extracts a message string when it can: `throw new Error(msg)` → msg,
+// `throw "str"` → the string. Otherwise the message is null (still terminates). Full try/catch
+// with unwinding replaces this later.
+function lowerThrow(expr: ts.Expression, ctx: LowerCtx): HStmt {
+  // `new Error(msg)` — Error is a builtin; take its first argument as the message.
+  if (
+    ts.isNewExpression(expr) &&
+    ts.isIdentifier(expr.expression) &&
+    expr.expression.text === "Error"
+  ) {
+    const arg = expr.arguments?.[0];
+    return { kind: "throwError", message: arg ? lowerExpr(arg, ctx) : null };
+  }
+  // A thrown string value.
+  const t = ctx.checker.getTypeAtLocation(expr);
+  if (t.flags & ts.TypeFlags.StringLike) {
+    return { kind: "throwError", message: lowerExpr(expr, ctx) };
+  }
+  return { kind: "throwError", message: null };
 }
 
 function lowerStatements(stmts: readonly ts.Statement[], ctx: LowerCtx): HStmt[] {

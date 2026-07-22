@@ -79,6 +79,7 @@ const ALLOWED_KINDS: ReadonlySet<ts.SyntaxKind> = new Set([
   ts.SyntaxKind.ArrowFunction,
   ts.SyntaxKind.FunctionExpression,
   ts.SyntaxKind.ReturnStatement,
+  ts.SyntaxKind.ThrowStatement, // `throw` (interim: terminates with non-zero exit)
   ts.SyntaxKind.BreakStatement,
   ts.SyntaxKind.ContinueStatement,
   ts.SyntaxKind.SwitchStatement,

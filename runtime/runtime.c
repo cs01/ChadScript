@@ -31,3 +31,13 @@ void cs_print_bool(int b) { fputs(b ? "true" : "false", stdout); }
 void cs_print_space(void) { fputc(' ', stdout); }
 
 void cs_print_newline(void) { fputc('\n', stdout); }
+
+// Uncaught throw (interim, pre-unwinding): write a best-effort message to stderr and terminate
+// with a non-zero exit (Node exits 1 on an uncaught exception). The differential harness compares
+// stdout + exit code, so this matches Node's observable behavior — the stderr text is best-effort.
+#include <stdlib.h>
+void cs_throw(const char *message) {
+  if (message) fprintf(stderr, "Error: %s\n", message);
+  else fputs("Error\n", stderr);
+  exit(1);
+}

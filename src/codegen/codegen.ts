@@ -120,6 +120,7 @@ export function generate(hmod: HModule): string {
   mod.declareExtern("cs_set_size", T.i32, [T.ptr]);
   mod.declareExtern("cs_set_values", T.ptr, [T.ptr]);
   mod.declareExtern("exit", T.void, [T.i32]);
+  mod.declareExtern("cs_throw", T.void, [T.ptr]);
 
   // Class vtables (constant arrays of method fn pointers); an instance stores a pointer to its
   // class's vtable in record slot 0 for virtual dispatch.
@@ -332,6 +333,15 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
     case "virtualCallStmt":
       evalVirtualCallStmt(stmt.receiver, stmt.vtableIndex, stmt.args, stmt.returnType, ctx);
       return;
+
+    case "throwError": {
+      // Interim: print the message and terminate. cs_throw does not return, so the block ends
+      // unreachable (throw is a control-flow terminator like return).
+      const msg = stmt.message ? evalValue(stmt.message, ctx) : ctx.fn.nullPtr();
+      ctx.fn.callVoid("@cs_throw", [msg]);
+      ctx.fn.unreachable();
+      return;
+    }
 
     case "exprStmt":
       // Evaluate for side effects; discard the value (e.g. `arr.push(x);`).
