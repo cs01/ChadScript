@@ -15,7 +15,6 @@ import {
   irTypeOf,
   lookupVar,
   evalValue,
-  evalNumber,
   evalString,
   evalCall,
   evalCallClosure,
@@ -25,6 +24,7 @@ import {
   emitStrictEq,
 } from "./expr.js";
 import { evalMemberGet } from "./objects.js";
+import { evalNumber } from "./numbers.js";
 import { evalArrayHof } from "./array.js";
 import { evalMapGet } from "./collections.js";
 

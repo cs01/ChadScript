@@ -6,7 +6,8 @@ import { ice } from "../diagnostics.js";
 import { fimm, type Value } from "../ir/builder.js";
 import { T } from "../ir/types.js";
 import type { HExpr } from "../hir/nodes.js";
-import { type Ctx, evalNumber } from "./expr.js";
+import { type Ctx } from "./expr.js";
+import { evalNumber } from "./numbers.js";
 
 const MATH_UNARY: Record<string, string> = {
   floor: "@floor",

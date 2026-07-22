@@ -12,7 +12,6 @@ import { T } from "../ir/types.js";
 import type { HModule, HStmt, HExpr, HFunc } from "../hir/nodes.js";
 import type { ValueType } from "../hir/types.js";
 import {
-  evalNumber,
   evalBool,
   evalString,
   evalValue,
@@ -31,6 +30,7 @@ import {
 } from "./expr.js";
 import { evalObjectPtr, headerOffset } from "./objects.js";
 import { evalOptionalPtr, unboxOptionalValue, unboxSlotValue } from "./optional.js";
+import { evalNumber } from "./numbers.js";
 import { inspect } from "./inspect.js";
 
 export function generate(hmod: HModule): string {
