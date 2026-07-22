@@ -50,12 +50,8 @@ function nameOf(ident: ts.Identifier, ctx: LowerCtx): string {
 // Returns an array because one `let a = 1, b = 2;` lowers to several varDecls.
 function lowerStatement(stmt: ts.Statement, ctx: LowerCtx): HStmt[] {
   if (ts.isExpressionStatement(stmt)) {
-    const e = stmt.expression;
-    if (ts.isCallExpression(e)) return [lowerCallStatement(e, ctx)];
-    if (ts.isBinaryExpression(e) && isAssignmentOp(e.operatorToken.kind)) {
-      return [lowerAssignment(e, ctx)];
-    }
-    return ice(`lower: unsupported expression statement ${ts.SyntaxKind[e.kind]}`);
+    if (ts.isCallExpression(stmt.expression)) return [lowerCallStatement(stmt.expression, ctx)];
+    return [lowerExprStatement(stmt.expression, ctx)];
   }
   if (ts.isVariableStatement(stmt)) {
     return stmt.declarationList.declarations.map((d) => lowerVarDecl(d, ctx));
@@ -71,6 +67,9 @@ function lowerStatement(stmt: ts.Statement, ctx: LowerCtx): HStmt[] {
         body: lowerBranchBody(stmt.statement, ctx),
       },
     ];
+  }
+  if (ts.isForStatement(stmt)) {
+    return [lowerFor(stmt, ctx)];
   }
   if (ts.isBlock(stmt)) {
     // A bare block just contributes its statements (flattened; scoping is enforced by tsc, and
@@ -95,6 +94,62 @@ function lowerIf(stmt: ts.IfStatement, ctx: LowerCtx): HStmt {
     cond: lowerExpr(stmt.expression, ctx),
     then: lowerBranchBody(stmt.thenStatement, ctx),
     otherwise: stmt.elseStatement ? lowerBranchBody(stmt.elseStatement, ctx) : null,
+  };
+}
+
+function lowerFor(stmt: ts.ForStatement, ctx: LowerCtx): HStmt {
+  let init: HStmt[] = [];
+  if (stmt.initializer) {
+    init = ts.isVariableDeclarationList(stmt.initializer)
+      ? stmt.initializer.declarations.map((d) => lowerVarDecl(d, ctx))
+      : [lowerExprStatement(stmt.initializer, ctx)];
+  }
+  const update = stmt.incrementor ? [lowerExprStatement(stmt.incrementor, ctx)] : [];
+  return {
+    kind: "for",
+    init,
+    cond: stmt.condition ? lowerExpr(stmt.condition, ctx) : null,
+    update,
+    body: lowerBranchBody(stmt.statement, ctx),
+  };
+}
+
+// A statement-position expression whose value is discarded: assignment, compound assignment,
+// or ++/-- (which we desugar to an assignment). Used for expression statements and for-clauses.
+function lowerExprStatement(expr: ts.Expression, ctx: LowerCtx): HStmt {
+  if (ts.isBinaryExpression(expr) && isAssignmentOp(expr.operatorToken.kind)) {
+    return lowerAssignment(expr, ctx);
+  }
+  if (ts.isPostfixUnaryExpression(expr) || ts.isPrefixUnaryExpression(expr)) {
+    return lowerIncDec(expr, ctx);
+  }
+  return ice(`lower: unsupported expression statement ${ts.SyntaxKind[expr.kind]}`);
+}
+
+// `i++` / `i--` / `++i` / `--i` in statement position → `i = i +/- 1`. The pre/post distinction
+// only matters for the produced value, which statement position discards.
+function lowerIncDec(
+  expr: ts.PostfixUnaryExpression | ts.PrefixUnaryExpression,
+  ctx: LowerCtx,
+): HStmt {
+  const op = expr.operator;
+  if (op !== ts.SyntaxKind.PlusPlusToken && op !== ts.SyntaxKind.MinusMinusToken) {
+    // A prefix +/-/! in statement position has no effect and is pointless — reject upstream.
+    return ice(`lower: unsupported unary statement operator ${ts.SyntaxKind[op]}`);
+  }
+  if (!ts.isIdentifier(expr.operand)) ice("lower: ++/-- only supported on a simple variable");
+  const name = nameOf(expr.operand, ctx);
+  const numberType = resolveType(expr.operand, ctx);
+  return {
+    kind: "assign",
+    name,
+    value: {
+      kind: "binary",
+      op: op === ts.SyntaxKind.PlusPlusToken ? "add" : "sub",
+      left: { kind: "varRef", name, type: numberType },
+      right: { kind: "numberLit", value: 1, type: numberType },
+      type: numberType,
+    },
   };
 }
 

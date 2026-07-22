@@ -42,7 +42,11 @@ const ALLOWED_KINDS: ReadonlySet<ts.SyntaxKind> = new Set([
   // Control flow (Phase 1).
   ts.SyntaxKind.IfStatement,
   ts.SyntaxKind.WhileStatement,
+  ts.SyntaxKind.ForStatement,
   ts.SyntaxKind.Block,
+  // `i++` / `i--` (statement/for-update position). Only ++/-- exist as postfix, so the whole
+  // kind is admitted; prefix ++/-- is gated via SUPPORTED_UNARY_OPS below.
+  ts.SyntaxKind.PostfixUnaryExpression,
 ]);
 
 // Supported operators, checked per-operator so an admitted expression kind doesn't smuggle in
@@ -73,6 +77,8 @@ const SUPPORTED_BINARY_OPS: ReadonlySet<ts.SyntaxKind> = new Set([
 const SUPPORTED_UNARY_OPS: ReadonlySet<ts.SyntaxKind> = new Set([
   ts.SyntaxKind.PlusToken,
   ts.SyntaxKind.MinusToken,
+  ts.SyntaxKind.PlusPlusToken, // ++i
+  ts.SyntaxKind.MinusMinusToken, // --i
 ]);
 
 export function validate(loaded: LoadedProgram): void {

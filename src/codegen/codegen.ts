@@ -118,6 +118,31 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
       return;
     }
 
+    case "for": {
+      for (const s of stmt.init) emitStatement(s, ctx);
+      const headerB = ctx.fn.newBlock("for.header");
+      const bodyB = ctx.fn.newBlock("for.body");
+      const latchB = ctx.fn.newBlock("for.latch"); // runs the update, then re-checks
+      const endB = ctx.fn.newBlock("for.end");
+
+      ctx.fn.br(headerB);
+      ctx.fn.switchTo(headerB);
+      // A missing condition is an always-true loop.
+      if (stmt.cond) ctx.fn.brCond(toBool(stmt.cond, ctx), bodyB, endB);
+      else ctx.fn.br(bodyB);
+
+      ctx.fn.switchTo(bodyB);
+      for (const s of stmt.body) emitStatement(s, ctx);
+      if (!ctx.fn.currentBlock.isTerminated) ctx.fn.br(latchB);
+
+      ctx.fn.switchTo(latchB);
+      for (const s of stmt.update) emitStatement(s, ctx);
+      ctx.fn.br(headerB);
+
+      ctx.fn.switchTo(endB);
+      return;
+    }
+
     default:
       ice(`codegen: unhandled statement ${(stmt as { kind: string }).kind}`);
   }

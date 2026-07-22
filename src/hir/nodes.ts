@@ -22,7 +22,11 @@ export type HStmt =
   // `cond` is evaluated for JS truthiness (see codegen toBool).
   | { kind: "if"; cond: HExpr; then: HStmt[]; otherwise: HStmt[] | null }
   // `while (cond) { body }` — cond re-evaluated (truthiness) before each iteration.
-  | { kind: "while"; cond: HExpr; body: HStmt[] };
+  | { kind: "while"; cond: HExpr; body: HStmt[] }
+  // `for (init; cond; update) { body }`. `cond` null means an always-true loop. init/update
+  // are statement lists (a decl or assignment). The update block is kept distinct from the body
+  // so `continue` can target it once supported.
+  | { kind: "for"; init: HStmt[]; cond: HExpr | null; update: HStmt[]; body: HStmt[] };
 
 export type UnaryOp = "neg" | "pos";
 // Arithmetic ops produce a number; comparison ops (lt..ne) produce a boolean. The `type`
