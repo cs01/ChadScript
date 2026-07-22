@@ -69,9 +69,15 @@ export type HStmt =
   // terminates with a non-zero exit if none. `message` is the Error's message or a thrown string
   // (null when it can't be extracted), printed to stderr on an uncaught throw.
   | { kind: "throwError"; message: HExpr | null }
-  // `try { tryBody } catch { catchBody }`. First-cut: the catch binding value is not bound yet
-  // (catch runs on any throw from the try body). `finally` lands next.
-  | { kind: "tryCatch"; tryBody: HStmt[]; catchBody: HStmt[] }
+  // `try { tryBody } catch { catchBody } finally { finallyBody }`. `catchBody`/`finallyBody` are
+  // null when that clause is absent (at least one is present). The catch binding value is not
+  // bound yet (catch runs on any throw from the try body).
+  | {
+      kind: "tryCatch";
+      tryBody: HStmt[];
+      catchBody: HStmt[] | null;
+      finallyBody: HStmt[] | null;
+    }
   // `break;` / `continue;` — target the innermost enclosing loop (no labels yet).
   | { kind: "break" }
   | { kind: "continue" }

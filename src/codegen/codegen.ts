@@ -125,6 +125,7 @@ export function generate(hmod: HModule): string {
   mod.declareExtern("cs_push_handler", T.void, [T.ptr]);
   mod.declareExtern("cs_pop_handler", T.void, []);
   mod.declareExtern("_setjmp", T.i32, [T.ptr], "returns_twice");
+  mod.declareExtern("cs_rethrow", T.void, []);
 
   // Class vtables (constant arrays of method fn pointers); an instance stores a pointer to its
   // class's vtable in record slot 0 for virtual dispatch.
@@ -205,11 +206,25 @@ function emitFunction(f: HFunc, mod: ModuleBuilder): void {
 // on the result — 0 is the normal entry (run the try body, then pop the handler), non-zero is the
 // resume after a longjmp from `throw` (the handler was already popped there; run the catch body).
 function emitTryCatch(stmt: Extract<HStmt, { kind: "tryCatch" }>, ctx: Ctx): void {
-  // A return/break/continue escaping the try body would skip the handler pop, leaving a stale
-  // handler pointing at a dead frame. Reject that until the pop-on-every-exit path is built.
-  if (escapesTry(stmt.tryBody)) {
-    ice("codegen: return/break/continue inside a try body not supported yet");
+  // A return/break/continue escaping any clause would skip a handler pop or the finally block.
+  // Reject that until the pop-on-every-exit path is built.
+  const escapes =
+    escapesTry(stmt.tryBody) ||
+    (stmt.catchBody !== null && escapesTry(stmt.catchBody)) ||
+    (stmt.finallyBody !== null && escapesTry(stmt.finallyBody));
+  if (escapes) {
+    ice("codegen: return/break/continue inside a try/catch/finally clause not supported yet");
   }
+  if (stmt.finallyBody === null) {
+    emitTryCatchNoFinally(stmt.tryBody, stmt.catchBody!, ctx);
+    return;
+  }
+  emitTryFinally(stmt.tryBody, stmt.catchBody, stmt.finallyBody, ctx);
+}
+
+// `try { A } catch { B }` (no finally): setjmp; 0 → run A then pop the handler; non-zero → the
+// throw already popped, run B.
+function emitTryCatchNoFinally(tryBody: HStmt[], catchBody: HStmt[], ctx: Ctx): void {
   const buf = ctx.fn.call("@cs_handler_alloc", T.ptr, []);
   ctx.fn.callVoid("@cs_push_handler", [buf]);
   const r = ctx.fn.call("@_setjmp", T.i32, [buf]);
@@ -219,15 +234,79 @@ function emitTryCatch(stmt: Extract<HStmt, { kind: "tryCatch" }>, ctx: Ctx): voi
   ctx.fn.brCond(ctx.fn.icmp("eq", r, imm(T.i32, 0)), tryB, catchB);
 
   ctx.fn.switchTo(tryB);
-  emitStatements(stmt.tryBody, ctx);
+  emitStatements(tryBody, ctx);
   if (!ctx.fn.currentBlock.isTerminated) {
     ctx.fn.callVoid("@cs_pop_handler", []); // normal completion → unlink the handler
     ctx.fn.br(afterB);
   }
 
   ctx.fn.switchTo(catchB);
-  emitStatements(stmt.catchBody, ctx);
+  emitStatements(catchBody, ctx);
   if (!ctx.fn.currentBlock.isTerminated) ctx.fn.br(afterB);
+
+  ctx.fn.switchTo(afterB);
+}
+
+// `try { A } [catch { B }] finally { C }`. An OUTER handler ensures C runs even when B (or an
+// uncaught A) throws: on the outer-caught path C runs and the exception is re-raised. `finally`
+// (C) is emitted on both the normal and exceptional paths.
+function emitTryFinally(
+  tryBody: HStmt[],
+  catchBody: HStmt[] | null,
+  finallyBody: HStmt[],
+  ctx: Ctx,
+): void {
+  const outer = ctx.fn.call("@cs_handler_alloc", T.ptr, []);
+  ctx.fn.callVoid("@cs_push_handler", [outer]);
+  const ro = ctx.fn.call("@_setjmp", T.i32, [outer]);
+  const normalB = ctx.fn.newBlock("fin.normal"); // ro == 0: run try (+catch), then finally
+  const unwindB = ctx.fn.newBlock("fin.unwind"); // ro != 0: run finally, then re-throw
+  const finallyNormalB = ctx.fn.newBlock("fin.run"); // finally on the non-throwing path
+  const afterB = ctx.fn.newBlock("fin.after");
+  ctx.fn.brCond(ctx.fn.icmp("eq", ro, imm(T.i32, 0)), normalB, unwindB);
+
+  ctx.fn.switchTo(normalB);
+  if (catchBody === null) {
+    // try/finally: run A under the outer handler; on normal completion pop it and fall to finally.
+    emitStatements(tryBody, ctx);
+    if (!ctx.fn.currentBlock.isTerminated) {
+      ctx.fn.callVoid("@cs_pop_handler", []);
+      ctx.fn.br(finallyNormalB);
+    }
+  } else {
+    // try/catch/finally: an INNER handler runs A; if A throws, B runs (under the outer handler).
+    const inner = ctx.fn.call("@cs_handler_alloc", T.ptr, []);
+    ctx.fn.callVoid("@cs_push_handler", [inner]);
+    const ri = ctx.fn.call("@_setjmp", T.i32, [inner]);
+    const innerTryB = ctx.fn.newBlock("fin.try");
+    const innerCatchB = ctx.fn.newBlock("fin.catch");
+    ctx.fn.brCond(ctx.fn.icmp("eq", ri, imm(T.i32, 0)), innerTryB, innerCatchB);
+
+    ctx.fn.switchTo(innerTryB);
+    emitStatements(tryBody, ctx);
+    if (!ctx.fn.currentBlock.isTerminated) {
+      ctx.fn.callVoid("@cs_pop_handler", []); // pop inner; outer still active
+      ctx.fn.br(finallyNormalB);
+    }
+    ctx.fn.switchTo(innerCatchB);
+    emitStatements(catchBody, ctx);
+    if (!ctx.fn.currentBlock.isTerminated) ctx.fn.br(finallyNormalB);
+  }
+
+  // Shared: pop the outer handler and run finally on the normal (non-throwing) completion.
+  ctx.fn.switchTo(finallyNormalB);
+  ctx.fn.callVoid("@cs_pop_handler", []);
+  emitStatements(finallyBody, ctx);
+  if (!ctx.fn.currentBlock.isTerminated) ctx.fn.br(afterB);
+
+  // Exceptional path: the outer handler caught (B threw, or A threw with no catch). Run finally,
+  // then re-raise so the exception keeps propagating outward.
+  ctx.fn.switchTo(unwindB);
+  emitStatements(finallyBody, ctx);
+  if (!ctx.fn.currentBlock.isTerminated) {
+    ctx.fn.callVoid("@cs_rethrow", []);
+    ctx.fn.unreachable();
+  }
 
   ctx.fn.switchTo(afterB);
 }
@@ -257,7 +336,11 @@ function escapesTry(stmts: HStmt[]): boolean {
         case "switch":
           return s.cases.some((c) => walk(c.body, inLoop, true));
         case "tryCatch":
-          return walk(s.tryBody, inLoop, inBreakable) || walk(s.catchBody, inLoop, inBreakable);
+          return (
+            walk(s.tryBody, inLoop, inBreakable) ||
+            (s.catchBody !== null && walk(s.catchBody, inLoop, inBreakable)) ||
+            (s.finallyBody !== null && walk(s.finallyBody, inLoop, inBreakable))
+          );
         default:
           return false;
       }

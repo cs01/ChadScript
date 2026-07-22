@@ -42,8 +42,8 @@ void cs_print_newline(void) { fputc('\n', stdout); }
 
 #define CS_MAX_HANDLERS 1024
 static void *cs_handlers[CS_MAX_HANDLERS];
-static const char *cs_handler_msg[CS_MAX_HANDLERS]; // thrown message, for a future catch binding
 static int cs_handler_n = 0;
+static const char *cs_pending_msg = 0; // message of the in-flight exception (for rethrow/binding)
 
 // Allocate a jmp_buf for a `try` (GC-managed; codegen calls setjmp on it).
 void *cs_handler_alloc(void) { return GC_malloc(sizeof(jmp_buf)); }
@@ -59,12 +59,15 @@ void cs_pop_handler(void) {
 // uncaught exception; the differential harness compares stdout + exit code, so the stderr text is
 // best-effort). The message is stashed for the (future) catch binding.
 void cs_throw(const char *message) {
+  cs_pending_msg = message;
   if (cs_handler_n > 0) {
     cs_handler_n--;
-    cs_handler_msg[cs_handler_n] = message;
     _longjmp(*(jmp_buf *)cs_handlers[cs_handler_n], 1);
   }
   if (message) fprintf(stderr, "Error: %s\n", message);
   else fputs("Error\n", stderr);
   exit(1);
 }
+
+// Re-raise the in-flight exception after a `finally` block has run on the exception path.
+void cs_rethrow(void) { cs_throw(cs_pending_msg); }

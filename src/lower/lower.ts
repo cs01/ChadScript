@@ -394,15 +394,17 @@ function lowerStatement(stmt: ts.Statement, ctx: LowerCtx): HStmt[] {
     return [lowerThrow(stmt.expression, ctx)];
   }
   if (ts.isTryStatement(stmt)) {
-    if (stmt.finallyBlock) ice("lower: try/finally not supported yet");
-    if (!stmt.catchClause) ice("lower: try without catch not supported");
+    if (!stmt.catchClause && !stmt.finallyBlock) ice("lower: try needs a catch or finally");
     // The catch binding value (`catch (e)`) is not modeled yet — referencing `e` will fail to
-    // lower (unknown type). Recovery-style `try { } catch { }` works.
+    // lower (unknown type). Recovery-style `try { } catch { }` and `finally` work.
     return [
       {
         kind: "tryCatch",
         tryBody: lowerStatements(stmt.tryBlock.statements, ctx),
-        catchBody: lowerStatements(stmt.catchClause.block.statements, ctx),
+        catchBody: stmt.catchClause
+          ? lowerStatements(stmt.catchClause.block.statements, ctx)
+          : null,
+        finallyBody: stmt.finallyBlock ? lowerStatements(stmt.finallyBlock.statements, ctx) : null,
       },
     ];
   }
