@@ -45,3 +45,7 @@ test("async runtime: awaiting a rejected promise throws into the fiber's try/cat
 test("async runtime: concurrent try/catch across await catch their own rejections (fiber-local handler stack)", () => {
   assert.doesNotThrow(() => runCTest("async_concurrent_reject_test.c"));
 });
+
+test("async runtime: promise values round-trip through resolve/await for each boxed representation", () => {
+  assert.doesNotThrow(() => runCTest("async_boxing_test.c"));
+});
