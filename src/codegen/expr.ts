@@ -23,23 +23,37 @@ export interface Ctx {
   vars: Map<string, { ptr: Value; vtype: ValueType }>;
   // `break` targets (pushed by loops AND switch); `continue` targets (loops only, so continue
   // inside a switch correctly reaches the enclosing loop). Innermost last.
-  breakTargets: BasicBlock[];
-  continueTargets: BasicBlock[];
-  // Enclosing try blocks that intercept abrupt completions (return) so their `finally` runs first.
-  // Innermost last. A `return` inside routes to the innermost frame's cleanup, which runs finally
-  // then chains to the next frame (or performs the real return). See emitTry.
+  // break/continue targets, innermost last. Each records the `finallyStack` depth at the loop's
+  // (or switch's, for break) entry, so a break/continue can tell how many enclosing `finally`
+  // blocks it must run before reaching the target.
+  breakTargets: LoopTarget[];
+  continueTargets: LoopTarget[];
+  // Enclosing try blocks that intercept abrupt completions (return/break/continue) so their
+  // `finally` runs first. Innermost last. See emitTry.
   finallyStack: TryFrame[];
   // The current function's declared return type (for the abrupt-return value slot); null = void.
   fnReturnType?: ValueType | null;
 }
 
+// A break/continue target block plus the finally-nesting depth at the enclosing loop/switch entry.
+export interface LoopTarget {
+  block: BasicBlock;
+  finallyDepth: number;
+}
+
 // A try/catch/finally region's abrupt-completion routing. `code` (i32 alloca) holds the pending
-// completion (0 normal, 1 return, 4 throw); `retVal` holds a pending return value (null if the
-// function is void); `cleanupEntry` is the block that runs finally + dispatches the completion.
+// completion (0 normal, 1 return, 2 break, 3 continue, 4 throw); `retVal` holds a pending return
+// value (null if void); `cleanupEntry` runs finally + dispatches. `index` is the frame's position
+// in finallyStack; `enclosingBreak`/`enclosingContinue` are the loop/switch a crossing
+// break/continue targets (captured at try entry) — the dispatch chains through outer finallys
+// until reaching that target's depth.
 export interface TryFrame {
   code: Value;
   retVal: Value | null;
   cleanupEntry: BasicBlock;
+  index: number;
+  enclosingBreak: LoopTarget | null;
+  enclosingContinue: LoopTarget | null;
 }
 
 // The machine representation of a source-level type.

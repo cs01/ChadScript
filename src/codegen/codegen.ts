@@ -31,6 +31,8 @@ import {
   evalVirtualCall,
   evalVirtualCallStmt,
   type Ctx,
+  type TryFrame,
+  type LoopTarget,
 } from "./expr.js";
 import { inspect } from "./inspect.js";
 
@@ -220,27 +222,19 @@ function emitFunction(f: HFunc, mod: ModuleBuilder): void {
   }
 }
 
-// `try { } catch { }` via setjmp/longjmp: allocate + push a handler buffer, setjmp it, and branch
-// on the result — 0 is the normal entry (run the try body, then pop the handler), non-zero is the
-// resume after a longjmp from `throw` (the handler was already popped there; run the catch body).
-// Completion codes routed through a try's cleanup (which runs `finally` and dispatches).
+// Structured-completion codes routed through a try's cleanup (which runs `finally` and dispatches
+// the pending completion). A break/continue carries the loop/switch it targets via the frame.
 const C_NORMAL = 0;
 const C_RETURN = 1;
+const C_BREAK = 2;
+const C_CONTINUE = 3;
 const C_THROW = 4;
 
 // Unified `try [catch] [finally]` with a structured-completion model. A throw is caught by a
-// setjmp handler; a `return` inside routes to the cleanup block (which restores the handler depth,
-// runs finally, and dispatches). Cleanup handles NORMAL / RETURN / THROW; a RETURN chains through
-// any enclosing finally before performing the real return. break/continue crossing a finally are
-// still rejected (a later slice) — they'd need target-aware routing.
+// setjmp handler; return/break/continue inside route to the cleanup block (which restores the
+// handler depth, runs finally, and dispatches). Cleanup handles NORMAL / RETURN / BREAK / CONTINUE
+// / THROW; each abrupt completion chains through any enclosing finally before reaching its target.
 function emitTryCatch(stmt: Extract<HStmt, { kind: "tryCatch" }>, ctx: Ctx): void {
-  const crosses =
-    breakContinueEscapes(stmt.tryBody) ||
-    (stmt.catchBody !== null && breakContinueEscapes(stmt.catchBody)) ||
-    (stmt.finallyBody !== null && breakContinueEscapes(stmt.finallyBody));
-  if (crosses) {
-    ice("codegen: break/continue crossing a try/finally is not supported yet");
-  }
   const hasCatch = stmt.catchBody !== null;
   const hasFinally = stmt.finallyBody !== null;
 
@@ -250,7 +244,15 @@ function emitTryCatch(stmt: Extract<HStmt, { kind: "tryCatch" }>, ctx: Ctx): voi
   const retSlot = ctx.fnReturnType ? ctx.fn.alloca(irTypeOf(ctx.fnReturnType)) : null;
   const cleanupB = ctx.fn.newBlock("try.cleanup");
   const afterB = ctx.fn.newBlock("try.after");
-  const frame = { code: codeSlot, retVal: retSlot, cleanupEntry: cleanupB };
+  const frame: TryFrame = {
+    code: codeSlot,
+    retVal: retSlot,
+    cleanupEntry: cleanupB,
+    index: ctx.finallyStack.length,
+    // The loop/switch a crossing break/continue targets (innermost at try entry).
+    enclosingBreak: ctx.breakTargets[ctx.breakTargets.length - 1] ?? null,
+    enclosingContinue: ctx.continueTargets[ctx.continueTargets.length - 1] ?? null,
+  };
 
   // Outer handler: catches a throw from the try body (when there is no catch) or from the catch
   // body. It longjmps back to this setjmp.
@@ -295,21 +297,69 @@ function emitTryCatch(stmt: Extract<HStmt, { kind: "tryCatch" }>, ctx: Ctx): voi
   ctx.fn.callVoid("@cs_handler_restore", [saved]);
   if (hasFinally) emitStatements(stmt.finallyBody!, ctx);
   if (!ctx.fn.currentBlock.isTerminated) {
+    // Dispatch the pending completion. Cases NORMAL (→ after), RETURN, BREAK, CONTINUE, THROW.
     const code = ctx.fn.load(T.i32, codeSlot);
     const retB = ctx.fn.newBlock("try.ret");
-    const notRet = ctx.fn.newBlock("try.notret");
+    const breakB = ctx.fn.newBlock("try.break");
+    const contB = ctx.fn.newBlock("try.cont");
     const throwB = ctx.fn.newBlock("try.throw");
-    ctx.fn.brCond(ctx.fn.icmp("eq", code, imm(T.i32, C_RETURN)), retB, notRet);
-    ctx.fn.switchTo(notRet);
+    const d1 = ctx.fn.newBlock("try.d1");
+    const d2 = ctx.fn.newBlock("try.d2");
+    const d3 = ctx.fn.newBlock("try.d3");
+    ctx.fn.brCond(ctx.fn.icmp("eq", code, imm(T.i32, C_RETURN)), retB, d1);
+    ctx.fn.switchTo(d1);
+    ctx.fn.brCond(ctx.fn.icmp("eq", code, imm(T.i32, C_BREAK)), breakB, d2);
+    ctx.fn.switchTo(d2);
+    ctx.fn.brCond(ctx.fn.icmp("eq", code, imm(T.i32, C_CONTINUE)), contB, d3);
+    ctx.fn.switchTo(d3);
     ctx.fn.brCond(ctx.fn.icmp("eq", code, imm(T.i32, C_THROW)), throwB, afterB);
+
     ctx.fn.switchTo(retB);
     emitReturnCompletion(ctx, retSlot);
+    ctx.fn.switchTo(breakB);
+    emitLoopCompletion(ctx, frame, frame.enclosingBreak, C_BREAK);
+    ctx.fn.switchTo(contB);
+    emitLoopCompletion(ctx, frame, frame.enclosingContinue, C_CONTINUE);
     ctx.fn.switchTo(throwB);
     ctx.fn.callVoid("@cs_rethrow", []);
     ctx.fn.unreachable();
   }
 
   ctx.fn.switchTo(afterB);
+}
+
+// A break/continue completion at a cleanup dispatch: if there is still an enclosing finally
+// between this try and the target loop/switch (frame is nested deeper than the target's finally
+// depth), chain to that outer finally; otherwise jump to the target. Decided at compile time.
+function emitLoopCompletion(
+  ctx: Ctx,
+  frame: TryFrame,
+  target: LoopTarget | null,
+  code: number,
+): void {
+  if (!target) {
+    ctx.fn.unreachable(); // no crossing break/continue can reach here
+    return;
+  }
+  if (frame.index > target.finallyDepth) {
+    const outer = ctx.finallyStack[frame.index - 1]!; // an intervening finally still to run
+    ctx.fn.store(imm(T.i32, code), outer.code);
+    ctx.fn.br(outer.cleanupEntry);
+  } else {
+    ctx.fn.br(target.block);
+  }
+}
+
+// Route a break/continue that may cross one or more `finally` blocks: if none intervene, jump
+// straight to the target; otherwise mark the completion and enter the innermost finally's cleanup.
+function emitAbruptJump(ctx: Ctx, target: LoopTarget, code: number): void {
+  if (target.finallyDepth === ctx.finallyStack.length) {
+    ctx.fn.br(target.block);
+    return;
+  }
+  const frame = ctx.finallyStack[ctx.finallyStack.length - 1]!;
+  ctx.fn.store(imm(T.i32, code), frame.code);
+  ctx.fn.br(frame.cleanupEntry);
 }
 
 // Perform a RETURN completion at a cleanup dispatch: chain through an enclosing finally if one
@@ -333,42 +383,6 @@ function emitReturnCompletion(ctx: Ctx, retSlot: Value | null): void {
     // this dispatch arm is unreachable, but must not emit a type-mismatched `ret void`.
     ctx.fn.unreachable();
   }
-}
-
-// True if any break/continue in `stmts` could cross the try boundary (target a loop OUTSIDE the
-// try), which the completion model does not route yet. `inLoop`/`inBreakable` track whether a
-// continue/break is captured by a nested construct (a loop captures both; a switch captures break
-// only). `return` is handled by the completion routing, so it does NOT count here.
-function breakContinueEscapes(stmts: HStmt[]): boolean {
-  const walk = (list: HStmt[], inLoop: boolean, inBreakable: boolean): boolean =>
-    list.some((s) => {
-      switch (s.kind) {
-        case "break":
-          return !inBreakable;
-        case "continue":
-          return !inLoop;
-        case "if":
-          return (
-            walk(s.then, inLoop, inBreakable) ||
-            (s.otherwise !== null && walk(s.otherwise, inLoop, inBreakable))
-          );
-        case "while":
-        case "for":
-        case "forOf":
-          return walk(s.body, true, true);
-        case "switch":
-          return s.cases.some((c) => walk(c.body, inLoop, true));
-        case "tryCatch":
-          return (
-            walk(s.tryBody, inLoop, inBreakable) ||
-            (s.catchBody !== null && walk(s.catchBody, inLoop, inBreakable)) ||
-            (s.finallyBody !== null && walk(s.finallyBody, inLoop, inBreakable))
-          );
-        default:
-          return false;
-      }
-    });
-  return walk(stmts, false, false);
 }
 
 // Print one value with no separator or newline. Optionals branch on the sentinel; other types
@@ -462,7 +476,7 @@ function emitSwitch(stmt: Extract<HStmt, { kind: "switch" }>, ctx: Ctx): void {
   ctx.fn.br(defaultIdx >= 0 ? bodies[defaultIdx]! : endB);
 
   // Bodies, in order, with fall-through to the next body.
-  ctx.breakTargets.push(endB);
+  ctx.breakTargets.push({ block: endB, finallyDepth: ctx.finallyStack.length });
   stmt.cases.forEach((c, i) => {
     ctx.fn.switchTo(bodies[i]!);
     emitStatements(c.body, ctx);
@@ -596,8 +610,8 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
 
       ctx.fn.switchTo(bodyB);
       // break → end, continue → header (re-check condition).
-      ctx.breakTargets.push(endB);
-      ctx.continueTargets.push(headerB);
+      ctx.breakTargets.push({ block: endB, finallyDepth: ctx.finallyStack.length });
+      ctx.continueTargets.push({ block: headerB, finallyDepth: ctx.finallyStack.length });
       emitStatements(stmt.body, ctx);
       ctx.breakTargets.pop();
       ctx.continueTargets.pop();
@@ -622,8 +636,8 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
 
       ctx.fn.switchTo(bodyB);
       // break → end, continue → latch (so the update still runs before re-checking).
-      ctx.breakTargets.push(endB);
-      ctx.continueTargets.push(latchB);
+      ctx.breakTargets.push({ block: endB, finallyDepth: ctx.finallyStack.length });
+      ctx.continueTargets.push({ block: latchB, finallyDepth: ctx.finallyStack.length });
       emitStatements(stmt.body, ctx);
       ctx.breakTargets.pop();
       ctx.continueTargets.pop();
@@ -666,8 +680,8 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
         ctx,
       );
       ctx.fn.store(elem, elemPtr);
-      ctx.breakTargets.push(endB);
-      ctx.continueTargets.push(latchB);
+      ctx.breakTargets.push({ block: endB, finallyDepth: ctx.finallyStack.length });
+      ctx.continueTargets.push({ block: latchB, finallyDepth: ctx.finallyStack.length });
       emitStatements(stmt.body, ctx);
       ctx.breakTargets.pop();
       ctx.continueTargets.pop();
@@ -684,14 +698,14 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
     case "break": {
       const target = ctx.breakTargets[ctx.breakTargets.length - 1];
       if (!target) ice("codegen: break outside a loop or switch");
-      ctx.fn.br(target);
+      emitAbruptJump(ctx, target, C_BREAK);
       return;
     }
 
     case "continue": {
       const target = ctx.continueTargets[ctx.continueTargets.length - 1];
       if (!target) ice("codegen: continue outside a loop");
-      ctx.fn.br(target);
+      emitAbruptJump(ctx, target, C_CONTINUE);
       return;
     }
 
