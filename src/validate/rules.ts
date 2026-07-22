@@ -96,6 +96,30 @@ export function tailoredRejection(
       }
       return null;
 
+    case ts.SyntaxKind.ElementAccessExpression:
+      // `s[i]` on a string yields a byte, not Node's UTF-16 code-unit character, for non-ASCII.
+      // Gated (CS1216). Array element access (the common case) is unaffected.
+      if (isStringTyped((node as ts.ElementAccessExpression).expression, checker)) {
+        return hit(
+          CODE.STRING_UNICODE_OP,
+          "indexing a string with `[i]` is not supported yet",
+          "it needs UTF-16 code-unit semantics; use `.charAt(i)` (or `.at(i)`) for now",
+        );
+      }
+      return null;
+
+    case ts.SyntaxKind.ForOfStatement:
+      // `for (const c of str)` iterates UTF-8 bytes here, not Node's code points. Gated (CS1216).
+      // Iterating arrays/Map/Set is unaffected.
+      if (isStringTyped((node as ts.ForOfStatement).expression, checker)) {
+        return hit(
+          CODE.STRING_UNICODE_OP,
+          "iterating a string with `for...of` is not supported yet",
+          "it needs UTF-16/code-point semantics; index with `.charAt` over `.length` for now",
+        );
+      }
+      return null;
+
     case ts.SyntaxKind.AsExpression:
     case ts.SyntaxKind.TypeAssertionExpression:
       return checkCast(node as ts.AsExpression | ts.TypeAssertion, hit);
