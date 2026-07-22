@@ -1020,6 +1020,15 @@ export function evalStrMethod(expr: Extract<HExpr, { kind: "strMethod" }>, ctx: 
     return ctx.fn.call(fn, T.ptr, [recv, args[0]!, padArg]);
   }
 
+  // String.prototype.concat(...args): variadic, so it doesn't fit the fixed-shape table — fold the
+  // receiver and every arg left-to-right with the binary runtime concat. tsc-strict guarantees all
+  // args are strings.
+  if (expr.method === "concat") {
+    let acc = recv;
+    for (const a of args) acc = ctx.fn.call("@cs_str_concat", T.ptr, [acc, a]);
+    return acc;
+  }
+
   const m = STR_METHODS[expr.method];
   if (!m) return ice(`codegen: string method .${expr.method} not supported yet`);
   const raw = ctx.fn.call(m.fn, strRetIrType(m.ret), [recv, ...args]);
