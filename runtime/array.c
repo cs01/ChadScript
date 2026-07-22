@@ -61,6 +61,16 @@ void cs_array_extend(CsArray *dst, CsArray *src) {
   for (int32_t i = 0; i < src->len; i++) cs_array_push(dst, src->data[i]);
 }
 
+// `arr.flat()` (depth 1): concatenate every element array's slots into a fresh array. Each outer
+// slot holds an inner array pointer (arrays are pointer-represented).
+void *cs_array_flat(CsArray *a) {
+  CsArray *r = cs_array_new();
+  for (int32_t i = 0; i < a->len; i++) {
+    cs_array_extend(r, (CsArray *)(intptr_t)a->data[i]);
+  }
+  return r;
+}
+
 // `arr.at(i)` → `element | undefined`. A negative index counts from the end (JS semantics).
 void *cs_array_at(CsArray *a, double di) {
   long i = (long)di;

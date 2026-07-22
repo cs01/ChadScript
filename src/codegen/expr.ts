@@ -570,7 +570,9 @@ export function evalArrayHof(expr: Extract<HExpr, { kind: "arrayHof" }>, ctx: Ct
 
   // map/filter build a fresh array; reduce accumulates into a typed slot.
   const result =
-    expr.op === "map" || expr.op === "filter" ? ctx.fn.call("@cs_array_new", T.ptr, []) : null;
+    expr.op === "map" || expr.op === "filter" || expr.op === "flatMap"
+      ? ctx.fn.call("@cs_array_new", T.ptr, [])
+      : null;
   const accPtr = expr.op === "reduce" ? ctx.fn.alloca(irTypeOf(expr.type)) : null;
 
   // Predicate ops (find/findIndex/some/every) hold a result slot seeded with the "no match"
@@ -627,6 +629,11 @@ export function evalArrayHof(expr: Extract<HExpr, { kind: "arrayHof" }>, ctx: Ct
     if (expr.op === "map") {
       const mapped = ctx.fn.callIndirect(fnptr, retIr, args);
       ctx.fn.call("@cs_array_push", T.i32, [result!, boxSlot(mapped, cbType.ret!, ctx)]);
+      ctx.fn.br(latchB);
+    } else if (expr.op === "flatMap") {
+      // callback returns an array (T[]); splice its elements into the result (depth-1 flatten).
+      const mapped = ctx.fn.callIndirect(fnptr, T.ptr, args);
+      ctx.fn.callVoid("@cs_array_extend", [result!, mapped]);
       ctx.fn.br(latchB);
     } else if (expr.op === "filter") {
       const keep = ctx.fn.callIndirect(fnptr, T.i1, args);

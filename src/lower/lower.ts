@@ -956,6 +956,16 @@ function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
         type: resolveType(call, ctx), // element | undefined
       };
     }
+    if (method === "flat") {
+      if (call.arguments.length > 0) ice("lower: .flat(depth) not supported yet (depth 1 only)");
+      return {
+        kind: "arrayXform",
+        fn: "cs_array_flat",
+        array: receiver,
+        args: [],
+        type: resolveType(call, ctx),
+      };
+    }
     if (method === "includes" || method === "indexOf") {
       return {
         kind: "arraySearch",
@@ -975,6 +985,7 @@ function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
       "findIndex",
       "some",
       "every",
+      "flatMap",
     ];
     if (HOF_METHODS.includes(method)) {
       // reduce(fn, init?) — the optional seed is the 2nd argument.
@@ -989,7 +1000,8 @@ function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
           | "find"
           | "findIndex"
           | "some"
-          | "every",
+          | "every"
+          | "flatMap",
         array: receiver,
         callback: lowerExpr(call.arguments[0]!, ctx),
         init: init ? lowerExpr(init, ctx) : null,
