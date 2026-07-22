@@ -88,6 +88,19 @@ static void format_positive(double x, char *out) {
   }
 }
 
+// ECMAScript ToInt32 (spec 7.1.6): the coercion JS bitwise operators apply to their operands.
+// NaN/±Infinity → 0; otherwise truncate toward zero, reduce modulo 2^32, reinterpret as a
+// signed 32-bit integer. The result's raw 32 bits also serve ToUint32 (same bits, the caller
+// picks signed vs unsigned when converting back to a double). This is the piece v1 got wrong
+// (it did 64-bit bitwise), so it must match JS exactly.
+int cs_to_int32(double x) {
+  if (!isfinite(x)) return 0;
+  double t = trunc(x);
+  double m = fmod(t, 4294967296.0); // 2^32
+  if (m < 0) m += 4294967296.0;     // into [0, 2^32)
+  return (int)(unsigned int)m;      // wrap to uint32 bits, reinterpret as int32
+}
+
 void cs_num_to_str(double x, char *out) {
   if (isnan(x)) {
     strcpy(out, "NaN");

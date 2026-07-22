@@ -78,6 +78,13 @@ const SUPPORTED_BINARY_OPS: ReadonlySet<ts.SyntaxKind> = new Set([
   // Logical (short-circuit, value semantics).
   ts.SyntaxKind.AmpersandAmpersandToken,
   ts.SyntaxKind.BarBarToken,
+  // Bitwise / shift (JS int32 semantics).
+  ts.SyntaxKind.AmpersandToken,
+  ts.SyntaxKind.BarToken,
+  ts.SyntaxKind.CaretToken,
+  ts.SyntaxKind.LessThanLessThanToken,
+  ts.SyntaxKind.GreaterThanGreaterThanToken,
+  ts.SyntaxKind.GreaterThanGreaterThanGreaterThanToken,
   // Assignment (statement form; lower handles `name = ...` / `name <op>= ...`).
   ts.SyntaxKind.EqualsToken,
   ts.SyntaxKind.PlusEqualsToken,
@@ -93,6 +100,7 @@ const SUPPORTED_UNARY_OPS: ReadonlySet<ts.SyntaxKind> = new Set([
   ts.SyntaxKind.PlusPlusToken, // ++i
   ts.SyntaxKind.MinusMinusToken, // --i
   ts.SyntaxKind.ExclamationToken, // !x
+  ts.SyntaxKind.TildeToken, // ~x
 ]);
 
 export function validate(loaded: LoadedProgram): void {

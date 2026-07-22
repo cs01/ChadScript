@@ -384,6 +384,8 @@ function unaryOp(op: ts.PrefixUnaryOperator): UnaryOp {
       return "pos";
     case ts.SyntaxKind.ExclamationToken:
       return "not";
+    case ts.SyntaxKind.TildeToken:
+      return "bnot";
     default:
       return ice(`lower: unsupported unary operator ${ts.SyntaxKind[op]}`);
   }
@@ -413,6 +415,18 @@ function binaryOp(kind: ts.SyntaxKind): BinaryOp {
       return "eq";
     case ts.SyntaxKind.ExclamationEqualsEqualsToken:
       return "ne";
+    case ts.SyntaxKind.AmpersandToken:
+      return "band";
+    case ts.SyntaxKind.BarToken:
+      return "bor";
+    case ts.SyntaxKind.CaretToken:
+      return "bxor";
+    case ts.SyntaxKind.LessThanLessThanToken:
+      return "shl";
+    case ts.SyntaxKind.GreaterThanGreaterThanToken:
+      return "shr";
+    case ts.SyntaxKind.GreaterThanGreaterThanGreaterThanToken:
+      return "ushr";
     default:
       return ice(`lower: unsupported binary operator ${ts.SyntaxKind[kind]}`);
   }

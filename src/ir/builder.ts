@@ -182,6 +182,49 @@ export class FuncBuilder {
     return result;
   }
 
+  // i32 bitwise/shift op (and/or/xor/shl/ashr/lshr). Operands must be i32; result is i32.
+  private ibin(op: string, a: Value, b: Value): Value {
+    if (a.type.kind !== "i32" || b.type.kind !== "i32") {
+      ice(`${op} requires i32 operands, got ${a.type.kind}/${b.type.kind}`);
+    }
+    const result = this.nextTemp(T.i32);
+    this.current.add(`${result.name} = ${op} i32 ${a.name}, ${b.name}`);
+    return result;
+  }
+
+  iand(a: Value, b: Value): Value {
+    return this.ibin("and", a, b);
+  }
+  ior(a: Value, b: Value): Value {
+    return this.ibin("or", a, b);
+  }
+  ixor(a: Value, b: Value): Value {
+    return this.ibin("xor", a, b);
+  }
+  shl(a: Value, b: Value): Value {
+    return this.ibin("shl", a, b);
+  }
+  ashr(a: Value, b: Value): Value {
+    return this.ibin("ashr", a, b);
+  }
+  lshr(a: Value, b: Value): Value {
+    return this.ibin("lshr", a, b);
+  }
+
+  // i32 → double. sitofp treats the source as signed; uitofp as unsigned (for `>>>`).
+  sitofp(a: Value): Value {
+    if (a.type.kind !== "i32") ice(`sitofp requires an i32 operand, got ${a.type.kind}`);
+    const result = this.nextTemp(T.double);
+    this.current.add(`${result.name} = sitofp i32 ${a.name} to double`);
+    return result;
+  }
+  uitofp(a: Value): Value {
+    if (a.type.kind !== "i32") ice(`uitofp requires an i32 operand, got ${a.type.kind}`);
+    const result = this.nextTemp(T.double);
+    this.current.add(`${result.name} = uitofp i32 ${a.name} to double`);
+    return result;
+  }
+
   // Logical not on an i1: xor with true.
   logicalNot(a: Value): Value {
     if (a.type.kind !== "i1") ice(`logicalNot requires an i1 operand, got ${a.type.kind}`);

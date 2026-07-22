@@ -47,10 +47,10 @@ export type HStmt =
   // A call in statement position — result discarded. `returnType` null means a void function.
   | { kind: "callStmt"; name: string; args: HExpr[]; returnType: ValueType | null };
 
-export type UnaryOp = "neg" | "pos" | "not";
+export type UnaryOp = "neg" | "pos" | "not" | "bnot";
 export type LogicalOp = "and" | "or";
-// Arithmetic ops produce a number; comparison ops (lt..ne) produce a boolean. The `type`
-// field on the binary node records which — lower/ stamps it from the checker.
+// Arithmetic + bitwise ops produce a number; comparison ops (lt..ne) produce a boolean. The
+// `type` field on the binary node records which — lower/ stamps it from the checker.
 export type BinaryOp =
   | "add"
   | "sub"
@@ -62,7 +62,14 @@ export type BinaryOp =
   | "le"
   | "ge"
   | "eq"
-  | "ne";
+  | "ne"
+  // Bitwise / shift (JS int32 semantics; `ushr` is the unsigned `>>>`).
+  | "band"
+  | "bor"
+  | "bxor"
+  | "shl"
+  | "shr"
+  | "ushr";
 
 export type HExpr =
   | { kind: "numberLit"; value: number; type: ValueType }

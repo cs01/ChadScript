@@ -105,30 +105,16 @@ export function evalNumber(expr: HExpr, ctx: Ctx): Value {
           return ctx.fn.fneg(evalNumber(expr.operand, ctx));
         case "pos":
           return evalNumber(expr.operand, ctx); // unary + on a number is identity
+        case "bnot":
+          // ~a = ToInt32(a) ^ -1, back to double.
+          return ctx.fn.sitofp(ctx.fn.ixor(toInt32(expr.operand, ctx), imm(T.i32, -1)));
         default:
           return ice(`evalNumber: unhandled unary op ${op} in number domain`);
       }
     }
 
-    case "binary": {
-      const op = expr.op;
-      const a = evalNumber(expr.left, ctx);
-      const b = evalNumber(expr.right, ctx);
-      switch (op) {
-        case "add":
-          return ctx.fn.fadd(a, b);
-        case "sub":
-          return ctx.fn.fsub(a, b);
-        case "mul":
-          return ctx.fn.fmul(a, b);
-        case "div":
-          return ctx.fn.fdiv(a, b);
-        case "rem":
-          return ctx.fn.frem(a, b);
-        default:
-          return ice(`evalNumber: unhandled binary op ${op}`);
-      }
-    }
+    case "binary":
+      return evalArithOrBitwise(expr, ctx);
 
     case "boolLit":
     case "stringLit":
@@ -137,6 +123,53 @@ export function evalNumber(expr: HExpr, ctx: Ctx): Value {
     default:
       return ice(`evalNumber: unhandled expression ${(expr as { kind: string }).kind}`);
   }
+}
+
+// A number-typed binary op: floating arithmetic, or JS int32 bitwise/shift.
+function evalArithOrBitwise(expr: Extract<HExpr, { kind: "binary" }>, ctx: Ctx): Value {
+  switch (expr.op) {
+    case "add":
+      return ctx.fn.fadd(evalNumber(expr.left, ctx), evalNumber(expr.right, ctx));
+    case "sub":
+      return ctx.fn.fsub(evalNumber(expr.left, ctx), evalNumber(expr.right, ctx));
+    case "mul":
+      return ctx.fn.fmul(evalNumber(expr.left, ctx), evalNumber(expr.right, ctx));
+    case "div":
+      return ctx.fn.fdiv(evalNumber(expr.left, ctx), evalNumber(expr.right, ctx));
+    case "rem":
+      return ctx.fn.frem(evalNumber(expr.left, ctx), evalNumber(expr.right, ctx));
+    default:
+      return evalBitwise(expr, ctx);
+  }
+}
+
+// JS int32 bitwise/shift ops. Both operands go through ToInt32; shifts mask the count to 5
+// bits; the result reinterprets the 32 bits back to a double (signed, except `>>>` unsigned).
+function evalBitwise(expr: Extract<HExpr, { kind: "binary" }>, ctx: Ctx): Value {
+  const ai = toInt32(expr.left, ctx);
+  const bi = toInt32(expr.right, ctx);
+  const count = () => ctx.fn.iand(bi, imm(T.i32, 31)); // JS masks shift count to 0..31
+  switch (expr.op) {
+    case "band":
+      return ctx.fn.sitofp(ctx.fn.iand(ai, bi));
+    case "bor":
+      return ctx.fn.sitofp(ctx.fn.ior(ai, bi));
+    case "bxor":
+      return ctx.fn.sitofp(ctx.fn.ixor(ai, bi));
+    case "shl":
+      return ctx.fn.sitofp(ctx.fn.shl(ai, count()));
+    case "shr":
+      return ctx.fn.sitofp(ctx.fn.ashr(ai, count())); // arithmetic (sign-propagating)
+    case "ushr":
+      return ctx.fn.uitofp(ctx.fn.lshr(ai, count())); // logical; result is unsigned
+    default:
+      return ice(`evalBitwise: not a bitwise op: ${expr.op}`);
+  }
+}
+
+// ToInt32(expr): evaluate to a double, then coerce via the runtime helper to an i32.
+function toInt32(expr: HExpr, ctx: Ctx): Value {
+  return ctx.fn.call("@cs_to_int32", T.i32, [evalNumber(expr, ctx)]);
 }
 
 // JS truthiness of an expression → i1 (evaluates the expression once).

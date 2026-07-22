@@ -4,4 +4,8 @@
 
 void cs_num_to_str(double x, char *out);
 
+// ECMAScript ToInt32: coerces a JS number to a signed 32-bit int (NaN/Inf → 0, else truncate +
+// mod 2^32). The raw bits double as ToUint32 for the caller.
+int cs_to_int32(double x);
+
 #endif
