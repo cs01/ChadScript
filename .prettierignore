@@ -8,3 +8,9 @@ docs/
 *.o
 *.log
 package-lock.json
+bun.lock
+
+# v1 salvage — untriaged example programs / stdlib, not part of the v2 build. Kept for
+# reference and as a future fixture/stdlib menu; must not gate v2's format check.
+examples/
+lib/
