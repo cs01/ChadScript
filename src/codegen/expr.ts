@@ -1511,6 +1511,15 @@ function evalComparison(expr: Extract<HExpr, { kind: "binary" }>, ctx: Ctx): Val
         evalBool(expr.right, ctx),
       );
     }
+    if (operandType === "string") {
+      // Value-position `===`/`!==` on strings: cs_str_eq returns 1 when equal (length + bytes,
+      // NUL-safe — same primitive `switch` uses). `eq` is true when cs_str_eq != 0; `ne` inverts.
+      const cmp = ctx.fn.call("@cs_str_eq", T.i32, [
+        evalString(expr.left, ctx),
+        evalString(expr.right, ctx),
+      ]);
+      return ctx.fn.icmp(op === "eq" ? "ne" : "eq", cmp, imm(T.i32, 0));
+    }
     return ice(`evalBool: ${op} on ${operandType} operands not supported yet`);
   }
   return ice(`evalBool: binary op ${op} is not a comparison`);
