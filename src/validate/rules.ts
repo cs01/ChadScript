@@ -61,6 +61,16 @@ export function tailoredRejection(node: ts.Node, sf: ts.SourceFile): Diagnostic 
     case ts.SyntaxKind.WithStatement:
       return hit(CODE.WITH, "`with` is not supported", "access properties explicitly");
 
+    // Regex literals sort into the literal-token band that default-deny treats as trivial, so they
+    // slip the allowlist and would ICE in lowering. Reject here (tailored pass walks the whole tree)
+    // until regex lands as a real feature.
+    case ts.SyntaxKind.RegularExpressionLiteral:
+      return hit(
+        CODE.REGEX,
+        "regular expression literals are not supported yet",
+        "regex is a later phase; use string methods (includes/indexOf/replace/split) for now",
+      );
+
     case ts.SyntaxKind.VariableDeclarationList:
       // `var` has function-scoped hoisting semantics we don't model. Only let/const.
       if (!(node.flags & (ts.NodeFlags.Let | ts.NodeFlags.Const))) {

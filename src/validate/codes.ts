@@ -20,6 +20,7 @@ export const CODE = {
   WITH: "CS1210",
   EVAL_OR_FUNCTION_CTOR: "CS1211", // eval / new Function
   VAR: "CS1212", // `var` (use let/const)
+  REGEX: "CS1213", // regex literals / RegExp — a later phase, not yet in the subset
 } as const;
 
 export type Code = (typeof CODE)[keyof typeof CODE];
