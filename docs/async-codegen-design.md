@@ -75,19 +75,33 @@ are both met and v2 can merge to main.
 
 ## Slice 1 status (in progress)
 
-The full lowering + codegen plumbing is implemented and committed but **async is still gated at
-validate** (AsyncKeyword/AwaitExpression not yet in ALLOWED_KINDS), because a bug remains:
+The full lowering + codegen plumbing is implemented and committed. Async stays **gated at validate**
+(AsyncKeyword/AwaitExpression not yet in ALLOWED_KINDS) — one codegen gap remains — but the two hard
+runtime problems are now SOLVED and verified in the real compiler (native output diffed vs Node):
 
-- WORKS end-to-end (verified manually): async functions with **parameters**, and up to **one
-  `await` per async function body** (`async function f(n){ return n*2 } async function run(){
-  console.log(await f(21)) } run()` prints 42, matching Node). The fiber-body ABI, env pack/unpack,
-  `cs_fiber_return`, spawn-in-statement-position, and the top-level `cs_run_event_loop` drive all
-  work.
-- BROKEN: **two or more `await`s in a single async function body** — the second suspend-then-resume
-  produces no output (a ucontext scheduling bug: reusing the single `cs_sched_ctx` as both the
-  scheduler context and nested-spawn return target aliases when a resumed fiber suspends again).
+- ✅ **Multi-await was NOT a scheduler bug** (the earlier hypothesis of `cs_sched_ctx` aliasing was
+  wrong). It was a **GC bug**: fiber stacks live off the main thread stack, so Boehm's normal
+  one-stack-per-thread scan never covers them; a collection triggered while a fiber ran (a
+  `GC_malloc` inside a nested spawn) reclaimed values/roots held only on the suspended fiber's stack,
+  breaking its resumption. GC-timing-dependent — `GC_DONT_GC=1` masked it. Confirmed via a standalone
+  C repro and by the compiler oracle: `const a=await g(); ...; const b=await g()` printed nothing on
+  the pristine runtime (0/5 vs Node) and prints correctly after the fix (5/5). Fix in `async.c`:
+  allocate fiber stacks with plain `malloc` and register each as an explicit GC root (roots inside
+  the GC heap are ignored, so `GC_malloc` won't do); retired stacks go on a free-list and are reused,
+  never freed (freeing a scanned region corrupts Boehm) — memory is bounded by max-concurrent fibers.
+  Do NOT instead swap GC's stackbottom to the fiber: that hides the MAIN stack from GC (7/8 flaky).
+  Now verified 5/5 vs Node: multi-await, params, `await` in a `for` loop, nested async chains.
+- ✅ **Fiber rejection plumbed**: `cs_fiber_trampoline` installs a root handler so a throw escaping an
+  async body rejects that body's result promise (instead of `exit(1)`); an awaiter then observes the
+  rejection. Pinned by `tests/runtime/async_fiber_throw_test.c`.
 
-Per the charter (no silent divergence), async stays rejected until multi-await works. Next: fix the
-ucontext scheduling so a fiber can suspend→resume→suspend correctly (likely give the event loop a
-dedicated context distinct from nested-spawn return targets, or drive all resumes from one loop
-context). Then admit `async`/`await` + land the slice-1 differential fixture.
+Remaining before admission (next slice):
+
+- ⛔ **`await` inside a `try` block ICEs in codegen** (`irTypeOf: undefined has no storage
+  representation`) — the try/catch × await lowering is incomplete. This is the only blocker for the
+  working subset; until it is fixed, admitting async would let a `try { await … }` program fail to
+  compile (acceptable) OR, worse, admit throw-in-async whose **unhandled** top-level rejection exits 0
+  where Node exits 1 (a divergence). So async stays fully gated rather than half-admitted.
+- Then: handle unhandled top-level rejection (exit 1 like Node), admit `async`/`await`, and land the
+  differential fixtures (multi-await / params / loop / chain / rejection-caught) — the real
+  regression guard the C tests can only approximate.

@@ -3,17 +3,31 @@
 // is the self-contained machinery those emitted calls target.
 //
 // Fibers use ucontext (makecontext/swapcontext): an async function body runs unmodified on its own
-// stack, and `await` swaps back to the scheduler. Boehm GC scans fiber stacks conservatively
-// (they are GC-allocated), so values live across a suspend stay rooted.
+// stack, and `await` swaps back to the scheduler.
+//
+// GC + fiber stacks (subtle, load-bearing): Boehm scans exactly ONE stack per thread — from its
+// stackbottom to the current SP. While a fiber runs, SP is on the fiber's stack, not the main one;
+// while a fiber is suspended, its stack is off-thread entirely. Either way Boehm's normal scan does
+// not cover a fiber's stack, so a value held only there (a boxed await result across a suspend, a
+// local live across a nested spawn's GC_malloc) gets reclaimed — a GC-timing-dependent heisenbug
+// (vanishes under GC_DONT_GC=1). We therefore allocate fiber stacks with plain malloc (NOT GC_malloc)
+// and register each buffer as an explicit GC root, so the whole stack is scanned every collection
+// regardless of where the SP is. Roots that fall inside the GC heap are ignored by Boehm — hence
+// malloc, not GC_malloc. Retired stacks are NOT freed/unrooted (freeing a scanned region corrupts
+// the collector); they go on a free-list and are reused, bounding memory by max-concurrent fibers.
+// Do NOT swap GC's stackbottom to the fiber instead: that hides the MAIN stack from GC and drops
+// main-stack roots.
 
 #define _XOPEN_SOURCE 700
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
 // ucontext is deprecated-but-functional on macOS and fully supported on Linux; silence the macOS
 // deprecation noise (there is no portable replacement with the same "swap whole stack" semantics).
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 #include <ucontext.h>
 #include <gc.h>
+#include <setjmp.h>
 
 enum { CS_PENDING = 0, CS_FULFILLED = 1, CS_REJECTED = 2 };
 
@@ -39,6 +53,13 @@ extern void cs_throw(void *thrown);
 // try-across-await must not corrupt each other). We save/install a fiber's stack around every run.
 extern void cs_handler_ctx_get(void ***stack, int *n, int *cap);
 extern void cs_handler_ctx_set(void **stack, int n, int cap);
+// A fiber installs a ROOT handler so a throw that escapes its body rejects its result promise
+// (instead of terminating the process). `cs_handler_alloc` returns a CsHandler* whose first member
+// IS the jmp_buf, so it is usable directly as a setjmp target; `cs_handler_thrown` reads the value.
+extern void *cs_handler_alloc(void);
+extern void cs_push_handler(void *h);
+extern void cs_pop_handler(void);
+extern void *cs_handler_thrown(void *h);
 
 struct Fiber {
   ucontext_t ctx;
@@ -61,6 +82,33 @@ struct Fiber {
 static ucontext_t cs_sched_ctx;
 static Fiber *cs_current_fiber = NULL;
 
+#define CS_FIBER_STACK (256 * 1024)
+
+// Free-list of retired fiber stacks (each already malloc'd + GC_add_roots'd; kept rooted forever).
+// Reused on the next spawn instead of freed, because freeing a GC-scanned region corrupts Boehm.
+static void **cs_stk_free = NULL;
+static int cs_stk_free_n = 0, cs_stk_free_cap = 0;
+
+static void *cs_get_stack(void) {
+  if (cs_stk_free_n > 0) return cs_stk_free[--cs_stk_free_n];
+  void *stk = malloc(CS_FIBER_STACK);
+  GC_add_roots(stk, (char *)stk + CS_FIBER_STACK);
+  return stk;
+}
+
+static void cs_put_stack(void *stk) {
+  if (cs_stk_free_n == cs_stk_free_cap) {
+    int newcap = cs_stk_free_cap ? cs_stk_free_cap * 2 : 16;
+    // The free-list array itself is GC_malloc'd: it holds malloc'd stack pointers, which are already
+    // roots, so the array need not keep them alive — it only needs to persist across collections.
+    void **nb = GC_malloc((size_t)newcap * sizeof(void *));
+    for (int i = 0; i < cs_stk_free_n; i++) nb[i] = cs_stk_free[i];
+    cs_stk_free = nb;
+    cs_stk_free_cap = newcap;
+  }
+  cs_stk_free[cs_stk_free_n++] = stk;
+}
+
 // Run `f` (via a swap from context `from`) with ITS handler stack active: save the caller's stack,
 // install the fiber's, run until it yields, then save the fiber's back and restore the caller's.
 // Every entry into a fiber (initial spawn + each event-loop resume) goes through here.
@@ -76,6 +124,12 @@ static void cs_enter_fiber(Fiber *f, ucontext_t *from) {
   cs_current_fiber = prev;
   cs_handler_ctx_get(&f->h_stack, &f->h_n, &f->h_cap); // the fiber's stack may have grown
   cs_handler_ctx_set(savedStack, savedN, savedCap);
+  // Fiber finished for good: return its stack to the free-list for reuse (its result was already
+  // boxed into the result promise). The buffer stays rooted; we never free/unroot it.
+  if (f->done && f->ctx.uc_stack.ss_sp) {
+    cs_put_stack(f->ctx.uc_stack.ss_sp);
+    f->ctx.uc_stack.ss_sp = NULL;
+  }
 }
 
 
@@ -149,19 +203,27 @@ void cs_promise_reject(Promise *p, void *reason) {
 // scheduler. `body` is the compiled async function (it resolves nothing itself; its return value
 // is resolved here via cs_fiber_return).
 static void cs_fiber_trampoline(void) {
-  Fiber *self = cs_current_fiber;
-  self->body(self->arg);
-  self->done = 1;
+  // Install a root handler: a throw escaping the body (an unhandled exception in the async function,
+  // including a rejection re-thrown by an inner `await`) rejects THIS fiber's result promise, so the
+  // awaiter sees a rejected promise instead of the process aborting. cs_current_fiber is always this
+  // fiber while trampoline code runs, so re-reading it after the longjmp is safe.
+  void *root = cs_handler_alloc();
+  cs_push_handler(root);
+  if (_setjmp(*(jmp_buf *)root) == 0) {
+    cs_current_fiber->body(cs_current_fiber->arg); // resolves its own result via cs_fiber_return
+    cs_pop_handler();
+  } else {
+    cs_promise_reject(cs_current_fiber->result, cs_handler_thrown(root));
+  }
+  cs_current_fiber->done = 1;
   // Back to whoever entered us; we will not be resumed again.
-  swapcontext(&self->ctx, self->ret_ctx);
+  swapcontext(&cs_current_fiber->ctx, cs_current_fiber->ret_ctx);
 }
 
 // Called by an async function body (codegen) at its return: resolve this fiber's result promise.
 void cs_fiber_return(int64_t boxedValue) {
   if (cs_current_fiber) cs_promise_resolve(cs_current_fiber->result, boxedValue);
 }
-
-#define CS_FIBER_STACK (256 * 1024)
 
 // Spawn a fiber running `body(arg)`; returns its result promise. Runs the fiber immediately until
 // its first suspend or completion (JS: an async call runs synchronously up to the first await).
@@ -176,7 +238,7 @@ Promise *cs_fiber_spawn(void (*body)(void *), void *arg) {
   f->h_n = 0;
   f->h_cap = 0;
   getcontext(&f->ctx);
-  f->ctx.uc_stack.ss_sp = GC_malloc(CS_FIBER_STACK);
+  f->ctx.uc_stack.ss_sp = cs_get_stack(); // malloc'd + rooted (or reused); see the file header note
   f->ctx.uc_stack.ss_size = CS_FIBER_STACK;
   f->ctx.uc_link = &cs_sched_ctx;
   makecontext(&f->ctx, cs_fiber_trampoline, 0);
