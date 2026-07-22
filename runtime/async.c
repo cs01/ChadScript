@@ -46,20 +46,32 @@ struct Fiber {
 static ucontext_t cs_sched_ctx;
 static Fiber *cs_current_fiber = NULL;
 
-// Microtask queue: fibers ready to run, FIFO. Each entry is a fiber to resume (its resumeVal is
-// already set). A ring buffer keeps it allocation-free on the hot path.
-#define CS_MTQ_CAP 4096
-static Fiber *cs_mtq[CS_MTQ_CAP];
-static int cs_mtq_head = 0, cs_mtq_tail = 0;
+// Microtask queue: fibers ready to run, FIFO. A GROWABLE ring buffer — an explicit `count`
+// distinguishes full from empty (the old fixed 4096 ring had no overflow check: a full queue looked
+// empty and silently dropped tasks). When full it doubles, so it is never lossy regardless of how
+// many microtasks a program queues.
+static Fiber **cs_mtq = NULL;
+static int cs_mtq_cap = 0, cs_mtq_head = 0, cs_mtq_tail = 0, cs_mtq_count = 0;
 
 static void cs_mtq_push(Fiber *f) {
+  if (cs_mtq_count == cs_mtq_cap) {
+    int newcap = cs_mtq_cap ? cs_mtq_cap * 2 : 64;
+    Fiber **nb = GC_malloc((size_t)newcap * sizeof(Fiber *));
+    for (int i = 0; i < cs_mtq_count; i++) nb[i] = cs_mtq[(cs_mtq_head + i) % cs_mtq_cap];
+    cs_mtq = nb;
+    cs_mtq_cap = newcap;
+    cs_mtq_head = 0;
+    cs_mtq_tail = cs_mtq_count;
+  }
   cs_mtq[cs_mtq_tail] = f;
-  cs_mtq_tail = (cs_mtq_tail + 1) % CS_MTQ_CAP;
+  cs_mtq_tail = (cs_mtq_tail + 1) % cs_mtq_cap;
+  cs_mtq_count++;
 }
 static Fiber *cs_mtq_pop(void) {
-  if (cs_mtq_head == cs_mtq_tail) return NULL;
+  if (cs_mtq_count == 0) return NULL;
   Fiber *f = cs_mtq[cs_mtq_head];
-  cs_mtq_head = (cs_mtq_head + 1) % CS_MTQ_CAP;
+  cs_mtq_head = (cs_mtq_head + 1) % cs_mtq_cap;
+  cs_mtq_count--;
   return f;
 }
 

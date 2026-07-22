@@ -35,3 +35,7 @@ function runCTest(harness: string): void {
 test("async runtime: awaiters of one promise resume in FIFO registration order", () => {
   assert.doesNotThrow(() => runCTest("async_fifo_test.c"));
 });
+
+test("async runtime: microtask queue is non-lossy and FIFO past its initial capacity", () => {
+  assert.doesNotThrow(() => runCTest("async_queue_test.c"));
+});
