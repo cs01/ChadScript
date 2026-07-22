@@ -28,6 +28,7 @@ export const CODE = {
   UNINIT_VAR: "CS1218", // `let x;` declaration with no initializer — a later phase
   MUTABLE_CAPTURE: "CS1219", // closure capturing a mutable `let` — needs capture-by-reference
   STDLIB_STATIC: "CS1220", // unsupported namespace static (Array.*/Number.*/Object.* beyond allow)
+  NUMBER_METHOD: "CS1221", // unsupported number instance method (toFixed/toPrecision/toExponential)
 } as const;
 
 export type Code = (typeof CODE)[keyof typeof CODE];

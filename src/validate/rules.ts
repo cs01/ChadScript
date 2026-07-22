@@ -141,16 +141,27 @@ export function tailoredRejection(
     case ts.SyntaxKind.BinaryExpression:
       return checkBinary(node as ts.BinaryExpression, hit, checker);
 
-    case ts.SyntaxKind.PropertyAccessExpression:
+    case ts.SyntaxKind.PropertyAccessExpression: {
+      const pa = node as ts.PropertyAccessExpression;
       // `s.charCodeAt(...)`: byte value ≠ Node's UTF-16 code unit for non-ASCII. Gated (CS1216).
-      if ((node as ts.PropertyAccessExpression).name.text === "charCodeAt") {
+      if (pa.name.text === "charCodeAt") {
         return hit(
           CODE.STRING_UNICODE_OP,
           "`charCodeAt` is not supported yet",
           "it needs UTF-16 code-unit semantics over UTF-8 storage; use charAt for now",
         );
       }
+      // Number formatting methods lowering doesn't have (toFixed's rounding ≠ JS half-away; the
+      // others are unimplemented). Type-guarded so a user method of the same name is unaffected.
+      if (UNSUPPORTED_NUMBER_METHODS.has(pa.name.text) && isNumberTyped(pa.expression, checker)) {
+        return hit(
+          CODE.NUMBER_METHOD,
+          `\`${pa.name.text}\` on a number is not supported yet`,
+          "build the string form manually, or use `.toString()` / template interpolation",
+        );
+      }
       return null;
+    }
 
     case ts.SyntaxKind.ElementAccessExpression:
       // `s[i]` on a string yields a byte, not Node's UTF-16 code-unit character, for non-ASCII.
@@ -231,6 +242,18 @@ function isStringTyped(expr: ts.Expression, checker: ts.TypeChecker): boolean {
   const base = checker.getBaseTypeOfLiteralType(t);
   return (base.flags & ts.TypeFlags.String) !== 0 || (t.flags & ts.TypeFlags.StringLiteral) !== 0;
 }
+
+function isNumberTyped(expr: ts.Expression, checker: ts.TypeChecker): boolean {
+  const t = checker.getTypeAtLocation(expr);
+  const base = checker.getBaseTypeOfLiteralType(t);
+  return (base.flags & ts.TypeFlags.Number) !== 0 || (t.flags & ts.TypeFlags.NumberLiteral) !== 0;
+}
+
+const UNSUPPORTED_NUMBER_METHODS: ReadonlySet<string> = new Set([
+  "toFixed",
+  "toPrecision",
+  "toExponential",
+]);
 
 function checkCast(node: ts.AsExpression | ts.TypeAssertion, hit: Hit): Diagnostic | null {
   const k = node.type.kind;
