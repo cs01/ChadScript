@@ -552,6 +552,9 @@ function lowerCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
   if (!ts.isIdentifier(call.expression)) {
     return ice(`lower: unsupported call target ${ts.SyntaxKind[call.expression.kind]}`);
   }
+  // Global builtin functions (from the default lib, not user code): parseInt/parseFloat.
+  const builtin = lowerGlobalBuiltin(call.expression.text, call, ctx);
+  if (builtin) return builtin;
   // A call whose callee is NOT a top-level function declaration is a closure call.
   const sym = ctx.checker.getSymbolAtLocation(call.expression);
   const isTopLevelFn = sym?.valueDeclaration && ts.isFunctionDeclaration(sym.valueDeclaration);
@@ -569,6 +572,36 @@ function lowerCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
     args: call.arguments.map((a) => lowerExpr(a, ctx)),
     type: valueTypeOf(call, ctx),
   };
+}
+
+// A bare-identifier call to a global builtin (parseInt/parseFloat). Returns null if `name` is
+// not a recognized builtin, so the caller falls back to user-function / closure handling. These
+// come from the default lib's type signatures; the runtime backs them in C.
+function lowerGlobalBuiltin(name: string, call: ts.CallExpression, ctx: LowerCtx): HExpr | null {
+  if (name === "parseInt") {
+    const radix = call.arguments[1];
+    return {
+      kind: "runtimeCall",
+      fn: "cs_parse_int",
+      // radix omitted → 0 sentinel (the runtime reads 0 as "default 10 with 0x auto-detect").
+      args: [lowerExpr(call.arguments[0]!, ctx), radix ? lowerExpr(radix, ctx) : numLit(0)],
+      type: VT.number,
+    };
+  }
+  if (name === "parseFloat") {
+    return {
+      kind: "runtimeCall",
+      fn: "cs_parse_float",
+      args: [lowerExpr(call.arguments[0]!, ctx)],
+      type: VT.number,
+    };
+  }
+  return null;
+}
+
+// A synthetic number literal HExpr (for builtin default arguments).
+function numLit(value: number): HExpr {
+  return { kind: "numberLit", value, type: VT.number };
 }
 
 // Object literal → fields in SHAPE (record-slot) order, regardless of the source property order.

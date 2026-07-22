@@ -792,6 +792,10 @@ export function evalNumber(expr: HExpr, ctx: Ctx): Value {
     case "mathCall":
       return evalMathCall(expr, ctx);
 
+    case "runtimeCall":
+      // A direct runtime-entry call (parseInt/parseFloat). Args are passed positionally.
+      return ctx.fn.call(`@${expr.fn}`, T.double, [...expr.args.map((a) => evalValue(a, ctx))]);
+
     case "strLen":
       return ctx.fn.sitofp(ctx.fn.call("@cs_str_len", T.i32, [evalString(expr.str, ctx)]));
 

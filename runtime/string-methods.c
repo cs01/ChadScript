@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <math.h>
 #include <gc.h>
 
 int cs_str_len(const char *s) { return (int)strlen(s); }
@@ -203,6 +204,62 @@ char *cs_str_pad_start(const char *s, double target, const char *padstr) {
 }
 char *cs_str_pad_end(const char *s, double target, const char *padstr) {
   return pad(s, target, padstr, 0);
+}
+
+// ECMAScript parseInt(str, radix). Faithful to the spec: skip leading whitespace, optional
+// sign, `0x` prefix for radix 16, parse digits valid in the radix, stop at the first invalid
+// char; no valid digits → NaN. `dradix` of 0 means the argument was omitted (default 10, with
+// 0x auto-detect). Digits beyond '9' use letters a–z (case-insensitive), value 10–35.
+double cs_parse_int(const char *s, double dradix) {
+  while (is_ws((unsigned char)*s)) s++;
+  int sign = 1;
+  if (*s == '+') s++;
+  else if (*s == '-') { sign = -1; s++; }
+
+  int radix = (int)dradix;
+  int omitted = (dradix == 0.0);
+  if (omitted) radix = 10;
+  if (!omitted && (radix < 2 || radix > 36)) return NAN;
+
+  // 0x prefix: consumed when radix is 16, or when the radix was omitted (then it forces 16).
+  if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X') && (radix == 16 || omitted)) {
+    radix = 16;
+    s += 2;
+  }
+
+  double result = 0.0;
+  int any = 0;
+  for (; *s; s++) {
+    char c = *s;
+    int d;
+    if (c >= '0' && c <= '9') d = c - '0';
+    else if (c >= 'a' && c <= 'z') d = c - 'a' + 10;
+    else if (c >= 'A' && c <= 'Z') d = c - 'A' + 10;
+    else break;
+    if (d >= radix) break;
+    result = result * radix + d;
+    any = 1;
+  }
+  if (!any) return NAN;
+  return sign * result;
+}
+
+// ECMAScript parseFloat(str). Skip leading whitespace + sign; accept the literal "Infinity";
+// otherwise the token must start with a digit or '.', which rejects "inf"/"nan"/identifiers
+// that strtod would otherwise consume. A leading "0x" parses only the "0" (JS stops at 'x').
+double cs_parse_float(const char *s) {
+  while (is_ws((unsigned char)*s)) s++;
+  const char *p = s;
+  int sign = 1;
+  if (*p == '+') p++;
+  else if (*p == '-') { sign = -1; p++; }
+  if (strncmp(p, "Infinity", 8) == 0) return sign * INFINITY;
+  if (!((*p >= '0' && *p <= '9') || *p == '.')) return NAN;
+  if (*p == '0' && (p[1] == 'x' || p[1] == 'X')) return sign * 0.0;
+  char *end;
+  double v = strtod(s, &end);
+  if (end == s) return NAN;
+  return v;
 }
 
 // The array runtime, for split's result.

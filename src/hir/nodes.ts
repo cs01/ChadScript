@@ -106,6 +106,9 @@ export type HExpr =
   | { kind: "call"; name: string; args: HExpr[]; type: ValueType }
   // A `Math.*` builtin call (number-valued). `fn` is the method name (floor/sqrt/pow/...).
   | { kind: "mathCall"; fn: string; args: HExpr[]; type: ValueType }
+  // A direct call to a runtime C entry point (e.g. cs_parse_int). `fn` is the FULL symbol name;
+  // args are evaluated left-to-right and passed as-is. `type` is the return type.
+  | { kind: "runtimeCall"; fn: string; args: HExpr[]; type: ValueType }
   // Create a closure: the lifted lambda `lambdaName` plus a captured-variable environment.
   | { kind: "closure"; lambdaName: string; captures: HCapture[]; type: ValueType }
   // Call a function VALUE (closure): load its fnptr + env and invoke. `type` is the return type.
