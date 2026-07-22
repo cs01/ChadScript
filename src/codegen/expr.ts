@@ -71,9 +71,45 @@ export function evalString(expr: HExpr, ctx: Ctx): Value {
       return evalCall(expr, ctx);
     case "logical":
       return evalLogical(expr, ctx);
+    case "binary":
+      // The only string-producing binary is `+` (concatenation); each operand is coerced.
+      if (expr.op === "add") {
+        return ctx.fn.call("@cs_str_concat", T.ptr, [
+          coerceToString(expr.left, ctx),
+          coerceToString(expr.right, ctx),
+        ]);
+      }
+      return ice(`evalString: binary op ${expr.op} does not produce a string`);
+    case "template":
+      return evalTemplate(expr, ctx);
     default:
       return ice(`evalString: unhandled string expression ${expr.kind}`);
   }
+}
+
+// Coerce any supported value to its JS string form (a ptr). Numbers use Number::toString (so
+// `"" + -0` is "0", unlike console.log(-0)); booleans → "true"/"false"; strings pass through.
+function coerceToString(expr: HExpr, ctx: Ctx): Value {
+  switch (expr.type.kind) {
+    case "string":
+      return evalString(expr, ctx);
+    case "number":
+      return ctx.fn.call("@cs_num_to_string", T.ptr, [evalNumber(expr, ctx)]);
+    case "boolean":
+      return ctx.fn.call("@cs_bool_to_string", T.ptr, [ctx.fn.zextI1ToI32(evalBool(expr, ctx))]);
+    default:
+      return ice(`coerceToString: ${expr.type.kind} not supported yet`);
+  }
+}
+
+// A template literal: fold quasis and interpolations left-to-right with concatenation.
+function evalTemplate(expr: Extract<HExpr, { kind: "template" }>, ctx: Ctx): Value {
+  let acc = ctx.mod.cstring(expr.quasis[0]!);
+  for (let i = 0; i < expr.exprs.length; i++) {
+    acc = ctx.fn.call("@cs_str_concat", T.ptr, [acc, coerceToString(expr.exprs[i]!, ctx)]);
+    acc = ctx.fn.call("@cs_str_concat", T.ptr, [acc, ctx.mod.cstring(expr.quasis[i + 1]!)]);
+  }
+  return acc;
 }
 
 const RELATIONAL: Partial<Record<BinaryOp, string>> = {

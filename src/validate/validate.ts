@@ -30,6 +30,10 @@ const ALLOWED_KINDS: ReadonlySet<ts.SyntaxKind> = new Set([
   ts.SyntaxKind.TrueKeyword,
   ts.SyntaxKind.FalseKeyword,
   ts.SyntaxKind.NullKeyword,
+  // Template literals.
+  ts.SyntaxKind.NoSubstitutionTemplateLiteral,
+  ts.SyntaxKind.TemplateExpression,
+  ts.SyntaxKind.TemplateSpan,
   // Arithmetic (Phase 1). Operator granularity is gated separately below — admitting the kind
   // does NOT admit every operator of that kind.
   ts.SyntaxKind.BinaryExpression,

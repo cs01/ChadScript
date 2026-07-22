@@ -83,4 +83,8 @@ export type HExpr =
   // Short-circuiting `&&` / `||`. JS VALUE semantics: the result IS one of the operands (not a
   // coerced boolean), so `type` is the operands' shared type. right is evaluated only when the
   // left operand doesn't decide the result.
-  | { kind: "logical"; op: LogicalOp; left: HExpr; right: HExpr; type: ValueType };
+  | { kind: "logical"; op: LogicalOp; left: HExpr; right: HExpr; type: ValueType }
+  // A template literal. `quasis` are the literal text chunks; `exprs` the interpolations. Always
+  // `quasis.length === exprs.length + 1`. Interpolated values are coerced to string. Result is
+  // a string.
+  | { kind: "template"; quasis: string[]; exprs: HExpr[]; type: ValueType };

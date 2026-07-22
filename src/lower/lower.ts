@@ -280,6 +280,17 @@ function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
     case ts.SyntaxKind.CallExpression:
       return lowerCall(expr as ts.CallExpression, ctx);
 
+    case ts.SyntaxKind.NoSubstitutionTemplateLiteral:
+      // `` `plain text` `` with no interpolation — just a string.
+      return { kind: "stringLit", value: (expr as ts.NoSubstitutionTemplateLiteral).text, type };
+
+    case ts.SyntaxKind.TemplateExpression: {
+      const t = expr as ts.TemplateExpression;
+      const quasis = [t.head.text, ...t.templateSpans.map((s) => s.literal.text)];
+      const exprs = t.templateSpans.map((s) => lowerExpr(s.expression, ctx));
+      return { kind: "template", quasis, exprs, type };
+    }
+
     case ts.SyntaxKind.ParenthesizedExpression:
       return lowerExpr((expr as ts.ParenthesizedExpression).expression, ctx);
 
