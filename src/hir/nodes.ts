@@ -142,6 +142,9 @@ export type HExpr =
       wantIndex: boolean;
       type: ValueType;
     }
+  // Array→array transforms that are a single runtime call (reverse/slice/concat). `fn` is the
+  // runtime entry point; `args` are the extra arguments after the receiver.
+  | { kind: "arrayXform"; fn: string; array: HExpr; args: HExpr[]; type: ValueType }
   // Object literal `{ f: v, ... }`. `fields` are in SHAPE (record-slot) order — lower reorders
   // the source properties to match the declared shape.
   | { kind: "objectLit"; fields: HExpr[]; type: ValueType }

@@ -66,3 +66,39 @@ void *cs_array_shift(CsArray *a) {
   memmove(a->data, a->data + 1, (size_t)a->len * sizeof(int64_t));
   return box_slot(first);
 }
+
+// reverse: in place; returns the same array (JS semantics — reverse returns `this`).
+CsArray *cs_array_reverse(CsArray *a) {
+  for (int32_t i = 0, j = a->len - 1; i < j; i++, j--) {
+    int64_t t = a->data[i];
+    a->data[i] = a->data[j];
+    a->data[j] = t;
+  }
+  return a;
+}
+
+// slice: a new array of the elements in [start, end), with JS negative-index normalization.
+static CsArray *slice_norm(CsArray *a, long start, long end) {
+  long n = a->len;
+  if (start < 0) start = start + n < 0 ? 0 : start + n;
+  if (start > n) start = n;
+  if (end < 0) end = end + n < 0 ? 0 : end + n;
+  if (end > n) end = n;
+  CsArray *r = cs_array_new();
+  for (long i = start; i < end; i++) cs_array_push(r, a->data[i]);
+  return r;
+}
+CsArray *cs_array_slice1(CsArray *a, double start) {
+  return slice_norm(a, (long)start, a->len);
+}
+CsArray *cs_array_slice2(CsArray *a, double start, double end) {
+  return slice_norm(a, (long)start, (long)end);
+}
+
+// concat: a new array = a followed by b.
+CsArray *cs_array_concat(CsArray *a, CsArray *b) {
+  CsArray *r = cs_array_new();
+  for (int32_t i = 0; i < a->len; i++) cs_array_push(r, a->data[i]);
+  for (int32_t i = 0; i < b->len; i++) cs_array_push(r, b->data[i]);
+  return r;
+}

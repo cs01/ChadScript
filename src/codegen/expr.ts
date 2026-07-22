@@ -240,6 +240,12 @@ export function evalArrayPtr(expr: HExpr, ctx: Ctx): Value {
       return evalMemberGet(expr, ctx);
     case "strMethod":
       return evalStrMethod(expr, ctx); // e.g. "a,b".split(",")
+    case "arrayXform":
+      // reverse/slice/concat → a single runtime call over the array ptr + extra args.
+      return ctx.fn.call(`@${expr.fn}`, T.ptr, [
+        evalArrayPtr(expr.array, ctx),
+        ...expr.args.map((a) => evalValue(a, ctx)),
+      ]);
     case "coalesce":
       return evalCoalesce(expr, ctx);
     case "unwrap":

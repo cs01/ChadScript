@@ -576,6 +576,21 @@ function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
         type: method === "indexOf" ? VT.number : VT.boolean,
       };
     }
+    if (method === "reverse" || method === "slice" || method === "concat") {
+      const fn =
+        method === "slice"
+          ? call.arguments.length >= 2
+            ? "cs_array_slice2"
+            : "cs_array_slice1"
+          : `cs_array_${method}`;
+      return {
+        kind: "arrayXform",
+        fn,
+        array: lowerExpr(pa.expression, ctx),
+        args: call.arguments.map((a) => lowerExpr(a, ctx)),
+        type: resolveType(call, ctx), // same array type
+      };
+    }
     return ice(`lower: unsupported array method .${method}`);
   }
   if (recvType.kind === "string") {
@@ -773,16 +788,41 @@ function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
 // The checker is the oracle: map its resolved type to our ValueType. Anything outside the
 // currently-supported domain is an ICE (the validator should have rejected it upstream).
 function resolveType(expr: ts.Expression, ctx: LowerCtx): ValueType {
+  const checker = ctx.checker;
   // `this` has tsc's polymorphic ThisType (a type parameter); use the bound instance type.
   if (expr.kind === ts.SyntaxKind.ThisKeyword && ctx.currentThis) return ctx.currentThis.type;
-  // An empty array literal is typed `never[]` on its own; its element type comes from context
-  // (the declared/expected type, e.g. `const e: number[] = []`). Object literals likewise take
-  // their shape from the declared type (the named interface) when present.
-  if (ts.isArrayLiteralExpression(expr) || ts.isObjectLiteralExpression(expr)) {
-    const t = ctx.checker.getContextualType(expr) ?? ctx.checker.getTypeAtLocation(expr);
-    return valueTypeOfTsType(t, expr, ctx.checker);
+
+  // Array literals: prefer the literal's own inferred type (the real element type). An empty
+  // `[]` is `never[]` — fall back to the contextual/declared array type. The contextual type is
+  // NOT trusted blindly: as a `.concat()` argument it is `ConcatArray<T>` (an interface, not
+  // Array), which must not be mistaken for an object.
+  if (ts.isArrayLiteralExpression(expr)) {
+    const ownElem = arrayElementType(checker.getTypeAtLocation(expr), checker);
+    if (ownElem && !(ownElem.flags & ts.TypeFlags.Never)) {
+      return VT.array(valueTypeOfTsType(ownElem, expr, checker));
+    }
+    const ctxT = checker.getContextualType(expr);
+    const ctxElem = ctxT ? arrayElementType(ctxT, checker) : undefined;
+    if (ctxElem) return VT.array(valueTypeOfTsType(ctxElem, expr, checker));
+    return valueTypeOfTsType(checker.getTypeAtLocation(expr), expr, checker);
+  }
+
+  // Object literals take their shape from the declared type (the named interface) when present.
+  if (ts.isObjectLiteralExpression(expr)) {
+    const t = checker.getContextualType(expr) ?? checker.getTypeAtLocation(expr);
+    return valueTypeOfTsType(t, expr, checker);
   }
   return valueTypeOf(expr, ctx);
+}
+
+// The element type of an Array<T> (null if `t` is not an array type).
+function arrayElementType(t: ts.Type, checker: ts.TypeChecker): ts.Type | undefined {
+  const ref = t as ts.TypeReference;
+  if (ref.symbol?.name === "Array") {
+    const args = checker.getTypeArguments(ref);
+    if (args.length === 1) return args[0];
+  }
+  return undefined;
 }
 
 function valueTypeOf(node: ts.Node, ctx: LowerCtx): ValueType {
