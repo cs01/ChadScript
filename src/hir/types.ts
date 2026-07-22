@@ -40,7 +40,10 @@ export type ValueType =
   // must be a primitive (number/string/boolean) — its kind selects the equality function.
   | { kind: "map"; key: ValueType; value: ValueType }
   // A `Set<T>`. Runtime rep: pointer to a CsSet. `element` must be a primitive.
-  | { kind: "set"; element: ValueType };
+  | { kind: "set"; element: ValueType }
+  // `unknown` — currently only the value bound by `catch (e)`. Runtime rep: pointer to a CsThrown
+  // ({isError, message}). Usable via `String(e)` and `e instanceof Error`; not printable directly.
+  | { kind: "unknown" };
 
 export const VT = {
   number: { kind: "number" } as ValueType,
@@ -48,6 +51,7 @@ export const VT = {
   boolean: { kind: "boolean" } as ValueType,
   null: { kind: "null" } as ValueType,
   undefined: { kind: "undefined" } as ValueType,
+  unknown: { kind: "unknown" } as ValueType,
   array: (element: ValueType): ValueType => ({ kind: "array", element }),
   map: (key: ValueType, value: ValueType): ValueType => ({ kind: "map", key, value }),
   set: (element: ValueType): ValueType => ({ kind: "set", element }),

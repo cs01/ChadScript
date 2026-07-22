@@ -127,9 +127,13 @@ export function generate(hmod: HModule): string {
   mod.declareExtern("cs_push_handler", T.void, [T.ptr]);
   mod.declareExtern("cs_pop_handler", T.void, []);
   mod.declareExtern("_setjmp", T.i32, [T.ptr], "returns_twice");
-  mod.declareExtern("cs_handler_message", T.ptr, [T.ptr]);
+  mod.declareExtern("cs_handler_thrown", T.ptr, [T.ptr]);
   mod.declareExtern("cs_handler_count", T.i32, []);
   mod.declareExtern("cs_handler_restore", T.void, [T.i32]);
+  mod.declareExtern("cs_new_error", T.ptr, [T.ptr]);
+  mod.declareExtern("cs_new_thrown_str", T.ptr, [T.ptr]);
+  mod.declareExtern("cs_thrown_is_error", T.i32, [T.ptr]);
+  mod.declareExtern("cs_thrown_to_string", T.ptr, [T.ptr]);
 
   // Class vtables (constant arrays of method fn pointers); an instance stores a pointer to its
   // class's vtable in record slot 0 for virtual dispatch.
@@ -277,6 +281,12 @@ function emitTryCatch(stmt: Extract<HStmt, { kind: "tryCatch" }>, ctx: Ctx): voi
     emitStatements(stmt.tryBody, ctx);
     if (!ctx.fn.currentBlock.isTerminated) ctx.fn.br(cleanupB); // NORMAL completion
     ctx.fn.switchTo(innerCatchB);
+    // Bind `catch (e)`: the caught CsThrown value is in the inner handler.
+    if (stmt.catchParam !== null) {
+      const slot = ctx.fn.alloca(T.ptr);
+      ctx.fn.store(ctx.fn.call("@cs_handler_thrown", T.ptr, [inner]), slot);
+      ctx.vars.set(stmt.catchParam, { ptr: slot, vtype: { kind: "unknown" } });
+    }
     emitStatements(stmt.catchBody!, ctx);
     if (!ctx.fn.currentBlock.isTerminated) ctx.fn.br(cleanupB);
   } else {
@@ -321,9 +331,8 @@ function emitTryCatch(stmt: Extract<HStmt, { kind: "tryCatch" }>, ctx: Ctx): voi
     ctx.fn.switchTo(contB);
     emitLoopCompletion(ctx, frame, frame.enclosingContinue, C_CONTINUE);
     ctx.fn.switchTo(throwB);
-    // Re-raise the exception this try caught, reading its message from the handler (not a global).
-    const msg = ctx.fn.call("@cs_handler_message", T.ptr, [outer]);
-    ctx.fn.callVoid("@cs_throw", [msg]);
+    // Re-raise the value this try caught, reading it from the handler (not a global).
+    ctx.fn.callVoid("@cs_throw", [ctx.fn.call("@cs_handler_thrown", T.ptr, [outer])]);
     ctx.fn.unreachable();
   }
 
@@ -535,10 +544,20 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
       return;
 
     case "throwError": {
-      // cs_throw either longjmps to the innermost handler or terminates; either way it does not
-      // return, so the block ends unreachable (throw is a control-flow terminator like return).
+      // Build a CsThrown (Error vs thrown-string) and throw it. cs_throw does not return (it
+      // longjmps or terminates), so the block ends unreachable.
       const msg = stmt.message ? evalValue(stmt.message, ctx) : ctx.fn.nullPtr();
-      ctx.fn.callVoid("@cs_throw", [msg]);
+      const thrown = ctx.fn.call(stmt.isError ? "@cs_new_error" : "@cs_new_thrown_str", T.ptr, [
+        msg,
+      ]);
+      ctx.fn.callVoid("@cs_throw", [thrown]);
+      ctx.fn.unreachable();
+      return;
+    }
+
+    case "rethrowValue": {
+      // `throw e` — re-raise a caught CsThrown value unchanged.
+      ctx.fn.callVoid("@cs_throw", [evalValue(stmt.value, ctx)]);
       ctx.fn.unreachable();
       return;
     }

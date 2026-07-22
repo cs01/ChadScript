@@ -4,6 +4,7 @@
 
 #include <stdio.h>
 #include <math.h>
+#include <string.h>
 #include "number.h"
 
 // console.log is variadic and space-separated (Node: `console.log(a, b)` → "a b\n"). Codegen
@@ -40,13 +41,50 @@ void cs_print_newline(void) { fputc('\n', stdout); }
 #include <setjmp.h>
 #include <gc.h>
 
-// A try handler: the setjmp buffer plus the value thrown to it. The thrown message lives HERE
-// (in the handler), not in a global — so exception state is local to the handler chain and will
-// be fiber-local once each fiber owns its own chain (no cross-fiber leakage of the pending value).
-// `buf` is first so a CsHandler* is directly usable as the jmp_buf pointer for setjmp/longjmp.
+// A thrown value. `isError` distinguishes `throw new Error(m)` (1) from `throw "s"` (0), which
+// `String(e)` and `e instanceof Error` need. Only string-messaged throws are in the subset.
+typedef struct {
+  int isError;
+  const char *message;
+} CsThrown;
+
+CsThrown *cs_new_error(const char *message) {
+  CsThrown *t = GC_malloc(sizeof(CsThrown));
+  t->isError = 1;
+  t->message = message;
+  return t;
+}
+CsThrown *cs_new_thrown_str(const char *s) {
+  CsThrown *t = GC_malloc(sizeof(CsThrown));
+  t->isError = 0;
+  t->message = s;
+  return t;
+}
+int cs_thrown_is_error(CsThrown *t) { return t->isError; }
+const char *cs_thrown_message(CsThrown *t) { return t->message; }
+// `String(e)`: an Error stringifies as "Error: <message>"; a thrown string as itself.
+char *cs_thrown_to_string(CsThrown *t) {
+  const char *m = t->message ? t->message : "";
+  if (!t->isError) {
+    size_t n = strlen(m);
+    char *r = GC_malloc(n + 1);
+    memcpy(r, m, n + 1);
+    return r;
+  }
+  size_t n = strlen(m);
+  char *r = GC_malloc(n + 8);
+  memcpy(r, "Error: ", 7);
+  memcpy(r + 7, m, n + 1);
+  return r;
+}
+
+// A try handler: the setjmp buffer plus the value thrown to it. The thrown value lives HERE (in
+// the handler), not in a global — so exception state is local to the handler chain and will be
+// fiber-local once each fiber owns its own chain. `buf` is first so a CsHandler* is directly
+// usable as the jmp_buf pointer for setjmp/longjmp.
 typedef struct {
   jmp_buf buf;
-  const char *message; // message of the exception that unwound to this handler
+  CsThrown *thrown;
 } CsHandler;
 
 #define CS_MAX_HANDLERS 1024
@@ -71,20 +109,20 @@ void cs_handler_restore(int n) {
   if (cs_handler_n > n) cs_handler_n = n;
 }
 
-// The message thrown to a handler (read by a catch/finally that caught, e.g. to re-raise).
-const char *cs_handler_message(void *h) { return ((CsHandler *)h)->message; }
+// The value thrown to a handler (read by a catch binding, and by a finally that re-raises).
+CsThrown *cs_handler_thrown(void *h) { return ((CsHandler *)h)->thrown; }
 
-// throw: unwind to the innermost handler (stashing the message IN that handler), or terminate when
+// throw: unwind to the innermost handler (stashing the value IN that handler), or terminate when
 // none exists (Node exits 1 on an uncaught exception; the harness compares stdout + exit code, so
 // the stderr text is best-effort).
-void cs_throw(const char *message) {
+void cs_throw(CsThrown *value) {
   if (cs_handler_n > 0) {
     cs_handler_n--;
     CsHandler *h = cs_handlers[cs_handler_n];
-    h->message = message;
+    h->thrown = value;
     _longjmp(h->buf, 1);
   }
-  if (message) fprintf(stderr, "Error: %s\n", message);
+  if (value && value->message) fprintf(stderr, "Error: %s\n", value->message);
   else fputs("Error\n", stderr);
   exit(1);
 }

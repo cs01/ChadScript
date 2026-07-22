@@ -66,16 +66,19 @@ export type HStmt =
   // `return expr;` (value null for a bare `return;` in a void function).
   | { kind: "return"; value: HExpr | null }
   // `throw expr;` — unwinds to the innermost enclosing `try` handler (setjmp/longjmp), or
-  // terminates with a non-zero exit if none. `message` is the Error's message or a thrown string
-  // (null when it can't be extracted), printed to stderr on an uncaught throw.
-  | { kind: "throwError"; message: HExpr | null }
-  // `try { tryBody } catch { catchBody } finally { finallyBody }`. `catchBody`/`finallyBody` are
-  // null when that clause is absent (at least one is present). The catch binding value is not
-  // bound yet (catch runs on any throw from the try body).
+  // terminates with a non-zero exit if none. `isError` is true for `throw new Error(m)`, false for
+  // a thrown string; `message` is that string (null when absent, e.g. `new Error()`).
+  | { kind: "throwError"; isError: boolean; message: HExpr | null }
+  // `throw e` re-raising a caught (unknown) value unchanged. `value` is the CsThrown.
+  | { kind: "rethrowValue"; value: HExpr }
+  // `try { tryBody } catch (catchParam) { catchBody } finally { finallyBody }`. Absent clauses are
+  // null (at least one present). `catchParam` is the HIR name bound to the caught value (unknown),
+  // or null for a binding-less catch / no catch.
   | {
       kind: "tryCatch";
       tryBody: HStmt[];
       catchBody: HStmt[] | null;
+      catchParam: string | null;
       finallyBody: HStmt[] | null;
     }
   // `break;` / `continue;` — target the innermost enclosing loop (no labels yet).
@@ -182,6 +185,8 @@ export type HExpr =
   // `x instanceof C` → boolean. `vtableClasses` are the class names whose vtable pointer counts
   // as a match (C plus every subclass); codegen compares the receiver's vtable to each.
   | { kind: "instanceofCheck"; value: HExpr; vtableClasses: string[]; type: ValueType }
+  // `e instanceof Error` for a caught (unknown) value → the CsThrown's `isError` tag.
+  | { kind: "thrownIsError"; value: HExpr; type: ValueType }
   // `x === undefined` / `x !== undefined` → boolean (compares against the sentinel).
   // `x === null`/`x === undefined` (and `!==`). `sentinel` says which marker to compare against,
   // so `x === null` and `x === undefined` are distinguished for a `T | null | undefined` value.

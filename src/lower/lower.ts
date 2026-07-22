@@ -395,15 +395,22 @@ function lowerStatement(stmt: ts.Statement, ctx: LowerCtx): HStmt[] {
   }
   if (ts.isTryStatement(stmt)) {
     if (!stmt.catchClause && !stmt.finallyBlock) ice("lower: try needs a catch or finally");
-    // The catch binding value (`catch (e)`) is not modeled yet — referencing `e` will fail to
-    // lower (unknown type). Recovery-style `try { } catch { }` and `finally` work.
+    // `catch (e)` binds `e` (type `unknown`) to the caught CsThrown. A destructured binding is not
+    // supported.
+    const cc = stmt.catchClause;
+    let catchParam: string | null = null;
+    if (cc?.variableDeclaration) {
+      if (!ts.isIdentifier(cc.variableDeclaration.name)) {
+        ice("lower: destructured catch binding not supported");
+      }
+      catchParam = nameOf(cc.variableDeclaration.name as ts.Identifier, ctx);
+    }
     return [
       {
         kind: "tryCatch",
         tryBody: lowerStatements(stmt.tryBlock.statements, ctx),
-        catchBody: stmt.catchClause
-          ? lowerStatements(stmt.catchClause.block.statements, ctx)
-          : null,
+        catchBody: cc ? lowerStatements(cc.block.statements, ctx) : null,
+        catchParam,
         finallyBody: stmt.finallyBlock ? lowerStatements(stmt.finallyBlock.statements, ctx) : null,
       },
     ];
@@ -427,9 +434,9 @@ function lowerStatement(stmt: ts.Statement, ctx: LowerCtx): HStmt[] {
   return ice(`lower: unsupported statement ${ts.SyntaxKind[stmt.kind]}`);
 }
 
-// `throw expr` (interim). Extracts a message string when it can: `throw new Error(msg)` → msg,
-// `throw "str"` → the string. Otherwise the message is null (still terminates). Full try/catch
-// with unwinding replaces this later.
+// `throw expr`. The subset supports `throw new Error(msg)` (isError) and `throw <string>`; a
+// re-throw of a caught value (`throw e`) carries it through unchanged. Other thrown types are
+// rejected (they'd need general value boxing we don't do).
 function lowerThrow(expr: ts.Expression, ctx: LowerCtx): HStmt {
   // `new Error(msg)` — Error is a builtin; take its first argument as the message.
   if (
@@ -438,14 +445,19 @@ function lowerThrow(expr: ts.Expression, ctx: LowerCtx): HStmt {
     expr.expression.text === "Error"
   ) {
     const arg = expr.arguments?.[0];
-    return { kind: "throwError", message: arg ? lowerExpr(arg, ctx) : null };
+    return { kind: "throwError", isError: true, message: arg ? lowerExpr(arg, ctx) : null };
   }
-  // A thrown string value.
   const t = ctx.checker.getTypeAtLocation(expr);
-  if (t.flags & ts.TypeFlags.StringLike) {
-    return { kind: "throwError", message: lowerExpr(expr, ctx) };
+  // `throw e` where e is a caught (unknown) value → re-throw it unchanged.
+  if (t.flags & ts.TypeFlags.Unknown) {
+    return { kind: "rethrowValue", value: lowerExpr(expr, ctx) };
   }
-  return { kind: "throwError", message: null };
+  if (t.flags & ts.TypeFlags.StringLike) {
+    return { kind: "throwError", isError: false, message: lowerExpr(expr, ctx) };
+  }
+  return ice(
+    "lower: throw only supports `new Error(msg)`, a string, or re-throwing a caught value",
+  );
 }
 
 function lowerStatements(stmts: readonly ts.Statement[], ctx: LowerCtx): HStmt[] {
@@ -1473,16 +1485,17 @@ function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
       if (opKind === ts.SyntaxKind.InstanceOfKeyword) {
         if (!ts.isIdentifier(b.right)) ice("lower: instanceof right side must be a class name");
         const target = b.right.text;
+        const left = lowerExpr(b.left, ctx);
+        // `e instanceof Error` for a caught (unknown) value → the CsThrown's isError tag. (Error is
+        // a builtin, not a user class, so it isn't in the vtable hierarchy.)
+        if (target === "Error" && left.type.kind === "unknown") {
+          return { kind: "thrownIsError", value: left, type };
+        }
         const matches = [...ctx.classAncestors]
           .filter(([, anc]) => anc.has(target))
           .map(([name]) => name);
         if (matches.length === 0) ice(`lower: instanceof unknown class ${target}`);
-        return {
-          kind: "instanceofCheck",
-          value: lowerExpr(b.left, ctx),
-          vtableClasses: matches,
-          type,
-        };
+        return { kind: "instanceofCheck", value: left, vtableClasses: matches, type };
       }
       // `&&` / `||` are short-circuiting with value semantics — a distinct HIR node, not a
       // plain binary (their result is an operand, not a computed value).
@@ -1633,6 +1646,8 @@ function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChecker): 
   if (flags & ts.TypeFlags.BooleanLike) return VT.boolean;
   if (flags & ts.TypeFlags.Null) return VT.null;
   if (flags & ts.TypeFlags.Undefined) return VT.undefined;
+  // `unknown` currently occurs only as a `catch (e)` binding (useUnknownInCatchVariables).
+  if (flags & ts.TypeFlags.Unknown) return VT.unknown;
   if (flags & ts.TypeFlags.Object) {
     const ref = t as ts.TypeReference;
     // A function value: an object type with a call signature.

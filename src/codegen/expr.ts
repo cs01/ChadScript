@@ -77,6 +77,8 @@ export function irTypeOf(vt: ValueType): IrType {
       return T.ptr; // pointer to the runtime CsMap
     case "set":
       return T.ptr; // pointer to the runtime CsSet
+    case "unknown":
+      return T.ptr; // pointer to a CsThrown (a caught value)
     case "null":
     case "undefined":
       return ice(`irTypeOf: ${vt.kind} has no storage representation yet`);
@@ -98,6 +100,7 @@ export function boxSlot(v: Value, elemType: ValueType, ctx: Ctx): Value {
     case "function":
     case "map":
     case "set":
+    case "unknown":
       return ctx.fn.ptrToI64(v); // all pointer-represented
     case "boolean":
       return ctx.fn.zextI1ToI64(v);
@@ -117,6 +120,7 @@ export function unboxSlot(slot: Value, elemType: ValueType, ctx: Ctx): Value {
     case "function":
     case "map":
     case "set":
+    case "unknown":
       return ctx.fn.i64ToPtr(slot);
     case "boolean":
       return ctx.fn.truncI64ToI1(slot);
@@ -1046,6 +1050,10 @@ export function evalValue(expr: HExpr, ctx: Ctx): Value {
       return evalMapPtr(expr, ctx);
     case "set":
       return evalSetPtr(expr, ctx);
+    case "unknown":
+      // A caught value (CsThrown*): only a `varRef` (the catch binding) produces one directly.
+      if (expr.kind === "varRef") return ctx.fn.load(T.ptr, lookupVar(expr.name, ctx).ptr);
+      return ice(`evalValue: unknown expression ${expr.kind}`);
     default:
       return ice(`evalValue: ${expr.type.kind} not supported yet`);
   }
@@ -1117,6 +1125,9 @@ function coerceToString(expr: HExpr, ctx: Ctx): Value {
       return ctx.fn.call("@cs_num_to_string", T.ptr, [evalNumber(expr, ctx)]);
     case "boolean":
       return ctx.fn.call("@cs_bool_to_string", T.ptr, [ctx.fn.zextI1ToI32(evalBool(expr, ctx))]);
+    case "unknown":
+      // `String(e)` on a caught value: "Error: <msg>" for an Error, else the thrown string.
+      return ctx.fn.call("@cs_thrown_to_string", T.ptr, [evalValue(expr, ctx)]);
     default:
       return ice(`coerceToString: ${expr.type.kind} not supported yet`);
   }
@@ -1446,6 +1457,13 @@ export function evalBool(expr: HExpr, ctx: Ctx): Value {
 
     case "convert": // `Boolean(x)` — JS truthiness of the value.
       return evalBooleanConvert(expr.value, ctx);
+
+    case "thrownIsError": // `e instanceof Error` on a caught value → the CsThrown's isError tag.
+      return ctx.fn.icmp(
+        "ne",
+        ctx.fn.call("@cs_thrown_is_error", T.i32, [evalValue(expr.value, ctx)]),
+        imm(T.i32, 0),
+      );
 
     case "instanceofCheck": {
       // The receiver's vtable pointer (record slot 0) equals the target class's or any subclass's.
