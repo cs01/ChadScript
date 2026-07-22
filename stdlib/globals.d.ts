@@ -6,12 +6,11 @@
 // process.exit(number).
 
 declare const console: {
-  /** Prints one string followed by a newline (Node-identical). */
-  log(message: string): void;
-  /** Prints one number (JS-exact formatting) followed by a newline. */
-  log(value: number): void;
-  /** Prints "true"/"false" followed by a newline. */
-  log(value: boolean): void;
+  /**
+   * Prints its arguments space-separated, followed by a newline (Node semantics). Each value
+   * is formatted per its type: numbers JS-exactly, booleans as "true"/"false", strings as-is.
+   */
+  log(...values: (string | number | boolean)[]): void;
 };
 
 declare const process: {

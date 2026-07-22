@@ -5,22 +5,21 @@
 #include <stdio.h>
 #include "number.h"
 
-// console.log of a single string argument. Node appends a newline; we match that exactly.
-void cs_console_log_cstr(const char *s) {
-  fputs(s, stdout);
-  fputc('\n', stdout);
-}
+// console.log is variadic and space-separated (Node: `console.log(a, b)` → "a b\n"). Codegen
+// emits one print per argument, a space between them, and a trailing newline. These helpers
+// each write ONE piece with no separator/newline of their own.
 
-// console.log of a single number. Formatted JS-exactly (see number.c), then a newline.
-void cs_console_log_f64(double x) {
+void cs_print_cstr(const char *s) { fputs(s, stdout); }
+
+void cs_print_f64(double x) {
   char buf[40];
   cs_num_to_str(x, buf);
   fputs(buf, stdout);
-  fputc('\n', stdout);
 }
 
-// console.log of a single boolean. Passed as i32 (0/1) to avoid i1 ABI ambiguity.
-void cs_console_log_bool(int b) {
-  fputs(b ? "true" : "false", stdout);
-  fputc('\n', stdout);
-}
+// Boolean passed as i32 (0/1) to avoid i1 ABI ambiguity.
+void cs_print_bool(int b) { fputs(b ? "true" : "false", stdout); }
+
+void cs_print_space(void) { fputc(' ', stdout); }
+
+void cs_print_newline(void) { fputc('\n', stdout); }

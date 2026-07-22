@@ -182,14 +182,16 @@ function lowerVarDecl(decl: ts.VariableDeclaration, ctx: LowerCtx): HStmt {
 
 function lowerCallStatement(call: ts.CallExpression, ctx: LowerCtx): HStmt {
   const target = calleeName(call.expression);
-  const arg = call.arguments[0];
-  if (call.arguments.length !== 1 || !arg) ice(`lower: ${target} expects exactly one argument`);
 
   switch (target) {
     case "console.log":
-      return { kind: "consoleLog", value: lowerExpr(arg, ctx) };
-    case "process.exit":
+      // Variadic: zero or more values, any supported type each.
+      return { kind: "consoleLog", values: call.arguments.map((a) => lowerExpr(a, ctx)) };
+    case "process.exit": {
+      const arg = call.arguments[0];
+      if (call.arguments.length !== 1 || !arg) ice("lower: process.exit expects one argument");
       return { kind: "processExit", code: lowerExpr(arg, ctx) };
+    }
     default:
       return ice(`lower: unsupported call ${target}`);
   }

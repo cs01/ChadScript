@@ -9,7 +9,7 @@
 import { ice } from "../diagnostics.js";
 import { ModuleBuilder, imm } from "../ir/builder.js";
 import { T } from "../ir/types.js";
-import type { HModule, HStmt } from "../hir/nodes.js";
+import type { HModule, HStmt, HExpr } from "../hir/nodes.js";
 import {
   evalNumber,
   evalBool,
@@ -23,9 +23,11 @@ import {
 
 export function generate(hmod: HModule): string {
   const mod = new ModuleBuilder();
-  mod.declareExtern("cs_console_log_cstr", T.void, [T.ptr]);
-  mod.declareExtern("cs_console_log_f64", T.void, [T.double]);
-  mod.declareExtern("cs_console_log_bool", T.void, [T.i32]);
+  mod.declareExtern("cs_print_cstr", T.void, [T.ptr]);
+  mod.declareExtern("cs_print_f64", T.void, [T.double]);
+  mod.declareExtern("cs_print_bool", T.void, [T.i32]);
+  mod.declareExtern("cs_print_space", T.void, []);
+  mod.declareExtern("cs_print_newline", T.void, []);
   mod.declareExtern("exit", T.void, [T.i32]);
 
   const fn = mod.defineFunc("main", T.i32, []);
@@ -35,25 +37,33 @@ export function generate(hmod: HModule): string {
   return mod.render();
 }
 
+// Print one value with no separator or newline, dispatched on its resolved type.
+function emitPrintValue(v: HExpr, ctx: Ctx): void {
+  switch (v.type.kind) {
+    case "number":
+      ctx.fn.callVoid("@cs_print_f64", [evalNumber(v, ctx)]);
+      return;
+    case "string":
+      ctx.fn.callVoid("@cs_print_cstr", [evalString(v, ctx)]);
+      return;
+    case "boolean":
+      ctx.fn.callVoid("@cs_print_bool", [ctx.fn.zextI1ToI32(evalBool(v, ctx))]);
+      return;
+    default:
+      ice(`codegen: console.log of ${v.type.kind} not supported yet`);
+  }
+}
+
 function emitStatement(stmt: HStmt, ctx: Ctx): void {
   switch (stmt.kind) {
     case "consoleLog": {
-      const v = stmt.value;
-      switch (v.type.kind) {
-        case "number":
-          ctx.fn.callVoid("@cs_console_log_f64", [evalNumber(v, ctx)]);
-          return;
-        case "string":
-          ctx.fn.callVoid("@cs_console_log_cstr", [evalString(v, ctx)]);
-          return;
-        case "boolean":
-          // Runtime takes the boolean as i32 (0/1).
-          ctx.fn.callVoid("@cs_console_log_bool", [ctx.fn.zextI1ToI32(evalBool(v, ctx))]);
-          return;
-        default:
-          ice(`codegen: console.log of ${v.type.kind} not supported yet`);
-          return;
-      }
+      // Print each value; a space between adjacent values; a trailing newline (Node semantics).
+      stmt.values.forEach((v, i) => {
+        if (i > 0) ctx.fn.callVoid("@cs_print_space", []);
+        emitPrintValue(v, ctx);
+      });
+      ctx.fn.callVoid("@cs_print_newline", []);
+      return;
     }
 
     case "processExit":
