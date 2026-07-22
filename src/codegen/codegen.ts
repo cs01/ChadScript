@@ -17,7 +17,6 @@ import {
   evalString,
   evalValue,
   evalArrayPtr,
-  evalObjectPtr,
   evalOptionalPtr,
   unboxOptionalValue,
   unboxSlotValue,
@@ -27,13 +26,13 @@ import {
   irTypeOf,
   lookupVar,
   toBool,
-  headerOffset,
   evalVirtualCall,
   evalVirtualCallStmt,
   type Ctx,
   type TryFrame,
   type LoopTarget,
 } from "./expr.js";
+import { evalObjectPtr, headerOffset } from "./objects.js";
 import { inspect } from "./inspect.js";
 
 export function generate(hmod: HModule): string {

@@ -13,13 +13,13 @@ import {
   evalValue,
   lookupVar,
   evalCall,
-  evalMemberGet,
   evalCallClosure,
   evalVirtualCall,
   evalConditional,
   evalCoalesce,
   evalArrayPtr,
 } from "./expr.js";
+import { evalMemberGet } from "./objects.js";
 
 // Evaluate a map-typed HExpr to a ptr (to the runtime CsMap). `mapNew` allocates; `mapSet`
 // returns the same map (JS `.set` is chainable).

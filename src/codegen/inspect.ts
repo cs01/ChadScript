@@ -8,7 +8,8 @@ import { ice } from "../diagnostics.js";
 import { imm, type Value } from "../ir/builder.js";
 import { T } from "../ir/types.js";
 import type { ValueType } from "../hir/types.js";
-import { unboxSlot, headerOffset, type Ctx } from "./expr.js";
+import { unboxSlot, type Ctx } from "./expr.js";
+import { headerOffset } from "./objects.js";
 
 // A string Value for the inspect form of `value` (of type `type`). Strings are quoted here (the
 // nested context); the top-level raw-string case is handled by the caller.
