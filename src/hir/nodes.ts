@@ -133,6 +133,15 @@ export type HExpr =
       elementType: ValueType;
       type: ValueType;
     }
+  // `arr.includes(x)` → boolean, `arr.indexOf(x)` → number. `wantIndex` distinguishes them.
+  | {
+      kind: "arraySearch";
+      array: HExpr;
+      value: HExpr;
+      elementType: ValueType;
+      wantIndex: boolean;
+      type: ValueType;
+    }
   // Object literal `{ f: v, ... }`. `fields` are in SHAPE (record-slot) order — lower reorders
   // the source properties to match the declared shape.
   | { kind: "objectLit"; fields: HExpr[]; type: ValueType }

@@ -254,6 +254,69 @@ export function arrayElementAt(arr: Value, i: Value, elemType: ValueType, ctx: C
   return unboxSlot(ctx.fn.call("@cs_array_get", T.i64, [arr, i]), elemType, ctx);
 }
 
+// Strict-equality (`===`) of two already-computed Values, dispatched on their shared type.
+// Matches JS: numbers via ordered fcmp oeq (NaN===NaN false), booleans via icmp, strings via
+// the runtime string compare. Shared by `switch` and array `.includes`/`.indexOf`.
+export function emitStrictEq(a: Value, b: Value, type: ValueType, ctx: Ctx): Value {
+  switch (type.kind) {
+    case "number":
+      return ctx.fn.fcmp("oeq", a, b);
+    case "boolean":
+      return ctx.fn.icmp("eq", a, b);
+    case "string":
+      return ctx.fn.icmp("ne", ctx.fn.call("@cs_str_eq", T.i32, [a, b]), imm(T.i32, 0));
+    default:
+      return ice(`emitStrictEq: ${type.kind} not supported`);
+  }
+}
+
+// `arr.includes(x)` / `arr.indexOf(x)` share a linear scan with early exit. `wantIndex` picks
+// the return: the matching index as a number (−1 if none), or a boolean found-flag.
+export function evalArraySearch(
+  array: HExpr,
+  value: HExpr,
+  elementType: ValueType,
+  wantIndex: boolean,
+  ctx: Ctx,
+): Value {
+  const arrSlot = ctx.fn.alloca(T.ptr);
+  ctx.fn.store(evalArrayPtr(array, ctx), arrSlot);
+  const target = evalValue(value, ctx); // evaluated once, before the loop
+  const idxSlot = ctx.fn.alloca(T.i32);
+  ctx.fn.store(imm(T.i32, 0), idxSlot);
+
+  const headerB = ctx.fn.newBlock("find.header");
+  const bodyB = ctx.fn.newBlock("find.body");
+  const contB = ctx.fn.newBlock("find.cont");
+  const endB = ctx.fn.newBlock("find.end");
+
+  ctx.fn.br(headerB);
+  ctx.fn.switchTo(headerB);
+  const i = ctx.fn.load(T.i32, idxSlot);
+  const len = ctx.fn.call("@cs_array_len", T.i32, [ctx.fn.load(T.ptr, arrSlot)]);
+  ctx.fn.brCond(ctx.fn.icmp("slt", i, len), bodyB, endB);
+
+  ctx.fn.switchTo(bodyB);
+  const elem = arrayElementAt(ctx.fn.load(T.ptr, arrSlot), i, elementType, ctx);
+  ctx.fn.brCond(emitStrictEq(elem, target, elementType, ctx), endB, contB); // match → stop
+
+  ctx.fn.switchTo(contB);
+  ctx.fn.store(ctx.fn.iadd(i, imm(T.i32, 1)), idxSlot);
+  ctx.fn.br(headerB);
+
+  ctx.fn.switchTo(endB);
+  // On a match we exited from bodyB with idxSlot holding the found index; if the header's
+  // condition failed we fell through with idx == len (no match).
+  const found = ctx.fn.icmp(
+    "slt",
+    ctx.fn.load(T.i32, idxSlot),
+    ctx.fn.call("@cs_array_len", T.i32, [ctx.fn.load(T.ptr, arrSlot)]),
+  );
+  if (!wantIndex) return found;
+  // indexOf: the found index as a number, or -1.
+  return ctx.fn.select(found, ctx.fn.sitofp(ctx.fn.load(T.i32, idxSlot)), fimm(-1));
+}
+
 // Coerce an already-computed Value to its JS string form (a ptr), per its type.
 export function coerceValueToString(v: Value, type: ValueType, ctx: Ctx): Value {
   switch (type.kind) {
@@ -503,6 +566,9 @@ export function evalNumber(expr: HExpr, ctx: Ctx): Value {
     case "unwrap":
       return evalUnwrap(expr, ctx);
 
+    case "arraySearch":
+      return evalArraySearch(expr.array, expr.value, expr.elementType, expr.wantIndex, ctx);
+
     case "arrayLen":
       // JS .length is a number; the runtime returns an i32 count.
       return ctx.fn.sitofp(ctx.fn.call("@cs_array_len", T.i32, [evalArrayPtr(expr.array, ctx)]));
@@ -676,6 +742,9 @@ export function evalBool(expr: HExpr, ctx: Ctx): Value {
 
     case "nullCheck":
       return evalNullCheck(expr, ctx);
+
+    case "arraySearch":
+      return evalArraySearch(expr.array, expr.value, expr.elementType, expr.wantIndex, ctx);
 
     default:
       return ice(`evalBool: unhandled boolean expression ${expr.kind}`);

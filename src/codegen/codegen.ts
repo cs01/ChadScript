@@ -22,6 +22,7 @@ import {
   unboxOptionalValue,
   arrayElementAt,
   boxSlot,
+  emitStrictEq,
   irTypeOf,
   lookupVar,
   toBool,
@@ -172,22 +173,6 @@ function emitPrintOptional(v: HExpr, ctx: Ctx): void {
   ctx.fn.br(endB);
 
   ctx.fn.switchTo(endB);
-}
-
-// Strict-equality (`===`) of two already-computed Values, dispatched on their shared type.
-// Matches JS: numbers via ordered fcmp oeq (NaN===NaN false), booleans via icmp, strings via
-// the runtime string compare.
-function emitStrictEq(a: Value, b: Value, type: ValueType, ctx: Ctx): Value {
-  switch (type.kind) {
-    case "number":
-      return ctx.fn.fcmp("oeq", a, b);
-    case "boolean":
-      return ctx.fn.icmp("eq", a, b);
-    case "string":
-      return ctx.fn.icmp("ne", ctx.fn.call("@cs_str_eq", T.i32, [a, b]), imm(T.i32, 0));
-    default:
-      return ice(`emitStrictEq: ${type.kind} not supported`);
-  }
 }
 
 // `switch` with JS fall-through: dispatch each case value against the discriminant (===), then

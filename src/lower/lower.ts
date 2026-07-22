@@ -566,6 +566,16 @@ function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
         type: VT.string,
       };
     }
+    if (method === "includes" || method === "indexOf") {
+      return {
+        kind: "arraySearch",
+        array: lowerExpr(pa.expression, ctx),
+        value: lowerExpr(call.arguments[0]!, ctx),
+        elementType: recvType.element,
+        wantIndex: method === "indexOf",
+        type: method === "indexOf" ? VT.number : VT.boolean,
+      };
+    }
     return ice(`lower: unsupported array method .${method}`);
   }
   if (recvType.kind === "string") {
