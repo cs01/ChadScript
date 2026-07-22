@@ -81,6 +81,24 @@ double cs_str_index_of(const CsString *s, const CsString *sub, double dfrom) {
 }
 
 // JS startsWith(p, position): does p occur at `position` (clamped [0,len])? Empty p always matches.
+// JS lastIndexOf(sub, fromIndex): the LAST index ≤ fromIndex at which sub starts, or -1. Default
+// fromIndex is +Infinity (search the whole string); codegen passes +Infinity when it's omitted, so
+// there is no NaN-sentinel collision (an explicit NaN arg is ToInteger'd to 0, exactly like JS).
+double cs_str_last_index_of(const CsString *s, const CsString *sub, double dfrom) {
+  size_t hlen = s->len, nlen = sub->len;
+  double f = isnan(dfrom) ? 0.0 : dfrom; // ToInteger(NaN) === 0
+  if (f < 0) f = 0;
+  if (f > (double)hlen) f = (double)hlen;
+  long from = (long)f;
+  if (nlen == 0) return (double)from; // empty needle matches at its clamped fromIndex
+  if (nlen > hlen) return -1.0;
+  long maxstart = (long)(hlen - nlen);
+  long hi = from < maxstart ? from : maxstart; // highest candidate start index
+  for (long i = hi; i >= 0; i--)
+    if (memcmp(s->data + i, sub->data, nlen) == 0) return (double)i;
+  return -1.0;
+}
+
 int cs_str_starts_with(const CsString *s, const CsString *p, double dpos) {
   long pos = (long)dpos;
   if (pos < 0) pos = 0;

@@ -1022,6 +1022,11 @@ export function evalStrMethod(expr: Extract<HExpr, { kind: "strMethod" }>, ctx: 
     const from = args.length >= 2 ? args[1]! : fimm(0);
     return ctx.fn.call("@cs_str_index_of", T.double, [recv, args[0]!, from]);
   }
+  // lastIndexOf(sub, fromIndex?): default fromIndex is +Infinity (search the whole string).
+  if (expr.method === "lastIndexOf") {
+    const from = args.length >= 2 ? args[1]! : fimm(Infinity);
+    return ctx.fn.call("@cs_str_last_index_of", T.double, [recv, args[0]!, from]);
+  }
   // includes(sub, position?)/startsWith(p, position?) default position 0; endsWith(p, endPos?)
   // defaults endPos to the length, signalled to the runtime with a NaN sentinel. All return i32
   // 0/1 → narrow to i1.

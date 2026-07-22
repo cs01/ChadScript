@@ -84,6 +84,7 @@ export function generate(hmod: HModule): string {
   mod.declareExtern("cs_parse_int", T.double, [T.ptr, T.double]);
   mod.declareExtern("cs_parse_float", T.double, [T.ptr]);
   mod.declareExtern("cs_str_index_of", T.double, [T.ptr, T.ptr, T.double]);
+  mod.declareExtern("cs_str_last_index_of", T.double, [T.ptr, T.ptr, T.double]);
   // All three take an optional position/endPosition (double); codegen passes the arg or a default.
   for (const f of ["cs_str_includes", "cs_str_starts_with", "cs_str_ends_with"]) {
     mod.declareExtern(f, T.i32, [T.ptr, T.ptr, T.double]);
