@@ -157,6 +157,18 @@ export type HExpr =
   // Array→array transforms that are a single runtime call (reverse/slice/concat). `fn` is the
   // runtime entry point; `args` are the extra arguments after the receiver.
   | { kind: "arrayXform"; fn: string; array: HExpr; args: HExpr[]; type: ValueType }
+  // Higher-order array methods that invoke a closure per element (map/filter/forEach/reduce).
+  // Lowered to an inline IR loop that calls the callback closure; `init` is reduce's seed
+  // (null → seed from the first element). `callback.type` is the closure's function type.
+  | {
+      kind: "arrayHof";
+      op: "map" | "filter" | "forEach" | "reduce";
+      array: HExpr;
+      callback: HExpr;
+      init: HExpr | null;
+      elementType: ValueType;
+      type: ValueType;
+    }
   // Object literal `{ f: v, ... }`. `fields` are in SHAPE (record-slot) order — lower reorders
   // the source properties to match the declared shape.
   | { kind: "objectLit"; fields: HExpr[]; type: ValueType }

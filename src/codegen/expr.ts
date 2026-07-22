@@ -264,6 +264,8 @@ export function evalArrayPtr(expr: HExpr, ctx: Ctx): Value {
       return evalUnwrap(expr, ctx);
     case "callClosure":
       return evalCallClosure(expr, ctx);
+    case "arrayHof":
+      return evalArrayHof(expr, ctx); // .map()/.filter() (also when chained as a receiver)
     default:
       return ice(`evalArrayPtr: unhandled array expression ${expr.kind}`);
   }
@@ -443,6 +445,100 @@ export function evalCallClosure(expr: Extract<HExpr, { kind: "callClosure" }>, c
   return ctx.fn.callIndirect(fnptr, irTypeOf(expr.type), args);
 }
 
+// Higher-order array methods (map/filter/forEach/reduce), lowered to an inline loop that
+// invokes the callback closure per element. The closure is called with the SAME typed ABI as a
+// direct call: `fnptr(env, typedArgs...)`. JS passes (element, index, array); we pass exactly as
+// many as the callback's arity declares (element + optional index; reduce leads with the acc).
+export function evalArrayHof(expr: Extract<HExpr, { kind: "arrayHof" }>, ctx: Ctx): Value {
+  const cbType = expr.callback.type;
+  if (cbType.kind !== "function") return ice("arrayHof callback is not function-typed");
+  const arity = cbType.params.length;
+  const retIr = cbType.ret ? irTypeOf(cbType.ret) : T.void;
+
+  const arr = evalArrayPtr(expr.array, ctx);
+  const cb = evalFunctionPtr(expr.callback, ctx);
+  const fnptr = ctx.fn.i64ToPtr(ctx.fn.load(T.i64, ctx.fn.gepSlot(cb, 0)));
+  const env = ctx.fn.i64ToPtr(ctx.fn.load(T.i64, ctx.fn.gepSlot(cb, 1)));
+
+  const arrPtr = ctx.fn.alloca(T.ptr);
+  ctx.fn.store(arr, arrPtr);
+  const idxPtr = ctx.fn.alloca(T.i32);
+
+  // map/filter build a fresh array; reduce accumulates into a typed slot.
+  const result =
+    expr.op === "map" || expr.op === "filter" ? ctx.fn.call("@cs_array_new", T.ptr, []) : null;
+  const accPtr = expr.op === "reduce" ? ctx.fn.alloca(irTypeOf(expr.type)) : null;
+
+  // reduce without an initial value seeds the accumulator from element 0 and starts at index 1.
+  let startIdx = 0;
+  if (expr.op === "reduce") {
+    if (expr.init) {
+      ctx.fn.store(evalValue(expr.init, ctx), accPtr!);
+    } else {
+      ctx.fn.store(
+        unboxSlot(ctx.fn.call("@cs_array_get", T.i64, [arr, imm(T.i32, 0)]), expr.type, ctx),
+        accPtr!,
+      );
+      startIdx = 1;
+    }
+  }
+  ctx.fn.store(imm(T.i32, startIdx), idxPtr);
+
+  const headerB = ctx.fn.newBlock("hof.header");
+  const bodyB = ctx.fn.newBlock("hof.body");
+  const latchB = ctx.fn.newBlock("hof.latch");
+  const endB = ctx.fn.newBlock("hof.end");
+
+  ctx.fn.br(headerB);
+  ctx.fn.switchTo(headerB);
+  const i = ctx.fn.load(T.i32, idxPtr);
+  const len = ctx.fn.call("@cs_array_len", T.i32, [ctx.fn.load(T.ptr, arrPtr)]);
+  ctx.fn.brCond(ctx.fn.icmp("slt", i, len), bodyB, endB);
+
+  ctx.fn.switchTo(bodyB);
+  const idx = ctx.fn.load(T.i32, idxPtr);
+  const elemI64 = ctx.fn.call("@cs_array_get", T.i64, [ctx.fn.load(T.ptr, arrPtr), idx]);
+  const elem = unboxSlot(elemI64, expr.elementType, ctx);
+
+  if (expr.op === "reduce") {
+    // callback(acc, element, index?)
+    const args = [env, ctx.fn.load(irTypeOf(expr.type), accPtr!), elem];
+    if (arity >= 3) args.push(ctx.fn.sitofp(idx));
+    ctx.fn.store(ctx.fn.callIndirect(fnptr, retIr, args), accPtr!);
+    ctx.fn.br(latchB);
+  } else {
+    // callback(element, index?)
+    const args = [env, elem];
+    if (arity >= 2) args.push(ctx.fn.sitofp(idx));
+    if (expr.op === "map") {
+      const mapped = ctx.fn.callIndirect(fnptr, retIr, args);
+      ctx.fn.call("@cs_array_push", T.i32, [result!, boxSlot(mapped, cbType.ret!, ctx)]);
+      ctx.fn.br(latchB);
+    } else if (expr.op === "filter") {
+      const keep = ctx.fn.callIndirect(fnptr, T.i1, args);
+      const pushB = ctx.fn.newBlock("hof.push");
+      ctx.fn.brCond(keep, pushB, latchB);
+      ctx.fn.switchTo(pushB);
+      ctx.fn.call("@cs_array_push", T.i32, [result!, elemI64]); // keep the original boxed slot
+      ctx.fn.br(latchB);
+    } else {
+      // forEach: invoke for side effects, discard the result.
+      if (cbType.ret) ctx.fn.callIndirect(fnptr, retIr, args);
+      else ctx.fn.callIndirectVoid(fnptr, args);
+      ctx.fn.br(latchB);
+    }
+  }
+
+  ctx.fn.switchTo(latchB);
+  ctx.fn.store(ctx.fn.iadd(ctx.fn.load(T.i32, idxPtr), imm(T.i32, 1)), idxPtr);
+  ctx.fn.br(headerB);
+
+  ctx.fn.switchTo(endB);
+  if (expr.op === "reduce") return ctx.fn.load(irTypeOf(expr.type), accPtr!);
+  if (result) return result;
+  return ctx.fn.nullPtr(); // forEach → undefined (discarded by the caller)
+}
+
 // Math.* → libm (floor/ceil/trunc/sqrt/fabs/pow) or a runtime helper (round/sign, whose JS
 // semantics differ from C). All operate on doubles.
 const MATH_UNARY: Record<string, string> = {
@@ -510,6 +606,9 @@ export function evalStrMethod(expr: Extract<HExpr, { kind: "strMethod" }>, ctx: 
 
 // Evaluate any supported HExpr to an IR Value, dispatched on its resolved type.
 export function evalValue(expr: HExpr, ctx: Ctx): Value {
+  // arrayHof spans result types (map/filter→array, reduce→any, forEach→undefined); handle it
+  // before the type switch so forEach's `undefined` result type doesn't hit the default ICE.
+  if (expr.kind === "arrayHof") return evalArrayHof(expr, ctx);
   switch (expr.type.kind) {
     case "number":
       return evalNumber(expr, ctx);
@@ -633,6 +732,9 @@ export function evalNumber(expr: HExpr, ctx: Ctx): Value {
 
     case "callClosure":
       return evalCallClosure(expr, ctx);
+
+    case "arrayHof":
+      return evalArrayHof(expr, ctx); // reduce → number
 
     case "arrayLen":
       // JS .length is a number; the runtime returns an i32 count.

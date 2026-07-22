@@ -672,6 +672,21 @@ function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
         type: method === "indexOf" ? VT.number : VT.boolean,
       };
     }
+    if (method === "map" || method === "filter" || method === "forEach" || method === "reduce") {
+      const callbackArg = method === "reduce" ? call.arguments[0]! : call.arguments[0]!;
+      // reduce(fn, init?) — the optional seed is the 2nd argument.
+      const init = method === "reduce" && call.arguments.length >= 2 ? call.arguments[1]! : null;
+      return {
+        kind: "arrayHof",
+        op: method,
+        array: lowerExpr(pa.expression, ctx),
+        callback: lowerExpr(callbackArg, ctx),
+        init: init ? lowerExpr(init, ctx) : null,
+        elementType: recvType.element,
+        // map/filter → array (resolveType of the call), forEach → undefined, reduce → its result.
+        type: method === "forEach" ? VT.undefined : resolveType(call, ctx),
+      };
+    }
     if (method === "reverse" || method === "slice" || method === "concat") {
       const fn =
         method === "slice"
