@@ -35,7 +35,10 @@ export type ValueType =
   // is either the `undefined` sentinel or a pointer to a GC box holding the boxed inner value.
   | { kind: "optional"; inner: ValueType }
   // A first-class function value (closure). Runtime rep: a pointer to a GC record {fnptr, env}.
-  | { kind: "function"; params: ValueType[]; ret: ValueType | null };
+  | { kind: "function"; params: ValueType[]; ret: ValueType | null }
+  // A `Map<K, V>`. Runtime rep: pointer to a CsMap (parallel key/value slot buffers). `key`
+  // must be a primitive (number/string/boolean) — its kind selects the equality function.
+  | { kind: "map"; key: ValueType; value: ValueType };
 
 export const VT = {
   number: { kind: "number" } as ValueType,
@@ -44,4 +47,5 @@ export const VT = {
   null: { kind: "null" } as ValueType,
   undefined: { kind: "undefined" } as ValueType,
   array: (element: ValueType): ValueType => ({ kind: "array", element }),
+  map: (key: ValueType, value: ValueType): ValueType => ({ kind: "map", key, value }),
 } as const;

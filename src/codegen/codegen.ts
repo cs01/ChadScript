@@ -91,6 +91,13 @@ export function generate(hmod: HModule): string {
   mod.declareExtern("cs_array_concat", T.ptr, [T.ptr, T.ptr]);
   mod.declareExtern("cs_array_set", T.void, [T.ptr, T.i32, T.i64]);
   mod.declareExtern("cs_str_cmp", T.i32, [T.ptr, T.ptr]);
+  // Map: keys/values cross as i64 slots; `kind` (i32) selects key equality.
+  mod.declareExtern("cs_map_new", T.ptr, []);
+  mod.declareExtern("cs_map_set", T.void, [T.ptr, T.i64, T.i64, T.i32]);
+  mod.declareExtern("cs_map_get", T.ptr, [T.ptr, T.i64, T.i32]);
+  mod.declareExtern("cs_map_has", T.i32, [T.ptr, T.i64, T.i32]);
+  mod.declareExtern("cs_map_delete", T.i32, [T.ptr, T.i64, T.i32]);
+  mod.declareExtern("cs_map_size", T.i32, [T.ptr]);
   mod.declareExtern("exit", T.void, [T.i32]);
 
   // User functions first (order doesn't matter — LLVM resolves calls by name, so recursion and

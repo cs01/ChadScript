@@ -176,6 +176,21 @@ export type HExpr =
   // Array→array transforms that are a single runtime call (reverse/slice/concat). `fn` is the
   // runtime entry point; `args` are the extra arguments after the receiver.
   | { kind: "arrayXform"; fn: string; array: HExpr; args: HExpr[]; type: ValueType }
+  // Map operations. `keyKind` (0 number / 1 string / 2 boolean) selects the runtime's key
+  // equality. `mapNew` is `new Map()`; `mapGet` → `value | undefined`; `set` returns the map.
+  | { kind: "mapNew"; type: ValueType }
+  | { kind: "mapSet"; map: HExpr; key: HExpr; value: HExpr; keyKind: number; type: ValueType }
+  | {
+      kind: "mapGet";
+      map: HExpr;
+      key: HExpr;
+      keyKind: number;
+      valueType: ValueType;
+      type: ValueType;
+    }
+  | { kind: "mapHas"; map: HExpr; key: HExpr; keyKind: number; type: ValueType }
+  | { kind: "mapDelete"; map: HExpr; key: HExpr; keyKind: number; type: ValueType }
+  | { kind: "mapSize"; map: HExpr; type: ValueType }
   // `arr.sort(cmp?)` — in-place insertion sort, returns the same array. `comparator` null means
   // JS default order (compare by String(element), lexicographic). `type` is the array type.
   | {

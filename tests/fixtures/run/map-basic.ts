@@ -1,0 +1,13 @@
+const m = new Map<string, number>();
+m.set("a", 1);
+m.set("b", 2);
+m.set("a", 10);
+console.log(m.get("a") ?? -1);
+console.log(m.get("b") ?? -1);
+console.log(m.get("z") ?? -1);
+console.log(m.has("a"));
+console.log(m.has("z"));
+console.log(m.size);
+m.delete("a");
+console.log(m.has("a"));
+console.log(m.size);

@@ -44,6 +44,8 @@ export function irTypeOf(vt: ValueType): IrType {
       return T.ptr; // the undefined sentinel, or a pointer to a boxed inner value
     case "function":
       return T.ptr; // pointer to a closure record {fnptr, env}
+    case "map":
+      return T.ptr; // pointer to the runtime CsMap
     case "null":
     case "undefined":
       return ice(`irTypeOf: ${vt.kind} has no storage representation yet`);
@@ -63,6 +65,7 @@ export function boxSlot(v: Value, elemType: ValueType, ctx: Ctx): Value {
     case "object":
     case "optional":
     case "function":
+    case "map":
       return ctx.fn.ptrToI64(v); // all pointer-represented
     case "boolean":
       return ctx.fn.zextI1ToI64(v);
@@ -80,6 +83,7 @@ function unboxSlot(slot: Value, elemType: ValueType, ctx: Ctx): Value {
     case "object":
     case "optional":
     case "function":
+    case "map":
       return ctx.fn.i64ToPtr(slot);
     case "boolean":
       return ctx.fn.truncI64ToI1(slot);
@@ -151,6 +155,7 @@ export function evalOptionalPtr(expr: HExpr, ctx: Ctx): Value {
   if (expr.kind === "conditional") return evalConditional(expr, ctx);
   if (expr.kind === "coalesce") return evalCoalesce(expr, ctx);
   if (expr.kind === "arrayHof") return evalArrayHof(expr, ctx); // .find() → element | undefined
+  if (expr.kind === "mapGet") return evalMapGet(expr, ctx); // map.get() → value | undefined
   return ice(`evalOptionalPtr: unhandled optional expression ${expr.kind}`);
 }
 
@@ -694,6 +699,56 @@ export function evalArraySort(expr: Extract<HExpr, { kind: "arraySort" }>, ctx: 
   return ctx.fn.load(T.ptr, arrPtr);
 }
 
+// Evaluate a map-typed HExpr to a ptr (to the runtime CsMap). `mapNew` allocates; `mapSet`
+// returns the same map (JS `.set` is chainable).
+export function evalMapPtr(expr: HExpr, ctx: Ctx): Value {
+  switch (expr.kind) {
+    case "mapNew":
+      return ctx.fn.call("@cs_map_new", T.ptr, []);
+    case "mapSet":
+      return evalMapSet(expr, ctx);
+    case "varRef":
+      return ctx.fn.load(T.ptr, lookupVar(expr.name, ctx).ptr);
+    case "call":
+      return evalCall(expr, ctx);
+    case "memberGet":
+      return evalMemberGet(expr, ctx);
+    case "callClosure":
+      return evalCallClosure(expr, ctx);
+    case "conditional":
+      return evalConditional(expr, ctx);
+    case "coalesce":
+      return evalCoalesce(expr, ctx);
+    default:
+      return ice(`evalMapPtr: unhandled map expression ${expr.kind}`);
+  }
+}
+
+// A map `key`/`value` argument: box it into an i64 slot per its own type.
+function mapKeySlot(
+  expr: Extract<HExpr, { kind: "mapSet" | "mapGet" | "mapHas" | "mapDelete" }>,
+  ctx: Ctx,
+): Value {
+  return boxSlot(evalValue(expr.key, ctx), expr.key.type, ctx);
+}
+
+export function evalMapSet(expr: Extract<HExpr, { kind: "mapSet" }>, ctx: Ctx): Value {
+  const map = evalMapPtr(expr.map, ctx);
+  const key = boxSlot(evalValue(expr.key, ctx), expr.key.type, ctx);
+  const value = boxSlot(evalValue(expr.value, ctx), expr.value.type, ctx);
+  ctx.fn.callVoid("@cs_map_set", [map, key, value, imm(T.i32, expr.keyKind)]);
+  return map; // chainable
+}
+
+// `map.get(k)` → `value | undefined`: the runtime returns the optional pointer directly.
+export function evalMapGet(expr: Extract<HExpr, { kind: "mapGet" }>, ctx: Ctx): Value {
+  return ctx.fn.call("@cs_map_get", T.ptr, [
+    evalMapPtr(expr.map, ctx),
+    mapKeySlot(expr, ctx),
+    imm(T.i32, expr.keyKind),
+  ]);
+}
+
 // Ternary `cond ? a : b`. Branches may have side effects, so each arm is evaluated in its own
 // block and merged through a result slot (not a `select`, which would evaluate both arms).
 export function evalConditional(expr: Extract<HExpr, { kind: "conditional" }>, ctx: Ctx): Value {
@@ -814,6 +869,8 @@ export function evalValue(expr: HExpr, ctx: Ctx): Value {
       return evalOptionalPtr(expr, ctx);
     case "function":
       return evalFunctionPtr(expr, ctx);
+    case "map":
+      return evalMapPtr(expr, ctx);
     default:
       return ice(`evalValue: ${expr.type.kind} not supported yet`);
   }
@@ -935,6 +992,9 @@ export function evalNumber(expr: HExpr, ctx: Ctx): Value {
 
     case "arrayHof":
       return evalArrayHof(expr, ctx); // reduce → number
+
+    case "mapSize":
+      return ctx.fn.sitofp(ctx.fn.call("@cs_map_size", T.i32, [evalMapPtr(expr.map, ctx)]));
 
     case "arrayLen":
       // JS .length is a number; the runtime returns an i32 count.
@@ -1121,6 +1181,28 @@ export function evalBool(expr: HExpr, ctx: Ctx): Value {
 
     case "arrayHof":
       return evalArrayHof(expr, ctx); // .some()/.every() → boolean
+
+    case "mapHas":
+      return ctx.fn.icmp(
+        "ne",
+        ctx.fn.call("@cs_map_has", T.i32, [
+          evalMapPtr(expr.map, ctx),
+          boxSlot(evalValue(expr.key, ctx), expr.key.type, ctx),
+          imm(T.i32, expr.keyKind),
+        ]),
+        imm(T.i32, 0),
+      );
+
+    case "mapDelete":
+      return ctx.fn.icmp(
+        "ne",
+        ctx.fn.call("@cs_map_delete", T.i32, [
+          evalMapPtr(expr.map, ctx),
+          boxSlot(evalValue(expr.key, ctx), expr.key.type, ctx),
+          imm(T.i32, expr.keyKind),
+        ]),
+        imm(T.i32, 0),
+      );
 
     default:
       return ice(`evalBool: unhandled boolean expression ${expr.kind}`);

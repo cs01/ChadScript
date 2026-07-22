@@ -748,6 +748,21 @@ function isMathNamespace(expr: ts.Expression): boolean {
   return ts.isIdentifier(expr) && expr.text === "Math";
 }
 
+// The runtime key-kind tag for a Map key type, selecting its equality function. Map keys must be
+// primitive (object identity keys are a later feature).
+function keyKindOf(keyType: ValueType): number {
+  switch (keyType.kind) {
+    case "number":
+      return 0;
+    case "string":
+      return 1;
+    case "boolean":
+      return 2;
+    default:
+      return ice(`lower: Map key type ${keyType.kind} not supported (use number/string/boolean)`);
+  }
+}
+
 // A method call `obj.method(args)`. Dispatched on the receiver's type + method name.
 function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
   const pa = call.expression as ts.PropertyAccessExpression;
@@ -873,6 +888,49 @@ function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
     }
     return ice(`lower: unsupported array method .${method}`);
   }
+  if (recvType.kind === "map") {
+    const keyKind = keyKindOf(recvType.key);
+    const map = lowerExpr(pa.expression, ctx);
+    if (method === "set") {
+      return {
+        kind: "mapSet",
+        map,
+        key: lowerExpr(call.arguments[0]!, ctx),
+        value: coerceToTarget(lowerExpr(call.arguments[1]!, ctx), recvType.value),
+        keyKind,
+        type: recvType, // set returns the map (chainable)
+      };
+    }
+    if (method === "get") {
+      return {
+        kind: "mapGet",
+        map,
+        key: lowerExpr(call.arguments[0]!, ctx),
+        keyKind,
+        valueType: recvType.value,
+        type: resolveType(call, ctx), // value | undefined
+      };
+    }
+    if (method === "has") {
+      return {
+        kind: "mapHas",
+        map,
+        key: lowerExpr(call.arguments[0]!, ctx),
+        keyKind,
+        type: VT.boolean,
+      };
+    }
+    if (method === "delete") {
+      return {
+        kind: "mapDelete",
+        map,
+        key: lowerExpr(call.arguments[0]!, ctx),
+        keyKind,
+        type: VT.boolean,
+      };
+    }
+    return ice(`lower: unsupported map method .${method}`);
+  }
   if (recvType.kind === "string") {
     return {
       kind: "strMethod",
@@ -965,9 +1023,14 @@ function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
     case ts.SyntaxKind.FalseKeyword:
       return { kind: "boolLit", value: false, type };
 
-    case ts.SyntaxKind.Identifier:
+    case ts.SyntaxKind.Identifier: {
       if (isUndefinedLiteral(expr)) return { kind: "undefinedLit", type: VT.undefined };
+      // NaN / Infinity are global number identifiers, not user variables.
+      const idText = (expr as ts.Identifier).text;
+      if (idText === "NaN") return { kind: "numberLit", value: NaN, type: VT.number };
+      if (idText === "Infinity") return { kind: "numberLit", value: Infinity, type: VT.number };
       return lowerIdentifier(expr as ts.Identifier, ctx, type);
+    }
 
     case ts.SyntaxKind.CallExpression:
       return lowerCall(expr as ts.CallExpression, ctx);
@@ -1007,6 +1070,12 @@ function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
 
     case ts.SyntaxKind.NewExpression: {
       const ne = expr as ts.NewExpression;
+      if (type.kind === "map") {
+        if (ne.arguments && ne.arguments.length > 0) {
+          ice("lower: `new Map(entries)` not supported yet — build an empty Map and .set()");
+        }
+        return { kind: "mapNew", type };
+      }
       if (type.kind !== "object" || type.className === undefined) {
         ice("lower: `new` on a non-class type");
       }
@@ -1033,6 +1102,9 @@ function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
       }
       if (pa.name.text === "length" && objType.kind === "string") {
         return { kind: "strLen", str: lowerExpr(pa.expression, ctx), type };
+      }
+      if (pa.name.text === "size" && objType.kind === "map") {
+        return { kind: "mapSize", map: lowerExpr(pa.expression, ctx), type };
       }
       if (objType.kind === "object") {
         const slot = objType.shape.fields.findIndex((f) => f.name === pa.name.text);
@@ -1232,6 +1304,16 @@ function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChecker): 
     if (ref.symbol?.name === "Array") {
       const args = checker.getTypeArguments(ref);
       if (args.length === 1) return VT.array(valueTypeOfTsType(args[0]!, node, checker));
+    }
+    // `Map<K, V>`: two type arguments.
+    if (ref.symbol?.name === "Map") {
+      const args = checker.getTypeArguments(ref);
+      if (args.length === 2) {
+        return VT.map(
+          valueTypeOfTsType(args[0]!, node, checker),
+          valueTypeOfTsType(args[1]!, node, checker),
+        );
+      }
     }
     // A closed object shape (interface / type literal / class instance). Its DATA properties
     // become record slots — methods are dispatched to functions, not stored. A class instance's
