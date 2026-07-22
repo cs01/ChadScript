@@ -17,7 +17,9 @@ import {
   evalString,
   evalValue,
   evalArrayPtr,
+  evalObjectPtr,
   arrayElementAt,
+  boxSlot,
   irTypeOf,
   lookupVar,
   toBool,
@@ -205,6 +207,14 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
       // self-referential `n = n + 1` loads the old value first.
       const value = evalValue(stmt.value, ctx);
       ctx.fn.store(value, lookupVar(stmt.name, ctx).ptr);
+      return;
+    }
+
+    case "memberSet": {
+      // Evaluate the object record, box the new value, store it into the field's slot.
+      const obj = evalObjectPtr(stmt.object, ctx);
+      const slot = boxSlot(evalValue(stmt.value, ctx), stmt.value.type, ctx);
+      ctx.fn.store(slot, ctx.fn.gepSlot(obj, stmt.slot));
       return;
     }
 

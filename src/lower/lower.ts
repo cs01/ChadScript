@@ -218,7 +218,32 @@ function lowerIncDec(
     // A prefix +/-/! in statement position has no effect and is pointless — reject upstream.
     return ice(`lower: unsupported unary statement operator ${ts.SyntaxKind[op]}`);
   }
-  if (!ts.isIdentifier(expr.operand)) ice("lower: ++/-- only supported on a simple variable");
+  const binOp = op === ts.SyntaxKind.PlusPlusToken ? "add" : "sub";
+  const one: HExpr = { kind: "numberLit", value: 1, type: VT.number };
+
+  // `obj.field++` → `obj.field = obj.field ± 1`.
+  if (ts.isPropertyAccessExpression(expr.operand)) {
+    const pa = expr.operand;
+    const objType = resolveType(pa.expression, ctx);
+    if (objType.kind !== "object") ice(`lower: ++/-- on non-object property .${pa.name.text}`);
+    const slot = objType.shape.fields.findIndex((f) => f.name === pa.name.text);
+    if (slot < 0) ice(`lower: object has no field ${pa.name.text}`);
+    const object = lowerExpr(pa.expression, ctx);
+    return {
+      kind: "memberSet",
+      object,
+      slot,
+      value: {
+        kind: "binary",
+        op: binOp,
+        left: { kind: "memberGet", object, slot, type: VT.number },
+        right: one,
+        type: VT.number,
+      },
+    };
+  }
+
+  if (!ts.isIdentifier(expr.operand)) ice("lower: ++/-- only supported on a variable or field");
   const name = nameOf(expr.operand, ctx);
   const numberType = resolveType(expr.operand, ctx);
   return {
@@ -226,19 +251,22 @@ function lowerIncDec(
     name,
     value: {
       kind: "binary",
-      op: op === ts.SyntaxKind.PlusPlusToken ? "add" : "sub",
+      op: binOp,
       left: { kind: "varRef", name, type: numberType },
-      right: { kind: "numberLit", value: 1, type: numberType },
+      right: one,
       type: numberType,
     },
   };
 }
 
 function lowerAssignment(expr: ts.BinaryExpression, ctx: LowerCtx): HStmt {
-  if (!ts.isIdentifier(expr.left)) ice("lower: only simple `name = ...` assignment is supported");
+  const op = expr.operatorToken.kind;
+  if (ts.isPropertyAccessExpression(expr.left)) {
+    return lowerMemberAssignment(expr.left, op, expr.right, ctx);
+  }
+  if (!ts.isIdentifier(expr.left)) ice("lower: only `name = ...` / `obj.field = ...` supported");
   const left = expr.left as ts.Identifier;
   const name = nameOf(left, ctx);
-  const op = expr.operatorToken.kind;
   if (op === ts.SyntaxKind.EqualsToken) {
     return { kind: "assign", name, value: lowerExpr(expr.right, ctx) };
   }
@@ -252,6 +280,33 @@ function lowerAssignment(expr: ts.BinaryExpression, ctx: LowerCtx): HStmt {
     type: resolveType(left, ctx),
   };
   return { kind: "assign", name, value };
+}
+
+// `obj.field = rhs` / `obj.field <op>= rhs`. The object is lowered once; a compound op reads the
+// current field value via a memberGet on the same object expression.
+function lowerMemberAssignment(
+  lhs: ts.PropertyAccessExpression,
+  op: ts.SyntaxKind,
+  rhs: ts.Expression,
+  ctx: LowerCtx,
+): HStmt {
+  const objType = resolveType(lhs.expression, ctx);
+  if (objType.kind !== "object") ice(`lower: assignment to .${lhs.name.text} on non-object`);
+  const slot = objType.shape.fields.findIndex((f) => f.name === lhs.name.text);
+  if (slot < 0) ice(`lower: object has no field ${lhs.name.text}`);
+  const fieldType = objType.shape.fields[slot]!.type;
+  const object = lowerExpr(lhs.expression, ctx);
+  if (op === ts.SyntaxKind.EqualsToken) {
+    return { kind: "memberSet", object, slot, value: lowerExpr(rhs, ctx) };
+  }
+  const value: HExpr = {
+    kind: "binary",
+    op: compoundOp(op),
+    left: { kind: "memberGet", object, slot, type: fieldType },
+    right: lowerExpr(rhs, ctx),
+    type: fieldType,
+  };
+  return { kind: "memberSet", object, slot, value };
 }
 
 function lowerVarDecl(decl: ts.VariableDeclaration, ctx: LowerCtx): HStmt {

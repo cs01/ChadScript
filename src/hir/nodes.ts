@@ -33,6 +33,8 @@ export type HStmt =
   // Reassignment to an existing `let` binding (const reassignment is blocked by the tsc gate).
   // Compound assignment (`+=` etc.) is lowered to `value = <var> <op> rhs`.
   | { kind: "assign"; name: string; value: HExpr }
+  // `obj.field = value` write. `slot` is the field's record index.
+  | { kind: "memberSet"; object: HExpr; slot: number; value: HExpr }
   // `if (cond) { then } else { otherwise }`. `otherwise` is null when there is no else.
   // `cond` is evaluated for JS truthiness (see codegen toBool).
   | { kind: "if"; cond: HExpr; then: HStmt[]; otherwise: HStmt[] | null }

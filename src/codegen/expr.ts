@@ -50,7 +50,7 @@ export function irTypeOf(vt: ValueType): IrType {
 
 // Box a value into a uniform 8-byte array slot (i64); unbox reverses it. Element boxing is
 // per-type; only number is wired now (string[]/boolean[] land next).
-function boxSlot(v: Value, elemType: ValueType, ctx: Ctx): Value {
+export function boxSlot(v: Value, elemType: ValueType, ctx: Ctx): Value {
   switch (elemType.kind) {
     case "number":
       return ctx.fn.bitcastDoubleToI64(v);
