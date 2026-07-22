@@ -199,6 +199,10 @@ export type HExpr =
   | { kind: "setHas"; set: HExpr; value: HExpr; keyKind: number; type: ValueType }
   | { kind: "setDelete"; set: HExpr; value: HExpr; keyKind: number; type: ValueType }
   | { kind: "setSize"; set: HExpr; type: ValueType }
+  // Materialize a Map/Set collection to a fresh array (in insertion order), so `for-of` and the
+  // array methods work over it. `fn` is the runtime entry (cs_map_keys / cs_map_values /
+  // cs_set_values); `receiver` is the map/set; `type` is the resulting array type.
+  | { kind: "collectionToArray"; fn: string; receiver: HExpr; type: ValueType }
   // `arr.sort(cmp?)` — in-place insertion sort, returns the same array. `comparator` null means
   // JS default order (compare by String(element), lexicographic). `type` is the array type.
   | {

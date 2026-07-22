@@ -396,8 +396,10 @@ function lowerSwitch(stmt: ts.SwitchStatement, ctx: LowerCtx): HStmt {
 }
 
 function lowerForOf(stmt: ts.ForOfStatement, ctx: LowerCtx): HStmt {
-  const arrayType = resolveType(stmt.expression, ctx);
-  if (arrayType.kind !== "array") ice("lower: for...of is only supported over arrays yet");
+  // Lower the iterable FIRST and read its lowered type — `m.keys()` / `s.values()` are typed as
+  // iterators by tsc but lower to a materialized array here, so trust the lowered type.
+  const array = lowerExpr(stmt.expression, ctx);
+  if (array.type.kind !== "array") ice("lower: for...of is only supported over arrays yet");
   // The loop variable is `for (const x of arr)`.
   if (!ts.isVariableDeclarationList(stmt.initializer)) {
     ice("lower: for...of requires a `const`/`let` binding");
@@ -407,8 +409,8 @@ function lowerForOf(stmt: ts.ForOfStatement, ctx: LowerCtx): HStmt {
   return {
     kind: "forOf",
     name: nameOf(decl.name, ctx),
-    elementType: arrayType.element,
-    array: lowerExpr(stmt.expression, ctx),
+    elementType: array.type.element,
+    array,
     body: lowerBranchBody(stmt.statement, ctx),
   };
 }
@@ -929,6 +931,22 @@ function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
         type: VT.boolean,
       };
     }
+    if (method === "keys") {
+      return {
+        kind: "collectionToArray",
+        fn: "cs_map_keys",
+        receiver: map,
+        type: VT.array(recvType.key),
+      };
+    }
+    if (method === "values") {
+      return {
+        kind: "collectionToArray",
+        fn: "cs_map_values",
+        receiver: map,
+        type: VT.array(recvType.value),
+      };
+    }
     return ice(`lower: unsupported map method .${method}`);
   }
   if (recvType.kind === "set") {
@@ -943,6 +961,15 @@ function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
     }
     if (method === "delete") {
       return { kind: "setDelete", set, value: arg0(), keyKind, type: VT.boolean };
+    }
+    if (method === "values" || method === "keys") {
+      // Set keys() === values() in JS.
+      return {
+        kind: "collectionToArray",
+        fn: "cs_set_values",
+        receiver: set,
+        type: VT.array(recvType.element),
+      };
     }
     return ice(`lower: unsupported set method .${method}`);
   }
@@ -1021,6 +1048,9 @@ function lowerCallArgs(call: ts.CallExpression, ctx: LowerCtx): HExpr[] {
 }
 
 function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
+  // Calls compute their own result type (and some, like `map.keys()`, have a tsc type — an
+  // iterator — that is outside the subset), so lower them before resolving the tsc type eagerly.
+  if (ts.isCallExpression(expr)) return lowerCall(expr, ctx);
   const type = resolveType(expr, ctx);
   switch (expr.kind) {
     case ts.SyntaxKind.NullKeyword:

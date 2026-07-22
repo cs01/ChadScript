@@ -64,6 +64,15 @@ int32_t cs_set_delete(CsSet *s, int64_t e, int32_t kind) {
 
 int32_t cs_set_size(CsSet *s) { return s->len; }
 
+// values()/keys() → a fresh array of the boxed element slots, in insertion order.
+extern void *cs_array_new(void);
+extern int32_t cs_array_push(void *a, int64_t slot);
+void *cs_set_values(CsSet *s) {
+  void *a = cs_array_new();
+  for (int32_t i = 0; i < s->len; i++) cs_array_push(a, s->elems[i]);
+  return a;
+}
+
 // `new Set(array)`: add each element of a uniform-slot array (dedup applied by cs_set_add).
 extern int32_t cs_array_len(void *a);
 extern int64_t cs_array_get(void *a, int32_t i);

@@ -295,6 +295,9 @@ export function evalArrayPtr(expr: HExpr, ctx: Ctx): Value {
       return evalArrayHof(expr, ctx); // .map()/.filter() (also when chained as a receiver)
     case "arraySort":
       return evalArraySort(expr, ctx);
+    case "collectionToArray":
+      // map.keys()/values() / set.values() → a materialized array of boxed slots.
+      return ctx.fn.call(`@${expr.fn}`, T.ptr, [evalValue(expr.receiver, ctx)]);
     default:
       return ice(`evalArrayPtr: unhandled array expression ${expr.kind}`);
   }

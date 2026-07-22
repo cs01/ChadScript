@@ -95,3 +95,17 @@ int32_t cs_map_delete(CsMap *m, int64_t k, int32_t kind) {
 }
 
 int32_t cs_map_size(CsMap *m) { return m->len; }
+
+// keys()/values() → a fresh array of the boxed slots, in insertion order (JS iteration order).
+extern void *cs_array_new(void);
+extern int32_t cs_array_push(void *a, int64_t slot);
+void *cs_map_keys(CsMap *m) {
+  void *a = cs_array_new();
+  for (int32_t i = 0; i < m->len; i++) cs_array_push(a, m->keys[i]);
+  return a;
+}
+void *cs_map_values(CsMap *m) {
+  void *a = cs_array_new();
+  for (int32_t i = 0; i < m->len; i++) cs_array_push(a, m->vals[i]);
+  return a;
+}
