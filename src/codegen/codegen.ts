@@ -72,7 +72,6 @@ export function generate(hmod: HModule): string {
   }
   mod.declareExtern("cs_str_repeat", T.ptr, [T.ptr, T.double]);
   mod.declareExtern("cs_str_char_at", T.ptr, [T.ptr, T.double]);
-  mod.declareExtern("cs_str_char_code_at", T.double, [T.ptr, T.double]);
   mod.declareExtern("cs_str_slice1", T.ptr, [T.ptr, T.double]);
   mod.declareExtern("cs_str_slice2", T.ptr, [T.ptr, T.double, T.double]);
   mod.declareExtern("cs_str_substr", T.ptr, [T.ptr, T.double, T.double]);

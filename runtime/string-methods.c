@@ -138,13 +138,6 @@ void *cs_str_at(const CsString *s, double di) {
   return box;
 }
 
-// JS charCodeAt(i): the code unit at i (ASCII byte in our subset), or NaN if out of range.
-double cs_str_char_code_at(const CsString *s, double di) {
-  long n = (long)s->len, i = (long)di;
-  if (i < 0 || i >= n) return (double)NAN;
-  return (double)(unsigned char)s->data[i];
-}
-
 // JS charAt: the 1-char string at i, or "" if out of range.
 CsString *cs_str_char_at(const CsString *s, double di) {
   long n = (long)s->len;

@@ -23,6 +23,7 @@ export const CODE = {
   REGEX: "CS1213", // regex literals / RegExp — a later phase, not yet in the subset
   JSON_API: "CS1214", // JSON.stringify / JSON.parse — a later phase
   DATE_API: "CS1215", // Date — a later phase
+  STRING_UNICODE_OP: "CS1216", // charCodeAt / string relational — need UTF-16 semantics, gated
 } as const;
 
 export type Code = (typeof CODE)[keyof typeof CODE];

@@ -163,7 +163,7 @@ export function validate(loaded: LoadedProgram): void {
     // the file is free of tailored rejections, otherwise every not-yet-supported wrapper
     // (function bodies, var statements) would bury the real message under CS1000 noise.
     const tailored: Diagnostic[] = [];
-    collectTailored(sf, sf, tailored);
+    collectTailored(sf, sf, loaded.checker, tailored);
     if (tailored.length > 0) {
       diagnostics.push(...tailored);
       continue;
@@ -173,10 +173,15 @@ export function validate(loaded: LoadedProgram): void {
   if (diagnostics.length > 0) throw new DiagnosticError(diagnostics);
 }
 
-function collectTailored(node: ts.Node, sf: ts.SourceFile, out: Diagnostic[]): void {
-  const hit = tailoredRejection(node, sf);
+function collectTailored(
+  node: ts.Node,
+  sf: ts.SourceFile,
+  checker: ts.TypeChecker,
+  out: Diagnostic[],
+): void {
+  const hit = tailoredRejection(node, sf, checker);
   if (hit) out.push(hit);
-  ts.forEachChild(node, (child) => collectTailored(child, sf, out));
+  ts.forEachChild(node, (child) => collectTailored(child, sf, checker, out));
 }
 
 // Reject any node kind not on the allowlist. Descends only through admitted kinds — an

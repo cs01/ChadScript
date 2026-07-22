@@ -1017,7 +1017,6 @@ const STR_METHODS: Record<string, { fn: string; ret: StrRet }> = {
   replaceAll: { fn: "@cs_str_replaceAll", ret: "string" },
   repeat: { fn: "@cs_str_repeat", ret: "string" },
   charAt: { fn: "@cs_str_char_at", ret: "string" },
-  charCodeAt: { fn: "@cs_str_char_code_at", ret: "number" },
   replace: { fn: "@cs_str_replace", ret: "string" },
   split: { fn: "@cs_str_split", ret: "array" },
   includes: { fn: "@cs_str_includes", ret: "bool" },
@@ -1259,15 +1258,6 @@ const RELATIONAL: Partial<Record<BinaryOp, string>> = {
   gt: "ogt",
   le: "ole",
   ge: "oge",
-};
-
-// Signed-integer predicates for the same ops, used when the operands are strings: cs_str_cmp
-// returns a sign (<0/0/>0) that we compare against 0.
-const RELATIONAL_INT: Partial<Record<BinaryOp, string>> = {
-  lt: "slt",
-  gt: "sgt",
-  le: "sle",
-  ge: "sge",
 };
 
 // Evaluate a number-typed HExpr to a double Value.
@@ -1613,17 +1603,9 @@ function evalComparison(expr: Extract<HExpr, { kind: "binary" }>, ctx: Ctx): Val
   const op = expr.op;
   const relPred = RELATIONAL[op];
   if (relPred) {
-    if (expr.left.type.kind === "string") {
-      // JS string `<`/`>`/`<=`/`>=` is lexicographic by code unit; cs_str_cmp gives that sign
-      // (byte-lexicographic, ASCII-exact), which we compare against 0.
-      const cmp = ctx.fn.call("@cs_str_cmp", T.i32, [
-        evalString(expr.left, ctx),
-        evalString(expr.right, ctx),
-      ]);
-      return ctx.fn.icmp(RELATIONAL_INT[op]!, cmp, imm(T.i32, 0));
-    }
-    // Relational operands are numbers (JS forbids `<` on booleans). Ordered predicate → NaN
-    // yields false, matching JS.
+    // String relational operands are gated OUT of the subset at validate (CS1216): byte-order
+    // comparison diverges from Node's UTF-16 code-unit order on non-ASCII. Only numbers reach here.
+    // Ordered predicate → NaN yields false, matching JS.
     return ctx.fn.fcmp(relPred, evalNumber(expr.left, ctx), evalNumber(expr.right, ctx));
   }
   if (op === "eq" || op === "ne") {

@@ -8,7 +8,11 @@ import type { Diagnostic } from "../diagnostics.js";
 import { CODE, type Code } from "./codes.js";
 import { spanOf } from "./validate.js";
 
-export function tailoredRejection(node: ts.Node, sf: ts.SourceFile): Diagnostic | null {
+export function tailoredRejection(
+  node: ts.Node,
+  sf: ts.SourceFile,
+  checker: ts.TypeChecker,
+): Diagnostic | null {
   const hit = (code: Code, message: string, suggestion: string): Diagnostic => ({
     code,
     message,
@@ -79,7 +83,18 @@ export function tailoredRejection(node: ts.Node, sf: ts.SourceFile): Diagnostic 
       return null;
 
     case ts.SyntaxKind.BinaryExpression:
-      return checkBinary(node as ts.BinaryExpression, hit);
+      return checkBinary(node as ts.BinaryExpression, hit, checker);
+
+    case ts.SyntaxKind.PropertyAccessExpression:
+      // `s.charCodeAt(...)`: byte value ≠ Node's UTF-16 code unit for non-ASCII. Gated (CS1216).
+      if ((node as ts.PropertyAccessExpression).name.text === "charCodeAt") {
+        return hit(
+          CODE.STRING_UNICODE_OP,
+          "`charCodeAt` is not supported yet",
+          "it needs UTF-16 code-unit semantics over UTF-8 storage; use charAt for now",
+        );
+      }
+      return null;
 
     case ts.SyntaxKind.AsExpression:
     case ts.SyntaxKind.TypeAssertionExpression:
@@ -98,14 +113,43 @@ export function tailoredRejection(node: ts.Node, sf: ts.SourceFile): Diagnostic 
 
 type Hit = (code: Code, message: string, suggestion: string) => Diagnostic;
 
-function checkBinary(node: ts.BinaryExpression, hit: Hit): Diagnostic | null {
+const RELATIONAL_OPS: ReadonlySet<ts.SyntaxKind> = new Set([
+  ts.SyntaxKind.LessThanToken,
+  ts.SyntaxKind.GreaterThanToken,
+  ts.SyntaxKind.LessThanEqualsToken,
+  ts.SyntaxKind.GreaterThanEqualsToken,
+]);
+
+function checkBinary(
+  node: ts.BinaryExpression,
+  hit: Hit,
+  checker: ts.TypeChecker,
+): Diagnostic | null {
   const op = node.operatorToken.kind;
   if (op === ts.SyntaxKind.EqualsEqualsToken || op === ts.SyntaxKind.ExclamationEqualsToken) {
     const strict = op === ts.SyntaxKind.EqualsEqualsToken ? "===" : "!==";
     const loose = op === ts.SyntaxKind.EqualsEqualsToken ? "==" : "!=";
     return hit(CODE.EQEQ, `\`${loose}\` is not supported`, `use \`${strict}\``);
   }
+  // String `<`/`>`/`<=`/`>=`: byte-lexicographic order diverges from Node's UTF-16 code-unit order
+  // for non-ASCII. Gated (CS1216) until exact semantics land. `===`/`!==` stay allowed (equality is
+  // byte-exact for UTF-8). Uses the checker since the divergence is type-dependent.
+  if (RELATIONAL_OPS.has(op) && isStringTyped(node.left, checker)) {
+    return hit(
+      CODE.STRING_UNICODE_OP,
+      "relational comparison (`<` `>` `<=` `>=`) on strings is not supported yet",
+      "it needs UTF-16 code-unit ordering; compare with === or compare numbers for now",
+    );
+  }
   return null;
+}
+
+// True when the expression's type is `string` (or a string literal type). Apparent type collapses
+// string-literal unions to the primitive so `"a" < "b"` is caught too.
+function isStringTyped(expr: ts.Expression, checker: ts.TypeChecker): boolean {
+  const t = checker.getTypeAtLocation(expr);
+  const base = checker.getBaseTypeOfLiteralType(t);
+  return (base.flags & ts.TypeFlags.String) !== 0 || (t.flags & ts.TypeFlags.StringLiteral) !== 0;
 }
 
 function checkCast(node: ts.AsExpression | ts.TypeAssertion, hit: Hit): Diagnostic | null {
