@@ -24,6 +24,7 @@ export const CODE = {
   JSON_API: "CS1214", // JSON.stringify / JSON.parse — a later phase
   DATE_API: "CS1215", // Date — a later phase
   STRING_UNICODE_OP: "CS1216", // charCodeAt / string relational — need UTF-16 semantics, gated
+  PARAM_FORM: "CS1217", // default (`x = v`) / optional (`x?`) parameters — a later phase
 } as const;
 
 export type Code = (typeof CODE)[keyof typeof CODE];

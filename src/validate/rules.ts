@@ -65,6 +65,27 @@ export function tailoredRejection(
     case ts.SyntaxKind.WithStatement:
       return hit(CODE.WITH, "`with` is not supported", "access properties explicitly");
 
+    case ts.SyntaxKind.Parameter: {
+      // Default (`x = v`) and optional (`x?`) parameters reach a lowering ICE today. Reject at
+      // validate until argument-defaulting is implemented. A plain `x: T` param is unaffected.
+      const p = node as ts.ParameterDeclaration;
+      if (p.questionToken) {
+        return hit(
+          CODE.PARAM_FORM,
+          "optional parameters (`x?`) are not supported yet",
+          "declare it `x: T | undefined` and pass `undefined` explicitly at the call site",
+        );
+      }
+      if (p.initializer) {
+        return hit(
+          CODE.PARAM_FORM,
+          "default parameter values are not supported yet",
+          "apply the default in the body: `const v = x === undefined ? DEFAULT : x`",
+        );
+      }
+      return null;
+    }
+
     // Regex literals sort into the literal-token band that default-deny treats as trivial, so they
     // slip the allowlist and would ICE in lowering. Reject here (tailored pass walks the whole tree)
     // until regex lands as a real feature.
