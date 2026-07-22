@@ -51,14 +51,25 @@ export function generate(hmod: HModule): string {
   mod.declareExtern("cs_math_min2", T.double, [T.double, T.double]);
   // String methods.
   mod.declareExtern("cs_str_len", T.i32, [T.ptr]);
-  for (const f of ["cs_str_upper", "cs_str_lower", "cs_str_trim"]) {
+  for (const f of [
+    "cs_str_upper",
+    "cs_str_lower",
+    "cs_str_trim",
+    "cs_str_trim_start",
+    "cs_str_trim_end",
+  ]) {
     mod.declareExtern(f, T.ptr, [T.ptr]);
   }
   mod.declareExtern("cs_str_repeat", T.ptr, [T.ptr, T.double]);
   mod.declareExtern("cs_str_char_at", T.ptr, [T.ptr, T.double]);
   mod.declareExtern("cs_str_slice1", T.ptr, [T.ptr, T.double]);
   mod.declareExtern("cs_str_slice2", T.ptr, [T.ptr, T.double, T.double]);
+  mod.declareExtern("cs_str_substring1", T.ptr, [T.ptr, T.double]);
+  mod.declareExtern("cs_str_substring2", T.ptr, [T.ptr, T.double, T.double]);
+  mod.declareExtern("cs_str_pad_start", T.ptr, [T.ptr, T.double, T.ptr]);
+  mod.declareExtern("cs_str_pad_end", T.ptr, [T.ptr, T.double, T.ptr]);
   mod.declareExtern("cs_str_replace", T.ptr, [T.ptr, T.ptr, T.ptr]);
+  mod.declareExtern("cs_str_replaceAll", T.ptr, [T.ptr, T.ptr, T.ptr]);
   mod.declareExtern("cs_str_split", T.ptr, [T.ptr, T.ptr]);
   mod.declareExtern("cs_str_index_of", T.double, [T.ptr, T.ptr]);
   for (const f of ["cs_str_includes", "cs_str_starts_with", "cs_str_ends_with"]) {

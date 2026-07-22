@@ -632,6 +632,9 @@ const STR_METHODS: Record<string, { fn: string; ret: StrRet }> = {
   toUpperCase: { fn: "@cs_str_upper", ret: "string" },
   toLowerCase: { fn: "@cs_str_lower", ret: "string" },
   trim: { fn: "@cs_str_trim", ret: "string" },
+  trimStart: { fn: "@cs_str_trim_start", ret: "string" },
+  trimEnd: { fn: "@cs_str_trim_end", ret: "string" },
+  replaceAll: { fn: "@cs_str_replaceAll", ret: "string" },
   repeat: { fn: "@cs_str_repeat", ret: "string" },
   charAt: { fn: "@cs_str_char_at", ret: "string" },
   replace: { fn: "@cs_str_replace", ret: "string" },
@@ -655,6 +658,16 @@ export function evalStrMethod(expr: Extract<HExpr, { kind: "strMethod" }>, ctx: 
   if (expr.method === "slice") {
     const fn = args.length >= 2 ? "@cs_str_slice2" : "@cs_str_slice1";
     return ctx.fn.call(fn, T.ptr, [recv, ...args]);
+  }
+  if (expr.method === "substring") {
+    const fn = args.length >= 2 ? "@cs_str_substring2" : "@cs_str_substring1";
+    return ctx.fn.call(fn, T.ptr, [recv, ...args]);
+  }
+  // padStart/padEnd: the pad string is optional and defaults to a single space.
+  if (expr.method === "padStart" || expr.method === "padEnd") {
+    const fn = expr.method === "padStart" ? "@cs_str_pad_start" : "@cs_str_pad_end";
+    const padArg = args.length >= 2 ? args[1]! : ctx.mod.cstring(" ");
+    return ctx.fn.call(fn, T.ptr, [recv, args[0]!, padArg]);
   }
 
   const m = STR_METHODS[expr.method];

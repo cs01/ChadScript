@@ -116,6 +116,95 @@ char *cs_str_replace(const char *s, const char *a, const char *b) {
   return r;
 }
 
+// JS replaceAll(a, b): replaces EVERY occurrence of `a` with `b`. An empty pattern splices `b`
+// around every character (and both ends), matching V8: "abc".replaceAll("","-") === "-a-b-c-".
+char *cs_str_replaceAll(const char *s, const char *a, const char *b) {
+  size_t ls = strlen(s), la = strlen(a), lb = strlen(b);
+  if (la == 0) {
+    char *r = GC_malloc(lb * (ls + 1) + ls + 1);
+    size_t o = 0;
+    for (size_t i = 0; i < ls; i++) {
+      memcpy(r + o, b, lb);
+      o += lb;
+      r[o++] = s[i];
+    }
+    memcpy(r + o, b, lb);
+    o += lb;
+    r[o] = '\0';
+    return r;
+  }
+  // Count occurrences to size the result exactly.
+  size_t count = 0;
+  for (const char *p = s; (p = strstr(p, a)) != NULL; p += la) count++;
+  char *r = GC_malloc(ls + count * (lb > la ? lb - la : 0) + 1);
+  size_t o = 0, start = 0;
+  const char *hit;
+  while ((hit = strstr(s + start, a)) != NULL) {
+    size_t pre = (size_t)(hit - (s + start));
+    memcpy(r + o, s + start, pre);
+    o += pre;
+    memcpy(r + o, b, lb);
+    o += lb;
+    start += pre + la;
+  }
+  size_t rest = ls - start;
+  memcpy(r + o, s + start, rest + 1); // includes NUL
+  return r;
+}
+
+// JS substring(a, b): like slice but negatives/NaN clamp to 0 and the two indices swap if a > b.
+static char *substring_norm(const char *s, long start, long end) {
+  long n = (long)strlen(s);
+  if (start < 0) start = 0;
+  if (end < 0) end = 0;
+  if (start > n) start = n;
+  if (end > n) end = n;
+  if (start > end) {
+    long t = start;
+    start = end;
+    end = t;
+  }
+  return substr(s, (size_t)start, (size_t)end);
+}
+char *cs_str_substring1(const char *s, double start) {
+  return substring_norm(s, (long)start, (long)strlen(s));
+}
+char *cs_str_substring2(const char *s, double start, double end) {
+  return substring_norm(s, (long)start, (long)end);
+}
+
+char *cs_str_trim_start(const char *s) {
+  size_t a = 0, n = strlen(s);
+  while (a < n && is_ws((unsigned char)s[a])) a++;
+  return substr(s, a, n);
+}
+char *cs_str_trim_end(const char *s) {
+  size_t n = strlen(s), b = n;
+  while (b > 0 && is_ws((unsigned char)s[b - 1])) b--;
+  return substr(s, 0, b);
+}
+
+// JS padStart/padEnd: pad `s` with copies of `pad` (truncated to fit) until it reaches
+// `target` length. If already long enough, or `pad` is empty, returns `s` unchanged.
+static char *pad(const char *s, double dtarget, const char *padstr, int at_start) {
+  size_t n = strlen(s), lp = strlen(padstr);
+  long target = (long)dtarget;
+  if (target < 0 || (size_t)target <= n || lp == 0) return substr(s, 0, n);
+  size_t fill = (size_t)target - n;
+  char *r = GC_malloc((size_t)target + 1);
+  char *dst = at_start ? r : r + n; // where the pad block goes
+  for (size_t i = 0; i < fill; i++) dst[i] = padstr[i % lp];
+  memcpy(at_start ? r + fill : r, s, n);
+  r[target] = '\0';
+  return r;
+}
+char *cs_str_pad_start(const char *s, double target, const char *padstr) {
+  return pad(s, target, padstr, 1);
+}
+char *cs_str_pad_end(const char *s, double target, const char *padstr) {
+  return pad(s, target, padstr, 0);
+}
+
 // The array runtime, for split's result.
 extern void *cs_array_new(void);
 extern int cs_array_push(void *a, long slot);
