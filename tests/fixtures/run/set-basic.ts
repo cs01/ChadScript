@@ -1,0 +1,12 @@
+const s = new Set<string>();
+s.add("a");
+s.add("b");
+s.add("a");
+console.log(s.size);
+console.log(s.has("a"));
+console.log(s.has("z"));
+s.delete("a");
+console.log(s.has("a"));
+console.log(s.size);
+s.add("x").add("y");
+console.log(s.size);

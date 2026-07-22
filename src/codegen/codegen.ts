@@ -98,6 +98,12 @@ export function generate(hmod: HModule): string {
   mod.declareExtern("cs_map_has", T.i32, [T.ptr, T.i64, T.i32]);
   mod.declareExtern("cs_map_delete", T.i32, [T.ptr, T.i64, T.i32]);
   mod.declareExtern("cs_map_size", T.i32, [T.ptr]);
+  mod.declareExtern("cs_set_new", T.ptr, []);
+  mod.declareExtern("cs_set_from_array", T.ptr, [T.ptr, T.i32]);
+  mod.declareExtern("cs_set_add", T.void, [T.ptr, T.i64, T.i32]);
+  mod.declareExtern("cs_set_has", T.i32, [T.ptr, T.i64, T.i32]);
+  mod.declareExtern("cs_set_delete", T.i32, [T.ptr, T.i64, T.i32]);
+  mod.declareExtern("cs_set_size", T.i32, [T.ptr]);
   mod.declareExtern("exit", T.void, [T.i32]);
 
   // User functions first (order doesn't matter — LLVM resolves calls by name, so recursion and

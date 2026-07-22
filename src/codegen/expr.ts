@@ -46,6 +46,8 @@ export function irTypeOf(vt: ValueType): IrType {
       return T.ptr; // pointer to a closure record {fnptr, env}
     case "map":
       return T.ptr; // pointer to the runtime CsMap
+    case "set":
+      return T.ptr; // pointer to the runtime CsSet
     case "null":
     case "undefined":
       return ice(`irTypeOf: ${vt.kind} has no storage representation yet`);
@@ -66,6 +68,7 @@ export function boxSlot(v: Value, elemType: ValueType, ctx: Ctx): Value {
     case "optional":
     case "function":
     case "map":
+    case "set":
       return ctx.fn.ptrToI64(v); // all pointer-represented
     case "boolean":
       return ctx.fn.zextI1ToI64(v);
@@ -84,6 +87,7 @@ function unboxSlot(slot: Value, elemType: ValueType, ctx: Ctx): Value {
     case "optional":
     case "function":
     case "map":
+    case "set":
       return ctx.fn.i64ToPtr(slot);
     case "boolean":
       return ctx.fn.truncI64ToI1(slot);
@@ -749,6 +753,59 @@ export function evalMapGet(expr: Extract<HExpr, { kind: "mapGet" }>, ctx: Ctx): 
   ]);
 }
 
+// Evaluate a set-typed HExpr to a ptr (to the runtime CsSet). `setAdd` returns the same set.
+export function evalSetPtr(expr: HExpr, ctx: Ctx): Value {
+  switch (expr.kind) {
+    case "setNew":
+      return ctx.fn.call("@cs_set_new", T.ptr, []);
+    case "setFromArray":
+      return ctx.fn.call("@cs_set_from_array", T.ptr, [
+        evalArrayPtr(expr.array, ctx),
+        imm(T.i32, expr.keyKind),
+      ]);
+    case "setAdd": {
+      const set = evalSetPtr(expr.set, ctx);
+      ctx.fn.callVoid("@cs_set_add", [
+        set,
+        boxSlot(evalValue(expr.value, ctx), expr.value.type, ctx),
+        imm(T.i32, expr.keyKind),
+      ]);
+      return set; // chainable
+    }
+    case "varRef":
+      return ctx.fn.load(T.ptr, lookupVar(expr.name, ctx).ptr);
+    case "call":
+      return evalCall(expr, ctx);
+    case "memberGet":
+      return evalMemberGet(expr, ctx);
+    case "callClosure":
+      return evalCallClosure(expr, ctx);
+    case "conditional":
+      return evalConditional(expr, ctx);
+    case "coalesce":
+      return evalCoalesce(expr, ctx);
+    default:
+      return ice(`evalSetPtr: unhandled set expression ${expr.kind}`);
+  }
+}
+
+// Set membership predicate (`.has` / `.delete`) → i1 from the runtime's i32 result.
+export function evalSetPredicate(
+  fn: string,
+  expr: Extract<HExpr, { kind: "setHas" | "setDelete" }>,
+  ctx: Ctx,
+): Value {
+  return ctx.fn.icmp(
+    "ne",
+    ctx.fn.call(fn, T.i32, [
+      evalSetPtr(expr.set, ctx),
+      boxSlot(evalValue(expr.value, ctx), expr.value.type, ctx),
+      imm(T.i32, expr.keyKind),
+    ]),
+    imm(T.i32, 0),
+  );
+}
+
 // Ternary `cond ? a : b`. Branches may have side effects, so each arm is evaluated in its own
 // block and merged through a result slot (not a `select`, which would evaluate both arms).
 export function evalConditional(expr: Extract<HExpr, { kind: "conditional" }>, ctx: Ctx): Value {
@@ -871,6 +928,8 @@ export function evalValue(expr: HExpr, ctx: Ctx): Value {
       return evalFunctionPtr(expr, ctx);
     case "map":
       return evalMapPtr(expr, ctx);
+    case "set":
+      return evalSetPtr(expr, ctx);
     default:
       return ice(`evalValue: ${expr.type.kind} not supported yet`);
   }
@@ -995,6 +1054,9 @@ export function evalNumber(expr: HExpr, ctx: Ctx): Value {
 
     case "mapSize":
       return ctx.fn.sitofp(ctx.fn.call("@cs_map_size", T.i32, [evalMapPtr(expr.map, ctx)]));
+
+    case "setSize":
+      return ctx.fn.sitofp(ctx.fn.call("@cs_set_size", T.i32, [evalSetPtr(expr.set, ctx)]));
 
     case "arrayLen":
       // JS .length is a number; the runtime returns an i32 count.
@@ -1203,6 +1265,12 @@ export function evalBool(expr: HExpr, ctx: Ctx): Value {
         ]),
         imm(T.i32, 0),
       );
+
+    case "setHas":
+      return evalSetPredicate("@cs_set_has", expr, ctx);
+
+    case "setDelete":
+      return evalSetPredicate("@cs_set_delete", expr, ctx);
 
     default:
       return ice(`evalBool: unhandled boolean expression ${expr.kind}`);

@@ -38,7 +38,9 @@ export type ValueType =
   | { kind: "function"; params: ValueType[]; ret: ValueType | null }
   // A `Map<K, V>`. Runtime rep: pointer to a CsMap (parallel key/value slot buffers). `key`
   // must be a primitive (number/string/boolean) — its kind selects the equality function.
-  | { kind: "map"; key: ValueType; value: ValueType };
+  | { kind: "map"; key: ValueType; value: ValueType }
+  // A `Set<T>`. Runtime rep: pointer to a CsSet. `element` must be a primitive.
+  | { kind: "set"; element: ValueType };
 
 export const VT = {
   number: { kind: "number" } as ValueType,
@@ -48,4 +50,5 @@ export const VT = {
   undefined: { kind: "undefined" } as ValueType,
   array: (element: ValueType): ValueType => ({ kind: "array", element }),
   map: (key: ValueType, value: ValueType): ValueType => ({ kind: "map", key, value }),
+  set: (element: ValueType): ValueType => ({ kind: "set", element }),
 } as const;

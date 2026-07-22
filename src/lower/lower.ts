@@ -931,6 +931,21 @@ function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
     }
     return ice(`lower: unsupported map method .${method}`);
   }
+  if (recvType.kind === "set") {
+    const keyKind = keyKindOf(recvType.element);
+    const set = lowerExpr(pa.expression, ctx);
+    const arg0 = () => lowerExpr(call.arguments[0]!, ctx);
+    if (method === "add") {
+      return { kind: "setAdd", set, value: arg0(), keyKind, type: recvType }; // returns the set
+    }
+    if (method === "has") {
+      return { kind: "setHas", set, value: arg0(), keyKind, type: VT.boolean };
+    }
+    if (method === "delete") {
+      return { kind: "setDelete", set, value: arg0(), keyKind, type: VT.boolean };
+    }
+    return ice(`lower: unsupported set method .${method}`);
+  }
   if (recvType.kind === "string") {
     return {
       kind: "strMethod",
@@ -1076,6 +1091,18 @@ function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
         }
         return { kind: "mapNew", type };
       }
+      if (type.kind === "set") {
+        const arg = ne.arguments?.[0];
+        if (arg) {
+          return {
+            kind: "setFromArray",
+            array: lowerExpr(arg, ctx),
+            keyKind: keyKindOf(type.element),
+            type,
+          };
+        }
+        return { kind: "setNew", type };
+      }
       if (type.kind !== "object" || type.className === undefined) {
         ice("lower: `new` on a non-class type");
       }
@@ -1105,6 +1132,9 @@ function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
       }
       if (pa.name.text === "size" && objType.kind === "map") {
         return { kind: "mapSize", map: lowerExpr(pa.expression, ctx), type };
+      }
+      if (pa.name.text === "size" && objType.kind === "set") {
+        return { kind: "setSize", set: lowerExpr(pa.expression, ctx), type };
       }
       if (objType.kind === "object") {
         const slot = objType.shape.fields.findIndex((f) => f.name === pa.name.text);
@@ -1314,6 +1344,11 @@ function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChecker): 
           valueTypeOfTsType(args[1]!, node, checker),
         );
       }
+    }
+    // `Set<T>`: one type argument.
+    if (ref.symbol?.name === "Set") {
+      const args = checker.getTypeArguments(ref);
+      if (args.length === 1) return VT.set(valueTypeOfTsType(args[0]!, node, checker));
     }
     // A closed object shape (interface / type literal / class instance). Its DATA properties
     // become record slots — methods are dispatched to functions, not stored. A class instance's

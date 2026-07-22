@@ -191,6 +191,14 @@ export type HExpr =
   | { kind: "mapHas"; map: HExpr; key: HExpr; keyKind: number; type: ValueType }
   | { kind: "mapDelete"; map: HExpr; key: HExpr; keyKind: number; type: ValueType }
   | { kind: "mapSize"; map: HExpr; type: ValueType }
+  // Set operations. `keyKind` selects the runtime's element equality. `setNew` is `new Set()`;
+  // `setFromArray` is `new Set(arr)`; `add` returns the set.
+  | { kind: "setNew"; type: ValueType }
+  | { kind: "setFromArray"; array: HExpr; keyKind: number; type: ValueType }
+  | { kind: "setAdd"; set: HExpr; value: HExpr; keyKind: number; type: ValueType }
+  | { kind: "setHas"; set: HExpr; value: HExpr; keyKind: number; type: ValueType }
+  | { kind: "setDelete"; set: HExpr; value: HExpr; keyKind: number; type: ValueType }
+  | { kind: "setSize"; set: HExpr; type: ValueType }
   // `arr.sort(cmp?)` — in-place insertion sort, returns the same array. `comparator` null means
   // JS default order (compare by String(element), lexicographic). `type` is the array type.
   | {
