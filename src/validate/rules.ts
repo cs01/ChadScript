@@ -103,6 +103,25 @@ export function tailoredRejection(
       }
       return null;
 
+    case ts.SyntaxKind.VariableDeclaration: {
+      // `let x;` with no initializer ICEs in lowering (the slot type is taken from the initializer).
+      // for-of/for-in loop variables and catch bindings are also initializer-less but valid — a
+      // VariableStatement grandparent distinguishes a genuine declaration statement from those.
+      const vd = node as ts.VariableDeclaration;
+      if (
+        !vd.initializer &&
+        ts.isVariableDeclarationList(vd.parent) &&
+        ts.isVariableStatement(vd.parent.parent)
+      ) {
+        return hit(
+          CODE.UNINIT_VAR,
+          "a variable declaration without an initializer is not supported yet",
+          "initialize at the declaration: `let x: T = <initial value>`",
+        );
+      }
+      return null;
+    }
+
     case ts.SyntaxKind.BinaryExpression:
       return checkBinary(node as ts.BinaryExpression, hit, checker);
 
