@@ -35,6 +35,9 @@ interface LowerCtx {
   // → the class implementing each. Built up-front so a call site can look up the vtable index of
   // a method from its static receiver class.
   classTables: Map<string, { order: string[]; impls: Map<string, string> }>;
+  // Each class → its ancestor class names INCLUDING itself. `x instanceof C` matches every class
+  // whose ancestor set contains C (i.e. C and all its descendants).
+  classAncestors: Map<string, Set<string>>;
   // Output list of all functions, incl. lambdas lifted from arrow/function expressions.
   functions: HFunc[];
 }
@@ -59,6 +62,7 @@ export function lower(loaded: LoadedProgram): HModule {
     currentReturnType: null,
     currentBaseClass: null,
     classTables: new Map(),
+    classAncestors: new Map(),
     functions: [],
   };
   // Precompute every class's method table BEFORE lowering, so a call site (which may precede the
@@ -116,6 +120,20 @@ function buildClassTable(decl: ts.ClassDeclaration, ctx: LowerCtx): void {
   };
   visit(classType);
   ctx.classTables.set(className, { order: [...impls.keys()], impls });
+
+  // Ancestor set (self + every class-declared base, transitively) for instanceof.
+  const ancestors = new Set<string>([className]);
+  const collectAncestors = (t: ts.Type): void => {
+    for (const base of ctx.checker.getBaseTypes(t as ts.InterfaceType)) {
+      const bd = base.symbol?.valueDeclaration;
+      if (bd && ts.isClassDeclaration(bd) && bd.name) {
+        ancestors.add(bd.name.text);
+        collectAncestors(base);
+      }
+    }
+  };
+  collectAncestors(classType);
+  ctx.classAncestors.set(className, ancestors);
 }
 
 // A class lowers to a set of free functions: each method and the constructor become an HFunc
@@ -1400,6 +1418,21 @@ function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
     case ts.SyntaxKind.BinaryExpression: {
       const b = expr as ts.BinaryExpression;
       const opKind = b.operatorToken.kind;
+      // `x instanceof C` → the receiver's vtable equals C's or any subclass's vtable.
+      if (opKind === ts.SyntaxKind.InstanceOfKeyword) {
+        if (!ts.isIdentifier(b.right)) ice("lower: instanceof right side must be a class name");
+        const target = b.right.text;
+        const matches = [...ctx.classAncestors]
+          .filter(([, anc]) => anc.has(target))
+          .map(([name]) => name);
+        if (matches.length === 0) ice(`lower: instanceof unknown class ${target}`);
+        return {
+          kind: "instanceofCheck",
+          value: lowerExpr(b.left, ctx),
+          vtableClasses: matches,
+          type,
+        };
+      }
       // `&&` / `||` are short-circuiting with value semantics — a distinct HIR node, not a
       // plain binary (their result is an operand, not a computed value).
       if (

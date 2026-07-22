@@ -166,6 +166,9 @@ export type HExpr =
   // Unwrap a narrowed optional to its inner value. Emitted by lower when a var whose DECLARED
   // type is optional is used at a narrowed (non-optional) type (after `x !== undefined`).
   | { kind: "unwrap"; value: HExpr; type: ValueType }
+  // `x instanceof C` → boolean. `vtableClasses` are the class names whose vtable pointer counts
+  // as a match (C plus every subclass); codegen compares the receiver's vtable to each.
+  | { kind: "instanceofCheck"; value: HExpr; vtableClasses: string[]; type: ValueType }
   // `x === undefined` / `x !== undefined` → boolean (compares against the sentinel).
   // `x === null`/`x === undefined` (and `!==`). `sentinel` says which marker to compare against,
   // so `x === null` and `x === undefined` are distinguished for a `T | null | undefined` value.

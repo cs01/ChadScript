@@ -1411,6 +1411,21 @@ export function evalBool(expr: HExpr, ctx: Ctx): Value {
     case "convert": // `Boolean(x)` — JS truthiness of the value.
       return evalBooleanConvert(expr.value, ctx);
 
+    case "instanceofCheck": {
+      // The receiver's vtable pointer (record slot 0) equals the target class's or any subclass's.
+      if (expr.value.type.kind !== "object") {
+        return ice(`instanceof on ${expr.value.type.kind} not supported yet`);
+      }
+      const obj = evalObjectPtr(expr.value, ctx);
+      const vtbl = ctx.fn.load(T.i64, ctx.fn.gepSlot(obj, 0));
+      let acc: Value | null = null;
+      for (const name of expr.vtableClasses) {
+        const eq = ctx.fn.icmp("eq", vtbl, ctx.fn.ptrToI64(ctx.mod.vtableAddr(name)));
+        acc = acc === null ? eq : ctx.fn.logicalOr(acc, eq);
+      }
+      return acc ?? imm(T.i1, 0);
+    }
+
     default:
       return ice(`evalBool: unhandled boolean expression ${expr.kind}`);
   }

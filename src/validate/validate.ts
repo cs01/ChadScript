@@ -37,6 +37,7 @@ const ALLOWED_KINDS: ReadonlySet<ts.SyntaxKind> = new Set([
   // Arithmetic (Phase 1). Operator granularity is gated separately below — admitting the kind
   // does NOT admit every operator of that kind.
   ts.SyntaxKind.BinaryExpression,
+  ts.SyntaxKind.InstanceOfKeyword, // the `instanceof` operator token (gated in SUPPORTED_BINARY_OPS)
   ts.SyntaxKind.PrefixUnaryExpression,
   ts.SyntaxKind.ParenthesizedExpression,
   ts.SyntaxKind.ConditionalExpression, // ternary `c ? a : b`
@@ -124,6 +125,7 @@ const SUPPORTED_BINARY_OPS: ReadonlySet<ts.SyntaxKind> = new Set([
   ts.SyntaxKind.AmpersandAmpersandToken,
   ts.SyntaxKind.BarBarToken,
   ts.SyntaxKind.QuestionQuestionToken, // ?? (nullish coalescing)
+  ts.SyntaxKind.InstanceOfKeyword, // `x instanceof Class`
   // Bitwise / shift (JS int32 semantics).
   ts.SyntaxKind.AmpersandToken,
   ts.SyntaxKind.BarToken,
