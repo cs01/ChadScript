@@ -40,15 +40,23 @@ void cs_print_newline(void) { fputc('\n', stdout); }
 #include <setjmp.h>
 #include <gc.h>
 
-#define CS_MAX_HANDLERS 1024
-static void *cs_handlers[CS_MAX_HANDLERS];
-static int cs_handler_n = 0;
-static const char *cs_pending_msg = 0; // message of the in-flight exception (for rethrow/binding)
+// A try handler: the setjmp buffer plus the value thrown to it. The thrown message lives HERE
+// (in the handler), not in a global — so exception state is local to the handler chain and will
+// be fiber-local once each fiber owns its own chain (no cross-fiber leakage of the pending value).
+// `buf` is first so a CsHandler* is directly usable as the jmp_buf pointer for setjmp/longjmp.
+typedef struct {
+  jmp_buf buf;
+  const char *message; // message of the exception that unwound to this handler
+} CsHandler;
 
-// Allocate a jmp_buf for a `try` (GC-managed; codegen calls setjmp on it).
-void *cs_handler_alloc(void) { return GC_malloc(sizeof(jmp_buf)); }
-void cs_push_handler(void *buf) {
-  if (cs_handler_n < CS_MAX_HANDLERS) cs_handlers[cs_handler_n] = buf;
+#define CS_MAX_HANDLERS 1024
+static CsHandler *cs_handlers[CS_MAX_HANDLERS];
+static int cs_handler_n = 0;
+
+// Allocate a handler for a `try` (GC-managed; codegen calls setjmp on it directly).
+void *cs_handler_alloc(void) { return GC_malloc(sizeof(CsHandler)); }
+void cs_push_handler(void *h) {
+  if (cs_handler_n < CS_MAX_HANDLERS) cs_handlers[cs_handler_n] = h;
   cs_handler_n++;
 }
 void cs_pop_handler(void) {
@@ -63,19 +71,20 @@ void cs_handler_restore(int n) {
   if (cs_handler_n > n) cs_handler_n = n;
 }
 
-// throw: unwind to the innermost handler if one exists, else terminate (Node exits 1 on an
-// uncaught exception; the differential harness compares stdout + exit code, so the stderr text is
-// best-effort). The message is stashed for the (future) catch binding.
+// The message thrown to a handler (read by a catch/finally that caught, e.g. to re-raise).
+const char *cs_handler_message(void *h) { return ((CsHandler *)h)->message; }
+
+// throw: unwind to the innermost handler (stashing the message IN that handler), or terminate when
+// none exists (Node exits 1 on an uncaught exception; the harness compares stdout + exit code, so
+// the stderr text is best-effort).
 void cs_throw(const char *message) {
-  cs_pending_msg = message;
   if (cs_handler_n > 0) {
     cs_handler_n--;
-    _longjmp(*(jmp_buf *)cs_handlers[cs_handler_n], 1);
+    CsHandler *h = cs_handlers[cs_handler_n];
+    h->message = message;
+    _longjmp(h->buf, 1);
   }
   if (message) fprintf(stderr, "Error: %s\n", message);
   else fputs("Error\n", stderr);
   exit(1);
 }
-
-// Re-raise the in-flight exception after a `finally` block has run on the exception path.
-void cs_rethrow(void) { cs_throw(cs_pending_msg); }

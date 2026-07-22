@@ -127,7 +127,7 @@ export function generate(hmod: HModule): string {
   mod.declareExtern("cs_push_handler", T.void, [T.ptr]);
   mod.declareExtern("cs_pop_handler", T.void, []);
   mod.declareExtern("_setjmp", T.i32, [T.ptr], "returns_twice");
-  mod.declareExtern("cs_rethrow", T.void, []);
+  mod.declareExtern("cs_handler_message", T.ptr, [T.ptr]);
   mod.declareExtern("cs_handler_count", T.i32, []);
   mod.declareExtern("cs_handler_restore", T.void, [T.i32]);
 
@@ -321,7 +321,9 @@ function emitTryCatch(stmt: Extract<HStmt, { kind: "tryCatch" }>, ctx: Ctx): voi
     ctx.fn.switchTo(contB);
     emitLoopCompletion(ctx, frame, frame.enclosingContinue, C_CONTINUE);
     ctx.fn.switchTo(throwB);
-    ctx.fn.callVoid("@cs_rethrow", []);
+    // Re-raise the exception this try caught, reading its message from the handler (not a global).
+    const msg = ctx.fn.call("@cs_handler_message", T.ptr, [outer]);
+    ctx.fn.callVoid("@cs_throw", [msg]);
     ctx.fn.unreachable();
   }
 
