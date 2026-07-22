@@ -59,6 +59,7 @@ export function boxSlot(v: Value, elemType: ValueType, ctx: Ctx): Value {
     case "string":
     case "array":
     case "object":
+    case "optional":
       return ctx.fn.ptrToI64(v); // all pointer-represented
     case "boolean":
       return ctx.fn.zextI1ToI64(v);
@@ -74,6 +75,7 @@ function unboxSlot(slot: Value, elemType: ValueType, ctx: Ctx): Value {
     case "string":
     case "array":
     case "object":
+    case "optional":
       return ctx.fn.i64ToPtr(slot);
     case "boolean":
       return ctx.fn.truncI64ToI1(slot);
@@ -131,9 +133,20 @@ export function evalOptionalPtr(expr: HExpr, ctx: Ctx): Value {
   if (expr.kind === "varRef") return ctx.fn.load(T.ptr, lookupVar(expr.name, ctx).ptr);
   if (expr.kind === "arrayPop")
     return ctx.fn.call(`@${expr.fn}`, T.ptr, [evalArrayPtr(expr.array, ctx)]);
+  if (expr.kind === "memberGet") return evalMemberGet(expr, ctx); // an optional field
+  if (expr.kind === "wrap") return evalWrap(expr, ctx);
+  if (expr.kind === "undefinedOpt") return ctx.mod.externGlobal("cs_undefined_marker");
   if (expr.kind === "call") return evalCall(expr, ctx);
   if (expr.kind === "coalesce") return evalCoalesce(expr, ctx);
   return ice(`evalOptionalPtr: unhandled optional expression ${expr.kind}`);
+}
+
+// Wrap an inner value into a present optional: a GC box holding the boxed inner value.
+function evalWrap(expr: Extract<HExpr, { kind: "wrap" }>, ctx: Ctx): Value {
+  const inner = expr.type.kind === "optional" ? expr.type.inner : ice("wrap: not optional-typed");
+  const box = ctx.fn.call("@cs_gc_alloc", T.ptr, [imm(T.i64, 8)]);
+  ctx.fn.store(boxSlot(evalValue(expr.value, ctx), inner, ctx), box);
+  return box;
 }
 
 // `arr[i]` → `element | undefined`, bounds-checked. In range: box the element; out of range: the

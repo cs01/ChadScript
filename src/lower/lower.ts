@@ -483,16 +483,25 @@ function lowerObjectLit(ole: ts.ObjectLiteralExpression, ctx: LowerCtx, type: Va
     const prop = ole.properties.find(
       (p) => p.name && ts.isIdentifier(p.name) && p.name.text === f.name,
     );
-    if (!prop) ice(`lower: object literal missing field ${f.name}`);
-    if (ts.isPropertyAssignment(prop)) return lowerExpr(prop.initializer, ctx);
-    if (ts.isShorthandPropertyAssignment(prop)) {
+    // An omitted field must be optional (tsc enforces); store the undefined sentinel.
+    if (!prop) {
+      if (f.type.kind !== "optional") ice(`lower: object literal missing field ${f.name}`);
+      return { kind: "undefinedOpt", type: f.type };
+    }
+    let value: HExpr;
+    if (ts.isPropertyAssignment(prop)) value = lowerExpr(prop.initializer, ctx);
+    else if (ts.isShorthandPropertyAssignment(prop)) {
       // `{ a }` means field `a` = the variable `a`. Resolve the VALUE symbol (the variable),
       // not the property symbol the shorthand identifier reports.
       const valueSym = ctx.checker.getShorthandAssignmentValueSymbol(prop);
       if (!valueSym) return ice(`lower: cannot resolve shorthand property ${f.name}`);
-      return { kind: "varRef", name: nameForSymbol(valueSym, f.name, ctx), type: f.type };
+      value = { kind: "varRef", name: nameForSymbol(valueSym, f.name, ctx), type: f.type };
+    } else return ice(`lower: unsupported object member for ${f.name}`);
+    // An inner value assigned to an optional field is wrapped into a present optional.
+    if (f.type.kind === "optional" && value.type.kind !== "optional") {
+      return { kind: "wrap", value, type: f.type };
     }
-    return ice(`lower: unsupported object member for ${f.name}`);
+    return value;
   });
   return { kind: "objectLit", fields, type };
 }
@@ -781,10 +790,15 @@ function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChecker): 
     const isClass = classDecl !== undefined && ts.isClassDeclaration(classDecl);
     const props = checker.getPropertiesOfType(t).filter((sym) => !isMethodSymbol(sym));
     if (props.length > 0 || isClass) {
-      const fields = props.map((sym) => ({
-        name: sym.name,
-        type: valueTypeOfTsType(checker.getTypeOfSymbolAtLocation(sym, node), node, checker),
-      }));
+      const fields = props.map((sym) => {
+        let ft = valueTypeOfTsType(checker.getTypeOfSymbolAtLocation(sym, node), node, checker);
+        // With exactOptionalPropertyTypes, `x?: T` has type T; the `?` is a symbol flag. Model
+        // it as optional<T> so an omitted field stores `undefined`.
+        if (sym.flags & ts.SymbolFlags.Optional && ft.kind !== "optional") {
+          ft = { kind: "optional", inner: ft };
+        }
+        return { name: sym.name, type: ft };
+      });
       const className = isClass ? t.symbol!.name : undefined;
       return className !== undefined
         ? { kind: "object", shape: { fields }, className }
