@@ -431,10 +431,13 @@ export class ModuleBuilder {
     return { name: `@${className}.vtable`, type: T.ptr };
   }
 
-  declareExtern(name: string, retType: IrType, paramTypes: readonly IrType[]): void {
+  // `attrs` is an optional function-attribute string (e.g. "returns_twice" for setjmp, which the
+  // optimizer must know about or it mis-schedules code around the call at -O2).
+  declareExtern(name: string, retType: IrType, paramTypes: readonly IrType[], attrs = ""): void {
     if (this.externs.has(name)) return;
     const params = paramTypes.map(llvmType).join(", ");
-    this.externs.set(name, `declare ${llvmType(retType)} @${name}(${params})`);
+    const suffix = attrs ? ` ${attrs}` : "";
+    this.externs.set(name, `declare ${llvmType(retType)} @${name}(${params})${suffix}`);
   }
 
   // Reference an external global by name (an `external global i8`), returning a ptr to it. Used

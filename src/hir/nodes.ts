@@ -65,10 +65,13 @@ export type HStmt =
   | { kind: "forOf"; name: string; elementType: ValueType; array: HExpr; body: HStmt[] }
   // `return expr;` (value null for a bare `return;` in a void function).
   | { kind: "return"; value: HExpr | null }
-  // `throw expr;` — INTERIM (pre-unwinding, Phase 5): terminates the process with a non-zero
-  // exit after printing `message` (the Error's message or a thrown string) to stderr. `message`
-  // null when it can't be extracted. Full try/catch unwinding replaces this.
+  // `throw expr;` — unwinds to the innermost enclosing `try` handler (setjmp/longjmp), or
+  // terminates with a non-zero exit if none. `message` is the Error's message or a thrown string
+  // (null when it can't be extracted), printed to stderr on an uncaught throw.
   | { kind: "throwError"; message: HExpr | null }
+  // `try { tryBody } catch { catchBody }`. First-cut: the catch binding value is not bound yet
+  // (catch runs on any throw from the try body). `finally` lands next.
+  | { kind: "tryCatch"; tryBody: HStmt[]; catchBody: HStmt[] }
   // `break;` / `continue;` — target the innermost enclosing loop (no labels yet).
   | { kind: "break" }
   | { kind: "continue" }

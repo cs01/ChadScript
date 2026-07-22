@@ -121,6 +121,10 @@ export function generate(hmod: HModule): string {
   mod.declareExtern("cs_set_values", T.ptr, [T.ptr]);
   mod.declareExtern("exit", T.void, [T.i32]);
   mod.declareExtern("cs_throw", T.void, [T.ptr]);
+  mod.declareExtern("cs_handler_alloc", T.ptr, []);
+  mod.declareExtern("cs_push_handler", T.void, [T.ptr]);
+  mod.declareExtern("cs_pop_handler", T.void, []);
+  mod.declareExtern("_setjmp", T.i32, [T.ptr], "returns_twice");
 
   // Class vtables (constant arrays of method fn pointers); an instance stores a pointer to its
   // class's vtable in record slot 0 for virtual dispatch.
@@ -195,6 +199,70 @@ function emitFunction(f: HFunc, mod: ModuleBuilder): void {
     if (f.returnType === null) fn.retVoid();
     else fn.unreachable();
   }
+}
+
+// `try { } catch { }` via setjmp/longjmp: allocate + push a handler buffer, setjmp it, and branch
+// on the result — 0 is the normal entry (run the try body, then pop the handler), non-zero is the
+// resume after a longjmp from `throw` (the handler was already popped there; run the catch body).
+function emitTryCatch(stmt: Extract<HStmt, { kind: "tryCatch" }>, ctx: Ctx): void {
+  // A return/break/continue escaping the try body would skip the handler pop, leaving a stale
+  // handler pointing at a dead frame. Reject that until the pop-on-every-exit path is built.
+  if (escapesTry(stmt.tryBody)) {
+    ice("codegen: return/break/continue inside a try body not supported yet");
+  }
+  const buf = ctx.fn.call("@cs_handler_alloc", T.ptr, []);
+  ctx.fn.callVoid("@cs_push_handler", [buf]);
+  const r = ctx.fn.call("@_setjmp", T.i32, [buf]);
+  const tryB = ctx.fn.newBlock("try.body");
+  const catchB = ctx.fn.newBlock("try.catch");
+  const afterB = ctx.fn.newBlock("try.after");
+  ctx.fn.brCond(ctx.fn.icmp("eq", r, imm(T.i32, 0)), tryB, catchB);
+
+  ctx.fn.switchTo(tryB);
+  emitStatements(stmt.tryBody, ctx);
+  if (!ctx.fn.currentBlock.isTerminated) {
+    ctx.fn.callVoid("@cs_pop_handler", []); // normal completion → unlink the handler
+    ctx.fn.br(afterB);
+  }
+
+  ctx.fn.switchTo(catchB);
+  emitStatements(stmt.catchBody, ctx);
+  if (!ctx.fn.currentBlock.isTerminated) ctx.fn.br(afterB);
+
+  ctx.fn.switchTo(afterB);
+}
+
+// True if any return/break/continue in `stmts` could exit the try body (skipping the handler
+// pop). `inLoop`/`inBreakable` track whether a continue/break is captured by a nested construct
+// (a loop captures both; a switch captures break only). A return always escapes the frame.
+function escapesTry(stmts: HStmt[]): boolean {
+  const walk = (list: HStmt[], inLoop: boolean, inBreakable: boolean): boolean =>
+    list.some((s) => {
+      switch (s.kind) {
+        case "return":
+          return true;
+        case "break":
+          return !inBreakable;
+        case "continue":
+          return !inLoop;
+        case "if":
+          return (
+            walk(s.then, inLoop, inBreakable) ||
+            (s.otherwise !== null && walk(s.otherwise, inLoop, inBreakable))
+          );
+        case "while":
+        case "for":
+        case "forOf":
+          return walk(s.body, true, true);
+        case "switch":
+          return s.cases.some((c) => walk(c.body, inLoop, true));
+        case "tryCatch":
+          return walk(s.tryBody, inLoop, inBreakable) || walk(s.catchBody, inLoop, inBreakable);
+        default:
+          return false;
+      }
+    });
+  return walk(stmts, false, false);
 }
 
 // Print one value with no separator or newline. Optionals branch on the sentinel; other types
@@ -335,13 +403,17 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
       return;
 
     case "throwError": {
-      // Interim: print the message and terminate. cs_throw does not return, so the block ends
-      // unreachable (throw is a control-flow terminator like return).
+      // cs_throw either longjmps to the innermost handler or terminates; either way it does not
+      // return, so the block ends unreachable (throw is a control-flow terminator like return).
       const msg = stmt.message ? evalValue(stmt.message, ctx) : ctx.fn.nullPtr();
       ctx.fn.callVoid("@cs_throw", [msg]);
       ctx.fn.unreachable();
       return;
     }
+
+    case "tryCatch":
+      emitTryCatch(stmt, ctx);
+      return;
 
     case "exprStmt":
       // Evaluate for side effects; discard the value (e.g. `arr.push(x);`).
