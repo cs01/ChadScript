@@ -18,7 +18,9 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          # Pinned: bun "latest" regressed on async node:test callbacks ("test() inside another
+          # test()"). This matches the local dev version.
+          bun-version: "1.3.10"
 
       # LLVM (clang + opt). Installed as versioned binaries on Linux; point the compiler at
       # them via CHAD_CLANG / CHAD_OPT (see src/driver/toolchain.ts).

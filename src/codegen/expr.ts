@@ -159,7 +159,7 @@ export function evalCall(expr: Extract<HExpr, { kind: "call" }>, ctx: Ctx): Valu
   return ctx.fn.call(`@${expr.name}`, irTypeOf(expr.type), args);
 }
 
-// Math.* → libm (floor/ceil/trunc/sqrt/cbrt/fabs/pow) or a runtime helper (round/sign, whose JS
+// Math.* → libm (floor/ceil/trunc/sqrt/fabs/pow) or a runtime helper (round/sign, whose JS
 // semantics differ from C). All operate on doubles.
 const MATH_UNARY: Record<string, string> = {
   floor: "@floor",
@@ -167,7 +167,6 @@ const MATH_UNARY: Record<string, string> = {
   trunc: "@trunc",
   abs: "@fabs",
   sqrt: "@sqrt",
-  cbrt: "@cbrt",
   round: "@cs_math_round",
   sign: "@cs_math_sign",
 };
