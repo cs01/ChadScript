@@ -1193,9 +1193,50 @@ function coerceToString(expr: HExpr, ctx: Ctx): Value {
     case "unknown":
       // `String(e)` on a caught value: "Error: <msg>" for an Error, else the thrown string.
       return ctx.fn.call("@cs_thrown_to_string", T.ptr, [evalValue(expr, ctx)]);
+    case "null":
+      return ctx.mod.cstring("null");
+    case "undefined":
+      return ctx.mod.cstring("undefined");
+    case "optional":
+      return coerceOptionalToString(expr, expr.type.inner, ctx);
     default:
       return ice(`coerceToString: ${expr.type.kind} not supported yet`);
   }
+}
+
+// String coercion of a `T | null | undefined`: JS spells the absent cases "undefined"/"null" and
+// coerces a present value by its inner type. Branches on the two nullish sentinels at runtime.
+function coerceOptionalToString(expr: HExpr, inner: ValueType, ctx: Ctx): Value {
+  const opt = evalOptionalPtr(expr, ctx);
+  const result = ctx.fn.alloca(T.ptr);
+  const undefB = ctx.fn.newBlock("cts.undef");
+  const notUndefB = ctx.fn.newBlock("cts.notundef");
+  const nullB = ctx.fn.newBlock("cts.null");
+  const presentB = ctx.fn.newBlock("cts.present");
+  const endB = ctx.fn.newBlock("cts.end");
+
+  ctx.fn.brCond(
+    ctx.fn.icmp("eq", opt, ctx.mod.externGlobal("cs_undefined_marker")),
+    undefB,
+    notUndefB,
+  );
+  ctx.fn.switchTo(undefB);
+  ctx.fn.store(ctx.mod.cstring("undefined"), result);
+  ctx.fn.br(endB);
+
+  ctx.fn.switchTo(notUndefB);
+  ctx.fn.brCond(ctx.fn.icmp("eq", opt, ctx.mod.externGlobal("cs_null_marker")), nullB, presentB);
+  ctx.fn.switchTo(nullB);
+  ctx.fn.store(ctx.mod.cstring("null"), result);
+  ctx.fn.br(endB);
+
+  ctx.fn.switchTo(presentB);
+  const innerVal = unboxSlot(ctx.fn.load(T.i64, opt), inner, ctx);
+  ctx.fn.store(coerceValueToString(innerVal, inner, ctx), result);
+  ctx.fn.br(endB);
+
+  ctx.fn.switchTo(endB);
+  return ctx.fn.load(T.ptr, result);
 }
 
 // A template literal: fold quasis and interpolations left-to-right with concatenation.
