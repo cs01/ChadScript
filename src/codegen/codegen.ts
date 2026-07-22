@@ -45,6 +45,8 @@ export function generate(hmod: HModule): string {
     mod.declareExtern(f, T.double, [T.double]);
   }
   mod.declareExtern("pow", T.double, [T.double, T.double]);
+  mod.declareExtern("cs_math_max2", T.double, [T.double, T.double]);
+  mod.declareExtern("cs_math_min2", T.double, [T.double, T.double]);
   // String methods.
   mod.declareExtern("cs_str_len", T.i32, [T.ptr]);
   for (const f of ["cs_str_upper", "cs_str_lower", "cs_str_trim"]) {

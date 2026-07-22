@@ -20,3 +20,18 @@ double cs_math_sign(double x) {
   if (x < 0.0) return -1.0;
   return x; // +0 or -0 unchanged
 }
+
+// JS Math.max/min are variadic; codegen folds them pairwise through these. Unlike C fmax/fmin,
+// JS PROPAGATES NaN, and distinguishes ±0 (max prefers +0, min prefers -0).
+double cs_math_max2(double a, double b) {
+  if (isnan(a) || isnan(b)) return NAN;
+  if (a != b) return a > b ? a : b;
+  if (a == 0.0) return (signbit(a) && signbit(b)) ? -0.0 : 0.0; // +0 unless both -0
+  return a;
+}
+double cs_math_min2(double a, double b) {
+  if (isnan(a) || isnan(b)) return NAN;
+  if (a != b) return a < b ? a : b;
+  if (a == 0.0) return (signbit(a) || signbit(b)) ? -0.0 : 0.0; // -0 if either -0
+  return a;
+}
