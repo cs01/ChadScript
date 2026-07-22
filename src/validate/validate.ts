@@ -39,6 +39,7 @@ const ALLOWED_KINDS: ReadonlySet<ts.SyntaxKind> = new Set([
   ts.SyntaxKind.BinaryExpression,
   ts.SyntaxKind.PrefixUnaryExpression,
   ts.SyntaxKind.ParenthesizedExpression,
+  ts.SyntaxKind.ConditionalExpression, // ternary `c ? a : b`
   // Variables (Phase 1). `var` is rejected by tailored rule; only let/const reach here.
   ts.SyntaxKind.VariableStatement,
   ts.SyntaxKind.VariableDeclarationList,

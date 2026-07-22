@@ -839,6 +839,17 @@ function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
     case ts.SyntaxKind.ParenthesizedExpression:
       return lowerExpr((expr as ts.ParenthesizedExpression).expression, ctx);
 
+    case ts.SyntaxKind.ConditionalExpression: {
+      const c = expr as ts.ConditionalExpression;
+      return {
+        kind: "conditional",
+        cond: lowerExpr(c.condition, ctx),
+        whenTrue: lowerExpr(c.whenTrue, ctx),
+        whenFalse: lowerExpr(c.whenFalse, ctx),
+        type,
+      };
+    }
+
     case ts.SyntaxKind.PrefixUnaryExpression: {
       const u = expr as ts.PrefixUnaryExpression;
       return { kind: "unary", op: unaryOp(u.operator), operand: lowerExpr(u.operand, ctx), type };

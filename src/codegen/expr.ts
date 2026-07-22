@@ -121,6 +121,9 @@ export function evalObjectPtr(expr: HExpr, ctx: Ctx): Value {
       return evalUnwrap(expr, ctx);
     case "callClosure":
       return evalCallClosure(expr, ctx);
+
+    case "conditional":
+      return evalConditional(expr, ctx);
     default:
       return ice(`evalObjectPtr: unhandled object expression ${expr.kind}`);
   }
@@ -144,6 +147,7 @@ export function evalOptionalPtr(expr: HExpr, ctx: Ctx): Value {
   if (expr.kind === "undefinedOpt") return ctx.mod.externGlobal("cs_undefined_marker");
   if (expr.kind === "call") return evalCall(expr, ctx);
   if (expr.kind === "callClosure") return evalCallClosure(expr, ctx);
+  if (expr.kind === "conditional") return evalConditional(expr, ctx);
   if (expr.kind === "coalesce") return evalCoalesce(expr, ctx);
   return ice(`evalOptionalPtr: unhandled optional expression ${expr.kind}`);
 }
@@ -264,6 +268,9 @@ export function evalArrayPtr(expr: HExpr, ctx: Ctx): Value {
       return evalUnwrap(expr, ctx);
     case "callClosure":
       return evalCallClosure(expr, ctx);
+
+    case "conditional":
+      return evalConditional(expr, ctx);
     case "arrayHof":
       return evalArrayHof(expr, ctx); // .map()/.filter() (also when chained as a receiver)
     default:
@@ -433,6 +440,7 @@ export function evalFunctionPtr(expr: HExpr, ctx: Ctx): Value {
   if (expr.kind === "varRef") return ctx.fn.load(T.ptr, lookupVar(expr.name, ctx).ptr);
   if (expr.kind === "call") return evalCall(expr, ctx);
   if (expr.kind === "callClosure") return evalCallClosure(expr, ctx);
+  if (expr.kind === "conditional") return evalConditional(expr, ctx);
   return ice(`evalFunctionPtr: unhandled function expression ${expr.kind}`);
 }
 
@@ -539,6 +547,27 @@ export function evalArrayHof(expr: Extract<HExpr, { kind: "arrayHof" }>, ctx: Ct
   return ctx.fn.nullPtr(); // forEach → undefined (discarded by the caller)
 }
 
+// Ternary `cond ? a : b`. Branches may have side effects, so each arm is evaluated in its own
+// block and merged through a result slot (not a `select`, which would evaluate both arms).
+export function evalConditional(expr: Extract<HExpr, { kind: "conditional" }>, ctx: Ctx): Value {
+  const cond = evalBool(expr.cond, ctx);
+  const result = ctx.fn.alloca(irTypeOf(expr.type));
+  const trueB = ctx.fn.newBlock("cond.true");
+  const falseB = ctx.fn.newBlock("cond.false");
+  const endB = ctx.fn.newBlock("cond.end");
+
+  ctx.fn.brCond(cond, trueB, falseB);
+  ctx.fn.switchTo(trueB);
+  ctx.fn.store(evalValue(expr.whenTrue, ctx), result);
+  ctx.fn.br(endB);
+  ctx.fn.switchTo(falseB);
+  ctx.fn.store(evalValue(expr.whenFalse, ctx), result);
+  ctx.fn.br(endB);
+
+  ctx.fn.switchTo(endB);
+  return ctx.fn.load(irTypeOf(expr.type), result);
+}
+
 // Math.* → libm (floor/ceil/trunc/sqrt/fabs/pow) or a runtime helper (round/sign, whose JS
 // semantics differ from C). All operate on doubles.
 const MATH_UNARY: Record<string, string> = {
@@ -609,6 +638,7 @@ export function evalValue(expr: HExpr, ctx: Ctx): Value {
   // arrayHof spans result types (map/filter→array, reduce→any, forEach→undefined); handle it
   // before the type switch so forEach's `undefined` result type doesn't hit the default ICE.
   if (expr.kind === "arrayHof") return evalArrayHof(expr, ctx);
+  if (expr.kind === "conditional") return evalConditional(expr, ctx);
   switch (expr.type.kind) {
     case "number":
       return evalNumber(expr, ctx);
@@ -663,6 +693,9 @@ export function evalString(expr: HExpr, ctx: Ctx): Value {
       return evalUnwrap(expr, ctx);
     case "callClosure":
       return evalCallClosure(expr, ctx);
+
+    case "conditional":
+      return evalConditional(expr, ctx);
     default:
       return ice(`evalString: unhandled string expression ${expr.kind}`);
   }
@@ -732,6 +765,9 @@ export function evalNumber(expr: HExpr, ctx: Ctx): Value {
 
     case "callClosure":
       return evalCallClosure(expr, ctx);
+
+    case "conditional":
+      return evalConditional(expr, ctx);
 
     case "arrayHof":
       return evalArrayHof(expr, ctx); // reduce → number
@@ -915,6 +951,9 @@ export function evalBool(expr: HExpr, ctx: Ctx): Value {
 
     case "callClosure":
       return evalCallClosure(expr, ctx);
+
+    case "conditional":
+      return evalConditional(expr, ctx);
 
     default:
       return ice(`evalBool: unhandled boolean expression ${expr.kind}`);
