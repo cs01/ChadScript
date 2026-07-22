@@ -35,7 +35,15 @@ export function build(loaded: LoadedProgram, opts: BuildOptions): void {
 
   execFileSync(
     CLANG,
-    [`-O${opts.opt ?? "2"}`, "-Wno-override-module", llPath, ...runtimeSources, "-o", opts.outPath],
+    [
+      `-O${opts.opt ?? "2"}`,
+      "-Wno-override-module",
+      llPath,
+      ...runtimeSources,
+      "-lm", // `%` on doubles lowers to an fmod libcall in libm; macOS auto-links it, Linux doesn't
+      "-o",
+      opts.outPath,
+    ],
     { stdio: "pipe" },
   );
 }
