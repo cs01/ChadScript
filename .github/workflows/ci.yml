@@ -46,5 +46,7 @@ jobs:
       - name: Format check
         run: bun run format:check
 
+      # Generous per-test timeout: differential tests each run two clang compiles (O0+O2);
+      # bun's 5s default is too tight for a cold Homebrew clang on the macOS runner.
       - name: Test (rejection + differential + unit)
-        run: bun test tests/
+        run: bun test --timeout 60000 tests/

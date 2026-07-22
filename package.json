@@ -15,7 +15,7 @@
   "scripts": {
     "chad": "bun run src/cli.ts",
     "typecheck": "tsc --noEmit",
-    "test": "bun test tests/",
+    "test": "bun test --timeout 60000 tests/",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
