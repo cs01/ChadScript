@@ -16,7 +16,7 @@ const LIMIT = 800;
 // Temporary ceilings for files over LIMIT today. RATCHET: lower these as the files shrink; never
 // raise them. Delete an entry once its file is under LIMIT.
 const ALLOWLIST: Record<string, number> = {
-  "src/lower/lower.ts": 1509,
+  "src/lower/lower.ts": 1126,
 };
 
 const srcRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "src");

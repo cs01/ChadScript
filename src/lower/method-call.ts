@@ -16,9 +16,9 @@ import {
   lowerExpr,
   lowerObjectNamespace,
   resolveType,
-  thisRef,
   vtableIndexOf,
 } from "./lower.js";
+import { thisRef } from "./statements.js";
 
 // A method call `obj.method(args)`. Dispatched on the receiver's type + method name.
 export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {

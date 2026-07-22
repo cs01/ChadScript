@@ -23,6 +23,7 @@ import {
   returnTypeOfSignature,
 } from "./type-translation.js";
 import { lowerMethodCall } from "./method-call.js";
+import { lowerStatement, lowerStatements, thisRef } from "./statements.js";
 
 export interface LowerCtx {
   checker: ts.TypeChecker;
@@ -430,7 +431,7 @@ function lowerIdentifier(ident: ts.Identifier, ctx: LowerCtx, useType: ValueType
 // The stable HIR name for the variable an identifier resolves to. Falls back to the source
 // text keyed by position if the checker cannot produce a symbol (should not happen for the
 // admitted subset), so distinct-but-symbolless names never collide.
-function nameOf(ident: ts.Identifier, ctx: LowerCtx): string {
+export function nameOf(ident: ts.Identifier, ctx: LowerCtx): string {
   const symbol = ctx.checker.getSymbolAtLocation(ident);
   if (!symbol) return ice(`lower: no symbol for identifier ${ident.text}`);
   return nameForSymbol(symbol, ident.text, ctx);
@@ -445,390 +446,6 @@ function nameForSymbol(symbol: ts.Symbol, hint: string, ctx: LowerCtx): string {
     ctx.names.set(symbol, name);
   }
   return name;
-}
-
-// Returns an array because one `let a = 1, b = 2;` lowers to several varDecls.
-function lowerStatement(stmt: ts.Statement, ctx: LowerCtx): HStmt[] {
-  if (ts.isExpressionStatement(stmt)) {
-    if (ts.isCallExpression(stmt.expression)) return [lowerCallStatement(stmt.expression, ctx)];
-    return [lowerExprStatement(stmt.expression, ctx)];
-  }
-  if (ts.isVariableStatement(stmt)) {
-    return stmt.declarationList.declarations.map((d) => lowerVarDecl(d, ctx));
-  }
-  if (ts.isIfStatement(stmt)) {
-    return [lowerIf(stmt, ctx)];
-  }
-  if (ts.isWhileStatement(stmt)) {
-    return [
-      {
-        kind: "while",
-        cond: lowerExpr(stmt.expression, ctx),
-        body: lowerBranchBody(stmt.statement, ctx),
-      },
-    ];
-  }
-  if (ts.isForStatement(stmt)) {
-    return [lowerFor(stmt, ctx)];
-  }
-  if (ts.isForOfStatement(stmt)) {
-    return [lowerForOf(stmt, ctx)];
-  }
-  if (ts.isReturnStatement(stmt)) {
-    if (!stmt.expression) return [{ kind: "return", value: null }];
-    const value = coerceToTarget(
-      lowerExpr(stmt.expression, ctx),
-      ctx.currentReturnType ?? VT.undefined,
-    );
-    return [{ kind: "return", value }];
-  }
-  if (ts.isThrowStatement(stmt)) {
-    return [lowerThrow(stmt.expression, ctx)];
-  }
-  if (ts.isTryStatement(stmt)) {
-    if (!stmt.catchClause && !stmt.finallyBlock) ice("lower: try needs a catch or finally");
-    // `catch (e)` binds `e` (type `unknown`) to the caught CsThrown. A destructured binding is not
-    // supported.
-    const cc = stmt.catchClause;
-    let catchParam: string | null = null;
-    if (cc?.variableDeclaration) {
-      if (!ts.isIdentifier(cc.variableDeclaration.name)) {
-        ice("lower: destructured catch binding not supported");
-      }
-      catchParam = nameOf(cc.variableDeclaration.name as ts.Identifier, ctx);
-    }
-    return [
-      {
-        kind: "tryCatch",
-        tryBody: lowerStatements(stmt.tryBlock.statements, ctx),
-        catchBody: cc ? lowerStatements(cc.block.statements, ctx) : null,
-        catchParam,
-        finallyBody: stmt.finallyBlock ? lowerStatements(stmt.finallyBlock.statements, ctx) : null,
-      },
-    ];
-  }
-  if (ts.isBreakStatement(stmt)) {
-    if (stmt.label) ice("lower: labeled break not supported yet");
-    return [{ kind: "break" }];
-  }
-  if (ts.isContinueStatement(stmt)) {
-    if (stmt.label) ice("lower: labeled continue not supported yet");
-    return [{ kind: "continue" }];
-  }
-  if (ts.isSwitchStatement(stmt)) {
-    return [lowerSwitch(stmt, ctx)];
-  }
-  if (ts.isBlock(stmt)) {
-    // A bare block just contributes its statements (flattened; scoping is enforced by tsc, and
-    // shadowing is safe because names are symbol-unique).
-    return lowerStatements(stmt.statements, ctx);
-  }
-  return ice(`lower: unsupported statement ${ts.SyntaxKind[stmt.kind]}`);
-}
-
-// `throw expr`. The subset supports `throw new Error(msg)` (isError) and `throw <string>`; a
-// re-throw of a caught value (`throw e`) carries it through unchanged. Other thrown types are
-// rejected (they'd need general value boxing we don't do).
-function lowerThrow(expr: ts.Expression, ctx: LowerCtx): HStmt {
-  // `new Error(msg)` — Error is a builtin; take its first argument as the message.
-  if (
-    ts.isNewExpression(expr) &&
-    ts.isIdentifier(expr.expression) &&
-    expr.expression.text === "Error"
-  ) {
-    const arg = expr.arguments?.[0];
-    return { kind: "throwError", isError: true, message: arg ? lowerExpr(arg, ctx) : null };
-  }
-  const t = ctx.checker.getTypeAtLocation(expr);
-  // `throw e` where e is a caught (unknown) value → re-throw it unchanged.
-  if (t.flags & ts.TypeFlags.Unknown) {
-    return { kind: "rethrowValue", value: lowerExpr(expr, ctx) };
-  }
-  if (t.flags & ts.TypeFlags.StringLike) {
-    return { kind: "throwError", isError: false, message: lowerExpr(expr, ctx) };
-  }
-  return ice(
-    "lower: throw only supports `new Error(msg)`, a string, or re-throwing a caught value",
-  );
-}
-
-function lowerStatements(stmts: readonly ts.Statement[], ctx: LowerCtx): HStmt[] {
-  return stmts.flatMap((s) => lowerStatement(s, ctx));
-}
-
-// The body of a branch is either a block (`{ ... }`) or a single statement (`if (c) x();`).
-function lowerBranchBody(stmt: ts.Statement, ctx: LowerCtx): HStmt[] {
-  return ts.isBlock(stmt) ? lowerStatements(stmt.statements, ctx) : lowerStatement(stmt, ctx);
-}
-
-function lowerIf(stmt: ts.IfStatement, ctx: LowerCtx): HStmt {
-  return {
-    kind: "if",
-    cond: lowerExpr(stmt.expression, ctx),
-    then: lowerBranchBody(stmt.thenStatement, ctx),
-    otherwise: stmt.elseStatement ? lowerBranchBody(stmt.elseStatement, ctx) : null,
-  };
-}
-
-function lowerSwitch(stmt: ts.SwitchStatement, ctx: LowerCtx): HStmt {
-  const cases = stmt.caseBlock.clauses.map((clause) => ({
-    test: ts.isCaseClause(clause) ? lowerExpr(clause.expression, ctx) : null,
-    body: lowerStatements(clause.statements, ctx),
-  }));
-  return {
-    kind: "switch",
-    disc: lowerExpr(stmt.expression, ctx),
-    discType: resolveType(stmt.expression, ctx),
-    cases,
-  };
-}
-
-function lowerForOf(stmt: ts.ForOfStatement, ctx: LowerCtx): HStmt {
-  // Lower the iterable FIRST and read its lowered type — `m.keys()` / `s.values()` are typed as
-  // iterators by tsc but lower to a materialized array here, so trust the lowered type.
-  const array = lowerExpr(stmt.expression, ctx);
-  if (array.type.kind !== "array") ice("lower: for...of is only supported over arrays yet");
-  // The loop variable is `for (const x of arr)`.
-  if (!ts.isVariableDeclarationList(stmt.initializer)) {
-    ice("lower: for...of requires a `const`/`let` binding");
-  }
-  const decl = stmt.initializer.declarations[0]!;
-  if (!ts.isIdentifier(decl.name)) ice("lower: for...of destructuring not supported yet");
-  return {
-    kind: "forOf",
-    name: nameOf(decl.name, ctx),
-    elementType: array.type.element,
-    array,
-    body: lowerBranchBody(stmt.statement, ctx),
-  };
-}
-
-function lowerFor(stmt: ts.ForStatement, ctx: LowerCtx): HStmt {
-  let init: HStmt[] = [];
-  if (stmt.initializer) {
-    init = ts.isVariableDeclarationList(stmt.initializer)
-      ? stmt.initializer.declarations.map((d) => lowerVarDecl(d, ctx))
-      : [lowerExprStatement(stmt.initializer, ctx)];
-  }
-  const update = stmt.incrementor ? [lowerExprStatement(stmt.incrementor, ctx)] : [];
-  return {
-    kind: "for",
-    init,
-    cond: stmt.condition ? lowerExpr(stmt.condition, ctx) : null,
-    update,
-    body: lowerBranchBody(stmt.statement, ctx),
-  };
-}
-
-// A statement-position expression whose value is discarded: assignment, compound assignment,
-// or ++/-- (which we desugar to an assignment). Used for expression statements and for-clauses.
-function lowerExprStatement(expr: ts.Expression, ctx: LowerCtx): HStmt {
-  if (ts.isBinaryExpression(expr) && isAssignmentOp(expr.operatorToken.kind)) {
-    return lowerAssignment(expr, ctx);
-  }
-  if (ts.isPostfixUnaryExpression(expr) || ts.isPrefixUnaryExpression(expr)) {
-    return lowerIncDec(expr, ctx);
-  }
-  return ice(`lower: unsupported expression statement ${ts.SyntaxKind[expr.kind]}`);
-}
-
-// `i++` / `i--` / `++i` / `--i` in statement position → `i = i +/- 1`. The pre/post distinction
-// only matters for the produced value, which statement position discards.
-function lowerIncDec(
-  expr: ts.PostfixUnaryExpression | ts.PrefixUnaryExpression,
-  ctx: LowerCtx,
-): HStmt {
-  const op = expr.operator;
-  if (op !== ts.SyntaxKind.PlusPlusToken && op !== ts.SyntaxKind.MinusMinusToken) {
-    // A prefix +/-/! in statement position has no effect and is pointless — reject upstream.
-    return ice(`lower: unsupported unary statement operator ${ts.SyntaxKind[op]}`);
-  }
-  const binOp = op === ts.SyntaxKind.PlusPlusToken ? "add" : "sub";
-  const one: HExpr = { kind: "numberLit", value: 1, type: VT.number };
-
-  // `obj.field++` → `obj.field = obj.field ± 1`.
-  if (ts.isPropertyAccessExpression(expr.operand)) {
-    const pa = expr.operand;
-    const objType = resolveType(pa.expression, ctx);
-    if (objType.kind !== "object") ice(`lower: ++/-- on non-object property .${pa.name.text}`);
-    const slot = objType.shape.fields.findIndex((f) => f.name === pa.name.text);
-    if (slot < 0) ice(`lower: object has no field ${pa.name.text}`);
-    const object = lowerExpr(pa.expression, ctx);
-    return {
-      kind: "memberSet",
-      object,
-      slot,
-      value: {
-        kind: "binary",
-        op: binOp,
-        left: { kind: "memberGet", object, slot, type: VT.number },
-        right: one,
-        type: VT.number,
-      },
-    };
-  }
-
-  if (!ts.isIdentifier(expr.operand)) ice("lower: ++/-- only supported on a variable or field");
-  const name = nameOf(expr.operand, ctx);
-  const numberType = resolveType(expr.operand, ctx);
-  return {
-    kind: "assign",
-    name,
-    value: {
-      kind: "binary",
-      op: binOp,
-      left: { kind: "varRef", name, type: numberType },
-      right: one,
-      type: numberType,
-    },
-  };
-}
-
-function lowerAssignment(expr: ts.BinaryExpression, ctx: LowerCtx): HStmt {
-  const op = expr.operatorToken.kind;
-  if (ts.isPropertyAccessExpression(expr.left)) {
-    return lowerMemberAssignment(expr.left, op, expr.right, ctx);
-  }
-  if (!ts.isIdentifier(expr.left)) ice("lower: only `name = ...` / `obj.field = ...` supported");
-  const left = expr.left as ts.Identifier;
-  const name = nameOf(left, ctx);
-  if (op === ts.SyntaxKind.EqualsToken) {
-    const value = coerceToTarget(lowerExpr(expr.right, ctx), declaredTypeOfIdent(left, ctx));
-    return { kind: "assign", name, value };
-  }
-  // Compound assignment `name <op>= rhs` desugars to `name = name <op> rhs`. The value's type
-  // matches the variable (numeric compound ops on a number stay a number).
-  const value: HExpr = {
-    kind: "binary",
-    op: compoundOp(op),
-    left: lowerExpr(left, ctx),
-    right: lowerExpr(expr.right, ctx),
-    type: resolveType(left, ctx),
-  };
-  return { kind: "assign", name, value };
-}
-
-// `obj.field = rhs` / `obj.field <op>= rhs`. The object is lowered once; a compound op reads the
-// current field value via a memberGet on the same object expression.
-function lowerMemberAssignment(
-  lhs: ts.PropertyAccessExpression,
-  op: ts.SyntaxKind,
-  rhs: ts.Expression,
-  ctx: LowerCtx,
-): HStmt {
-  const objType = resolveType(lhs.expression, ctx);
-  if (objType.kind !== "object") ice(`lower: assignment to .${lhs.name.text} on non-object`);
-  const slot = objType.shape.fields.findIndex((f) => f.name === lhs.name.text);
-  if (slot < 0) ice(`lower: object has no field ${lhs.name.text}`);
-  const fieldType = objType.shape.fields[slot]!.type;
-  const object = lowerExpr(lhs.expression, ctx);
-  if (op === ts.SyntaxKind.EqualsToken) {
-    return { kind: "memberSet", object, slot, value: lowerExpr(rhs, ctx) };
-  }
-  const value: HExpr = {
-    kind: "binary",
-    op: compoundOp(op),
-    left: { kind: "memberGet", object, slot, type: fieldType },
-    right: lowerExpr(rhs, ctx),
-    type: fieldType,
-  };
-  return { kind: "memberSet", object, slot, value };
-}
-
-function lowerVarDecl(decl: ts.VariableDeclaration, ctx: LowerCtx): HStmt {
-  if (!ts.isIdentifier(decl.name)) ice("lower: destructuring declarations not supported yet");
-  if (!decl.initializer) ice("lower: variable declaration without initializer not supported yet");
-  // The slot type is the variable's DECLARED type (its annotation, or the widened init type) so
-  // an `x: T | null` var stores the optional rep even when initialized with a present value.
-  const declaredType = valueTypeOf(decl.name, ctx);
-  const init = coerceToTarget(lowerExpr(decl.initializer, ctx), declaredType);
-  return { kind: "varDecl", name: nameOf(decl.name, ctx), init, type: declaredType };
-}
-
-// The class that DEFINES a method (walks to its declaring class), so an inherited method
-// dispatches to the base class that implements it. Falls back to the static receiver class.
-function methodDefiningClass(name: ts.MemberName, ctx: LowerCtx, fallback: string): string {
-  const sym = ctx.checker.getSymbolAtLocation(name);
-  const d = sym?.valueDeclaration ?? sym?.declarations?.[0];
-  if (d && (ts.isMethodDeclaration(d) || ts.isMethodSignature(d))) {
-    const parent = d.parent;
-    if (parent && ts.isClassDeclaration(parent) && parent.name) return parent.name.text;
-  }
-  return fallback;
-}
-
-// A `varRef` to the current `this` — the receiver used for `super(...)` / `super.m(...)` calls.
-export function thisRef(ctx: LowerCtx): HExpr {
-  if (!ctx.currentThis) return ice("lower: `super`/`this` used outside a method");
-  return { kind: "varRef", name: ctx.currentThis.name, type: ctx.currentThis.type };
-}
-
-function lowerCallStatement(call: ts.CallExpression, ctx: LowerCtx): HStmt {
-  const target = calleeName(call.expression);
-  // `super(...)` — delegate to the base constructor with `this` prepended.
-  if (call.expression.kind === ts.SyntaxKind.SuperKeyword) {
-    if (!ctx.currentBaseClass) return ice("lower: `super()` with no base class");
-    return {
-      kind: "callStmt",
-      name: `${ctx.currentBaseClass}.constructor`,
-      args: [thisRef(ctx), ...call.arguments.map((a) => lowerExpr(a, ctx))],
-      returnType: null,
-    };
-  }
-
-  switch (target) {
-    case "console.log":
-      // Variadic: zero or more values, any supported type each.
-      return { kind: "consoleLog", values: call.arguments.map((a) => lowerExpr(a, ctx)) };
-    case "process.exit": {
-      const arg = call.arguments[0];
-      if (call.arguments.length !== 1 || !arg) ice("lower: process.exit expects one argument");
-      return { kind: "processExit", code: lowerExpr(arg, ctx) };
-    }
-    default: {
-      // A method call `obj.method(...)` in statement position → evaluate for effect, discard.
-      if (ts.isPropertyAccessExpression(call.expression)) {
-        const pa = call.expression;
-        if (isMathNamespace(pa.expression)) {
-          return { kind: "exprStmt", expr: lowerMethodCall(call, ctx) };
-        }
-        // `super.m(...)` → non-virtual call into the base class with `this` as the receiver.
-        if (pa.expression.kind === ts.SyntaxKind.SuperKeyword) {
-          if (!ctx.currentBaseClass) return ice("lower: `super` with no base class");
-          return {
-            kind: "callStmt",
-            name: `${ctx.currentBaseClass}.${pa.name.text}`,
-            args: [thisRef(ctx), ...call.arguments.map((a) => lowerExpr(a, ctx))],
-            returnType: callReturnType(call, ctx),
-          };
-        }
-        const recvType = resolveType(pa.expression, ctx);
-        // A class method (possibly void) → callStmt with `this` prepended, so void methods work.
-        // Dispatch to the class that DEFINES the method (an inherited method lives on the base).
-        if (recvType.kind === "object" && recvType.className !== undefined) {
-          // VIRTUAL dispatch (statement position; handles void methods too).
-          return {
-            kind: "virtualCallStmt",
-            receiver: lowerExpr(pa.expression, ctx),
-            vtableIndex: vtableIndexOf(recvType.className, pa.name.text, ctx),
-            args: call.arguments.map((a) => lowerExpr(a, ctx)),
-            returnType: callReturnType(call, ctx),
-          };
-        }
-        return { kind: "exprStmt", expr: lowerMethodCall(call, ctx) };
-      }
-      // A user-function call in statement position: evaluate for effect, discard the result.
-      if (!ts.isIdentifier(call.expression)) {
-        return ice(`lower: unsupported call target ${ts.SyntaxKind[call.expression.kind]}`);
-      }
-      return {
-        kind: "callStmt",
-        name: nameOf(call.expression, ctx),
-        args: lowerCallArgs(call, ctx),
-        returnType: callReturnType(call, ctx),
-      };
-    }
-  }
 }
 
 // A call used as a value: a user function `foo(args)`, a method `obj.method(args)`, or a call
@@ -1082,7 +699,7 @@ export function coerceToTarget(h: HExpr, target: ValueType): HExpr {
 
 // The DECLARED type of the variable an identifier resolves to (its slot type, not the narrowed
 // use-type) — for coercing an assignment's RHS into an optional slot.
-function declaredTypeOfIdent(ident: ts.Identifier, ctx: LowerCtx): ValueType {
+export function declaredTypeOfIdent(ident: ts.Identifier, ctx: LowerCtx): ValueType {
   const sym = ctx.checker.getSymbolAtLocation(ident);
   if (sym?.valueDeclaration) {
     return valueTypeOfTsType(
@@ -1097,7 +714,7 @@ function declaredTypeOfIdent(ident: ts.Identifier, ctx: LowerCtx): ValueType {
 // Lower a user call's arguments, coercing each into its parameter's (possibly optional) type.
 // Only user functions/closures reach here — builtin methods/globals have their own lowering — so
 // resolving the signature's parameter types is safe.
-function lowerCallArgs(call: ts.CallExpression, ctx: LowerCtx): HExpr[] {
+export function lowerCallArgs(call: ts.CallExpression, ctx: LowerCtx): HExpr[] {
   const sig = ctx.checker.getResolvedSignature(call);
   const params = sig?.parameters ?? [];
   const last = params[params.length - 1];
@@ -1414,7 +1031,7 @@ export function resolveType(expr: ts.Expression, ctx: LowerCtx): ValueType {
 }
 
 // The element type of an Array<T> (null if `t` is not an array type).
-function isAssignmentOp(kind: ts.SyntaxKind): boolean {
+export function isAssignmentOp(kind: ts.SyntaxKind): boolean {
   return (
     kind === ts.SyntaxKind.EqualsToken ||
     kind === ts.SyntaxKind.PlusEqualsToken ||
@@ -1425,7 +1042,7 @@ function isAssignmentOp(kind: ts.SyntaxKind): boolean {
   );
 }
 
-function compoundOp(kind: ts.SyntaxKind): BinaryOp {
+export function compoundOp(kind: ts.SyntaxKind): BinaryOp {
   switch (kind) {
     case ts.SyntaxKind.PlusEqualsToken:
       return "add";
@@ -1499,7 +1116,7 @@ function binaryOp(kind: ts.SyntaxKind): BinaryOp {
 }
 
 // "console.log" / "process.exit" for a property-access callee; bare name otherwise.
-function calleeName(expr: ts.Expression): string {
+export function calleeName(expr: ts.Expression): string {
   if (ts.isPropertyAccessExpression(expr) && ts.isIdentifier(expr.expression)) {
     return `${expr.expression.text}.${expr.name.text}`;
   }
