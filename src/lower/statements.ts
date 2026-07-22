@@ -32,7 +32,7 @@ export function lowerStatement(stmt: ts.Statement, ctx: LowerCtx): HStmt[] {
     return [lowerExprStatement(stmt.expression, ctx)];
   }
   if (ts.isVariableStatement(stmt)) {
-    return stmt.declarationList.declarations.map((d) => lowerVarDecl(d, ctx));
+    return stmt.declarationList.declarations.flatMap((d) => lowerVarDecl(d, ctx));
   }
   if (ts.isIfStatement(stmt)) {
     return [lowerIf(stmt, ctx)];
@@ -185,7 +185,7 @@ export function lowerFor(stmt: ts.ForStatement, ctx: LowerCtx): HStmt {
   let init: HStmt[] = [];
   if (stmt.initializer) {
     init = ts.isVariableDeclarationList(stmt.initializer)
-      ? stmt.initializer.declarations.map((d) => lowerVarDecl(d, ctx))
+      ? stmt.initializer.declarations.flatMap((d) => lowerVarDecl(d, ctx))
       : [lowerExprStatement(stmt.initializer, ctx)];
   }
   const update = stmt.incrementor ? [lowerExprStatement(stmt.incrementor, ctx)] : [];
@@ -317,14 +317,50 @@ export function lowerMemberAssignment(
   return { kind: "memberSet", object, slot, value };
 }
 
-export function lowerVarDecl(decl: ts.VariableDeclaration, ctx: LowerCtx): HStmt {
-  if (!ts.isIdentifier(decl.name)) ice("lower: destructuring declarations not supported yet");
+export function lowerVarDecl(decl: ts.VariableDeclaration, ctx: LowerCtx): HStmt[] {
   if (!decl.initializer) ice("lower: variable declaration without initializer not supported yet");
+  if (ts.isObjectBindingPattern(decl.name))
+    return lowerObjectDestructuring(decl.name, decl.initializer, ctx);
+  if (!ts.isIdentifier(decl.name)) ice("lower: array destructuring not supported yet");
   // The slot type is the variable's DECLARED type (its annotation, or the widened init type) so
   // an `x: T | null` var stores the optional rep even when initialized with a present value.
   const declaredType = valueTypeOf(decl.name, ctx);
   const init = coerceToTarget(lowerExpr(decl.initializer, ctx), declaredType);
-  return { kind: "varDecl", name: nameOf(decl.name, ctx), init, type: declaredType };
+  return [{ kind: "varDecl", name: nameOf(decl.name, ctx), init, type: declaredType }];
+}
+
+// `const { a, b: renamed } = obj` → bind the object to a temp (evaluated ONCE) then one varDecl per
+// field via memberGet. Nested patterns, defaults (`{a = 1}`), and rest (`{...r}`) are not in the
+// subset (validate admits only ObjectBindingPattern + a plain BindingElement).
+function lowerObjectDestructuring(
+  pattern: ts.ObjectBindingPattern,
+  initializer: ts.Expression,
+  ctx: LowerCtx,
+): HStmt[] {
+  const init = lowerExpr(initializer, ctx);
+  if (init.type.kind !== "object") ice("lower: object destructuring of a non-object value");
+  const shape = init.type.shape;
+  const tempName = `__destr.${ctx.counter.n++}`;
+  const tempRef: HExpr = { kind: "varRef", name: tempName, type: init.type };
+  const stmts: HStmt[] = [{ kind: "varDecl", name: tempName, init, type: init.type }];
+  for (const el of pattern.elements) {
+    if (el.dotDotDotToken) ice("lower: rest in object destructuring not supported yet");
+    if (el.initializer) ice("lower: default in object destructuring not supported yet");
+    if (!ts.isIdentifier(el.name)) ice("lower: nested destructuring not supported yet");
+    // `{ a }` → source prop is `a`; `{ a: x }` → propertyName `a`, binds `x`.
+    const srcProp =
+      el.propertyName && ts.isIdentifier(el.propertyName) ? el.propertyName.text : el.name.text;
+    const slot = shape.fields.findIndex((f) => f.name === srcProp);
+    if (slot < 0) ice(`lower: destructured object has no field ${srcProp}`);
+    const fieldType = shape.fields[slot]!.type;
+    stmts.push({
+      kind: "varDecl",
+      name: nameOf(el.name, ctx),
+      init: { kind: "memberGet", object: tempRef, slot, type: fieldType },
+      type: fieldType,
+    });
+  }
+  return stmts;
 }
 
 // The class that DEFINES a method (walks to its declaring class), so an inherited method

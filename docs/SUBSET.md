@@ -13,6 +13,7 @@ diagnostic — there is no "compiles but behaves differently than Node" third ca
 - `AsyncKeyword`
 - `AwaitExpression`
 - `BinaryExpression`
+- `BindingElement`
 - `Block`
 - `BooleanKeyword`
 - `BreakStatement`
@@ -48,6 +49,7 @@ diagnostic — there is no "compiles but behaves differently than Node" third ca
 - `NewExpression`
 - `NullKeyword`
 - `NumberKeyword`
+- `ObjectBindingPattern`
 - `ObjectLiteralExpression`
 - `OverrideKeyword`
 - `Parameter`

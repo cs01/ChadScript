@@ -59,6 +59,11 @@ export const ALLOWED_KINDS: ReadonlySet<ts.SyntaxKind> = new Set([
   ts.SyntaxKind.PropertyAssignment,
   ts.SyntaxKind.ShorthandPropertyAssignment,
   ts.SyntaxKind.SpreadAssignment, // `{ ...src }` in an object literal
+  // Object destructuring in a variable declaration: `const { a, b: x } = obj`. Lowered to a temp
+  // plus one binding per field. Array destructuring (ArrayBindingPattern) stays rejected; nested
+  // patterns / defaults / rest reject in lowering.
+  ts.SyntaxKind.ObjectBindingPattern,
+  ts.SyntaxKind.BindingElement,
   ts.SyntaxKind.InterfaceDeclaration,
   ts.SyntaxKind.TypeAliasDeclaration,
   ts.SyntaxKind.PropertySignature,
