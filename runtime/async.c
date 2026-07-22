@@ -137,8 +137,16 @@ int64_t cs_await(Promise *p) {
   if (p->state == CS_PENDING) {
     Waiter *w = GC_malloc(sizeof(Waiter));
     w->fiber = self;
-    w->next = p->waiters;
-    p->waiters = w;
+    w->next = NULL;
+    // Append to the TAIL so multiple awaiters of one promise resume in registration order (FIFO),
+    // matching JS. (Front-insertion here would resume them LIFO.) Waiter lists are short.
+    if (!p->waiters) {
+      p->waiters = w;
+    } else {
+      Waiter *t = p->waiters;
+      while (t->next) t = t->next;
+      t->next = w;
+    }
     swapcontext(&self->ctx, &cs_sched_ctx); // suspend until resolved
     return self->resumeVal;
   }
