@@ -18,7 +18,7 @@ import { tailoredRejection } from "./rules.js";
 
 // SyntaxKinds the walker is allowed to descend through. PHASE 0 surface only — extend with
 // each phase, never silently. Anything absent here is rejected by default-deny.
-const ALLOWED_KINDS: ReadonlySet<ts.SyntaxKind> = new Set([
+export const ALLOWED_KINDS: ReadonlySet<ts.SyntaxKind> = new Set([
   ts.SyntaxKind.SourceFile,
   ts.SyntaxKind.EndOfFileToken,
   ts.SyntaxKind.ExpressionStatement,
@@ -110,7 +110,7 @@ const ALLOWED_KINDS: ReadonlySet<ts.SyntaxKind> = new Set([
 
 // Supported operators, checked per-operator so an admitted expression kind doesn't smuggle in
 // operators codegen can't lower. `==`/`!=` are handled earlier by tailored rejection (CS1203).
-const SUPPORTED_BINARY_OPS: ReadonlySet<ts.SyntaxKind> = new Set([
+export const SUPPORTED_BINARY_OPS: ReadonlySet<ts.SyntaxKind> = new Set([
   // Arithmetic (number → number).
   ts.SyntaxKind.PlusToken,
   ts.SyntaxKind.MinusToken,
@@ -145,7 +145,7 @@ const SUPPORTED_BINARY_OPS: ReadonlySet<ts.SyntaxKind> = new Set([
   ts.SyntaxKind.PercentEqualsToken,
 ]);
 
-const SUPPORTED_UNARY_OPS: ReadonlySet<ts.SyntaxKind> = new Set([
+export const SUPPORTED_UNARY_OPS: ReadonlySet<ts.SyntaxKind> = new Set([
   ts.SyntaxKind.PlusToken,
   ts.SyntaxKind.MinusToken,
   ts.SyntaxKind.PlusPlusToken, // ++i

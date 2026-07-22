@@ -256,7 +256,7 @@ const UNSUPPORTED_NUMBER_METHODS: ReadonlySet<string> = new Set([
 ]);
 
 // Map/Set instance methods lowering supports. `.size` is a property read, not a call — unaffected.
-const COLLECTION_METHODS: Record<"map" | "set", ReadonlySet<string>> = {
+export const COLLECTION_METHODS: Record<"map" | "set", ReadonlySet<string>> = {
   map: new Set(["set", "get", "has", "delete", "keys", "values"]),
   set: new Set(["add", "has", "delete", "keys", "values"]),
 };
@@ -265,7 +265,7 @@ const COLLECTION_METHODS: Record<"map" | "set", ReadonlySet<string>> = {
 // forms in evalStrMethod/strAt (strings) and the array-method dispatch in lowerMethodCall (arrays).
 // Kept as allowlists (default-DENY): any method absent here rejects, so an un-probed method fails
 // closed rather than ICE'ing. The differential/valall gates catch an accidental over-rejection.
-const STRING_METHODS: ReadonlySet<string> = new Set([
+export const STRING_METHODS: ReadonlySet<string> = new Set([
   "toUpperCase",
   "toLowerCase",
   "trim",
@@ -289,7 +289,7 @@ const STRING_METHODS: ReadonlySet<string> = new Set([
   "substring",
   "at",
 ]);
-const ARRAY_METHODS: ReadonlySet<string> = new Set([
+export const ARRAY_METHODS: ReadonlySet<string> = new Set([
   "push",
   "pop",
   "shift",
@@ -494,7 +494,7 @@ function isClassInstanceType(t: ts.Type): boolean {
 // Static (namespace) methods lowering supports, per global. A call `X.m(...)` with `X` in this
 // table and `m` absent from its set is rejected (CS1220). Empty set = no static of that global is
 // supported yet. Instance methods and the `X(...)` conversion calls are NOT gated here.
-const NAMESPACE_STATIC_ALLOW: Record<string, ReadonlySet<string>> = {
+export const NAMESPACE_STATIC_ALLOW: Record<string, ReadonlySet<string>> = {
   Object: new Set(["keys", "values"]),
   Array: new Set(),
   Number: new Set(),
