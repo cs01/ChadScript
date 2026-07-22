@@ -10,7 +10,7 @@ import { ice } from "../diagnostics.js";
 import { ModuleBuilder, imm } from "../ir/builder.js";
 import { T } from "../ir/types.js";
 import type { HModule, HStmt } from "../hir/nodes.js";
-import { evalNumber, evalBool, type Ctx } from "./expr.js";
+import { evalNumber, evalBool, evalString, evalValue, irTypeOf, type Ctx } from "./expr.js";
 
 export function generate(hmod: HModule): string {
   const mod = new ModuleBuilder();
@@ -20,7 +20,7 @@ export function generate(hmod: HModule): string {
   mod.declareExtern("exit", T.void, [T.i32]);
 
   const fn = mod.defineFunc("main", T.i32, []);
-  const ctx: Ctx = { mod, fn };
+  const ctx: Ctx = { mod, fn, vars: new Map() };
   for (const stmt of hmod.statements) emitStatement(stmt, ctx);
   fn.ret(imm(T.i32, 0));
   return mod.render();
@@ -35,11 +35,7 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
           ctx.fn.callVoid("@cs_console_log_f64", [evalNumber(v, ctx)]);
           return;
         case "string":
-          if (v.kind === "stringLit") {
-            ctx.fn.callVoid("@cs_console_log_cstr", [ctx.mod.cstring(v.value)]);
-            return;
-          }
-          ice("codegen: console.log(string) supports a string literal only (Phase 1)");
+          ctx.fn.callVoid("@cs_console_log_cstr", [evalString(v, ctx)]);
           return;
         case "boolean":
           // Runtime takes the boolean as i32 (0/1).
@@ -55,6 +51,14 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
       // JS exit code: evaluate the number, truncate to i32.
       ctx.fn.callVoid("@exit", [ctx.fn.fptosi_i32(evalNumber(stmt.code, ctx))]);
       return;
+
+    case "varDecl": {
+      // Allocate a slot, evaluate the initializer, store it, and bind the name.
+      const ptr = ctx.fn.alloca(irTypeOf(stmt.type));
+      ctx.fn.store(evalValue(stmt.init, ctx), ptr);
+      ctx.vars.set(stmt.name, { ptr, vtype: stmt.type });
+      return;
+    }
 
     default:
       ice(`codegen: unhandled statement ${(stmt as { kind: string }).kind}`);

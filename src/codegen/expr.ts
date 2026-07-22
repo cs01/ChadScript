@@ -5,12 +5,64 @@
 
 import { ice } from "../diagnostics.js";
 import { fimm, imm, type Value, type ModuleBuilder, type FuncBuilder } from "../ir/builder.js";
-import { T } from "../ir/types.js";
+import { T, type IrType } from "../ir/types.js";
 import type { HExpr, BinaryOp } from "../hir/nodes.js";
+import type { ValueType } from "../hir/types.js";
 
 export interface Ctx {
   mod: ModuleBuilder;
   fn: FuncBuilder;
+  // Live variable slots: name → its stack pointer + resolved type.
+  vars: Map<string, { ptr: Value; vtype: ValueType }>;
+}
+
+// The machine representation of a source-level type.
+export function irTypeOf(vt: ValueType): IrType {
+  switch (vt.kind) {
+    case "number":
+      return T.double;
+    case "boolean":
+      return T.i1;
+    case "string":
+      return T.ptr;
+    case "null":
+    case "undefined":
+      return ice(`irTypeOf: ${vt.kind} has no storage representation yet`);
+    default:
+      return ice(`irTypeOf: unhandled ValueType ${(vt as { kind: string }).kind}`);
+  }
+}
+
+function lookupVar(name: string, ctx: Ctx): { ptr: Value; vtype: ValueType } {
+  const slot = ctx.vars.get(name);
+  if (!slot) ice(`codegen: reference to unbound variable ${name}`);
+  return slot;
+}
+
+// Evaluate any supported HExpr to an IR Value, dispatched on its resolved type.
+export function evalValue(expr: HExpr, ctx: Ctx): Value {
+  switch (expr.type.kind) {
+    case "number":
+      return evalNumber(expr, ctx);
+    case "boolean":
+      return evalBool(expr, ctx);
+    case "string":
+      return evalString(expr, ctx);
+    default:
+      return ice(`evalValue: ${expr.type.kind} not supported yet`);
+  }
+}
+
+// Evaluate a string-typed HExpr to a ptr Value (cstring for a literal; a load for a varRef).
+export function evalString(expr: HExpr, ctx: Ctx): Value {
+  switch (expr.kind) {
+    case "stringLit":
+      return ctx.mod.cstring(expr.value);
+    case "varRef":
+      return ctx.fn.load(T.ptr, lookupVar(expr.name, ctx).ptr);
+    default:
+      return ice(`evalString: unhandled string expression ${expr.kind}`);
+  }
 }
 
 const RELATIONAL: Partial<Record<BinaryOp, string>> = {
@@ -25,6 +77,9 @@ export function evalNumber(expr: HExpr, ctx: Ctx): Value {
   switch (expr.kind) {
     case "numberLit":
       return fimm(expr.value);
+
+    case "varRef":
+      return ctx.fn.load(T.double, lookupVar(expr.name, ctx).ptr);
 
     case "unary": {
       const op = expr.op;
@@ -73,6 +128,9 @@ export function evalBool(expr: HExpr, ctx: Ctx): Value {
   switch (expr.kind) {
     case "boolLit":
       return imm(T.i1, expr.value ? 1 : 0);
+
+    case "varRef":
+      return ctx.fn.load(T.i1, lookupVar(expr.name, ctx).ptr);
 
     case "binary":
       return evalComparison(expr, ctx);

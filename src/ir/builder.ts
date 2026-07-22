@@ -40,6 +40,10 @@ export class FuncBuilder {
   readonly blocks: BasicBlock[] = [];
   private tempCounter = 0;
   private current: BasicBlock;
+  // Allocas are rendered at the top of the entry block regardless of where alloca() is called.
+  // LLVM requires stack slots in the entry block for mem2reg to promote them; emitting them
+  // inside a conditional block would defeat that (and re-run the alloca on every iteration).
+  private readonly allocas: string[] = [];
 
   constructor(
     readonly name: string,
@@ -52,6 +56,26 @@ export class FuncBuilder {
 
   private nextTemp(type: IrType): Value {
     return { name: `%t${this.tempCounter++}`, type };
+  }
+
+  // Stack slot for a local. Returns a ptr Value; use store/load to access it. Always hoisted
+  // to the entry block (see `allocas`).
+  alloca(type: IrType): Value {
+    const result = this.nextTemp(T.ptr);
+    this.allocas.push(`  ${result.name} = alloca ${llvmType(type)}`);
+    return result;
+  }
+
+  store(value: Value, ptr: Value): void {
+    if (ptr.type.kind !== "ptr") ice(`store target must be ptr, got ${ptr.type.kind}`);
+    this.current.add(`store ${llvmType(value.type)} ${value.name}, ptr ${ptr.name}`);
+  }
+
+  load(type: IrType, ptr: Value): Value {
+    if (ptr.type.kind !== "ptr") ice(`load source must be ptr, got ${ptr.type.kind}`);
+    const result = this.nextTemp(type);
+    this.current.add(`${result.name} = load ${llvmType(type)}, ptr ${ptr.name}`);
+    return result;
   }
 
   // call to a value-returning function; returns the typed result Value.
@@ -151,7 +175,12 @@ export class FuncBuilder {
     }
     const sig = this.params.map((p) => `${llvmType(p.type)} ${p.name}`).join(", ");
     const body = this.blocks
-      .map((b, i) => (i === 0 ? "" : `${b.label}:\n`) + b.instructions.join("\n"))
+      .map((b, i) => {
+        // Entry block leads with the hoisted allocas, then its own instructions.
+        const header = i === 0 ? this.allocas.join("\n") : `${b.label}:`;
+        const lines = [header, b.instructions.join("\n")].filter((s) => s.length > 0);
+        return lines.join("\n");
+      })
       .join("\n");
     return `define ${llvmType(this.returnType)} @${this.name}(${sig}) {\n${body}\n}`;
   }

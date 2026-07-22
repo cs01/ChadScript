@@ -15,16 +15,27 @@ import type { ValueType } from "../hir/types.js";
 export function lower(loaded: LoadedProgram): HModule {
   const statements: HStmt[] = [];
   for (const sf of loaded.sourceFiles) {
-    for (const stmt of sf.statements) statements.push(lowerStatement(stmt, loaded.checker));
+    for (const stmt of sf.statements) statements.push(...lowerStatement(stmt, loaded.checker));
   }
   return { statements };
 }
 
-function lowerStatement(stmt: ts.Statement, checker: ts.TypeChecker): HStmt {
+// Returns an array because one `let a = 1, b = 2;` lowers to several varDecls.
+function lowerStatement(stmt: ts.Statement, checker: ts.TypeChecker): HStmt[] {
   if (ts.isExpressionStatement(stmt) && ts.isCallExpression(stmt.expression)) {
-    return lowerCallStatement(stmt.expression, checker);
+    return [lowerCallStatement(stmt.expression, checker)];
+  }
+  if (ts.isVariableStatement(stmt)) {
+    return stmt.declarationList.declarations.map((d) => lowerVarDecl(d, checker));
   }
   return ice(`lower: unsupported statement ${ts.SyntaxKind[stmt.kind]}`);
+}
+
+function lowerVarDecl(decl: ts.VariableDeclaration, checker: ts.TypeChecker): HStmt {
+  if (!ts.isIdentifier(decl.name)) ice("lower: destructuring declarations not supported yet");
+  if (!decl.initializer) ice("lower: variable declaration without initializer not supported yet");
+  const init = lowerExpr(decl.initializer, checker);
+  return { kind: "varDecl", name: decl.name.text, init, type: init.type };
 }
 
 function lowerCallStatement(call: ts.CallExpression, checker: ts.TypeChecker): HStmt {
@@ -56,6 +67,11 @@ function lowerExpr(expr: ts.Expression, checker: ts.TypeChecker): HExpr {
 
     case ts.SyntaxKind.FalseKeyword:
       return { kind: "boolLit", value: false, type };
+
+    case ts.SyntaxKind.Identifier:
+      // A bare identifier in expression position is a variable reference (callees like
+      // console.log are handled separately in calleeName, never through lowerExpr).
+      return { kind: "varRef", name: (expr as ts.Identifier).text, type };
 
     case ts.SyntaxKind.ParenthesizedExpression:
       return lowerExpr((expr as ts.ParenthesizedExpression).expression, checker);

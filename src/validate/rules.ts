@@ -61,6 +61,13 @@ export function tailoredRejection(node: ts.Node, sf: ts.SourceFile): Diagnostic 
     case ts.SyntaxKind.WithStatement:
       return hit(CODE.WITH, "`with` is not supported", "access properties explicitly");
 
+    case ts.SyntaxKind.VariableDeclarationList:
+      // `var` has function-scoped hoisting semantics we don't model. Only let/const.
+      if (!(node.flags & (ts.NodeFlags.Let | ts.NodeFlags.Const))) {
+        return hit(CODE.VAR, "`var` is not supported", "use `let` or `const`");
+      }
+      return null;
+
     case ts.SyntaxKind.BinaryExpression:
       return checkBinary(node as ts.BinaryExpression, hit);
 

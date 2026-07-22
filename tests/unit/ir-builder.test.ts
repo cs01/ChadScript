@@ -47,6 +47,17 @@ test("cstring interns a NUL-terminated byte array and returns a ptr value", () =
   assert.match(ir, /\[3 x i8\] c"\\68\\69\\00"/);
 });
 
+test("allocas render at the top of the entry block, before other instructions", () => {
+  const fn = new FuncBuilder("main", T.void, []);
+  fn.callVoid("@side_effect", []); // a non-alloca instruction emitted first
+  const slot = fn.alloca(T.double); // alloca requested AFTER it
+  fn.store(imm(T.double, "0x0000000000000000"), slot);
+  fn.retVoid();
+  const ir = fn.finish();
+  // The alloca line must precede the call, even though alloca() was called later.
+  assert.ok(ir.indexOf("= alloca double") < ir.indexOf("call void @side_effect"));
+});
+
 test("declareExtern dedups and render wires a call", () => {
   const mod = new ModuleBuilder();
   mod.declareExtern("cs_console_log_cstr", T.void, [T.ptr]);

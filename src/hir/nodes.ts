@@ -9,7 +9,12 @@ export interface HModule {
   statements: HStmt[];
 }
 
-export type HStmt = { kind: "consoleLog"; value: HExpr } | { kind: "processExit"; code: HExpr };
+export type HStmt =
+  | { kind: "consoleLog"; value: HExpr }
+  | { kind: "processExit"; code: HExpr }
+  // A `let`/`const` binding with an initializer. `name` is unique per module (Phase 1 has a
+  // single scope — the entry function). `type` is the variable's resolved type.
+  | { kind: "varDecl"; name: string; init: HExpr; type: ValueType };
 
 export type UnaryOp = "neg" | "pos";
 // Arithmetic ops produce a number; comparison ops (lt..ne) produce a boolean. The `type`
@@ -31,5 +36,6 @@ export type HExpr =
   | { kind: "numberLit"; value: number; type: ValueType }
   | { kind: "stringLit"; value: string; type: ValueType }
   | { kind: "boolLit"; value: boolean; type: ValueType }
+  | { kind: "varRef"; name: string; type: ValueType }
   | { kind: "unary"; op: UnaryOp; operand: HExpr; type: ValueType }
   | { kind: "binary"; op: BinaryOp; left: HExpr; right: HExpr; type: ValueType };

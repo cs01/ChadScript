@@ -19,6 +19,7 @@ export const CODE = {
   NAMESPACE: "CS1209", // namespace / module block
   WITH: "CS1210",
   EVAL_OR_FUNCTION_CTOR: "CS1211", // eval / new Function
+  VAR: "CS1212", // `var` (use let/const)
 } as const;
 
 export type Code = (typeof CODE)[keyof typeof CODE];
