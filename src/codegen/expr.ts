@@ -20,6 +20,7 @@ import { evalMapPtr, evalMapGet, evalSetPtr, evalSetPredicate } from "./collecti
 import { evalStrMethod } from "./strings.js";
 import { evalArrayHof, evalArraySort, evalArraySearch, evalArrayJoin } from "./array.js";
 import { evalObjectPtr, evalMemberGet, headerOffset } from "./objects.js";
+import { evalAsyncCall, evalAwait } from "./async.js";
 import { evalNumber } from "./numbers.js";
 import {
   evalOptionalPtr,
@@ -249,31 +250,6 @@ export function lookupVar(name: string, ctx: Ctx): { ptr: Value; vtype: ValueTyp
 
 // A value-returning call: evaluate each argument to a Value, then call. The callee's IR name
 // is its HIR name; the return IR type comes from the call's resolved (non-void) type.
-// A call to an async function: pack the args into a GC env record and spawn a fiber running the
-// callee's `void @name(ptr env)` body. Yields the fiber's result Promise (a ptr).
-export function evalAsyncCall(expr: Extract<HExpr, { kind: "asyncCall" }>, ctx: Ctx): Value {
-  const inner = expr.type.kind === "promise" ? expr.type.inner : ice("asyncCall not promise-typed");
-  void inner;
-  let env: Value;
-  if (expr.args.length === 0) {
-    env = ctx.fn.nullPtr();
-  } else {
-    env = ctx.fn.call("@cs_gc_alloc", T.ptr, [imm(T.i64, expr.args.length * 8)]);
-    expr.args.forEach((a, i) => {
-      ctx.fn.store(boxSlot(evalValue(a, ctx), a.type, ctx), ctx.fn.gepSlot(env, i));
-    });
-  }
-  return ctx.fn.call("@cs_fiber_spawn", T.ptr, [{ name: `@${expr.name}`, type: T.ptr }, env]);
-}
-
-// `await p`: suspend until the promise settles, then unbox its value to the awaited inner type. A
-// rejection is thrown into this fiber by cs_await (via the handler chain), so nothing to do here.
-export function evalAwait(expr: Extract<HExpr, { kind: "await" }>, ctx: Ctx): Value {
-  const promise = evalValue(expr.value, ctx);
-  const raw = ctx.fn.call("@cs_await", T.i64, [promise]);
-  return unboxSlot(raw, expr.type, ctx);
-}
-
 export function evalCall(expr: Extract<HExpr, { kind: "call" }>, ctx: Ctx): Value {
   const args = expr.args.map((a) => evalValue(a, ctx));
   return ctx.fn.call(`@${expr.name}`, irTypeOf(expr.type), args);

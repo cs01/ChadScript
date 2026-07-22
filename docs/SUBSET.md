@@ -10,6 +10,8 @@ diagnostic — there is no "compiles but behaves differently than Node" third ca
 - `ArrayLiteralExpression`
 - `ArrayType`
 - `ArrowFunction`
+- `AsyncKeyword`
+- `AwaitExpression`
 - `BinaryExpression`
 - `Block`
 - `BooleanKeyword`

@@ -28,6 +28,7 @@
 #include <ucontext.h>
 #include <gc.h>
 #include <setjmp.h>
+#include <stdio.h>
 
 enum { CS_PENDING = 0, CS_FULFILLED = 1, CS_REJECTED = 2 };
 
@@ -44,6 +45,7 @@ typedef struct Promise {
   int64_t value; // boxed i64 slot (same boxing as arrays/maps) once fulfilled
   void *reason;  // the rejection value: a CsThrown* (opaque here), thrown into an awaiter
   Waiter *waiters;
+  int unhandled; // set when rejected with no waiter to consume it; cleared when an await consumes it
 } Promise;
 
 // The exception machinery lives in runtime.c; a rejected `await` throws into the awaiting fiber via
@@ -84,29 +86,17 @@ static Fiber *cs_current_fiber = NULL;
 
 #define CS_FIBER_STACK (256 * 1024)
 
-// Free-list of retired fiber stacks (each already malloc'd + GC_add_roots'd; kept rooted forever).
-// Reused on the next spawn instead of freed, because freeing a GC-scanned region corrupts Boehm.
-static void **cs_stk_free = NULL;
-static int cs_stk_free_n = 0, cs_stk_free_cap = 0;
-
+// A fiber stack: plain malloc (NOT GC_malloc — Boehm ignores roots inside its own heap) registered
+// as an explicit GC root so the whole buffer is scanned every collection regardless of where the SP
+// is (see the file header). Stacks are NEVER freed or recycled: freeing a scanned region corrupts
+// the collector, and recycling a just-retired stack onto the next spawn is unsafe while an ancestor
+// fiber is still suspended (a nested child's stack reused by a concurrent sibling breaks it). So each
+// spawn allocates a fresh rooted stack — memory grows with total async invocations. TODO: a safe
+// pool (recycle only once a fiber is provably unreferenced) would bound this.
 static void *cs_get_stack(void) {
-  if (cs_stk_free_n > 0) return cs_stk_free[--cs_stk_free_n];
   void *stk = malloc(CS_FIBER_STACK);
   GC_add_roots(stk, (char *)stk + CS_FIBER_STACK);
   return stk;
-}
-
-static void cs_put_stack(void *stk) {
-  if (cs_stk_free_n == cs_stk_free_cap) {
-    int newcap = cs_stk_free_cap ? cs_stk_free_cap * 2 : 16;
-    // The free-list array itself is GC_malloc'd: it holds malloc'd stack pointers, which are already
-    // roots, so the array need not keep them alive — it only needs to persist across collections.
-    void **nb = GC_malloc((size_t)newcap * sizeof(void *));
-    for (int i = 0; i < cs_stk_free_n; i++) nb[i] = cs_stk_free[i];
-    cs_stk_free = nb;
-    cs_stk_free_cap = newcap;
-  }
-  cs_stk_free[cs_stk_free_n++] = stk;
 }
 
 // Run `f` (via a swap from context `from`) with ITS handler stack active: save the caller's stack,
@@ -124,12 +114,6 @@ static void cs_enter_fiber(Fiber *f, ucontext_t *from) {
   cs_current_fiber = prev;
   cs_handler_ctx_get(&f->h_stack, &f->h_n, &f->h_cap); // the fiber's stack may have grown
   cs_handler_ctx_set(savedStack, savedN, savedCap);
-  // Fiber finished for good: return its stack to the free-list for reuse (its result was already
-  // boxed into the result promise). The buffer stays rooted; we never free/unroot it.
-  if (f->done && f->ctx.uc_stack.ss_sp) {
-    cs_put_stack(f->ctx.uc_stack.ss_sp);
-    f->ctx.uc_stack.ss_sp = NULL;
-  }
 }
 
 
@@ -168,8 +152,14 @@ Promise *cs_promise_new(void) {
   p->value = 0;
   p->reason = NULL;
   p->waiters = NULL;
+  p->unhandled = 0;
   return p;
 }
+
+// Count of rejections not yet consumed by an await. Node exits 1 on an unhandled promise rejection;
+// we approximate that: a rejection with no waiter is tentatively unhandled, an await that consumes a
+// rejected promise clears it, and the event loop exits 1 if any survive to the end.
+static int cs_unhandled_count = 0;
 
 // Settle a promise and schedule its waiters as microtasks carrying the value.
 void cs_promise_resolve(Promise *p, int64_t boxedValue) {
@@ -195,6 +185,12 @@ void cs_promise_reject(Promise *p, void *reason) {
   if (p->state != CS_PENDING) return;
   p->state = CS_REJECTED;
   p->reason = reason;
+  // No waiter registered at reject time → tentatively unhandled (a later await clears it). With
+  // waiters, the resuming await will consume the rejection, so it is already accounted for.
+  if (!p->waiters) {
+    p->unhandled = 1;
+    cs_unhandled_count++;
+  }
   for (Waiter *w = p->waiters; w; w = w->next) cs_mtq_push(w->fiber);
   p->waiters = NULL;
 }
@@ -274,8 +270,16 @@ int64_t cs_await(Promise *p) {
     cs_mtq_push(self);
     swapcontext(&self->ctx, self->ret_ctx);
   }
-  // Resumed: the promise is now settled. A rejection surfaces as a throw into this fiber.
-  if (p->state == CS_REJECTED) cs_throw(p->reason);
+  // Resumed: the promise is now settled. A rejection surfaces as a throw into this fiber; consuming
+  // it here clears its unhandled mark (the throw may re-reject THIS fiber's result, which is tracked
+  // separately, so the unhandled count correctly moves up the await chain).
+  if (p->state == CS_REJECTED) {
+    if (p->unhandled) {
+      p->unhandled = 0;
+      cs_unhandled_count--;
+    }
+    cs_throw(p->reason);
+  }
   return p->value;
 }
 
@@ -285,5 +289,11 @@ void cs_run_event_loop(void) {
   while ((f = cs_mtq_pop()) != NULL) {
     if (f->done) continue;
     cs_enter_fiber(f, &cs_sched_ctx); // resume with the fiber's own handler stack installed
+  }
+  // A rejection that no await ever consumed → Node terminates with exit code 1. stderr text is
+  // best-effort (the harness compares stdout + exit code only).
+  if (cs_unhandled_count > 0) {
+    fputs("Uncaught (in promise)\n", stderr);
+    exit(1);
   }
 }

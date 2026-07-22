@@ -207,6 +207,10 @@ export function lowerExprStatement(expr: ts.Expression, ctx: LowerCtx): HStmt {
   if (ts.isPostfixUnaryExpression(expr) || ts.isPrefixUnaryExpression(expr)) {
     return lowerIncDec(expr, ctx);
   }
+  // A bare `await e;` — the awaited value is discarded but the suspend/throw-on-reject still happens.
+  if (ts.isAwaitExpression(expr)) {
+    return { kind: "exprStmt", expr: lowerExpr(expr, ctx) };
+  }
   return ice(`lower: unsupported expression statement ${ts.SyntaxKind[expr.kind]}`);
 }
 

@@ -92,6 +92,11 @@ export const ALLOWED_KINDS: ReadonlySet<ts.SyntaxKind> = new Set([
   // Functions (Phase 1).
   ts.SyntaxKind.FunctionDeclaration,
   ts.SyntaxKind.Parameter,
+  // async/await (Phase 6). Compiled to stackful fibers + a microtask event loop (runtime/async.c);
+  // an async function's `Promise<T>` return, `await`, rejection-as-throw across await, unhandled-
+  // rejection exit code, and microtask ordering all match Node (differential fixtures async-*.ts).
+  ts.SyntaxKind.AsyncKeyword,
+  ts.SyntaxKind.AwaitExpression,
   // Primitive type annotations (type position only; lower reads types from the checker, so
   // these nodes are inert — admitting them just lets annotations through).
   ts.SyntaxKind.NumberKeyword,

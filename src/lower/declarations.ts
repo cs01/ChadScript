@@ -318,7 +318,14 @@ export function lowerFunction(decl: ts.FunctionDeclaration, ctx: LowerCtx): HFun
   // An async function's declared return is `Promise<T>`; the BODY returns T (the value cs_fiber_return
   // resolves the promise with), so lower the body against the inner type.
   const declaredRet = returnTypeOf(decl, ctx);
-  const returnType = isAsync && declaredRet?.kind === "promise" ? declaredRet.inner : declaredRet;
+  let returnType = declaredRet;
+  if (isAsync && declaredRet?.kind === "promise") {
+    // Promise<void> unwraps to the `undefined` value type, but a void async body returns no value —
+    // normalize to null so the backend treats it like any other void function (no return slot in
+    // try/catch, fall-through resolves the promise via cs_fiber_return(0)), rather than trying to
+    // give `undefined` a storage representation.
+    returnType = declaredRet.inner.kind === "undefined" ? null : declaredRet.inner;
+  }
   const saved = ctx.currentReturnType;
   ctx.currentReturnType = returnType;
   const body = lowerStatements(decl.body.statements, ctx);

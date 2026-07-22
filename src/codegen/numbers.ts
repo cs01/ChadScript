@@ -19,8 +19,8 @@ import {
   evalCallClosure,
   evalVirtualCall,
   evalConditional,
-  evalAwait,
 } from "./expr.js";
+import { evalAwait } from "./async.js";
 import { evalArrayHof, evalArraySearch } from "./array.js";
 import { evalMapPtr, evalSetPtr } from "./collections.js";
 import { evalMathCall } from "./math.js";

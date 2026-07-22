@@ -379,7 +379,14 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
   if (ts.isCallExpression(expr)) return lowerCall(expr, ctx);
   if (ts.isAwaitExpression(expr)) {
     // `await p` → suspend until p settles, yield its inner value. resolveType unwraps the promise.
-    return { kind: "await", value: lowerExpr(expr.expression, ctx), type: resolveType(expr, ctx) };
+    // `await` of a Promise<void> yields void, which has no storage representation — represent it as
+    // undefined (the value is discarded anyway), like a void call result.
+    const awaited = ctx.checker.getTypeAtLocation(expr);
+    const type =
+      awaited.flags & (ts.TypeFlags.Void | ts.TypeFlags.Undefined)
+        ? VT.undefined
+        : resolveType(expr, ctx);
+    return { kind: "await", value: lowerExpr(expr.expression, ctx), type };
   }
   const type = resolveType(expr, ctx);
   switch (expr.kind) {
