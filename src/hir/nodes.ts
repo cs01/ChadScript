@@ -164,7 +164,7 @@ export type HExpr =
   // (null → seed from the first element). `callback.type` is the closure's function type.
   | {
       kind: "arrayHof";
-      op: "map" | "filter" | "forEach" | "reduce";
+      op: "map" | "filter" | "forEach" | "reduce" | "find" | "findIndex" | "some" | "every";
       array: HExpr;
       callback: HExpr;
       init: HExpr | null;

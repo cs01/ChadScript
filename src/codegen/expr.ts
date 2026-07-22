@@ -149,6 +149,7 @@ export function evalOptionalPtr(expr: HExpr, ctx: Ctx): Value {
   if (expr.kind === "callClosure") return evalCallClosure(expr, ctx);
   if (expr.kind === "conditional") return evalConditional(expr, ctx);
   if (expr.kind === "coalesce") return evalCoalesce(expr, ctx);
+  if (expr.kind === "arrayHof") return evalArrayHof(expr, ctx); // .find() → element | undefined
   return ice(`evalOptionalPtr: unhandled optional expression ${expr.kind}`);
 }
 
@@ -477,6 +478,16 @@ export function evalArrayHof(expr: Extract<HExpr, { kind: "arrayHof" }>, ctx: Ct
     expr.op === "map" || expr.op === "filter" ? ctx.fn.call("@cs_array_new", T.ptr, []) : null;
   const accPtr = expr.op === "reduce" ? ctx.fn.alloca(irTypeOf(expr.type)) : null;
 
+  // Predicate ops (find/findIndex/some/every) hold a result slot seeded with the "no match"
+  // answer; a matching element stores its answer and early-exits the loop.
+  const isPredicate =
+    expr.op === "find" || expr.op === "findIndex" || expr.op === "some" || expr.op === "every";
+  const predPtr = isPredicate ? ctx.fn.alloca(irTypeOf(expr.type)) : null;
+  if (expr.op === "find") ctx.fn.store(ctx.mod.externGlobal("cs_undefined_marker"), predPtr!);
+  else if (expr.op === "findIndex") ctx.fn.store(fimm(-1), predPtr!);
+  else if (expr.op === "some") ctx.fn.store(imm(T.i1, 0), predPtr!);
+  else if (expr.op === "every") ctx.fn.store(imm(T.i1, 1), predPtr!);
+
   // reduce without an initial value seeds the accumulator from element 0 and starts at index 1.
   let startIdx = 0;
   if (expr.op === "reduce") {
@@ -529,6 +540,25 @@ export function evalArrayHof(expr: Extract<HExpr, { kind: "arrayHof" }>, ctx: Ct
       ctx.fn.switchTo(pushB);
       ctx.fn.call("@cs_array_push", T.i32, [result!, elemI64]); // keep the original boxed slot
       ctx.fn.br(latchB);
+    } else if (isPredicate) {
+      const keep = ctx.fn.callIndirect(fnptr, T.i1, args);
+      const hitB = ctx.fn.newBlock("hof.hit");
+      // every early-exits on the FIRST false; the others on the first true.
+      if (expr.op === "every") ctx.fn.brCond(keep, latchB, hitB);
+      else ctx.fn.brCond(keep, hitB, latchB);
+      ctx.fn.switchTo(hitB);
+      if (expr.op === "find") {
+        const box = ctx.fn.call("@cs_gc_alloc", T.ptr, [imm(T.i64, 8)]);
+        ctx.fn.store(elemI64, box); // present optional: a box holding the element's raw slot
+        ctx.fn.store(box, predPtr!);
+      } else if (expr.op === "findIndex") {
+        ctx.fn.store(ctx.fn.sitofp(idx), predPtr!);
+      } else if (expr.op === "some") {
+        ctx.fn.store(imm(T.i1, 1), predPtr!);
+      } else {
+        ctx.fn.store(imm(T.i1, 0), predPtr!); // every: a false element makes the whole false
+      }
+      ctx.fn.br(endB); // early exit — no need to scan the rest
     } else {
       // forEach: invoke for side effects, discard the result.
       if (cbType.ret) ctx.fn.callIndirect(fnptr, retIr, args);
@@ -543,6 +573,7 @@ export function evalArrayHof(expr: Extract<HExpr, { kind: "arrayHof" }>, ctx: Ct
 
   ctx.fn.switchTo(endB);
   if (expr.op === "reduce") return ctx.fn.load(irTypeOf(expr.type), accPtr!);
+  if (predPtr) return ctx.fn.load(irTypeOf(expr.type), predPtr!);
   if (result) return result;
   return ctx.fn.nullPtr(); // forEach → undefined (discarded by the caller)
 }
@@ -954,6 +985,9 @@ export function evalBool(expr: HExpr, ctx: Ctx): Value {
 
     case "conditional":
       return evalConditional(expr, ctx);
+
+    case "arrayHof":
+      return evalArrayHof(expr, ctx); // .some()/.every() → boolean
 
     default:
       return ice(`evalBool: unhandled boolean expression ${expr.kind}`);

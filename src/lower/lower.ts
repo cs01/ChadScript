@@ -672,18 +672,36 @@ function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
         type: method === "indexOf" ? VT.number : VT.boolean,
       };
     }
-    if (method === "map" || method === "filter" || method === "forEach" || method === "reduce") {
-      const callbackArg = method === "reduce" ? call.arguments[0]! : call.arguments[0]!;
+    const HOF_METHODS = [
+      "map",
+      "filter",
+      "forEach",
+      "reduce",
+      "find",
+      "findIndex",
+      "some",
+      "every",
+    ];
+    if (HOF_METHODS.includes(method)) {
       // reduce(fn, init?) — the optional seed is the 2nd argument.
       const init = method === "reduce" && call.arguments.length >= 2 ? call.arguments[1]! : null;
       return {
         kind: "arrayHof",
-        op: method,
+        op: method as
+          | "map"
+          | "filter"
+          | "forEach"
+          | "reduce"
+          | "find"
+          | "findIndex"
+          | "some"
+          | "every",
         array: lowerExpr(pa.expression, ctx),
-        callback: lowerExpr(callbackArg, ctx),
+        callback: lowerExpr(call.arguments[0]!, ctx),
         init: init ? lowerExpr(init, ctx) : null,
         elementType: recvType.element,
-        // map/filter → array (resolveType of the call), forEach → undefined, reduce → its result.
+        // map/filter → array; forEach → undefined; find → element|undefined; findIndex → number;
+        // some/every → boolean; reduce → its result. resolveType(call) covers all value cases.
         type: method === "forEach" ? VT.undefined : resolveType(call, ctx),
       };
     }
