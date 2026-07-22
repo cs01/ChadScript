@@ -22,13 +22,37 @@ export function lower(loaded: LoadedProgram): HModule {
 
 // Returns an array because one `let a = 1, b = 2;` lowers to several varDecls.
 function lowerStatement(stmt: ts.Statement, checker: ts.TypeChecker): HStmt[] {
-  if (ts.isExpressionStatement(stmt) && ts.isCallExpression(stmt.expression)) {
-    return [lowerCallStatement(stmt.expression, checker)];
+  if (ts.isExpressionStatement(stmt)) {
+    const e = stmt.expression;
+    if (ts.isCallExpression(e)) return [lowerCallStatement(e, checker)];
+    if (ts.isBinaryExpression(e) && isAssignmentOp(e.operatorToken.kind)) {
+      return [lowerAssignment(e, checker)];
+    }
+    return ice(`lower: unsupported expression statement ${ts.SyntaxKind[e.kind]}`);
   }
   if (ts.isVariableStatement(stmt)) {
     return stmt.declarationList.declarations.map((d) => lowerVarDecl(d, checker));
   }
   return ice(`lower: unsupported statement ${ts.SyntaxKind[stmt.kind]}`);
+}
+
+function lowerAssignment(expr: ts.BinaryExpression, checker: ts.TypeChecker): HStmt {
+  if (!ts.isIdentifier(expr.left)) ice("lower: only simple `name = ...` assignment is supported");
+  const name = expr.left.text;
+  const op = expr.operatorToken.kind;
+  if (op === ts.SyntaxKind.EqualsToken) {
+    return { kind: "assign", name, value: lowerExpr(expr.right, checker) };
+  }
+  // Compound assignment `name <op>= rhs` desugars to `name = name <op> rhs`. The value's type
+  // matches the variable (numeric compound ops on a number stay a number).
+  const value: HExpr = {
+    kind: "binary",
+    op: compoundOp(op),
+    left: lowerExpr(expr.left, checker),
+    right: lowerExpr(expr.right, checker),
+    type: resolveType(expr.left, checker),
+  };
+  return { kind: "assign", name, value };
 }
 
 function lowerVarDecl(decl: ts.VariableDeclaration, checker: ts.TypeChecker): HStmt {
@@ -112,6 +136,34 @@ function resolveType(expr: ts.Expression, checker: ts.TypeChecker): ValueType {
   if (flags & ts.TypeFlags.Null) return VT.null;
   if (flags & ts.TypeFlags.Undefined) return VT.undefined;
   return ice(`lower: unsupported value type (flags ${flags}) at ${ts.SyntaxKind[expr.kind]}`);
+}
+
+function isAssignmentOp(kind: ts.SyntaxKind): boolean {
+  return (
+    kind === ts.SyntaxKind.EqualsToken ||
+    kind === ts.SyntaxKind.PlusEqualsToken ||
+    kind === ts.SyntaxKind.MinusEqualsToken ||
+    kind === ts.SyntaxKind.AsteriskEqualsToken ||
+    kind === ts.SyntaxKind.SlashEqualsToken ||
+    kind === ts.SyntaxKind.PercentEqualsToken
+  );
+}
+
+function compoundOp(kind: ts.SyntaxKind): BinaryOp {
+  switch (kind) {
+    case ts.SyntaxKind.PlusEqualsToken:
+      return "add";
+    case ts.SyntaxKind.MinusEqualsToken:
+      return "sub";
+    case ts.SyntaxKind.AsteriskEqualsToken:
+      return "mul";
+    case ts.SyntaxKind.SlashEqualsToken:
+      return "div";
+    case ts.SyntaxKind.PercentEqualsToken:
+      return "rem";
+    default:
+      return ice(`lower: unsupported compound assignment ${ts.SyntaxKind[kind]}`);
+  }
 }
 
 function unaryOp(op: ts.PrefixUnaryOperator): UnaryOp {

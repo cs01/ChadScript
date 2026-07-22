@@ -33,7 +33,7 @@ export function irTypeOf(vt: ValueType): IrType {
   }
 }
 
-function lookupVar(name: string, ctx: Ctx): { ptr: Value; vtype: ValueType } {
+export function lookupVar(name: string, ctx: Ctx): { ptr: Value; vtype: ValueType } {
   const slot = ctx.vars.get(name);
   if (!slot) ice(`codegen: reference to unbound variable ${name}`);
   return slot;

@@ -14,7 +14,10 @@ export type HStmt =
   | { kind: "processExit"; code: HExpr }
   // A `let`/`const` binding with an initializer. `name` is unique per module (Phase 1 has a
   // single scope — the entry function). `type` is the variable's resolved type.
-  | { kind: "varDecl"; name: string; init: HExpr; type: ValueType };
+  | { kind: "varDecl"; name: string; init: HExpr; type: ValueType }
+  // Reassignment to an existing `let` binding (const reassignment is blocked by the tsc gate).
+  // Compound assignment (`+=` etc.) is lowered to `value = <var> <op> rhs`.
+  | { kind: "assign"; name: string; value: HExpr };
 
 export type UnaryOp = "neg" | "pos";
 // Arithmetic ops produce a number; comparison ops (lt..ne) produce a boolean. The `type`

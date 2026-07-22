@@ -57,6 +57,13 @@ const SUPPORTED_BINARY_OPS: ReadonlySet<ts.SyntaxKind> = new Set([
   ts.SyntaxKind.GreaterThanEqualsToken,
   ts.SyntaxKind.EqualsEqualsEqualsToken,
   ts.SyntaxKind.ExclamationEqualsEqualsToken,
+  // Assignment (statement form; lower handles `name = ...` / `name <op>= ...`).
+  ts.SyntaxKind.EqualsToken,
+  ts.SyntaxKind.PlusEqualsToken,
+  ts.SyntaxKind.MinusEqualsToken,
+  ts.SyntaxKind.AsteriskEqualsToken,
+  ts.SyntaxKind.SlashEqualsToken,
+  ts.SyntaxKind.PercentEqualsToken,
 ]);
 
 const SUPPORTED_UNARY_OPS: ReadonlySet<ts.SyntaxKind> = new Set([

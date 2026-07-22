@@ -10,7 +10,15 @@ import { ice } from "../diagnostics.js";
 import { ModuleBuilder, imm } from "../ir/builder.js";
 import { T } from "../ir/types.js";
 import type { HModule, HStmt } from "../hir/nodes.js";
-import { evalNumber, evalBool, evalString, evalValue, irTypeOf, type Ctx } from "./expr.js";
+import {
+  evalNumber,
+  evalBool,
+  evalString,
+  evalValue,
+  irTypeOf,
+  lookupVar,
+  type Ctx,
+} from "./expr.js";
 
 export function generate(hmod: HModule): string {
   const mod = new ModuleBuilder();
@@ -57,6 +65,14 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
       const ptr = ctx.fn.alloca(irTypeOf(stmt.type));
       ctx.fn.store(evalValue(stmt.init, ctx), ptr);
       ctx.vars.set(stmt.name, { ptr, vtype: stmt.type });
+      return;
+    }
+
+    case "assign": {
+      // Store into the existing slot. Evaluate the value BEFORE looking up the slot so a
+      // self-referential `n = n + 1` loads the old value first.
+      const value = evalValue(stmt.value, ctx);
+      ctx.fn.store(value, lookupVar(stmt.name, ctx).ptr);
       return;
     }
 
