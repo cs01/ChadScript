@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { generate } from "../codegen/codegen.js";
+import { CLANG } from "./toolchain.js";
 import type { LoadedProgram } from "../frontend/program.js";
 
 const runtimeC = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "runtime", "runtime.c");
@@ -26,7 +27,7 @@ export function build(loaded: LoadedProgram, opts: BuildOptions): void {
   if (opts.emitIrTo) writeFileSync(opts.emitIrTo, ir);
 
   execFileSync(
-    "clang",
+    CLANG,
     [`-O${opts.opt ?? "2"}`, "-Wno-override-module", llPath, runtimeC, "-o", opts.outPath],
     { stdio: "pipe" },
   );

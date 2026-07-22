@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# `chad` CLI wrapper: forwards all args to the TypeScript CLI, run under Bun. Resolves the
+# repo root from this script's location so it works from any cwd and via a symlink on PATH.
+set -euo pipefail
+here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")")/.." && pwd)"
+exec bun run "$here/src/cli.ts" "$@"

@@ -19,5 +19,5 @@
     "forceConsistentCasingInFileNames": true
   },
   "//include": "Only the compiler + its own test harness. tests/fixtures/** are standalone user programs, each typechecked in isolation by the frontend at runtime — never part of the compiler's own project.",
-  "include": ["src", "tests/**/*.test.ts", "tests/harness"]
+  "include": ["src", "tests/**/*.test.ts", "tests/harness", "tests/unit"]
 }

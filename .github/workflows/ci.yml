@@ -1,0 +1,50 @@
+name: ci
+
+on:
+  push:
+    branches: [v2]
+  pull_request:
+    branches: [v2]
+
+jobs:
+  build-and-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # LLVM (clang + opt). Installed as versioned binaries on Linux; point the compiler at
+      # them via CHAD_CLANG / CHAD_OPT (see src/driver/toolchain.ts).
+      - name: Install LLVM (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-18 llvm-18
+          echo "CHAD_CLANG=clang-18" >> "$GITHUB_ENV"
+          echo "CHAD_OPT=opt-18" >> "$GITHUB_ENV"
+
+      - name: Install LLVM (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install llvm
+          PREFIX="$(brew --prefix llvm)"
+          echo "CHAD_CLANG=$PREFIX/bin/clang" >> "$GITHUB_ENV"
+          echo "CHAD_OPT=$PREFIX/bin/opt" >> "$GITHUB_ENV"
+
+      - run: bun install
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Format check
+        run: bun run format:check
+
+      - name: Test (rejection + differential + unit)
+        run: bun test tests/

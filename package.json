@@ -10,19 +10,18 @@
     "url": "https://github.com/cs01/ChadScript.git"
   },
   "bin": {
-    "chad": "src/cli.ts"
+    "chad": "bin/chad"
   },
   "scripts": {
-    "chad": "tsx src/cli.ts",
+    "chad": "bun run src/cli.ts",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test tests/**/*.test.ts",
+    "test": "bun test tests/",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "prettier": "^3.8.1",
-    "tsx": "^4.20.6",
     "typescript": "^5.9.3"
   }
 }

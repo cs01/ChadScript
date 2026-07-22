@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { loadProgram } from "../../src/frontend/program.js";
 import { validate } from "../../src/validate/validate.js";
 import { build } from "../../src/driver/build.js";
+import { OPT } from "../../src/driver/toolchain.js";
 
 export interface RunResult {
   stdout: string;
@@ -66,7 +67,7 @@ export function differential(fixturePath: string): Divergence[] {
   }
 
   try {
-    execFileSync("opt", ["-passes=verify", "-disable-output", irPath], { stdio: "pipe" });
+    execFileSync(OPT, ["-passes=verify", "-disable-output", irPath], { stdio: "pipe" });
   } catch (e) {
     out.push({ kind: "opt-verify", detail: `opt -verify failed: ${(e as Error).message}` });
   }
