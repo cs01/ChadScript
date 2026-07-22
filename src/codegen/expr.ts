@@ -25,6 +25,21 @@ export interface Ctx {
   // inside a switch correctly reaches the enclosing loop). Innermost last.
   breakTargets: BasicBlock[];
   continueTargets: BasicBlock[];
+  // Enclosing try blocks that intercept abrupt completions (return) so their `finally` runs first.
+  // Innermost last. A `return` inside routes to the innermost frame's cleanup, which runs finally
+  // then chains to the next frame (or performs the real return). See emitTry.
+  finallyStack: TryFrame[];
+  // The current function's declared return type (for the abrupt-return value slot); null = void.
+  fnReturnType?: ValueType | null;
+}
+
+// A try/catch/finally region's abrupt-completion routing. `code` (i32 alloca) holds the pending
+// completion (0 normal, 1 return, 4 throw); `retVal` holds a pending return value (null if the
+// function is void); `cleanupEntry` is the block that runs finally + dispatches the completion.
+export interface TryFrame {
+  code: Value;
+  retVal: Value | null;
+  cleanupEntry: BasicBlock;
 }
 
 // The machine representation of a source-level type.

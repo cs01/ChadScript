@@ -36,7 +36,7 @@ and push (`origin v2`); no PRs required.
 
 ## Code style
 
-- New feature = new file. No file grows past ~800 lines; split first.
+- Prefer a new file per new feature where it reads well. (No hard line-count cap.)
 - TypeScript for the compiler (strict), C for the runtime (`cs_` prefix, kept from v1).
 - C runtime ABI: JS numbers cross the boundary as `double`, never `int`/`long`
   (silent ABI mismatch class from v1).

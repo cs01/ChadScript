@@ -126,6 +126,8 @@ export function generate(hmod: HModule): string {
   mod.declareExtern("cs_pop_handler", T.void, []);
   mod.declareExtern("_setjmp", T.i32, [T.ptr], "returns_twice");
   mod.declareExtern("cs_rethrow", T.void, []);
+  mod.declareExtern("cs_handler_count", T.i32, []);
+  mod.declareExtern("cs_handler_restore", T.void, [T.i32]);
 
   // Class vtables (constant arrays of method fn pointers); an instance stores a pointer to its
   // class's vtable in record slot 0 for virtual dispatch.
@@ -137,7 +139,15 @@ export function generate(hmod: HModule): string {
 
   // The synthesized entry function holds the top-level statements.
   const main = mod.defineFunc("main", T.i32, []);
-  const ctx: Ctx = { mod, fn: main, vars: new Map(), breakTargets: [], continueTargets: [] };
+  const ctx: Ctx = {
+    mod,
+    fn: main,
+    vars: new Map(),
+    breakTargets: [],
+    continueTargets: [],
+    finallyStack: [],
+    fnReturnType: null,
+  };
   ctx.fn.callVoid("@cs_gc_init", []); // start Boehm GC before any allocation
   emitStatements(hmod.topLevel, ctx);
   main.ret(imm(T.i32, 0));
@@ -169,7 +179,15 @@ function emitFunction(f: HFunc, mod: ModuleBuilder): void {
     ? [{ name: "%arg0", type: T.ptr }, ...declaredParams]
     : declaredParams;
   const fn = mod.defineFunc(f.name, retType, irParams);
-  const ctx: Ctx = { mod, fn, vars: new Map(), breakTargets: [], continueTargets: [] };
+  const ctx: Ctx = {
+    mod,
+    fn,
+    vars: new Map(),
+    breakTargets: [],
+    continueTargets: [],
+    finallyStack: [],
+    fnReturnType: f.returnType,
+  };
 
   // Bind captured variables from the env record (env is %arg0). Each is stored in a fresh local
   // slot so the body reads it like any variable.
@@ -205,105 +223,88 @@ function emitFunction(f: HFunc, mod: ModuleBuilder): void {
 // `try { } catch { }` via setjmp/longjmp: allocate + push a handler buffer, setjmp it, and branch
 // on the result — 0 is the normal entry (run the try body, then pop the handler), non-zero is the
 // resume after a longjmp from `throw` (the handler was already popped there; run the catch body).
+// Completion codes routed through a try's cleanup (which runs `finally` and dispatches).
+const C_NORMAL = 0;
+const C_RETURN = 1;
+const C_THROW = 4;
+
+// Unified `try [catch] [finally]` with a structured-completion model. A throw is caught by a
+// setjmp handler; a `return` inside routes to the cleanup block (which restores the handler depth,
+// runs finally, and dispatches). Cleanup handles NORMAL / RETURN / THROW; a RETURN chains through
+// any enclosing finally before performing the real return. break/continue crossing a finally are
+// still rejected (a later slice) — they'd need target-aware routing.
 function emitTryCatch(stmt: Extract<HStmt, { kind: "tryCatch" }>, ctx: Ctx): void {
-  // A return/break/continue escaping any clause would skip a handler pop or the finally block.
-  // Reject that until the pop-on-every-exit path is built.
-  const escapes =
-    escapesTry(stmt.tryBody) ||
-    (stmt.catchBody !== null && escapesTry(stmt.catchBody)) ||
-    (stmt.finallyBody !== null && escapesTry(stmt.finallyBody));
-  if (escapes) {
-    ice("codegen: return/break/continue inside a try/catch/finally clause not supported yet");
+  const crosses =
+    breakContinueEscapes(stmt.tryBody) ||
+    (stmt.catchBody !== null && breakContinueEscapes(stmt.catchBody)) ||
+    (stmt.finallyBody !== null && breakContinueEscapes(stmt.finallyBody));
+  if (crosses) {
+    ice("codegen: break/continue crossing a try/finally is not supported yet");
   }
-  if (stmt.finallyBody === null) {
-    emitTryCatchNoFinally(stmt.tryBody, stmt.catchBody!, ctx);
-    return;
-  }
-  emitTryFinally(stmt.tryBody, stmt.catchBody, stmt.finallyBody, ctx);
-}
+  const hasCatch = stmt.catchBody !== null;
+  const hasFinally = stmt.finallyBody !== null;
 
-// `try { A } catch { B }` (no finally): setjmp; 0 → run A then pop the handler; non-zero → the
-// throw already popped, run B.
-function emitTryCatchNoFinally(tryBody: HStmt[], catchBody: HStmt[], ctx: Ctx): void {
-  const buf = ctx.fn.call("@cs_handler_alloc", T.ptr, []);
-  ctx.fn.callVoid("@cs_push_handler", [buf]);
-  const r = ctx.fn.call("@_setjmp", T.i32, [buf]);
-  const tryB = ctx.fn.newBlock("try.body");
-  const catchB = ctx.fn.newBlock("try.catch");
+  const saved = ctx.fn.call("@cs_handler_count", T.i32, []); // handler depth to restore on any exit
+  const codeSlot = ctx.fn.alloca(T.i32);
+  ctx.fn.store(imm(T.i32, C_NORMAL), codeSlot);
+  const retSlot = ctx.fnReturnType ? ctx.fn.alloca(irTypeOf(ctx.fnReturnType)) : null;
+  const cleanupB = ctx.fn.newBlock("try.cleanup");
   const afterB = ctx.fn.newBlock("try.after");
-  ctx.fn.brCond(ctx.fn.icmp("eq", r, imm(T.i32, 0)), tryB, catchB);
+  const frame = { code: codeSlot, retVal: retSlot, cleanupEntry: cleanupB };
 
-  ctx.fn.switchTo(tryB);
-  emitStatements(tryBody, ctx);
-  if (!ctx.fn.currentBlock.isTerminated) {
-    ctx.fn.callVoid("@cs_pop_handler", []); // normal completion → unlink the handler
-    ctx.fn.br(afterB);
-  }
-
-  ctx.fn.switchTo(catchB);
-  emitStatements(catchBody, ctx);
-  if (!ctx.fn.currentBlock.isTerminated) ctx.fn.br(afterB);
-
-  ctx.fn.switchTo(afterB);
-}
-
-// `try { A } [catch { B }] finally { C }`. An OUTER handler ensures C runs even when B (or an
-// uncaught A) throws: on the outer-caught path C runs and the exception is re-raised. `finally`
-// (C) is emitted on both the normal and exceptional paths.
-function emitTryFinally(
-  tryBody: HStmt[],
-  catchBody: HStmt[] | null,
-  finallyBody: HStmt[],
-  ctx: Ctx,
-): void {
+  // Outer handler: catches a throw from the try body (when there is no catch) or from the catch
+  // body. It longjmps back to this setjmp.
   const outer = ctx.fn.call("@cs_handler_alloc", T.ptr, []);
   ctx.fn.callVoid("@cs_push_handler", [outer]);
   const ro = ctx.fn.call("@_setjmp", T.i32, [outer]);
-  const normalB = ctx.fn.newBlock("fin.normal"); // ro == 0: run try (+catch), then finally
-  const unwindB = ctx.fn.newBlock("fin.unwind"); // ro != 0: run finally, then re-throw
-  const finallyNormalB = ctx.fn.newBlock("fin.run"); // finally on the non-throwing path
-  const afterB = ctx.fn.newBlock("fin.after");
-  ctx.fn.brCond(ctx.fn.icmp("eq", ro, imm(T.i32, 0)), normalB, unwindB);
+  const bodyB = ctx.fn.newBlock("try.body");
+  const excB = ctx.fn.newBlock("try.exc");
+  ctx.fn.brCond(ctx.fn.icmp("eq", ro, imm(T.i32, 0)), bodyB, excB);
 
-  ctx.fn.switchTo(normalB);
-  if (catchBody === null) {
-    // try/finally: run A under the outer handler; on normal completion pop it and fall to finally.
-    emitStatements(tryBody, ctx);
-    if (!ctx.fn.currentBlock.isTerminated) {
-      ctx.fn.callVoid("@cs_pop_handler", []);
-      ctx.fn.br(finallyNormalB);
-    }
-  } else {
-    // try/catch/finally: an INNER handler runs A; if A throws, B runs (under the outer handler).
+  ctx.fn.switchTo(bodyB);
+  ctx.finallyStack.push(frame);
+  if (hasCatch) {
+    // Inner handler catches a throw from the try body → runs catch (still under the outer handler).
     const inner = ctx.fn.call("@cs_handler_alloc", T.ptr, []);
     ctx.fn.callVoid("@cs_push_handler", [inner]);
     const ri = ctx.fn.call("@_setjmp", T.i32, [inner]);
-    const innerTryB = ctx.fn.newBlock("fin.try");
-    const innerCatchB = ctx.fn.newBlock("fin.catch");
+    const innerTryB = ctx.fn.newBlock("try.inner");
+    const innerCatchB = ctx.fn.newBlock("try.catch");
     ctx.fn.brCond(ctx.fn.icmp("eq", ri, imm(T.i32, 0)), innerTryB, innerCatchB);
-
     ctx.fn.switchTo(innerTryB);
-    emitStatements(tryBody, ctx);
-    if (!ctx.fn.currentBlock.isTerminated) {
-      ctx.fn.callVoid("@cs_pop_handler", []); // pop inner; outer still active
-      ctx.fn.br(finallyNormalB);
-    }
+    emitStatements(stmt.tryBody, ctx);
+    if (!ctx.fn.currentBlock.isTerminated) ctx.fn.br(cleanupB); // NORMAL completion
     ctx.fn.switchTo(innerCatchB);
-    emitStatements(catchBody, ctx);
-    if (!ctx.fn.currentBlock.isTerminated) ctx.fn.br(finallyNormalB);
+    emitStatements(stmt.catchBody!, ctx);
+    if (!ctx.fn.currentBlock.isTerminated) ctx.fn.br(cleanupB);
+  } else {
+    emitStatements(stmt.tryBody, ctx);
+    if (!ctx.fn.currentBlock.isTerminated) ctx.fn.br(cleanupB);
   }
+  ctx.finallyStack.pop();
 
-  // Shared: pop the outer handler and run finally on the normal (non-throwing) completion.
-  ctx.fn.switchTo(finallyNormalB);
-  ctx.fn.callVoid("@cs_pop_handler", []);
-  emitStatements(finallyBody, ctx);
-  if (!ctx.fn.currentBlock.isTerminated) ctx.fn.br(afterB);
+  // A throw reached the outer handler → mark the completion and fall into cleanup (finally, then
+  // re-raise).
+  ctx.fn.switchTo(excB);
+  ctx.fn.store(imm(T.i32, C_THROW), codeSlot);
+  ctx.fn.br(cleanupB);
 
-  // Exceptional path: the outer handler caught (B threw, or A threw with no catch). Run finally,
-  // then re-raise so the exception keeps propagating outward.
-  ctx.fn.switchTo(unwindB);
-  emitStatements(finallyBody, ctx);
+  // Cleanup: restore the handler depth, run finally (the frame is already popped, so a return in
+  // finally chains outward / overrides), then dispatch the pending completion.
+  ctx.fn.switchTo(cleanupB);
+  ctx.fn.callVoid("@cs_handler_restore", [saved]);
+  if (hasFinally) emitStatements(stmt.finallyBody!, ctx);
   if (!ctx.fn.currentBlock.isTerminated) {
+    const code = ctx.fn.load(T.i32, codeSlot);
+    const retB = ctx.fn.newBlock("try.ret");
+    const notRet = ctx.fn.newBlock("try.notret");
+    const throwB = ctx.fn.newBlock("try.throw");
+    ctx.fn.brCond(ctx.fn.icmp("eq", code, imm(T.i32, C_RETURN)), retB, notRet);
+    ctx.fn.switchTo(notRet);
+    ctx.fn.brCond(ctx.fn.icmp("eq", code, imm(T.i32, C_THROW)), throwB, afterB);
+    ctx.fn.switchTo(retB);
+    emitReturnCompletion(ctx, retSlot);
+    ctx.fn.switchTo(throwB);
     ctx.fn.callVoid("@cs_rethrow", []);
     ctx.fn.unreachable();
   }
@@ -311,15 +312,37 @@ function emitTryFinally(
   ctx.fn.switchTo(afterB);
 }
 
-// True if any return/break/continue in `stmts` could exit the try body (skipping the handler
-// pop). `inLoop`/`inBreakable` track whether a continue/break is captured by a nested construct
-// (a loop captures both; a switch captures break only). A return always escapes the frame.
-function escapesTry(stmts: HStmt[]): boolean {
+// Perform a RETURN completion at a cleanup dispatch: chain through an enclosing finally if one
+// exists (so the outer finally also runs), otherwise do the real function return.
+function emitReturnCompletion(ctx: Ctx, retSlot: Value | null): void {
+  const outer = ctx.finallyStack[ctx.finallyStack.length - 1];
+  if (outer) {
+    ctx.fn.store(imm(T.i32, C_RETURN), outer.code);
+    if (retSlot && outer.retVal) {
+      ctx.fn.store(ctx.fn.load(irTypeOf(ctx.fnReturnType!), retSlot), outer.retVal);
+    }
+    ctx.fn.br(outer.cleanupEntry);
+    return;
+  }
+  if (retSlot) {
+    ctx.fn.ret(ctx.fn.load(irTypeOf(ctx.fnReturnType!), retSlot));
+  } else if (ctx.fn.returnType.kind === "void") {
+    ctx.fn.retVoid(); // a void function's `return;` inside a try
+  } else {
+    // No return value and a non-void frame (e.g. a top-level try in `main`, which has no `return`):
+    // this dispatch arm is unreachable, but must not emit a type-mismatched `ret void`.
+    ctx.fn.unreachable();
+  }
+}
+
+// True if any break/continue in `stmts` could cross the try boundary (target a loop OUTSIDE the
+// try), which the completion model does not route yet. `inLoop`/`inBreakable` track whether a
+// continue/break is captured by a nested construct (a loop captures both; a switch captures break
+// only). `return` is handled by the completion routing, so it does NOT count here.
+function breakContinueEscapes(stmts: HStmt[]): boolean {
   const walk = (list: HStmt[], inLoop: boolean, inBreakable: boolean): boolean =>
     list.some((s) => {
       switch (s.kind) {
-        case "return":
-          return true;
         case "break":
           return !inBreakable;
         case "continue":
@@ -467,10 +490,20 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
       ctx.fn.callVoid("@exit", [ctx.fn.fptosi_i32(evalNumber(stmt.code, ctx))]);
       return;
 
-    case "return":
+    case "return": {
+      // Inside a try/catch/finally, a return routes to the innermost cleanup (so finally runs and
+      // the handler depth is restored) carrying the return value; otherwise it returns directly.
+      const frame = ctx.finallyStack[ctx.finallyStack.length - 1];
+      if (frame) {
+        ctx.fn.store(imm(T.i32, C_RETURN), frame.code);
+        if (stmt.value && frame.retVal) ctx.fn.store(evalValue(stmt.value, ctx), frame.retVal);
+        ctx.fn.br(frame.cleanupEntry);
+        return;
+      }
       if (stmt.value) ctx.fn.ret(evalValue(stmt.value, ctx));
       else ctx.fn.retVoid();
       return;
+    }
 
     case "callStmt": {
       // Result discarded. A void callee uses callVoid; a value-returning callee is called and

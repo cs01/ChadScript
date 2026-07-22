@@ -55,6 +55,14 @@ void cs_pop_handler(void) {
   if (cs_handler_n > 0) cs_handler_n--;
 }
 
+// Structured-completion support: a try records the handler depth on entry, and its cleanup path
+// restores to that depth on ANY exit (normal, return, throw) — so the pop count is uniform
+// regardless of which exit is taken. Restore only ever pops (never pushes).
+int cs_handler_count(void) { return cs_handler_n; }
+void cs_handler_restore(int n) {
+  if (cs_handler_n > n) cs_handler_n = n;
+}
+
 // throw: unwind to the innermost handler if one exists, else terminate (Node exits 1 on an
 // uncaught exception; the differential harness compares stdout + exit code, so the stderr text is
 // best-effort). The message is stashed for the (future) catch binding.
