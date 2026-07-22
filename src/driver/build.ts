@@ -2,12 +2,23 @@
 // compile the IR and link it with the C runtime. Every build verifies the IR (clang fails on
 // malformed IR; the LLVM verifier runs as part of that). No IR reaches a binary unverified.
 //
-// The runtime .c files are compiled ONCE to cached .o files (keyed by source mtime) and reused
-// across every build — recompiling them per program was the dominant cost of the test suite.
+// The runtime .c files are compiled ONCE to cached .o files (CONTENT-ADDRESSED — keyed by a hash
+// of the source + runtime headers + compiler flags) and reused across every build; recompiling
+// them per program was the dominant cost of the test suite. Content addressing (vs the old mtime
+// key) survives `git checkout`/`touch`, never serves a stale object, and rebuilds when any runtime
+// header changes.
 
 import { execFileSync, execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdtempSync, writeFileSync, readdirSync, mkdirSync, existsSync, statSync } from "node:fs";
+import { createHash } from "node:crypto";
+import {
+  mkdtempSync,
+  writeFileSync,
+  readFileSync,
+  readdirSync,
+  mkdirSync,
+  existsSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,17 +40,43 @@ const runtimeSources = readdirSync(runtimeDir)
   .filter((f) => f.endsWith(".c"))
   .map((f) => join(runtimeDir, f));
 
-// Compile each runtime .c to a cached .o if the object is missing or older than its source.
-// Runtime code is independent of the program's opt level, so a single -O2 build is reused for
-// both -O0 and -O2 program links. Returns the object-file paths. Call once before launching
-// concurrent links so the (racy) cache-fill happens exactly once.
+// The compile flags a runtime object depends on (a flag change must invalidate the cache).
+const RUNTIME_COMPILE_FLAGS = ["-O2", "-c", ...GC_CFLAGS];
+
+// A content-addressed cache key for one runtime object: hashes the .c bytes, EVERY runtime header
+// (a header edit must rebuild the .c's that include it — the mtime scheme missed this), and the
+// compile flags. Pure + deterministic, so it is unit-tested directly.
+export function runtimeObjectKey(
+  cSource: Buffer,
+  headerContents: readonly Buffer[],
+  flags: readonly string[],
+): string {
+  const h = createHash("sha256");
+  h.update(cSource);
+  for (const hdr of headerContents) h.update(hdr);
+  h.update(flags.join("\0"));
+  return h.digest("hex").slice(0, 16);
+}
+
+function headerContents(): Buffer[] {
+  return readdirSync(runtimeDir)
+    .filter((f) => f.endsWith(".h"))
+    .sort() // stable order → stable key regardless of readdir ordering
+    .map((f) => readFileSync(join(runtimeDir, f)));
+}
+
+// Compile each runtime .c to a content-addressed cached .o (`.build/runtime/<name>.<key>.o`);
+// reuse it whenever that exact file already exists (a cache hit needs no recompile). Runtime code
+// is independent of the program's opt level, so a single -O2 build is reused for both -O0 and -O2
+// program links. Call once before launching concurrent links so the (racy) cache-fill happens once.
 export function runtimeObjects(): string[] {
   mkdirSync(cacheDir, { recursive: true });
+  const headers = headerContents();
   return runtimeSources.map((src) => {
-    const obj = join(cacheDir, basename(src).replace(/\.c$/, ".o"));
-    const stale = !existsSync(obj) || statSync(obj).mtimeMs < statSync(src).mtimeMs;
-    if (stale) {
-      execFileSync(CLANG, ["-O2", "-c", ...GC_CFLAGS, src, "-o", obj], { stdio: "pipe" });
+    const key = runtimeObjectKey(readFileSync(src), headers, RUNTIME_COMPILE_FLAGS);
+    const obj = join(cacheDir, `${basename(src, ".c")}.${key}.o`);
+    if (!existsSync(obj)) {
+      execFileSync(CLANG, [...RUNTIME_COMPILE_FLAGS, src, "-o", obj], { stdio: "pipe" });
     }
     return obj;
   });
