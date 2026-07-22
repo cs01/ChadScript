@@ -22,10 +22,24 @@ interface LowerCtx {
   // names. Keyed by Symbol so a reference resolves to the same name as its declaration.
   names: Map<ts.Symbol, string>;
   counter: { n: number };
+  // The `this` binding while lowering a method/constructor body (null at top level / in free
+  // functions). `this` lowers to a varRef of this name + the instance type.
+  currentThis: { name: string; type: ValueType } | null;
+}
+
+// A property whose declaration is a method (as opposed to a data field).
+function isMethodSymbol(sym: ts.Symbol): boolean {
+  const d = sym.valueDeclaration;
+  return d !== undefined && (ts.isMethodDeclaration(d) || ts.isMethodSignature(d));
 }
 
 export function lower(loaded: LoadedProgram): HModule {
-  const ctx: LowerCtx = { checker: loaded.checker, names: new Map(), counter: { n: 0 } };
+  const ctx: LowerCtx = {
+    checker: loaded.checker,
+    names: new Map(),
+    counter: { n: 0 },
+    currentThis: null,
+  };
   const functions: HFunc[] = [];
   const topLevel: HStmt[] = [];
   for (const sf of loaded.sourceFiles) {
@@ -34,12 +48,69 @@ export function lower(loaded: LoadedProgram): HModule {
       if (ts.isInterfaceDeclaration(stmt) || ts.isTypeAliasDeclaration(stmt)) continue;
       if (ts.isFunctionDeclaration(stmt)) {
         functions.push(lowerFunction(stmt, ctx));
+      } else if (ts.isClassDeclaration(stmt)) {
+        functions.push(...lowerClass(stmt, ctx));
       } else {
         topLevel.push(...lowerStatement(stmt, ctx));
       }
     }
   }
   return { functions, topLevel };
+}
+
+// A class lowers to a set of free functions: each method and the constructor become an HFunc
+// taking the instance record as a hidden first parameter `this`. Field access uses the object
+// member machinery. First pass: no inheritance / static / getters.
+function lowerClass(decl: ts.ClassDeclaration, ctx: LowerCtx): HFunc[] {
+  if (!decl.name) ice("lower: anonymous class not supported");
+  const className = decl.name.text;
+  const classSym = ctx.checker.getSymbolAtLocation(decl.name)!;
+  const instanceType = ctx.checker.getDeclaredTypeOfSymbol(classSym);
+  const thisType = valueTypeOfTsType(instanceType, decl.name, ctx.checker);
+
+  const funcs: HFunc[] = [];
+  for (const member of decl.members) {
+    if (ts.isMethodDeclaration(member) || ts.isConstructorDeclaration(member)) {
+      funcs.push(lowerMethodLike(className, member, thisType, ctx));
+    } else if (ts.isPropertyDeclaration(member)) {
+      if (member.initializer)
+        ice("lower: class field initializers not supported yet (set in ctor)");
+    } else {
+      ice(`lower: unsupported class member ${ts.SyntaxKind[member.kind]}`);
+    }
+  }
+  return funcs;
+}
+
+// A method or constructor → an HFunc `Class.name` with `this` prepended to the params.
+function lowerMethodLike(
+  className: string,
+  member: ts.MethodDeclaration | ts.ConstructorDeclaration,
+  thisType: ValueType,
+  ctx: LowerCtx,
+): HFunc {
+  if (!member.body) ice("lower: method/constructor without a body");
+  const isCtor = ts.isConstructorDeclaration(member);
+  const memberName = isCtor ? "constructor" : (member.name as ts.Identifier).text;
+  const thisName = `this.${ctx.counter.n++}`;
+
+  const params = [
+    { name: thisName, type: thisType },
+    ...member.parameters.map((p) => {
+      if (!ts.isIdentifier(p.name)) ice("lower: destructured parameter not supported");
+      return { name: nameOf(p.name, ctx), type: valueTypeOf(p.name, ctx) };
+    }),
+  ];
+
+  const savedThis = ctx.currentThis;
+  ctx.currentThis = { name: thisName, type: thisType };
+  const body = lowerStatements(member.body.statements, ctx);
+  ctx.currentThis = savedThis;
+
+  // A constructor returns nothing (the record is returned by `new`); a method returns its
+  // declared type.
+  const returnType = isCtor ? null : returnTypeOfSignature(member, ctx);
+  return { name: `${className}.${memberName}`, params, returnType, body };
 }
 
 function lowerFunction(decl: ts.FunctionDeclaration, ctx: LowerCtx): HFunc {
@@ -331,6 +402,17 @@ function lowerCallStatement(call: ts.CallExpression, ctx: LowerCtx): HStmt {
     default: {
       // A method call `obj.method(...)` in statement position → evaluate for effect, discard.
       if (ts.isPropertyAccessExpression(call.expression)) {
+        const pa = call.expression;
+        const recvType = resolveType(pa.expression, ctx);
+        // A class method (possibly void) → callStmt with `this` prepended, so void methods work.
+        if (recvType.kind === "object" && recvType.className !== undefined) {
+          return {
+            kind: "callStmt",
+            name: `${recvType.className}.${pa.name.text}`,
+            args: [lowerExpr(pa.expression, ctx), ...call.arguments.map((a) => lowerExpr(a, ctx))],
+            returnType: callReturnType(call, ctx),
+          };
+        }
         return { kind: "exprStmt", expr: lowerMethodCall(call, ctx) };
       }
       // A user-function call in statement position: evaluate for effect, discard the result.
@@ -402,6 +484,17 @@ function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
     }
     return ice(`lower: unsupported array method .${method}`);
   }
+  // Class method: `obj.m(args)` → call `Class.m(obj, args)`. Non-void (value position).
+  if (recvType.kind === "object" && recvType.className !== undefined) {
+    const rt = callReturnType(call, ctx);
+    if (rt === null) ice(`lower: void method .${method} used as a value`);
+    return {
+      kind: "call",
+      name: `${recvType.className}.${method}`,
+      args: [lowerExpr(pa.expression, ctx), ...call.arguments.map((a) => lowerExpr(a, ctx))],
+      type: rt,
+    };
+  }
   return ice(`lower: unsupported method .${method} on ${recvType.kind}`);
 }
 
@@ -444,6 +537,25 @@ function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
 
     case ts.SyntaxKind.ObjectLiteralExpression:
       return lowerObjectLit(expr as ts.ObjectLiteralExpression, ctx, type);
+
+    case ts.SyntaxKind.ThisKeyword: {
+      if (!ctx.currentThis) ice("lower: `this` outside a method");
+      return { kind: "varRef", name: ctx.currentThis.name, type: ctx.currentThis.type };
+    }
+
+    case ts.SyntaxKind.NewExpression: {
+      const ne = expr as ts.NewExpression;
+      if (type.kind !== "object" || type.className === undefined) {
+        ice("lower: `new` on a non-class type");
+      }
+      return {
+        kind: "new",
+        className: type.className,
+        fieldCount: type.shape.fields.length,
+        args: (ne.arguments ?? []).map((a) => lowerExpr(a, ctx)),
+        type,
+      };
+    }
 
     case ts.SyntaxKind.PropertyAccessExpression: {
       const pa = expr as ts.PropertyAccessExpression;
@@ -512,6 +624,8 @@ function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
 // The checker is the oracle: map its resolved type to our ValueType. Anything outside the
 // currently-supported domain is an ICE (the validator should have rejected it upstream).
 function resolveType(expr: ts.Expression, ctx: LowerCtx): ValueType {
+  // `this` has tsc's polymorphic ThisType (a type parameter); use the bound instance type.
+  if (expr.kind === ts.SyntaxKind.ThisKeyword && ctx.currentThis) return ctx.currentThis.type;
   // An empty array literal is typed `never[]` on its own; its element type comes from context
   // (the declared/expected type, e.g. `const e: number[] = []`). Object literals likewise take
   // their shape from the declared type (the named interface) when present.
@@ -540,15 +654,21 @@ function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChecker): 
       const args = checker.getTypeArguments(ref);
       if (args.length === 1) return VT.array(valueTypeOfTsType(args[0]!, node, checker));
     }
-    // A closed object shape (interface / type literal): its ordered properties become record
-    // slots. tsc guarantees the fields; we resolve each field type recursively.
-    const props = checker.getPropertiesOfType(t);
-    if (props.length > 0) {
+    // A closed object shape (interface / type literal / class instance). Its DATA properties
+    // become record slots — methods are dispatched to functions, not stored. A class instance's
+    // `className` enables method dispatch.
+    const classDecl = t.symbol?.valueDeclaration;
+    const isClass = classDecl !== undefined && ts.isClassDeclaration(classDecl);
+    const props = checker.getPropertiesOfType(t).filter((sym) => !isMethodSymbol(sym));
+    if (props.length > 0 || isClass) {
       const fields = props.map((sym) => ({
         name: sym.name,
         type: valueTypeOfTsType(checker.getTypeOfSymbolAtLocation(sym, node), node, checker),
       }));
-      return { kind: "object", shape: { fields } };
+      const className = isClass ? t.symbol!.name : undefined;
+      return className !== undefined
+        ? { kind: "object", shape: { fields }, className }
+        : { kind: "object", shape: { fields } };
     }
   }
   // Narrowing produces unions (e.g. `switch (n) { case 0: case 1: }` narrows n to `0 | 1`). A
@@ -567,8 +687,15 @@ function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChecker): 
 
 // A function's return type as a ValueType, or null for void.
 function returnTypeOf(decl: ts.FunctionDeclaration, ctx: LowerCtx): ValueType | null {
+  return returnTypeOfSignature(decl, ctx);
+}
+
+function returnTypeOfSignature(
+  decl: ts.FunctionDeclaration | ts.MethodDeclaration | ts.ConstructorDeclaration,
+  ctx: LowerCtx,
+): ValueType | null {
   const sig = ctx.checker.getSignatureFromDeclaration(decl);
-  if (!sig) return ice("lower: could not resolve function signature");
+  if (!sig) return ice("lower: could not resolve signature");
   const ret = ctx.checker.getReturnTypeOfSignature(sig);
   if (ret.flags & (ts.TypeFlags.Void | ts.TypeFlags.Undefined)) return null;
   return valueTypeOfTsType(ret, decl, ctx.checker);

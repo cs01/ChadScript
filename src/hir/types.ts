@@ -28,7 +28,9 @@ export type ValueType =
   // says how to box/unbox each slot.
   | { kind: "array"; element: ValueType }
   // A closed-shape object. Runtime rep: pointer to a GC record of one i64 slot per field.
-  | { kind: "object"; shape: ObjectShape };
+  // `className` is set for class instances (enables method dispatch to `Class.method`); unset
+  // for plain interface/type-literal objects.
+  | { kind: "object"; shape: ObjectShape; className?: string };
 
 export const VT = {
   number: { kind: "number" } as ValueType,

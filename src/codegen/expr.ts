@@ -93,6 +93,14 @@ export function evalObjectPtr(expr: HExpr, ctx: Ctx): Value {
       });
       return rec;
     }
+    case "new": {
+      // Allocate the record, run the constructor (which sets fields via memberSet on `this`),
+      // then the record is the value of the `new` expression.
+      const rec = ctx.fn.call("@cs_gc_alloc", T.ptr, [imm(T.i64, expr.fieldCount * 8)]);
+      const args = expr.args.map((a) => evalValue(a, ctx));
+      ctx.fn.callVoid(`@${expr.className}.constructor`, [rec, ...args]);
+      return rec;
+    }
     case "varRef":
       return ctx.fn.load(T.ptr, lookupVar(expr.name, ctx).ptr);
     case "call":

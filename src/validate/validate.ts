@@ -59,6 +59,13 @@ const ALLOWED_KINDS: ReadonlySet<ts.SyntaxKind> = new Set([
   ts.SyntaxKind.PropertySignature,
   ts.SyntaxKind.TypeLiteral,
   ts.SyntaxKind.TypeReference,
+  // Classes (Phase 2): declaration, members, `new`, `this`.
+  ts.SyntaxKind.ClassDeclaration,
+  ts.SyntaxKind.Constructor,
+  ts.SyntaxKind.MethodDeclaration,
+  ts.SyntaxKind.PropertyDeclaration,
+  ts.SyntaxKind.NewExpression,
+  ts.SyntaxKind.ThisKeyword,
   ts.SyntaxKind.ReturnStatement,
   ts.SyntaxKind.BreakStatement,
   ts.SyntaxKind.ContinueStatement,

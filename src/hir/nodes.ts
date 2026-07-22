@@ -107,6 +107,9 @@ export type HExpr =
   | { kind: "objectLit"; fields: HExpr[]; type: ValueType }
   // `obj.field` read. `slot` is the field's record index; `type` is the field's type.
   | { kind: "memberGet"; object: HExpr; slot: number; type: ValueType }
+  // `new Class(args)`: allocate the record, run `Class.constructor(record, args)`, yield the
+  // record. `fieldCount` sizes the allocation.
+  | { kind: "new"; className: string; fieldCount: number; args: HExpr[]; type: ValueType }
   | { kind: "unary"; op: UnaryOp; operand: HExpr; type: ValueType }
   | { kind: "binary"; op: BinaryOp; left: HExpr; right: HExpr; type: ValueType }
   // Short-circuiting `&&` / `||`. JS VALUE semantics: the result IS one of the operands (not a
