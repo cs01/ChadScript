@@ -695,6 +695,12 @@ function lowerGlobalBuiltin(name: string, call: ts.CallExpression, ctx: LowerCtx
       type: VT.number,
     };
   }
+  if (name === "String" || name === "Number" || name === "Boolean") {
+    const arg = call.arguments[0];
+    if (!arg) ice(`lower: ${name}() with no argument not supported`);
+    const resultType = name === "String" ? VT.string : name === "Number" ? VT.number : VT.boolean;
+    return { kind: "convert", op: name, value: lowerExpr(arg, ctx), type: resultType };
+  }
   return null;
 }
 

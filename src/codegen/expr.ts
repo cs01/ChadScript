@@ -980,6 +980,9 @@ export function evalString(expr: HExpr, ctx: Ctx): Value {
             evalNumber(expr.radix, ctx),
           ]);
 
+    case "convert": // `String(x)` — the same coercion as `"" + x`.
+      return coerceToString(expr.value, ctx);
+
     case "arrayJoin":
       return evalArrayJoin(expr, ctx);
     case "coalesce":
@@ -1076,6 +1079,9 @@ export function evalNumber(expr: HExpr, ctx: Ctx): Value {
 
     case "setSize":
       return ctx.fn.sitofp(ctx.fn.call("@cs_set_size", T.i32, [evalSetPtr(expr.set, ctx)]));
+
+    case "convert": // `Number(x)`
+      return evalNumberConvert(expr.value, ctx);
 
     case "arrayLen":
       // JS .length is a number; the runtime returns an i32 count.
@@ -1213,6 +1219,39 @@ export function evalLogical(expr: Extract<HExpr, { kind: "logical" }>, ctx: Ctx)
   return ctx.fn.load(irt, slot);
 }
 
+// `Number(x)`: number → identity; boolean → 1/0; string → the ECMAScript StringToNumber parse.
+function evalNumberConvert(value: HExpr, ctx: Ctx): Value {
+  switch (value.type.kind) {
+    case "number":
+      return evalNumber(value, ctx);
+    case "boolean":
+      return ctx.fn.uitofp(ctx.fn.zextI1ToI32(evalBool(value, ctx)));
+    case "string":
+      return ctx.fn.call("@cs_string_to_number", T.double, [evalString(value, ctx)]);
+    default:
+      return ice(`Number(): conversion from ${value.type.kind} not supported yet`);
+  }
+}
+
+// `Boolean(x)`: JS truthiness. number → not NaN and not 0 (`fcmp one` is ordered, so NaN→false);
+// string → non-empty; boolean → identity.
+function evalBooleanConvert(value: HExpr, ctx: Ctx): Value {
+  switch (value.type.kind) {
+    case "boolean":
+      return evalBool(value, ctx);
+    case "number":
+      return ctx.fn.fcmp("one", evalNumber(value, ctx), fimm(0));
+    case "string":
+      return ctx.fn.icmp(
+        "ne",
+        ctx.fn.call("@cs_str_len", T.i32, [evalString(value, ctx)]),
+        imm(T.i32, 0),
+      );
+    default:
+      return ice(`Boolean(): conversion from ${value.type.kind} not supported yet`);
+  }
+}
+
 // Evaluate a boolean-typed HExpr to an i1 Value.
 export function evalBool(expr: HExpr, ctx: Ctx): Value {
   switch (expr.kind) {
@@ -1290,6 +1329,9 @@ export function evalBool(expr: HExpr, ctx: Ctx): Value {
 
     case "setDelete":
       return evalSetPredicate("@cs_set_delete", expr, ctx);
+
+    case "convert": // `Boolean(x)` — JS truthiness of the value.
+      return evalBooleanConvert(expr.value, ctx);
 
     default:
       return ice(`evalBool: unhandled boolean expression ${expr.kind}`);

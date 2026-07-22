@@ -41,6 +41,7 @@ export function generate(hmod: HModule): string {
   mod.declareExtern("cs_str_concat", T.ptr, [T.ptr, T.ptr]);
   mod.declareExtern("cs_num_to_string", T.ptr, [T.double]);
   mod.declareExtern("cs_num_to_string_radix", T.ptr, [T.double, T.double]);
+  mod.declareExtern("cs_string_to_number", T.double, [T.ptr]);
   mod.declareExtern("cs_bool_to_string", T.ptr, [T.i32]);
   mod.declareExtern("cs_str_eq", T.i32, [T.ptr, T.ptr]);
   // Math.* : libm (double→double) + JS-semantics helpers.

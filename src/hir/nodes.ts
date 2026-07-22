@@ -124,6 +124,9 @@ export type HExpr =
   | { kind: "conditional"; cond: HExpr; whenTrue: HExpr; whenFalse: HExpr; type: ValueType }
   // `n.toString(radix?)` → string. `radix` null means base 10 (shortest round-trip).
   | { kind: "numToString"; value: HExpr; radix: HExpr | null; type: ValueType }
+  // The global conversion functions `String(x)` / `Number(x)` / `Boolean(x)`. Codegen dispatches
+  // on `op` and the value's type; `type` is the result (string/number/boolean respectively).
+  | { kind: "convert"; op: "String" | "Number" | "Boolean"; value: HExpr; type: ValueType }
   // `str.length` → number.
   | { kind: "strLen"; str: HExpr; type: ValueType }
   // A `string.method(args)` builtin. `method` is the JS name; result type is `type`.
