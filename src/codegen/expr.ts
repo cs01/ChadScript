@@ -15,6 +15,7 @@ import {
 import { T, type IrType } from "../ir/types.js";
 import type { HExpr, BinaryOp } from "../hir/nodes.js";
 import type { ValueType } from "../hir/types.js";
+import { evalMathCall } from "./math.js";
 
 export interface Ctx {
   mod: ModuleBuilder;
@@ -977,32 +978,6 @@ export function evalConditional(expr: Extract<HExpr, { kind: "conditional" }>, c
 
   ctx.fn.switchTo(endB);
   return ctx.fn.load(irTypeOf(expr.type), result);
-}
-
-// Math.* → libm (floor/ceil/trunc/sqrt/fabs/pow) or a runtime helper (round/sign, whose JS
-// semantics differ from C). All operate on doubles.
-const MATH_UNARY: Record<string, string> = {
-  floor: "@floor",
-  ceil: "@ceil",
-  trunc: "@trunc",
-  abs: "@fabs",
-  sqrt: "@sqrt",
-  round: "@cs_math_round",
-  sign: "@cs_math_sign",
-};
-
-export function evalMathCall(expr: Extract<HExpr, { kind: "mathCall" }>, ctx: Ctx): Value {
-  const args = expr.args.map((a) => evalNumber(a, ctx));
-  const unary = MATH_UNARY[expr.fn];
-  if (unary) return ctx.fn.call(unary, T.double, [args[0]!]);
-  if (expr.fn === "pow") return ctx.fn.call("@pow", T.double, [args[0]!, args[1]!]);
-  // Math.max/min: variadic, folded pairwise. No args → ∓Infinity identity (JS spec).
-  if (expr.fn === "max" || expr.fn === "min") {
-    const runtimeFn = expr.fn === "max" ? "@cs_math_max2" : "@cs_math_min2";
-    if (args.length === 0) return fimm(expr.fn === "max" ? -Infinity : Infinity);
-    return args.reduce((acc, a) => ctx.fn.call(runtimeFn, T.double, [acc, a]));
-  }
-  return ice(`codegen: Math.${expr.fn} not supported yet`);
 }
 
 // String methods: each maps to a runtime call. `ret` picks the IR return type and any bool
