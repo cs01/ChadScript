@@ -17,6 +17,7 @@ import {
   evalValue,
   irTypeOf,
   lookupVar,
+  toBool,
   type Ctx,
 } from "./expr.js";
 
@@ -73,6 +74,30 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
       // self-referential `n = n + 1` loads the old value first.
       const value = evalValue(stmt.value, ctx);
       ctx.fn.store(value, lookupVar(stmt.name, ctx).ptr);
+      return;
+    }
+
+    case "if": {
+      const cond = toBool(stmt.cond, ctx);
+      const thenB = ctx.fn.newBlock("if.then");
+      const elseB = stmt.otherwise ? ctx.fn.newBlock("if.else") : null;
+      const endB = ctx.fn.newBlock("if.end");
+
+      ctx.fn.brCond(cond, thenB, elseB ?? endB);
+
+      ctx.fn.switchTo(thenB);
+      for (const s of stmt.then) emitStatement(s, ctx);
+      // A branch body may already have terminated (e.g. a nested return once we have it); only
+      // add the jump to the merge block if control can still fall through.
+      if (!ctx.fn.currentBlock.isTerminated) ctx.fn.br(endB);
+
+      if (elseB) {
+        ctx.fn.switchTo(elseB);
+        for (const s of stmt.otherwise!) emitStatement(s, ctx);
+        if (!ctx.fn.currentBlock.isTerminated) ctx.fn.br(endB);
+      }
+
+      ctx.fn.switchTo(endB);
       return;
     }
 

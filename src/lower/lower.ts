@@ -33,7 +33,34 @@ function lowerStatement(stmt: ts.Statement, checker: ts.TypeChecker): HStmt[] {
   if (ts.isVariableStatement(stmt)) {
     return stmt.declarationList.declarations.map((d) => lowerVarDecl(d, checker));
   }
+  if (ts.isIfStatement(stmt)) {
+    return [lowerIf(stmt, checker)];
+  }
+  if (ts.isBlock(stmt)) {
+    // A bare block just contributes its statements (flattened; scoping is enforced by tsc).
+    return lowerStatements(stmt.statements, checker);
+  }
   return ice(`lower: unsupported statement ${ts.SyntaxKind[stmt.kind]}`);
+}
+
+function lowerStatements(stmts: readonly ts.Statement[], checker: ts.TypeChecker): HStmt[] {
+  return stmts.flatMap((s) => lowerStatement(s, checker));
+}
+
+// The body of a branch is either a block (`{ ... }`) or a single statement (`if (c) x();`).
+function lowerBranchBody(stmt: ts.Statement, checker: ts.TypeChecker): HStmt[] {
+  return ts.isBlock(stmt)
+    ? lowerStatements(stmt.statements, checker)
+    : lowerStatement(stmt, checker);
+}
+
+function lowerIf(stmt: ts.IfStatement, checker: ts.TypeChecker): HStmt {
+  return {
+    kind: "if",
+    cond: lowerExpr(stmt.expression, checker),
+    then: lowerBranchBody(stmt.thenStatement, checker),
+    otherwise: stmt.elseStatement ? lowerBranchBody(stmt.elseStatement, checker) : null,
+  };
 }
 
 function lowerAssignment(expr: ts.BinaryExpression, checker: ts.TypeChecker): HStmt {

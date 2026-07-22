@@ -17,7 +17,10 @@ export type HStmt =
   | { kind: "varDecl"; name: string; init: HExpr; type: ValueType }
   // Reassignment to an existing `let` binding (const reassignment is blocked by the tsc gate).
   // Compound assignment (`+=` etc.) is lowered to `value = <var> <op> rhs`.
-  | { kind: "assign"; name: string; value: HExpr };
+  | { kind: "assign"; name: string; value: HExpr }
+  // `if (cond) { then } else { otherwise }`. `otherwise` is null when there is no else.
+  // `cond` is evaluated for JS truthiness (see codegen toBool).
+  | { kind: "if"; cond: HExpr; then: HStmt[]; otherwise: HStmt[] | null };
 
 export type UnaryOp = "neg" | "pos";
 // Arithmetic ops produce a number; comparison ops (lt..ne) produce a boolean. The `type`

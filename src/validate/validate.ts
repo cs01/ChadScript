@@ -39,6 +39,9 @@ const ALLOWED_KINDS: ReadonlySet<ts.SyntaxKind> = new Set([
   ts.SyntaxKind.VariableStatement,
   ts.SyntaxKind.VariableDeclarationList,
   ts.SyntaxKind.VariableDeclaration,
+  // Control flow (Phase 1).
+  ts.SyntaxKind.IfStatement,
+  ts.SyntaxKind.Block,
 ]);
 
 // Supported operators, checked per-operator so an admitted expression kind doesn't smuggle in

@@ -123,6 +123,21 @@ export function evalNumber(expr: HExpr, ctx: Ctx): Value {
   }
 }
 
+// JS truthiness of any supported HExpr → i1. Matches JS: number is truthy iff != 0 and not
+// NaN (ordered `one` vs 0 gives false for both 0 and NaN); boolean is itself.
+export function toBool(expr: HExpr, ctx: Ctx): Value {
+  switch (expr.type.kind) {
+    case "boolean":
+      return evalBool(expr, ctx);
+    case "number":
+      return ctx.fn.fcmp("one", evalNumber(expr, ctx), fimm(0));
+    case "string":
+      return ice("toBool: string truthiness not supported yet");
+    default:
+      return ice(`toBool: ${expr.type.kind} truthiness not supported yet`);
+  }
+}
+
 // Evaluate a boolean-typed HExpr to an i1 Value.
 export function evalBool(expr: HExpr, ctx: Ctx): Value {
   switch (expr.kind) {

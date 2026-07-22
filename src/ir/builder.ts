@@ -58,6 +58,36 @@ export class FuncBuilder {
     return { name: `%t${this.tempCounter++}`, type };
   }
 
+  // --- Basic-block / control-flow management ---
+  private labelCounter = 0;
+
+  // Create a new (empty, un-terminated) block and append it after the existing ones. Does NOT
+  // switch to it — call switchTo when ready to emit into it.
+  newBlock(hint: string): BasicBlock {
+    const b = new BasicBlock(`${hint}.${this.labelCounter++}`);
+    this.blocks.push(b);
+    return b;
+  }
+
+  switchTo(b: BasicBlock): void {
+    this.current = b;
+  }
+
+  get currentBlock(): BasicBlock {
+    return this.current;
+  }
+
+  // Unconditional branch, terminating the current block.
+  br(target: BasicBlock): void {
+    this.current.terminate(`br label %${target.label}`);
+  }
+
+  // Conditional branch on an i1, terminating the current block.
+  brCond(cond: Value, ifTrue: BasicBlock, ifFalse: BasicBlock): void {
+    if (cond.type.kind !== "i1") ice(`brCond requires an i1 condition, got ${cond.type.kind}`);
+    this.current.terminate(`br i1 ${cond.name}, label %${ifTrue.label}, label %${ifFalse.label}`);
+  }
+
   // Stack slot for a local. Returns a ptr Value; use store/load to access it. Always hoisted
   // to the entry block (see `allocas`).
   alloca(type: IrType): Value {
