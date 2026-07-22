@@ -1,9 +1,15 @@
 ---
 name: chadscript
-description: Use when writing ChadScript applications, compiling TypeScript to native binaries, or working with the chad CLI. Triggers on ChadScript projects (chadscript.d.ts present), chad CLI usage, or native compilation tasks.
+description: Historical ChadScript v1 agent guidance; do not use for the v2 compiler.
 ---
 
 # ChadScript
+
+> **Archived v1 documentation.** This file describes the dead compiler on `main` and contains
+> claims that are false for v2, including its CLI, host modules, async support, type-erased
+> generics, enums, and capture-by-value closures. For v2, read `PLAN.md` and
+> `docs/architecture-review-2026-07-22.md`; current support is defined by the validator allowlist
+> and passing v2 differential fixtures.
 
 ChadScript compiles TypeScript to native binaries via LLVM IR. It produces fast, single-file executables with no runtime dependency on Node.js.
 

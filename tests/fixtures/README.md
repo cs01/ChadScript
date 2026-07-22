@@ -1,6 +1,12 @@
 # Test Fixtures
 
-This directory contains test fixtures for the ChadScript compiler, organized by feature category for easy navigation and discovery.
+> **Most directories here are untriaged v1 salvage.** Their presence does not mean v2 supports
+> the feature. Current accepted behavior is exercised by differential fixtures in `run/`; current
+> compile-time rejection fixtures live in `reject/`. See `PLAN.md` and
+> `docs/architecture-review-2026-07-22.md` before promoting an old fixture.
+
+The remainder of this file documents the historical v1 fixture layout and harness. Do not use it
+as the v2 support contract or as current instructions for adding tests.
 
 ## Directory Structure
 

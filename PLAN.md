@@ -247,6 +247,16 @@ fixtures green, all rejection fixtures green, fuzzer clean over the phase's gram
 > methods, `console.log` util.inspect done; JSON/Date/fs/process NOT done). **Phase 5 (errors) is
 > next — user requires try/catch/throw + Phase 6 async before "done".** `toString(radix)` done;
 > `toFixed` deferred (needs JS dtoa).
+>
+> **Architecture review gate (2026-07-22):** read
+> [`docs/architecture-review-2026-07-22.md`](docs/architecture-review-2026-07-22.md) before
+> extending Phase 5, async, strings, or the standard library. In particular, finish structured
+> exception/finally semantics and make exception state fiber-local before wiring async codegen.
+> The current NUL-terminated string runtime also violates the locked `{ptr, len}` ABI and must be
+> corrected before adding JSON, fs, or more string methods.
+> Follow the review's recovery sequence one bounded semantic slice at a time; do not resume broad
+> feature accumulation until the Phase 5, string ABI, and validator audits are closed or explicitly
+> deferred with compile-time rejection.
 
 ### Phase 0 — Skeleton + oracle harness (~3K LOC)
 
