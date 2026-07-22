@@ -156,19 +156,89 @@ function lowerClass(decl: ts.ClassDeclaration, ctx: LowerCtx): HFunc[] {
 
   const savedBase = ctx.currentBaseClass;
   ctx.currentBaseClass = baseClassName;
+
+  // Field initializers (`x = expr`) run at construction, after `super()` returns. They are lowered
+  // into the constructor as `this.field = expr` stores — injected into an explicit constructor, or
+  // into a synthesized one when the class declares none. (`constructorClassOf` mirrors this so
+  // `new` dispatches to the synthesized ctor.)
+  const fieldInits = decl.members.filter(
+    (m): m is ts.PropertyDeclaration => ts.isPropertyDeclaration(m) && m.initializer !== undefined,
+  );
+
   const funcs: HFunc[] = [];
+  let sawCtor = false;
   for (const member of decl.members) {
-    if (ts.isMethodDeclaration(member) || ts.isConstructorDeclaration(member)) {
-      funcs.push(lowerMethodLike(className, member, thisType, ctx));
+    if (ts.isMethodDeclaration(member)) {
+      funcs.push(lowerMethodLike(className, member, thisType, ctx, []));
+    } else if (ts.isConstructorDeclaration(member)) {
+      sawCtor = true;
+      funcs.push(lowerMethodLike(className, member, thisType, ctx, fieldInits));
     } else if (ts.isPropertyDeclaration(member)) {
-      if (member.initializer)
-        ice("lower: class field initializers not supported yet (set in ctor)");
+      // initializer handled via constructor injection above; a bare declaration is layout-only.
     } else {
       ice(`lower: unsupported class member ${ts.SyntaxKind[member.kind]}`);
     }
   }
+  if (!sawCtor && fieldInits.length > 0) {
+    funcs.push(synthesizeFieldInitCtor(className, thisType, fieldInits, ctx));
+  }
   ctx.currentBaseClass = savedBase;
   return funcs;
+}
+
+// Build the `this.field = initializer` stores for a class's field initializers, in declaration
+// order. Must run with `ctx.currentThis` bound (i.e. inside a constructor's lowering scope).
+function fieldInitStmts(
+  fieldInits: readonly ts.PropertyDeclaration[],
+  thisType: ValueType,
+  ctx: LowerCtx,
+): HStmt[] {
+  if (thisType.kind !== "object") ice("lower: field initializer on non-object class type");
+  return fieldInits.map((pd) => {
+    if (!ts.isIdentifier(pd.name)) return ice("lower: computed field name not supported");
+    const fname = pd.name.text;
+    const slot = thisType.shape.fields.findIndex((f) => f.name === fname);
+    if (slot < 0) ice(`lower: class field ${fname} has no record slot`);
+    return {
+      kind: "memberSet",
+      object: thisRef(ctx),
+      slot,
+      value: lowerExpr(pd.initializer!, ctx),
+    };
+  });
+}
+
+// A class with field initializers but no explicit constructor gets a synthesized one: `super()`
+// (arg-less; only reached for a parameterless base) followed by the field stores.
+function synthesizeFieldInitCtor(
+  className: string,
+  thisType: ValueType,
+  fieldInits: readonly ts.PropertyDeclaration[],
+  ctx: LowerCtx,
+): HFunc {
+  const thisName = `this.${ctx.counter.n++}`;
+  const savedThis = ctx.currentThis;
+  const savedRet = ctx.currentReturnType;
+  ctx.currentThis = { name: thisName, type: thisType };
+  ctx.currentReturnType = null;
+  const body: HStmt[] = [];
+  if (ctx.currentBaseClass) {
+    body.push({
+      kind: "callStmt",
+      name: `${ctx.currentBaseClass}.constructor`,
+      args: [thisRef(ctx)],
+      returnType: null,
+    });
+  }
+  body.push(...fieldInitStmts(fieldInits, thisType, ctx));
+  ctx.currentThis = savedThis;
+  ctx.currentReturnType = savedRet;
+  return {
+    name: `${className}.constructor`,
+    params: [{ name: thisName, type: thisType }],
+    returnType: null,
+    body,
+  };
 }
 
 // A method or constructor → an HFunc `Class.name` with `this` prepended to the params.
@@ -177,6 +247,7 @@ function lowerMethodLike(
   member: ts.MethodDeclaration | ts.ConstructorDeclaration,
   thisType: ValueType,
   ctx: LowerCtx,
+  fieldInits: readonly ts.PropertyDeclaration[],
 ): HFunc {
   if (!member.body) ice("lower: method/constructor without a body");
   const isCtor = ts.isConstructorDeclaration(member);
@@ -198,7 +269,20 @@ function lowerMethodLike(
   const savedRet = ctx.currentReturnType;
   ctx.currentThis = { name: thisName, type: thisType };
   ctx.currentReturnType = returnType;
-  const body = lowerStatements(member.body.statements, ctx);
+  let body = lowerStatements(member.body.statements, ctx);
+  // Field initializers run after `super()` returns (derived) or at the top (base class).
+  if (isCtor && fieldInits.length > 0) {
+    const inits = fieldInitStmts(fieldInits, thisType, ctx);
+    const superIdx = ctx.currentBaseClass
+      ? body.findIndex(
+          (s) => s.kind === "callStmt" && s.name === `${ctx.currentBaseClass}.constructor`,
+        )
+      : -1;
+    body =
+      superIdx >= 0
+        ? [...body.slice(0, superIdx + 1), ...inits, ...body.slice(superIdx + 1)]
+        : [...inits, ...body];
+  }
   ctx.currentThis = savedThis;
   ctx.currentReturnType = savedRet;
   return { name: `${className}.${memberName}`, params, returnType, body };
@@ -1225,9 +1309,14 @@ function constructorClassOf(className: string, node: ts.Node, ctx: LowerCtx): st
   while (t) {
     const d = t.symbol?.valueDeclaration;
     if (d && ts.isClassDeclaration(d)) {
-      if (d.members.some((m) => ts.isConstructorDeclaration(m) && m.body)) {
-        return d.name!.text;
-      }
+      // A class runs its own constructor if it declares one, OR if it has field initializers (which
+      // are lowered into a synthesized constructor — see lowerClass).
+      const hasCtorWork = d.members.some(
+        (m) =>
+          (ts.isConstructorDeclaration(m) && m.body) ||
+          (ts.isPropertyDeclaration(m) && m.initializer !== undefined),
+      );
+      if (hasCtorWork) return d.name!.text;
       const bases = ctx.checker.getBaseTypes(t as ts.InterfaceType);
       t = bases.find((b) => {
         const bd = b.symbol?.valueDeclaration;
