@@ -11,13 +11,12 @@ import {
   type LowerCtx,
   callReturnType,
   coerceToTarget,
-  isMathNamespace,
-  keyKindOf,
   lowerExpr,
   lowerObjectNamespace,
   resolveType,
   vtableIndexOf,
 } from "./lower.js";
+import { isMathNamespace, keyKindOf } from "./declarations.js";
 import { thisRef } from "./statements.js";
 
 // A method call `obj.method(args)`. Dispatched on the receiver's type + method name.

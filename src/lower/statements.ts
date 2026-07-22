@@ -13,7 +13,6 @@ import {
   resolveType,
   coerceToTarget,
   callReturnType,
-  isMathNamespace,
   vtableIndexOf,
   calleeName,
   compoundOp,
@@ -22,6 +21,7 @@ import {
   lowerCallArgs,
   nameOf,
 } from "./lower.js";
+import { isMathNamespace } from "./declarations.js";
 import { valueTypeOf } from "./type-translation.js";
 import { lowerMethodCall } from "./method-call.js";
 
