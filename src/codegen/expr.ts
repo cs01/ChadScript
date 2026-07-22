@@ -69,6 +69,8 @@ export function evalString(expr: HExpr, ctx: Ctx): Value {
       return ctx.fn.load(T.ptr, lookupVar(expr.name, ctx).ptr);
     case "call":
       return evalCall(expr, ctx);
+    case "logical":
+      return evalLogical(expr, ctx);
     default:
       return ice(`evalString: unhandled string expression ${expr.kind}`);
   }
@@ -93,16 +95,18 @@ export function evalNumber(expr: HExpr, ctx: Ctx): Value {
     case "call":
       return evalCall(expr, ctx);
 
+    case "logical":
+      return evalLogical(expr, ctx);
+
     case "unary": {
       const op = expr.op;
-      const operand = evalNumber(expr.operand, ctx);
       switch (op) {
         case "neg":
-          return ctx.fn.fneg(operand);
+          return ctx.fn.fneg(evalNumber(expr.operand, ctx));
         case "pos":
-          return operand; // unary + on a number is identity
+          return evalNumber(expr.operand, ctx); // unary + on a number is identity
         default:
-          return ice(`evalNumber: unhandled unary op ${op}`);
+          return ice(`evalNumber: unhandled unary op ${op} in number domain`);
       }
     }
 
@@ -135,19 +139,49 @@ export function evalNumber(expr: HExpr, ctx: Ctx): Value {
   }
 }
 
-// JS truthiness of any supported HExpr → i1. Matches JS: number is truthy iff != 0 and not
-// NaN (ordered `one` vs 0 gives false for both 0 and NaN); boolean is itself.
+// JS truthiness of an expression → i1 (evaluates the expression once).
 export function toBool(expr: HExpr, ctx: Ctx): Value {
-  switch (expr.type.kind) {
+  return truthyOfValue(evalValue(expr, ctx), expr.type, ctx);
+}
+
+// JS truthiness of an ALREADY-computed Value → i1. Used where re-evaluating the expression
+// would repeat side effects (e.g. the left operand of &&/||). Matches JS: number truthy iff
+// != 0 and not NaN (ordered `one` vs 0 is false for both 0 and NaN); boolean is itself.
+export function truthyOfValue(v: Value, vt: ValueType, ctx: Ctx): Value {
+  switch (vt.kind) {
     case "boolean":
-      return evalBool(expr, ctx);
+      return v;
     case "number":
-      return ctx.fn.fcmp("one", evalNumber(expr, ctx), fimm(0));
+      return ctx.fn.fcmp("one", v, fimm(0));
     case "string":
-      return ice("toBool: string truthiness not supported yet");
+      return ice("truthiness: string truthiness not supported yet");
     default:
-      return ice(`toBool: ${expr.type.kind} truthiness not supported yet`);
+      return ice(`truthiness: ${vt.kind} not supported yet`);
   }
+}
+
+// Short-circuiting `&&` / `||` with JS value semantics: the result is one of the operands.
+// Implemented with a result slot (mem2reg promotes it to a phi at -O2), so the right operand
+// is evaluated only when the left doesn't decide the outcome.
+export function evalLogical(expr: Extract<HExpr, { kind: "logical" }>, ctx: Ctx): Value {
+  const irt = irTypeOf(expr.type);
+  const slot = ctx.fn.alloca(irt);
+  const leftVal = evalValue(expr.left, ctx);
+  ctx.fn.store(leftVal, slot); // default result = left
+  const leftTruthy = truthyOfValue(leftVal, expr.left.type, ctx);
+
+  const rightB = ctx.fn.newBlock("logic.right");
+  const doneB = ctx.fn.newBlock("logic.done");
+  // `&&`: evaluate right only if left is truthy. `||`: only if left is falsy.
+  if (expr.op === "and") ctx.fn.brCond(leftTruthy, rightB, doneB);
+  else ctx.fn.brCond(leftTruthy, doneB, rightB);
+
+  ctx.fn.switchTo(rightB);
+  ctx.fn.store(evalValue(expr.right, ctx), slot); // result = right
+  ctx.fn.br(doneB);
+
+  ctx.fn.switchTo(doneB);
+  return ctx.fn.load(irt, slot);
 }
 
 // Evaluate a boolean-typed HExpr to an i1 Value.
@@ -161,6 +195,14 @@ export function evalBool(expr: HExpr, ctx: Ctx): Value {
 
     case "call":
       return evalCall(expr, ctx);
+
+    case "logical":
+      return evalLogical(expr, ctx);
+
+    case "unary":
+      // Only `!` produces a boolean here (neg/pos live in the number domain).
+      if (expr.op === "not") return ctx.fn.logicalNot(toBool(expr.operand, ctx));
+      return ice(`evalBool: unary op ${expr.op} does not produce a boolean`);
 
     case "binary":
       return evalComparison(expr, ctx);

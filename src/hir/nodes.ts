@@ -47,7 +47,8 @@ export type HStmt =
   // A call in statement position — result discarded. `returnType` null means a void function.
   | { kind: "callStmt"; name: string; args: HExpr[]; returnType: ValueType | null };
 
-export type UnaryOp = "neg" | "pos";
+export type UnaryOp = "neg" | "pos" | "not";
+export type LogicalOp = "and" | "or";
 // Arithmetic ops produce a number; comparison ops (lt..ne) produce a boolean. The `type`
 // field on the binary node records which — lower/ stamps it from the checker.
 export type BinaryOp =
@@ -71,4 +72,8 @@ export type HExpr =
   // Call to a user function by its resolved HIR name. `type` is the return type.
   | { kind: "call"; name: string; args: HExpr[]; type: ValueType }
   | { kind: "unary"; op: UnaryOp; operand: HExpr; type: ValueType }
-  | { kind: "binary"; op: BinaryOp; left: HExpr; right: HExpr; type: ValueType };
+  | { kind: "binary"; op: BinaryOp; left: HExpr; right: HExpr; type: ValueType }
+  // Short-circuiting `&&` / `||`. JS VALUE semantics: the result IS one of the operands (not a
+  // coerced boolean), so `type` is the operands' shared type. right is evaluated only when the
+  // left operand doesn't decide the result.
+  | { kind: "logical"; op: LogicalOp; left: HExpr; right: HExpr; type: ValueType };

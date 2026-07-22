@@ -182,6 +182,14 @@ export class FuncBuilder {
     return result;
   }
 
+  // Logical not on an i1: xor with true.
+  logicalNot(a: Value): Value {
+    if (a.type.kind !== "i1") ice(`logicalNot requires an i1 operand, got ${a.type.kind}`);
+    const result = this.nextTemp(T.i1);
+    this.current.add(`${result.name} = xor i1 ${a.name}, true`);
+    return result;
+  }
+
   // i1 → i32 zero-extension (e.g. to pass a boolean across the runtime's int ABI).
   zextI1ToI32(a: Value): Value {
     if (a.type.kind !== "i1") ice(`zextI1ToI32 requires an i1 operand, got ${a.type.kind}`);

@@ -290,9 +290,24 @@ function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
 
     case ts.SyntaxKind.BinaryExpression: {
       const b = expr as ts.BinaryExpression;
+      const opKind = b.operatorToken.kind;
+      // `&&` / `||` are short-circuiting with value semantics — a distinct HIR node, not a
+      // plain binary (their result is an operand, not a computed value).
+      if (
+        opKind === ts.SyntaxKind.AmpersandAmpersandToken ||
+        opKind === ts.SyntaxKind.BarBarToken
+      ) {
+        return {
+          kind: "logical",
+          op: opKind === ts.SyntaxKind.AmpersandAmpersandToken ? "and" : "or",
+          left: lowerExpr(b.left, ctx),
+          right: lowerExpr(b.right, ctx),
+          type,
+        };
+      }
       return {
         kind: "binary",
-        op: binaryOp(b.operatorToken.kind),
+        op: binaryOp(opKind),
         left: lowerExpr(b.left, ctx),
         right: lowerExpr(b.right, ctx),
         type,
@@ -367,6 +382,8 @@ function unaryOp(op: ts.PrefixUnaryOperator): UnaryOp {
       return "neg";
     case ts.SyntaxKind.PlusToken:
       return "pos";
+    case ts.SyntaxKind.ExclamationToken:
+      return "not";
     default:
       return ice(`lower: unsupported unary operator ${ts.SyntaxKind[op]}`);
   }
