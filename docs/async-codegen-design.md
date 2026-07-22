@@ -73,7 +73,20 @@ Slices 1–4 green as differential fixtures (async program stdout+exit == Node),
 green, `docs/SUBSET.md` regenerated to include the admitted async syntax. At that point errors+async
 are both met and v2 can merge to main.
 
-## Slice 1 status (in progress)
+## STATUS: DONE — async admitted, merge gate closed (commits 09ffd6df, 625bc917)
+
+`async`/`await` are in the accepted subset. 7 differential fixtures (`tests/fixtures/run/async-*.ts`)
+match Node on stdout AND exit code at O0+O2: basic, multi-await, await-in-loop, ordering (microtask
+interleaving), two concurrent fibers, try/catch around a rejecting await, and unhandled-rejection
+(exit 1). The runtime fixes that got here are recorded in the git log and the memory file; the key
+ones: fiber stacks are malloc'd + GC-rooted (a suspended fiber's stack is off the main thread stack,
+so Boehm's scan misses it — the multi-await "scheduler bug" was really this GC bug); no stack
+recycling (a recycled nested-child stack broke concurrent siblings); Promise<void> normalizes to a
+null return; a fiber root handler rejects the result promise on an escaping throw; unhandled top-level
+rejections exit 1 via a consumed-by-await count. Still out of the release profile:
+`Promise.resolve/all/race`, timers, real I/O, `for await`, async arrow/method expressions.
+
+## Slice 1 status (historical — now DONE, see above)
 
 The full lowering + codegen plumbing is implemented and committed. Async stays **gated at validate**
 (AsyncKeyword/AwaitExpression not yet in ALLOWED_KINDS) — one codegen gap remains — but the two hard
