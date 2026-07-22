@@ -18,9 +18,8 @@ import {
   evalCallClosure,
   evalVirtualCall,
   evalConditional,
-  evalCoalesce,
-  evalUnwrap,
 } from "./expr.js";
+import { evalCoalesce, evalUnwrap } from "./optional.js";
 
 // Evaluate an object-typed HExpr to a ptr (to the GC record of i64 field slots).
 export function evalObjectPtr(expr: HExpr, ctx: Ctx): Value {

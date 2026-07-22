@@ -17,9 +17,6 @@ import {
   evalString,
   evalValue,
   evalArrayPtr,
-  evalOptionalPtr,
-  unboxOptionalValue,
-  unboxSlotValue,
   arrayElementAt,
   boxSlot,
   emitStrictEq,
@@ -33,6 +30,7 @@ import {
   type LoopTarget,
 } from "./expr.js";
 import { evalObjectPtr, headerOffset } from "./objects.js";
+import { evalOptionalPtr, unboxOptionalValue, unboxSlotValue } from "./optional.js";
 import { inspect } from "./inspect.js";
 
 export function generate(hmod: HModule): string {
