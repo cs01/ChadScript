@@ -94,6 +94,14 @@ export function imm(type: IrType, literal: string | number): Value {
   return { name: String(literal), type };
 }
 
+// A double immediate. LLVM double literals must be exactly representable in the text form, so
+// we emit the raw IEEE-754 bits as `0x<16 hex>` — lossless for every f64, unlike decimal.
+export function fimm(value: number): Value {
+  const buf = Buffer.alloc(8);
+  buf.writeDoubleBE(value);
+  return { name: "0x" + buf.toString("hex").toUpperCase(), type: T.double };
+}
+
 export class ModuleBuilder {
   private readonly globals: string[] = [];
   private readonly externs = new Map<string, string>();

@@ -8,6 +8,8 @@
 declare const console: {
   /** Prints one string followed by a newline (Node-identical). */
   log(message: string): void;
+  /** Prints one number (JS-exact formatting) followed by a newline. */
+  log(value: number): void;
 };
 
 declare const process: {

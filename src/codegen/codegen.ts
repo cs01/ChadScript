@@ -1,60 +1,89 @@
-// Phase 0 codegen: lower a validated program to LLVM IR. The surface is deliberately tiny —
-// `console.log("<literal>")` and `process.exit(<int literal>)` — enough to prove the whole
-// pipeline (frontend → validate → codegen → clang → binary) end to end against Node.
+// Phase 0/1 codegen: lower a validated program to LLVM IR. Surface so far:
+//   console.log("<string literal>")   → cs_console_log_cstr
+//   console.log(<number literal>)     → cs_console_log_f64   (dispatched by the checker's type)
+//   process.exit(<int literal>)       → exit
 //
-// This file is a SCAFFOLD. Real expression/statement lowering arrives in Phase 1 over the
-// HIR; do not grow this into the codegen. Anything the validator admitted but this scaffold
-// does not recognize is an ICE (loud), never silent output.
+// This file is a SCAFFOLD to be replaced by real HIR-based lowering. Anything the validator
+// admitted but this scaffold does not recognize is an ICE (loud), never silent output. The
+// string-vs-number choice for console.log comes from the type checker — tsc is the oracle.
 
 import ts from "typescript";
 import { ice } from "../diagnostics.js";
 import type { LoadedProgram } from "../frontend/program.js";
-import { ModuleBuilder, imm, type FuncBuilder } from "../ir/builder.js";
+import { ModuleBuilder, imm, fimm, type FuncBuilder } from "../ir/builder.js";
 import { T } from "../ir/types.js";
+
+interface Ctx {
+  mod: ModuleBuilder;
+  fn: FuncBuilder;
+  checker: ts.TypeChecker;
+}
 
 export function generate(loaded: LoadedProgram): string {
   const mod = new ModuleBuilder();
   mod.declareExtern("cs_console_log_cstr", T.void, [T.ptr]);
+  mod.declareExtern("cs_console_log_f64", T.void, [T.double]);
   mod.declareExtern("exit", T.void, [T.i32]);
 
-  const main = mod.defineFunc("main", T.i32, []);
+  const fn = mod.defineFunc("main", T.i32, []);
+  const ctx: Ctx = { mod, fn, checker: loaded.checker };
   for (const sf of loaded.sourceFiles) {
-    for (const stmt of sf.statements) emitStatement(stmt, main, mod);
+    for (const stmt of sf.statements) emitStatement(stmt, ctx);
   }
-  main.ret(imm(T.i32, 0));
+  fn.ret(imm(T.i32, 0));
   return mod.render();
 }
 
-function emitStatement(stmt: ts.Statement, fn: FuncBuilder, mod: ModuleBuilder): void {
+function emitStatement(stmt: ts.Statement, ctx: Ctx): void {
   if (ts.isExpressionStatement(stmt) && ts.isCallExpression(stmt.expression)) {
-    emitCall(stmt.expression, fn, mod);
+    emitCall(stmt.expression, ctx);
     return;
   }
-  ice(`phase0 codegen: unsupported statement ${ts.SyntaxKind[stmt.kind]}`);
+  ice(`codegen: unsupported statement ${ts.SyntaxKind[stmt.kind]}`);
 }
 
-function emitCall(call: ts.CallExpression, fn: FuncBuilder, mod: ModuleBuilder): void {
+function emitCall(call: ts.CallExpression, ctx: Ctx): void {
   const target = calleeName(call.expression);
 
   if (target === "console.log") {
     const arg = call.arguments[0];
-    if (call.arguments.length === 1 && arg && ts.isStringLiteral(arg)) {
-      fn.callVoid("@cs_console_log_cstr", [mod.cstring(arg.text)]);
-      return;
+    if (call.arguments.length !== 1 || !arg) {
+      ice("codegen: console.log supports exactly one argument");
     }
-    ice("phase0 codegen: console.log supports exactly one string-literal argument");
+    emitConsoleLog(arg, ctx);
+    return;
   }
 
   if (target === "process.exit") {
     const arg = call.arguments[0];
     if (call.arguments.length === 1 && arg && ts.isNumericLiteral(arg)) {
-      fn.callVoid("@exit", [imm(T.i32, parseInt(arg.text, 10))]);
+      ctx.fn.callVoid("@exit", [imm(T.i32, parseInt(arg.text, 10))]);
       return;
     }
-    ice("phase0 codegen: process.exit supports exactly one int-literal argument");
+    ice("codegen: process.exit supports exactly one int-literal argument");
   }
 
-  ice(`phase0 codegen: unsupported call ${target}`);
+  ice(`codegen: unsupported call ${target}`);
+}
+
+function emitConsoleLog(arg: ts.Expression, ctx: Ctx): void {
+  const flags = ctx.checker.getTypeAtLocation(arg).flags;
+  // The checker's type decides the runtime path — string vs number.
+  if (flags & (ts.TypeFlags.StringLike | ts.TypeFlags.String)) {
+    if (ts.isStringLiteral(arg)) {
+      ctx.fn.callVoid("@cs_console_log_cstr", [ctx.mod.cstring(arg.text)]);
+      return;
+    }
+    ice("codegen: console.log(string) supports a string literal only (Phase 1 commit 1)");
+  }
+  if (flags & (ts.TypeFlags.NumberLike | ts.TypeFlags.Number)) {
+    if (ts.isNumericLiteral(arg)) {
+      ctx.fn.callVoid("@cs_console_log_f64", [fimm(Number(arg.text))]);
+      return;
+    }
+    ice("codegen: console.log(number) supports a numeric literal only (Phase 1 commit 1)");
+  }
+  ice(`codegen: console.log argument type not supported yet (flags ${flags})`);
 }
 
 // "console.log" / "process.exit" for a property-access callee; bare name otherwise.
