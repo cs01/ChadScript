@@ -7,6 +7,17 @@
 // The discipline that matters now is that every HIR expression HAS a resolved type here,
 // stamped by the lower pass, so the backend never asks the checker anything.
 
+export interface ObjectField {
+  name: string;
+  type: ValueType;
+}
+
+// A closed object shape: an ordered field list. Field i lives at record slot i. Structural
+// identity is the ordered (name, type) list.
+export interface ObjectShape {
+  fields: ObjectField[];
+}
+
 export type ValueType =
   | { kind: "number" }
   | { kind: "string" }
@@ -15,7 +26,9 @@ export type ValueType =
   | { kind: "undefined" }
   // A homogeneous array. Represented at runtime as a pointer to a uniform slot array; `element`
   // says how to box/unbox each slot.
-  | { kind: "array"; element: ValueType };
+  | { kind: "array"; element: ValueType }
+  // A closed-shape object. Runtime rep: pointer to a GC record of one i64 slot per field.
+  | { kind: "object"; shape: ObjectShape };
 
 export const VT = {
   number: { kind: "number" } as ValueType,

@@ -38,6 +38,8 @@ export function irTypeOf(vt: ValueType): IrType {
       return T.ptr;
     case "array":
       return T.ptr; // pointer to the runtime array struct
+    case "object":
+      return T.ptr; // pointer to the GC record of field slots
     case "null":
     case "undefined":
       return ice(`irTypeOf: ${vt.kind} has no storage representation yet`);
@@ -53,11 +55,13 @@ function boxSlot(v: Value, elemType: ValueType, ctx: Ctx): Value {
     case "number":
       return ctx.fn.bitcastDoubleToI64(v);
     case "string":
-      return ctx.fn.ptrToI64(v);
+    case "array":
+    case "object":
+      return ctx.fn.ptrToI64(v); // all pointer-represented
     case "boolean":
       return ctx.fn.zextI1ToI64(v);
     default:
-      return ice(`array element boxing not supported for ${elemType.kind} yet`);
+      return ice(`slot boxing not supported for ${elemType.kind} yet`);
   }
 }
 
@@ -66,12 +70,45 @@ function unboxSlot(slot: Value, elemType: ValueType, ctx: Ctx): Value {
     case "number":
       return ctx.fn.bitcastI64ToDouble(slot);
     case "string":
+    case "array":
+    case "object":
       return ctx.fn.i64ToPtr(slot);
     case "boolean":
       return ctx.fn.truncI64ToI1(slot);
     default:
-      return ice(`array element unboxing not supported for ${elemType.kind} yet`);
+      return ice(`slot unboxing not supported for ${elemType.kind} yet`);
   }
+}
+
+// Evaluate an object-typed HExpr to a ptr (to the GC record of i64 field slots).
+export function evalObjectPtr(expr: HExpr, ctx: Ctx): Value {
+  switch (expr.kind) {
+    case "objectLit": {
+      if (expr.type.kind !== "object") return ice("objectLit not object-typed");
+      const fields = expr.type.shape.fields;
+      const rec = ctx.fn.call("@cs_gc_alloc", T.ptr, [imm(T.i64, fields.length * 8)]);
+      expr.fields.forEach((f, i) => {
+        const slot = boxSlot(evalValue(f, ctx), fields[i]!.type, ctx);
+        ctx.fn.store(slot, ctx.fn.gepSlot(rec, i));
+      });
+      return rec;
+    }
+    case "varRef":
+      return ctx.fn.load(T.ptr, lookupVar(expr.name, ctx).ptr);
+    case "call":
+      return evalCall(expr, ctx);
+    case "memberGet":
+      return evalMemberGet(expr, ctx);
+    default:
+      return ice(`evalObjectPtr: unhandled object expression ${expr.kind}`);
+  }
+}
+
+// Read `obj.field`: load the field's i64 slot and unbox it to the field type.
+export function evalMemberGet(expr: Extract<HExpr, { kind: "memberGet" }>, ctx: Ctx): Value {
+  const obj = evalObjectPtr(expr.object, ctx);
+  const raw = ctx.fn.load(T.i64, ctx.fn.gepSlot(obj, expr.slot));
+  return unboxSlot(raw, expr.type, ctx);
 }
 
 // Evaluate an array-typed HExpr to a ptr (to the runtime array struct).
@@ -89,6 +126,8 @@ export function evalArrayPtr(expr: HExpr, ctx: Ctx): Value {
       return ctx.fn.load(T.ptr, lookupVar(expr.name, ctx).ptr);
     case "call":
       return evalCall(expr, ctx);
+    case "memberGet":
+      return evalMemberGet(expr, ctx);
     default:
       return ice(`evalArrayPtr: unhandled array expression ${expr.kind}`);
   }
@@ -123,6 +162,8 @@ export function evalValue(expr: HExpr, ctx: Ctx): Value {
       return evalString(expr, ctx);
     case "array":
       return evalArrayPtr(expr, ctx);
+    case "object":
+      return evalObjectPtr(expr, ctx);
     default:
       return ice(`evalValue: ${expr.type.kind} not supported yet`);
   }
@@ -150,6 +191,8 @@ export function evalString(expr: HExpr, ctx: Ctx): Value {
       return ice(`evalString: binary op ${expr.op} does not produce a string`);
     case "template":
       return evalTemplate(expr, ctx);
+    case "memberGet":
+      return evalMemberGet(expr, ctx);
     default:
       return ice(`evalString: unhandled string expression ${expr.kind}`);
   }
@@ -209,6 +252,9 @@ export function evalNumber(expr: HExpr, ctx: Ctx): Value {
       const slot = boxSlot(evalValue(expr.value, ctx), expr.elementType, ctx);
       return ctx.fn.sitofp(ctx.fn.call("@cs_array_push", T.i32, [arr, slot]));
     }
+
+    case "memberGet":
+      return evalMemberGet(expr, ctx);
 
     case "logical":
       return evalLogical(expr, ctx);
@@ -354,6 +400,9 @@ export function evalBool(expr: HExpr, ctx: Ctx): Value {
 
     case "binary":
       return evalComparison(expr, ctx);
+
+    case "memberGet":
+      return evalMemberGet(expr, ctx);
 
     default:
       return ice(`evalBool: unhandled boolean expression ${expr.kind}`);

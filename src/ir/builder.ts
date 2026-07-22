@@ -101,6 +101,15 @@ export class FuncBuilder {
     this.current.add(`store ${llvmType(value.type)} ${value.name}, ptr ${ptr.name}`);
   }
 
+  // Pointer to slot `index` of an i64 array/record: getelementptr i64, ptr base, i32 index.
+  // Object records and arrays both store one i64 slot per field/element.
+  gepSlot(base: Value, index: number): Value {
+    if (base.type.kind !== "ptr") ice(`gepSlot base must be ptr, got ${base.type.kind}`);
+    const result = this.nextTemp(T.ptr);
+    this.current.add(`${result.name} = getelementptr i64, ptr ${base.name}, i32 ${index}`);
+    return result;
+  }
+
   load(type: IrType, ptr: Value): Value {
     if (ptr.type.kind !== "ptr") ice(`load source must be ptr, got ${ptr.type.kind}`);
     const result = this.nextTemp(type);

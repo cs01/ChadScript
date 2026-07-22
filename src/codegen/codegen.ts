@@ -37,6 +37,7 @@ export function generate(hmod: HModule): string {
   mod.declareExtern("cs_bool_to_string", T.ptr, [T.i32]);
   mod.declareExtern("cs_str_eq", T.i32, [T.ptr, T.ptr]);
   mod.declareExtern("cs_gc_init", T.void, []);
+  mod.declareExtern("cs_gc_alloc", T.ptr, [T.i64]);
   mod.declareExtern("cs_array_new", T.ptr, []);
   mod.declareExtern("cs_array_push", T.i32, [T.ptr, T.i64]);
   mod.declareExtern("cs_array_len", T.i32, [T.ptr]);

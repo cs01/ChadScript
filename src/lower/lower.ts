@@ -30,6 +30,8 @@ export function lower(loaded: LoadedProgram): HModule {
   const topLevel: HStmt[] = [];
   for (const sf of loaded.sourceFiles) {
     for (const stmt of sf.statements) {
+      // Type-only declarations have no runtime and are consumed by the checker, not lowered.
+      if (ts.isInterfaceDeclaration(stmt) || ts.isTypeAliasDeclaration(stmt)) continue;
       if (ts.isFunctionDeclaration(stmt)) {
         functions.push(lowerFunction(stmt, ctx));
       } else {
@@ -64,9 +66,15 @@ function lowerFunction(decl: ts.FunctionDeclaration, ctx: LowerCtx): HFunc {
 function nameOf(ident: ts.Identifier, ctx: LowerCtx): string {
   const symbol = ctx.checker.getSymbolAtLocation(ident);
   if (!symbol) return ice(`lower: no symbol for identifier ${ident.text}`);
+  return nameForSymbol(symbol, ident.text, ctx);
+}
+
+// The stable unique HIR name for a symbol. Used directly for shorthand object properties, where
+// the property identifier's own symbol is the property — not the value variable we must bind to.
+function nameForSymbol(symbol: ts.Symbol, hint: string, ctx: LowerCtx): string {
   let name = ctx.names.get(symbol);
   if (!name) {
-    name = `${ident.text}.${ctx.counter.n++}`;
+    name = `${hint}.${ctx.counter.n++}`;
     ctx.names.set(symbol, name);
   }
   return name;
@@ -300,6 +308,28 @@ function lowerCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
   };
 }
 
+// Object literal → fields in SHAPE (record-slot) order, regardless of the source property order.
+// tsc guarantees every required field is present. Supports `{ x: v }` and shorthand `{ x }`.
+function lowerObjectLit(ole: ts.ObjectLiteralExpression, ctx: LowerCtx, type: ValueType): HExpr {
+  if (type.kind !== "object") ice("lower: object literal without a resolved object shape");
+  const fields = type.shape.fields.map((f): HExpr => {
+    const prop = ole.properties.find(
+      (p) => p.name && ts.isIdentifier(p.name) && p.name.text === f.name,
+    );
+    if (!prop) ice(`lower: object literal missing field ${f.name}`);
+    if (ts.isPropertyAssignment(prop)) return lowerExpr(prop.initializer, ctx);
+    if (ts.isShorthandPropertyAssignment(prop)) {
+      // `{ a }` means field `a` = the variable `a`. Resolve the VALUE symbol (the variable),
+      // not the property symbol the shorthand identifier reports.
+      const valueSym = ctx.checker.getShorthandAssignmentValueSymbol(prop);
+      if (!valueSym) return ice(`lower: cannot resolve shorthand property ${f.name}`);
+      return { kind: "varRef", name: nameForSymbol(valueSym, f.name, ctx), type: f.type };
+    }
+    return ice(`lower: unsupported object member for ${f.name}`);
+  });
+  return { kind: "objectLit", fields, type };
+}
+
 // A method call `obj.method(args)`. Dispatched on the receiver's type + method name.
 function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
   const pa = call.expression as ts.PropertyAccessExpression;
@@ -357,11 +387,19 @@ function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
         type,
       };
 
+    case ts.SyntaxKind.ObjectLiteralExpression:
+      return lowerObjectLit(expr as ts.ObjectLiteralExpression, ctx, type);
+
     case ts.SyntaxKind.PropertyAccessExpression: {
       const pa = expr as ts.PropertyAccessExpression;
       const objType = resolveType(pa.expression, ctx);
       if (pa.name.text === "length" && objType.kind === "array") {
         return { kind: "arrayLen", array: lowerExpr(pa.expression, ctx), type };
+      }
+      if (objType.kind === "object") {
+        const slot = objType.shape.fields.findIndex((f) => f.name === pa.name.text);
+        if (slot < 0) ice(`lower: object has no field ${pa.name.text}`);
+        return { kind: "memberGet", object: lowerExpr(pa.expression, ctx), slot, type };
       }
       return ice(`lower: unsupported property access .${pa.name.text}`);
     }
@@ -420,8 +458,9 @@ function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
 // currently-supported domain is an ICE (the validator should have rejected it upstream).
 function resolveType(expr: ts.Expression, ctx: LowerCtx): ValueType {
   // An empty array literal is typed `never[]` on its own; its element type comes from context
-  // (the declared/expected type, e.g. `const e: number[] = []`).
-  if (ts.isArrayLiteralExpression(expr)) {
+  // (the declared/expected type, e.g. `const e: number[] = []`). Object literals likewise take
+  // their shape from the declared type (the named interface) when present.
+  if (ts.isArrayLiteralExpression(expr) || ts.isObjectLiteralExpression(expr)) {
     const t = ctx.checker.getContextualType(expr) ?? ctx.checker.getTypeAtLocation(expr);
     return valueTypeOfTsType(t, expr, ctx.checker);
   }
@@ -439,12 +478,22 @@ function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChecker): 
   if (flags & ts.TypeFlags.BooleanLike) return VT.boolean;
   if (flags & ts.TypeFlags.Null) return VT.null;
   if (flags & ts.TypeFlags.Undefined) return VT.undefined;
-  // `T[]` / `Array<T>`: an Array object type with one type argument.
   if (flags & ts.TypeFlags.Object) {
     const ref = t as ts.TypeReference;
+    // `T[]` / `Array<T>`: an Array object type with one type argument.
     if (ref.symbol?.name === "Array") {
       const args = checker.getTypeArguments(ref);
       if (args.length === 1) return VT.array(valueTypeOfTsType(args[0]!, node, checker));
+    }
+    // A closed object shape (interface / type literal): its ordered properties become record
+    // slots. tsc guarantees the fields; we resolve each field type recursively.
+    const props = checker.getPropertiesOfType(t);
+    if (props.length > 0) {
+      const fields = props.map((sym) => ({
+        name: sym.name,
+        type: valueTypeOfTsType(checker.getTypeOfSymbolAtLocation(sym, node), node, checker),
+      }));
+      return { kind: "object", shape: { fields } };
     }
   }
   // Narrowing produces unions (e.g. `switch (n) { case 0: case 1: }` narrows n to `0 | 1`). A
