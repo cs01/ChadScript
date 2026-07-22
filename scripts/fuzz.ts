@@ -28,7 +28,7 @@ for (let i = 0; i < count; i++) {
   const program = genProgram(seed);
   let divergences;
   try {
-    divergences = differentialSource(program, `fuzz${seed}`);
+    divergences = await differentialSource(program, `fuzz${seed}`);
   } catch (e) {
     divergences = [{ kind: "error" as const, detail: (e as Error).message }];
   }

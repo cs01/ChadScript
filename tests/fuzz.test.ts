@@ -13,9 +13,9 @@ import { differentialSource } from "./harness/differential.js";
 const SEED_COUNT = 25;
 
 for (let seed = 1; seed <= SEED_COUNT; seed++) {
-  test(`fuzz seed ${seed}`, () => {
+  test(`fuzz seed ${seed}`, async () => {
     const program = genProgram(seed);
-    const divergences = differentialSource(program, `fuzz${seed}`);
+    const divergences = await differentialSource(program, `fuzz${seed}`);
     assert.equal(
       divergences.length,
       0,

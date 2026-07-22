@@ -13,8 +13,8 @@ const runRoot = join(here, "fixtures", "run");
 
 for (const fx of discoverFixtures(runRoot)) {
   const name = relative(runRoot, fx.path);
-  test(`differential ${name}`, () => {
-    const divergences = differential(fx.path);
+  test(`differential ${name}`, async () => {
+    const divergences = await differential(fx.path);
     assert.equal(
       divergences.length,
       0,

@@ -5,27 +5,31 @@
 //   - native -O2             (must equal oracle → O0==O2, else an -O2 UB leak)
 // and we run `opt -passes=verify` on the emitted IR. Any mismatch is a failure.
 
-import { execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadProgram } from "../../src/frontend/program.js";
 import { validate } from "../../src/validate/validate.js";
-import { build } from "../../src/driver/build.js";
+import { emitIr, linkIr, runtimeObjects } from "../../src/driver/build.js";
 import { OPT } from "../../src/driver/toolchain.js";
+
+const execFileAsync = promisify(execFile);
 
 export interface RunResult {
   stdout: string;
   exit: number;
 }
 
-function run(cmd: string, args: string[]): RunResult {
+async function run(cmd: string, args: string[]): Promise<RunResult> {
   try {
-    const stdout = execFileSync(cmd, args, { encoding: "utf8" });
+    const { stdout } = await execFileAsync(cmd, args, { encoding: "utf8" });
     return { stdout, exit: 0 };
   } catch (e) {
-    const err = e as { stdout?: Buffer | string; status?: number };
-    return { stdout: (err.stdout ?? "").toString(), exit: err.status ?? 1 };
+    const err = e as { stdout?: Buffer | string; code?: number | string };
+    const exit = typeof err.code === "number" ? err.code : 1;
+    return { stdout: (err.stdout ?? "").toString(), exit };
   }
 }
 
@@ -36,15 +40,16 @@ export interface Divergence {
 
 // Run the differential check on in-memory source (writes it to a temp .ts first). Used by the
 // fuzzer, where programs are generated rather than stored as fixtures.
-export function differentialSource(source: string, tag = "gen"): Divergence[] {
+export async function differentialSource(source: string, tag = "gen"): Promise<Divergence[]> {
   const dir = mkdtempSync(join(tmpdir(), "chadv2-src-"));
   const path = join(dir, `${tag}.ts`);
   writeFileSync(path, source);
   return differential(path);
 }
 
-// Compiles + runs the fixture every way and returns any divergences (empty = all agree).
-export function differential(fixturePath: string): Divergence[] {
+// Compiles + runs the fixture every way and returns any divergences (empty = all agree). IR is
+// emitted once, then -O0 and -O2 link concurrently while the Node oracle runs in parallel.
+export async function differential(fixturePath: string): Promise<Divergence[]> {
   const dir = mkdtempSync(join(tmpdir(), "chadv2-diff-"));
   const loaded = loadProgram(fixturePath);
   validate(loaded);
@@ -52,12 +57,13 @@ export function differential(fixturePath: string): Divergence[] {
   const irPath = join(dir, "out.ll");
   const binO0 = join(dir, "o0");
   const binO2 = join(dir, "o2");
-  build(loaded, { outPath: binO0, opt: "0", emitIrTo: irPath });
-  build(loaded, { outPath: binO2, opt: "2" });
+  writeFileSync(irPath, emitIr(loaded));
 
-  const oracle = run("node", [fixturePath]);
-  const o0 = run(binO0, []);
-  const o2 = run(binO2, []);
+  const objs = runtimeObjects(); // warm the runtime .o cache once (avoids a concurrent race)
+  const oraclePromise = run("node", [fixturePath]); // oracle runs while we compile
+  await Promise.all([linkIr(irPath, binO0, "0", objs), linkIr(irPath, binO2, "2", objs)]);
+
+  const [oracle, o0, o2] = await Promise.all([oraclePromise, run(binO0, []), run(binO2, [])]);
 
   const out: Divergence[] = [];
   for (const [label, r] of [
@@ -76,7 +82,7 @@ export function differential(fixturePath: string): Divergence[] {
   }
 
   try {
-    execFileSync(OPT, ["-passes=verify", "-disable-output", irPath], { stdio: "pipe" });
+    await execFileAsync(OPT, ["-passes=verify", "-disable-output", irPath]);
   } catch (e) {
     out.push({ kind: "opt-verify", detail: `opt -verify failed: ${(e as Error).message}` });
   }
