@@ -47,6 +47,8 @@ const ALLOWED_KINDS: ReadonlySet<ts.SyntaxKind> = new Set([
   ts.SyntaxKind.IfStatement,
   ts.SyntaxKind.WhileStatement,
   ts.SyntaxKind.ForStatement,
+  ts.SyntaxKind.ForOfStatement,
+  ts.SyntaxKind.ArrayLiteralExpression,
   ts.SyntaxKind.ReturnStatement,
   ts.SyntaxKind.BreakStatement,
   ts.SyntaxKind.ContinueStatement,
@@ -64,6 +66,7 @@ const ALLOWED_KINDS: ReadonlySet<ts.SyntaxKind> = new Set([
   ts.SyntaxKind.StringKeyword,
   ts.SyntaxKind.BooleanKeyword,
   ts.SyntaxKind.VoidKeyword,
+  ts.SyntaxKind.ArrayType, // `T[]` annotation (type position, inert)
   // `i++` / `i--` (statement/for-update position). Only ++/-- exist as postfix, so the whole
   // kind is admitted; prefix ++/-- is gated via SUPPORTED_UNARY_OPS below.
   ts.SyntaxKind.PostfixUnaryExpression,

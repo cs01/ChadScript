@@ -192,6 +192,9 @@ export class FuncBuilder {
     return result;
   }
 
+  iadd(a: Value, b: Value): Value {
+    return this.ibin("add", a, b);
+  }
   iand(a: Value, b: Value): Value {
     return this.ibin("and", a, b);
   }
@@ -222,6 +225,20 @@ export class FuncBuilder {
     if (a.type.kind !== "i32") ice(`uitofp requires an i32 operand, got ${a.type.kind}`);
     const result = this.nextTemp(T.double);
     this.current.add(`${result.name} = uitofp i32 ${a.name} to double`);
+    return result;
+  }
+
+  // Reinterpret bits between double and i64 — for boxing a number into a uniform array slot.
+  bitcastDoubleToI64(a: Value): Value {
+    if (a.type.kind !== "double") ice(`bitcast d→i64 needs double, got ${a.type.kind}`);
+    const result = this.nextTemp(T.i64);
+    this.current.add(`${result.name} = bitcast double ${a.name} to i64`);
+    return result;
+  }
+  bitcastI64ToDouble(a: Value): Value {
+    if (a.type.kind !== "i64") ice(`bitcast i64→d needs i64, got ${a.type.kind}`);
+    const result = this.nextTemp(T.double);
+    this.current.add(`${result.name} = bitcast i64 ${a.name} to double`);
     return result;
   }
 

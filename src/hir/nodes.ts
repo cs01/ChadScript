@@ -42,6 +42,8 @@ export type HStmt =
   // are statement lists (a decl or assignment). The update block is kept distinct from the body
   // so `continue` can target it once supported.
   | { kind: "for"; init: HStmt[]; cond: HExpr | null; update: HStmt[]; body: HStmt[] }
+  // `for (const name of array) { body }`. Binds `name` (type `elementType`) to each element.
+  | { kind: "forOf"; name: string; elementType: ValueType; array: HExpr; body: HStmt[] }
   // `return expr;` (value null for a bare `return;` in a void function).
   | { kind: "return"; value: HExpr | null }
   // `break;` / `continue;` — target the innermost enclosing loop (no labels yet).
@@ -90,6 +92,10 @@ export type HExpr =
   | { kind: "varRef"; name: string; type: ValueType }
   // Call to a user function by its resolved HIR name. `type` is the return type.
   | { kind: "call"; name: string; args: HExpr[]; type: ValueType }
+  // Array literal `[a, b, ...]`. `type` is the array type; each element is boxed per element type.
+  | { kind: "arrayLit"; elements: HExpr[]; type: ValueType }
+  // `arr.length` → number.
+  | { kind: "arrayLen"; array: HExpr; type: ValueType }
   | { kind: "unary"; op: UnaryOp; operand: HExpr; type: ValueType }
   | { kind: "binary"; op: BinaryOp; left: HExpr; right: HExpr; type: ValueType }
   // Short-circuiting `&&` / `||`. JS VALUE semantics: the result IS one of the operands (not a

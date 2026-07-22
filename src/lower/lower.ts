@@ -96,6 +96,9 @@ function lowerStatement(stmt: ts.Statement, ctx: LowerCtx): HStmt[] {
   if (ts.isForStatement(stmt)) {
     return [lowerFor(stmt, ctx)];
   }
+  if (ts.isForOfStatement(stmt)) {
+    return [lowerForOf(stmt, ctx)];
+  }
   if (ts.isReturnStatement(stmt)) {
     return [{ kind: "return", value: stmt.expression ? lowerExpr(stmt.expression, ctx) : null }];
   }
@@ -146,6 +149,24 @@ function lowerSwitch(stmt: ts.SwitchStatement, ctx: LowerCtx): HStmt {
     disc: lowerExpr(stmt.expression, ctx),
     discType: resolveType(stmt.expression, ctx),
     cases,
+  };
+}
+
+function lowerForOf(stmt: ts.ForOfStatement, ctx: LowerCtx): HStmt {
+  const arrayType = resolveType(stmt.expression, ctx);
+  if (arrayType.kind !== "array") ice("lower: for...of is only supported over arrays yet");
+  // The loop variable is `for (const x of arr)`.
+  if (!ts.isVariableDeclarationList(stmt.initializer)) {
+    ice("lower: for...of requires a `const`/`let` binding");
+  }
+  const decl = stmt.initializer.declarations[0]!;
+  if (!ts.isIdentifier(decl.name)) ice("lower: for...of destructuring not supported yet");
+  return {
+    kind: "forOf",
+    name: nameOf(decl.name, ctx),
+    elementType: arrayType.element,
+    array: lowerExpr(stmt.expression, ctx),
+    body: lowerBranchBody(stmt.statement, ctx),
   };
 }
 
@@ -278,7 +299,7 @@ function lowerCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
 function callReturnType(call: ts.CallExpression, ctx: LowerCtx): ValueType | null {
   const t = ctx.checker.getTypeAtLocation(call);
   if (t.flags & (ts.TypeFlags.Void | ts.TypeFlags.Undefined)) return null;
-  return valueTypeOfTsType(t, call);
+  return valueTypeOfTsType(t, call, ctx.checker);
 }
 
 function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
@@ -303,6 +324,22 @@ function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
 
     case ts.SyntaxKind.CallExpression:
       return lowerCall(expr as ts.CallExpression, ctx);
+
+    case ts.SyntaxKind.ArrayLiteralExpression:
+      return {
+        kind: "arrayLit",
+        elements: (expr as ts.ArrayLiteralExpression).elements.map((e) => lowerExpr(e, ctx)),
+        type,
+      };
+
+    case ts.SyntaxKind.PropertyAccessExpression: {
+      const pa = expr as ts.PropertyAccessExpression;
+      const objType = resolveType(pa.expression, ctx);
+      if (pa.name.text === "length" && objType.kind === "array") {
+        return { kind: "arrayLen", array: lowerExpr(pa.expression, ctx), type };
+      }
+      return ice(`lower: unsupported property access .${pa.name.text}`);
+    }
 
     case ts.SyntaxKind.NoSubstitutionTemplateLiteral:
       // `` `plain text` `` with no interpolation — just a string.
@@ -357,25 +394,39 @@ function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
 // The checker is the oracle: map its resolved type to our ValueType. Anything outside the
 // currently-supported domain is an ICE (the validator should have rejected it upstream).
 function resolveType(expr: ts.Expression, ctx: LowerCtx): ValueType {
+  // An empty array literal is typed `never[]` on its own; its element type comes from context
+  // (the declared/expected type, e.g. `const e: number[] = []`).
+  if (ts.isArrayLiteralExpression(expr)) {
+    const t = ctx.checker.getContextualType(expr) ?? ctx.checker.getTypeAtLocation(expr);
+    return valueTypeOfTsType(t, expr, ctx.checker);
+  }
   return valueTypeOf(expr, ctx);
 }
 
 function valueTypeOf(node: ts.Node, ctx: LowerCtx): ValueType {
-  return valueTypeOfTsType(ctx.checker.getTypeAtLocation(node), node);
+  return valueTypeOfTsType(ctx.checker.getTypeAtLocation(node), node, ctx.checker);
 }
 
-function valueTypeOfTsType(t: ts.Type, node: ts.Node): ValueType {
+function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChecker): ValueType {
   const flags = t.flags;
   if (flags & ts.TypeFlags.NumberLike) return VT.number;
   if (flags & ts.TypeFlags.StringLike) return VT.string;
   if (flags & ts.TypeFlags.BooleanLike) return VT.boolean;
   if (flags & ts.TypeFlags.Null) return VT.null;
   if (flags & ts.TypeFlags.Undefined) return VT.undefined;
+  // `T[]` / `Array<T>`: an Array object type with one type argument.
+  if (flags & ts.TypeFlags.Object) {
+    const ref = t as ts.TypeReference;
+    if (ref.symbol?.name === "Array") {
+      const args = checker.getTypeArguments(ref);
+      if (args.length === 1) return VT.array(valueTypeOfTsType(args[0]!, node, checker));
+    }
+  }
   // Narrowing produces unions (e.g. `switch (n) { case 0: case 1: }` narrows n to `0 | 1`). A
   // union whose members all share one representation collapses to it; a genuinely mixed union
   // (different reps) is not in the subset yet.
   if (flags & ts.TypeFlags.Union) {
-    const members = (t as ts.UnionType).types.map((m) => valueTypeOfTsType(m, node));
+    const members = (t as ts.UnionType).types.map((m) => valueTypeOfTsType(m, node, checker));
     const first = members[0]!;
     if (members.every((m) => m.kind === first.kind)) return first;
     return ice(
@@ -391,7 +442,7 @@ function returnTypeOf(decl: ts.FunctionDeclaration, ctx: LowerCtx): ValueType | 
   if (!sig) return ice("lower: could not resolve function signature");
   const ret = ctx.checker.getReturnTypeOfSignature(sig);
   if (ret.flags & (ts.TypeFlags.Void | ts.TypeFlags.Undefined)) return null;
-  return valueTypeOfTsType(ret, decl);
+  return valueTypeOfTsType(ret, decl, ctx.checker);
 }
 
 function isAssignmentOp(kind: ts.SyntaxKind): boolean {

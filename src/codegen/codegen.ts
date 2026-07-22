@@ -16,6 +16,8 @@ import {
   evalBool,
   evalString,
   evalValue,
+  evalArrayPtr,
+  arrayElementAt,
   irTypeOf,
   lookupVar,
   toBool,
@@ -35,6 +37,10 @@ export function generate(hmod: HModule): string {
   mod.declareExtern("cs_bool_to_string", T.ptr, [T.i32]);
   mod.declareExtern("cs_str_eq", T.i32, [T.ptr, T.ptr]);
   mod.declareExtern("cs_gc_init", T.void, []);
+  mod.declareExtern("cs_array_new", T.ptr, []);
+  mod.declareExtern("cs_array_push", T.i32, [T.ptr, T.i64]);
+  mod.declareExtern("cs_array_len", T.i32, [T.ptr]);
+  mod.declareExtern("cs_array_get", T.i64, [T.ptr, T.i32]);
   mod.declareExtern("exit", T.void, [T.i32]);
 
   // User functions first (order doesn't matter — LLVM resolves calls by name, so recursion and
@@ -266,6 +272,50 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
 
       ctx.fn.switchTo(latchB);
       emitStatements(stmt.update, ctx);
+      ctx.fn.br(headerB);
+
+      ctx.fn.switchTo(endB);
+      return;
+    }
+
+    case "forOf": {
+      // Iterate 0..len-1, re-reading the (once-evaluated) array's length each step. Binds the
+      // loop variable to each element. break → end, continue → the index bump (latch).
+      const arrPtr = ctx.fn.alloca(T.ptr);
+      ctx.fn.store(evalArrayPtr(stmt.array, ctx), arrPtr);
+      const idxPtr = ctx.fn.alloca(T.i32);
+      ctx.fn.store(imm(T.i32, 0), idxPtr);
+      const elemPtr = ctx.fn.alloca(irTypeOf(stmt.elementType));
+      ctx.vars.set(stmt.name, { ptr: elemPtr, vtype: stmt.elementType });
+
+      const headerB = ctx.fn.newBlock("forof.header");
+      const bodyB = ctx.fn.newBlock("forof.body");
+      const latchB = ctx.fn.newBlock("forof.latch");
+      const endB = ctx.fn.newBlock("forof.end");
+
+      ctx.fn.br(headerB);
+      ctx.fn.switchTo(headerB);
+      const i = ctx.fn.load(T.i32, idxPtr);
+      const len = ctx.fn.call("@cs_array_len", T.i32, [ctx.fn.load(T.ptr, arrPtr)]);
+      ctx.fn.brCond(ctx.fn.icmp("slt", i, len), bodyB, endB);
+
+      ctx.fn.switchTo(bodyB);
+      const elem = arrayElementAt(
+        ctx.fn.load(T.ptr, arrPtr),
+        ctx.fn.load(T.i32, idxPtr),
+        stmt.elementType,
+        ctx,
+      );
+      ctx.fn.store(elem, elemPtr);
+      ctx.breakTargets.push(endB);
+      ctx.continueTargets.push(latchB);
+      emitStatements(stmt.body, ctx);
+      ctx.breakTargets.pop();
+      ctx.continueTargets.pop();
+      if (!ctx.fn.currentBlock.isTerminated) ctx.fn.br(latchB);
+
+      ctx.fn.switchTo(latchB);
+      ctx.fn.store(ctx.fn.iadd(ctx.fn.load(T.i32, idxPtr), imm(T.i32, 1)), idxPtr);
       ctx.fn.br(headerB);
 
       ctx.fn.switchTo(endB);

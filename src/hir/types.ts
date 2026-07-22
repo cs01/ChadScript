@@ -12,7 +12,10 @@ export type ValueType =
   | { kind: "string" }
   | { kind: "boolean" }
   | { kind: "null" }
-  | { kind: "undefined" };
+  | { kind: "undefined" }
+  // A homogeneous array. Represented at runtime as a pointer to a uniform slot array; `element`
+  // says how to box/unbox each slot.
+  | { kind: "array"; element: ValueType };
 
 export const VT = {
   number: { kind: "number" } as ValueType,
@@ -20,4 +23,5 @@ export const VT = {
   boolean: { kind: "boolean" } as ValueType,
   null: { kind: "null" } as ValueType,
   undefined: { kind: "undefined" } as ValueType,
+  array: (element: ValueType): ValueType => ({ kind: "array", element }),
 } as const;

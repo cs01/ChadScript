@@ -36,12 +36,59 @@ export function irTypeOf(vt: ValueType): IrType {
       return T.i1;
     case "string":
       return T.ptr;
+    case "array":
+      return T.ptr; // pointer to the runtime array struct
     case "null":
     case "undefined":
       return ice(`irTypeOf: ${vt.kind} has no storage representation yet`);
     default:
       return ice(`irTypeOf: unhandled ValueType ${(vt as { kind: string }).kind}`);
   }
+}
+
+// Box a value into a uniform 8-byte array slot (i64); unbox reverses it. Element boxing is
+// per-type; only number is wired now (string[]/boolean[] land next).
+function boxSlot(v: Value, elemType: ValueType, ctx: Ctx): Value {
+  switch (elemType.kind) {
+    case "number":
+      return ctx.fn.bitcastDoubleToI64(v);
+    default:
+      return ice(`array element boxing not supported for ${elemType.kind} yet`);
+  }
+}
+
+function unboxSlot(slot: Value, elemType: ValueType, ctx: Ctx): Value {
+  switch (elemType.kind) {
+    case "number":
+      return ctx.fn.bitcastI64ToDouble(slot);
+    default:
+      return ice(`array element unboxing not supported for ${elemType.kind} yet`);
+  }
+}
+
+// Evaluate an array-typed HExpr to a ptr (to the runtime array struct).
+export function evalArrayPtr(expr: HExpr, ctx: Ctx): Value {
+  switch (expr.kind) {
+    case "arrayLit": {
+      const arr = ctx.fn.call("@cs_array_new", T.ptr, []);
+      const elemType = expr.type.kind === "array" ? expr.type.element : ice("arrayLit not array");
+      for (const el of expr.elements) {
+        ctx.fn.call("@cs_array_push", T.i32, [arr, boxSlot(evalValue(el, ctx), elemType, ctx)]);
+      }
+      return arr;
+    }
+    case "varRef":
+      return ctx.fn.load(T.ptr, lookupVar(expr.name, ctx).ptr);
+    case "call":
+      return evalCall(expr, ctx);
+    default:
+      return ice(`evalArrayPtr: unhandled array expression ${expr.kind}`);
+  }
+}
+
+// Load one element out of an array pointer at index `i` (i32), unboxed to `elemType`.
+export function arrayElementAt(arr: Value, i: Value, elemType: ValueType, ctx: Ctx): Value {
+  return unboxSlot(ctx.fn.call("@cs_array_get", T.i64, [arr, i]), elemType, ctx);
 }
 
 export function lookupVar(name: string, ctx: Ctx): { ptr: Value; vtype: ValueType } {
@@ -66,6 +113,8 @@ export function evalValue(expr: HExpr, ctx: Ctx): Value {
       return evalBool(expr, ctx);
     case "string":
       return evalString(expr, ctx);
+    case "array":
+      return evalArrayPtr(expr, ctx);
     default:
       return ice(`evalValue: ${expr.type.kind} not supported yet`);
   }
@@ -141,6 +190,10 @@ export function evalNumber(expr: HExpr, ctx: Ctx): Value {
 
     case "call":
       return evalCall(expr, ctx);
+
+    case "arrayLen":
+      // JS .length is a number; the runtime returns an i32 count.
+      return ctx.fn.sitofp(ctx.fn.call("@cs_array_len", T.i32, [evalArrayPtr(expr.array, ctx)]));
 
     case "logical":
       return evalLogical(expr, ctx);
