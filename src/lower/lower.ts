@@ -255,9 +255,10 @@ function lowerFunction(decl: ts.FunctionDeclaration, ctx: LowerCtx): HFunc {
   if (!decl.body) ice("lower: function without a body (overload/declare) not supported");
   const params = decl.parameters.map((p) => {
     if (!ts.isIdentifier(p.name)) ice("lower: destructured parameters not supported yet");
-    if (p.dotDotDotToken) ice("lower: rest parameters not supported yet");
     if (p.questionToken || p.initializer)
       ice("lower: optional/default parameters not supported yet");
+    // A rest parameter `...xs: T[]` is received as a single array param — the call site packs
+    // the trailing arguments into it, so the callee treats it like any array parameter.
     return { name: nameOf(p.name, ctx), type: valueTypeOf(p.name, ctx) };
   });
   const returnType = returnTypeOf(decl, ctx);
@@ -1121,17 +1122,38 @@ function declaredTypeOfIdent(ident: ts.Identifier, ctx: LowerCtx): ValueType {
 // resolving the signature's parameter types is safe.
 function lowerCallArgs(call: ts.CallExpression, ctx: LowerCtx): HExpr[] {
   const sig = ctx.checker.getResolvedSignature(call);
-  return call.arguments.map((a, i) => {
+  const params = sig?.parameters ?? [];
+  const last = params[params.length - 1];
+  const restDecl = last?.valueDeclaration;
+  const isRest = restDecl !== undefined && ts.isParameter(restDecl) && restDecl.dotDotDotToken;
+
+  const coerceArg = (a: ts.Expression, paramSym: ts.Symbol | undefined): HExpr => {
     const h = lowerExpr(a, ctx);
-    const paramSym = sig?.parameters[i];
     if (!paramSym) return h;
-    const pType = valueTypeOfTsType(
-      ctx.checker.getTypeOfSymbolAtLocation(paramSym, a),
-      a,
-      ctx.checker,
+    return coerceToTarget(
+      h,
+      valueTypeOfTsType(ctx.checker.getTypeOfSymbolAtLocation(paramSym, a), a, ctx.checker),
     );
-    return coerceToTarget(h, pType);
-  });
+  };
+
+  if (!isRest) {
+    return call.arguments.map((a, i) => coerceArg(a, params[i]));
+  }
+  // Rest parameter: fixed args pass through; trailing args (with `...spread` support) are packed
+  // into the rest array, so a rest function is a normal fixed-arity call taking one array param.
+  const fixedCount = params.length - 1;
+  const fixed = call.arguments.slice(0, fixedCount).map((a, i) => coerceArg(a, params[i]));
+  const restType = valueTypeOfTsType(
+    ctx.checker.getTypeOfSymbolAtLocation(last!, call),
+    call,
+    ctx.checker,
+  );
+  const restArray: HExpr = {
+    kind: "arrayLit",
+    elements: call.arguments.slice(fixedCount).map((a) => lowerArrayElement(a, ctx)),
+    type: restType,
+  };
+  return [...fixed, restArray];
 }
 
 function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
