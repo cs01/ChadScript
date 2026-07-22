@@ -223,6 +223,23 @@ CsString *cs_str_replaceAll(const CsString *s, const CsString *a, const CsString
   return cs_str_mk(r, o);
 }
 
+// JS substr(start, length): start counts from the end when negative; length (a NaN sentinel means
+// "to the end") is clamped at 0. Deprecated in JS but still valid, and present in the fixtures.
+CsString *cs_str_substr(const CsString *s, double dstart, double dlen) {
+  long n = (long)s->len;
+  long start = (long)dstart;
+  if (start < 0) {
+    start = n + start;
+    if (start < 0) start = 0;
+  }
+  if (start >= n) return empty();
+  long length = isnan(dlen) ? n - start : (long)dlen;
+  if (length <= 0) return empty();
+  long end = start + length;
+  if (end > n) end = n;
+  return substr(s, (size_t)start, (size_t)end);
+}
+
 // JS substring(a, b): like slice but negatives/NaN clamp to 0 and the two indices swap if a > b.
 static CsString *substring_norm(const CsString *s, long start, long end) {
   long n = (long)s->len;

@@ -1041,6 +1041,11 @@ export function evalStrMethod(expr: Extract<HExpr, { kind: "strMethod" }>, ctx: 
     const fn = args.length >= 2 ? "@cs_str_substring2" : "@cs_str_substring1";
     return ctx.fn.call(fn, T.ptr, [recv, ...args]);
   }
+  // substr(start, length?): length defaults to "to the end", signalled with a NaN sentinel.
+  if (expr.method === "substr") {
+    const len = args.length >= 2 ? args[1]! : fimm(NaN);
+    return ctx.fn.call("@cs_str_substr", T.ptr, [recv, args[0]!, len]);
+  }
   // padStart/padEnd: the pad string is optional and defaults to a single space.
   if (expr.method === "padStart" || expr.method === "padEnd") {
     const fn = expr.method === "padStart" ? "@cs_str_pad_start" : "@cs_str_pad_end";
