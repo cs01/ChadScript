@@ -159,6 +159,27 @@ export function evalCall(expr: Extract<HExpr, { kind: "call" }>, ctx: Ctx): Valu
   return ctx.fn.call(`@${expr.name}`, irTypeOf(expr.type), args);
 }
 
+// Math.* → libm (floor/ceil/trunc/sqrt/cbrt/fabs/pow) or a runtime helper (round/sign, whose JS
+// semantics differ from C). All operate on doubles.
+const MATH_UNARY: Record<string, string> = {
+  floor: "@floor",
+  ceil: "@ceil",
+  trunc: "@trunc",
+  abs: "@fabs",
+  sqrt: "@sqrt",
+  cbrt: "@cbrt",
+  round: "@cs_math_round",
+  sign: "@cs_math_sign",
+};
+
+export function evalMathCall(expr: Extract<HExpr, { kind: "mathCall" }>, ctx: Ctx): Value {
+  const args = expr.args.map((a) => evalNumber(a, ctx));
+  const unary = MATH_UNARY[expr.fn];
+  if (unary) return ctx.fn.call(unary, T.double, [args[0]!]);
+  if (expr.fn === "pow") return ctx.fn.call("@pow", T.double, [args[0]!, args[1]!]);
+  return ice(`codegen: Math.${expr.fn} not supported yet`);
+}
+
 // Evaluate any supported HExpr to an IR Value, dispatched on its resolved type.
 export function evalValue(expr: HExpr, ctx: Ctx): Value {
   switch (expr.type.kind) {
@@ -249,6 +270,9 @@ export function evalNumber(expr: HExpr, ctx: Ctx): Value {
 
     case "call":
       return evalCall(expr, ctx);
+
+    case "mathCall":
+      return evalMathCall(expr, ctx);
 
     case "arrayLen":
       // JS .length is a number; the runtime returns an i32 count.

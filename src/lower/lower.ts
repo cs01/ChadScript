@@ -403,6 +403,9 @@ function lowerCallStatement(call: ts.CallExpression, ctx: LowerCtx): HStmt {
       // A method call `obj.method(...)` in statement position → evaluate for effect, discard.
       if (ts.isPropertyAccessExpression(call.expression)) {
         const pa = call.expression;
+        if (isMathNamespace(pa.expression)) {
+          return { kind: "exprStmt", expr: lowerMethodCall(call, ctx) };
+        }
         const recvType = resolveType(pa.expression, ctx);
         // A class method (possibly void) → callStmt with `this` prepended, so void methods work.
         if (recvType.kind === "object" && recvType.className !== undefined) {
@@ -467,9 +470,36 @@ function lowerObjectLit(ole: ts.ObjectLiteralExpression, ctx: LowerCtx, type: Va
   return { kind: "objectLit", fields, type };
 }
 
+// The JS Math namespace constants, exact (evaluated in the compiler's own JS).
+const MATH_CONSTS: Record<string, number> = {
+  PI: Math.PI,
+  E: Math.E,
+  LN2: Math.LN2,
+  LN10: Math.LN10,
+  LOG2E: Math.LOG2E,
+  LOG10E: Math.LOG10E,
+  SQRT2: Math.SQRT2,
+  SQRT1_2: Math.SQRT1_2,
+};
+
+// True when `expr` is the identifier `Math` (the namespace, not a user variable).
+function isMathNamespace(expr: ts.Expression): boolean {
+  return ts.isIdentifier(expr) && expr.text === "Math";
+}
+
 // A method call `obj.method(args)`. Dispatched on the receiver's type + method name.
 function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
   const pa = call.expression as ts.PropertyAccessExpression;
+  // `Math.floor(x)` etc. — a builtin namespace call, not a value method. Check before resolving
+  // the receiver's type (Math is not a value).
+  if (isMathNamespace(pa.expression)) {
+    return {
+      kind: "mathCall",
+      fn: pa.name.text,
+      args: call.arguments.map((a) => lowerExpr(a, ctx)),
+      type: VT.number,
+    };
+  }
   const recvType = resolveType(pa.expression, ctx);
   const method = pa.name.text;
   if (recvType.kind === "array") {
@@ -559,6 +589,12 @@ function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
 
     case ts.SyntaxKind.PropertyAccessExpression: {
       const pa = expr as ts.PropertyAccessExpression;
+      // `Math.PI` etc. — a numeric constant.
+      if (isMathNamespace(pa.expression)) {
+        const c = MATH_CONSTS[pa.name.text];
+        if (c === undefined) ice(`lower: unsupported Math.${pa.name.text}`);
+        return { kind: "numberLit", value: c, type: VT.number };
+      }
       const objType = resolveType(pa.expression, ctx);
       if (pa.name.text === "length" && objType.kind === "array") {
         return { kind: "arrayLen", array: lowerExpr(pa.expression, ctx), type };

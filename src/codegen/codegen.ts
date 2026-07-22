@@ -38,6 +38,20 @@ export function generate(hmod: HModule): string {
   mod.declareExtern("cs_num_to_string", T.ptr, [T.double]);
   mod.declareExtern("cs_bool_to_string", T.ptr, [T.i32]);
   mod.declareExtern("cs_str_eq", T.i32, [T.ptr, T.ptr]);
+  // Math.* : libm (double→double) + JS-semantics helpers.
+  for (const f of [
+    "floor",
+    "ceil",
+    "trunc",
+    "sqrt",
+    "cbrt",
+    "fabs",
+    "cs_math_round",
+    "cs_math_sign",
+  ]) {
+    mod.declareExtern(f, T.double, [T.double]);
+  }
+  mod.declareExtern("pow", T.double, [T.double, T.double]);
   mod.declareExtern("cs_gc_init", T.void, []);
   mod.declareExtern("cs_gc_alloc", T.ptr, [T.i64]);
   mod.declareExtern("cs_array_new", T.ptr, []);

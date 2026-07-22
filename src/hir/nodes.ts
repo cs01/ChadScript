@@ -96,6 +96,8 @@ export type HExpr =
   | { kind: "varRef"; name: string; type: ValueType }
   // Call to a user function by its resolved HIR name. `type` is the return type.
   | { kind: "call"; name: string; args: HExpr[]; type: ValueType }
+  // A `Math.*` builtin call (number-valued). `fn` is the method name (floor/sqrt/pow/...).
+  | { kind: "mathCall"; fn: string; args: HExpr[]; type: ValueType }
   // Array literal `[a, b, ...]`. `type` is the array type; each element is boxed per element type.
   | { kind: "arrayLit"; elements: HExpr[]; type: ValueType }
   // `arr.length` → number.
