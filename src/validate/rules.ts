@@ -251,6 +251,15 @@ function checkCall(node: ts.CallExpression, hit: Hit): Diagnostic | null {
     if (isNamedIdent(recv, "Date")) {
       return hit(CODE.DATE_API, `\`Date.${m}\` is not supported yet`, "Date is a later phase");
     }
+    // String.fromCharCode / fromCodePoint build strings from UTF-16 code units — same UTF-16-over-
+    // UTF-8 gap as charCodeAt, so gated (CS1216) rather than silently diverging on codes > 0x7F.
+    if (isNamedIdent(recv, "String") && (m === "fromCharCode" || m === "fromCodePoint")) {
+      return hit(
+        CODE.STRING_UNICODE_OP,
+        `\`String.${m}\` is not supported yet`,
+        "it needs UTF-16 code-unit semantics over UTF-8 storage",
+      );
+    }
   }
   return null;
 }
