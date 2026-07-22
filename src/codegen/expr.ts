@@ -264,7 +264,15 @@ export function evalArrayPtr(expr: HExpr, ctx: Ctx): Value {
       const arr = ctx.fn.call("@cs_array_new", T.ptr, []);
       const elemType = expr.type.kind === "array" ? expr.type.element : ice("arrayLit not array");
       for (const el of expr.elements) {
-        ctx.fn.call("@cs_array_push", T.i32, [arr, boxSlot(evalValue(el, ctx), elemType, ctx)]);
+        if (el.spread) {
+          // Copy the source array's boxed slots directly (same element type → no re-box).
+          ctx.fn.callVoid("@cs_array_extend", [arr, evalArrayPtr(el.value, ctx)]);
+        } else {
+          ctx.fn.call("@cs_array_push", T.i32, [
+            arr,
+            boxSlot(evalValue(el.value, ctx), elemType, ctx),
+          ]);
+        }
       }
       return arr;
     }

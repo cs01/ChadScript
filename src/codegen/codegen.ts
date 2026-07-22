@@ -90,6 +90,7 @@ export function generate(hmod: HModule): string {
   mod.declareExtern("cs_array_slice2", T.ptr, [T.ptr, T.double, T.double]);
   mod.declareExtern("cs_array_concat", T.ptr, [T.ptr, T.ptr]);
   mod.declareExtern("cs_array_set", T.void, [T.ptr, T.i32, T.i64]);
+  mod.declareExtern("cs_array_extend", T.void, [T.ptr, T.ptr]);
   mod.declareExtern("cs_str_cmp", T.i32, [T.ptr, T.ptr]);
   // Map: keys/values cross as i64 slots; `kind` (i32) selects key equality.
   mod.declareExtern("cs_map_new", T.ptr, []);

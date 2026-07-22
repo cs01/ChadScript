@@ -50,6 +50,7 @@ const ALLOWED_KINDS: ReadonlySet<ts.SyntaxKind> = new Set([
   ts.SyntaxKind.ForStatement,
   ts.SyntaxKind.ForOfStatement,
   ts.SyntaxKind.ArrayLiteralExpression,
+  ts.SyntaxKind.SpreadElement, // `[...arr]` in an array literal
   ts.SyntaxKind.ElementAccessExpression, // arr[i] (→ element | undefined)
   // Objects (Phase 2): closed-shape literals + interface/type-literal shapes (type-only nodes
   // are inert; PropertyAssignment/Shorthand build the literal).

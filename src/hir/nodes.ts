@@ -73,6 +73,13 @@ export interface HCase {
   body: HStmt[];
 }
 
+// One entry in an array literal. `spread` true → `value` is an array whose elements are copied
+// in (`...src`); false → `value` is a single element.
+export interface ArrayElement {
+  spread: boolean;
+  value: HExpr;
+}
+
 export type UnaryOp = "neg" | "pos" | "not" | "bnot";
 export type LogicalOp = "and" | "or";
 // Arithmetic + bitwise ops produce a number; comparison ops (lt..ne) produce a boolean. The
@@ -119,8 +126,9 @@ export type HExpr =
   | { kind: "strLen"; str: HExpr; type: ValueType }
   // A `string.method(args)` builtin. `method` is the JS name; result type is `type`.
   | { kind: "strMethod"; method: string; receiver: HExpr; args: HExpr[]; type: ValueType }
-  // Array literal `[a, b, ...]`. `type` is the array type; each element is boxed per element type.
-  | { kind: "arrayLit"; elements: HExpr[]; type: ValueType }
+  // Array literal `[a, ...b, c]`. Each element is either a single value or a `...spread` of an
+  // array-typed source (whose slots are copied in). `type` is the array type.
+  | { kind: "arrayLit"; elements: ArrayElement[]; type: ValueType }
   // `arr.length` → number.
   | { kind: "arrayLen"; array: HExpr; type: ValueType }
   // `arr[i]` index access → `element | undefined` (bounds-checked). `type` is the optional type.

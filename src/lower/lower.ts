@@ -765,6 +765,30 @@ function keyKindOf(keyType: ValueType): number {
   }
 }
 
+// One element of an array literal: a single value, or `...src` spread of an array/set source.
+function lowerArrayElement(
+  e: ts.Expression,
+  ctx: LowerCtx,
+): import("../hir/nodes.js").ArrayElement {
+  if (ts.isSpreadElement(e)) {
+    let value = lowerExpr(e.expression, ctx);
+    // A Set spreads its elements — materialize to an array first. (Map → entries needs tuples.)
+    if (value.type.kind === "set") {
+      value = {
+        kind: "collectionToArray",
+        fn: "cs_set_values",
+        receiver: value,
+        type: VT.array(value.type.element),
+      };
+    }
+    if (value.type.kind !== "array") {
+      ice(`lower: spread of ${value.type.kind} not supported in an array literal`);
+    }
+    return { spread: true, value };
+  }
+  return { spread: false, value: lowerExpr(e, ctx) };
+}
+
 // A method call `obj.method(args)`. Dispatched on the receiver's type + method name.
 function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
   const pa = call.expression as ts.PropertyAccessExpression;
@@ -1087,7 +1111,9 @@ function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
     case ts.SyntaxKind.ArrayLiteralExpression:
       return {
         kind: "arrayLit",
-        elements: (expr as ts.ArrayLiteralExpression).elements.map((e) => lowerExpr(e, ctx)),
+        elements: (expr as ts.ArrayLiteralExpression).elements.map((e) =>
+          lowerArrayElement(e, ctx),
+        ),
         type,
       };
 

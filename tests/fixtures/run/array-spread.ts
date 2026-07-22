@@ -1,0 +1,10 @@
+const a = [1, 2, 3];
+const b = [4, 5];
+console.log([...a, ...b].join(","));
+console.log([0, ...a, 10, ...b, 20].join(","));
+const copy = [...a];
+copy.push(99);
+console.log(a.join(","));
+console.log(copy.join(","));
+const words = ["a", "b"];
+console.log([...words, "c"].join("-"));
