@@ -29,6 +29,7 @@ export const CODE = {
   MUTABLE_CAPTURE: "CS1219", // closure capturing a mutable `let` — needs capture-by-reference
   STDLIB_STATIC: "CS1220", // unsupported namespace static (Array.*/Number.*/Object.* beyond allow)
   NUMBER_METHOD: "CS1221", // unsupported number instance method (toFixed/toPrecision/toExponential)
+  COLLECTION_METHOD: "CS1222", // unsupported Map/Set instance method (forEach/entries/clear/…)
 } as const;
 
 export type Code = (typeof CODE)[keyof typeof CODE];

@@ -192,7 +192,7 @@ export function tailoredRejection(
       return checkCast(node as ts.AsExpression | ts.TypeAssertion, hit);
 
     case ts.SyntaxKind.CallExpression:
-      return checkCall(node as ts.CallExpression, hit);
+      return checkCall(node as ts.CallExpression, hit, checker);
 
     case ts.SyntaxKind.NewExpression:
       return checkNew(node as ts.NewExpression, hit);
@@ -255,6 +255,20 @@ const UNSUPPORTED_NUMBER_METHODS: ReadonlySet<string> = new Set([
   "toExponential",
 ]);
 
+// Map/Set instance methods lowering supports. `.size` is a property read, not a call — unaffected.
+const COLLECTION_METHODS: Record<"map" | "set", ReadonlySet<string>> = {
+  map: new Set(["set", "get", "has", "delete", "keys", "values"]),
+  set: new Set(["add", "has", "delete", "keys", "values"]),
+};
+
+// Whether `expr` is a Map or Set (by the global type's symbol name), else null.
+function collectionKind(expr: ts.Expression, checker: ts.TypeChecker): "map" | "set" | null {
+  const name = checker.getTypeAtLocation(expr).symbol?.name;
+  if (name === "Map" || name === "ReadonlyMap") return "map";
+  if (name === "Set" || name === "ReadonlySet") return "set";
+  return null;
+}
+
 function checkCast(node: ts.AsExpression | ts.TypeAssertion, hit: Hit): Diagnostic | null {
   const k = node.type.kind;
   if (k === ts.SyntaxKind.AnyKeyword || k === ts.SyntaxKind.UnknownKeyword) {
@@ -305,7 +319,7 @@ function isDescendantOf(node: ts.Node, ancestor: ts.Node): boolean {
   return false;
 }
 
-function checkCall(node: ts.CallExpression, hit: Hit): Diagnostic | null {
+function checkCall(node: ts.CallExpression, hit: Hit, checker: ts.TypeChecker): Diagnostic | null {
   if (isNamedIdent(node.expression, "eval")) {
     return hit(CODE.EVAL_OR_FUNCTION_CTOR, "`eval` is not supported", "there is no dynamic eval");
   }
@@ -333,6 +347,17 @@ function checkCall(node: ts.CallExpression, hit: Hit): Diagnostic | null {
         "it needs UTF-16 code-unit semantics over UTF-8 storage",
       );
     }
+    // Map/Set instance methods: default-DENY against what lowering supports, so forEach/entries/
+    // clear reject at validate instead of ICE'ing. Receiver type comes from the checker.
+    const coll = collectionKind(recv, checker);
+    if (coll && !COLLECTION_METHODS[coll].has(m)) {
+      return hit(
+        CODE.COLLECTION_METHOD,
+        `\`${coll === "map" ? "Map" : "Set"}.${m}\` is not supported yet`,
+        `supported: ${[...COLLECTION_METHODS[coll]].join(", ")} (iterate via .keys()/.values())`,
+      );
+    }
+
     // Namespace statics: default-DENY against a per-namespace allowlist of what lowering supports,
     // so an unsupported one (Array.from, Number.isInteger, Object.assign, …) rejects at validate
     // instead of ICE'ing in the backend. Instance methods (`arr.map`, `n.toString`) are separate.
