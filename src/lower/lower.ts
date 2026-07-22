@@ -2,6 +2,10 @@
 // imports `typescript` and queries the checker (the frontend's job ends here). It stamps every
 // HIR expression with a resolved ValueType so the backend never touches the checker.
 //
+// Names are RESOLVED to their tsc Symbol and given a unique HIR name here. Two different
+// variables that share a source name (shadowing) get distinct HIR names, so the backend's flat
+// binding map is correct by construction — no scope stack, and it stays correct for closures.
+//
 // The validator has already admitted only in-subset constructs, so a shape we don't recognize
 // here is an ICE (a validator/lower mismatch), not a user error.
 
@@ -12,100 +16,123 @@ import type { HModule, HStmt, HExpr, UnaryOp, BinaryOp } from "../hir/nodes.js";
 import { VT } from "../hir/types.js";
 import type { ValueType } from "../hir/types.js";
 
+interface LowerCtx {
+  checker: ts.TypeChecker;
+  // Symbol identity → unique HIR name. Shadowing variables have distinct symbols, so distinct
+  // names. Keyed by Symbol so a reference resolves to the same name as its declaration.
+  names: Map<ts.Symbol, string>;
+  counter: { n: number };
+}
+
 export function lower(loaded: LoadedProgram): HModule {
+  const ctx: LowerCtx = { checker: loaded.checker, names: new Map(), counter: { n: 0 } };
   const statements: HStmt[] = [];
   for (const sf of loaded.sourceFiles) {
-    for (const stmt of sf.statements) statements.push(...lowerStatement(stmt, loaded.checker));
+    for (const stmt of sf.statements) statements.push(...lowerStatement(stmt, ctx));
   }
   return { statements };
 }
 
+// The stable HIR name for the variable an identifier resolves to. Falls back to the source
+// text keyed by position if the checker cannot produce a symbol (should not happen for the
+// admitted subset), so distinct-but-symbolless names never collide.
+function nameOf(ident: ts.Identifier, ctx: LowerCtx): string {
+  const symbol = ctx.checker.getSymbolAtLocation(ident);
+  if (!symbol) return ice(`lower: no symbol for identifier ${ident.text}`);
+  let name = ctx.names.get(symbol);
+  if (!name) {
+    name = `${ident.text}.${ctx.counter.n++}`;
+    ctx.names.set(symbol, name);
+  }
+  return name;
+}
+
 // Returns an array because one `let a = 1, b = 2;` lowers to several varDecls.
-function lowerStatement(stmt: ts.Statement, checker: ts.TypeChecker): HStmt[] {
+function lowerStatement(stmt: ts.Statement, ctx: LowerCtx): HStmt[] {
   if (ts.isExpressionStatement(stmt)) {
     const e = stmt.expression;
-    if (ts.isCallExpression(e)) return [lowerCallStatement(e, checker)];
+    if (ts.isCallExpression(e)) return [lowerCallStatement(e, ctx)];
     if (ts.isBinaryExpression(e) && isAssignmentOp(e.operatorToken.kind)) {
-      return [lowerAssignment(e, checker)];
+      return [lowerAssignment(e, ctx)];
     }
     return ice(`lower: unsupported expression statement ${ts.SyntaxKind[e.kind]}`);
   }
   if (ts.isVariableStatement(stmt)) {
-    return stmt.declarationList.declarations.map((d) => lowerVarDecl(d, checker));
+    return stmt.declarationList.declarations.map((d) => lowerVarDecl(d, ctx));
   }
   if (ts.isIfStatement(stmt)) {
-    return [lowerIf(stmt, checker)];
+    return [lowerIf(stmt, ctx)];
   }
   if (ts.isBlock(stmt)) {
-    // A bare block just contributes its statements (flattened; scoping is enforced by tsc).
-    return lowerStatements(stmt.statements, checker);
+    // A bare block just contributes its statements (flattened; scoping is enforced by tsc, and
+    // shadowing is safe because names are symbol-unique).
+    return lowerStatements(stmt.statements, ctx);
   }
   return ice(`lower: unsupported statement ${ts.SyntaxKind[stmt.kind]}`);
 }
 
-function lowerStatements(stmts: readonly ts.Statement[], checker: ts.TypeChecker): HStmt[] {
-  return stmts.flatMap((s) => lowerStatement(s, checker));
+function lowerStatements(stmts: readonly ts.Statement[], ctx: LowerCtx): HStmt[] {
+  return stmts.flatMap((s) => lowerStatement(s, ctx));
 }
 
 // The body of a branch is either a block (`{ ... }`) or a single statement (`if (c) x();`).
-function lowerBranchBody(stmt: ts.Statement, checker: ts.TypeChecker): HStmt[] {
-  return ts.isBlock(stmt)
-    ? lowerStatements(stmt.statements, checker)
-    : lowerStatement(stmt, checker);
+function lowerBranchBody(stmt: ts.Statement, ctx: LowerCtx): HStmt[] {
+  return ts.isBlock(stmt) ? lowerStatements(stmt.statements, ctx) : lowerStatement(stmt, ctx);
 }
 
-function lowerIf(stmt: ts.IfStatement, checker: ts.TypeChecker): HStmt {
+function lowerIf(stmt: ts.IfStatement, ctx: LowerCtx): HStmt {
   return {
     kind: "if",
-    cond: lowerExpr(stmt.expression, checker),
-    then: lowerBranchBody(stmt.thenStatement, checker),
-    otherwise: stmt.elseStatement ? lowerBranchBody(stmt.elseStatement, checker) : null,
+    cond: lowerExpr(stmt.expression, ctx),
+    then: lowerBranchBody(stmt.thenStatement, ctx),
+    otherwise: stmt.elseStatement ? lowerBranchBody(stmt.elseStatement, ctx) : null,
   };
 }
 
-function lowerAssignment(expr: ts.BinaryExpression, checker: ts.TypeChecker): HStmt {
+function lowerAssignment(expr: ts.BinaryExpression, ctx: LowerCtx): HStmt {
   if (!ts.isIdentifier(expr.left)) ice("lower: only simple `name = ...` assignment is supported");
-  const name = expr.left.text;
+  const left = expr.left as ts.Identifier;
+  const name = nameOf(left, ctx);
   const op = expr.operatorToken.kind;
   if (op === ts.SyntaxKind.EqualsToken) {
-    return { kind: "assign", name, value: lowerExpr(expr.right, checker) };
+    return { kind: "assign", name, value: lowerExpr(expr.right, ctx) };
   }
   // Compound assignment `name <op>= rhs` desugars to `name = name <op> rhs`. The value's type
   // matches the variable (numeric compound ops on a number stay a number).
   const value: HExpr = {
     kind: "binary",
     op: compoundOp(op),
-    left: lowerExpr(expr.left, checker),
-    right: lowerExpr(expr.right, checker),
-    type: resolveType(expr.left, checker),
+    left: lowerExpr(left, ctx),
+    right: lowerExpr(expr.right, ctx),
+    type: resolveType(left, ctx),
   };
   return { kind: "assign", name, value };
 }
 
-function lowerVarDecl(decl: ts.VariableDeclaration, checker: ts.TypeChecker): HStmt {
+function lowerVarDecl(decl: ts.VariableDeclaration, ctx: LowerCtx): HStmt {
   if (!ts.isIdentifier(decl.name)) ice("lower: destructuring declarations not supported yet");
   if (!decl.initializer) ice("lower: variable declaration without initializer not supported yet");
-  const init = lowerExpr(decl.initializer, checker);
-  return { kind: "varDecl", name: decl.name.text, init, type: init.type };
+  const init = lowerExpr(decl.initializer, ctx);
+  return { kind: "varDecl", name: nameOf(decl.name, ctx), init, type: init.type };
 }
 
-function lowerCallStatement(call: ts.CallExpression, checker: ts.TypeChecker): HStmt {
+function lowerCallStatement(call: ts.CallExpression, ctx: LowerCtx): HStmt {
   const target = calleeName(call.expression);
   const arg = call.arguments[0];
   if (call.arguments.length !== 1 || !arg) ice(`lower: ${target} expects exactly one argument`);
 
   switch (target) {
     case "console.log":
-      return { kind: "consoleLog", value: lowerExpr(arg, checker) };
+      return { kind: "consoleLog", value: lowerExpr(arg, ctx) };
     case "process.exit":
-      return { kind: "processExit", code: lowerExpr(arg, checker) };
+      return { kind: "processExit", code: lowerExpr(arg, ctx) };
     default:
       return ice(`lower: unsupported call ${target}`);
   }
 }
 
-function lowerExpr(expr: ts.Expression, checker: ts.TypeChecker): HExpr {
-  const type = resolveType(expr, checker);
+function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
+  const type = resolveType(expr, ctx);
   switch (expr.kind) {
     case ts.SyntaxKind.NumericLiteral:
       return { kind: "numberLit", value: Number((expr as ts.NumericLiteral).text), type };
@@ -122,19 +149,14 @@ function lowerExpr(expr: ts.Expression, checker: ts.TypeChecker): HExpr {
     case ts.SyntaxKind.Identifier:
       // A bare identifier in expression position is a variable reference (callees like
       // console.log are handled separately in calleeName, never through lowerExpr).
-      return { kind: "varRef", name: (expr as ts.Identifier).text, type };
+      return { kind: "varRef", name: nameOf(expr as ts.Identifier, ctx), type };
 
     case ts.SyntaxKind.ParenthesizedExpression:
-      return lowerExpr((expr as ts.ParenthesizedExpression).expression, checker);
+      return lowerExpr((expr as ts.ParenthesizedExpression).expression, ctx);
 
     case ts.SyntaxKind.PrefixUnaryExpression: {
       const u = expr as ts.PrefixUnaryExpression;
-      return {
-        kind: "unary",
-        op: unaryOp(u.operator),
-        operand: lowerExpr(u.operand, checker),
-        type,
-      };
+      return { kind: "unary", op: unaryOp(u.operator), operand: lowerExpr(u.operand, ctx), type };
     }
 
     case ts.SyntaxKind.BinaryExpression: {
@@ -142,8 +164,8 @@ function lowerExpr(expr: ts.Expression, checker: ts.TypeChecker): HExpr {
       return {
         kind: "binary",
         op: binaryOp(b.operatorToken.kind),
-        left: lowerExpr(b.left, checker),
-        right: lowerExpr(b.right, checker),
+        left: lowerExpr(b.left, ctx),
+        right: lowerExpr(b.right, ctx),
         type,
       };
     }
@@ -155,8 +177,8 @@ function lowerExpr(expr: ts.Expression, checker: ts.TypeChecker): HExpr {
 
 // The checker is the oracle: map its resolved type to our ValueType. Anything outside the
 // currently-supported domain is an ICE (the validator should have rejected it upstream).
-function resolveType(expr: ts.Expression, checker: ts.TypeChecker): ValueType {
-  const flags = checker.getTypeAtLocation(expr).flags;
+function resolveType(expr: ts.Expression, ctx: LowerCtx): ValueType {
+  const flags = ctx.checker.getTypeAtLocation(expr).flags;
   if (flags & ts.TypeFlags.NumberLike) return VT.number;
   if (flags & ts.TypeFlags.StringLike) return VT.string;
   if (flags & ts.TypeFlags.BooleanLike) return VT.boolean;
