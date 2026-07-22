@@ -310,9 +310,32 @@ function checkCall(node: ts.CallExpression, hit: Hit): Diagnostic | null {
         "it needs UTF-16 code-unit semantics over UTF-8 storage",
       );
     }
+    // Namespace statics: default-DENY against a per-namespace allowlist of what lowering supports,
+    // so an unsupported one (Array.from, Number.isInteger, Object.assign, …) rejects at validate
+    // instead of ICE'ing in the backend. Instance methods (`arr.map`, `n.toString`) are separate.
+    if (ts.isIdentifier(recv)) {
+      const allow = NAMESPACE_STATIC_ALLOW[recv.text];
+      if (allow && !allow.has(m)) {
+        const allowed = allow.size ? `; supported: ${[...allow].join(", ")}` : "";
+        return hit(
+          CODE.STDLIB_STATIC,
+          `\`${recv.text}.${m}\` is not supported yet`,
+          `this static is not in the subset yet${allowed}`,
+        );
+      }
+    }
   }
   return null;
 }
+
+// Static (namespace) methods lowering supports, per global. A call `X.m(...)` with `X` in this
+// table and `m` absent from its set is rejected (CS1220). Empty set = no static of that global is
+// supported yet. Instance methods and the `X(...)` conversion calls are NOT gated here.
+const NAMESPACE_STATIC_ALLOW: Record<string, ReadonlySet<string>> = {
+  Object: new Set(["keys", "values"]),
+  Array: new Set(),
+  Number: new Set(),
+};
 
 function checkNew(node: ts.NewExpression, hit: Hit): Diagnostic | null {
   if (isNamedIdent(node.expression, "Function")) {

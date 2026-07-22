@@ -27,6 +27,7 @@ export const CODE = {
   PARAM_FORM: "CS1217", // default (`x = v`) / optional (`x?`) parameters — a later phase
   UNINIT_VAR: "CS1218", // `let x;` declaration with no initializer — a later phase
   MUTABLE_CAPTURE: "CS1219", // closure capturing a mutable `let` — needs capture-by-reference
+  STDLIB_STATIC: "CS1220", // unsupported namespace static (Array.*/Number.*/Object.* beyond allow)
 } as const;
 
 export type Code = (typeof CODE)[keyof typeof CODE];
