@@ -20,6 +20,7 @@ import {
   evalObjectPtr,
   evalOptionalPtr,
   unboxOptionalValue,
+  unboxSlotValue,
   arrayElementAt,
   boxSlot,
   emitStrictEq,
@@ -102,15 +103,38 @@ function emitStatements(stmts: HStmt[], ctx: Ctx): void {
 
 function emitFunction(f: HFunc, mod: ModuleBuilder): void {
   const retType = f.returnType ? irTypeOf(f.returnType) : T.void;
-  const irParams: Value[] = f.params.map((p, i) => ({ name: `%arg${i}`, type: irTypeOf(p.type) }));
+  const captures = f.captures ?? [];
+  // EVERY lambda (a function with a `captures` list, even empty) takes a hidden `env` pointer as
+  // its first LLVM parameter, because callClosure always passes one. Top-level functions
+  // (captures === undefined) do not.
+  const hasEnv = f.captures !== undefined;
+  const declaredParams: Value[] = f.params.map((p, i) => ({
+    name: `%arg${hasEnv ? i + 1 : i}`,
+    type: irTypeOf(p.type),
+  }));
+  const irParams: Value[] = hasEnv
+    ? [{ name: "%arg0", type: T.ptr }, ...declaredParams]
+    : declaredParams;
   const fn = mod.defineFunc(f.name, retType, irParams);
   const ctx: Ctx = { mod, fn, vars: new Map(), breakTargets: [], continueTargets: [] };
 
-  // Copy each parameter into a stack slot so it can be reassigned like any local (JS allows
-  // reassigning parameters), and bind the name to that slot.
+  // Bind captured variables from the env record (env is %arg0). Each is stored in a fresh local
+  // slot so the body reads it like any variable.
+  if (hasEnv) {
+    const env = irParams[0]!;
+    captures.forEach((c, i) => {
+      const raw = fn.load(T.i64, fn.gepSlot(env, i));
+      const ptr = fn.alloca(irTypeOf(c.type));
+      fn.store(unboxSlotValue(raw, c.type, ctx), ptr);
+      ctx.vars.set(c.name, { ptr, vtype: c.type });
+    });
+  }
+
+  // Copy each declared parameter into a stack slot so it can be reassigned like any local (JS
+  // allows reassigning parameters), and bind the name to that slot.
   f.params.forEach((p, i) => {
     const ptr = fn.alloca(irTypeOf(p.type));
-    fn.store(irParams[i]!, ptr);
+    fn.store(declaredParams[i]!, ptr);
     ctx.vars.set(p.name, { ptr, vtype: p.type });
   });
 

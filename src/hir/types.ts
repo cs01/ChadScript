@@ -33,7 +33,9 @@ export type ValueType =
   | { kind: "object"; shape: ObjectShape; className?: string }
   // `inner | undefined` (from `arr[i]`, `.pop()`, optional fields). Runtime rep: a pointer that
   // is either the `undefined` sentinel or a pointer to a GC box holding the boxed inner value.
-  | { kind: "optional"; inner: ValueType };
+  | { kind: "optional"; inner: ValueType }
+  // A first-class function value (closure). Runtime rep: a pointer to a GC record {fnptr, env}.
+  | { kind: "function"; params: ValueType[]; ret: ValueType | null };
 
 export const VT = {
   number: { kind: "number" } as ValueType,

@@ -12,7 +12,7 @@
 import ts from "typescript";
 import { ice } from "../diagnostics.js";
 import type { LoadedProgram } from "../frontend/program.js";
-import type { HModule, HStmt, HExpr, HFunc, UnaryOp, BinaryOp } from "../hir/nodes.js";
+import type { HModule, HStmt, HExpr, HFunc, HCapture, UnaryOp, BinaryOp } from "../hir/nodes.js";
 import { VT } from "../hir/types.js";
 import type { ValueType } from "../hir/types.js";
 
@@ -25,6 +25,8 @@ interface LowerCtx {
   // The `this` binding while lowering a method/constructor body (null at top level / in free
   // functions). `this` lowers to a varRef of this name + the instance type.
   currentThis: { name: string; type: ValueType } | null;
+  // Output list of all functions, incl. lambdas lifted from arrow/function expressions.
+  functions: HFunc[];
 }
 
 // The `undefined` literal (a global identifier in TS).
@@ -44,23 +46,23 @@ export function lower(loaded: LoadedProgram): HModule {
     names: new Map(),
     counter: { n: 0 },
     currentThis: null,
+    functions: [],
   };
-  const functions: HFunc[] = [];
   const topLevel: HStmt[] = [];
   for (const sf of loaded.sourceFiles) {
     for (const stmt of sf.statements) {
       // Type-only declarations have no runtime and are consumed by the checker, not lowered.
       if (ts.isInterfaceDeclaration(stmt) || ts.isTypeAliasDeclaration(stmt)) continue;
       if (ts.isFunctionDeclaration(stmt)) {
-        functions.push(lowerFunction(stmt, ctx));
+        ctx.functions.push(lowerFunction(stmt, ctx));
       } else if (ts.isClassDeclaration(stmt)) {
-        functions.push(...lowerClass(stmt, ctx));
+        ctx.functions.push(...lowerClass(stmt, ctx));
       } else {
         topLevel.push(...lowerStatement(stmt, ctx));
       }
     }
   }
-  return { functions, topLevel };
+  return { functions: ctx.functions, topLevel };
 }
 
 // A class lowers to a set of free functions: each method and the constructor become an HFunc
@@ -116,6 +118,88 @@ function lowerMethodLike(
   // declared type.
   const returnType = isCtor ? null : returnTypeOfSignature(member, ctx);
   return { name: `${className}.${memberName}`, params, returnType, body };
+}
+
+// An arrow function / function expression → a closure value. The body is lifted to a top-level
+// HFunc that takes a hidden `env` parameter; free variables are captured into that env.
+function lowerArrow(arrow: ts.ArrowFunction | ts.FunctionExpression, ctx: LowerCtx): HExpr {
+  const lambdaName = `lambda.${ctx.counter.n++}`;
+  const params = arrow.parameters.map((p) => {
+    if (!ts.isIdentifier(p.name)) ice("lower: destructured lambda parameter not supported");
+    return { name: nameOf(p.name, ctx), type: valueTypeOf(p.name, ctx) };
+  });
+  // Capture free variables (found by walking the body AFTER params are registered, so params
+  // aren't mistaken for captures).
+  const captures = findCaptures(arrow, ctx);
+
+  const body: HStmt[] = ts.isBlock(arrow.body)
+    ? lowerStatements(arrow.body.statements, ctx)
+    : [{ kind: "return", value: lowerExpr(arrow.body, ctx) }];
+
+  const sig = ctx.checker.getSignatureFromDeclaration(arrow);
+  const retT = sig ? ctx.checker.getReturnTypeOfSignature(sig) : undefined;
+  const returnType =
+    !retT || retT.flags & (ts.TypeFlags.Void | ts.TypeFlags.Undefined)
+      ? null
+      : valueTypeOfTsType(retT, arrow, ctx.checker);
+
+  ctx.functions.push({ name: lambdaName, params, returnType, body, captures });
+  return {
+    kind: "closure",
+    lambdaName,
+    captures,
+    type: { kind: "function", params: params.map((p) => p.type), ret: returnType },
+  };
+}
+
+// Free variables of an arrow: identifiers referring to a local variable/parameter declared
+// OUTSIDE the arrow (i.e. captured from an enclosing scope). Top-level functions, globals, and
+// the arrow's own params/locals are not captures.
+function findCaptures(arrow: ts.ArrowFunction | ts.FunctionExpression, ctx: LowerCtx): HCapture[] {
+  const caps = new Map<ts.Symbol, HCapture>();
+  const visit = (node: ts.Node): void => {
+    if (ts.isIdentifier(node)) {
+      const sym = ctx.checker.getSymbolAtLocation(node);
+      if (sym && !caps.has(sym)) {
+        const kind = captureKind(sym, arrow);
+        // Capture by value at closure creation. That is only SOUND for immutable (`const`)
+        // bindings — a mutable capture would need capture-by-reference (heap-boxed), so reject
+        // it rather than silently diverge from JS.
+        if (kind === "mutable") {
+          ice(`lower: closures may only capture const variables yet ('${node.text}' is mutable)`);
+        }
+        if (kind === "const") {
+          const name = ctx.names.get(sym);
+          if (name) caps.set(sym, { name, type: valueTypeOf(node, ctx) });
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(arrow.body);
+  return [...caps.values()];
+}
+
+// Whether a symbol referenced in an arrow is captured, and if so how. "no" = the arrow's own
+// local/param, a top-level function, or a global (referenced by name, not captured).
+function captureKind(sym: ts.Symbol, arrow: ts.Node): "const" | "mutable" | "no" {
+  const d = sym.valueDeclaration;
+  if (!d) return "no";
+  if (isDescendantOf(d, arrow)) return "no"; // declared inside the arrow → local
+  // Capture is by value at creation, so it must be a binding whose value is stable. `const`
+  // vars are guaranteed stable; parameters are captured by value too (a parameter reassigned
+  // after the closure is created would diverge — a documented limitation until capture-by-
+  // reference lands). A mutable `let` is rejected outright.
+  if (ts.isParameter(d)) return "const";
+  if (ts.isVariableDeclaration(d)) {
+    return d.parent.flags & ts.NodeFlags.Const ? "const" : "mutable";
+  }
+  return "no"; // functions, classes, globals
+}
+
+function isDescendantOf(node: ts.Node, ancestor: ts.Node): boolean {
+  for (let p: ts.Node | undefined = node; p; p = p.parent) if (p === ancestor) return true;
+  return false;
 }
 
 function lowerFunction(decl: ts.FunctionDeclaration, ctx: LowerCtx): HFunc {
@@ -459,13 +543,25 @@ function lowerCallStatement(call: ts.CallExpression, ctx: LowerCtx): HStmt {
   }
 }
 
-// A call used as a value: a user function `foo(args)` or a method `obj.method(args)`.
+// A call used as a value: a user function `foo(args)`, a method `obj.method(args)`, or a call
+// through a function VALUE (closure) held in a variable.
 function lowerCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
   if (ts.isPropertyAccessExpression(call.expression)) {
     return lowerMethodCall(call, ctx);
   }
   if (!ts.isIdentifier(call.expression)) {
     return ice(`lower: unsupported call target ${ts.SyntaxKind[call.expression.kind]}`);
+  }
+  // A call whose callee is NOT a top-level function declaration is a closure call.
+  const sym = ctx.checker.getSymbolAtLocation(call.expression);
+  const isTopLevelFn = sym?.valueDeclaration && ts.isFunctionDeclaration(sym.valueDeclaration);
+  if (!isTopLevelFn) {
+    return {
+      kind: "callClosure",
+      callee: lowerExpr(call.expression, ctx),
+      args: call.arguments.map((a) => lowerExpr(a, ctx)),
+      type: resolveType(call, ctx),
+    };
   }
   return {
     kind: "call",
@@ -643,6 +739,10 @@ function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
 
     case ts.SyntaxKind.CallExpression:
       return lowerCall(expr as ts.CallExpression, ctx);
+
+    case ts.SyntaxKind.ArrowFunction:
+    case ts.SyntaxKind.FunctionExpression:
+      return lowerArrow(expr as ts.ArrowFunction | ts.FunctionExpression, ctx);
 
     case ts.SyntaxKind.ArrayLiteralExpression:
       return {
@@ -838,6 +938,20 @@ function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChecker): 
   if (flags & ts.TypeFlags.Undefined) return VT.undefined;
   if (flags & ts.TypeFlags.Object) {
     const ref = t as ts.TypeReference;
+    // A function value: an object type with a call signature.
+    const callSigs = checker.getSignaturesOfType(t, ts.SignatureKind.Call);
+    if (callSigs.length > 0) {
+      const sig = callSigs[0]!;
+      const params = sig.parameters.map((p) =>
+        valueTypeOfTsType(checker.getTypeOfSymbolAtLocation(p, node), node, checker),
+      );
+      const retT = checker.getReturnTypeOfSignature(sig);
+      const ret =
+        retT.flags & (ts.TypeFlags.Void | ts.TypeFlags.Undefined)
+          ? null
+          : valueTypeOfTsType(retT, node, checker);
+      return { kind: "function", params, ret };
+    }
     // `T[]` / `Array<T>`: an Array object type with one type argument.
     if (ref.symbol?.name === "Array") {
       const args = checker.getTypeArguments(ref);

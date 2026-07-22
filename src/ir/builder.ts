@@ -128,6 +128,29 @@ export class FuncBuilder {
     this.current.add(`call void ${callee}(${argList(args)})`);
   }
 
+  // Indirect call through a function-pointer Value (a closure's fnptr). Same as `call` but the
+  // callee is a register holding a ptr rather than a global name.
+  callIndirect(fnptr: Value, retType: IrType, args: readonly Value[]): Value {
+    if (fnptr.type.kind !== "ptr") ice(`callIndirect needs a ptr callee, got ${fnptr.type.kind}`);
+    const result = this.nextTemp(retType);
+    this.current.add(`${result.name} = call ${llvmType(retType)} ${fnptr.name}(${argList(args)})`);
+    return result;
+  }
+
+  callIndirectVoid(fnptr: Value, args: readonly Value[]): void {
+    if (fnptr.type.kind !== "ptr") ice(`callIndirect needs a ptr callee, got ${fnptr.type.kind}`);
+    this.current.add(`call void ${fnptr.name}(${argList(args)})`);
+  }
+
+  // A reference to a defined function as a ptr Value (for a closure's fnptr).
+  funcRef(name: string): Value {
+    return { name: `@${name}`, type: T.ptr };
+  }
+
+  nullPtr(): Value {
+    return { name: "null", type: T.ptr };
+  }
+
   // Binary float op (fadd/fsub/fmul/fdiv/frem). Operands must be double; result is double.
   private fbin(op: string, a: Value, b: Value): Value {
     if (a.type.kind !== "double" || b.type.kind !== "double") {

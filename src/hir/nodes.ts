@@ -16,11 +16,19 @@ export interface HParam {
   type: ValueType;
 }
 
+export interface HCapture {
+  name: string; // the HIR name of the captured variable (from the enclosing scope)
+  type: ValueType;
+}
+
 export interface HFunc {
   name: string; // unique HIR name (symbol-resolved), used as the LLVM function name
   params: HParam[];
   returnType: ValueType | null; // null = void
   body: HStmt[];
+  // A lifted lambda takes a hidden `env` pointer as its first LLVM parameter and binds these
+  // captured variables from it at entry. Empty/undefined for ordinary functions.
+  captures?: HCapture[];
 }
 
 export type HStmt =
@@ -98,6 +106,10 @@ export type HExpr =
   | { kind: "call"; name: string; args: HExpr[]; type: ValueType }
   // A `Math.*` builtin call (number-valued). `fn` is the method name (floor/sqrt/pow/...).
   | { kind: "mathCall"; fn: string; args: HExpr[]; type: ValueType }
+  // Create a closure: the lifted lambda `lambdaName` plus a captured-variable environment.
+  | { kind: "closure"; lambdaName: string; captures: HCapture[]; type: ValueType }
+  // Call a function VALUE (closure): load its fnptr + env and invoke. `type` is the return type.
+  | { kind: "callClosure"; callee: HExpr; args: HExpr[]; type: ValueType }
   // `str.length` → number.
   | { kind: "strLen"; str: HExpr; type: ValueType }
   // A `string.method(args)` builtin. `method` is the JS name; result type is `type`.

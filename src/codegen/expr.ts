@@ -42,6 +42,8 @@ export function irTypeOf(vt: ValueType): IrType {
       return T.ptr; // pointer to the GC record of field slots
     case "optional":
       return T.ptr; // the undefined sentinel, or a pointer to a boxed inner value
+    case "function":
+      return T.ptr; // pointer to a closure record {fnptr, env}
     case "null":
     case "undefined":
       return ice(`irTypeOf: ${vt.kind} has no storage representation yet`);
@@ -60,6 +62,7 @@ export function boxSlot(v: Value, elemType: ValueType, ctx: Ctx): Value {
     case "array":
     case "object":
     case "optional":
+    case "function":
       return ctx.fn.ptrToI64(v); // all pointer-represented
     case "boolean":
       return ctx.fn.zextI1ToI64(v);
@@ -76,6 +79,7 @@ function unboxSlot(slot: Value, elemType: ValueType, ctx: Ctx): Value {
     case "array":
     case "object":
     case "optional":
+    case "function":
       return ctx.fn.i64ToPtr(slot);
     case "boolean":
       return ctx.fn.truncI64ToI1(slot);
@@ -115,6 +119,8 @@ export function evalObjectPtr(expr: HExpr, ctx: Ctx): Value {
       return evalCoalesce(expr, ctx);
     case "unwrap":
       return evalUnwrap(expr, ctx);
+    case "callClosure":
+      return evalCallClosure(expr, ctx);
     default:
       return ice(`evalObjectPtr: unhandled object expression ${expr.kind}`);
   }
@@ -137,6 +143,7 @@ export function evalOptionalPtr(expr: HExpr, ctx: Ctx): Value {
   if (expr.kind === "wrap") return evalWrap(expr, ctx);
   if (expr.kind === "undefinedOpt") return ctx.mod.externGlobal("cs_undefined_marker");
   if (expr.kind === "call") return evalCall(expr, ctx);
+  if (expr.kind === "callClosure") return evalCallClosure(expr, ctx);
   if (expr.kind === "coalesce") return evalCoalesce(expr, ctx);
   return ice(`evalOptionalPtr: unhandled optional expression ${expr.kind}`);
 }
@@ -183,6 +190,11 @@ function evalIndex(expr: Extract<HExpr, { kind: "index" }>, ctx: Ctx): Value {
 // Unbox a present optional pointer (a box) to its inner value.
 export function unboxOptionalValue(optPtr: Value, innerType: ValueType, ctx: Ctx): Value {
   return unboxSlot(ctx.fn.load(T.i64, optPtr), innerType, ctx);
+}
+
+// Unbox a raw i64 slot value to `type` (e.g. a capture loaded from a closure env).
+export function unboxSlotValue(raw: Value, type: ValueType, ctx: Ctx): Value {
+  return unboxSlot(raw, type, ctx);
 }
 
 // Unwrap a narrowed optional (proven present by an `x !== undefined` guard): load its box and
@@ -250,6 +262,8 @@ export function evalArrayPtr(expr: HExpr, ctx: Ctx): Value {
       return evalCoalesce(expr, ctx);
     case "unwrap":
       return evalUnwrap(expr, ctx);
+    case "callClosure":
+      return evalCallClosure(expr, ctx);
     default:
       return ice(`evalArrayPtr: unhandled array expression ${expr.kind}`);
   }
@@ -391,6 +405,44 @@ export function evalCall(expr: Extract<HExpr, { kind: "call" }>, ctx: Ctx): Valu
   return ctx.fn.call(`@${expr.name}`, irTypeOf(expr.type), args);
 }
 
+// Create a closure: a GC record {fnptr, env}. `env` holds the captured values (or null when
+// there are no captures). Captures are read from the enclosing scope at creation time.
+export function evalClosure(expr: Extract<HExpr, { kind: "closure" }>, ctx: Ctx): Value {
+  let env: Value;
+  if (expr.captures.length > 0) {
+    env = ctx.fn.call("@cs_gc_alloc", T.ptr, [imm(T.i64, expr.captures.length * 8)]);
+    expr.captures.forEach((c, i) => {
+      const slot = lookupVar(c.name, ctx);
+      const v = ctx.fn.load(irTypeOf(c.type), slot.ptr);
+      ctx.fn.store(boxSlot(v, c.type, ctx), ctx.fn.gepSlot(env, i));
+    });
+  } else {
+    env = ctx.fn.nullPtr();
+  }
+  const rec = ctx.fn.call("@cs_gc_alloc", T.ptr, [imm(T.i64, 16)]); // {fnptr, env}
+  ctx.fn.store(ctx.fn.ptrToI64(ctx.fn.funcRef(expr.lambdaName)), ctx.fn.gepSlot(rec, 0));
+  ctx.fn.store(ctx.fn.ptrToI64(env), ctx.fn.gepSlot(rec, 1));
+  return rec;
+}
+
+// Evaluate a function-typed HExpr to a closure-record pointer.
+export function evalFunctionPtr(expr: HExpr, ctx: Ctx): Value {
+  if (expr.kind === "closure") return evalClosure(expr, ctx);
+  if (expr.kind === "varRef") return ctx.fn.load(T.ptr, lookupVar(expr.name, ctx).ptr);
+  if (expr.kind === "call") return evalCall(expr, ctx);
+  if (expr.kind === "callClosure") return evalCallClosure(expr, ctx);
+  return ice(`evalFunctionPtr: unhandled function expression ${expr.kind}`);
+}
+
+// Call a closure value: load its fnptr + env and invoke fnptr(env, args...).
+export function evalCallClosure(expr: Extract<HExpr, { kind: "callClosure" }>, ctx: Ctx): Value {
+  const rec = evalValue(expr.callee, ctx);
+  const fnptr = ctx.fn.i64ToPtr(ctx.fn.load(T.i64, ctx.fn.gepSlot(rec, 0)));
+  const env = ctx.fn.i64ToPtr(ctx.fn.load(T.i64, ctx.fn.gepSlot(rec, 1)));
+  const args = [env, ...expr.args.map((a) => evalValue(a, ctx))];
+  return ctx.fn.callIndirect(fnptr, irTypeOf(expr.type), args);
+}
+
 // Math.* → libm (floor/ceil/trunc/sqrt/fabs/pow) or a runtime helper (round/sign, whose JS
 // semantics differ from C). All operate on doubles.
 const MATH_UNARY: Record<string, string> = {
@@ -471,6 +523,8 @@ export function evalValue(expr: HExpr, ctx: Ctx): Value {
       return evalObjectPtr(expr, ctx);
     case "optional":
       return evalOptionalPtr(expr, ctx);
+    case "function":
+      return evalFunctionPtr(expr, ctx);
     default:
       return ice(`evalValue: ${expr.type.kind} not supported yet`);
   }
@@ -508,6 +562,8 @@ export function evalString(expr: HExpr, ctx: Ctx): Value {
       return evalCoalesce(expr, ctx);
     case "unwrap":
       return evalUnwrap(expr, ctx);
+    case "callClosure":
+      return evalCallClosure(expr, ctx);
     default:
       return ice(`evalString: unhandled string expression ${expr.kind}`);
   }
@@ -574,6 +630,9 @@ export function evalNumber(expr: HExpr, ctx: Ctx): Value {
 
     case "arraySearch":
       return evalArraySearch(expr.array, expr.value, expr.elementType, expr.wantIndex, ctx);
+
+    case "callClosure":
+      return evalCallClosure(expr, ctx);
 
     case "arrayLen":
       // JS .length is a number; the runtime returns an i32 count.
@@ -751,6 +810,9 @@ export function evalBool(expr: HExpr, ctx: Ctx): Value {
 
     case "arraySearch":
       return evalArraySearch(expr.array, expr.value, expr.elementType, expr.wantIndex, ctx);
+
+    case "callClosure":
+      return evalCallClosure(expr, ctx);
 
     default:
       return ice(`evalBool: unhandled boolean expression ${expr.kind}`);
