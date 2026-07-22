@@ -132,12 +132,26 @@ export type HExpr =
   // type is optional is used at a narrowed (non-optional) type (after `x !== undefined`).
   | { kind: "unwrap"; value: HExpr; type: ValueType }
   // `x === undefined` / `x !== undefined` → boolean (compares against the sentinel).
-  | { kind: "nullCheck"; value: HExpr; isEqual: boolean; type: ValueType }
+  // `x === null`/`x === undefined` (and `!==`). `sentinel` says which marker to compare against,
+  // so `x === null` and `x === undefined` are distinguished for a `T | null | undefined` value.
+  | {
+      kind: "nullCheck";
+      value: HExpr;
+      isEqual: boolean;
+      sentinel: "null" | "undefined";
+      type: ValueType;
+    }
   // Wrap an inner value into a present optional (a box). Used for `{ x: 5 }` where field x is
   // optional. `type` is the optional type.
   | { kind: "wrap"; value: HExpr; type: ValueType }
-  // The `undefined` value of an optional type (the sentinel) — for an omitted optional field.
+  // The `undefined` / `null` value of an optional type (the respective sentinel). undefinedOpt is
+  // also used for an omitted optional field.
   | { kind: "undefinedOpt"; type: ValueType }
+  | { kind: "nullOpt"; type: ValueType }
+  // Bare `null` / `undefined` literals (type `null` / `undefined`). Only meaningful where the
+  // context prints them (console.log) or coerces them into an optional; evalValue rejects them.
+  | { kind: "nullLit"; type: ValueType }
+  | { kind: "undefinedLit"; type: ValueType }
   // `arr.push(value)` → the new length (number). `elementType` says how to box the value.
   | { kind: "arrayPush"; array: HExpr; value: HExpr; elementType: ValueType; type: ValueType }
   // `arr.pop()` / `arr.shift()` → `element | undefined`. `fn` is the runtime entry point.

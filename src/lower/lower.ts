@@ -25,6 +25,9 @@ interface LowerCtx {
   // The `this` binding while lowering a method/constructor body (null at top level / in free
   // functions). `this` lowers to a varRef of this name + the instance type.
   currentThis: { name: string; type: ValueType } | null;
+  // The declared return type of the function whose body is being lowered — used to coerce a
+  // returned value into an optional slot. null = void / top level.
+  currentReturnType: ValueType | null;
   // Output list of all functions, incl. lambdas lifted from arrow/function expressions.
   functions: HFunc[];
 }
@@ -46,6 +49,7 @@ export function lower(loaded: LoadedProgram): HModule {
     names: new Map(),
     counter: { n: 0 },
     currentThis: null,
+    currentReturnType: null,
     functions: [],
   };
   const topLevel: HStmt[] = [];
@@ -109,14 +113,16 @@ function lowerMethodLike(
     }),
   ];
 
-  const savedThis = ctx.currentThis;
-  ctx.currentThis = { name: thisName, type: thisType };
-  const body = lowerStatements(member.body.statements, ctx);
-  ctx.currentThis = savedThis;
-
   // A constructor returns nothing (the record is returned by `new`); a method returns its
   // declared type.
   const returnType = isCtor ? null : returnTypeOfSignature(member, ctx);
+  const savedThis = ctx.currentThis;
+  const savedRet = ctx.currentReturnType;
+  ctx.currentThis = { name: thisName, type: thisType };
+  ctx.currentReturnType = returnType;
+  const body = lowerStatements(member.body.statements, ctx);
+  ctx.currentThis = savedThis;
+  ctx.currentReturnType = savedRet;
   return { name: `${className}.${memberName}`, params, returnType, body };
 }
 
@@ -132,16 +138,24 @@ function lowerArrow(arrow: ts.ArrowFunction | ts.FunctionExpression, ctx: LowerC
   // aren't mistaken for captures).
   const captures = findCaptures(arrow, ctx);
 
-  const body: HStmt[] = ts.isBlock(arrow.body)
-    ? lowerStatements(arrow.body.statements, ctx)
-    : [{ kind: "return", value: lowerExpr(arrow.body, ctx) }];
-
   const sig = ctx.checker.getSignatureFromDeclaration(arrow);
   const retT = sig ? ctx.checker.getReturnTypeOfSignature(sig) : undefined;
   const returnType =
     !retT || retT.flags & (ts.TypeFlags.Void | ts.TypeFlags.Undefined)
       ? null
       : valueTypeOfTsType(retT, arrow, ctx.checker);
+
+  const savedRet = ctx.currentReturnType;
+  ctx.currentReturnType = returnType;
+  const body: HStmt[] = ts.isBlock(arrow.body)
+    ? lowerStatements(arrow.body.statements, ctx)
+    : [
+        {
+          kind: "return",
+          value: coerceToTarget(lowerExpr(arrow.body, ctx), returnType ?? VT.undefined),
+        },
+      ];
+  ctx.currentReturnType = savedRet;
 
   ctx.functions.push({ name: lambdaName, params, returnType, body, captures });
   return {
@@ -212,12 +226,12 @@ function lowerFunction(decl: ts.FunctionDeclaration, ctx: LowerCtx): HFunc {
       ice("lower: optional/default parameters not supported yet");
     return { name: nameOf(p.name, ctx), type: valueTypeOf(p.name, ctx) };
   });
-  return {
-    name: nameOf(decl.name, ctx),
-    params,
-    returnType: returnTypeOf(decl, ctx),
-    body: lowerStatements(decl.body.statements, ctx),
-  };
+  const returnType = returnTypeOf(decl, ctx);
+  const saved = ctx.currentReturnType;
+  ctx.currentReturnType = returnType;
+  const body = lowerStatements(decl.body.statements, ctx);
+  ctx.currentReturnType = saved;
+  return { name: nameOf(decl.name, ctx), params, returnType, body };
 }
 
 // A bare identifier in expression position is a variable reference. If the variable's DECLARED
@@ -290,7 +304,12 @@ function lowerStatement(stmt: ts.Statement, ctx: LowerCtx): HStmt[] {
     return [lowerForOf(stmt, ctx)];
   }
   if (ts.isReturnStatement(stmt)) {
-    return [{ kind: "return", value: stmt.expression ? lowerExpr(stmt.expression, ctx) : null }];
+    if (!stmt.expression) return [{ kind: "return", value: null }];
+    const value = coerceToTarget(
+      lowerExpr(stmt.expression, ctx),
+      ctx.currentReturnType ?? VT.undefined,
+    );
+    return [{ kind: "return", value }];
   }
   if (ts.isBreakStatement(stmt)) {
     if (stmt.label) ice("lower: labeled break not supported yet");
@@ -450,7 +469,8 @@ function lowerAssignment(expr: ts.BinaryExpression, ctx: LowerCtx): HStmt {
   const left = expr.left as ts.Identifier;
   const name = nameOf(left, ctx);
   if (op === ts.SyntaxKind.EqualsToken) {
-    return { kind: "assign", name, value: lowerExpr(expr.right, ctx) };
+    const value = coerceToTarget(lowerExpr(expr.right, ctx), declaredTypeOfIdent(left, ctx));
+    return { kind: "assign", name, value };
   }
   // Compound assignment `name <op>= rhs` desugars to `name = name <op> rhs`. The value's type
   // matches the variable (numeric compound ops on a number stay a number).
@@ -494,8 +514,11 @@ function lowerMemberAssignment(
 function lowerVarDecl(decl: ts.VariableDeclaration, ctx: LowerCtx): HStmt {
   if (!ts.isIdentifier(decl.name)) ice("lower: destructuring declarations not supported yet");
   if (!decl.initializer) ice("lower: variable declaration without initializer not supported yet");
-  const init = lowerExpr(decl.initializer, ctx);
-  return { kind: "varDecl", name: nameOf(decl.name, ctx), init, type: init.type };
+  // The slot type is the variable's DECLARED type (its annotation, or the widened init type) so
+  // an `x: T | null` var stores the optional rep even when initialized with a present value.
+  const declaredType = valueTypeOf(decl.name, ctx);
+  const init = coerceToTarget(lowerExpr(decl.initializer, ctx), declaredType);
+  return { kind: "varDecl", name: nameOf(decl.name, ctx), init, type: declaredType };
 }
 
 function lowerCallStatement(call: ts.CallExpression, ctx: LowerCtx): HStmt {
@@ -536,7 +559,7 @@ function lowerCallStatement(call: ts.CallExpression, ctx: LowerCtx): HStmt {
       return {
         kind: "callStmt",
         name: nameOf(call.expression, ctx),
-        args: call.arguments.map((a) => lowerExpr(a, ctx)),
+        args: lowerCallArgs(call, ctx),
         returnType: callReturnType(call, ctx),
       };
     }
@@ -562,14 +585,14 @@ function lowerCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
     return {
       kind: "callClosure",
       callee: lowerExpr(call.expression, ctx),
-      args: call.arguments.map((a) => lowerExpr(a, ctx)),
+      args: lowerCallArgs(call, ctx),
       type: resolveType(call, ctx),
     };
   }
   return {
     kind: "call",
     name: nameOf(call.expression, ctx),
-    args: call.arguments.map((a) => lowerExpr(a, ctx)),
+    args: lowerCallArgs(call, ctx),
     type: valueTypeOf(call, ctx),
   };
 }
@@ -795,9 +818,56 @@ function callReturnType(call: ts.CallExpression, ctx: LowerCtx): ValueType | nul
   return valueTypeOfTsType(t, call, ctx.checker);
 }
 
+// Coerce a lowered value into a target optional slot: a bare `null`/`undefined` becomes the
+// matching sentinel; an already-optional value passes through; any other value is boxed (`wrap`).
+// A non-optional target is a no-op. This is applied EXPLICITLY at the boundaries that feed a
+// real optional slot (return / optional var decl / assignment / user-function argument) — never
+// blanket-applied, because many builtin params are `T | undefined` yet take raw values.
+function coerceToTarget(h: HExpr, target: ValueType): HExpr {
+  if (target.kind !== "optional" || h.type.kind === "optional") return h;
+  if (h.type.kind === "null") return { kind: "nullOpt", type: target };
+  if (h.type.kind === "undefined") return { kind: "undefinedOpt", type: target };
+  return { kind: "wrap", value: h, type: target };
+}
+
+// The DECLARED type of the variable an identifier resolves to (its slot type, not the narrowed
+// use-type) — for coercing an assignment's RHS into an optional slot.
+function declaredTypeOfIdent(ident: ts.Identifier, ctx: LowerCtx): ValueType {
+  const sym = ctx.checker.getSymbolAtLocation(ident);
+  if (sym?.valueDeclaration) {
+    return valueTypeOfTsType(
+      ctx.checker.getTypeOfSymbolAtLocation(sym, sym.valueDeclaration),
+      ident,
+      ctx.checker,
+    );
+  }
+  return valueTypeOf(ident, ctx);
+}
+
+// Lower a user call's arguments, coercing each into its parameter's (possibly optional) type.
+// Only user functions/closures reach here — builtin methods/globals have their own lowering — so
+// resolving the signature's parameter types is safe.
+function lowerCallArgs(call: ts.CallExpression, ctx: LowerCtx): HExpr[] {
+  const sig = ctx.checker.getResolvedSignature(call);
+  return call.arguments.map((a, i) => {
+    const h = lowerExpr(a, ctx);
+    const paramSym = sig?.parameters[i];
+    if (!paramSym) return h;
+    const pType = valueTypeOfTsType(
+      ctx.checker.getTypeOfSymbolAtLocation(paramSym, a),
+      a,
+      ctx.checker,
+    );
+    return coerceToTarget(h, pType);
+  });
+}
+
 function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
   const type = resolveType(expr, ctx);
   switch (expr.kind) {
+    case ts.SyntaxKind.NullKeyword:
+      return { kind: "nullLit", type: VT.null };
+
     case ts.SyntaxKind.NumericLiteral:
       return { kind: "numberLit", value: Number((expr as ts.NumericLiteral).text), type };
 
@@ -811,6 +881,7 @@ function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
       return { kind: "boolLit", value: false, type };
 
     case ts.SyntaxKind.Identifier:
+      if (isUndefinedLiteral(expr)) return { kind: "undefinedLit", type: VT.undefined };
       return lowerIdentifier(expr as ts.Identifier, ctx, type);
 
     case ts.SyntaxKind.CallExpression:
@@ -933,27 +1004,33 @@ function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
           type,
         };
       }
-      // `a ?? b` — nullish coalescing. `type` is the non-optional result.
+      // `a ?? b` — nullish coalescing. `type` is the non-optional result. tsc may have already
+      // narrowed the left: if it is definitely nullish → `b`; definitely present → `a`; only a
+      // still-optional left needs the runtime sentinel check.
       if (opKind === ts.SyntaxKind.QuestionQuestionToken) {
-        return {
-          kind: "coalesce",
-          left: lowerExpr(b.left, ctx),
-          right: lowerExpr(b.right, ctx),
-          type,
-        };
+        const left = lowerExpr(b.left, ctx);
+        if (left.type.kind === "null" || left.type.kind === "undefined") {
+          return lowerExpr(b.right, ctx);
+        }
+        if (left.type.kind !== "optional") return left;
+        return { kind: "coalesce", left, right: lowerExpr(b.right, ctx), type };
       }
-      // `x === undefined` / `x !== undefined` → a sentinel check (the other operand is optional).
+      // `x === undefined`/`x === null` (and `!==`) → a sentinel check against the optional value.
       if (
         opKind === ts.SyntaxKind.EqualsEqualsEqualsToken ||
         opKind === ts.SyntaxKind.ExclamationEqualsEqualsToken
       ) {
         const lU = isUndefinedLiteral(b.left);
         const rU = isUndefinedLiteral(b.right);
-        if (lU || rU) {
+        const lN = b.left.kind === ts.SyntaxKind.NullKeyword;
+        const rN = b.right.kind === ts.SyntaxKind.NullKeyword;
+        if (lU || rU || lN || rN) {
+          const valueSide = lU || lN ? b.right : b.left;
           return {
             kind: "nullCheck",
-            value: lowerExpr(lU ? b.right : b.left, ctx),
+            value: lowerExpr(valueSide, ctx),
             isEqual: opKind === ts.SyntaxKind.EqualsEqualsEqualsToken,
+            sentinel: lN || rN ? "null" : "undefined",
             type,
           };
         }

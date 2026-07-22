@@ -321,6 +321,15 @@ export class FuncBuilder {
     return result;
   }
 
+  // Non-short-circuiting i1 OR (both operands already evaluated, e.g. two sentinel checks).
+  logicalOr(a: Value, b: Value): Value {
+    if (a.type.kind !== "i1" || b.type.kind !== "i1")
+      ice(`logicalOr requires i1 operands, got ${a.type.kind}/${b.type.kind}`);
+    const result = this.nextTemp(T.i1);
+    this.current.add(`${result.name} = or i1 ${a.name}, ${b.name}`);
+    return result;
+  }
+
   // i1 → i32 zero-extension (e.g. to pass a boolean across the runtime's int ABI).
   zextI1ToI32(a: Value): Value {
     if (a.type.kind !== "i1") ice(`zextI1ToI32 requires an i1 operand, got ${a.type.kind}`);

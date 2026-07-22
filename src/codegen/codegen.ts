@@ -202,13 +202,23 @@ function emitPrintOptional(v: HExpr, ctx: Ctx): void {
   const inner = v.type.inner;
   const opt = evalOptionalPtr(v, ctx);
   const isUndef = ctx.fn.icmp("eq", opt, ctx.mod.externGlobal("cs_undefined_marker"));
+  const isNull = ctx.fn.icmp("eq", opt, ctx.mod.externGlobal("cs_null_marker"));
   const undefB = ctx.fn.newBlock("print.undef");
+  const notUndefB = ctx.fn.newBlock("print.notundef");
+  const nullB = ctx.fn.newBlock("print.null");
   const valB = ctx.fn.newBlock("print.val");
   const endB = ctx.fn.newBlock("print.end");
-  ctx.fn.brCond(isUndef, undefB, valB);
+  ctx.fn.brCond(isUndef, undefB, notUndefB);
 
   ctx.fn.switchTo(undefB);
   ctx.fn.callVoid("@cs_print_cstr", [ctx.mod.cstring("undefined")]);
+  ctx.fn.br(endB);
+
+  ctx.fn.switchTo(notUndefB);
+  ctx.fn.brCond(isNull, nullB, valB);
+
+  ctx.fn.switchTo(nullB);
+  ctx.fn.callVoid("@cs_print_cstr", [ctx.mod.cstring("null")]);
   ctx.fn.br(endB);
 
   ctx.fn.switchTo(valB);

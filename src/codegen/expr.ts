@@ -145,6 +145,7 @@ export function evalOptionalPtr(expr: HExpr, ctx: Ctx): Value {
   if (expr.kind === "memberGet") return evalMemberGet(expr, ctx); // an optional field
   if (expr.kind === "wrap") return evalWrap(expr, ctx);
   if (expr.kind === "undefinedOpt") return ctx.mod.externGlobal("cs_undefined_marker");
+  if (expr.kind === "nullOpt") return ctx.mod.externGlobal("cs_null_marker");
   if (expr.kind === "call") return evalCall(expr, ctx);
   if (expr.kind === "callClosure") return evalCallClosure(expr, ctx);
   if (expr.kind === "conditional") return evalConditional(expr, ctx);
@@ -208,17 +209,26 @@ export function evalUnwrap(expr: Extract<HExpr, { kind: "unwrap" }>, ctx: Ctx): 
   return unboxOptionalValue(evalOptionalPtr(expr.value, ctx), expr.type, ctx);
 }
 
-// `x === undefined` / `x !== undefined` → i1 (compare the optional pointer to the sentinel).
-export function evalNullCheck(expr: Extract<HExpr, { kind: "nullCheck" }>, ctx: Ctx): Value {
-  const opt = evalOptionalPtr(expr.value, ctx);
-  const sentinel = ctx.mod.externGlobal("cs_undefined_marker");
-  return ctx.fn.icmp(expr.isEqual ? "eq" : "ne", opt, sentinel);
+// True when an optional pointer is either nullish sentinel (undefined OR null). Used by `??`
+// (both are nullish) and by console.log's optional branch.
+export function isNullishPtr(opt: Value, ctx: Ctx): Value {
+  const isUndef = ctx.fn.icmp("eq", opt, ctx.mod.externGlobal("cs_undefined_marker"));
+  const isNull = ctx.fn.icmp("eq", opt, ctx.mod.externGlobal("cs_null_marker"));
+  return ctx.fn.logicalOr(isUndef, isNull);
 }
 
-// `a ?? b`: if `a` is the undefined sentinel, use `b`; else unwrap the boxed inner value.
+// `x === null`/`x === undefined` (and `!==`) → i1. `sentinel` selects which marker to compare,
+// so the null and undefined cases stay distinct for a `T | null | undefined` value.
+export function evalNullCheck(expr: Extract<HExpr, { kind: "nullCheck" }>, ctx: Ctx): Value {
+  const opt = evalOptionalPtr(expr.value, ctx);
+  const marker = expr.sentinel === "null" ? "cs_null_marker" : "cs_undefined_marker";
+  return ctx.fn.icmp(expr.isEqual ? "eq" : "ne", opt, ctx.mod.externGlobal(marker));
+}
+
+// `a ?? b`: if `a` is nullish (undefined OR null), use `b`; else unwrap the boxed inner value.
 export function evalCoalesce(expr: Extract<HExpr, { kind: "coalesce" }>, ctx: Ctx): Value {
   const opt = evalOptionalPtr(expr.left, ctx);
-  const isUndef = ctx.fn.icmp("eq", opt, ctx.mod.externGlobal("cs_undefined_marker"));
+  const isUndef = isNullishPtr(opt, ctx);
   const result = ctx.fn.alloca(irTypeOf(expr.type));
 
   const defB = ctx.fn.newBlock("nn.default");
