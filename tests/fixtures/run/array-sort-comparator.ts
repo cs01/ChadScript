@@ -1,0 +1,9 @@
+const nums = [5, 2, 8, 1, 9, 3];
+console.log(nums.sort((a: number, b: number): number => a - b).join(","));
+const desc = [5, 2, 8, 1, 9, 3];
+console.log(desc.sort((a: number, b: number): number => b - a).join(","));
+const byLen = ["ccc", "a", "bb"];
+console.log(byLen.sort((a: string, b: string): number => a.length - b.length).join(","));
+const factor = -1;
+const withCapture = [3, 1, 2];
+console.log(withCapture.sort((a: number, b: number): number => (a - b) * factor).join(","));

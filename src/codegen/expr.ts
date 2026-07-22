@@ -274,6 +274,8 @@ export function evalArrayPtr(expr: HExpr, ctx: Ctx): Value {
       return evalConditional(expr, ctx);
     case "arrayHof":
       return evalArrayHof(expr, ctx); // .map()/.filter() (also when chained as a receiver)
+    case "arraySort":
+      return evalArraySort(expr, ctx);
     default:
       return ice(`evalArrayPtr: unhandled array expression ${expr.kind}`);
   }
@@ -576,6 +578,110 @@ export function evalArrayHof(expr: Extract<HExpr, { kind: "arrayHof" }>, ctx: Ct
   if (predPtr) return ctx.fn.load(irTypeOf(expr.type), predPtr!);
   if (result) return result;
   return ctx.fn.nullPtr(); // forEach → undefined (discarded by the caller)
+}
+
+// `arr.sort(cmp?)`: in-place insertion sort over the array's i64 slots, returning the same
+// array (JS sort mutates and returns the receiver). A comparator returns a number whose sign
+// orders the pair; the default order compares String(element) lexicographically.
+export function evalArraySort(expr: Extract<HExpr, { kind: "arraySort" }>, ctx: Ctx): Value {
+  const arr = evalArrayPtr(expr.array, ctx);
+  const arrPtr = ctx.fn.alloca(T.ptr);
+  ctx.fn.store(arr, arrPtr);
+  const get = (i: Value): Value =>
+    ctx.fn.call("@cs_array_get", T.i64, [ctx.fn.load(T.ptr, arrPtr), i]);
+  const set = (i: Value, slot: Value): void =>
+    ctx.fn.callVoid("@cs_array_set", [ctx.fn.load(T.ptr, arrPtr), i, slot]);
+
+  // Stringify a raw slot for the default comparison (number/string/boolean elements).
+  const strOfSlot = (slot: Value): Value => {
+    switch (expr.elementType.kind) {
+      case "string":
+        return ctx.fn.i64ToPtr(slot);
+      case "number":
+        return ctx.fn.call("@cs_num_to_string", T.ptr, [ctx.fn.bitcastI64ToDouble(slot)]);
+      case "boolean":
+        return ctx.fn.call("@cs_bool_to_string", T.ptr, [
+          ctx.fn.zextI1ToI32(ctx.fn.truncI64ToI1(slot)),
+        ]);
+      default:
+        return ice(`sort: default comparison unsupported for ${expr.elementType.kind}[]`);
+    }
+  };
+
+  // Load the comparator closure once, if provided.
+  let cmpFn: Value | null = null;
+  let cmpEnv: Value | null = null;
+  if (expr.comparator) {
+    const cb = evalFunctionPtr(expr.comparator, ctx);
+    cmpFn = ctx.fn.i64ToPtr(ctx.fn.load(T.i64, ctx.fn.gepSlot(cb, 0)));
+    cmpEnv = ctx.fn.i64ToPtr(ctx.fn.load(T.i64, ctx.fn.gepSlot(cb, 1)));
+  }
+
+  // Whether slot `a` should sort AFTER slot `key` (strictly greater under the ordering).
+  const aAfterKey = (a: Value, key: Value): Value => {
+    if (cmpFn) {
+      const r = ctx.fn.callIndirect(cmpFn, T.double, [
+        cmpEnv!,
+        unboxSlot(a, expr.elementType, ctx),
+        unboxSlot(key, expr.elementType, ctx),
+      ]);
+      return ctx.fn.fcmp("ogt", r, fimm(0));
+    }
+    const c = ctx.fn.call("@cs_str_cmp", T.i32, [strOfSlot(a), strOfSlot(key)]);
+    return ctx.fn.icmp("sgt", c, imm(T.i32, 0));
+  };
+
+  // for (i = 1; i < len; i++) { key = a[i]; j = i-1; while (j>=0 && a[j] after key) { a[j+1]=a[j]; j--; } a[j+1]=key; }
+  const iPtr = ctx.fn.alloca(T.i32);
+  const jPtr = ctx.fn.alloca(T.i32);
+  const keyPtr = ctx.fn.alloca(T.i64);
+  ctx.fn.store(imm(T.i32, 1), iPtr);
+
+  const outerH = ctx.fn.newBlock("sort.outer");
+  const outerB = ctx.fn.newBlock("sort.outer.body");
+  const innerH = ctx.fn.newBlock("sort.inner");
+  const innerCmp = ctx.fn.newBlock("sort.inner.cmp");
+  const innerB = ctx.fn.newBlock("sort.inner.body");
+  const place = ctx.fn.newBlock("sort.place");
+  const outerL = ctx.fn.newBlock("sort.outer.latch");
+  const endB = ctx.fn.newBlock("sort.end");
+
+  ctx.fn.br(outerH);
+  ctx.fn.switchTo(outerH);
+  const i = ctx.fn.load(T.i32, iPtr);
+  const len = ctx.fn.call("@cs_array_len", T.i32, [ctx.fn.load(T.ptr, arrPtr)]);
+  ctx.fn.brCond(ctx.fn.icmp("slt", i, len), outerB, endB);
+
+  ctx.fn.switchTo(outerB);
+  ctx.fn.store(get(ctx.fn.load(T.i32, iPtr)), keyPtr);
+  ctx.fn.store(ctx.fn.isub(ctx.fn.load(T.i32, iPtr), imm(T.i32, 1)), jPtr);
+  ctx.fn.br(innerH);
+
+  ctx.fn.switchTo(innerH);
+  // j >= 0 ?
+  ctx.fn.brCond(ctx.fn.icmp("sge", ctx.fn.load(T.i32, jPtr), imm(T.i32, 0)), innerCmp, place);
+  ctx.fn.switchTo(innerCmp);
+  const j = ctx.fn.load(T.i32, jPtr);
+  const aj = get(j);
+  ctx.fn.brCond(aAfterKey(aj, ctx.fn.load(T.i64, keyPtr)), innerB, place);
+
+  ctx.fn.switchTo(innerB);
+  // a[j+1] = a[j]; j--
+  set(ctx.fn.iadd(ctx.fn.load(T.i32, jPtr), imm(T.i32, 1)), get(ctx.fn.load(T.i32, jPtr)));
+  ctx.fn.store(ctx.fn.isub(ctx.fn.load(T.i32, jPtr), imm(T.i32, 1)), jPtr);
+  ctx.fn.br(innerH);
+
+  ctx.fn.switchTo(place);
+  // a[j+1] = key
+  set(ctx.fn.iadd(ctx.fn.load(T.i32, jPtr), imm(T.i32, 1)), ctx.fn.load(T.i64, keyPtr));
+  ctx.fn.br(outerL);
+
+  ctx.fn.switchTo(outerL);
+  ctx.fn.store(ctx.fn.iadd(ctx.fn.load(T.i32, iPtr), imm(T.i32, 1)), iPtr);
+  ctx.fn.br(outerH);
+
+  ctx.fn.switchTo(endB);
+  return ctx.fn.load(T.ptr, arrPtr);
 }
 
 // Ternary `cond ? a : b`. Branches may have side effects, so each arm is evaluated in its own

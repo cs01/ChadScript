@@ -55,6 +55,9 @@ char *cs_str_repeat(const char *s, double count) {
 
 int cs_str_includes(const char *s, const char *sub) { return strstr(s, sub) != NULL ? 1 : 0; }
 
+// Ordered comparison for the default array sort (lexicographic by byte, ASCII-exact). Sign only.
+int cs_str_cmp(const char *a, const char *b) { return strcmp(a, b); }
+
 double cs_str_index_of(const char *s, const char *sub) {
   const char *hit = strstr(s, sub);
   return hit == NULL ? -1.0 : (double)(hit - s);

@@ -52,6 +52,9 @@ int32_t cs_array_len(CsArray *a) { return a->len; }
 // with the nullable work.
 int64_t cs_array_get(CsArray *a, int32_t i) { return a->data[i]; }
 
+// Raw slot write, in bounds by construction (used by the in-place sort). Returns nothing.
+void cs_array_set(CsArray *a, int32_t i, int64_t slot) { a->data[i] = slot; }
+
 // pop: remove + return the last element as `element | undefined` (empty → undefined sentinel).
 void *cs_array_pop(CsArray *a) {
   if (a->len == 0) return &cs_undefined_marker;

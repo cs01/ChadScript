@@ -227,6 +227,9 @@ export class FuncBuilder {
   iadd(a: Value, b: Value): Value {
     return this.ibin("add", a, b);
   }
+  isub(a: Value, b: Value): Value {
+    return this.ibin("sub", a, b);
+  }
   iand(a: Value, b: Value): Value {
     return this.ibin("and", a, b);
   }

@@ -738,6 +738,16 @@ function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
         type: method === "forEach" ? VT.undefined : resolveType(call, ctx),
       };
     }
+    if (method === "sort") {
+      const cmp = call.arguments[0];
+      return {
+        kind: "arraySort",
+        array: lowerExpr(pa.expression, ctx),
+        comparator: cmp ? lowerExpr(cmp, ctx) : null,
+        elementType: recvType.element,
+        type: resolveType(call, ctx),
+      };
+    }
     if (method === "reverse" || method === "slice" || method === "concat") {
       const fn =
         method === "slice"

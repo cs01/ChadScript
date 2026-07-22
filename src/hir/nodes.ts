@@ -162,6 +162,15 @@ export type HExpr =
   // Array→array transforms that are a single runtime call (reverse/slice/concat). `fn` is the
   // runtime entry point; `args` are the extra arguments after the receiver.
   | { kind: "arrayXform"; fn: string; array: HExpr; args: HExpr[]; type: ValueType }
+  // `arr.sort(cmp?)` — in-place insertion sort, returns the same array. `comparator` null means
+  // JS default order (compare by String(element), lexicographic). `type` is the array type.
+  | {
+      kind: "arraySort";
+      array: HExpr;
+      comparator: HExpr | null;
+      elementType: ValueType;
+      type: ValueType;
+    }
   // Higher-order array methods that invoke a closure per element (map/filter/forEach/reduce).
   // Lowered to an inline IR loop that calls the callback closure; `init` is reduce's seed
   // (null → seed from the first element). `callback.type` is the closure's function type.
