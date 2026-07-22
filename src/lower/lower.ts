@@ -22,6 +22,7 @@ import {
   returnTypeOf,
   returnTypeOfSignature,
 } from "./type-translation.js";
+import { lowerMethodCall } from "./method-call.js";
 
 export interface LowerCtx {
   checker: ts.TypeChecker;
@@ -757,7 +758,7 @@ function methodDefiningClass(name: ts.MemberName, ctx: LowerCtx, fallback: strin
 }
 
 // A `varRef` to the current `this` — the receiver used for `super(...)` / `super.m(...)` calls.
-function thisRef(ctx: LowerCtx): HExpr {
+export function thisRef(ctx: LowerCtx): HExpr {
   if (!ctx.currentThis) return ice("lower: `super`/`this` used outside a method");
   return { kind: "varRef", name: ctx.currentThis.name, type: ctx.currentThis.type };
 }
@@ -950,13 +951,13 @@ const MATH_CONSTS: Record<string, number> = {
 };
 
 // True when `expr` is the identifier `Math` (the namespace, not a user variable).
-function isMathNamespace(expr: ts.Expression): boolean {
+export function isMathNamespace(expr: ts.Expression): boolean {
   return ts.isIdentifier(expr) && expr.text === "Math";
 }
 
 // The runtime key-kind tag for a Map key type, selecting its equality function. Map keys must be
 // primitive (object identity keys are a later feature).
-function keyKindOf(keyType: ValueType): number {
+export function keyKindOf(keyType: ValueType): number {
   switch (keyType.kind) {
     case "number":
       return 0;
@@ -996,7 +997,7 @@ function lowerArrayElement(
 // `Object.keys(o)` / `Object.values(o)` over a closed object shape. keys → the field names as a
 // string[] (statically known); values → the field values as an array (only when the fields share
 // one representation, since a homogeneous array can't hold a mixed union). entries needs tuples.
-function lowerObjectNamespace(method: string, argExpr: ts.Expression, ctx: LowerCtx): HExpr {
+export function lowerObjectNamespace(method: string, argExpr: ts.Expression, ctx: LowerCtx): HExpr {
   const objType = resolveType(argExpr, ctx);
   if (objType.kind !== "object") ice(`lower: Object.${method} on non-object ${objType.kind}`);
   const fields = objType.shape.fields;
@@ -1028,288 +1029,6 @@ function lowerObjectNamespace(method: string, argExpr: ts.Expression, ctx: Lower
   return ice(`lower: Object.${method} not supported yet`);
 }
 
-// A method call `obj.method(args)`. Dispatched on the receiver's type + method name.
-function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
-  const pa = call.expression as ts.PropertyAccessExpression;
-  // `Math.floor(x)` etc. — a builtin namespace call, not a value method. Check before resolving
-  // the receiver's type (Math is not a value).
-  if (isMathNamespace(pa.expression)) {
-    return {
-      kind: "mathCall",
-      fn: pa.name.text,
-      args: call.arguments.map((a) => lowerExpr(a, ctx)),
-      type: VT.number,
-    };
-  }
-  // `Object.keys(o)` / `Object.values(o)` on a closed object shape.
-  if (ts.isIdentifier(pa.expression) && pa.expression.text === "Object") {
-    return lowerObjectNamespace(pa.name.text, call.arguments[0]!, ctx);
-  }
-  // `super.m(args)` in value position → non-virtual base call with `this` as the receiver.
-  if (pa.expression.kind === ts.SyntaxKind.SuperKeyword) {
-    if (!ctx.currentBaseClass) return ice("lower: `super` with no base class");
-    const rt = callReturnType(call, ctx);
-    if (rt === null) ice(`lower: void method super.${pa.name.text} used as a value`);
-    return {
-      kind: "call",
-      name: `${ctx.currentBaseClass}.${pa.name.text}`,
-      args: [thisRef(ctx), ...call.arguments.map((a) => lowerExpr(a, ctx))],
-      type: rt,
-    };
-  }
-  // Lower the receiver ONCE and use its lowered type — a chained receiver like
-  // `Object.values(o)` has a divergent tsc type (any[]) but a correct lowered type (number[]).
-  const receiver = lowerExpr(pa.expression, ctx);
-  const recvType = receiver.type;
-  const method = pa.name.text;
-  if (recvType.kind === "array") {
-    if (method === "push") {
-      return {
-        kind: "arrayPush",
-        array: receiver,
-        value: lowerExpr(call.arguments[0]!, ctx),
-        elementType: recvType.element,
-        type: VT.number,
-      };
-    }
-    if (method === "pop" || method === "shift") {
-      return {
-        kind: "arrayPop",
-        array: receiver,
-        fn: method === "pop" ? "cs_array_pop" : "cs_array_shift",
-        type: resolveType(call, ctx), // element | undefined
-      };
-    }
-    if (method === "join") {
-      const sep = call.arguments[0];
-      return {
-        kind: "arrayJoin",
-        array: receiver,
-        separator: sep ? lowerExpr(sep, ctx) : null,
-        elementType: recvType.element,
-        type: VT.string,
-      };
-    }
-    if (method === "at") {
-      return {
-        kind: "arrayAt",
-        array: receiver,
-        index: lowerExpr(call.arguments[0]!, ctx),
-        type: resolveType(call, ctx), // element | undefined
-      };
-    }
-    if (method === "flat") {
-      if (call.arguments.length > 0) ice("lower: .flat(depth) not supported yet (depth 1 only)");
-      return {
-        kind: "arrayXform",
-        fn: "cs_array_flat",
-        array: receiver,
-        args: [],
-        type: resolveType(call, ctx),
-      };
-    }
-    if (method === "includes" || method === "indexOf") {
-      return {
-        kind: "arraySearch",
-        array: receiver,
-        value: lowerExpr(call.arguments[0]!, ctx),
-        elementType: recvType.element,
-        wantIndex: method === "indexOf",
-        type: method === "indexOf" ? VT.number : VT.boolean,
-      };
-    }
-    const HOF_METHODS = [
-      "map",
-      "filter",
-      "forEach",
-      "reduce",
-      "find",
-      "findIndex",
-      "some",
-      "every",
-      "flatMap",
-    ];
-    if (HOF_METHODS.includes(method)) {
-      // reduce(fn, init?) — the optional seed is the 2nd argument.
-      const init = method === "reduce" && call.arguments.length >= 2 ? call.arguments[1]! : null;
-      return {
-        kind: "arrayHof",
-        op: method as
-          | "map"
-          | "filter"
-          | "forEach"
-          | "reduce"
-          | "find"
-          | "findIndex"
-          | "some"
-          | "every"
-          | "flatMap",
-        array: receiver,
-        callback: lowerExpr(call.arguments[0]!, ctx),
-        init: init ? lowerExpr(init, ctx) : null,
-        elementType: recvType.element,
-        // map/filter → array; forEach → undefined; find → element|undefined; findIndex → number;
-        // some/every → boolean; reduce → its result. resolveType(call) covers all value cases.
-        type: method === "forEach" ? VT.undefined : resolveType(call, ctx),
-      };
-    }
-    if (method === "sort") {
-      const cmp = call.arguments[0];
-      return {
-        kind: "arraySort",
-        array: receiver,
-        comparator: cmp ? lowerExpr(cmp, ctx) : null,
-        elementType: recvType.element,
-        type: resolveType(call, ctx),
-      };
-    }
-    if (method === "reverse" || method === "slice" || method === "concat") {
-      const fn =
-        method === "slice"
-          ? call.arguments.length >= 2
-            ? "cs_array_slice2"
-            : "cs_array_slice1"
-          : `cs_array_${method}`;
-      return {
-        kind: "arrayXform",
-        fn,
-        array: receiver,
-        args: call.arguments.map((a) => lowerExpr(a, ctx)),
-        type: resolveType(call, ctx), // same array type
-      };
-    }
-    return ice(`lower: unsupported array method .${method}`);
-  }
-  if (recvType.kind === "map") {
-    const keyKind = keyKindOf(recvType.key);
-    const map = receiver;
-    if (method === "set") {
-      return {
-        kind: "mapSet",
-        map,
-        key: lowerExpr(call.arguments[0]!, ctx),
-        value: coerceToTarget(lowerExpr(call.arguments[1]!, ctx), recvType.value),
-        keyKind,
-        type: recvType, // set returns the map (chainable)
-      };
-    }
-    if (method === "get") {
-      return {
-        kind: "mapGet",
-        map,
-        key: lowerExpr(call.arguments[0]!, ctx),
-        keyKind,
-        valueType: recvType.value,
-        type: resolveType(call, ctx), // value | undefined
-      };
-    }
-    if (method === "has") {
-      return {
-        kind: "mapHas",
-        map,
-        key: lowerExpr(call.arguments[0]!, ctx),
-        keyKind,
-        type: VT.boolean,
-      };
-    }
-    if (method === "delete") {
-      return {
-        kind: "mapDelete",
-        map,
-        key: lowerExpr(call.arguments[0]!, ctx),
-        keyKind,
-        type: VT.boolean,
-      };
-    }
-    if (method === "keys") {
-      return {
-        kind: "collectionToArray",
-        fn: "cs_map_keys",
-        receiver: map,
-        type: VT.array(recvType.key),
-      };
-    }
-    if (method === "values") {
-      return {
-        kind: "collectionToArray",
-        fn: "cs_map_values",
-        receiver: map,
-        type: VT.array(recvType.value),
-      };
-    }
-    return ice(`lower: unsupported map method .${method}`);
-  }
-  if (recvType.kind === "set") {
-    const keyKind = keyKindOf(recvType.element);
-    const set = receiver;
-    const arg0 = () => lowerExpr(call.arguments[0]!, ctx);
-    if (method === "add") {
-      return { kind: "setAdd", set, value: arg0(), keyKind, type: recvType }; // returns the set
-    }
-    if (method === "has") {
-      return { kind: "setHas", set, value: arg0(), keyKind, type: VT.boolean };
-    }
-    if (method === "delete") {
-      return { kind: "setDelete", set, value: arg0(), keyKind, type: VT.boolean };
-    }
-    if (method === "values" || method === "keys") {
-      // Set keys() === values() in JS.
-      return {
-        kind: "collectionToArray",
-        fn: "cs_set_values",
-        receiver: set,
-        type: VT.array(recvType.element),
-      };
-    }
-    return ice(`lower: unsupported set method .${method}`);
-  }
-  if (recvType.kind === "number") {
-    if (method === "toString") {
-      const radix = call.arguments[0];
-      return {
-        kind: "numToString",
-        value: receiver,
-        radix: radix ? lowerExpr(radix, ctx) : null,
-        type: VT.string,
-      };
-    }
-    return ice(`lower: unsupported number method .${method}`);
-  }
-  if (recvType.kind === "string") {
-    if (method === "at") {
-      return {
-        kind: "strAt",
-        str: receiver,
-        index: lowerExpr(call.arguments[0]!, ctx),
-        type: resolveType(call, ctx), // string | undefined
-      };
-    }
-    return {
-      kind: "strMethod",
-      method,
-      receiver: receiver,
-      args: call.arguments.map((a) => lowerExpr(a, ctx)),
-      type: callReturnType(call, ctx) ?? VT.string,
-    };
-  }
-  // Class method: `obj.m(args)` → VIRTUAL dispatch through the receiver's vtable (value position).
-  if (recvType.kind === "object" && recvType.className !== undefined) {
-    const rt = callReturnType(call, ctx);
-    if (rt === null) ice(`lower: void method .${method} used as a value`);
-    return {
-      kind: "virtualCall",
-      receiver,
-      vtableIndex: vtableIndexOf(recvType.className, method, ctx),
-      args: call.arguments.map((a) => lowerExpr(a, ctx)),
-      type: rt,
-    };
-  }
-  return ice(`lower: unsupported method .${method} on ${recvType.kind}`);
-}
-
-// The class whose constructor runs for `new className(...)`: the nearest class in the chain
-// (self → base) that DECLARES a constructor. Constructors are called statically by `new` (not
-// virtual), and a subclass without one inherits its base's. null when none in the chain declares.
 function constructorClassOf(className: string, node: ts.Node, ctx: LowerCtx): string | null {
   const sym = ctx.checker.resolveName(className, node, ts.SymbolFlags.Class, false);
   let t = sym ? ctx.checker.getDeclaredTypeOfSymbol(sym) : undefined;
@@ -1335,7 +1054,7 @@ function constructorClassOf(className: string, node: ts.Node, ctx: LowerCtx): st
 }
 
 // The vtable slot index of `method` on class `className` (from the class's method table).
-function vtableIndexOf(className: string, method: string, ctx: LowerCtx): number {
+export function vtableIndexOf(className: string, method: string, ctx: LowerCtx): number {
   const table = ctx.classTables.get(className);
   const idx = table ? table.order.indexOf(method) : -1;
   if (idx < 0) ice(`lower: no vtable slot for ${className}.${method}`);
@@ -1343,7 +1062,7 @@ function vtableIndexOf(className: string, method: string, ctx: LowerCtx): number
 }
 
 // The return type of a call as a ValueType, or null if void.
-function callReturnType(call: ts.CallExpression, ctx: LowerCtx): ValueType | null {
+export function callReturnType(call: ts.CallExpression, ctx: LowerCtx): ValueType | null {
   const t = ctx.checker.getTypeAtLocation(call);
   if (t.flags & (ts.TypeFlags.Void | ts.TypeFlags.Undefined)) return null;
   return valueTypeOfTsType(t, call, ctx.checker);
@@ -1354,7 +1073,7 @@ function callReturnType(call: ts.CallExpression, ctx: LowerCtx): ValueType | nul
 // A non-optional target is a no-op. This is applied EXPLICITLY at the boundaries that feed a
 // real optional slot (return / optional var decl / assignment / user-function argument) — never
 // blanket-applied, because many builtin params are `T | undefined` yet take raw values.
-function coerceToTarget(h: HExpr, target: ValueType): HExpr {
+export function coerceToTarget(h: HExpr, target: ValueType): HExpr {
   if (target.kind !== "optional" || h.type.kind === "optional") return h;
   if (h.type.kind === "null") return { kind: "nullOpt", type: target };
   if (h.type.kind === "undefined") return { kind: "undefinedOpt", type: target };
@@ -1414,7 +1133,7 @@ function lowerCallArgs(call: ts.CallExpression, ctx: LowerCtx): HExpr[] {
   return [...fixed, restArray];
 }
 
-function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
+export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
   // Calls compute their own result type (and some, like `map.keys()`, have a tsc type — an
   // iterator — that is outside the subset), so lower them before resolving the tsc type eagerly.
   if (ts.isCallExpression(expr)) return lowerCall(expr, ctx);
@@ -1654,7 +1373,7 @@ function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
 
 // The checker is the oracle: map its resolved type to our ValueType. Anything outside the
 // currently-supported domain is an ICE (the validator should have rejected it upstream).
-function resolveType(expr: ts.Expression, ctx: LowerCtx): ValueType {
+export function resolveType(expr: ts.Expression, ctx: LowerCtx): ValueType {
   const checker = ctx.checker;
   // `this` has tsc's polymorphic ThisType (a type parameter); use the bound instance type.
   if (expr.kind === ts.SyntaxKind.ThisKeyword && ctx.currentThis) return ctx.currentThis.type;
