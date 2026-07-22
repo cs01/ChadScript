@@ -15,8 +15,15 @@ import type { LoadedProgram } from "../frontend/program.js";
 import type { HModule, HStmt, HExpr, HFunc, HCapture, UnaryOp, BinaryOp } from "../hir/nodes.js";
 import { VT } from "../hir/types.js";
 import type { ValueType } from "../hir/types.js";
+import {
+  valueTypeOf,
+  valueTypeOfTsType,
+  arrayElementType,
+  returnTypeOf,
+  returnTypeOfSignature,
+} from "./type-translation.js";
 
-interface LowerCtx {
+export interface LowerCtx {
   checker: ts.TypeChecker;
   // Symbol identity → unique HIR name. Shadowing variables have distinct symbols, so distinct
   // names. Keyed by Symbol so a reference resolves to the same name as its declaration.
@@ -48,7 +55,7 @@ function isUndefinedLiteral(e: ts.Expression): boolean {
 }
 
 // A property whose declaration is a method (as opposed to a data field).
-function isMethodSymbol(sym: ts.Symbol): boolean {
+export function isMethodSymbol(sym: ts.Symbol): boolean {
   const d = sym.valueDeclaration;
   return d !== undefined && (ts.isMethodDeclaration(d) || ts.isMethodSignature(d));
 }
@@ -1688,154 +1695,6 @@ function resolveType(expr: ts.Expression, ctx: LowerCtx): ValueType {
 }
 
 // The element type of an Array<T> (null if `t` is not an array type).
-function arrayElementType(t: ts.Type, checker: ts.TypeChecker): ts.Type | undefined {
-  const ref = t as ts.TypeReference;
-  if (ref.symbol?.name === "Array") {
-    const args = checker.getTypeArguments(ref);
-    if (args.length === 1) return args[0];
-  }
-  return undefined;
-}
-
-function valueTypeOf(node: ts.Node, ctx: LowerCtx): ValueType {
-  return valueTypeOfTsType(ctx.checker.getTypeAtLocation(node), node, ctx.checker);
-}
-
-// Collect a class's DATA fields in BASE-FIRST declaration order into `out` (name → type),
-// recursing into base classes before adding the class's own fields. First writer wins, so an
-// inherited field keeps its base-class slot even if mentioned again. Methods are excluded.
-function collectClassDataFields(
-  t: ts.Type,
-  node: ts.Node,
-  checker: ts.TypeChecker,
-  out: Map<string, ValueType>,
-): void {
-  for (const base of checker.getBaseTypes(t as ts.InterfaceType)) {
-    const bd = base.symbol?.valueDeclaration;
-    if (bd && ts.isClassDeclaration(bd)) collectClassDataFields(base, node, checker, out);
-  }
-  const decl = t.symbol?.valueDeclaration;
-  if (!decl || !ts.isClassDeclaration(decl)) return;
-  for (const m of decl.members) {
-    if (!ts.isPropertyDeclaration(m) || !ts.isIdentifier(m.name)) continue;
-    if (out.has(m.name.text)) continue;
-    const sym = checker.getSymbolAtLocation(m.name)!;
-    let ft = valueTypeOfTsType(checker.getTypeOfSymbolAtLocation(sym, node), node, checker);
-    if (sym.flags & ts.SymbolFlags.Optional && ft.kind !== "optional") {
-      ft = { kind: "optional", inner: ft };
-    }
-    out.set(m.name.text, ft);
-  }
-}
-
-function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChecker): ValueType {
-  const flags = t.flags;
-  if (flags & ts.TypeFlags.NumberLike) return VT.number;
-  if (flags & ts.TypeFlags.StringLike) return VT.string;
-  if (flags & ts.TypeFlags.BooleanLike) return VT.boolean;
-  if (flags & ts.TypeFlags.Null) return VT.null;
-  if (flags & ts.TypeFlags.Undefined) return VT.undefined;
-  // `unknown` currently occurs only as a `catch (e)` binding (useUnknownInCatchVariables).
-  if (flags & ts.TypeFlags.Unknown) return VT.unknown;
-  if (flags & ts.TypeFlags.Object) {
-    const ref = t as ts.TypeReference;
-    // A function value: an object type with a call signature.
-    const callSigs = checker.getSignaturesOfType(t, ts.SignatureKind.Call);
-    if (callSigs.length > 0) {
-      const sig = callSigs[0]!;
-      const params = sig.parameters.map((p) =>
-        valueTypeOfTsType(checker.getTypeOfSymbolAtLocation(p, node), node, checker),
-      );
-      const retT = checker.getReturnTypeOfSignature(sig);
-      const ret =
-        retT.flags & (ts.TypeFlags.Void | ts.TypeFlags.Undefined)
-          ? null
-          : valueTypeOfTsType(retT, node, checker);
-      return { kind: "function", params, ret };
-    }
-    // `T[]` / `Array<T>`: an Array object type with one type argument.
-    if (ref.symbol?.name === "Array") {
-      const args = checker.getTypeArguments(ref);
-      if (args.length === 1) return VT.array(valueTypeOfTsType(args[0]!, node, checker));
-    }
-    // `Map<K, V>`: two type arguments.
-    if (ref.symbol?.name === "Map") {
-      const args = checker.getTypeArguments(ref);
-      if (args.length === 2) {
-        return VT.map(
-          valueTypeOfTsType(args[0]!, node, checker),
-          valueTypeOfTsType(args[1]!, node, checker),
-        );
-      }
-    }
-    // `Set<T>`: one type argument.
-    if (ref.symbol?.name === "Set") {
-      const args = checker.getTypeArguments(ref);
-      if (args.length === 1) return VT.set(valueTypeOfTsType(args[0]!, node, checker));
-    }
-    // A closed object shape (interface / type literal / class instance). Its DATA properties
-    // become record slots — methods are dispatched to functions, not stored. A class instance's
-    // `className` enables method dispatch.
-    const classDecl = t.symbol?.valueDeclaration;
-    const isClass = classDecl !== undefined && ts.isClassDeclaration(classDecl);
-    if (isClass) {
-      // Class instance: lay fields out BASE-FIRST (a subclass record is a prefix-compatible
-      // superset of its base), so a derived instance is usable through a base-typed reference.
-      // getPropertiesOfType returns derived-first, so walk the heritage chain ourselves.
-      const ordered = new Map<string, ValueType>();
-      collectClassDataFields(t, node, checker, ordered);
-      const fields = [...ordered].map(([name, type]) => ({ name, type }));
-      return { kind: "object", shape: { fields }, className: t.symbol!.name };
-    }
-    const props = checker.getPropertiesOfType(t).filter((sym) => !isMethodSymbol(sym));
-    if (props.length > 0) {
-      const fields = props.map((sym) => {
-        let ft = valueTypeOfTsType(checker.getTypeOfSymbolAtLocation(sym, node), node, checker);
-        // With exactOptionalPropertyTypes, `x?: T` has type T; the `?` is a symbol flag. Model
-        // it as optional<T> so an omitted field stores `undefined`.
-        if (sym.flags & ts.SymbolFlags.Optional && ft.kind !== "optional") {
-          ft = { kind: "optional", inner: ft };
-        }
-        return { name: sym.name, type: ft };
-      });
-      return { kind: "object", shape: { fields } };
-    }
-  }
-  // Narrowing produces unions (e.g. `switch (n) { case 0: case 1: }` narrows n to `0 | 1`). A
-  // union of same-representation members collapses to that type; a union of `inner`+null/undefined
-  // becomes `optional`; anything else genuinely mixed is not in the subset yet.
-  if (flags & ts.TypeFlags.Union) {
-    const members = (t as ts.UnionType).types.map((m) => valueTypeOfTsType(m, node, checker));
-    const nullish = members.filter((m) => m.kind === "undefined" || m.kind === "null");
-    const rest = members.filter((m) => m.kind !== "undefined" && m.kind !== "null");
-    const restFirst = rest[0];
-    if (restFirst && rest.every((m) => m.kind === restFirst.kind)) {
-      // `inner | undefined | null` → optional<inner>; pure `inner | inner` → inner.
-      return nullish.length > 0 ? { kind: "optional", inner: restFirst } : restFirst;
-    }
-    return ice(
-      `lower: mixed-representation union not supported yet at ${ts.SyntaxKind[node.kind]}`,
-    );
-  }
-  return ice(`lower: unsupported value type (flags ${flags}) at ${ts.SyntaxKind[node.kind]}`);
-}
-
-// A function's return type as a ValueType, or null for void.
-function returnTypeOf(decl: ts.FunctionDeclaration, ctx: LowerCtx): ValueType | null {
-  return returnTypeOfSignature(decl, ctx);
-}
-
-function returnTypeOfSignature(
-  decl: ts.FunctionDeclaration | ts.MethodDeclaration | ts.ConstructorDeclaration,
-  ctx: LowerCtx,
-): ValueType | null {
-  const sig = ctx.checker.getSignatureFromDeclaration(decl);
-  if (!sig) return ice("lower: could not resolve signature");
-  const ret = ctx.checker.getReturnTypeOfSignature(sig);
-  if (ret.flags & (ts.TypeFlags.Void | ts.TypeFlags.Undefined)) return null;
-  return valueTypeOfTsType(ret, decl, ctx.checker);
-}
-
 function isAssignmentOp(kind: ts.SyntaxKind): boolean {
   return (
     kind === ts.SyntaxKind.EqualsToken ||
