@@ -798,6 +798,41 @@ function lowerArrayElement(
   return { spread: false, value: lowerExpr(e, ctx) };
 }
 
+// `Object.keys(o)` / `Object.values(o)` over a closed object shape. keys → the field names as a
+// string[] (statically known); values → the field values as an array (only when the fields share
+// one representation, since a homogeneous array can't hold a mixed union). entries needs tuples.
+function lowerObjectNamespace(method: string, argExpr: ts.Expression, ctx: LowerCtx): HExpr {
+  const objType = resolveType(argExpr, ctx);
+  if (objType.kind !== "object") ice(`lower: Object.${method} on non-object ${objType.kind}`);
+  const fields = objType.shape.fields;
+  if (method === "keys") {
+    return {
+      kind: "arrayLit",
+      elements: fields.map((f) => ({
+        spread: false,
+        value: { kind: "stringLit", value: f.name, type: VT.string } as HExpr,
+      })),
+      type: VT.array(VT.string),
+    };
+  }
+  if (method === "values") {
+    const first = fields[0]?.type;
+    if (first && !fields.every((f) => f.type.kind === first.kind)) {
+      ice("lower: Object.values on a mixed-type object is not supported (homogeneous only)");
+    }
+    const obj = lowerExpr(argExpr, ctx);
+    return {
+      kind: "arrayLit",
+      elements: fields.map((f, i) => ({
+        spread: false,
+        value: { kind: "memberGet", object: obj, slot: i, type: f.type } as HExpr,
+      })),
+      type: VT.array(first ?? VT.number),
+    };
+  }
+  return ice(`lower: Object.${method} not supported yet`);
+}
+
 // A method call `obj.method(args)`. Dispatched on the receiver's type + method name.
 function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
   const pa = call.expression as ts.PropertyAccessExpression;
@@ -811,6 +846,10 @@ function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
       type: VT.number,
     };
   }
+  // `Object.keys(o)` / `Object.values(o)` on a closed object shape.
+  if (ts.isIdentifier(pa.expression) && pa.expression.text === "Object") {
+    return lowerObjectNamespace(pa.name.text, call.arguments[0]!, ctx);
+  }
   // `super.m(args)` in value position → non-virtual base call with `this` as the receiver.
   if (pa.expression.kind === ts.SyntaxKind.SuperKeyword) {
     if (!ctx.currentBaseClass) return ice("lower: `super` with no base class");
@@ -823,13 +862,16 @@ function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
       type: rt,
     };
   }
-  const recvType = resolveType(pa.expression, ctx);
+  // Lower the receiver ONCE and use its lowered type — a chained receiver like
+  // `Object.values(o)` has a divergent tsc type (any[]) but a correct lowered type (number[]).
+  const receiver = lowerExpr(pa.expression, ctx);
+  const recvType = receiver.type;
   const method = pa.name.text;
   if (recvType.kind === "array") {
     if (method === "push") {
       return {
         kind: "arrayPush",
-        array: lowerExpr(pa.expression, ctx),
+        array: receiver,
         value: lowerExpr(call.arguments[0]!, ctx),
         elementType: recvType.element,
         type: VT.number,
@@ -838,7 +880,7 @@ function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
     if (method === "pop" || method === "shift") {
       return {
         kind: "arrayPop",
-        array: lowerExpr(pa.expression, ctx),
+        array: receiver,
         fn: method === "pop" ? "cs_array_pop" : "cs_array_shift",
         type: resolveType(call, ctx), // element | undefined
       };
@@ -847,7 +889,7 @@ function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
       const sep = call.arguments[0];
       return {
         kind: "arrayJoin",
-        array: lowerExpr(pa.expression, ctx),
+        array: receiver,
         separator: sep ? lowerExpr(sep, ctx) : null,
         elementType: recvType.element,
         type: VT.string,
@@ -856,7 +898,7 @@ function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
     if (method === "includes" || method === "indexOf") {
       return {
         kind: "arraySearch",
-        array: lowerExpr(pa.expression, ctx),
+        array: receiver,
         value: lowerExpr(call.arguments[0]!, ctx),
         elementType: recvType.element,
         wantIndex: method === "indexOf",
@@ -887,7 +929,7 @@ function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
           | "findIndex"
           | "some"
           | "every",
-        array: lowerExpr(pa.expression, ctx),
+        array: receiver,
         callback: lowerExpr(call.arguments[0]!, ctx),
         init: init ? lowerExpr(init, ctx) : null,
         elementType: recvType.element,
@@ -900,7 +942,7 @@ function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
       const cmp = call.arguments[0];
       return {
         kind: "arraySort",
-        array: lowerExpr(pa.expression, ctx),
+        array: receiver,
         comparator: cmp ? lowerExpr(cmp, ctx) : null,
         elementType: recvType.element,
         type: resolveType(call, ctx),
@@ -916,7 +958,7 @@ function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
       return {
         kind: "arrayXform",
         fn,
-        array: lowerExpr(pa.expression, ctx),
+        array: receiver,
         args: call.arguments.map((a) => lowerExpr(a, ctx)),
         type: resolveType(call, ctx), // same array type
       };
@@ -925,7 +967,7 @@ function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
   }
   if (recvType.kind === "map") {
     const keyKind = keyKindOf(recvType.key);
-    const map = lowerExpr(pa.expression, ctx);
+    const map = receiver;
     if (method === "set") {
       return {
         kind: "mapSet",
@@ -984,7 +1026,7 @@ function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
   }
   if (recvType.kind === "set") {
     const keyKind = keyKindOf(recvType.element);
-    const set = lowerExpr(pa.expression, ctx);
+    const set = receiver;
     const arg0 = () => lowerExpr(call.arguments[0]!, ctx);
     if (method === "add") {
       return { kind: "setAdd", set, value: arg0(), keyKind, type: recvType }; // returns the set
@@ -1010,7 +1052,7 @@ function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
     return {
       kind: "strMethod",
       method,
-      receiver: lowerExpr(pa.expression, ctx),
+      receiver: receiver,
       args: call.arguments.map((a) => lowerExpr(a, ctx)),
       type: callReturnType(call, ctx) ?? VT.string,
     };
@@ -1022,7 +1064,7 @@ function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
     return {
       kind: "call",
       name: `${methodDefiningClass(pa.name, ctx, recvType.className)}.${method}`,
-      args: [lowerExpr(pa.expression, ctx), ...call.arguments.map((a) => lowerExpr(a, ctx))],
+      args: [receiver, ...call.arguments.map((a) => lowerExpr(a, ctx))],
       type: rt,
     };
   }
