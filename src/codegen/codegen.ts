@@ -1,96 +1,57 @@
-// Phase 0/1 codegen: lower a validated program to LLVM IR. Surface so far:
-//   console.log("<string literal>")   → cs_console_log_cstr
-//   console.log(<number literal>)     → cs_console_log_f64   (dispatched by the checker's type)
-//   process.exit(<int literal>)       → exit
+// Backend: HIR → LLVM IR. Consumes HModule only. This module (and everything under codegen/)
+// MUST NOT import `typescript` or touch the checker — the type wall is enforced by
+// tests/unit/architecture.test.ts. All type decisions were made in lower/ and are recorded on
+// the HIR nodes; here we only translate. An unhandled shape is an ICE (loud), never silent IR.
 //
-// This file is a SCAFFOLD to be replaced by real HIR-based lowering. Anything the validator
-// admitted but this scaffold does not recognize is an ICE (loud), never silent output. The
-// string-vs-number choice for console.log comes from the type checker — tsc is the oracle.
+// TO EXTEND: add a case here for a new HIR node, add the node in hir/, and lower it in lower/.
+// Never reach back to the AST or checker from this file.
 
-import ts from "typescript";
 import { ice } from "../diagnostics.js";
-import type { LoadedProgram } from "../frontend/program.js";
-import { ModuleBuilder, imm, fimm, type FuncBuilder } from "../ir/builder.js";
+import { ModuleBuilder, imm } from "../ir/builder.js";
 import { T } from "../ir/types.js";
+import type { HModule, HStmt } from "../hir/nodes.js";
+import { evalNumber, type Ctx } from "./expr.js";
 
-interface Ctx {
-  mod: ModuleBuilder;
-  fn: FuncBuilder;
-  checker: ts.TypeChecker;
-}
-
-export function generate(loaded: LoadedProgram): string {
+export function generate(hmod: HModule): string {
   const mod = new ModuleBuilder();
   mod.declareExtern("cs_console_log_cstr", T.void, [T.ptr]);
   mod.declareExtern("cs_console_log_f64", T.void, [T.double]);
   mod.declareExtern("exit", T.void, [T.i32]);
 
   const fn = mod.defineFunc("main", T.i32, []);
-  const ctx: Ctx = { mod, fn, checker: loaded.checker };
-  for (const sf of loaded.sourceFiles) {
-    for (const stmt of sf.statements) emitStatement(stmt, ctx);
-  }
+  const ctx: Ctx = { mod, fn };
+  for (const stmt of hmod.statements) emitStatement(stmt, ctx);
   fn.ret(imm(T.i32, 0));
   return mod.render();
 }
 
-function emitStatement(stmt: ts.Statement, ctx: Ctx): void {
-  if (ts.isExpressionStatement(stmt) && ts.isCallExpression(stmt.expression)) {
-    emitCall(stmt.expression, ctx);
-    return;
-  }
-  ice(`codegen: unsupported statement ${ts.SyntaxKind[stmt.kind]}`);
-}
-
-function emitCall(call: ts.CallExpression, ctx: Ctx): void {
-  const target = calleeName(call.expression);
-
-  if (target === "console.log") {
-    const arg = call.arguments[0];
-    if (call.arguments.length !== 1 || !arg) {
-      ice("codegen: console.log supports exactly one argument");
+function emitStatement(stmt: HStmt, ctx: Ctx): void {
+  switch (stmt.kind) {
+    case "consoleLog": {
+      const v = stmt.value;
+      switch (v.type.kind) {
+        case "number":
+          ctx.fn.callVoid("@cs_console_log_f64", [evalNumber(v, ctx)]);
+          return;
+        case "string":
+          if (v.kind === "stringLit") {
+            ctx.fn.callVoid("@cs_console_log_cstr", [ctx.mod.cstring(v.value)]);
+            return;
+          }
+          ice("codegen: console.log(string) supports a string literal only (Phase 1)");
+          return;
+        default:
+          ice(`codegen: console.log of ${v.type.kind} not supported yet`);
+          return;
+      }
     }
-    emitConsoleLog(arg, ctx);
-    return;
-  }
 
-  if (target === "process.exit") {
-    const arg = call.arguments[0];
-    if (call.arguments.length === 1 && arg && ts.isNumericLiteral(arg)) {
-      ctx.fn.callVoid("@exit", [imm(T.i32, parseInt(arg.text, 10))]);
+    case "processExit":
+      // JS exit code: evaluate the number, truncate to i32.
+      ctx.fn.callVoid("@exit", [ctx.fn.fptosi_i32(evalNumber(stmt.code, ctx))]);
       return;
-    }
-    ice("codegen: process.exit supports exactly one int-literal argument");
-  }
 
-  ice(`codegen: unsupported call ${target}`);
-}
-
-function emitConsoleLog(arg: ts.Expression, ctx: Ctx): void {
-  const flags = ctx.checker.getTypeAtLocation(arg).flags;
-  // The checker's type decides the runtime path — string vs number.
-  if (flags & (ts.TypeFlags.StringLike | ts.TypeFlags.String)) {
-    if (ts.isStringLiteral(arg)) {
-      ctx.fn.callVoid("@cs_console_log_cstr", [ctx.mod.cstring(arg.text)]);
-      return;
-    }
-    ice("codegen: console.log(string) supports a string literal only (Phase 1 commit 1)");
+    default:
+      ice(`codegen: unhandled statement ${(stmt as { kind: string }).kind}`);
   }
-  if (flags & (ts.TypeFlags.NumberLike | ts.TypeFlags.Number)) {
-    if (ts.isNumericLiteral(arg)) {
-      ctx.fn.callVoid("@cs_console_log_f64", [fimm(Number(arg.text))]);
-      return;
-    }
-    ice("codegen: console.log(number) supports a numeric literal only (Phase 1 commit 1)");
-  }
-  ice(`codegen: console.log argument type not supported yet (flags ${flags})`);
-}
-
-// "console.log" / "process.exit" for a property-access callee; bare name otherwise.
-function calleeName(expr: ts.Expression): string {
-  if (ts.isPropertyAccessExpression(expr) && ts.isIdentifier(expr.expression)) {
-    return `${expr.expression.text}.${expr.name.text}`;
-  }
-  if (ts.isIdentifier(expr)) return expr.text;
-  return `<${ts.SyntaxKind[expr.kind]}>`;
 }

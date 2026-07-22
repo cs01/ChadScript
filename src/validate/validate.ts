@@ -30,6 +30,26 @@ const ALLOWED_KINDS: ReadonlySet<ts.SyntaxKind> = new Set([
   ts.SyntaxKind.TrueKeyword,
   ts.SyntaxKind.FalseKeyword,
   ts.SyntaxKind.NullKeyword,
+  // Arithmetic (Phase 1). Operator granularity is gated separately below — admitting the kind
+  // does NOT admit every operator of that kind.
+  ts.SyntaxKind.BinaryExpression,
+  ts.SyntaxKind.PrefixUnaryExpression,
+  ts.SyntaxKind.ParenthesizedExpression,
+]);
+
+// Supported operators, checked per-operator so an admitted expression kind doesn't smuggle in
+// operators codegen can't lower. `==`/`!=` are handled earlier by tailored rejection (CS1203).
+const SUPPORTED_BINARY_OPS: ReadonlySet<ts.SyntaxKind> = new Set([
+  ts.SyntaxKind.PlusToken,
+  ts.SyntaxKind.MinusToken,
+  ts.SyntaxKind.AsteriskToken,
+  ts.SyntaxKind.SlashToken,
+  ts.SyntaxKind.PercentToken,
+]);
+
+const SUPPORTED_UNARY_OPS: ReadonlySet<ts.SyntaxKind> = new Set([
+  ts.SyntaxKind.PlusToken,
+  ts.SyntaxKind.MinusToken,
 ]);
 
 export function validate(loaded: LoadedProgram): void {
@@ -61,15 +81,29 @@ function collectTailored(node: ts.Node, sf: ts.SourceFile, out: Diagnostic[]): v
 // un-admitted kind is reported once and not recursed into (its children are moot).
 function defaultDeny(node: ts.Node, sf: ts.SourceFile, out: Diagnostic[]): void {
   if (!isTrivialToken(node.kind) && !ALLOWED_KINDS.has(node.kind)) {
-    out.push({
-      code: CODE.NOT_IN_SUBSET,
-      message: `${ts.SyntaxKind[node.kind]} is not in the ChadScript subset yet`,
-      span: spanOf(node, sf),
-      suggestion: "this construct has no allowlist rule + fixture yet; see PLAN.md phases",
-    });
+    out.push(notInSubset(ts.SyntaxKind[node.kind], node, sf));
+    return;
+  }
+  // Operator-granularity gating: an admitted expression kind must not smuggle in an operator
+  // codegen can't lower. Reject the unsupported operator specifically, then stop descending.
+  if (ts.isBinaryExpression(node) && !SUPPORTED_BINARY_OPS.has(node.operatorToken.kind)) {
+    out.push(notInSubset(`operator ${ts.tokenToString(node.operatorToken.kind)}`, node, sf));
+    return;
+  }
+  if (ts.isPrefixUnaryExpression(node) && !SUPPORTED_UNARY_OPS.has(node.operator)) {
+    out.push(notInSubset(`unary operator ${ts.tokenToString(node.operator)}`, node, sf));
     return;
   }
   ts.forEachChild(node, (child) => defaultDeny(child, sf, out));
+}
+
+function notInSubset(what: string, node: ts.Node, sf: ts.SourceFile): Diagnostic {
+  return {
+    code: CODE.NOT_IN_SUBSET,
+    message: `${what} is not in the ChadScript subset yet`,
+    span: spanOf(node, sf),
+    suggestion: "this construct has no allowlist rule + fixture yet; see PLAN.md phases",
+  };
 }
 
 // Punctuation and structural keyword tokens are not independently gated — their parent node

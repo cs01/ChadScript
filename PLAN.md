@@ -98,6 +98,20 @@ replaces the open-ended dynamic goal with a hard static contract.**
 
 ## Decisions locked (2026-07-21)
 
+- **Hard sema/backend separation from commit 1 (the core discipline this rewrite exists to
+  enforce).** Three walls, structural not conventional:
+  - `lower/` is the ONLY place that imports `ts` and touches the `TypeChecker`. It walks the
+    tsc AST and produces HIR, stamping every node with its resolved type (from the checker).
+  - `hir/` nodes carry their resolved type. HIR does not reference `ts` at all.
+  - `codegen/` consumes HIR and emits IR. It MUST NOT import `ts` or the checker — the backend
+    has no oracle to reach for; a HIR node missing its type is an `ice()`, not a lookup.
+    This is enforced by a test that fails if `codegen/` or `hir/` imports `typescript`. v1 died
+    because the type/codegen boundary was a convention that eroded under a mutable SymbolTable;
+    here it is a wall built while the surface is tiny (cheapest to get right, impossible to rot).
+    Full canonical `TypeId` interning (a global type table) is a separate, genuinely deferrable
+    optimization — the resolved-type annotation on HIR nodes starts as a small semantic
+    `ValueType` and grows into an interned table when passes over HIR demand it. The SEPARATION
+    is not deferred; only the interning table is.
 - **The validator is default-DENY (allowlist).** This is what makes the subset a real
   definition instead of prose. The validator walks every AST node kind and every type the
   checker reports; a construct is admitted **only** if an explicit ALLOW rule handles it,

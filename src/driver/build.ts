@@ -7,6 +7,7 @@ import { mkdtempSync, writeFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { lower } from "../lower/lower.js";
 import { generate } from "../codegen/codegen.js";
 import { CLANG } from "./toolchain.js";
 import type { LoadedProgram } from "../frontend/program.js";
@@ -25,7 +26,8 @@ export interface BuildOptions {
 }
 
 export function build(loaded: LoadedProgram, opts: BuildOptions): void {
-  const ir = generate(loaded);
+  // frontend (loaded) → lower (HIR) → codegen (IR). The checker stops at lower.
+  const ir = generate(lower(loaded));
   const dir = mkdtempSync(join(tmpdir(), "chadv2-"));
   const llPath = join(dir, "out.ll");
   writeFileSync(llPath, ir);

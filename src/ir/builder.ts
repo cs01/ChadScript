@@ -65,6 +65,47 @@ export class FuncBuilder {
     this.current.add(`call void ${callee}(${argList(args)})`);
   }
 
+  // Binary float op (fadd/fsub/fmul/fdiv/frem). Operands must be double; result is double.
+  private fbin(op: string, a: Value, b: Value): Value {
+    if (a.type.kind !== "double" || b.type.kind !== "double") {
+      ice(`${op} requires double operands, got ${a.type.kind}/${b.type.kind}`);
+    }
+    const result = this.nextTemp(T.double);
+    this.current.add(`${result.name} = ${op} double ${a.name}, ${b.name}`);
+    return result;
+  }
+
+  fadd(a: Value, b: Value): Value {
+    return this.fbin("fadd", a, b);
+  }
+  fsub(a: Value, b: Value): Value {
+    return this.fbin("fsub", a, b);
+  }
+  fmul(a: Value, b: Value): Value {
+    return this.fbin("fmul", a, b);
+  }
+  fdiv(a: Value, b: Value): Value {
+    return this.fbin("fdiv", a, b);
+  }
+  frem(a: Value, b: Value): Value {
+    return this.fbin("frem", a, b);
+  }
+
+  fneg(a: Value): Value {
+    if (a.type.kind !== "double") ice(`fneg requires a double operand, got ${a.type.kind}`);
+    const result = this.nextTemp(T.double);
+    this.current.add(`${result.name} = fneg double ${a.name}`);
+    return result;
+  }
+
+  // double → i32 (truncating toward zero). Used e.g. for process.exit codes.
+  fptosi_i32(a: Value): Value {
+    if (a.type.kind !== "double") ice(`fptosi requires a double operand, got ${a.type.kind}`);
+    const result = this.nextTemp(T.i32);
+    this.current.add(`${result.name} = fptosi double ${a.name} to i32`);
+    return result;
+  }
+
   ret(value: Value): void {
     if (value.type.kind === "void") ice(`ret with void value in ${this.name}; use retVoid`);
     this.current.terminate(`ret ${llvmType(value.type)} ${value.name}`);
