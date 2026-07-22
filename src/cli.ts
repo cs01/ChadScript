@@ -2,25 +2,51 @@
 // zero-diagnostic gate and (once it exists) the validator, reporting diagnostics.
 
 import { check } from "./pipeline.js";
-import { renderDiagnostic } from "./diagnostics.js";
+import { loadProgram } from "./frontend/program.js";
+import { validate } from "./validate/validate.js";
+import { build } from "./driver/build.js";
+import { DiagnosticError, renderDiagnostic, type Diagnostic } from "./diagnostics.js";
 
 function usage(): never {
-  process.stderr.write("usage: chad check <entry.ts>\n");
+  process.stderr.write("usage:\n  chad check <entry.ts>\n  chad build <entry.ts> -o <out>\n");
   process.exit(2);
 }
 
-function main(argv: string[]): void {
-  const [cmd, entry] = argv;
-  if (cmd !== "check" || !entry) usage();
+function reportAndExit(diagnostics: Diagnostic[]): never {
+  for (const d of diagnostics) process.stderr.write(renderDiagnostic(d) + "\n");
+  process.stderr.write(`\n${diagnostics.length} error(s)\n`);
+  process.exit(1);
+}
 
-  const result = check(entry);
-  if (result.accepted) {
-    process.stdout.write("ok: typechecks and is in-subset\n");
+function main(argv: string[]): void {
+  const [cmd, entry, ...rest] = argv;
+  if (!entry) usage();
+
+  if (cmd === "check") {
+    const result = check(entry);
+    if (result.accepted) {
+      process.stdout.write("ok: typechecks and is in-subset\n");
+      return;
+    }
+    reportAndExit(result.diagnostics);
+  }
+
+  if (cmd === "build") {
+    const oIdx = rest.indexOf("-o");
+    const outPath = oIdx >= 0 ? rest[oIdx + 1] : undefined;
+    if (!outPath) usage();
+    try {
+      const loaded = loadProgram(entry);
+      validate(loaded);
+      build(loaded, { outPath });
+    } catch (e) {
+      if (e instanceof DiagnosticError) reportAndExit(e.diagnostics);
+      throw e;
+    }
     return;
   }
-  for (const d of result.diagnostics) process.stderr.write(renderDiagnostic(d) + "\n");
-  process.stderr.write(`\n${result.diagnostics.length} error(s)\n`);
-  process.exit(1);
+
+  usage();
 }
 
 main(process.argv.slice(2));
