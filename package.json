@@ -9,7 +9,13 @@
     "type": "git",
     "url": "https://github.com/cs01/ChadScript.git"
   },
+  "bin": {
+    "chad": "src/cli.ts"
+  },
   "scripts": {
+    "chad": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/**/*.test.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

@@ -1,0 +1,23 @@
+{
+  "//": "Config for typechecking the COMPILER itself (src/). The strict options we impose on USER programs live in code at src/frontend/user-options.ts, not here.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noFallthroughCasesInSwitch": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "//include": "Only the compiler + its own test harness. tests/fixtures/** are standalone user programs, each typechecked in isolation by the frontend at runtime — never part of the compiler's own project.",
+  "include": ["src", "tests/**/*.test.ts", "tests/harness"]
+}

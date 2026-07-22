@@ -11,9 +11,11 @@ and push (`origin v2`); no PRs required.
 
 1. **tsc is the type oracle.** No custom type inference anywhere. Frontend = TypeScript
    Compiler API at max strictness; zero diagnostics or the program is not ours to compile.
-2. **Reject, don't approximate.** If we can't compile a construct with Node-identical
-   semantics, the validator rejects it with an error code + span + suggested rewrite.
-   "Compiles but diverges from Node" is a P0 bug, no exceptions.
+2. **Reject, don't approximate — the validator is default-DENY.** It admits an AST node
+   or type ONLY via an explicit allowlist rule that has a passing differential fixture;
+   everything else is rejected with `CS####` + span + suggested rewrite. The subset is
+   defined by the allowlist in code, not by prose — so an un-considered construct fails
+   closed, never reaches codegen. "Compiles but diverges from Node" is a P0 bug.
 3. **Sema before codegen, totally.** Every HIR node carries a `TypeId` before the backend
    runs. Backend has zero inference; missing annotation = `ice()` (never-typed throw).
 4. **Node is the semantics oracle.** Default test = diff stdout/exit-code of native binary

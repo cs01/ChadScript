@@ -98,6 +98,17 @@ replaces the open-ended dynamic goal with a hard static contract.**
 
 ## Decisions locked (2026-07-21)
 
+- **The validator is default-DENY (allowlist).** This is what makes the subset a real
+  definition instead of prose. The validator walks every AST node kind and every type the
+  checker reports; a construct is admitted **only** if an explicit ALLOW rule handles it,
+  and every ALLOW rule ships with ≥1 passing differential fixture. Anything else is
+  rejected with `CS####` + span + "not in the subset (yet)". Consequence: **the subset is,
+  at every commit, exactly the set of constructs with a passing differential fixture** —
+  there is no fuzzy middle where an un-considered construct reaches codegen. This is the
+  precise inversion of v1's default-allow-then-segfault. The accepted/rejected lists below
+  are the _roadmap_ for which ALLOW rules to write, in what order — not the definition.
+  The definition is the allowlist in code. A phase "adds to the subset" by adding ALLOW
+  rules + fixtures; it can never do so by omission.
 - **Strings are UTF-8** internally, `{ptr, len}` layout. Semantics are JS-exact for ASCII;
   the fuzzer generates ASCII-only strings until this is revisited (Phase 4) — at which
   point either `length`/`charCodeAt`/index get code-unit-exact UTF-16 semantics or the
