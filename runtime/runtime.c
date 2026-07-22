@@ -18,3 +18,9 @@ void cs_console_log_f64(double x) {
   fputs(buf, stdout);
   fputc('\n', stdout);
 }
+
+// console.log of a single boolean. Passed as i32 (0/1) to avoid i1 ABI ambiguity.
+void cs_console_log_bool(int b) {
+  fputs(b ? "true" : "false", stdout);
+  fputc('\n', stdout);
+}

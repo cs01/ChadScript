@@ -10,12 +10,13 @@ import { ice } from "../diagnostics.js";
 import { ModuleBuilder, imm } from "../ir/builder.js";
 import { T } from "../ir/types.js";
 import type { HModule, HStmt } from "../hir/nodes.js";
-import { evalNumber, type Ctx } from "./expr.js";
+import { evalNumber, evalBool, type Ctx } from "./expr.js";
 
 export function generate(hmod: HModule): string {
   const mod = new ModuleBuilder();
   mod.declareExtern("cs_console_log_cstr", T.void, [T.ptr]);
   mod.declareExtern("cs_console_log_f64", T.void, [T.double]);
+  mod.declareExtern("cs_console_log_bool", T.void, [T.i32]);
   mod.declareExtern("exit", T.void, [T.i32]);
 
   const fn = mod.defineFunc("main", T.i32, []);
@@ -39,6 +40,10 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
             return;
           }
           ice("codegen: console.log(string) supports a string literal only (Phase 1)");
+          return;
+        case "boolean":
+          // Runtime takes the boolean as i32 (0/1).
+          ctx.fn.callVoid("@cs_console_log_bool", [ctx.fn.zextI1ToI32(evalBool(v, ctx))]);
           return;
         default:
           ice(`codegen: console.log of ${v.type.kind} not supported yet`);

@@ -10,6 +10,8 @@ declare const console: {
   log(message: string): void;
   /** Prints one number (JS-exact formatting) followed by a newline. */
   log(value: number): void;
+  /** Prints "true"/"false" followed by a newline. */
+  log(value: boolean): void;
 };
 
 declare const process: {

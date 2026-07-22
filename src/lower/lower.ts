@@ -51,6 +51,12 @@ function lowerExpr(expr: ts.Expression, checker: ts.TypeChecker): HExpr {
     case ts.SyntaxKind.StringLiteral:
       return { kind: "stringLit", value: (expr as ts.StringLiteral).text, type };
 
+    case ts.SyntaxKind.TrueKeyword:
+      return { kind: "boolLit", value: true, type };
+
+    case ts.SyntaxKind.FalseKeyword:
+      return { kind: "boolLit", value: false, type };
+
     case ts.SyntaxKind.ParenthesizedExpression:
       return lowerExpr((expr as ts.ParenthesizedExpression).expression, checker);
 
@@ -115,6 +121,18 @@ function binaryOp(kind: ts.SyntaxKind): BinaryOp {
       return "div";
     case ts.SyntaxKind.PercentToken:
       return "rem";
+    case ts.SyntaxKind.LessThanToken:
+      return "lt";
+    case ts.SyntaxKind.GreaterThanToken:
+      return "gt";
+    case ts.SyntaxKind.LessThanEqualsToken:
+      return "le";
+    case ts.SyntaxKind.GreaterThanEqualsToken:
+      return "ge";
+    case ts.SyntaxKind.EqualsEqualsEqualsToken:
+      return "eq";
+    case ts.SyntaxKind.ExclamationEqualsEqualsToken:
+      return "ne";
     default:
       return ice(`lower: unsupported binary operator ${ts.SyntaxKind[kind]}`);
   }

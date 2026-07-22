@@ -12,10 +12,24 @@ export interface HModule {
 export type HStmt = { kind: "consoleLog"; value: HExpr } | { kind: "processExit"; code: HExpr };
 
 export type UnaryOp = "neg" | "pos";
-export type BinaryOp = "add" | "sub" | "mul" | "div" | "rem";
+// Arithmetic ops produce a number; comparison ops (lt..ne) produce a boolean. The `type`
+// field on the binary node records which — lower/ stamps it from the checker.
+export type BinaryOp =
+  | "add"
+  | "sub"
+  | "mul"
+  | "div"
+  | "rem"
+  | "lt"
+  | "gt"
+  | "le"
+  | "ge"
+  | "eq"
+  | "ne";
 
 export type HExpr =
   | { kind: "numberLit"; value: number; type: ValueType }
   | { kind: "stringLit"; value: string; type: ValueType }
+  | { kind: "boolLit"; value: boolean; type: ValueType }
   | { kind: "unary"; op: UnaryOp; operand: HExpr; type: ValueType }
   | { kind: "binary"; op: BinaryOp; left: HExpr; right: HExpr; type: ValueType };

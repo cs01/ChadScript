@@ -40,11 +40,19 @@ const ALLOWED_KINDS: ReadonlySet<ts.SyntaxKind> = new Set([
 // Supported operators, checked per-operator so an admitted expression kind doesn't smuggle in
 // operators codegen can't lower. `==`/`!=` are handled earlier by tailored rejection (CS1203).
 const SUPPORTED_BINARY_OPS: ReadonlySet<ts.SyntaxKind> = new Set([
+  // Arithmetic (number → number).
   ts.SyntaxKind.PlusToken,
   ts.SyntaxKind.MinusToken,
   ts.SyntaxKind.AsteriskToken,
   ts.SyntaxKind.SlashToken,
   ts.SyntaxKind.PercentToken,
+  // Comparison (→ boolean).
+  ts.SyntaxKind.LessThanToken,
+  ts.SyntaxKind.GreaterThanToken,
+  ts.SyntaxKind.LessThanEqualsToken,
+  ts.SyntaxKind.GreaterThanEqualsToken,
+  ts.SyntaxKind.EqualsEqualsEqualsToken,
+  ts.SyntaxKind.ExclamationEqualsEqualsToken,
 ]);
 
 const SUPPORTED_UNARY_OPS: ReadonlySet<ts.SyntaxKind> = new Set([

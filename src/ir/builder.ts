@@ -106,6 +106,36 @@ export class FuncBuilder {
     return result;
   }
 
+  // Ordered float comparison → i1. Predicate is an LLVM fcmp code (oeq/one/olt/ogt/ole/oge).
+  // Ordered predicates yield false when either operand is NaN, which matches JS number
+  // comparison exactly (NaN===NaN is false; any relational with NaN is false).
+  fcmp(pred: string, a: Value, b: Value): Value {
+    if (a.type.kind !== "double" || b.type.kind !== "double") {
+      ice(`fcmp requires double operands, got ${a.type.kind}/${b.type.kind}`);
+    }
+    const result = this.nextTemp(T.i1);
+    this.current.add(`${result.name} = fcmp ${pred} double ${a.name}, ${b.name}`);
+    return result;
+  }
+
+  // Integer comparison → i1 (pred = eq/ne/slt/…). Operand types must match.
+  icmp(pred: string, a: Value, b: Value): Value {
+    if (a.type.kind !== b.type.kind) {
+      ice(`icmp requires matching operand types, got ${a.type.kind}/${b.type.kind}`);
+    }
+    const result = this.nextTemp(T.i1);
+    this.current.add(`${result.name} = icmp ${pred} ${llvmType(a.type)} ${a.name}, ${b.name}`);
+    return result;
+  }
+
+  // i1 → i32 zero-extension (e.g. to pass a boolean across the runtime's int ABI).
+  zextI1ToI32(a: Value): Value {
+    if (a.type.kind !== "i1") ice(`zextI1ToI32 requires an i1 operand, got ${a.type.kind}`);
+    const result = this.nextTemp(T.i32);
+    this.current.add(`${result.name} = zext i1 ${a.name} to i32`);
+    return result;
+  }
+
   ret(value: Value): void {
     if (value.type.kind === "void") ice(`ret with void value in ${this.name}; use retVoid`);
     this.current.terminate(`ret ${llvmType(value.type)} ${value.name}`);
