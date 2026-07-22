@@ -7,6 +7,7 @@
 #include <string.h>
 #include <math.h>
 #include <gc.h>
+#include "strings.h"
 
 extern char cs_undefined_marker; // the `undefined` sentinel (see nullable.c)
 
@@ -31,7 +32,7 @@ CsMap *cs_map_new(void) {
 
 static int key_eq(int64_t a, int64_t b, int32_t kind) {
   if (kind == KEY_STRING) {
-    return strcmp((const char *)(intptr_t)a, (const char *)(intptr_t)b) == 0;
+    return cs_str_eq((const CsString *)(intptr_t)a, (const CsString *)(intptr_t)b);
   }
   if (kind == KEY_NUMBER) {
     double x, y;

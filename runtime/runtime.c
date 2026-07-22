@@ -6,12 +6,14 @@
 #include <math.h>
 #include <string.h>
 #include "number.h"
+#include "strings.h"
 
 // console.log is variadic and space-separated (Node: `console.log(a, b)` → "a b\n"). Codegen
 // emits one print per argument, a space between them, and a trailing newline. These helpers
 // each write ONE piece with no separator/newline of their own.
 
-void cs_print_cstr(const char *s) { fputs(s, stdout); }
+// fwrite by length, NOT fputs — a string may carry embedded NUL bytes, which fputs would truncate.
+void cs_print_cstr(const CsString *s) { fwrite(s->data, 1, s->len, stdout); }
 
 void cs_print_f64(double x) {
   // console.log distinguishes negative zero — Node's util.inspect prints "-0" — even though
@@ -45,37 +47,33 @@ void cs_print_newline(void) { fputc('\n', stdout); }
 // `String(e)` and `e instanceof Error` need. Only string-messaged throws are in the subset.
 typedef struct {
   int isError;
-  const char *message;
+  const CsString *message;
 } CsThrown;
 
-CsThrown *cs_new_error(const char *message) {
+CsThrown *cs_new_error(const CsString *message) {
   CsThrown *t = GC_malloc(sizeof(CsThrown));
   t->isError = 1;
   t->message = message;
   return t;
 }
-CsThrown *cs_new_thrown_str(const char *s) {
+CsThrown *cs_new_thrown_str(const CsString *s) {
   CsThrown *t = GC_malloc(sizeof(CsThrown));
   t->isError = 0;
   t->message = s;
   return t;
 }
 int cs_thrown_is_error(CsThrown *t) { return t->isError; }
-const char *cs_thrown_message(CsThrown *t) { return t->message; }
+const CsString *cs_thrown_message(CsThrown *t) { return t->message; }
 // `String(e)`: an Error stringifies as "Error: <message>"; a thrown string as itself.
-char *cs_thrown_to_string(CsThrown *t) {
-  const char *m = t->message ? t->message : "";
-  if (!t->isError) {
-    size_t n = strlen(m);
-    char *r = GC_malloc(n + 1);
-    memcpy(r, m, n + 1);
-    return r;
-  }
-  size_t n = strlen(m);
-  char *r = GC_malloc(n + 8);
+CsString *cs_thrown_to_string(CsThrown *t) {
+  const CsString *m = t->message;
+  size_t mlen = m ? m->len : 0;
+  const char *mdata = m ? m->data : "";
+  if (!t->isError) return cs_str_from(mdata, mlen);
+  char *r = GC_malloc(7 + mlen ? 7 + mlen : 1);
   memcpy(r, "Error: ", 7);
-  memcpy(r + 7, m, n + 1);
-  return r;
+  memcpy(r + 7, mdata, mlen);
+  return cs_str_mk(r, 7 + mlen);
 }
 
 // A try handler: the setjmp buffer plus the value thrown to it. The thrown value lives HERE (in
@@ -122,7 +120,9 @@ void cs_throw(CsThrown *value) {
     h->thrown = value;
     _longjmp(h->buf, 1);
   }
-  if (value && value->message) fprintf(stderr, "Error: %s\n", value->message);
+  // stderr text is best-effort (the harness compares stdout + exit code only), but keep it NUL-safe.
+  if (value && value->message)
+    fprintf(stderr, "Error: %.*s\n", (int)value->message->len, value->message->data);
   else fputs("Error\n", stderr);
   exit(1);
 }

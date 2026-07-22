@@ -6,6 +6,7 @@
 #include <string.h>
 #include <math.h>
 #include <gc.h>
+#include "strings.h"
 
 typedef struct {
   int64_t *elems;
@@ -24,7 +25,7 @@ CsSet *cs_set_new(void) {
 }
 
 static int elem_eq(int64_t a, int64_t b, int32_t kind) {
-  if (kind == KEY_STRING) return strcmp((const char *)(intptr_t)a, (const char *)(intptr_t)b) == 0;
+  if (kind == KEY_STRING) return cs_str_eq((const CsString *)(intptr_t)a, (const CsString *)(intptr_t)b);
   if (kind == KEY_NUMBER) {
     double x, y;
     memcpy(&x, &a, sizeof(double));

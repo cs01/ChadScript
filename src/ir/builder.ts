@@ -401,14 +401,26 @@ export class ModuleBuilder {
   private readonly funcs: FuncBuilder[] = [];
   private stringCounter = 0;
 
-  // Interns a C string constant (NUL-terminated for the runtime's cstring ABI) and returns a
-  // ptr Value to its first byte. Phase 0 only; real JS strings become {ptr,len} later.
+  // Interns a string literal as a `CsString` — the runtime's {data,len} ABI (see strings.h). Emits
+  // two globals: the raw UTF-8 bytes (NO trailing NUL — length is carried explicitly, so an
+  // embedded NUL is just a byte) and a `{ ptr, i64 }` header pointing at them. Returns a ptr Value
+  // to the header, which is what every runtime string function receives. `i64` matches size_t on
+  // the 64-bit targets we support.
   cstring(text: string): Value {
     const bytes = Buffer.from(text, "utf8");
-    const name = `@.str${this.stringCounter++}`;
-    const encoded = [...bytes].map((b) => `\\${b.toString(16).padStart(2, "0")}`).join("");
-    const len = bytes.length + 1;
-    this.globals.push(`${name} = private unnamed_addr constant [${len} x i8] c"${encoded}\\00"`);
+    const id = this.stringCounter++;
+    const dataName = `@.str${id}.data`;
+    const name = `@.str${id}`;
+    const len = bytes.length;
+    if (len === 0) {
+      this.globals.push(`${dataName} = private unnamed_addr constant [1 x i8] zeroinitializer`);
+    } else {
+      const encoded = [...bytes].map((b) => `\\${b.toString(16).padStart(2, "0")}`).join("");
+      this.globals.push(`${dataName} = private unnamed_addr constant [${len} x i8] c"${encoded}"`);
+    }
+    this.globals.push(
+      `${name} = private unnamed_addr constant { ptr, i64 } { ptr ${dataName}, i64 ${len} }`,
+    );
     return { name, type: T.ptr };
   }
 
