@@ -41,3 +41,7 @@ test("async runtime: microtask queue is non-lossy and FIFO past its initial capa
 test("async runtime: awaiting a rejected promise throws into the fiber's try/catch", () => {
   assert.doesNotThrow(() => runCTest("async_reject_test.c"));
 });
+
+test("async runtime: concurrent try/catch across await catch their own rejections (fiber-local handler stack)", () => {
+  assert.doesNotThrow(() => runCTest("async_concurrent_reject_test.c"));
+});

@@ -35,20 +35,46 @@ typedef struct Promise {
 // The exception machinery lives in runtime.c; a rejected `await` throws into the awaiting fiber via
 // the same handler chain as a synchronous `throw`, so `try/catch` around `await` catches it.
 extern void cs_throw(void *thrown);
+// The handler stack is swappable so each fiber runs with its OWN try/catch chain (concurrent
+// try-across-await must not corrupt each other). We save/install a fiber's stack around every run.
+extern void cs_handler_ctx_get(void ***stack, int *n, int *cap);
+extern void cs_handler_ctx_set(void **stack, int n, int cap);
 
 struct Fiber {
   ucontext_t ctx;
   void (*body)(void *);
   void *arg;
-  Promise *result;  // resolved with the body's return value on completion
+  Promise *result;   // resolved with the body's return value on completion
   int64_t resumeVal; // value handed to the fiber when the scheduler resumes it
   int done;
+  // This fiber's own exception-handler stack (empty until it enters a `try`). Saved here while the
+  // fiber is suspended; installed as the active stack while it runs.
+  void **h_stack;
+  int h_n;
+  int h_cap;
 };
 
 // The scheduler's own context (the "main" stack the event loop runs on) and the currently running
 // fiber. A single global scheduler is enough — this runtime is single-threaded, like Node.
 static ucontext_t cs_sched_ctx;
 static Fiber *cs_current_fiber = NULL;
+
+// Run `f` (via a swap from context `from`) with ITS handler stack active: save the caller's stack,
+// install the fiber's, run until it yields, then save the fiber's back and restore the caller's.
+// Every entry into a fiber (initial spawn + each event-loop resume) goes through here.
+static void cs_enter_fiber(Fiber *f, ucontext_t *from) {
+  void **savedStack;
+  int savedN, savedCap;
+  cs_handler_ctx_get(&savedStack, &savedN, &savedCap);
+  cs_handler_ctx_set(f->h_stack, f->h_n, f->h_cap);
+  Fiber *prev = cs_current_fiber;
+  cs_current_fiber = f;
+  swapcontext(from, &f->ctx);
+  cs_current_fiber = prev;
+  cs_handler_ctx_get(&f->h_stack, &f->h_n, &f->h_cap); // the fiber's stack may have grown
+  cs_handler_ctx_set(savedStack, savedN, savedCap);
+}
+
 
 // Microtask queue: fibers ready to run, FIFO. A GROWABLE ring buffer — an explicit `count`
 // distinguishes full from empty (the old fixed 4096 ring had no overflow check: a full queue looked
@@ -143,16 +169,16 @@ Promise *cs_fiber_spawn(void (*body)(void *), void *arg) {
   f->result = cs_promise_new();
   f->done = 0;
   f->resumeVal = 0;
+  f->h_stack = NULL; // a fresh, empty handler stack
+  f->h_n = 0;
+  f->h_cap = 0;
   getcontext(&f->ctx);
   f->ctx.uc_stack.ss_sp = GC_malloc(CS_FIBER_STACK);
   f->ctx.uc_stack.ss_size = CS_FIBER_STACK;
   f->ctx.uc_link = &cs_sched_ctx;
   makecontext(&f->ctx, cs_fiber_trampoline, 0);
 
-  Fiber *prev = cs_current_fiber;
-  cs_current_fiber = f;
-  swapcontext(&cs_sched_ctx, &f->ctx); // run until first suspend/completion
-  cs_current_fiber = prev;
+  cs_enter_fiber(f, &cs_sched_ctx); // run until first suspend/completion, with f's handler stack
   return f->result;
 }
 
@@ -192,9 +218,6 @@ void cs_run_event_loop(void) {
   Fiber *f;
   while ((f = cs_mtq_pop()) != NULL) {
     if (f->done) continue;
-    Fiber *prev = cs_current_fiber;
-    cs_current_fiber = f;
-    swapcontext(&cs_sched_ctx, &f->ctx);
-    cs_current_fiber = prev;
+    cs_enter_fiber(f, &cs_sched_ctx); // resume with the fiber's own handler stack installed
   }
 }

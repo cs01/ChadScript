@@ -85,15 +85,39 @@ typedef struct {
   CsThrown *thrown;
 } CsHandler;
 
-#define CS_MAX_HANDLERS 1024
-static CsHandler *cs_handlers[CS_MAX_HANDLERS];
+// The active handler stack: a GROWABLE array + count. It is SWAPPABLE (cs_handler_ctx_get/set) so
+// each async fiber runs with its OWN stack — the async runtime saves/installs a fiber's stack around
+// every resume, so concurrent `try/catch` blocks suspended across `await` never corrupt each other's
+// handler indices. The main/scheduler thread just uses whatever stack is installed (its own by
+// default). NULL/0/0 is a valid empty stack.
+static CsHandler **cs_handlers = NULL;
 static int cs_handler_n = 0;
+static int cs_handler_cap = 0;
+
+// Save the active handler-stack context (for the async runtime to stash per fiber) and install a
+// previously-saved one. Opaque `void**` so async.c needn't know CsHandler.
+void cs_handler_ctx_get(void ***stack, int *n, int *cap) {
+  *stack = (void **)cs_handlers;
+  *n = cs_handler_n;
+  *cap = cs_handler_cap;
+}
+void cs_handler_ctx_set(void **stack, int n, int cap) {
+  cs_handlers = (CsHandler **)stack;
+  cs_handler_n = n;
+  cs_handler_cap = cap;
+}
 
 // Allocate a handler for a `try` (GC-managed; codegen calls setjmp on it directly).
 void *cs_handler_alloc(void) { return GC_malloc(sizeof(CsHandler)); }
 void cs_push_handler(void *h) {
-  if (cs_handler_n < CS_MAX_HANDLERS) cs_handlers[cs_handler_n] = h;
-  cs_handler_n++;
+  if (cs_handler_n == cs_handler_cap) {
+    int nc = cs_handler_cap ? cs_handler_cap * 2 : 16;
+    CsHandler **nb = GC_malloc((size_t)nc * sizeof(CsHandler *));
+    for (int i = 0; i < cs_handler_n; i++) nb[i] = cs_handlers[i];
+    cs_handlers = nb;
+    cs_handler_cap = nc;
+  }
+  cs_handlers[cs_handler_n++] = h;
 }
 void cs_pop_handler(void) {
   if (cs_handler_n > 0) cs_handler_n--;
