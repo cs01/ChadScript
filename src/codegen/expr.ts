@@ -929,7 +929,9 @@ export function evalSetPredicate(
 // Ternary `cond ? a : b`. Branches may have side effects, so each arm is evaluated in its own
 // block and merged through a result slot (not a `select`, which would evaluate both arms).
 export function evalConditional(expr: Extract<HExpr, { kind: "conditional" }>, ctx: Ctx): Value {
-  const cond = evalBool(expr.cond, ctx);
+  // JS applies ToBoolean to the condition — route through toBool (type-aware truthiness), NOT
+  // evalBool, whose varRef case type-blindly loads an i1 and misreads string/number conditions.
+  const cond = toBool(expr.cond, ctx);
   const result = ctx.fn.alloca(irTypeOf(expr.type));
   const trueB = ctx.fn.newBlock("cond.true");
   const falseB = ctx.fn.newBlock("cond.false");
@@ -1310,8 +1312,12 @@ export function truthyOfValue(v: Value, vt: ValueType, ctx: Ctx): Value {
       return v;
     case "number":
       return ctx.fn.fcmp("one", v, fimm(0));
-    case "string":
-      return ice("truthiness: string truthiness not supported yet");
+    case "string": {
+      // JS: a string is truthy iff its length > 0 (only "" is falsy). cs_str_len is byte length,
+      // ASCII-exact per the subset; NUL bytes count, so "\0" is truthy — matching Node.
+      const len = ctx.fn.call("@cs_str_len", T.i32, [v]);
+      return ctx.fn.icmp("ne", len, imm(T.i32, 0));
+    }
     default:
       return ice(`truthiness: ${vt.kind} not supported yet`);
   }
