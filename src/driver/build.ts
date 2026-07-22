@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import { join, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { lower } from "../lower/lower.js";
+import { verifyHir } from "../hir/verify.js";
 import { generate } from "../codegen/codegen.js";
 import { CLANG, GC_CFLAGS, GC_LFLAGS } from "./toolchain.js";
 import type { LoadedProgram } from "../frontend/program.js";
@@ -44,9 +45,10 @@ export function runtimeObjects(): string[] {
   });
 }
 
-// frontend (loaded) → lower (HIR) → codegen (IR). The checker stops at lower.
+// frontend (loaded) → lower (HIR) → verify → codegen (IR). The checker stops at lower; verifyHir
+// then proves every HIR node is typed before the backend (which has zero inference) runs.
 export function emitIr(loaded: LoadedProgram): string {
-  return generate(lower(loaded));
+  return generate(verifyHir(lower(loaded)));
 }
 
 function linkArgs(llPath: string, outPath: string, opt: "0" | "2", objs: string[]): string[] {
