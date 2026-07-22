@@ -111,6 +111,11 @@ export type HExpr =
   // `a ?? b`: if `a` is undefined, evaluate `b`; else unwrap `a`. `type` is the (non-optional)
   // result type.
   | { kind: "coalesce"; left: HExpr; right: HExpr; type: ValueType }
+  // Unwrap a narrowed optional to its inner value. Emitted by lower when a var whose DECLARED
+  // type is optional is used at a narrowed (non-optional) type (after `x !== undefined`).
+  | { kind: "unwrap"; value: HExpr; type: ValueType }
+  // `x === undefined` / `x !== undefined` → boolean (compares against the sentinel).
+  | { kind: "nullCheck"; value: HExpr; isEqual: boolean; type: ValueType }
   // `arr.push(value)` → the new length (number). `elementType` says how to box the value.
   | { kind: "arrayPush"; array: HExpr; value: HExpr; elementType: ValueType; type: ValueType }
   // Object literal `{ f: v, ... }`. `fields` are in SHAPE (record-slot) order — lower reorders

@@ -27,6 +27,11 @@ interface LowerCtx {
   currentThis: { name: string; type: ValueType } | null;
 }
 
+// The `undefined` literal (a global identifier in TS).
+function isUndefinedLiteral(e: ts.Expression): boolean {
+  return ts.isIdentifier(e) && e.text === "undefined";
+}
+
 // A property whose declaration is a method (as opposed to a data field).
 function isMethodSymbol(sym: ts.Symbol): boolean {
   const d = sym.valueDeclaration;
@@ -129,6 +134,28 @@ function lowerFunction(decl: ts.FunctionDeclaration, ctx: LowerCtx): HFunc {
     returnType: returnTypeOf(decl, ctx),
     body: lowerStatements(decl.body.statements, ctx),
   };
+}
+
+// A bare identifier in expression position is a variable reference. If the variable's DECLARED
+// type is optional but it is being used here at a narrowed (non-optional) type — i.e. inside an
+// `if (x !== undefined)` guard — emit an `unwrap` so codegen unboxes the stored optional.
+function lowerIdentifier(ident: ts.Identifier, ctx: LowerCtx, useType: ValueType): HExpr {
+  const sym = ctx.checker.getSymbolAtLocation(ident);
+  if (sym?.valueDeclaration && useType.kind !== "optional") {
+    const declared = valueTypeOfTsType(
+      ctx.checker.getTypeOfSymbolAtLocation(sym, sym.valueDeclaration),
+      ident,
+      ctx.checker,
+    );
+    if (declared.kind === "optional") {
+      return {
+        kind: "unwrap",
+        value: { kind: "varRef", name: nameForSymbol(sym, ident.text, ctx), type: declared },
+        type: useType,
+      };
+    }
+  }
+  return { kind: "varRef", name: nameOf(ident, ctx), type: useType };
 }
 
 // The stable HIR name for the variable an identifier resolves to. Falls back to the source
@@ -560,9 +587,7 @@ function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
       return { kind: "boolLit", value: false, type };
 
     case ts.SyntaxKind.Identifier:
-      // A bare identifier in expression position is a variable reference (callees like
-      // console.log are handled separately in calleeName, never through lowerExpr).
-      return { kind: "varRef", name: nameOf(expr as ts.Identifier, ctx), type };
+      return lowerIdentifier(expr as ts.Identifier, ctx, type);
 
     case ts.SyntaxKind.CallExpression:
       return lowerCall(expr as ts.CallExpression, ctx);
@@ -677,6 +702,22 @@ function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
           right: lowerExpr(b.right, ctx),
           type,
         };
+      }
+      // `x === undefined` / `x !== undefined` → a sentinel check (the other operand is optional).
+      if (
+        opKind === ts.SyntaxKind.EqualsEqualsEqualsToken ||
+        opKind === ts.SyntaxKind.ExclamationEqualsEqualsToken
+      ) {
+        const lU = isUndefinedLiteral(b.left);
+        const rU = isUndefinedLiteral(b.right);
+        if (lU || rU) {
+          return {
+            kind: "nullCheck",
+            value: lowerExpr(lU ? b.right : b.left, ctx),
+            isEqual: opKind === ts.SyntaxKind.EqualsEqualsEqualsToken,
+            type,
+          };
+        }
       }
       return {
         kind: "binary",

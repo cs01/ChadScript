@@ -111,6 +111,8 @@ export function evalObjectPtr(expr: HExpr, ctx: Ctx): Value {
       return evalMemberGet(expr, ctx);
     case "coalesce":
       return evalCoalesce(expr, ctx);
+    case "unwrap":
+      return evalUnwrap(expr, ctx);
     default:
       return ice(`evalObjectPtr: unhandled object expression ${expr.kind}`);
   }
@@ -161,6 +163,24 @@ function evalIndex(expr: Extract<HExpr, { kind: "index" }>, ctx: Ctx): Value {
   return ctx.fn.load(T.ptr, result);
 }
 
+// Unbox a present optional pointer (a box) to its inner value.
+export function unboxOptionalValue(optPtr: Value, innerType: ValueType, ctx: Ctx): Value {
+  return unboxSlot(ctx.fn.load(T.i64, optPtr), innerType, ctx);
+}
+
+// Unwrap a narrowed optional (proven present by an `x !== undefined` guard): load its box and
+// unbox to the inner type.
+export function evalUnwrap(expr: Extract<HExpr, { kind: "unwrap" }>, ctx: Ctx): Value {
+  return unboxOptionalValue(evalOptionalPtr(expr.value, ctx), expr.type, ctx);
+}
+
+// `x === undefined` / `x !== undefined` → i1 (compare the optional pointer to the sentinel).
+export function evalNullCheck(expr: Extract<HExpr, { kind: "nullCheck" }>, ctx: Ctx): Value {
+  const opt = evalOptionalPtr(expr.value, ctx);
+  const sentinel = ctx.mod.externGlobal("cs_undefined_marker");
+  return ctx.fn.icmp(expr.isEqual ? "eq" : "ne", opt, sentinel);
+}
+
 // `a ?? b`: if `a` is the undefined sentinel, use `b`; else unwrap the boxed inner value.
 export function evalCoalesce(expr: Extract<HExpr, { kind: "coalesce" }>, ctx: Ctx): Value {
   const opt = evalOptionalPtr(expr.left, ctx);
@@ -205,6 +225,8 @@ export function evalArrayPtr(expr: HExpr, ctx: Ctx): Value {
       return evalStrMethod(expr, ctx); // e.g. "a,b".split(",")
     case "coalesce":
       return evalCoalesce(expr, ctx);
+    case "unwrap":
+      return evalUnwrap(expr, ctx);
     default:
       return ice(`evalArrayPtr: unhandled array expression ${expr.kind}`);
   }
@@ -300,6 +322,8 @@ export function evalValue(expr: HExpr, ctx: Ctx): Value {
       return evalArrayPtr(expr, ctx);
     case "object":
       return evalObjectPtr(expr, ctx);
+    case "optional":
+      return evalOptionalPtr(expr, ctx);
     default:
       return ice(`evalValue: ${expr.type.kind} not supported yet`);
   }
@@ -333,6 +357,8 @@ export function evalString(expr: HExpr, ctx: Ctx): Value {
       return evalStrMethod(expr, ctx);
     case "coalesce":
       return evalCoalesce(expr, ctx);
+    case "unwrap":
+      return evalUnwrap(expr, ctx);
     default:
       return ice(`evalString: unhandled string expression ${expr.kind}`);
   }
@@ -393,6 +419,9 @@ export function evalNumber(expr: HExpr, ctx: Ctx): Value {
 
     case "coalesce":
       return evalCoalesce(expr, ctx);
+
+    case "unwrap":
+      return evalUnwrap(expr, ctx);
 
     case "arrayLen":
       // JS .length is a number; the runtime returns an i32 count.
@@ -561,6 +590,12 @@ export function evalBool(expr: HExpr, ctx: Ctx): Value {
 
     case "coalesce":
       return evalCoalesce(expr, ctx);
+
+    case "unwrap":
+      return evalUnwrap(expr, ctx);
+
+    case "nullCheck":
+      return evalNullCheck(expr, ctx);
 
     default:
       return ice(`evalBool: unhandled boolean expression ${expr.kind}`);
