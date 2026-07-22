@@ -27,10 +27,14 @@ typedef struct Waiter {
 
 typedef struct Promise {
   int state;
-  int64_t value;      // boxed i64 slot (same boxing as arrays/maps) once fulfilled
-  const char *reason; // rejection message
+  int64_t value; // boxed i64 slot (same boxing as arrays/maps) once fulfilled
+  void *reason;  // the rejection value: a CsThrown* (opaque here), thrown into an awaiter
   Waiter *waiters;
 } Promise;
+
+// The exception machinery lives in runtime.c; a rejected `await` throws into the awaiting fiber via
+// the same handler chain as a synchronous `throw`, so `try/catch` around `await` catches it.
+extern void cs_throw(void *thrown);
 
 struct Fiber {
   ucontext_t ctx;
@@ -102,6 +106,16 @@ Promise *cs_promise_resolved(int64_t boxedValue) {
   return p;
 }
 
+// Reject a promise with a thrown value (a CsThrown*). Waiters are still scheduled as microtasks;
+// each awaiter, on resume, sees the REJECTED state and throws `reason` into its own handler chain.
+void cs_promise_reject(Promise *p, void *reason) {
+  if (p->state != CS_PENDING) return;
+  p->state = CS_REJECTED;
+  p->reason = reason;
+  for (Waiter *w = p->waiters; w; w = w->next) cs_mtq_push(w->fiber);
+  p->waiters = NULL;
+}
+
 // The trampoline every fiber's stack starts in: run the body, resolve the result, return to the
 // scheduler. `body` is the compiled async function (it resolves nothing itself; its return value
 // is resolved here via cs_fiber_return).
@@ -142,8 +156,10 @@ Promise *cs_fiber_spawn(void (*body)(void *), void *arg) {
   return f->result;
 }
 
-// await(p): if pending, register + suspend; either way yield a microtask so ordering matches Node
-// (later synchronous code runs before the continuation). Returns the fulfilled boxed value.
+// await(p): if pending, register + suspend until it settles; if already settled, still yield a
+// microtask so ordering matches Node (later synchronous code runs before the continuation). On a
+// FULFILLED promise, returns its boxed value; on a REJECTED one, THROWS `reason` into this fiber's
+// handler chain (so a `try/catch` around the await catches it), exactly like a synchronous throw.
 int64_t cs_await(Promise *p) {
   Fiber *self = cs_current_fiber;
   if (p->state == CS_PENDING) {
@@ -159,14 +175,16 @@ int64_t cs_await(Promise *p) {
       while (t->next) t = t->next;
       t->next = w;
     }
-    swapcontext(&self->ctx, &cs_sched_ctx); // suspend until resolved
-    return self->resumeVal;
+    swapcontext(&self->ctx, &cs_sched_ctx); // suspend until settled
+  } else {
+    // Already settled: still yield a microtask to preserve ordering.
+    self->resumeVal = p->value;
+    cs_mtq_push(self);
+    swapcontext(&self->ctx, &cs_sched_ctx);
   }
-  // Already settled: still yield a microtask to preserve ordering.
-  self->resumeVal = p->value;
-  cs_mtq_push(self);
-  swapcontext(&self->ctx, &cs_sched_ctx);
-  return self->resumeVal;
+  // Resumed: the promise is now settled. A rejection surfaces as a throw into this fiber.
+  if (p->state == CS_REJECTED) cs_throw(p->reason);
+  return p->value;
 }
 
 // Drain the microtask queue, resuming each ready fiber. (Timers/IO extend this in a later slice.)
