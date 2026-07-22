@@ -52,6 +52,10 @@ function boxSlot(v: Value, elemType: ValueType, ctx: Ctx): Value {
   switch (elemType.kind) {
     case "number":
       return ctx.fn.bitcastDoubleToI64(v);
+    case "string":
+      return ctx.fn.ptrToI64(v);
+    case "boolean":
+      return ctx.fn.zextI1ToI64(v);
     default:
       return ice(`array element boxing not supported for ${elemType.kind} yet`);
   }
@@ -61,6 +65,10 @@ function unboxSlot(slot: Value, elemType: ValueType, ctx: Ctx): Value {
   switch (elemType.kind) {
     case "number":
       return ctx.fn.bitcastI64ToDouble(slot);
+    case "string":
+      return ctx.fn.i64ToPtr(slot);
+    case "boolean":
+      return ctx.fn.truncI64ToI1(slot);
     default:
       return ice(`array element unboxing not supported for ${elemType.kind} yet`);
   }
@@ -194,6 +202,13 @@ export function evalNumber(expr: HExpr, ctx: Ctx): Value {
     case "arrayLen":
       // JS .length is a number; the runtime returns an i32 count.
       return ctx.fn.sitofp(ctx.fn.call("@cs_array_len", T.i32, [evalArrayPtr(expr.array, ctx)]));
+
+    case "arrayPush": {
+      // push returns the new length (a number). Box the value into a slot first.
+      const arr = evalArrayPtr(expr.array, ctx);
+      const slot = boxSlot(evalValue(expr.value, ctx), expr.elementType, ctx);
+      return ctx.fn.sitofp(ctx.fn.call("@cs_array_push", T.i32, [arr, slot]));
+    }
 
     case "logical":
       return evalLogical(expr, ctx);

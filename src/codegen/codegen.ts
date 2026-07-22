@@ -186,6 +186,11 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
       return;
     }
 
+    case "exprStmt":
+      // Evaluate for side effects; discard the value (e.g. `arr.push(x);`).
+      evalValue(stmt.expr, ctx);
+      return;
+
     case "varDecl": {
       // Allocate a slot, evaluate the initializer, store it, and bind the name.
       const ptr = ctx.fn.alloca(irTypeOf(stmt.type));

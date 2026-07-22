@@ -266,8 +266,11 @@ function lowerCallStatement(call: ts.CallExpression, ctx: LowerCtx): HStmt {
       return { kind: "processExit", code: lowerExpr(arg, ctx) };
     }
     default: {
-      // A user-function call in statement position: evaluate for effect, discard the result
-      // (which may be void).
+      // A method call `obj.method(...)` in statement position → evaluate for effect, discard.
+      if (ts.isPropertyAccessExpression(call.expression)) {
+        return { kind: "exprStmt", expr: lowerMethodCall(call, ctx) };
+      }
+      // A user-function call in statement position: evaluate for effect, discard the result.
       if (!ts.isIdentifier(call.expression)) {
         return ice(`lower: unsupported call target ${ts.SyntaxKind[call.expression.kind]}`);
       }
@@ -281,9 +284,11 @@ function lowerCallStatement(call: ts.CallExpression, ctx: LowerCtx): HStmt {
   }
 }
 
-// A call to a user function `foo(args)` used as a value — callee must be a plain identifier
-// (no methods yet) and the return type must be non-void (tsc rejects void in value position).
+// A call used as a value: a user function `foo(args)` or a method `obj.method(args)`.
 function lowerCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
+  if (ts.isPropertyAccessExpression(call.expression)) {
+    return lowerMethodCall(call, ctx);
+  }
   if (!ts.isIdentifier(call.expression)) {
     return ice(`lower: unsupported call target ${ts.SyntaxKind[call.expression.kind]}`);
   }
@@ -293,6 +298,26 @@ function lowerCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
     args: call.arguments.map((a) => lowerExpr(a, ctx)),
     type: valueTypeOf(call, ctx),
   };
+}
+
+// A method call `obj.method(args)`. Dispatched on the receiver's type + method name.
+function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
+  const pa = call.expression as ts.PropertyAccessExpression;
+  const recvType = resolveType(pa.expression, ctx);
+  const method = pa.name.text;
+  if (recvType.kind === "array") {
+    if (method === "push") {
+      return {
+        kind: "arrayPush",
+        array: lowerExpr(pa.expression, ctx),
+        value: lowerExpr(call.arguments[0]!, ctx),
+        elementType: recvType.element,
+        type: VT.number,
+      };
+    }
+    return ice(`lower: unsupported array method .${method}`);
+  }
+  return ice(`lower: unsupported method .${method} on ${recvType.kind}`);
 }
 
 // The return type of a call as a ValueType, or null if void.

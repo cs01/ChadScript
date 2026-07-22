@@ -242,6 +242,32 @@ export class FuncBuilder {
     return result;
   }
 
+  // ptr ↔ i64 and i1 ↔ i64 — for boxing string/boolean elements into uniform array slots.
+  ptrToI64(a: Value): Value {
+    if (a.type.kind !== "ptr") ice(`ptrtoint needs ptr, got ${a.type.kind}`);
+    const result = this.nextTemp(T.i64);
+    this.current.add(`${result.name} = ptrtoint ptr ${a.name} to i64`);
+    return result;
+  }
+  i64ToPtr(a: Value): Value {
+    if (a.type.kind !== "i64") ice(`inttoptr needs i64, got ${a.type.kind}`);
+    const result = this.nextTemp(T.ptr);
+    this.current.add(`${result.name} = inttoptr i64 ${a.name} to ptr`);
+    return result;
+  }
+  zextI1ToI64(a: Value): Value {
+    if (a.type.kind !== "i1") ice(`zext i1→i64 needs i1, got ${a.type.kind}`);
+    const result = this.nextTemp(T.i64);
+    this.current.add(`${result.name} = zext i1 ${a.name} to i64`);
+    return result;
+  }
+  truncI64ToI1(a: Value): Value {
+    if (a.type.kind !== "i64") ice(`trunc i64→i1 needs i64, got ${a.type.kind}`);
+    const result = this.nextTemp(T.i1);
+    this.current.add(`${result.name} = trunc i64 ${a.name} to i1`);
+    return result;
+  }
+
   // Logical not on an i1: xor with true.
   logicalNot(a: Value): Value {
     if (a.type.kind !== "i1") ice(`logicalNot requires an i1 operand, got ${a.type.kind}`);

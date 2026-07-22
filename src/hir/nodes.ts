@@ -54,7 +54,9 @@ export type HStmt =
   // the discriminant's type (cases are matched with `===`).
   | { kind: "switch"; disc: HExpr; discType: ValueType; cases: HCase[] }
   // A call in statement position — result discarded. `returnType` null means a void function.
-  | { kind: "callStmt"; name: string; args: HExpr[]; returnType: ValueType | null };
+  | { kind: "callStmt"; name: string; args: HExpr[]; returnType: ValueType | null }
+  // An expression evaluated for its side effects only, result discarded (e.g. `arr.push(x);`).
+  | { kind: "exprStmt"; expr: HExpr };
 
 export interface HCase {
   test: HExpr | null; // null = the `default` clause
@@ -96,6 +98,8 @@ export type HExpr =
   | { kind: "arrayLit"; elements: HExpr[]; type: ValueType }
   // `arr.length` → number.
   | { kind: "arrayLen"; array: HExpr; type: ValueType }
+  // `arr.push(value)` → the new length (number). `elementType` says how to box the value.
+  | { kind: "arrayPush"; array: HExpr; value: HExpr; elementType: ValueType; type: ValueType }
   | { kind: "unary"; op: UnaryOp; operand: HExpr; type: ValueType }
   | { kind: "binary"; op: BinaryOp; left: HExpr; right: HExpr; type: ValueType }
   // Short-circuiting `&&` / `||`. JS VALUE semantics: the result IS one of the operands (not a
