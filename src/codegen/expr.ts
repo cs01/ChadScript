@@ -987,6 +987,7 @@ const STR_METHODS: Record<string, { fn: string; ret: StrRet }> = {
   replaceAll: { fn: "@cs_str_replaceAll", ret: "string" },
   repeat: { fn: "@cs_str_repeat", ret: "string" },
   charAt: { fn: "@cs_str_char_at", ret: "string" },
+  charCodeAt: { fn: "@cs_str_char_code_at", ret: "number" },
   replace: { fn: "@cs_str_replace", ret: "string" },
   split: { fn: "@cs_str_split", ret: "array" },
   includes: { fn: "@cs_str_includes", ret: "bool" },
