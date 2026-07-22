@@ -10,6 +10,7 @@ import { ice } from "../diagnostics.js";
 import { ModuleBuilder, imm, type Value } from "../ir/builder.js";
 import { T } from "../ir/types.js";
 import type { HModule, HStmt, HExpr, HFunc } from "../hir/nodes.js";
+import type { ValueType } from "../hir/types.js";
 import {
   evalNumber,
   evalBool,
@@ -32,6 +33,7 @@ export function generate(hmod: HModule): string {
   mod.declareExtern("cs_str_concat", T.ptr, [T.ptr, T.ptr]);
   mod.declareExtern("cs_num_to_string", T.ptr, [T.double]);
   mod.declareExtern("cs_bool_to_string", T.ptr, [T.i32]);
+  mod.declareExtern("cs_str_eq", T.i32, [T.ptr, T.ptr]);
   mod.declareExtern("exit", T.void, [T.i32]);
 
   // User functions first (order doesn't matter — LLVM resolves calls by name, so recursion and
@@ -40,7 +42,7 @@ export function generate(hmod: HModule): string {
 
   // The synthesized entry function holds the top-level statements.
   const main = mod.defineFunc("main", T.i32, []);
-  const ctx: Ctx = { mod, fn: main, vars: new Map(), loops: [] };
+  const ctx: Ctx = { mod, fn: main, vars: new Map(), breakTargets: [], continueTargets: [] };
   emitStatements(hmod.topLevel, ctx);
   main.ret(imm(T.i32, 0));
   return mod.render();
@@ -60,7 +62,7 @@ function emitFunction(f: HFunc, mod: ModuleBuilder): void {
   const retType = f.returnType ? irTypeOf(f.returnType) : T.void;
   const irParams: Value[] = f.params.map((p, i) => ({ name: `%arg${i}`, type: irTypeOf(p.type) }));
   const fn = mod.defineFunc(f.name, retType, irParams);
-  const ctx: Ctx = { mod, fn, vars: new Map(), loops: [] };
+  const ctx: Ctx = { mod, fn, vars: new Map(), breakTargets: [], continueTargets: [] };
 
   // Copy each parameter into a stack slot so it can be reassigned like any local (JS allows
   // reassigning parameters), and bind the name to that slot.
@@ -96,6 +98,53 @@ function emitPrintValue(v: HExpr, ctx: Ctx): void {
     default:
       ice(`codegen: console.log of ${v.type.kind} not supported yet`);
   }
+}
+
+// Strict-equality (`===`) of two already-computed Values, dispatched on their shared type.
+// Matches JS: numbers via ordered fcmp oeq (NaN===NaN false), booleans via icmp, strings via
+// the runtime string compare.
+function emitStrictEq(a: Value, b: Value, type: ValueType, ctx: Ctx): Value {
+  switch (type.kind) {
+    case "number":
+      return ctx.fn.fcmp("oeq", a, b);
+    case "boolean":
+      return ctx.fn.icmp("eq", a, b);
+    case "string":
+      return ctx.fn.icmp("ne", ctx.fn.call("@cs_str_eq", T.i32, [a, b]), imm(T.i32, 0));
+    default:
+      return ice(`emitStrictEq: ${type.kind} not supported`);
+  }
+}
+
+// `switch` with JS fall-through: dispatch each case value against the discriminant (===), then
+// lay bodies out so a non-terminating body falls into the next. `break` targets the end.
+function emitSwitch(stmt: Extract<HStmt, { kind: "switch" }>, ctx: Ctx): void {
+  const disc = evalValue(stmt.disc, ctx);
+  const bodies = stmt.cases.map(() => ctx.fn.newBlock("case.body"));
+  const endB = ctx.fn.newBlock("switch.end");
+  const defaultIdx = stmt.cases.findIndex((c) => c.test === null);
+
+  // Dispatch chain: test each non-default case in order; on match jump to its body.
+  stmt.cases.forEach((c, i) => {
+    if (c.test === null) return;
+    const eq = emitStrictEq(disc, evalValue(c.test, ctx), stmt.discType, ctx);
+    const next = ctx.fn.newBlock("case.test");
+    ctx.fn.brCond(eq, bodies[i]!, next);
+    ctx.fn.switchTo(next);
+  });
+  // No case matched → default (wherever it sits) or past the end.
+  ctx.fn.br(defaultIdx >= 0 ? bodies[defaultIdx]! : endB);
+
+  // Bodies, in order, with fall-through to the next body.
+  ctx.breakTargets.push(endB);
+  stmt.cases.forEach((c, i) => {
+    ctx.fn.switchTo(bodies[i]!);
+    emitStatements(c.body, ctx);
+    if (!ctx.fn.currentBlock.isTerminated) ctx.fn.br(bodies[i + 1] ?? endB);
+  });
+  ctx.breakTargets.pop();
+
+  ctx.fn.switchTo(endB);
 }
 
 function emitStatement(stmt: HStmt, ctx: Ctx): void {
@@ -180,9 +229,11 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
 
       ctx.fn.switchTo(bodyB);
       // break → end, continue → header (re-check condition).
-      ctx.loops.push({ breakTo: endB, continueTo: headerB });
+      ctx.breakTargets.push(endB);
+      ctx.continueTargets.push(headerB);
       emitStatements(stmt.body, ctx);
-      ctx.loops.pop();
+      ctx.breakTargets.pop();
+      ctx.continueTargets.pop();
       if (!ctx.fn.currentBlock.isTerminated) ctx.fn.br(headerB);
 
       ctx.fn.switchTo(endB);
@@ -204,9 +255,11 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
 
       ctx.fn.switchTo(bodyB);
       // break → end, continue → latch (so the update still runs before re-checking).
-      ctx.loops.push({ breakTo: endB, continueTo: latchB });
+      ctx.breakTargets.push(endB);
+      ctx.continueTargets.push(latchB);
       emitStatements(stmt.body, ctx);
-      ctx.loops.pop();
+      ctx.breakTargets.pop();
+      ctx.continueTargets.pop();
       if (!ctx.fn.currentBlock.isTerminated) ctx.fn.br(latchB);
 
       ctx.fn.switchTo(latchB);
@@ -218,18 +271,22 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
     }
 
     case "break": {
-      const loop = ctx.loops[ctx.loops.length - 1];
-      if (!loop) ice("codegen: break outside a loop");
-      ctx.fn.br(loop.breakTo);
+      const target = ctx.breakTargets[ctx.breakTargets.length - 1];
+      if (!target) ice("codegen: break outside a loop or switch");
+      ctx.fn.br(target);
       return;
     }
 
     case "continue": {
-      const loop = ctx.loops[ctx.loops.length - 1];
-      if (!loop) ice("codegen: continue outside a loop");
-      ctx.fn.br(loop.continueTo);
+      const target = ctx.continueTargets[ctx.continueTargets.length - 1];
+      if (!target) ice("codegen: continue outside a loop");
+      ctx.fn.br(target);
       return;
     }
+
+    case "switch":
+      emitSwitch(stmt, ctx);
+      return;
 
     default:
       ice(`codegen: unhandled statement ${(stmt as { kind: string }).kind}`);

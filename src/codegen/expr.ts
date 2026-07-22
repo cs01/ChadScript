@@ -16,19 +16,15 @@ import { T, type IrType } from "../ir/types.js";
 import type { HExpr, BinaryOp } from "../hir/nodes.js";
 import type { ValueType } from "../hir/types.js";
 
-// The block a `break` / `continue` jumps to, for the innermost enclosing loop.
-export interface LoopTargets {
-  breakTo: BasicBlock;
-  continueTo: BasicBlock;
-}
-
 export interface Ctx {
   mod: ModuleBuilder;
   fn: FuncBuilder;
   // Live variable slots: name → its stack pointer + resolved type.
   vars: Map<string, { ptr: Value; vtype: ValueType }>;
-  // Enclosing loops, innermost last. break/continue target the top.
-  loops: LoopTargets[];
+  // `break` targets (pushed by loops AND switch); `continue` targets (loops only, so continue
+  // inside a switch correctly reaches the enclosing loop). Innermost last.
+  breakTargets: BasicBlock[];
+  continueTargets: BasicBlock[];
 }
 
 // The machine representation of a source-level type.

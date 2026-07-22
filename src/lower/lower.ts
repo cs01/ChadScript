@@ -107,6 +107,9 @@ function lowerStatement(stmt: ts.Statement, ctx: LowerCtx): HStmt[] {
     if (stmt.label) ice("lower: labeled continue not supported yet");
     return [{ kind: "continue" }];
   }
+  if (ts.isSwitchStatement(stmt)) {
+    return [lowerSwitch(stmt, ctx)];
+  }
   if (ts.isBlock(stmt)) {
     // A bare block just contributes its statements (flattened; scoping is enforced by tsc, and
     // shadowing is safe because names are symbol-unique).
@@ -130,6 +133,19 @@ function lowerIf(stmt: ts.IfStatement, ctx: LowerCtx): HStmt {
     cond: lowerExpr(stmt.expression, ctx),
     then: lowerBranchBody(stmt.thenStatement, ctx),
     otherwise: stmt.elseStatement ? lowerBranchBody(stmt.elseStatement, ctx) : null,
+  };
+}
+
+function lowerSwitch(stmt: ts.SwitchStatement, ctx: LowerCtx): HStmt {
+  const cases = stmt.caseBlock.clauses.map((clause) => ({
+    test: ts.isCaseClause(clause) ? lowerExpr(clause.expression, ctx) : null,
+    body: lowerStatements(clause.statements, ctx),
+  }));
+  return {
+    kind: "switch",
+    disc: lowerExpr(stmt.expression, ctx),
+    discType: resolveType(stmt.expression, ctx),
+    cases,
   };
 }
 
@@ -355,6 +371,17 @@ function valueTypeOfTsType(t: ts.Type, node: ts.Node): ValueType {
   if (flags & ts.TypeFlags.BooleanLike) return VT.boolean;
   if (flags & ts.TypeFlags.Null) return VT.null;
   if (flags & ts.TypeFlags.Undefined) return VT.undefined;
+  // Narrowing produces unions (e.g. `switch (n) { case 0: case 1: }` narrows n to `0 | 1`). A
+  // union whose members all share one representation collapses to it; a genuinely mixed union
+  // (different reps) is not in the subset yet.
+  if (flags & ts.TypeFlags.Union) {
+    const members = (t as ts.UnionType).types.map((m) => valueTypeOfTsType(m, node));
+    const first = members[0]!;
+    if (members.every((m) => m.kind === first.kind)) return first;
+    return ice(
+      `lower: mixed-representation union not supported yet at ${ts.SyntaxKind[node.kind]}`,
+    );
+  }
   return ice(`lower: unsupported value type (flags ${flags}) at ${ts.SyntaxKind[node.kind]}`);
 }
 

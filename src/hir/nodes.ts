@@ -47,8 +47,17 @@ export type HStmt =
   // `break;` / `continue;` — target the innermost enclosing loop (no labels yet).
   | { kind: "break" }
   | { kind: "continue" }
+  // `switch (disc) { ... }`. Cases in source order; a case with `test === null` is `default`.
+  // Bodies fall through to the next case unless they break/return (JS semantics). `discType` is
+  // the discriminant's type (cases are matched with `===`).
+  | { kind: "switch"; disc: HExpr; discType: ValueType; cases: HCase[] }
   // A call in statement position — result discarded. `returnType` null means a void function.
   | { kind: "callStmt"; name: string; args: HExpr[]; returnType: ValueType | null };
+
+export interface HCase {
+  test: HExpr | null; // null = the `default` clause
+  body: HStmt[];
+}
 
 export type UnaryOp = "neg" | "pos" | "not" | "bnot";
 export type LogicalOp = "and" | "or";

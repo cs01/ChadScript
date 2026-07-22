@@ -50,6 +50,10 @@ const ALLOWED_KINDS: ReadonlySet<ts.SyntaxKind> = new Set([
   ts.SyntaxKind.ReturnStatement,
   ts.SyntaxKind.BreakStatement,
   ts.SyntaxKind.ContinueStatement,
+  ts.SyntaxKind.SwitchStatement,
+  ts.SyntaxKind.CaseBlock,
+  ts.SyntaxKind.CaseClause,
+  ts.SyntaxKind.DefaultClause,
   ts.SyntaxKind.Block,
   // Functions (Phase 1).
   ts.SyntaxKind.FunctionDeclaration,

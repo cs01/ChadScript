@@ -28,3 +28,6 @@ char *cs_num_to_string(double x) {
 }
 
 const char *cs_bool_to_string(int b) { return b ? "true" : "false"; }
+
+// String equality (for `switch` on strings, and later `===`). 1 if equal, else 0.
+int cs_str_eq(const char *a, const char *b) { return strcmp(a, b) == 0 ? 1 : 0; }

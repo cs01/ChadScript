@@ -5,5 +5,6 @@
 char *cs_str_concat(const char *a, const char *b);
 char *cs_num_to_string(double x);
 const char *cs_bool_to_string(int b);
+int cs_str_eq(const char *a, const char *b);
 
 #endif
