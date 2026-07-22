@@ -110,6 +110,15 @@ export class FuncBuilder {
     return result;
   }
 
+  // Address of element `index` in a pointer array (a vtable: [N x ptr]). Loading it yields a fn
+  // pointer.
+  gepPtr(base: Value, index: number): Value {
+    if (base.type.kind !== "ptr") ice(`gepPtr base must be ptr, got ${base.type.kind}`);
+    const result = this.nextTemp(T.ptr);
+    this.current.add(`${result.name} = getelementptr ptr, ptr ${base.name}, i32 ${index}`);
+    return result;
+  }
+
   load(type: IrType, ptr: Value): Value {
     if (ptr.type.kind !== "ptr") ice(`load source must be ptr, got ${ptr.type.kind}`);
     const result = this.nextTemp(type);
@@ -401,6 +410,25 @@ export class ModuleBuilder {
     const len = bytes.length + 1;
     this.globals.push(`${name} = private unnamed_addr constant [${len} x i8] c"${encoded}\\00"`);
     return { name, type: T.ptr };
+  }
+
+  // Emit a class's vtable as a private constant array of function pointers, and return a ptr to
+  // it. `@Class.vtable` mirrors the `@Class.method` naming (dots are valid in LLVM global names).
+  defineVtable(className: string, fnNames: readonly string[]): Value {
+    const name = `@${className}.vtable`;
+    const n = fnNames.length;
+    if (n === 0) {
+      this.globals.push(`${name} = private constant [0 x ptr] zeroinitializer`);
+    } else {
+      const elems = fnNames.map((f) => `ptr @${f}`).join(", ");
+      this.globals.push(`${name} = private constant [${n} x ptr] [${elems}]`);
+    }
+    return { name, type: T.ptr };
+  }
+
+  // A ptr Value referencing an already-defined vtable global (for storing into a new instance).
+  vtableAddr(className: string): Value {
+    return { name: `@${className}.vtable`, type: T.ptr };
   }
 
   declareExtern(name: string, retType: IrType, paramTypes: readonly IrType[]): void {

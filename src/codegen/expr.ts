@@ -110,11 +110,15 @@ export function evalObjectPtr(expr: HExpr, ctx: Ctx): Value {
       return rec;
     }
     case "new": {
-      // Allocate the record, run the constructor (which sets fields via memberSet on `this`),
-      // then the record is the value of the `new` expression.
-      const rec = ctx.fn.call("@cs_gc_alloc", T.ptr, [imm(T.i64, expr.fieldCount * 8)]);
+      // A class instance reserves record slot 0 for its vtable pointer, so allocate one extra
+      // slot and store the class's vtable there before running the constructor (which sets fields
+      // starting at slot 1 via memberSet).
+      const rec = ctx.fn.call("@cs_gc_alloc", T.ptr, [imm(T.i64, (expr.fieldCount + 1) * 8)]);
+      ctx.fn.store(ctx.fn.ptrToI64(ctx.mod.vtableAddr(expr.className)), ctx.fn.gepSlot(rec, 0));
       const args = expr.args.map((a) => evalValue(a, ctx));
-      ctx.fn.callVoid(`@${expr.className}.constructor`, [rec, ...args]);
+      // Constructors are static: run the nearest declared one (inherited if the class has none).
+      if (expr.ctorClass !== null)
+        ctx.fn.callVoid(`@${expr.ctorClass}.constructor`, [rec, ...args]);
       return rec;
     }
     case "varRef":
@@ -130,6 +134,9 @@ export function evalObjectPtr(expr: HExpr, ctx: Ctx): Value {
     case "callClosure":
       return evalCallClosure(expr, ctx);
 
+    case "virtualCall":
+      return evalVirtualCall(expr, ctx);
+
     case "conditional":
       return evalConditional(expr, ctx);
     default:
@@ -137,10 +144,16 @@ export function evalObjectPtr(expr: HExpr, ctx: Ctx): Value {
   }
 }
 
+// Record-slot offset added to a field index: a class instance reserves slot 0 for its vtable
+// pointer, so its fields start at slot 1; a plain object literal has no header.
+export function headerOffset(objectType: ValueType): number {
+  return objectType.kind === "object" && objectType.className !== undefined ? 1 : 0;
+}
+
 // Read `obj.field`: load the field's i64 slot and unbox it to the field type.
 export function evalMemberGet(expr: Extract<HExpr, { kind: "memberGet" }>, ctx: Ctx): Value {
   const obj = evalObjectPtr(expr.object, ctx);
-  const raw = ctx.fn.load(T.i64, ctx.fn.gepSlot(obj, expr.slot));
+  const raw = ctx.fn.load(T.i64, ctx.fn.gepSlot(obj, expr.slot + headerOffset(expr.object.type)));
   return unboxSlot(raw, expr.type, ctx);
 }
 
@@ -166,6 +179,7 @@ export function evalOptionalPtr(expr: HExpr, ctx: Ctx): Value {
   if (expr.kind === "nullOpt") return ctx.mod.externGlobal("cs_null_marker");
   if (expr.kind === "call") return evalCall(expr, ctx);
   if (expr.kind === "callClosure") return evalCallClosure(expr, ctx);
+  if (expr.kind === "virtualCall") return evalVirtualCall(expr, ctx);
   if (expr.kind === "conditional") return evalConditional(expr, ctx);
   if (expr.kind === "coalesce") return evalCoalesce(expr, ctx);
   if (expr.kind === "arrayHof") return evalArrayHof(expr, ctx); // .find() → element | undefined
@@ -306,6 +320,9 @@ export function evalArrayPtr(expr: HExpr, ctx: Ctx): Value {
       return evalUnwrap(expr, ctx);
     case "callClosure":
       return evalCallClosure(expr, ctx);
+
+    case "virtualCall":
+      return evalVirtualCall(expr, ctx);
 
     case "conditional":
       return evalConditional(expr, ctx);
@@ -483,8 +500,44 @@ export function evalFunctionPtr(expr: HExpr, ctx: Ctx): Value {
   if (expr.kind === "varRef") return ctx.fn.load(T.ptr, lookupVar(expr.name, ctx).ptr);
   if (expr.kind === "call") return evalCall(expr, ctx);
   if (expr.kind === "callClosure") return evalCallClosure(expr, ctx);
+  if (expr.kind === "virtualCall") return evalVirtualCall(expr, ctx);
   if (expr.kind === "conditional") return evalConditional(expr, ctx);
   return ice(`evalFunctionPtr: unhandled function expression ${expr.kind}`);
+}
+
+// Virtual method call: load the receiver's vtable pointer (record slot 0), index it for the
+// method's fn pointer, and call it with the receiver prepended. `retType` void → the caller uses
+// the statement form (evalVirtualCallStmt); here a value is always produced.
+export function evalVirtualCall(expr: Extract<HExpr, { kind: "virtualCall" }>, ctx: Ctx): Value {
+  const { obj, fnptr } = loadVirtualTarget(expr.receiver, expr.vtableIndex, ctx);
+  const args = [obj, ...expr.args.map((a) => evalValue(a, ctx))];
+  return ctx.fn.callIndirect(fnptr, irTypeOf(expr.type), args);
+}
+
+// Shared receiver+fnptr resolution for the value and statement forms of a virtual call.
+function loadVirtualTarget(
+  receiver: HExpr,
+  vtableIndex: number,
+  ctx: Ctx,
+): { obj: Value; fnptr: Value } {
+  const obj = evalObjectPtr(receiver, ctx);
+  const vtbl = ctx.fn.i64ToPtr(ctx.fn.load(T.i64, ctx.fn.gepSlot(obj, 0)));
+  const fnptr = ctx.fn.load(T.ptr, ctx.fn.gepPtr(vtbl, vtableIndex));
+  return { obj, fnptr };
+}
+
+// Statement-position virtual call (void methods, or a discarded value). `returnType` null → void.
+export function evalVirtualCallStmt(
+  receiver: HExpr,
+  vtableIndex: number,
+  args: HExpr[],
+  returnType: ValueType | null,
+  ctx: Ctx,
+): void {
+  const { obj, fnptr } = loadVirtualTarget(receiver, vtableIndex, ctx);
+  const argVals = [obj, ...args.map((a) => evalValue(a, ctx))];
+  if (returnType === null) ctx.fn.callIndirectVoid(fnptr, argVals);
+  else ctx.fn.callIndirect(fnptr, irTypeOf(returnType), argVals);
 }
 
 // Call a closure value: load its fnptr + env and invoke fnptr(env, args...).
@@ -740,6 +793,9 @@ export function evalMapPtr(expr: HExpr, ctx: Ctx): Value {
       return evalMemberGet(expr, ctx);
     case "callClosure":
       return evalCallClosure(expr, ctx);
+
+    case "virtualCall":
+      return evalVirtualCall(expr, ctx);
     case "conditional":
       return evalConditional(expr, ctx);
     case "coalesce":
@@ -801,6 +857,9 @@ export function evalSetPtr(expr: HExpr, ctx: Ctx): Value {
       return evalMemberGet(expr, ctx);
     case "callClosure":
       return evalCallClosure(expr, ctx);
+
+    case "virtualCall":
+      return evalVirtualCall(expr, ctx);
     case "conditional":
       return evalConditional(expr, ctx);
     case "coalesce":
@@ -1002,6 +1061,9 @@ export function evalString(expr: HExpr, ctx: Ctx): Value {
     case "callClosure":
       return evalCallClosure(expr, ctx);
 
+    case "virtualCall":
+      return evalVirtualCall(expr, ctx);
+
     case "conditional":
       return evalConditional(expr, ctx);
     default:
@@ -1077,6 +1139,9 @@ export function evalNumber(expr: HExpr, ctx: Ctx): Value {
 
     case "callClosure":
       return evalCallClosure(expr, ctx);
+
+    case "virtualCall":
+      return evalVirtualCall(expr, ctx);
 
     case "conditional":
       return evalConditional(expr, ctx);
@@ -1305,6 +1370,9 @@ export function evalBool(expr: HExpr, ctx: Ctx): Value {
 
     case "callClosure":
       return evalCallClosure(expr, ctx);
+
+    case "virtualCall":
+      return evalVirtualCall(expr, ctx);
 
     case "conditional":
       return evalConditional(expr, ctx);

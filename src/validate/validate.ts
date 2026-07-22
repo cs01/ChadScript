@@ -73,6 +73,7 @@ const ALLOWED_KINDS: ReadonlySet<ts.SyntaxKind> = new Set([
   ts.SyntaxKind.HeritageClause, // `extends Base`
   ts.SyntaxKind.ExpressionWithTypeArguments, // the `Base` in an extends clause
   ts.SyntaxKind.SuperKeyword, // `super(...)` / `super.method(...)`
+  ts.SyntaxKind.OverrideKeyword, // `override method()` (virtual dispatch via vtable)
   // Closures / first-class functions.
   ts.SyntaxKind.ArrowFunction,
   ts.SyntaxKind.FunctionExpression,

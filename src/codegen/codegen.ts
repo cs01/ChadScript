@@ -27,6 +27,9 @@ import {
   irTypeOf,
   lookupVar,
   toBool,
+  headerOffset,
+  evalVirtualCall,
+  evalVirtualCallStmt,
   type Ctx,
 } from "./expr.js";
 
@@ -113,6 +116,10 @@ export function generate(hmod: HModule): string {
   mod.declareExtern("cs_set_size", T.i32, [T.ptr]);
   mod.declareExtern("cs_set_values", T.ptr, [T.ptr]);
   mod.declareExtern("exit", T.void, [T.i32]);
+
+  // Class vtables (constant arrays of method fn pointers); an instance stores a pointer to its
+  // class's vtable in record slot 0 for virtual dispatch.
+  for (const c of hmod.classes) mod.defineVtable(c.name, c.vtable);
 
   // User functions first (order doesn't matter — LLVM resolves calls by name, so recursion and
   // mutual recursion just work).
@@ -311,6 +318,10 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
       return;
     }
 
+    case "virtualCallStmt":
+      evalVirtualCallStmt(stmt.receiver, stmt.vtableIndex, stmt.args, stmt.returnType, ctx);
+      return;
+
     case "exprStmt":
       // Evaluate for side effects; discard the value (e.g. `arr.push(x);`).
       evalValue(stmt.expr, ctx);
@@ -333,10 +344,11 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
     }
 
     case "memberSet": {
-      // Evaluate the object record, box the new value, store it into the field's slot.
+      // Evaluate the object record, box the new value, store it into the field's slot (offset by
+      // the vtable header for class instances).
       const obj = evalObjectPtr(stmt.object, ctx);
       const slot = boxSlot(evalValue(stmt.value, ctx), stmt.value.type, ctx);
-      ctx.fn.store(slot, ctx.fn.gepSlot(obj, stmt.slot));
+      ctx.fn.store(slot, ctx.fn.gepSlot(obj, stmt.slot + headerOffset(stmt.object.type)));
       return;
     }
 

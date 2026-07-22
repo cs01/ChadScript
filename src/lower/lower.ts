@@ -31,6 +31,10 @@ interface LowerCtx {
   // The base class name while lowering a subclass's members, for `super(...)` / `super.m(...)`
   // dispatch. null when the class has no `extends` (or outside a class).
   currentBaseClass: string | null;
+  // Per-class method table: method names in vtable-slot order (base-first, override keeps slot)
+  // → the class implementing each. Built up-front so a call site can look up the vtable index of
+  // a method from its static receiver class.
+  classTables: Map<string, { order: string[]; impls: Map<string, string> }>;
   // Output list of all functions, incl. lambdas lifted from arrow/function expressions.
   functions: HFunc[];
 }
@@ -54,8 +58,16 @@ export function lower(loaded: LoadedProgram): HModule {
     currentThis: null,
     currentReturnType: null,
     currentBaseClass: null,
+    classTables: new Map(),
     functions: [],
   };
+  // Precompute every class's method table BEFORE lowering, so a call site (which may precede the
+  // class in source) can resolve a method's vtable index.
+  for (const sf of loaded.sourceFiles) {
+    for (const stmt of sf.statements) {
+      if (ts.isClassDeclaration(stmt) && stmt.name) buildClassTable(stmt, ctx);
+    }
+  }
   const topLevel: HStmt[] = [];
   for (const sf of loaded.sourceFiles) {
     for (const stmt of sf.statements) {
@@ -70,7 +82,40 @@ export function lower(loaded: LoadedProgram): HModule {
       }
     }
   }
-  return { functions: ctx.functions, topLevel };
+  // Class descriptors: the vtable is the implementing fn for each method slot.
+  const classes = [...ctx.classTables].map(([name, tbl]) => ({
+    name,
+    vtable: tbl.order.map((m) => `${tbl.impls.get(m)}.${m}`),
+  }));
+  return { functions: ctx.functions, topLevel, classes };
+}
+
+// Build a class's method table: walk the heritage chain BASE-FIRST, recording each declared
+// method's implementing class. An override re-`set`s an existing name — keeping its slot position
+// (Map preserves insertion order on update) but pointing the slot at the derived implementation.
+function buildClassTable(decl: ts.ClassDeclaration, ctx: LowerCtx): void {
+  const className = decl.name!.text;
+  if (ctx.classTables.has(className)) return;
+  const classType = ctx.checker.getDeclaredTypeOfSymbol(
+    ctx.checker.getSymbolAtLocation(decl.name!)!,
+  );
+  const impls = new Map<string, string>();
+  const visit = (t: ts.Type): void => {
+    for (const base of ctx.checker.getBaseTypes(t as ts.InterfaceType)) {
+      const bd = base.symbol?.valueDeclaration;
+      if (bd && ts.isClassDeclaration(bd)) visit(base);
+    }
+    const d = t.symbol?.valueDeclaration;
+    if (d && ts.isClassDeclaration(d) && d.name) {
+      for (const m of d.members) {
+        if (ts.isMethodDeclaration(m) && ts.isIdentifier(m.name)) {
+          impls.set(m.name.text, d.name.text);
+        }
+      }
+    }
+  };
+  visit(classType);
+  ctx.classTables.set(className, { order: [...impls.keys()], impls });
 }
 
 // A class lowers to a set of free functions: each method and the constructor become an HFunc
@@ -90,25 +135,6 @@ function lowerClass(decl: ts.ClassDeclaration, ctx: LowerCtx): HFunc[] {
     return d && ts.isClassDeclaration(d);
   });
   const baseClassName = baseType?.symbol?.name ?? null;
-
-  // Method override needs virtual dispatch (a vtable), which is not implemented yet. Static
-  // dispatch would silently call the wrong method through a base-typed reference, so REJECT an
-  // override loudly rather than miscompile. (Inheriting a method unchanged is fine.)
-  if (baseType) {
-    const baseMethods = new Set(
-      ctx.checker
-        .getPropertiesOfType(baseType)
-        .filter(isMethodSymbol)
-        .map((s) => s.name),
-    );
-    for (const m of decl.members) {
-      if (ts.isMethodDeclaration(m) && ts.isIdentifier(m.name) && baseMethods.has(m.name.text)) {
-        ice(
-          `lower: method override (${className}.${m.name.text}) not supported yet — needs virtual dispatch`,
-        );
-      }
-    }
-  }
 
   const savedBase = ctx.currentBaseClass;
   ctx.currentBaseClass = baseClassName;
@@ -619,10 +645,12 @@ function lowerCallStatement(call: ts.CallExpression, ctx: LowerCtx): HStmt {
         // A class method (possibly void) → callStmt with `this` prepended, so void methods work.
         // Dispatch to the class that DEFINES the method (an inherited method lives on the base).
         if (recvType.kind === "object" && recvType.className !== undefined) {
+          // VIRTUAL dispatch (statement position; handles void methods too).
           return {
-            kind: "callStmt",
-            name: `${methodDefiningClass(pa.name, ctx, recvType.className)}.${pa.name.text}`,
-            args: [lowerExpr(pa.expression, ctx), ...call.arguments.map((a) => lowerExpr(a, ctx))],
+            kind: "virtualCallStmt",
+            receiver: lowerExpr(pa.expression, ctx),
+            vtableIndex: vtableIndexOf(recvType.className, pa.name.text, ctx),
+            args: call.arguments.map((a) => lowerExpr(a, ctx)),
             returnType: callReturnType(call, ctx),
           };
         }
@@ -1092,18 +1120,49 @@ function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
       type: callReturnType(call, ctx) ?? VT.string,
     };
   }
-  // Class method: `obj.m(args)` → call `DefiningClass.m(obj, args)`. Non-void (value position).
+  // Class method: `obj.m(args)` → VIRTUAL dispatch through the receiver's vtable (value position).
   if (recvType.kind === "object" && recvType.className !== undefined) {
     const rt = callReturnType(call, ctx);
     if (rt === null) ice(`lower: void method .${method} used as a value`);
     return {
-      kind: "call",
-      name: `${methodDefiningClass(pa.name, ctx, recvType.className)}.${method}`,
-      args: [receiver, ...call.arguments.map((a) => lowerExpr(a, ctx))],
+      kind: "virtualCall",
+      receiver,
+      vtableIndex: vtableIndexOf(recvType.className, method, ctx),
+      args: call.arguments.map((a) => lowerExpr(a, ctx)),
       type: rt,
     };
   }
   return ice(`lower: unsupported method .${method} on ${recvType.kind}`);
+}
+
+// The class whose constructor runs for `new className(...)`: the nearest class in the chain
+// (self → base) that DECLARES a constructor. Constructors are called statically by `new` (not
+// virtual), and a subclass without one inherits its base's. null when none in the chain declares.
+function constructorClassOf(className: string, node: ts.Node, ctx: LowerCtx): string | null {
+  const sym = ctx.checker.resolveName(className, node, ts.SymbolFlags.Class, false);
+  let t = sym ? ctx.checker.getDeclaredTypeOfSymbol(sym) : undefined;
+  while (t) {
+    const d = t.symbol?.valueDeclaration;
+    if (d && ts.isClassDeclaration(d)) {
+      if (d.members.some((m) => ts.isConstructorDeclaration(m) && m.body)) {
+        return d.name!.text;
+      }
+      const bases = ctx.checker.getBaseTypes(t as ts.InterfaceType);
+      t = bases.find((b) => {
+        const bd = b.symbol?.valueDeclaration;
+        return bd && ts.isClassDeclaration(bd);
+      });
+    } else break;
+  }
+  return null;
+}
+
+// The vtable slot index of `method` on class `className` (from the class's method table).
+function vtableIndexOf(className: string, method: string, ctx: LowerCtx): number {
+  const table = ctx.classTables.get(className);
+  const idx = table ? table.order.indexOf(method) : -1;
+  if (idx < 0) ice(`lower: no vtable slot for ${className}.${method}`);
+  return idx;
 }
 
 // The return type of a call as a ValueType, or null if void.
@@ -1272,6 +1331,7 @@ function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
       return {
         kind: "new",
         className: type.className,
+        ctorClass: constructorClassOf(type.className, ne, ctx),
         fieldCount: type.shape.fields.length,
         args: (ne.arguments ?? []).map((a) => lowerExpr(a, ctx)),
         type,

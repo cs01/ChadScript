@@ -9,6 +9,15 @@ export interface HModule {
   functions: HFunc[];
   // Top-level statements — lowered into the synthesized `main` entry function.
   topLevel: HStmt[];
+  // One per class. `vtable` lists the implementing function names in method-slot order (base
+  // methods first, an override reusing its base slot). Codegen emits a constant vtable global per
+  // class; a class instance stores a pointer to its class's vtable in record slot 0.
+  classes: ClassDescriptor[];
+}
+
+export interface ClassDescriptor {
+  name: string;
+  vtable: string[]; // fn name (e.g. "Dog.speak") at each method slot
 }
 
 export interface HParam {
@@ -65,6 +74,15 @@ export type HStmt =
   | { kind: "switch"; disc: HExpr; discType: ValueType; cases: HCase[] }
   // A call in statement position — result discarded. `returnType` null means a void function.
   | { kind: "callStmt"; name: string; args: HExpr[]; returnType: ValueType | null }
+  // Virtual method call in statement position (void methods, or a value method whose result is
+  // discarded). `returnType` null → the method is void.
+  | {
+      kind: "virtualCallStmt";
+      receiver: HExpr;
+      vtableIndex: number;
+      args: HExpr[];
+      returnType: ValueType | null;
+    }
   // An expression evaluated for its side effects only, result discarded (e.g. `arr.push(x);`).
   | { kind: "exprStmt"; expr: HExpr };
 
@@ -120,6 +138,10 @@ export type HExpr =
   | { kind: "closure"; lambdaName: string; captures: HCapture[]; type: ValueType }
   // Call a function VALUE (closure): load its fnptr + env and invoke. `type` is the return type.
   | { kind: "callClosure"; callee: HExpr; args: HExpr[]; type: ValueType }
+  // Virtual method call: load the receiver's vtable (record slot 0), index it, and call the
+  // resulting fn with the receiver prepended. `vtableIndex` comes from the STATIC receiver class
+  // (consistent across the hierarchy). Non-void value position; the statement form is below.
+  | { kind: "virtualCall"; receiver: HExpr; vtableIndex: number; args: HExpr[]; type: ValueType }
   // Ternary `cond ? whenTrue : whenFalse`. Both arms share the result `type` (tsc's common type).
   | { kind: "conditional"; cond: HExpr; whenTrue: HExpr; whenFalse: HExpr; type: ValueType }
   // `n.toString(radix?)` → string. `radix` null means base 10 (shortest round-trip).
@@ -248,7 +270,17 @@ export type HExpr =
   | { kind: "memberGet"; object: HExpr; slot: number; type: ValueType }
   // `new Class(args)`: allocate the record, run `Class.constructor(record, args)`, yield the
   // record. `fieldCount` sizes the allocation.
-  | { kind: "new"; className: string; fieldCount: number; args: HExpr[]; type: ValueType }
+  // `new C(args)`. `className` names the vtable to install; `ctorClass` is the class whose
+  // constructor runs (the nearest ancestor that declares one — constructors are not virtual), or
+  // null when no class in the chain declares a constructor.
+  | {
+      kind: "new";
+      className: string;
+      ctorClass: string | null;
+      fieldCount: number;
+      args: HExpr[];
+      type: ValueType;
+    }
   | { kind: "unary"; op: UnaryOp; operand: HExpr; type: ValueType }
   | { kind: "binary"; op: BinaryOp; left: HExpr; right: HExpr; type: ValueType }
   // Short-circuiting `&&` / `||`. JS VALUE semantics: the result IS one of the operands (not a
