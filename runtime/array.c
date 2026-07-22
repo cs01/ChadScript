@@ -9,11 +9,21 @@
 #include <string.h>
 #include <gc.h>
 
+extern char cs_undefined_marker; // the `undefined` sentinel (see nullable.c)
+
 typedef struct {
   int64_t *data;
   int32_t len;
   int32_t cap;
 } CsArray;
+
+// Box one i64 slot into an optional (a GC pointer to the slot). Used by pop/shift so they can
+// return `element | undefined` directly.
+static void *box_slot(int64_t slot) {
+  int64_t *b = GC_malloc(sizeof(int64_t));
+  *b = slot;
+  return b;
+}
 
 CsArray *cs_array_new(void) {
   CsArray *a = GC_malloc(sizeof(CsArray));
@@ -41,3 +51,18 @@ int32_t cs_array_len(CsArray *a) { return a->len; }
 // Raw slot read. Callers (for...of) stay within [0, len); index-access bounds semantics land
 // with the nullable work.
 int64_t cs_array_get(CsArray *a, int32_t i) { return a->data[i]; }
+
+// pop: remove + return the last element as `element | undefined` (empty → undefined sentinel).
+void *cs_array_pop(CsArray *a) {
+  if (a->len == 0) return &cs_undefined_marker;
+  return box_slot(a->data[--a->len]);
+}
+
+// shift: remove + return the first element as `element | undefined`; shifts the rest down.
+void *cs_array_shift(CsArray *a) {
+  if (a->len == 0) return &cs_undefined_marker;
+  int64_t first = a->data[0];
+  a->len--;
+  memmove(a->data, a->data + 1, (size_t)a->len * sizeof(int64_t));
+  return box_slot(first);
+}

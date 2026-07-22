@@ -66,6 +66,8 @@ export function generate(hmod: HModule): string {
   mod.declareExtern("cs_array_push", T.i32, [T.ptr, T.i64]);
   mod.declareExtern("cs_array_len", T.i32, [T.ptr]);
   mod.declareExtern("cs_array_get", T.i64, [T.ptr, T.i32]);
+  mod.declareExtern("cs_array_pop", T.ptr, [T.ptr]);
+  mod.declareExtern("cs_array_shift", T.ptr, [T.ptr]);
   mod.declareExtern("exit", T.void, [T.i32]);
 
   // User functions first (order doesn't matter — LLVM resolves calls by name, so recursion and

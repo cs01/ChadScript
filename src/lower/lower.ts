@@ -539,6 +539,14 @@ function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
         type: VT.number,
       };
     }
+    if (method === "pop" || method === "shift") {
+      return {
+        kind: "arrayPop",
+        array: lowerExpr(pa.expression, ctx),
+        fn: method === "pop" ? "cs_array_pop" : "cs_array_shift",
+        type: resolveType(call, ctx), // element | undefined
+      };
+    }
     return ice(`lower: unsupported array method .${method}`);
   }
   if (recvType.kind === "string") {

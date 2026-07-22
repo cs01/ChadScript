@@ -118,6 +118,8 @@ export type HExpr =
   | { kind: "nullCheck"; value: HExpr; isEqual: boolean; type: ValueType }
   // `arr.push(value)` → the new length (number). `elementType` says how to box the value.
   | { kind: "arrayPush"; array: HExpr; value: HExpr; elementType: ValueType; type: ValueType }
+  // `arr.pop()` / `arr.shift()` → `element | undefined`. `fn` is the runtime entry point.
+  | { kind: "arrayPop"; array: HExpr; fn: string; type: ValueType }
   // Object literal `{ f: v, ... }`. `fields` are in SHAPE (record-slot) order — lower reorders
   // the source properties to match the declared shape.
   | { kind: "objectLit"; fields: HExpr[]; type: ValueType }

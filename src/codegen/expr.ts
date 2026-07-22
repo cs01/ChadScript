@@ -129,6 +129,10 @@ export function evalMemberGet(expr: Extract<HExpr, { kind: "memberGet" }>, ctx: 
 export function evalOptionalPtr(expr: HExpr, ctx: Ctx): Value {
   if (expr.kind === "index") return evalIndex(expr, ctx);
   if (expr.kind === "varRef") return ctx.fn.load(T.ptr, lookupVar(expr.name, ctx).ptr);
+  if (expr.kind === "arrayPop")
+    return ctx.fn.call(`@${expr.fn}`, T.ptr, [evalArrayPtr(expr.array, ctx)]);
+  if (expr.kind === "call") return evalCall(expr, ctx);
+  if (expr.kind === "coalesce") return evalCoalesce(expr, ctx);
   return ice(`evalOptionalPtr: unhandled optional expression ${expr.kind}`);
 }
 
