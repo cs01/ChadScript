@@ -53,8 +53,12 @@ CsString *cs_str_repeat(const CsString *s, double count) {
   return cs_str_mk(r, total);
 }
 
-int cs_str_includes(const CsString *s, const CsString *sub) {
-  return cs_mem_find(s->data, s->len, sub->data, sub->len, 0) >= 0 ? 1 : 0;
+// JS includes(sub, position): search begins at position, clamped to [0, len].
+int cs_str_includes(const CsString *s, const CsString *sub, double dpos) {
+  long from = (long)dpos;
+  if (from < 0) from = 0;
+  if ((size_t)from > s->len) from = (long)s->len;
+  return cs_mem_find(s->data, s->len, sub->data, sub->len, (size_t)from) >= 0 ? 1 : 0;
 }
 
 // Ordered comparison for the default array sort (lexicographic by byte, ASCII-exact). Sign only.
@@ -76,12 +80,28 @@ double cs_str_index_of(const CsString *s, const CsString *sub, double dfrom) {
   return (double)cs_mem_find(s->data, s->len, sub->data, sub->len, (size_t)from);
 }
 
-int cs_str_starts_with(const CsString *s, const CsString *p) {
-  return p->len <= s->len && memcmp(s->data, p->data, p->len) == 0 ? 1 : 0;
+// JS startsWith(p, position): does p occur at `position` (clamped [0,len])? Empty p always matches.
+int cs_str_starts_with(const CsString *s, const CsString *p, double dpos) {
+  long pos = (long)dpos;
+  if (pos < 0) pos = 0;
+  if ((size_t)pos > s->len) return p->len == 0 ? 1 : 0;
+  if (p->len > s->len - (size_t)pos) return 0;
+  return memcmp(s->data + pos, p->data, p->len) == 0 ? 1 : 0;
 }
 
-int cs_str_ends_with(const CsString *s, const CsString *p) {
-  return p->len <= s->len && memcmp(s->data + s->len - p->len, p->data, p->len) == 0 ? 1 : 0;
+// JS endsWith(p, endPosition): treat the string as if it ended at endPosition (clamped [0,len]; a
+// NaN sentinel from codegen means "use the full length" — the default). Does p end there?
+int cs_str_ends_with(const CsString *s, const CsString *p, double dend) {
+  size_t endpos;
+  if (isnan(dend)) {
+    endpos = s->len;
+  } else {
+    long e = (long)dend;
+    if (e < 0) e = 0;
+    endpos = (size_t)e > s->len ? s->len : (size_t)e;
+  }
+  if (p->len > endpos) return 0;
+  return memcmp(s->data + endpos - p->len, p->data, p->len) == 0 ? 1 : 0;
 }
 
 extern char cs_undefined_marker; // the `undefined` sentinel (see nullable.c)

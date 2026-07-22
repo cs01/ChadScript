@@ -990,8 +990,6 @@ const STR_METHODS: Record<string, { fn: string; ret: StrRet }> = {
   replace: { fn: "@cs_str_replace", ret: "string" },
   split: { fn: "@cs_str_split", ret: "array" },
   includes: { fn: "@cs_str_includes", ret: "bool" },
-  startsWith: { fn: "@cs_str_starts_with", ret: "bool" },
-  endsWith: { fn: "@cs_str_ends_with", ret: "bool" },
 };
 
 function strRetIrType(ret: StrRet) {
@@ -1023,6 +1021,21 @@ export function evalStrMethod(expr: Extract<HExpr, { kind: "strMethod" }>, ctx: 
   if (expr.method === "indexOf") {
     const from = args.length >= 2 ? args[1]! : fimm(0);
     return ctx.fn.call("@cs_str_index_of", T.double, [recv, args[0]!, from]);
+  }
+  // includes(sub, position?)/startsWith(p, position?) default position 0; endsWith(p, endPos?)
+  // defaults endPos to the length, signalled to the runtime with a NaN sentinel. All return i32
+  // 0/1 → narrow to i1.
+  if (expr.method === "includes" || expr.method === "startsWith" || expr.method === "endsWith") {
+    const fn =
+      expr.method === "includes"
+        ? "@cs_str_includes"
+        : expr.method === "startsWith"
+          ? "@cs_str_starts_with"
+          : "@cs_str_ends_with";
+    const dflt = expr.method === "endsWith" ? fimm(NaN) : fimm(0);
+    const pos = args.length >= 2 ? args[1]! : dflt;
+    const raw = ctx.fn.call(fn, T.i32, [recv, args[0]!, pos]);
+    return ctx.fn.icmp("ne", raw, imm(T.i32, 0));
   }
 
   // String.prototype.concat(...args): variadic, so it doesn't fit the fixed-shape table — fold the
