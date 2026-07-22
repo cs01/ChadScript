@@ -315,7 +315,11 @@ export const ARRAY_METHODS: ReadonlySet<string> = new Set([
 
 // True when `expr`'s type is an array (`T[]` / ReadonlyArray). Tuples are out of the subset already.
 function isArrayTyped(expr: ts.Expression, checker: ts.TypeChecker): boolean {
-  const name = checker.getTypeAtLocation(expr).symbol?.name;
+  const t = checker.getTypeAtLocation(expr);
+  // A tuple (e.g. the result of `Promise.all`) is an array at runtime — lowering maps it to `T[]`,
+  // so its array methods (.join/.map/…) are supported, not plain-object-method rejections.
+  if (checker.isTupleType(t)) return true;
+  const name = t.symbol?.name;
   return name === "Array" || name === "ReadonlyArray";
 }
 
@@ -502,9 +506,9 @@ export const NAMESPACE_STATIC_ALLOW: Record<string, ReadonlySet<string>> = {
   // Math methods codegen actually lowers (evalMathCall). Others (hypot/pow/random/sin/…) ICE, so
   // reject them here. Math CONSTANTS (Math.PI) are property reads, not calls — unaffected.
   Math: new Set(["floor", "ceil", "trunc", "abs", "sqrt", "round", "sign", "pow", "max", "min"]),
-  // Promise statics codegen lowers. `all`/`race`/`allSettled`/`reject` are later slices, so they
-  // reject here until implemented.
-  Promise: new Set(["resolve"]),
+  // Promise statics codegen lowers. `race`/`allSettled`/`reject` are later slices, so they reject
+  // here until implemented.
+  Promise: new Set(["resolve", "all"]),
 };
 
 function checkNew(node: ts.NewExpression, hit: Hit): Diagnostic | null {

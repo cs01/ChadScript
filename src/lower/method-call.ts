@@ -36,14 +36,37 @@ export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
   if (ts.isIdentifier(pa.expression) && pa.expression.text === "Object") {
     return lowerObjectNamespace(pa.name.text, call.arguments[0]!, ctx);
   }
-  // `Promise.resolve(v)` → a fulfilled promise carrying v (validate allowlists the static name).
+  // Promise statics (validate allowlists which names reach here).
   if (ts.isIdentifier(pa.expression) && pa.expression.text === "Promise") {
-    if (pa.name.text !== "resolve") ice(`lower: unsupported Promise.${pa.name.text}`);
-    return {
-      kind: "promiseResolve",
-      value: lowerExpr(call.arguments[0]!, ctx),
-      type: resolveType(call, ctx),
-    };
+    if (pa.name.text === "resolve") {
+      return {
+        kind: "promiseResolve",
+        value: lowerExpr(call.arguments[0]!, ctx),
+        type: resolveType(call, ctx),
+      };
+    }
+    if (pa.name.text === "all") {
+      // tsc types the argument as a TUPLE and the result as Promise<tuple> (both object-shaped in our
+      // system). Our subset is homogeneous, so re-derive array<promise<T>> / promise<array<T>> from
+      // the element promise type rather than trusting resolveType.
+      const arr = lowerExpr(call.arguments[0]!, ctx);
+      let arrTyped = arr;
+      let elemPromise: ValueType;
+      if (arr.type.kind === "array") {
+        elemPromise = arr.type.element;
+      } else if (arr.kind === "arrayLit" && arr.elements.length > 0) {
+        elemPromise = arr.elements[0]!.value.type;
+        arrTyped = { ...arr, type: VT.array(elemPromise) };
+      } else {
+        return ice("lower: Promise.all expects a non-empty array of promises");
+      }
+      const t =
+        elemPromise.kind === "promise"
+          ? elemPromise.inner
+          : ice("lower: Promise.all element not a promise");
+      return { kind: "promiseAll", array: arrTyped, type: VT.promise(VT.array(t)) };
+    }
+    ice(`lower: unsupported Promise.${pa.name.text}`);
   }
   // `super.m(args)` in value position → non-virtual base call with `this` as the receiver.
   if (pa.expression.kind === ts.SyntaxKind.SuperKeyword) {

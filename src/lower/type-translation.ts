@@ -78,6 +78,19 @@ export function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChe
       const args = checker.getTypeArguments(ref);
       if (args.length === 1) return VT.array(valueTypeOfTsType(args[0]!, node, checker));
     }
+    // A tuple `[T, T, …]` is an array at runtime (this is how `Promise.all`'s tuple result becomes a
+    // usable `T[]`). Our arrays are single-element-type, so require a homogeneous tuple; a
+    // heterogeneous one (`[number, string]`) would need a union element and is out of the subset.
+    if (checker.isTupleType(t)) {
+      const args = checker.getTypeArguments(ref);
+      if (args.length === 0) ice("empty tuple type has no element type");
+      const elems = args.map((a) => valueTypeOfTsType(a, node, checker));
+      const first = elems[0]!;
+      if (!elems.every((e) => JSON.stringify(e) === JSON.stringify(first))) {
+        ice("heterogeneous tuple types are not supported (use a single element type)");
+      }
+      return VT.array(first);
+    }
     // `Map<K, V>`: two type arguments.
     if (ref.symbol?.name === "Map") {
       const args = checker.getTypeArguments(ref);

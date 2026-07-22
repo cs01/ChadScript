@@ -38,6 +38,13 @@ export function evalPromiseResolve(
   return ctx.fn.call("@cs_promise_resolved", T.ptr, [boxed]);
 }
 
+// `Promise.all(arr)` → hand the array of promises to the runtime driver, which returns the combined
+// `Promise<T[]>`. `arr` already holds boxed Promise* slots (its element type is promise → a ptr).
+export function evalPromiseAll(expr: Extract<HExpr, { kind: "promiseAll" }>, ctx: Ctx): Value {
+  const arr = evalValue(expr.array, ctx);
+  return ctx.fn.call("@cs_promise_all", T.ptr, [arr]);
+}
+
 export function evalAwait(expr: Extract<HExpr, { kind: "await" }>, ctx: Ctx): Value {
   const promise = evalValue(expr.value, ctx);
   const raw = ctx.fn.call("@cs_await", T.i64, [promise]);

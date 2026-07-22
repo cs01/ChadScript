@@ -244,6 +244,32 @@ Promise *cs_fiber_spawn(void (*body)(void *), void *arg) {
   return f->result;
 }
 
+// Promise.all: await each input promise, collect the fulfilled values into an array (in input
+// order), and resolve with it; the FIRST rejection reached rejects the whole (cs_await rethrows into
+// this driver fiber, whose root handler rejects its result — exactly Promise.all's reject semantics).
+// Implemented as an ordinary async body run on a fiber: cs_fiber_spawn returns the driver's result
+// promise, which IS the Promise.all promise. The input array's slots are boxed Promise* pointers; the
+// output array's slots are the boxed element values (same boxing the awaiter unboxes as T[]).
+extern void *cs_array_new(void);
+extern int cs_array_push(void *a, int64_t slot);
+extern int cs_array_len(void *a);
+extern int64_t cs_array_get(void *a, int i);
+int64_t cs_await(Promise *p); // defined below
+
+static void cs_all_driver(void *arg) {
+  void *promises = arg;
+  int n = cs_array_len(promises);
+  void *results = cs_array_new();
+  for (int i = 0; i < n; i++) {
+    Promise *p = (Promise *)(intptr_t)cs_array_get(promises, i);
+    int64_t v = cs_await(p); // suspends; a rejection throws → rejects this driver's result
+    cs_array_push(results, v);
+  }
+  cs_fiber_return((int64_t)(intptr_t)results);
+}
+
+Promise *cs_promise_all(void *promises) { return cs_fiber_spawn(cs_all_driver, promises); }
+
 // await(p): if pending, register + suspend until it settles; if already settled, still yield a
 // microtask so ordering matches Node (later synchronous code runs before the continuation). On a
 // FULFILLED promise, returns its boxed value; on a REJECTED one, THROWS `reason` into this fiber's

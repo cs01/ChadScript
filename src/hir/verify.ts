@@ -259,6 +259,9 @@ function verifyExpr(e: HExpr): void {
     case "promiseResolve":
       verifyExpr(e.value);
       return;
+    case "promiseAll":
+      verifyExpr(e.array);
+      return;
     case "unary":
       verifyExpr(e.operand);
       return;

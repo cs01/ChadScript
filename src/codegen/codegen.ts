@@ -95,6 +95,7 @@ export function generate(hmod: HModule): string {
   mod.declareExtern("cs_await", T.i64, [T.ptr]);
   mod.declareExtern("cs_run_event_loop", T.void, []);
   mod.declareExtern("cs_promise_resolved", T.ptr, [T.i64]); // Promise.resolve(v)
+  mod.declareExtern("cs_promise_all", T.ptr, [T.ptr]); // Promise.all(arr)
   mod.declareExtern("cs_array_new", T.ptr, []);
   mod.declareExtern("cs_array_push", T.i32, [T.ptr, T.i64]);
   mod.declareExtern("cs_array_len", T.i32, [T.ptr]);
