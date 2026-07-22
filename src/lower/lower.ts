@@ -702,33 +702,42 @@ function numLit(value: number): HExpr {
   return { kind: "numberLit", value, type: VT.number };
 }
 
-// Object literal → fields in SHAPE (record-slot) order, regardless of the source property order.
-// tsc guarantees every required field is present. Supports `{ x: v }` and shorthand `{ x }`.
+// Object literal → fields in SHAPE (record-slot) order, regardless of source property order.
+// Properties are processed LEFT-TO-RIGHT into a name→value map so a later property or `...spread`
+// overrides an earlier one (JS object-spread precedence). Supports `{ x: v }`, shorthand `{ x }`,
+// and `{ ...src }`. A spread source's field is read with a `memberGet` (source re-evaluated per
+// field — fine for the common `...variable` case).
 function lowerObjectLit(ole: ts.ObjectLiteralExpression, ctx: LowerCtx, type: ValueType): HExpr {
   if (type.kind !== "object") ice("lower: object literal without a resolved object shape");
+  const byName = new Map<string, HExpr>();
+  for (const p of ole.properties) {
+    if (ts.isSpreadAssignment(p)) {
+      const src = lowerExpr(p.expression, ctx);
+      if (src.type.kind !== "object") ice(`lower: spread of ${src.type.kind} in object literal`);
+      src.type.shape.fields.forEach((sf, i) => {
+        byName.set(sf.name, { kind: "memberGet", object: src, slot: i, type: sf.type });
+      });
+    } else if (ts.isPropertyAssignment(p) && ts.isIdentifier(p.name)) {
+      byName.set(p.name.text, lowerExpr(p.initializer, ctx));
+    } else if (ts.isShorthandPropertyAssignment(p)) {
+      // `{ a }` = field `a` from the variable `a`. Resolve the VALUE symbol (the variable).
+      const valueSym = ctx.checker.getShorthandAssignmentValueSymbol(p);
+      if (!valueSym) return ice(`lower: cannot resolve shorthand property ${p.name.text}`);
+      byName.set(p.name.text, {
+        kind: "varRef",
+        name: nameForSymbol(valueSym, p.name.text, ctx),
+        type: valueTypeOf(p.name, ctx),
+      });
+    } else return ice(`lower: unsupported object member ${ts.SyntaxKind[p.kind]}`);
+  }
   const fields = type.shape.fields.map((f): HExpr => {
-    const prop = ole.properties.find(
-      (p) => p.name && ts.isIdentifier(p.name) && p.name.text === f.name,
-    );
-    // An omitted field must be optional (tsc enforces); store the undefined sentinel.
-    if (!prop) {
-      if (f.type.kind !== "optional") ice(`lower: object literal missing field ${f.name}`);
+    const value = byName.get(f.name);
+    if (!value) {
+      // An omitted field must be optional (tsc enforces); store the undefined sentinel.
+      if (f.type.kind !== "optional") return ice(`lower: object literal missing field ${f.name}`);
       return { kind: "undefinedOpt", type: f.type };
     }
-    let value: HExpr;
-    if (ts.isPropertyAssignment(prop)) value = lowerExpr(prop.initializer, ctx);
-    else if (ts.isShorthandPropertyAssignment(prop)) {
-      // `{ a }` means field `a` = the variable `a`. Resolve the VALUE symbol (the variable),
-      // not the property symbol the shorthand identifier reports.
-      const valueSym = ctx.checker.getShorthandAssignmentValueSymbol(prop);
-      if (!valueSym) return ice(`lower: cannot resolve shorthand property ${f.name}`);
-      value = { kind: "varRef", name: nameForSymbol(valueSym, f.name, ctx), type: f.type };
-    } else return ice(`lower: unsupported object member for ${f.name}`);
-    // An inner value assigned to an optional field is wrapped into a present optional.
-    if (f.type.kind === "optional" && value.type.kind !== "optional") {
-      return { kind: "wrap", value, type: f.type };
-    }
-    return value;
+    return coerceToTarget(value, f.type); // optional-wrap / null-sentinel a present value
   });
   return { kind: "objectLit", fields, type };
 }

@@ -57,6 +57,7 @@ const ALLOWED_KINDS: ReadonlySet<ts.SyntaxKind> = new Set([
   ts.SyntaxKind.ObjectLiteralExpression,
   ts.SyntaxKind.PropertyAssignment,
   ts.SyntaxKind.ShorthandPropertyAssignment,
+  ts.SyntaxKind.SpreadAssignment, // `{ ...src }` in an object literal
   ts.SyntaxKind.InterfaceDeclaration,
   ts.SyntaxKind.TypeAliasDeclaration,
   ts.SyntaxKind.PropertySignature,
