@@ -122,6 +122,22 @@ export function tailoredRejection(
       return null;
     }
 
+    case ts.SyntaxKind.ArrowFunction:
+    case ts.SyntaxKind.FunctionExpression: {
+      // Closures capture by value at creation, which is only sound for `const` bindings. A captured
+      // mutable `let` would need capture-by-reference (heap boxing) — rejected until that lands
+      // (mirrors the lowering-time check, hoisted here so it fails closed at validate, not as an ICE).
+      const bad = findMutableCapture(node as ts.ArrowFunction | ts.FunctionExpression, checker);
+      if (bad) {
+        return hit(
+          CODE.MUTABLE_CAPTURE,
+          `a closure cannot capture the mutable variable \`${bad}\` yet`,
+          "declare it `const`, or restructure so the closure does not close over an outer `let`",
+        );
+      }
+      return null;
+    }
+
     case ts.SyntaxKind.BinaryExpression:
       return checkBinary(node as ts.BinaryExpression, hit, checker);
 
@@ -230,6 +246,40 @@ function checkCast(node: ts.AsExpression | ts.TypeAssertion, hit: Hit): Diagnost
 
 function isNamedIdent(e: ts.Expression, name: string): boolean {
   return ts.isIdentifier(e) && e.text === name;
+}
+
+// The name of a mutable outer `let` captured by `fn`, or null if it captures none. Mirrors the
+// lowering-time capture analysis exactly, so validate rejects precisely what lowering would.
+function findMutableCapture(
+  fn: ts.ArrowFunction | ts.FunctionExpression,
+  checker: ts.TypeChecker,
+): string | null {
+  let found: string | null = null;
+  const visit = (node: ts.Node): void => {
+    if (found) return;
+    if (ts.isIdentifier(node)) {
+      const sym = checker.getSymbolAtLocation(node);
+      const d = sym?.valueDeclaration;
+      // Mutable capture iff: a `let` variable (not const, not a parameter) declared OUTSIDE fn.
+      if (
+        d &&
+        ts.isVariableDeclaration(d) &&
+        !(d.parent.flags & ts.NodeFlags.Const) &&
+        !isDescendantOf(d, fn)
+      ) {
+        found = node.text;
+        return;
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(fn.body);
+  return found;
+}
+
+function isDescendantOf(node: ts.Node, ancestor: ts.Node): boolean {
+  for (let p: ts.Node | undefined = node; p; p = p.parent) if (p === ancestor) return true;
+  return false;
 }
 
 function checkCall(node: ts.CallExpression, hit: Hit): Diagnostic | null {

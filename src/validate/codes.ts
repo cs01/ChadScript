@@ -26,6 +26,7 @@ export const CODE = {
   STRING_UNICODE_OP: "CS1216", // charCodeAt / string relational — need UTF-16 semantics, gated
   PARAM_FORM: "CS1217", // default (`x = v`) / optional (`x?`) parameters — a later phase
   UNINIT_VAR: "CS1218", // `let x;` declaration with no initializer — a later phase
+  MUTABLE_CAPTURE: "CS1219", // closure capturing a mutable `let` — needs capture-by-reference
 } as const;
 
 export type Code = (typeof CODE)[keyof typeof CODE];
