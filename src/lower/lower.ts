@@ -577,6 +577,20 @@ function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
     case ts.SyntaxKind.ObjectLiteralExpression:
       return lowerObjectLit(expr as ts.ObjectLiteralExpression, ctx, type);
 
+    case ts.SyntaxKind.ElementAccessExpression: {
+      const ea = expr as ts.ElementAccessExpression;
+      const arrType = resolveType(ea.expression, ctx);
+      if (arrType.kind !== "array") ice("lower: index access only on arrays yet");
+      // `type` here is `element | undefined` (noUncheckedIndexedAccess).
+      return {
+        kind: "index",
+        array: lowerExpr(ea.expression, ctx),
+        index: lowerExpr(ea.argumentExpression, ctx),
+        elementType: arrType.element,
+        type,
+      };
+    }
+
     case ts.SyntaxKind.ThisKeyword: {
       if (!ctx.currentThis) ice("lower: `this` outside a method");
       return { kind: "varRef", name: ctx.currentThis.name, type: ctx.currentThis.type };
@@ -655,6 +669,15 @@ function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
           type,
         };
       }
+      // `a ?? b` — nullish coalescing. `type` is the non-optional result.
+      if (opKind === ts.SyntaxKind.QuestionQuestionToken) {
+        return {
+          kind: "coalesce",
+          left: lowerExpr(b.left, ctx),
+          right: lowerExpr(b.right, ctx),
+          type,
+        };
+      }
       return {
         kind: "binary",
         op: binaryOp(opKind),
@@ -720,12 +743,17 @@ function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChecker): 
     }
   }
   // Narrowing produces unions (e.g. `switch (n) { case 0: case 1: }` narrows n to `0 | 1`). A
-  // union whose members all share one representation collapses to it; a genuinely mixed union
-  // (different reps) is not in the subset yet.
+  // union of same-representation members collapses to that type; a union of `inner`+null/undefined
+  // becomes `optional`; anything else genuinely mixed is not in the subset yet.
   if (flags & ts.TypeFlags.Union) {
     const members = (t as ts.UnionType).types.map((m) => valueTypeOfTsType(m, node, checker));
-    const first = members[0]!;
-    if (members.every((m) => m.kind === first.kind)) return first;
+    const nullish = members.filter((m) => m.kind === "undefined" || m.kind === "null");
+    const rest = members.filter((m) => m.kind !== "undefined" && m.kind !== "null");
+    const restFirst = rest[0];
+    if (restFirst && rest.every((m) => m.kind === restFirst.kind)) {
+      // `inner | undefined | null` → optional<inner>; pure `inner | inner` → inner.
+      return nullish.length > 0 ? { kind: "optional", inner: restFirst } : restFirst;
+    }
     return ice(
       `lower: mixed-representation union not supported yet at ${ts.SyntaxKind[node.kind]}`,
     );

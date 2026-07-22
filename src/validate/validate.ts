@@ -49,6 +49,7 @@ const ALLOWED_KINDS: ReadonlySet<ts.SyntaxKind> = new Set([
   ts.SyntaxKind.ForStatement,
   ts.SyntaxKind.ForOfStatement,
   ts.SyntaxKind.ArrayLiteralExpression,
+  ts.SyntaxKind.ElementAccessExpression, // arr[i] (→ element | undefined)
   // Objects (Phase 2): closed-shape literals + interface/type-literal shapes (type-only nodes
   // are inert; PropertyAssignment/Shorthand build the literal).
   ts.SyntaxKind.ObjectLiteralExpression,
@@ -108,6 +109,7 @@ const SUPPORTED_BINARY_OPS: ReadonlySet<ts.SyntaxKind> = new Set([
   // Logical (short-circuit, value semantics).
   ts.SyntaxKind.AmpersandAmpersandToken,
   ts.SyntaxKind.BarBarToken,
+  ts.SyntaxKind.QuestionQuestionToken, // ?? (nullish coalescing)
   // Bitwise / shift (JS int32 semantics).
   ts.SyntaxKind.AmpersandToken,
   ts.SyntaxKind.BarToken,

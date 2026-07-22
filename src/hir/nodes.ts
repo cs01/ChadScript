@@ -106,6 +106,11 @@ export type HExpr =
   | { kind: "arrayLit"; elements: HExpr[]; type: ValueType }
   // `arr.length` → number.
   | { kind: "arrayLen"; array: HExpr; type: ValueType }
+  // `arr[i]` index access → `element | undefined` (bounds-checked). `type` is the optional type.
+  | { kind: "index"; array: HExpr; index: HExpr; elementType: ValueType; type: ValueType }
+  // `a ?? b`: if `a` is undefined, evaluate `b`; else unwrap `a`. `type` is the (non-optional)
+  // result type.
+  | { kind: "coalesce"; left: HExpr; right: HExpr; type: ValueType }
   // `arr.push(value)` → the new length (number). `elementType` says how to box the value.
   | { kind: "arrayPush"; array: HExpr; value: HExpr; elementType: ValueType; type: ValueType }
   // Object literal `{ f: v, ... }`. `fields` are in SHAPE (record-slot) order — lower reorders

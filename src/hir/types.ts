@@ -30,7 +30,10 @@ export type ValueType =
   // A closed-shape object. Runtime rep: pointer to a GC record of one i64 slot per field.
   // `className` is set for class instances (enables method dispatch to `Class.method`); unset
   // for plain interface/type-literal objects.
-  | { kind: "object"; shape: ObjectShape; className?: string };
+  | { kind: "object"; shape: ObjectShape; className?: string }
+  // `inner | undefined` (from `arr[i]`, `.pop()`, optional fields). Runtime rep: a pointer that
+  // is either the `undefined` sentinel or a pointer to a GC box holding the boxed inner value.
+  | { kind: "optional"; inner: ValueType };
 
 export const VT = {
   number: { kind: "number" } as ValueType,

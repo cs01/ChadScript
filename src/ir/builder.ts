@@ -364,6 +364,13 @@ export class ModuleBuilder {
     this.externs.set(name, `declare ${llvmType(retType)} @${name}(${params})`);
   }
 
+  // Reference an external global by name (an `external global i8`), returning a ptr to it. Used
+  // for the `undefined` sentinel: its unique address distinguishes it from any heap box.
+  externGlobal(name: string): Value {
+    this.externs.set(`global ${name}`, `@${name} = external global i8`);
+    return { name: `@${name}`, type: T.ptr };
+  }
+
   defineFunc(name: string, returnType: IrType, params: readonly Value[]): FuncBuilder {
     const fb = new FuncBuilder(name, returnType, params);
     this.funcs.push(fb);
