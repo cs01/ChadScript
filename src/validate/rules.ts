@@ -447,8 +447,48 @@ function checkCall(node: ts.CallExpression, hit: Hit, checker: ts.TypeChecker): 
         );
       }
     }
+
+    // Method call on a PLAIN object (a function-valued field, or an interface method): only class
+    // instances have callable methods in the subset, so these reach a lowering ICE. Guarded to
+    // exclude class instances, arrays/Map/Set (handled above), and the global namespace receivers
+    // whose calls are supported (console.log/process.exit/Math.floor/Object.keys/…).
+    const rt = checker.getTypeAtLocation(recv);
+    const isGlobalRecv = ts.isIdentifier(recv) && GLOBAL_RECEIVERS.has(recv.text);
+    if (
+      !isGlobalRecv &&
+      (rt.flags & ts.TypeFlags.Object) !== 0 &&
+      !isClassInstanceType(rt) &&
+      !isArrayTyped(recv, checker) &&
+      collectionKind(recv, checker) === null
+    ) {
+      return hit(
+        CODE.OBJECT_METHOD,
+        `calling \`.${m}()\` on a plain object is not supported yet`,
+        "only class-instance methods are callable; use a class instead of a function-valued field",
+      );
+    }
   }
   return null;
+}
+
+// Global receivers whose method calls are supported (or gated by a dedicated rule above), so the
+// plain-object-method check must not touch them.
+const GLOBAL_RECEIVERS: ReadonlySet<string> = new Set([
+  "console",
+  "process",
+  "Math",
+  "Object",
+  "JSON",
+  "Date",
+  "String",
+  "Number",
+  "Array",
+]);
+
+// A class-instance type (its symbol is declared by a `class`), vs a plain object/interface type.
+function isClassInstanceType(t: ts.Type): boolean {
+  const vd = t.symbol?.valueDeclaration;
+  return vd !== undefined && ts.isClassDeclaration(vd);
 }
 
 // Static (namespace) methods lowering supports, per global. A call `X.m(...)` with `X` in this

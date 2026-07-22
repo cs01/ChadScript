@@ -32,6 +32,7 @@ export const CODE = {
   COLLECTION_METHOD: "CS1222", // unsupported Map/Set instance method (forEach/entries/clear/…)
   STRING_METHOD: "CS1223", // unsupported string instance method (normalize/localeCompare/match/…)
   ARRAY_METHOD: "CS1224", // unsupported array instance method (fill/copyWithin/splice/…)
+  OBJECT_METHOD: "CS1225", // method call on a plain object (function-valued field / interface method)
 } as const;
 
 export type Code = (typeof CODE)[keyof typeof CODE];
