@@ -136,6 +136,8 @@ export function evalArrayPtr(expr: HExpr, ctx: Ctx): Value {
       return evalCall(expr, ctx);
     case "memberGet":
       return evalMemberGet(expr, ctx);
+    case "strMethod":
+      return evalStrMethod(expr, ctx); // e.g. "a,b".split(",")
     default:
       return ice(`evalArrayPtr: unhandled array expression ${expr.kind}`);
   }
@@ -181,24 +183,39 @@ export function evalMathCall(expr: Extract<HExpr, { kind: "mathCall" }>, ctx: Ct
 
 // String methods: each maps to a runtime call. `ret` picks the IR return type and any bool
 // conversion (the runtime returns i32 0/1 for predicates).
-const STR_METHODS: Record<string, { fn: string; ret: "string" | "number" | "bool" }> = {
+type StrRet = "string" | "number" | "bool" | "array";
+const STR_METHODS: Record<string, { fn: string; ret: StrRet }> = {
   toUpperCase: { fn: "@cs_str_upper", ret: "string" },
   toLowerCase: { fn: "@cs_str_lower", ret: "string" },
   trim: { fn: "@cs_str_trim", ret: "string" },
   repeat: { fn: "@cs_str_repeat", ret: "string" },
+  charAt: { fn: "@cs_str_char_at", ret: "string" },
+  replace: { fn: "@cs_str_replace", ret: "string" },
+  split: { fn: "@cs_str_split", ret: "array" },
   includes: { fn: "@cs_str_includes", ret: "bool" },
   startsWith: { fn: "@cs_str_starts_with", ret: "bool" },
   endsWith: { fn: "@cs_str_ends_with", ret: "bool" },
   indexOf: { fn: "@cs_str_index_of", ret: "number" },
 };
 
+function strRetIrType(ret: StrRet) {
+  return ret === "number" ? T.double : ret === "bool" ? T.i32 : T.ptr;
+}
+
 export function evalStrMethod(expr: Extract<HExpr, { kind: "strMethod" }>, ctx: Ctx): Value {
-  const m = STR_METHODS[expr.method];
-  if (!m) return ice(`codegen: string method .${expr.method} not supported yet`);
   const recv = evalString(expr.receiver, ctx);
   const args = expr.args.map((a) => evalValue(a, ctx));
-  const retType = m.ret === "string" ? T.ptr : m.ret === "number" ? T.double : T.i32;
-  const raw = ctx.fn.call(m.fn, retType, [recv, ...args]);
+
+  // slice has 1-or-2-arg forms with different runtime entry points (the second arg defaults to
+  // the string length inside slice1).
+  if (expr.method === "slice") {
+    const fn = args.length >= 2 ? "@cs_str_slice2" : "@cs_str_slice1";
+    return ctx.fn.call(fn, T.ptr, [recv, ...args]);
+  }
+
+  const m = STR_METHODS[expr.method];
+  if (!m) return ice(`codegen: string method .${expr.method} not supported yet`);
+  const raw = ctx.fn.call(m.fn, strRetIrType(m.ret), [recv, ...args]);
   // Predicates return i32 0/1 — narrow to i1.
   return m.ret === "bool" ? ctx.fn.icmp("ne", raw, imm(T.i32, 0)) : raw;
 }

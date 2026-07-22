@@ -49,6 +49,11 @@ export function generate(hmod: HModule): string {
     mod.declareExtern(f, T.ptr, [T.ptr]);
   }
   mod.declareExtern("cs_str_repeat", T.ptr, [T.ptr, T.double]);
+  mod.declareExtern("cs_str_char_at", T.ptr, [T.ptr, T.double]);
+  mod.declareExtern("cs_str_slice1", T.ptr, [T.ptr, T.double]);
+  mod.declareExtern("cs_str_slice2", T.ptr, [T.ptr, T.double, T.double]);
+  mod.declareExtern("cs_str_replace", T.ptr, [T.ptr, T.ptr, T.ptr]);
+  mod.declareExtern("cs_str_split", T.ptr, [T.ptr, T.ptr]);
   mod.declareExtern("cs_str_index_of", T.double, [T.ptr, T.ptr]);
   for (const f of ["cs_str_includes", "cs_str_starts_with", "cs_str_ends_with"]) {
     mod.declareExtern(f, T.i32, [T.ptr, T.ptr]);
