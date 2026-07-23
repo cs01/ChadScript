@@ -25,7 +25,7 @@ const CORPUS: Case[] = [
   // Permanent / later-phase syntax.
   { name: "regex literal", code: "CS1213", src: `const r = /a+/;\nconsole.log(r.source);\n` },
   { name: "bigint literal", code: "CS1000", src: `const b = 10n;\nconsole.log(b);\n` },
-  { name: "JSON.stringify", code: "CS1214", src: `console.log(JSON.stringify({ a: 1 }));\n` },
+  // JSON.stringify is IN the subset (codegen json.ts); only the parser side is still rejected.
   { name: "JSON.parse", code: "CS1214", src: `const o = JSON.parse("{}");\nconsole.log(o);\n` },
   { name: "new Date", code: "CS1215", src: `const d = new Date();\nconsole.log(d);\n` },
   { name: "Date.now", code: "CS1215", src: `console.log(Date.now());\n` },
@@ -69,7 +69,8 @@ const CORPUS: Case[] = [
 
   // Unsupported stdlib surface.
   { name: "Array.from", code: "CS1220", src: `console.log(Array.from([1]));\n` },
-  { name: "Number.isInteger", code: "CS1220", src: `console.log(Number.isInteger(1));\n` },
+  // isInteger/isFinite/isNaN ARE supported; parseFloat is the still-unsupported Number static.
+  { name: "Number.parseFloat", code: "CS1220", src: `console.log(Number.parseFloat("1"));\n` },
   {
     name: "Object.assign",
     code: "CS1220",
