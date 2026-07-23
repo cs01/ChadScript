@@ -48,6 +48,40 @@ function collectClassDataFields(
   }
 }
 
+// Object ValueTypes are memoized by their tsc type. This is what makes a RECURSIVE type
+// representable: `interface Node { next: Node | null }` would otherwise expand its field types
+// forever. Registering the (still empty) result BEFORE filling in the fields means the recursive
+// field resolves to the very same object, so the ValueType graph becomes cyclic rather than
+// infinite — which is exactly what the runtime does, since a field holding an object is just a
+// pointer slot. Consumers must therefore never walk a shape unboundedly (see inspect's depth cap).
+// A WeakMap keyed on ts.Type is safe across compilations: types belong to one Program.
+const objectShapeCache = new WeakMap<ts.Type, ValueType>();
+
+// Structural comparison with a depth bound. Object ValueTypes can be cyclic (see
+// objectShapeCache), so an unbounded structural walk would not terminate; beyond the bound two
+// types are treated as matching, which is safe here because the caller only needs to know that a
+// tuple's elements share ONE runtime representation, and representation is decided by `kind` plus
+// the field layout near the surface.
+function sameRepresentation(a: ValueType, b: ValueType, depth = 0): boolean {
+  if (a === b) return true;
+  if (a.kind !== b.kind) return false;
+  if (depth >= 4) return true;
+  if (a.kind === "object" && b.kind === "object") {
+    if (a.shape.fields.length !== b.shape.fields.length) return false;
+    return a.shape.fields.every((f, i) => {
+      const g = b.shape.fields[i]!;
+      return f.name === g.name && sameRepresentation(f.type, g.type, depth + 1);
+    });
+  }
+  if (a.kind === "array" && b.kind === "array") {
+    return sameRepresentation(a.element, b.element, depth + 1);
+  }
+  if (a.kind === "optional" && b.kind === "optional") {
+    return sameRepresentation(a.inner, b.inner, depth + 1);
+  }
+  return true;
+}
+
 export function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChecker): ValueType {
   const flags = t.flags;
   if (flags & ts.TypeFlags.NumberLike) return VT.number;
@@ -86,7 +120,9 @@ export function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChe
       if (args.length === 0) ice("empty tuple type has no element type");
       const elems = args.map((a) => valueTypeOfTsType(a, node, checker));
       const first = elems[0]!;
-      if (!elems.every((e) => JSON.stringify(e) === JSON.stringify(first))) {
+      // Compared structurally with a depth bound rather than JSON.stringify: a recursive object
+      // ValueType is a CYCLIC graph, which JSON.stringify throws on.
+      if (!elems.every((e) => sameRepresentation(e, first))) {
         ice("heterogeneous tuple types are not supported (use a single element type)");
       }
       return VT.array(first);
@@ -122,26 +158,40 @@ export function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChe
     const classDecl = t.symbol?.valueDeclaration;
     const isClass = classDecl !== undefined && ts.isClassDeclaration(classDecl);
     if (isClass) {
+      const hit = objectShapeCache.get(t);
+      if (hit) return hit;
       // Class instance: lay fields out BASE-FIRST (a subclass record is a prefix-compatible
       // superset of its base), so a derived instance is usable through a base-typed reference.
       // getPropertiesOfType returns derived-first, so walk the heritage chain ourselves.
+      const result: ValueType = {
+        kind: "object",
+        shape: { fields: [] },
+        className: t.symbol!.name,
+      };
+      objectShapeCache.set(t, result);
       const ordered = new Map<string, ValueType>();
       collectClassDataFields(t, node, checker, ordered);
-      const fields = [...ordered].map(([name, type]) => ({ name, type }));
-      return { kind: "object", shape: { fields }, className: t.symbol!.name };
+      if (result.kind !== "object") ice("object shape placeholder was replaced");
+      for (const [name, type] of ordered) result.shape.fields.push({ name, type });
+      return result;
     }
     const props = checker.getPropertiesOfType(t).filter((sym) => !isMethodSymbol(sym));
     if (props.length > 0) {
-      const fields = props.map((sym) => {
+      const hit = objectShapeCache.get(t);
+      if (hit) return hit;
+      const result: ValueType = { kind: "object", shape: { fields: [] } };
+      objectShapeCache.set(t, result);
+      for (const sym of props) {
         let ft = valueTypeOfTsType(checker.getTypeOfSymbolAtLocation(sym, node), node, checker);
         // With exactOptionalPropertyTypes, `x?: T` has type T; the `?` is a symbol flag. Model
         // it as optional<T> so an omitted field stores `undefined`.
         if (sym.flags & ts.SymbolFlags.Optional && ft.kind !== "optional") {
           ft = { kind: "optional", inner: ft };
         }
-        return { name: sym.name, type: ft };
-      });
-      return { kind: "object", shape: { fields } };
+        if (result.kind !== "object") ice("object shape placeholder was replaced");
+        result.shape.fields.push({ name: sym.name, type: ft });
+      }
+      return result;
     }
   }
   // Narrowing produces unions (e.g. `switch (n) { case 0: case 1: }` narrows n to `0 | 1`). A

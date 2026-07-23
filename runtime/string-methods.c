@@ -2,6 +2,7 @@
 // and NUL-safe (cs_mem_find, memcmp), never strlen/strstr. New strings are GC-allocated.
 // Semantics are JS-exact for ASCII (per the UTF-8 decision); the fuzzer stays ASCII-only.
 
+#include <stdint.h> // intptr_t: glibc does not pull it in transitively the way macOS libc does
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>

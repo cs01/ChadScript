@@ -240,3 +240,4 @@ diagnostic — there is no "compiles but behaves differently than Node" third ca
 | `CS1227` | DUPLICATE_CLASS |
 | `CS1228` | TDZ_MODULE_VAR |
 | `CS1229` | ARGV_FORM |
+| `CS1230` | RECURSIVE_TYPE |

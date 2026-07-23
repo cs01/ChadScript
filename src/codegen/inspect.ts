@@ -11,9 +11,31 @@ import type { ValueType } from "../hir/types.js";
 import { unboxSlot, type Ctx } from "./expr.js";
 import { headerOffset } from "./objects.js";
 
+// Node's util.inspect stops descending at depth 2 and prints a placeholder for anything deeper.
+// Matching that is not just cosmetic here: a RECURSIVE type has a cyclic ValueType (see
+// type-translation's objectShapeCache), and this emitter unrolls object fields statically, so an
+// unbounded descent would never terminate. The cap makes recursive shapes printable AND matches
+// Node byte for byte.
+const MAX_DEPTH = 2;
+
 // A string Value for the inspect form of `value` (of type `type`). Strings are quoted here (the
 // nested context); the top-level raw-string case is handled by the caller.
-export function inspect(value: Value, type: ValueType, ctx: Ctx): Value {
+export function inspect(value: Value, type: ValueType, ctx: Ctx, depth = 0): Value {
+  if (depth > MAX_DEPTH) {
+    // What Node prints once it stops descending, chosen by the container kind.
+    switch (type.kind) {
+      case "array":
+        return ctx.mod.cstring("[Array]");
+      case "object":
+        return ctx.mod.cstring("[Object]");
+      case "map":
+        return ctx.mod.cstring("[Map]");
+      case "set":
+        return ctx.mod.cstring("[Set]");
+      default:
+        break; // scalars still print normally at any depth
+    }
+  }
   switch (type.kind) {
     case "number":
       return ctx.fn.call("@cs_inspect_num", T.ptr, [value]);
@@ -26,15 +48,15 @@ export function inspect(value: Value, type: ValueType, ctx: Ctx): Value {
     case "undefined":
       return ctx.mod.cstring("undefined");
     case "optional":
-      return inspectOptional(value, type.inner, ctx);
+      return inspectOptional(value, type.inner, ctx, depth);
     case "array":
-      return inspectArray(value, type.element, ctx);
+      return inspectArray(value, type.element, ctx, depth);
     case "object":
-      return inspectObject(value, type, ctx);
+      return inspectObject(value, type, ctx, depth);
     case "map":
-      return inspectMap(value, type.key, type.value, ctx);
+      return inspectMap(value, type.key, type.value, ctx, depth);
     case "set":
-      return inspectSet(value, type.element, ctx);
+      return inspectSet(value, type.element, ctx, depth);
     default:
       return ice(`inspect: cannot format ${type.kind}`);
   }
@@ -44,7 +66,7 @@ const concat = (ctx: Ctx, a: Value, b: Value): Value =>
   ctx.fn.call("@cs_str_concat", T.ptr, [a, b]);
 
 // An optional prints as its inner value, or the bare word for the nullish sentinels.
-function inspectOptional(value: Value, inner: ValueType, ctx: Ctx): Value {
+function inspectOptional(value: Value, inner: ValueType, ctx: Ctx, depth: number): Value {
   const isUndef = ctx.fn.icmp("eq", value, ctx.mod.externGlobal("cs_undefined_marker"));
   const isNull = ctx.fn.icmp("eq", value, ctx.mod.externGlobal("cs_null_marker"));
   const result = ctx.fn.alloca(T.ptr);
@@ -65,24 +87,30 @@ function inspectOptional(value: Value, inner: ValueType, ctx: Ctx): Value {
   ctx.fn.br(endB);
   ctx.fn.switchTo(valB);
   const innerVal = unboxSlot(ctx.fn.load(T.i64, value), inner, ctx);
-  ctx.fn.store(inspect(innerVal, inner, ctx), result);
+  // An optional is a wrapper, not a nesting level — Node counts the VALUE's depth.
+  ctx.fn.store(inspect(innerVal, inner, ctx, depth), result);
   ctx.fn.br(endB);
   ctx.fn.switchTo(endB);
   return ctx.fn.load(T.ptr, result);
 }
 
 // `[]` when empty, else `[ e0, e1, ... ]`. Shared loop shape with map/set below.
-function inspectArray(arr: Value, elementType: ValueType, ctx: Ctx): Value {
+function inspectArray(arr: Value, elementType: ValueType, ctx: Ctx, depth: number): Value {
   const len = ctx.fn.call("@cs_array_len", T.i32, [arr]);
   return joinBracketed(len, "[", "]", ctx, (i) => {
     const elem = unboxSlot(ctx.fn.call("@cs_array_get", T.i64, [arr, i]), elementType, ctx);
-    return inspect(elem, elementType, ctx);
+    return inspect(elem, elementType, ctx, depth + 1);
   });
 }
 
 // `{}` when no fields, else `{ k0: v0, k1: v1 }` (class instances are prefixed with the class
 // name, matching Node). Fields are static, so this unrolls rather than loops.
-function inspectObject(obj: Value, type: Extract<ValueType, { kind: "object" }>, ctx: Ctx): Value {
+function inspectObject(
+  obj: Value,
+  type: Extract<ValueType, { kind: "object" }>,
+  ctx: Ctx,
+  depth: number,
+): Value {
   const fields = type.shape.fields;
   const prefix = type.className !== undefined ? `${type.className} ` : "";
   if (fields.length === 0) return ctx.mod.cstring(`${prefix}{}`);
@@ -92,24 +120,30 @@ function inspectObject(obj: Value, type: Extract<ValueType, { kind: "object" }>,
     if (i > 0) acc = concat(ctx, acc, ctx.mod.cstring(", "));
     acc = concat(ctx, acc, ctx.mod.cstring(`${f.name}: `));
     const fieldVal = unboxSlot(ctx.fn.load(T.i64, ctx.fn.gepSlot(obj, i + off)), f.type, ctx);
-    acc = concat(ctx, acc, inspect(fieldVal, f.type, ctx));
+    acc = concat(ctx, acc, inspect(fieldVal, f.type, ctx, depth + 1));
   });
   return concat(ctx, acc, ctx.mod.cstring(" }"));
 }
 
 // `Set(N) {}` / `Set(N) { e0, e1 }`.
-function inspectSet(set: Value, element: ValueType, ctx: Ctx): Value {
+function inspectSet(set: Value, element: ValueType, ctx: Ctx, depth: number): Value {
   const arr = ctx.fn.call("@cs_set_values", T.ptr, [set]);
   const len = ctx.fn.call("@cs_array_len", T.i32, [arr]);
   const body = joinBracketed(len, "{", "}", ctx, (i) => {
     const elem = unboxSlot(ctx.fn.call("@cs_array_get", T.i64, [arr, i]), element, ctx);
-    return inspect(elem, element, ctx);
+    return inspect(elem, element, ctx, depth + 1);
   });
   return concat(ctx, sizePrefix("Set", len, ctx), body);
 }
 
 // `Map(N) {}` / `Map(N) { k0 => v0 }`.
-function inspectMap(map: Value, keyType: ValueType, valueType: ValueType, ctx: Ctx): Value {
+function inspectMap(
+  map: Value,
+  keyType: ValueType,
+  valueType: ValueType,
+  ctx: Ctx,
+  depth: number,
+): Value {
   const keys = ctx.fn.call("@cs_map_keys", T.ptr, [map]);
   const vals = ctx.fn.call("@cs_map_values", T.ptr, [map]);
   const len = ctx.fn.call("@cs_array_len", T.i32, [keys]);
@@ -118,8 +152,8 @@ function inspectMap(map: Value, keyType: ValueType, valueType: ValueType, ctx: C
     const v = unboxSlot(ctx.fn.call("@cs_array_get", T.i64, [vals, i]), valueType, ctx);
     return concat(
       ctx,
-      concat(ctx, inspect(k, keyType, ctx), ctx.mod.cstring(" => ")),
-      inspect(v, valueType, ctx),
+      concat(ctx, inspect(k, keyType, ctx, depth + 1), ctx.mod.cstring(" => ")),
+      inspect(v, valueType, ctx, depth + 1),
     );
   });
   return concat(ctx, sizePrefix("Map", len, ctx), body);

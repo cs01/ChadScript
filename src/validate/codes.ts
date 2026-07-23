@@ -37,6 +37,7 @@ export const CODE = {
   DUPLICATE_CLASS: "CS1227", // two classes with the same name in one program (symbols would collide)
   TDZ_MODULE_VAR: "CS1228", // module variable read by a function but declared after code that runs
   ARGV_FORM: "CS1229", // `process.argv` used as anything other than `process.argv.slice(2)`
+  RECURSIVE_TYPE: "CS1230", // a type that refers to itself (tree/linked list) — infinite ValueType
 } as const;
 
 export type Code = (typeof CODE)[keyof typeof CODE];
