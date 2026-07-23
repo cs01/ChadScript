@@ -141,10 +141,36 @@ export function tailoredRejection(
     case ts.SyntaxKind.BinaryExpression:
       return checkBinary(node as ts.BinaryExpression, hit, checker);
 
+    // Strings are stored as UTF-8 bytes but JavaScript indexes them by UTF-16 code unit, so
+    // `.length`, `.slice`, `.indexOf` and friends only agree with Node while every string is
+    // ASCII. A source literal is the ONLY way a non-ASCII string can enter a program (there is
+    // no runtime input that produces one), so rejecting non-ASCII literals makes ASCII-only a
+    // PROVABLE property of the whole program rather than a documented hope. `node.text` is the
+    // cooked value, so escapes like `é` are caught too.
+    case ts.SyntaxKind.StringLiteral:
+    case ts.SyntaxKind.NoSubstitutionTemplateLiteral:
+    case ts.SyntaxKind.TemplateHead:
+    case ts.SyntaxKind.TemplateMiddle:
+    case ts.SyntaxKind.TemplateTail: {
+      const text = (node as ts.LiteralLikeNode).text;
+      const bad = [...text].find((c) => c.codePointAt(0)! > 0x7f);
+      if (bad !== undefined) {
+        const hex = bad.codePointAt(0)!.toString(16).toUpperCase().padStart(4, "0");
+        return hit(
+          CODE.STRING_UNICODE_OP,
+          `non-ASCII character \`${bad}\` (U+${hex}) in a string literal is not supported yet`,
+          "string operations index UTF-8 bytes, so non-ASCII would diverge from Node's UTF-16 " +
+            "code-unit semantics; use ASCII-only literals for now",
+        );
+      }
+      return null;
+    }
+
     case ts.SyntaxKind.PropertyAccessExpression: {
       const pa = node as ts.PropertyAccessExpression;
       // `s.charCodeAt(...)`: byte value ≠ Node's UTF-16 code unit for non-ASCII. Gated (CS1216).
-      if (pa.name.text === "charCodeAt") {
+      // Type-guarded, so a user-defined method that happens to share the name is unaffected.
+      if (pa.name.text === "charCodeAt" && isStringTyped(pa.expression, checker)) {
         return hit(
           CODE.STRING_UNICODE_OP,
           "`charCodeAt` is not supported yet",
