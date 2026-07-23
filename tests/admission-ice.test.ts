@@ -28,7 +28,8 @@ const CORPUS: Case[] = [
   // JSON.stringify is IN the subset (codegen json.ts); only the parser side is still rejected.
   { name: "JSON.parse", code: "CS1214", src: `const o = JSON.parse("{}");\nconsole.log(o);\n` },
   { name: "new Date", code: "CS1215", src: `const d = new Date();\nconsole.log(d);\n` },
-  { name: "Date.now", code: "CS1215", src: `console.log(Date.now());\n` },
+  // `Date.now()` is IN the subset (runtime/time.c); the rest of the static surface is not.
+  { name: "Date.parse", code: "CS1215", src: `console.log(Date.parse("2020-01-01"));\n` },
 
   // UTF-16-vs-UTF-8 gated operations.
   {

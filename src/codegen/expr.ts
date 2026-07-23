@@ -431,6 +431,13 @@ export function evalString(expr: HExpr, ctx: Ctx): Value {
       return ctx.mod.cstring(expr.value);
     case "varRef":
       return ctx.fn.load(T.ptr, lookupVar(expr.name, ctx).ptr);
+    case "runtimeCall":
+      // A string-returning runtime entry (fs.readFileSync).
+      return ctx.fn.call(
+        `@${expr.fn}`,
+        T.ptr,
+        expr.args.map((a) => evalValue(a, ctx)),
+      );
     case "call":
       return evalCall(expr, ctx);
     case "logical":
@@ -562,6 +569,16 @@ export function evalBool(expr: HExpr, ctx: Ctx): Value {
   switch (expr.kind) {
     case "boolLit":
       return imm(T.i1, expr.value ? 1 : 0);
+
+    case "runtimeCall": {
+      // A predicate runtime entry (fs.existsSync) answers i32 0/1, like every other C boolean.
+      const r = ctx.fn.call(
+        `@${expr.fn}`,
+        T.i32,
+        expr.args.map((a) => evalValue(a, ctx)),
+      );
+      return ctx.fn.icmp("ne", r, imm(T.i32, 0));
+    }
 
     case "numberPredicate": {
       const x = evalNumber(expr.arg, ctx);

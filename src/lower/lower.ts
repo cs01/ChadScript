@@ -23,6 +23,7 @@ import {
   returnTypeOfSignature,
 } from "./type-translation.js";
 import { lowerMethodCall } from "./method-call.js";
+import { lowerNodeFsCall } from "./node-fs.js";
 // Re-exported so the many existing `resolveType` import sites keep resolving through lower.ts.
 import { resolveType } from "./resolve-type.js";
 export { resolveType };
@@ -193,6 +194,9 @@ function lowerCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
   // Global builtin functions (from the default lib, not user code): parseInt/parseFloat.
   const builtin = lowerGlobalBuiltin(call.expression.text, call, ctx);
   if (builtin) return builtin;
+  // An imported `node:fs` entry — checked by symbol, so a same-named user function is unaffected.
+  const fsCall = lowerNodeFsCall(call, ctx);
+  if (fsCall) return fsCall;
   // A call whose callee is NOT a top-level function declaration is a closure call.
   const sym = symbolOf(call.expression, ctx);
   const isTopLevelFn = sym?.valueDeclaration && ts.isFunctionDeclaration(sym.valueDeclaration);
@@ -529,6 +533,15 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
         const c = MATH_CONSTS[pa.name.text];
         if (c === undefined) ice(`lower: unsupported Math.${pa.name.text}`);
         return { kind: "numberLit", value: c, type: VT.number };
+      }
+      // `process.pid` — read from the OS, not a constant: the compiled binary and the oracle are
+      // different processes, which is the entire point of having it (collision-free paths).
+      if (
+        ts.isIdentifier(pa.expression) &&
+        pa.expression.text === "process" &&
+        pa.name.text === "pid"
+      ) {
+        return { kind: "runtimeCall", fn: "cs_process_pid", args: [], type: VT.number };
       }
       // `Number.MAX_SAFE_INTEGER` etc. — a numeric constant (use `in`, since NaN's value is NaN).
       if (isNumberNamespace(pa.expression)) {

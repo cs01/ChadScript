@@ -101,6 +101,13 @@ export function generate(hmod: HModule): string {
   mod.declareExtern("cs_promise_all", T.ptr, [T.ptr]); // Promise.all(arr)
   mod.declareExtern("cs_array_new", T.ptr, []);
   mod.declareExtern("cs_argv_slice2", T.ptr, []); // process.argv.slice(2)
+  mod.declareExtern("cs_date_now", T.double, []); // Date.now()
+  mod.declareExtern("cs_process_pid", T.double, []); // process.pid
+  mod.declareExtern("cs_fs_read_file", T.ptr, [T.ptr]);
+  mod.declareExtern("cs_fs_write_file", T.void, [T.ptr, T.ptr]);
+  mod.declareExtern("cs_fs_append_file", T.void, [T.ptr, T.ptr]);
+  mod.declareExtern("cs_fs_exists", T.i32, [T.ptr]);
+  mod.declareExtern("cs_fs_unlink", T.void, [T.ptr]);
   mod.declareExtern("cs_array_push", T.i32, [T.ptr, T.i64]);
   mod.declareExtern("cs_array_len", T.i32, [T.ptr]);
   mod.declareExtern("cs_array_get", T.i64, [T.ptr, T.i32]);
@@ -565,6 +572,13 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
       return;
 
     case "exprStmt":
+      // A void runtime entry (writeFileSync) produces NO value, so it cannot go through
+      // evalValue — which must return one. Emitted directly as a void call instead.
+      if (stmt.expr.kind === "runtimeCall" && stmt.expr.type.kind === "undefined") {
+        const args = stmt.expr.args.map((a) => evalValue(a, ctx));
+        ctx.fn.callVoid(`@${stmt.expr.fn}`, args);
+        return;
+      }
       // Evaluate for side effects; discard the value (e.g. `arr.push(x);`).
       evalValue(stmt.expr, ctx);
       return;

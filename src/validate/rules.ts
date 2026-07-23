@@ -7,6 +7,7 @@ import ts from "typescript";
 import type { Diagnostic } from "../diagnostics.js";
 import { CODE, type Code } from "./codes.js";
 import { spanOf } from "./validate.js";
+import { NODE_FS_MODULE } from "../lower/node-fs.js";
 
 export function tailoredRejection(
   node: ts.Node,
@@ -464,8 +465,14 @@ function checkCall(node: ts.CallExpression, hit: Hit, checker: ts.TypeChecker): 
         "JSON.parse needs a runtime parser + target shape; build the structure field-by-field for now",
       );
     }
-    if (isNamedIdent(recv, "Date")) {
-      return hit(CODE.DATE_API, `\`Date.${m}\` is not supported yet`, "Date is a later phase");
+    // `Date.now()` is supported (runtime/time.c); the rest of the Date surface needs an instance
+    // representation and a calendar, so it stays rejected.
+    if (isNamedIdent(recv, "Date") && m !== "now") {
+      return hit(
+        CODE.DATE_API,
+        `\`Date.${m}\` is not supported yet`,
+        "only `Date.now()` is in the subset; Date instances are a later phase",
+      );
     }
     // String.fromCharCode / fromCodePoint build strings from UTF-16 code units — same UTF-16-over-
     // UTF-8 gap as charCodeAt, so gated (CS1216) rather than silently diverging on codes > 0x7F.
@@ -568,6 +575,7 @@ function isClassInstanceType(t: ts.Type): boolean {
 // supported yet. Instance methods and the `X(...)` conversion calls are NOT gated here.
 export const NAMESPACE_STATIC_ALLOW: Record<string, ReadonlySet<string>> = {
   Object: new Set(["keys", "values"]),
+  Date: new Set(["now"]),
   Array: new Set(),
   Number: new Set(["isInteger", "isFinite", "isNaN"]),
   // Math methods codegen actually lowers (evalMathCall). Others (hypot/pow/random/sin/…) ICE, so
@@ -604,6 +612,11 @@ function checkImport(node: ts.ImportDeclaration, hit: Hit): Diagnostic | null {
     );
   }
   const text = spec.text;
+  // `node:fs` is the one non-relative specifier in the subset: its bindings lower to runtime
+  // entries, and Node resolves the identical specifier when it runs the same source as the
+  // oracle. The ambient declaration in stdlib/globals.d.ts is the allowlist of names — importing
+  // anything else from it fails at typecheck (CS0001), so there is nothing to check here.
+  if (text === NODE_FS_MODULE) return checkImportClause(node, hit);
   if (!text.startsWith("./") && !text.startsWith("../")) {
     return hit(
       CODE.MODULE_FORM,
@@ -621,6 +634,11 @@ function checkImport(node: ts.ImportDeclaration, hit: Hit): Diagnostic | null {
     );
   }
 
+  return checkImportClause(node, hit);
+}
+
+// The binding forms an import may use, independent of which module it names.
+function checkImportClause(node: ts.ImportDeclaration, hit: Hit): Diagnostic | null {
   const clause = node.importClause;
   // `import "./x.ts"` for side effects only: the file IS initialized (its top-level statements are
   // concatenated in dependency order), so this is meaningful and allowed.
@@ -651,7 +669,12 @@ function checkNew(node: ts.NewExpression, hit: Hit): Diagnostic | null {
     );
   }
   if (isNamedIdent(node.expression, "Date")) {
-    return hit(CODE.DATE_API, "`new Date()` is not supported yet", "Date is a later phase");
+    return hit(
+      CODE.DATE_API,
+      "`new Date()` is not supported yet",
+      "a Date instance needs a value representation and calendar arithmetic; `Date.now()` " +
+        "(epoch milliseconds) is supported",
+    );
   }
   return null;
 }

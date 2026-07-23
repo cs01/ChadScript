@@ -48,6 +48,10 @@ export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
       type: VT.number,
     };
   }
+  // `Date.now()` → epoch milliseconds. The validator admits only `now`.
+  if (ts.isIdentifier(pa.expression) && pa.expression.text === "Date") {
+    return { kind: "runtimeCall", fn: "cs_date_now", args: [], type: VT.number };
+  }
   // `Object.keys(o)` / `Object.values(o)` on a closed object shape.
   if (ts.isIdentifier(pa.expression) && pa.expression.text === "Object") {
     return lowerObjectNamespace(pa.name.text, call.arguments[0]!, ctx);

@@ -27,6 +27,7 @@ import {
 import { isMathNamespace } from "./declarations.js";
 import { valueTypeOf } from "./type-translation.js";
 import { lowerMethodCall } from "./method-call.js";
+import { lowerNodeFsCall } from "./node-fs.js";
 
 // Returns an array because one `let a = 1, b = 2;` lowers to several varDecls.
 export function lowerStatement(stmt: ts.Statement, ctx: LowerCtx): HStmt[] {
@@ -528,6 +529,9 @@ export function lowerCallStatement(call: ts.CallExpression, ctx: LowerCtx): HStm
       if (!ts.isIdentifier(call.expression)) {
         return ice(`lower: unsupported call target ${ts.SyntaxKind[call.expression.kind]}`);
       }
+      // `writeFileSync(...)` and friends are void, so statement position is their normal use.
+      const fsCall = lowerNodeFsCall(call, ctx);
+      if (fsCall) return { kind: "exprStmt", expr: fsCall };
       // An async call in statement position must SPAWN a fiber (and discard the promise), not call
       // the body directly — route through lowerExpr so it becomes an asyncCall.
       const fnDecl = symbolOf(call.expression, ctx)?.valueDeclaration;

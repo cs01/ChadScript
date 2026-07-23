@@ -10,6 +10,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 typedef struct CsArray CsArray;
 extern CsArray *cs_array_new(void);
@@ -60,3 +61,7 @@ CsArray *cs_argv_slice2(void) {
   }
   return out;
 }
+
+// `process.pid`. A JS number, so a double crosses the ABI like every other number — pids fit
+// exactly (they are far below 2^53).
+double cs_process_pid(void) { return (double)getpid(); }
