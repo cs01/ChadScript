@@ -33,7 +33,9 @@ import {
   lowerArrayElement,
   keyKindOf,
   isMathNamespace,
+  isNumberNamespace,
   MATH_CONSTS,
+  NUMBER_CONSTS,
 } from "./declarations.js";
 
 export interface LowerCtx {
@@ -492,6 +494,11 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
         const c = MATH_CONSTS[pa.name.text];
         if (c === undefined) ice(`lower: unsupported Math.${pa.name.text}`);
         return { kind: "numberLit", value: c, type: VT.number };
+      }
+      // `Number.MAX_SAFE_INTEGER` etc. — a numeric constant (use `in`, since NaN's value is NaN).
+      if (isNumberNamespace(pa.expression)) {
+        if (!(pa.name.text in NUMBER_CONSTS)) ice(`lower: unsupported Number.${pa.name.text}`);
+        return { kind: "numberLit", value: NUMBER_CONSTS[pa.name.text]!, type: VT.number };
       }
       const objType = resolveType(pa.expression, ctx);
       if (pa.name.text === "length" && objType.kind === "array") {

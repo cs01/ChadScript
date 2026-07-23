@@ -419,6 +419,24 @@ export function isMathNamespace(expr: ts.Expression): boolean {
   return ts.isIdentifier(expr) && expr.text === "Math";
 }
 
+// `Number.X` numeric constants — the compiler's own (exact) Number values, emitted as number
+// literals (fimm carries the full f64 bits, so ±Infinity and NaN round-trip). `Number.isInteger`
+// etc. are calls, handled in method-call.ts, not here.
+export const NUMBER_CONSTS: Record<string, number> = {
+  MAX_SAFE_INTEGER: Number.MAX_SAFE_INTEGER,
+  MIN_SAFE_INTEGER: Number.MIN_SAFE_INTEGER,
+  MAX_VALUE: Number.MAX_VALUE,
+  MIN_VALUE: Number.MIN_VALUE,
+  EPSILON: Number.EPSILON,
+  POSITIVE_INFINITY: Number.POSITIVE_INFINITY,
+  NEGATIVE_INFINITY: Number.NEGATIVE_INFINITY,
+  NaN: Number.NaN,
+};
+
+export function isNumberNamespace(expr: ts.Expression): boolean {
+  return ts.isIdentifier(expr) && expr.text === "Number";
+}
+
 // The runtime key-kind tag for a Map key type, selecting its equality function. Map keys must be
 // primitive (object identity keys are a later feature).
 export function keyKindOf(keyType: ValueType): number {
