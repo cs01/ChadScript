@@ -194,7 +194,7 @@ diagnostic — there is no "compiles but behaves differently than Node" third ca
 
 - `Array`: _(none)_
 - `Math`: `abs`, `ceil`, `floor`, `max`, `min`, `pow`, `round`, `sign`, `sqrt`, `trunc`
-- `Number`: _(none)_
+- `Number`: `isFinite`, `isInteger`, `isNaN`
 - `Object`: `keys`, `values`
 - `Promise`: `all`, `resolve`
 

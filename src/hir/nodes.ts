@@ -329,6 +329,8 @@ export type HExpr =
   // `JSON.stringify(v)`: the JSON text of v (a recursive, type-directed walk). Result is a string.
   // `indent` is the pretty-print unit (repeated per nesting level); null = compact single-line.
   | { kind: "jsonStringify"; value: HExpr; indent: string | null; type: ValueType }
+  // `Number.isInteger/isFinite/isNaN(x)` — no argument coercion (x is already number). Result bool.
+  | { kind: "numberPredicate"; fn: "isInteger" | "isFinite" | "isNaN"; arg: HExpr; type: ValueType }
   | { kind: "unary"; op: UnaryOp; operand: HExpr; type: ValueType }
   | { kind: "binary"; op: BinaryOp; left: HExpr; right: HExpr; type: ValueType }
   // Short-circuiting `&&` / `||`. JS VALUE semantics: the result IS one of the operands (not a

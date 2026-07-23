@@ -504,7 +504,7 @@ function isClassInstanceType(t: ts.Type): boolean {
 export const NAMESPACE_STATIC_ALLOW: Record<string, ReadonlySet<string>> = {
   Object: new Set(["keys", "values"]),
   Array: new Set(),
-  Number: new Set(),
+  Number: new Set(["isInteger", "isFinite", "isNaN"]),
   // Math methods codegen actually lowers (evalMathCall). Others (hypot/pow/random/sin/…) ICE, so
   // reject them here. Math CONSTANTS (Math.PI) are property reads, not calls — unaffected.
   Math: new Set(["floor", "ceil", "trunc", "abs", "sqrt", "round", "sign", "pow", "max", "min"]),

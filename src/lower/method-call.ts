@@ -51,6 +51,19 @@ export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
   if (ts.isIdentifier(pa.expression) && pa.expression.text === "Object") {
     return lowerObjectNamespace(pa.name.text, call.arguments[0]!, ctx);
   }
+  // `Number.isInteger/isFinite/isNaN(x)` → a boolean predicate (validate allowlists the names).
+  if (ts.isIdentifier(pa.expression) && pa.expression.text === "Number") {
+    const fn = pa.name.text;
+    if (fn === "isInteger" || fn === "isFinite" || fn === "isNaN") {
+      return {
+        kind: "numberPredicate",
+        fn,
+        arg: lowerExpr(call.arguments[0]!, ctx),
+        type: VT.boolean,
+      };
+    }
+    ice(`lower: unsupported Number.${fn}`);
+  }
   // `JSON.stringify(v)` / `JSON.stringify(v, null, space)` → recursive JSON text (validate allowlists
   // only `stringify`). The optional 3rd arg (indent) must be a LITERAL number (spaces, capped 10) or
   // string (capped 10 chars) so the per-level indent is known at compile time. The 2nd arg (replacer)

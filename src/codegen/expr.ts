@@ -623,6 +623,19 @@ export function evalBool(expr: HExpr, ctx: Ctx): Value {
     case "boolLit":
       return imm(T.i1, expr.value ? 1 : 0);
 
+    case "numberPredicate": {
+      const x = evalNumber(expr.arg, ctx);
+      // isNaN: unordered self-compare is true ONLY for NaN.
+      if (expr.fn === "isNaN") return ctx.fn.fcmp("uno", x, x);
+      // isFinite: x-x is 0 for finite, NaN for ±Infinity, NaN for NaN — so ordered `== 0` iff finite.
+      const finite = ctx.fn.fcmp("oeq", ctx.fn.fsub(x, x), fimm(0));
+      if (expr.fn === "isFinite") return finite;
+      // isInteger: finite AND floor(x) === x (the finite guard rejects ±Infinity, whose floor is
+      // itself). `select` gives the short-circuit AND without an i1 bitwise op.
+      const floorEq = ctx.fn.fcmp("oeq", ctx.fn.call("@floor", T.double, [x]), x);
+      return ctx.fn.select(finite, floorEq, imm(T.i1, 0));
+    }
+
     case "varRef":
       return ctx.fn.load(T.i1, lookupVar(expr.name, ctx).ptr);
 
