@@ -21,6 +21,7 @@ import { evalStrMethod } from "./strings.js";
 import { evalArrayHof, evalArraySort, evalArraySearch, evalArrayJoin } from "./array.js";
 import { evalObjectPtr, evalMemberGet, headerOffset } from "./objects.js";
 import { evalAsyncCall, evalAwait, evalPromiseResolve, evalPromiseAll } from "./async.js";
+import { jsonStringify } from "./json.js";
 import { evalNumber } from "./numbers.js";
 import {
   evalOptionalPtr,
@@ -401,6 +402,8 @@ export function evalValue(expr: HExpr, ctx: Ctx): Value {
 // Evaluate a string-typed HExpr to a ptr Value (cstring for a literal; a load for a varRef).
 export function evalString(expr: HExpr, ctx: Ctx): Value {
   if (expr.kind === "await") return evalAwait(expr, ctx);
+  if (expr.kind === "jsonStringify")
+    return jsonStringify(evalValue(expr.value, ctx), expr.value.type, ctx);
   switch (expr.kind) {
     case "stringLit":
       return ctx.mod.cstring(expr.value);

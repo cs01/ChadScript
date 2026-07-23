@@ -262,6 +262,9 @@ function verifyExpr(e: HExpr): void {
     case "promiseAll":
       verifyExpr(e.array);
       return;
+    case "jsonStringify":
+      verifyExpr(e.value);
+      return;
     case "unary":
       verifyExpr(e.operand);
       return;

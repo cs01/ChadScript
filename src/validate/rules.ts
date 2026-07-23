@@ -390,11 +390,13 @@ function checkCall(node: ts.CallExpression, hit: Hit, checker: ts.TypeChecker): 
   if (ts.isPropertyAccessExpression(node.expression)) {
     const recv = node.expression.expression;
     const m = node.expression.name.text;
-    if (isNamedIdent(recv, "JSON") && (m === "stringify" || m === "parse")) {
+    // JSON.stringify is supported (codegen json.ts); JSON.parse is not (it needs a runtime parser
+    // and a target type to shape the result).
+    if (isNamedIdent(recv, "JSON") && m === "parse") {
       return hit(
         CODE.JSON_API,
-        `\`JSON.${m}\` is not supported yet`,
-        "JSON is a later phase; build or read the structure field-by-field for now",
+        "`JSON.parse` is not supported yet",
+        "JSON.parse needs a runtime parser + target shape; build the structure field-by-field for now",
       );
     }
     if (isNamedIdent(recv, "Date")) {

@@ -326,6 +326,8 @@ export type HExpr =
   // `Promise.all(arr)`: `arr` is an array of promises; result is `Promise<T[]>` resolving to the
   // fulfilled values in order (or rejecting on the first rejection).
   | { kind: "promiseAll"; array: HExpr; type: ValueType }
+  // `JSON.stringify(v)`: the JSON text of v (a recursive, type-directed walk). Result is a string.
+  | { kind: "jsonStringify"; value: HExpr; type: ValueType }
   | { kind: "unary"; op: UnaryOp; operand: HExpr; type: ValueType }
   | { kind: "binary"; op: BinaryOp; left: HExpr; right: HExpr; type: ValueType }
   // Short-circuiting `&&` / `||`. JS VALUE semantics: the result IS one of the operands (not a

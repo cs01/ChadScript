@@ -42,6 +42,8 @@ export function generate(hmod: HModule): string {
   mod.declareExtern("cs_print_newline", T.void, []);
   mod.declareExtern("cs_to_int32", T.i32, [T.double]); // ECMAScript ToInt32 for bitwise ops
   mod.declareExtern("cs_str_concat", T.ptr, [T.ptr, T.ptr]);
+  mod.declareExtern("cs_json_num", T.ptr, [T.double]);
+  mod.declareExtern("cs_json_str", T.ptr, [T.ptr]);
   mod.declareExtern("cs_num_to_string", T.ptr, [T.double]);
   mod.declareExtern("cs_num_to_string_radix", T.ptr, [T.double, T.double]);
   mod.declareExtern("cs_string_to_number", T.double, [T.ptr]);

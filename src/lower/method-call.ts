@@ -36,6 +36,11 @@ export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
   if (ts.isIdentifier(pa.expression) && pa.expression.text === "Object") {
     return lowerObjectNamespace(pa.name.text, call.arguments[0]!, ctx);
   }
+  // `JSON.stringify(v)` → recursive JSON text (validate allowlists only `stringify`).
+  if (ts.isIdentifier(pa.expression) && pa.expression.text === "JSON") {
+    if (pa.name.text !== "stringify") ice(`lower: unsupported JSON.${pa.name.text}`);
+    return { kind: "jsonStringify", value: lowerExpr(call.arguments[0]!, ctx), type: VT.string };
+  }
   // Promise statics (validate allowlists which names reach here).
   if (ts.isIdentifier(pa.expression) && pa.expression.text === "Promise") {
     if (pa.name.text === "resolve") {
