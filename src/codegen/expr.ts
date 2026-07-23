@@ -403,7 +403,7 @@ export function evalValue(expr: HExpr, ctx: Ctx): Value {
 export function evalString(expr: HExpr, ctx: Ctx): Value {
   if (expr.kind === "await") return evalAwait(expr, ctx);
   if (expr.kind === "jsonStringify")
-    return jsonStringify(evalValue(expr.value, ctx), expr.value.type, ctx);
+    return jsonStringify(evalValue(expr.value, ctx), expr.value.type, ctx, expr.indent, 0);
   switch (expr.kind) {
     case "stringLit":
       return ctx.mod.cstring(expr.value);

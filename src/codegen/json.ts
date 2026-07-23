@@ -1,8 +1,10 @@
 // JSON.stringify codegen: a type-directed recursive walk that builds the JSON text of a value at
-// runtime (mirrors inspect.ts, but with JSON rules — double-quoted keys/strings, no spaces, non-
-// finite numbers → `null`, class names dropped). Leaf number/string conversions are in runtime/json.c.
-// Optional/undefined values are NOT supported yet (JSON's omit-undefined-key vs null-in-array rules
-// are context-dependent); they hit a loud ICE rather than silently diverging.
+// runtime (mirrors inspect.ts, but with JSON rules — double-quoted keys/strings, non-finite numbers →
+// `null`, class names dropped). Leaf number/string conversions are in runtime/json.c. Optional fields
+// follow JSON's omit-undefined / null / value rules. An `indent` unit (from the literal `space`
+// argument) turns on pretty-printing: each nesting level is prefixed with a newline + the unit
+// repeated by depth. Because the unit and the depth are both known at compile time, every indent
+// prefix is a compile-time string — no runtime indent arithmetic.
 
 import { ice } from "../diagnostics.js";
 import { imm, type Value } from "../ir/builder.js";
@@ -14,8 +16,20 @@ import { headerOffset } from "./objects.js";
 const concat = (ctx: Ctx, a: Value, b: Value): Value =>
   ctx.fn.call("@cs_str_concat", T.ptr, [a, b]);
 
-// A string Value holding the JSON text of `value` (of type `type`).
-export function jsonStringify(value: Value, type: ValueType, ctx: Ctx): Value {
+// The line prefix at nesting `depth`: newline + the indent unit repeated `depth` times (empty string
+// when compact). `indent` null means compact (no newlines, no spaces).
+const linePrefix = (indent: string | null, depth: number): string =>
+  indent === null ? "" : "\n" + indent.repeat(depth);
+
+// A string Value holding the JSON text of `value` (of type `type`). `indent` is the pretty-print
+// unit (null = compact); `depth` is the current nesting level (0 at the top).
+export function jsonStringify(
+  value: Value,
+  type: ValueType,
+  ctx: Ctx,
+  indent: string | null,
+  depth: number,
+): Value {
   switch (type.kind) {
     case "number":
       return ctx.fn.call("@cs_json_num", T.ptr, [value]);
@@ -26,40 +40,58 @@ export function jsonStringify(value: Value, type: ValueType, ctx: Ctx): Value {
     case "null":
       return ctx.mod.cstring("null");
     case "array":
-      return jsonArray(value, type.element, ctx);
+      return jsonArray(value, type.element, ctx, indent, depth);
     case "object":
-      return jsonObject(value, type, ctx);
+      return jsonObject(value, type, ctx, indent, depth);
     default:
-      // optional/undefined (context-dependent omit vs null), map/set/function/promise: not yet.
+      // undefined (context-dependent), map/set/function/promise: not yet.
       return ice(`JSON.stringify: unsupported value type ${type.kind}`);
   }
 }
 
-// `[]` or `[e0,e1,...]` — compact, comma-separated, no spaces.
-function jsonArray(arr: Value, elementType: ValueType, ctx: Ctx): Value {
+// `[]` or (compact) `[e0,e1]` or (pretty) `[\n  e0,\n  e1\n]`.
+function jsonArray(
+  arr: Value,
+  elementType: ValueType,
+  ctx: Ctx,
+  indent: string | null,
+  depth: number,
+): Value {
   const len = ctx.fn.call("@cs_array_len", T.i32, [arr]);
-  return jsonJoin(len, "[", "]", ctx, (i) => {
+  const child = linePrefix(indent, depth + 1);
+  const open = "[" + child;
+  const sep = "," + child;
+  const close = linePrefix(indent, depth) + "]";
+  return jsonJoin(len, open, sep, close, "[]", ctx, (i) => {
     const elem = unboxSlot(ctx.fn.call("@cs_array_get", T.i64, [arr, i]), elementType, ctx);
-    return jsonStringify(elem, elementType, ctx);
+    return jsonStringify(elem, elementType, ctx, indent, depth + 1);
   });
 }
 
-// `{}` or `{"k0":v0,"k1":v1}` — fields are static, so this unrolls. Field names are identifiers
-// (subset), safe to emit as literal quoted keys. Class names are omitted (JSON has no class notion).
-// Optional fields follow JSON.stringify's rules: an `undefined` value OMITS the key entirely, `null`
-// emits `"key":null`, and a present value emits normally. Because omission is decided at runtime, a
-// `wrote` flag tracks whether a comma is needed before the next emitted field.
-function jsonObject(obj: Value, type: Extract<ValueType, { kind: "object" }>, ctx: Ctx): Value {
+// `{}` or `{"k":v,...}` (compact) / `{\n  "k": v,\n  ...\n}` (pretty). Fields are static, so this
+// unrolls. Optional fields: undefined omits the key, null → `null`, present → the value. Omission is
+// a runtime decision, so a `wrote` flag drives both the comma and (pretty) the closing newline.
+function jsonObject(
+  obj: Value,
+  type: Extract<ValueType, { kind: "object" }>,
+  ctx: Ctx,
+  indent: string | null,
+  depth: number,
+): Value {
   const fields = type.shape.fields;
   if (fields.length === 0) return ctx.mod.cstring("{}");
   const off = headerOffset(type);
+  const child = linePrefix(indent, depth + 1); // before each key
+  const colon = indent === null ? ":" : ": ";
+  const closePrefix = linePrefix(indent, depth); // before the closing brace, if anything was written
+
   const accPtr = ctx.fn.alloca(T.ptr);
   ctx.fn.store(ctx.mod.cstring("{"), accPtr);
   const wrotePtr = ctx.fn.alloca(T.i1);
   ctx.fn.store(imm(T.i1, 0), wrotePtr);
   const append = (s: Value): void =>
     ctx.fn.store(concat(ctx, ctx.fn.load(T.ptr, accPtr), s), accPtr);
-  // Append a comma iff a field was already written.
+  // Comma before a field iff one was already written (the comma precedes the newline+indent).
   const appendComma = (): void => {
     const cB = ctx.fn.newBlock("json.comma");
     const aB = ctx.fn.newBlock("json.aftercomma");
@@ -69,6 +101,7 @@ function jsonObject(obj: Value, type: Extract<ValueType, { kind: "object" }>, ct
     ctx.fn.br(aB);
     ctx.fn.switchTo(aB);
   };
+  const emitKey = (name: string): void => append(ctx.mod.cstring(`${child}"${name}"${colon}`));
 
   fields.forEach((f, i) => {
     const slot = ctx.fn.gepSlot(obj, i + off);
@@ -81,8 +114,7 @@ function jsonObject(obj: Value, type: Extract<ValueType, { kind: "object" }>, ct
       ctx.fn.brCond(isUndef, contB, emitB); // undefined → omit the key
       ctx.fn.switchTo(emitB);
       appendComma();
-      append(ctx.mod.cstring(`"${f.name}":`));
-      // null → the literal null; else stringify the present inner value.
+      emitKey(f.name);
       const isNull = ctx.fn.icmp("eq", optPtr, ctx.mod.externGlobal("cs_null_marker"));
       const nullB = ctx.fn.newBlock("json.optnull");
       const valB = ctx.fn.newBlock("json.optval");
@@ -94,7 +126,7 @@ function jsonObject(obj: Value, type: Extract<ValueType, { kind: "object" }>, ct
       ctx.fn.br(joinB);
       ctx.fn.switchTo(valB);
       const innerVal = unboxSlot(ctx.fn.load(T.i64, optPtr), inner, ctx);
-      ctx.fn.store(jsonStringify(innerVal, inner, ctx), vPtr);
+      ctx.fn.store(jsonStringify(innerVal, inner, ctx, indent, depth + 1), vPtr);
       ctx.fn.br(joinB);
       ctx.fn.switchTo(joinB);
       append(ctx.fn.load(T.ptr, vPtr));
@@ -103,24 +135,52 @@ function jsonObject(obj: Value, type: Extract<ValueType, { kind: "object" }>, ct
       ctx.fn.switchTo(contB);
     } else {
       appendComma();
-      append(ctx.mod.cstring(`"${f.name}":`));
-      append(jsonStringify(unboxSlot(ctx.fn.load(T.i64, slot), f.type, ctx), f.type, ctx));
+      emitKey(f.name);
+      append(
+        jsonStringify(
+          unboxSlot(ctx.fn.load(T.i64, slot), f.type, ctx),
+          f.type,
+          ctx,
+          indent,
+          depth + 1,
+        ),
+      );
       ctx.fn.store(imm(T.i1, 1), wrotePtr);
     }
   });
-  return concat(ctx, ctx.fn.load(T.ptr, accPtr), ctx.mod.cstring("}"));
+  // Close: `<newline+indent>}` if anything was written (pretty), else just `}` (compact, or an
+  // all-optional object that emitted nothing → `{}`).
+  const close = ctx.fn.select(
+    ctx.fn.load(T.i1, wrotePtr),
+    ctx.mod.cstring(closePrefix + "}"),
+    ctx.mod.cstring("}"),
+  );
+  return concat(ctx, ctx.fn.load(T.ptr, accPtr), close);
 }
 
-// Build `open` + comma-joined `elemStr(i)` for i in [0,count) + `close`. Empty → `openclose`.
-// Recursion-safe: `elemStr` may itself emit blocks (nested arrays/objects), and the accumulator
-// lives in an alloca so the current block after a nested call is irrelevant.
+// Build `open` + `elemStr(0)` + `sep` + `elemStr(1)` + ... + `close` over `count` elements; an empty
+// container is `empty`. Recursion-safe: `elemStr` may emit its own blocks (nested containers), and
+// the accumulator lives in an alloca so the current block after a nested call is irrelevant.
 function jsonJoin(
   count: Value,
   open: string,
+  sep: string,
   close: string,
+  empty: string,
   ctx: Ctx,
   elemStr: (i: Value) => Value,
 ): Value {
+  const result = ctx.fn.alloca(T.ptr);
+  const emptyB = ctx.fn.newBlock("json.empty");
+  const bodyB = ctx.fn.newBlock("json.body");
+  const endB = ctx.fn.newBlock("json.end");
+  ctx.fn.brCond(ctx.fn.icmp("eq", count, imm(T.i32, 0)), emptyB, bodyB);
+
+  ctx.fn.switchTo(emptyB);
+  ctx.fn.store(ctx.mod.cstring(empty), result);
+  ctx.fn.br(endB);
+
+  ctx.fn.switchTo(bodyB);
   const accPtr = ctx.fn.alloca(T.ptr);
   ctx.fn.store(ctx.mod.cstring(open), accPtr);
   const idxPtr = ctx.fn.alloca(T.i32);
@@ -136,12 +196,11 @@ function jsonJoin(
 
   ctx.fn.switchTo(iterB);
   const idx = ctx.fn.load(T.i32, idxPtr);
-  // Separator "," before every element after the first.
   const sepB = ctx.fn.newBlock("json.sep");
   const afterSepB = ctx.fn.newBlock("json.aftersep");
   ctx.fn.brCond(ctx.fn.icmp("sgt", idx, imm(T.i32, 0)), sepB, afterSepB);
   ctx.fn.switchTo(sepB);
-  ctx.fn.store(concat(ctx, ctx.fn.load(T.ptr, accPtr), ctx.mod.cstring(",")), accPtr);
+  ctx.fn.store(concat(ctx, ctx.fn.load(T.ptr, accPtr), ctx.mod.cstring(sep)), accPtr);
   ctx.fn.br(afterSepB);
   ctx.fn.switchTo(afterSepB);
   ctx.fn.store(concat(ctx, ctx.fn.load(T.ptr, accPtr), elemStr(idx)), accPtr);
@@ -149,5 +208,9 @@ function jsonJoin(
   ctx.fn.br(headerB);
 
   ctx.fn.switchTo(doneB);
-  return concat(ctx, ctx.fn.load(T.ptr, accPtr), ctx.mod.cstring(close));
+  ctx.fn.store(concat(ctx, ctx.fn.load(T.ptr, accPtr), ctx.mod.cstring(close)), result);
+  ctx.fn.br(endB);
+
+  ctx.fn.switchTo(endB);
+  return ctx.fn.load(T.ptr, result);
 }

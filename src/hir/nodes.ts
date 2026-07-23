@@ -327,7 +327,8 @@ export type HExpr =
   // fulfilled values in order (or rejecting on the first rejection).
   | { kind: "promiseAll"; array: HExpr; type: ValueType }
   // `JSON.stringify(v)`: the JSON text of v (a recursive, type-directed walk). Result is a string.
-  | { kind: "jsonStringify"; value: HExpr; type: ValueType }
+  // `indent` is the pretty-print unit (repeated per nesting level); null = compact single-line.
+  | { kind: "jsonStringify"; value: HExpr; indent: string | null; type: ValueType }
   | { kind: "unary"; op: UnaryOp; operand: HExpr; type: ValueType }
   | { kind: "binary"; op: BinaryOp; left: HExpr; right: HExpr; type: ValueType }
   // Short-circuiting `&&` / `||`. JS VALUE semantics: the result IS one of the operands (not a

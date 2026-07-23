@@ -19,6 +19,21 @@ import {
 import { isMathNamespace, keyKindOf } from "./declarations.js";
 import { thisRef } from "./statements.js";
 
+// The pretty-print indent unit for a JSON.stringify `space` argument: a literal number N → N spaces
+// (JSON caps at 10), a literal string → up to its first 10 chars, anything falsy/absent → null
+// (compact). A non-literal space argument is rejected (the indent must be known at compile time).
+function jsonIndentUnit(space: ts.Expression | undefined): string | null {
+  if (!space) return null;
+  if (ts.isNumericLiteral(space)) {
+    const n = Math.min(10, Math.floor(Number(space.text)));
+    return n > 0 ? " ".repeat(n) : null;
+  }
+  if (ts.isStringLiteral(space)) return space.text.length > 0 ? space.text.slice(0, 10) : null;
+  if (space.kind === ts.SyntaxKind.NullKeyword) return null;
+  if (ts.isIdentifier(space) && space.text === "undefined") return null;
+  return ice("lower: JSON.stringify space (3rd arg) must be a literal number or string");
+}
+
 // A method call `obj.method(args)`. Dispatched on the receiver's type + method name.
 export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
   const pa = call.expression as ts.PropertyAccessExpression;
@@ -36,10 +51,26 @@ export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
   if (ts.isIdentifier(pa.expression) && pa.expression.text === "Object") {
     return lowerObjectNamespace(pa.name.text, call.arguments[0]!, ctx);
   }
-  // `JSON.stringify(v)` → recursive JSON text (validate allowlists only `stringify`).
+  // `JSON.stringify(v)` / `JSON.stringify(v, null, space)` → recursive JSON text (validate allowlists
+  // only `stringify`). The optional 3rd arg (indent) must be a LITERAL number (spaces, capped 10) or
+  // string (capped 10 chars) so the per-level indent is known at compile time. The 2nd arg (replacer)
+  // must be null/undefined — a function/array replacer is out of the subset.
   if (ts.isIdentifier(pa.expression) && pa.expression.text === "JSON") {
     if (pa.name.text !== "stringify") ice(`lower: unsupported JSON.${pa.name.text}`);
-    return { kind: "jsonStringify", value: lowerExpr(call.arguments[0]!, ctx), type: VT.string };
+    const replacer = call.arguments[1];
+    if (
+      replacer &&
+      replacer.kind !== ts.SyntaxKind.NullKeyword &&
+      !(ts.isIdentifier(replacer) && replacer.text === "undefined")
+    ) {
+      ice("lower: JSON.stringify replacer (2nd arg) is not supported; pass null");
+    }
+    return {
+      kind: "jsonStringify",
+      value: lowerExpr(call.arguments[0]!, ctx),
+      indent: jsonIndentUnit(call.arguments[2]),
+      type: VT.string,
+    };
   }
   // Promise statics (validate allowlists which names reach here).
   if (ts.isIdentifier(pa.expression) && pa.expression.text === "Promise") {
