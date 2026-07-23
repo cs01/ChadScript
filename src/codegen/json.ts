@@ -46,21 +46,69 @@ function jsonArray(arr: Value, elementType: ValueType, ctx: Ctx): Value {
 
 // `{}` or `{"k0":v0,"k1":v1}` — fields are static, so this unrolls. Field names are identifiers
 // (subset), safe to emit as literal quoted keys. Class names are omitted (JSON has no class notion).
+// Optional fields follow JSON.stringify's rules: an `undefined` value OMITS the key entirely, `null`
+// emits `"key":null`, and a present value emits normally. Because omission is decided at runtime, a
+// `wrote` flag tracks whether a comma is needed before the next emitted field.
 function jsonObject(obj: Value, type: Extract<ValueType, { kind: "object" }>, ctx: Ctx): Value {
   const fields = type.shape.fields;
   if (fields.length === 0) return ctx.mod.cstring("{}");
   const off = headerOffset(type);
-  let acc = ctx.mod.cstring("{");
+  const accPtr = ctx.fn.alloca(T.ptr);
+  ctx.fn.store(ctx.mod.cstring("{"), accPtr);
+  const wrotePtr = ctx.fn.alloca(T.i1);
+  ctx.fn.store(imm(T.i1, 0), wrotePtr);
+  const append = (s: Value): void =>
+    ctx.fn.store(concat(ctx, ctx.fn.load(T.ptr, accPtr), s), accPtr);
+  // Append a comma iff a field was already written.
+  const appendComma = (): void => {
+    const cB = ctx.fn.newBlock("json.comma");
+    const aB = ctx.fn.newBlock("json.aftercomma");
+    ctx.fn.brCond(ctx.fn.load(T.i1, wrotePtr), cB, aB);
+    ctx.fn.switchTo(cB);
+    append(ctx.mod.cstring(","));
+    ctx.fn.br(aB);
+    ctx.fn.switchTo(aB);
+  };
+
   fields.forEach((f, i) => {
+    const slot = ctx.fn.gepSlot(obj, i + off);
     if (f.type.kind === "optional") {
-      ice("JSON.stringify: objects with optional fields not supported yet");
+      const inner = f.type.inner;
+      const optPtr = ctx.fn.load(T.ptr, slot); // undefined/null sentinel, or a box holding the value
+      const isUndef = ctx.fn.icmp("eq", optPtr, ctx.mod.externGlobal("cs_undefined_marker"));
+      const emitB = ctx.fn.newBlock("json.optemit");
+      const contB = ctx.fn.newBlock("json.optcont");
+      ctx.fn.brCond(isUndef, contB, emitB); // undefined → omit the key
+      ctx.fn.switchTo(emitB);
+      appendComma();
+      append(ctx.mod.cstring(`"${f.name}":`));
+      // null → the literal null; else stringify the present inner value.
+      const isNull = ctx.fn.icmp("eq", optPtr, ctx.mod.externGlobal("cs_null_marker"));
+      const nullB = ctx.fn.newBlock("json.optnull");
+      const valB = ctx.fn.newBlock("json.optval");
+      const joinB = ctx.fn.newBlock("json.optjoin");
+      const vPtr = ctx.fn.alloca(T.ptr);
+      ctx.fn.brCond(isNull, nullB, valB);
+      ctx.fn.switchTo(nullB);
+      ctx.fn.store(ctx.mod.cstring("null"), vPtr);
+      ctx.fn.br(joinB);
+      ctx.fn.switchTo(valB);
+      const innerVal = unboxSlot(ctx.fn.load(T.i64, optPtr), inner, ctx);
+      ctx.fn.store(jsonStringify(innerVal, inner, ctx), vPtr);
+      ctx.fn.br(joinB);
+      ctx.fn.switchTo(joinB);
+      append(ctx.fn.load(T.ptr, vPtr));
+      ctx.fn.store(imm(T.i1, 1), wrotePtr);
+      ctx.fn.br(contB);
+      ctx.fn.switchTo(contB);
+    } else {
+      appendComma();
+      append(ctx.mod.cstring(`"${f.name}":`));
+      append(jsonStringify(unboxSlot(ctx.fn.load(T.i64, slot), f.type, ctx), f.type, ctx));
+      ctx.fn.store(imm(T.i1, 1), wrotePtr);
     }
-    const sep = i > 0 ? "," : "";
-    acc = concat(ctx, acc, ctx.mod.cstring(`${sep}"${f.name}":`));
-    const fieldVal = unboxSlot(ctx.fn.load(T.i64, ctx.fn.gepSlot(obj, i + off)), f.type, ctx);
-    acc = concat(ctx, acc, jsonStringify(fieldVal, f.type, ctx));
   });
-  return concat(ctx, acc, ctx.mod.cstring("}"));
+  return concat(ctx, ctx.fn.load(T.ptr, accPtr), ctx.mod.cstring("}"));
 }
 
 // Build `open` + comma-joined `elemStr(i)` for i in [0,count) + `close`. Empty → `openclose`.
