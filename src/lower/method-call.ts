@@ -118,6 +118,20 @@ export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
     }
     ice(`lower: unsupported Promise.${pa.name.text}`);
   }
+  // `process.argv.slice(2)` — the ONLY admitted form of process.argv (the validator rejects every
+  // other use). It is a direct runtime entry, not an array method call, because `process.argv`
+  // itself is not a value the backend can produce: Node's first two entries (node binary, script
+  // path) have no counterpart in a compiled binary.
+  if (
+    ts.isPropertyAccessExpression(pa.expression) &&
+    ts.isIdentifier(pa.expression.expression) &&
+    pa.expression.expression.text === "process" &&
+    pa.expression.name.text === "argv"
+  ) {
+    if (pa.name.text !== "slice") ice(`lower: process.argv.${pa.name.text} is not supported`);
+    return { kind: "runtimeCall", fn: "cs_argv_slice2", args: [], type: VT.array(VT.string) };
+  }
+
   // `super.m(args)` in value position → non-virtual base call with `this` as the receiver.
   if (pa.expression.kind === ts.SyntaxKind.SuperKeyword) {
     if (!ctx.currentBaseClass) return ice("lower: `super` with no base class");

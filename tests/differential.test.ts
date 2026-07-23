@@ -37,7 +37,7 @@ test("differential suite (all fixtures vs Node, O0 + O2)", async () => {
   const fixtures = [...discoverFixtures(runRoot)];
   const failures: string[] = [];
   await pool(fixtures, Math.max(2, cpus().length), async (fx) => {
-    const divergences = await differential(fx.path);
+    const divergences = await differential(fx.path, fx.args);
     if (divergences.length > 0) {
       const name = relative(runRoot, fx.path);
       failures.push(

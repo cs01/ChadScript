@@ -33,6 +33,10 @@ export const CODE = {
   STRING_METHOD: "CS1223", // unsupported string instance method (normalize/localeCompare/match/…)
   ARRAY_METHOD: "CS1224", // unsupported array instance method (fill/copyWithin/splice/…)
   OBJECT_METHOD: "CS1225", // method call on a plain object (function-valued field / interface method)
+  MODULE_FORM: "CS1226", // unsupported import/export form (default, namespace, bare specifier, cycle)
+  DUPLICATE_CLASS: "CS1227", // two classes with the same name in one program (symbols would collide)
+  TDZ_MODULE_VAR: "CS1228", // module variable read by a function but declared after code that runs
+  ARGV_FORM: "CS1229", // `process.argv` used as anything other than `process.argv.slice(2)`
 } as const;
 
 export type Code = (typeof CODE)[keyof typeof CODE];

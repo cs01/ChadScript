@@ -28,6 +28,9 @@ diagnostic — there is no "compiles but behaves differently than Node" third ca
 - `DefaultClause`
 - `ElementAccessExpression`
 - `EndOfFileToken`
+- `ExportDeclaration`
+- `ExportKeyword`
+- `ExportSpecifier`
 - `ExpressionStatement`
 - `ExpressionWithTypeArguments`
 - `FalseKeyword`
@@ -42,10 +45,15 @@ diagnostic — there is no "compiles but behaves differently than Node" third ca
 - `HeritageClause`
 - `Identifier`
 - `IfStatement`
+- `ImportClause`
+- `ImportDeclaration`
+- `ImportSpecifier`
 - `InstanceOfKeyword`
 - `InterfaceDeclaration`
 - `LiteralType`
 - `MethodDeclaration`
+- `NamedExports`
+- `NamedImports`
 - `NewExpression`
 - `NullKeyword`
 - `NumberKeyword`
@@ -228,3 +236,7 @@ diagnostic — there is no "compiles but behaves differently than Node" third ca
 | `CS1223` | STRING_METHOD |
 | `CS1224` | ARRAY_METHOD |
 | `CS1225` | OBJECT_METHOD |
+| `CS1226` | MODULE_FORM |
+| `CS1227` | DUPLICATE_CLASS |
+| `CS1228` | TDZ_MODULE_VAR |
+| `CS1229` | ARGV_FORM |

@@ -55,6 +55,10 @@ export type HStmt =
   | { kind: "assign"; name: string; value: HExpr }
   // `obj.field = value` write. `slot` is the field's record index.
   | { kind: "memberSet"; object: HExpr; slot: number; value: HExpr }
+  // `arr[i] = value` write. Out-of-range indices are a no-op, matching JS for a negative or
+  // fractional index; a past-the-end write would grow a JS array, which the subset rejects
+  // (there is no sparse-array representation), so the validator gates that shape.
+  | { kind: "indexSet"; array: HExpr; index: HExpr; value: HExpr; elementType: ValueType }
   // `if (cond) { then } else { otherwise }`. `otherwise` is null when there is no else.
   // `cond` is evaluated for JS truthiness (see codegen toBool).
   | { kind: "if"; cond: HExpr; then: HStmt[]; otherwise: HStmt[] | null }

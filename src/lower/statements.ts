@@ -20,6 +20,7 @@ import {
   compoundOp,
   declaredTypeOfIdent,
   isAssignmentOp,
+  symbolOf,
   lowerCallArgs,
   nameOf,
 } from "./lower.js";
@@ -291,7 +292,12 @@ export function lowerAssignment(expr: ts.BinaryExpression, ctx: LowerCtx): HStmt
   if (ts.isPropertyAccessExpression(expr.left)) {
     return lowerMemberAssignment(expr.left, op, expr.right, ctx);
   }
-  if (!ts.isIdentifier(expr.left)) ice("lower: only `name = ...` / `obj.field = ...` supported");
+  if (ts.isElementAccessExpression(expr.left)) {
+    return lowerIndexAssignment(expr.left, op, expr.right, ctx);
+  }
+  if (!ts.isIdentifier(expr.left)) {
+    ice("lower: only `name = ...` / `obj.field = ...` / `arr[i] = ...` supported");
+  }
   const left = expr.left as ts.Identifier;
   const name = nameOf(left, ctx);
   if (op === ts.SyntaxKind.EqualsToken) {
@@ -308,6 +314,44 @@ export function lowerAssignment(expr: ts.BinaryExpression, ctx: LowerCtx): HStmt
     type: resolveType(left, ctx),
   };
   return { kind: "assign", name, value };
+}
+
+// `arr[i] = rhs` / `arr[i] <op>= rhs`. A compound op reads the current element back through an
+// `index` expression on the same array/index expressions — which re-evaluates both, harmless for
+// the usual `arr[i] += 1` and noted as the same caveat member assignment carries.
+export function lowerIndexAssignment(
+  lhs: ts.ElementAccessExpression,
+  op: ts.SyntaxKind,
+  rhs: ts.Expression,
+  ctx: LowerCtx,
+): HStmt {
+  const array = lowerExpr(lhs.expression, ctx);
+  if (array.type.kind !== "array") {
+    ice(`lower: index assignment on a ${array.type.kind}, not an array`);
+  }
+  const elementType = array.type.element;
+  const index = lowerExpr(lhs.argumentExpression, ctx);
+  if (op === ts.SyntaxKind.EqualsToken) {
+    const value = coerceToTarget(lowerExpr(rhs, ctx), elementType);
+    return { kind: "indexSet", array, index, value, elementType };
+  }
+  const current: HExpr = {
+    kind: "index",
+    array,
+    index,
+    elementType,
+    // `arr[i]` is `T | undefined`, but a compound assignment only makes sense on a present
+    // element; the read is the element type, and an out-of-range compound write is a no-op.
+    type: elementType,
+  };
+  const value: HExpr = {
+    kind: "binary",
+    op: compoundOp(op),
+    left: current,
+    right: lowerExpr(rhs, ctx),
+    type: elementType,
+  };
+  return { kind: "indexSet", array, index, value, elementType };
 }
 
 // `obj.field = rhs` / `obj.field <op>= rhs`. The object is lowered once; a compound op reads the
@@ -477,7 +521,7 @@ export function lowerCallStatement(call: ts.CallExpression, ctx: LowerCtx): HStm
       }
       // An async call in statement position must SPAWN a fiber (and discard the promise), not call
       // the body directly — route through lowerExpr so it becomes an asyncCall.
-      const fnDecl = ctx.checker.getSymbolAtLocation(call.expression)?.valueDeclaration;
+      const fnDecl = symbolOf(call.expression, ctx)?.valueDeclaration;
       const isAsync =
         fnDecl !== undefined &&
         ts.isFunctionDeclaration(fnDecl) &&

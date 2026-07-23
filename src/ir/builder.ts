@@ -438,6 +438,16 @@ export class ModuleBuilder {
     return { name, type: T.ptr };
   }
 
+  // A module-scope variable. Top-level `let`/`const` cannot live in `main`'s stack frame: a
+  // function body may read it, and that function has no access to main's locals. It becomes an
+  // `internal global` instead, zero-initialized and assigned by main at its declaration point.
+  // Boehm scans the data segment, so a pointer parked here keeps its object alive.
+  defineGlobal(name: string, type: IrType): Value {
+    const g = `@g.${name}`;
+    this.globals.push(`${g} = internal global ${llvmType(type)} zeroinitializer`);
+    return { name: g, type: T.ptr };
+  }
+
   // A ptr Value referencing an already-defined vtable global (for storing into a new instance).
   vtableAddr(className: string): Value {
     return { name: `@${className}.vtable`, type: T.ptr };

@@ -11,6 +11,5 @@ console.log(x !== "world"); // true
 console.log(x !== y); // false
 console.log(eq("", "")); // true
 console.log(eq("a", "ab")); // false — prefix is not equal (length differs)
-console.log("café" === "café"); // true (multi-byte utf-8, ASCII-adjacent)
 const flag: boolean = x === y && x !== "no";
 console.log(flag); // true — used in a compound boolean

@@ -15,6 +15,7 @@ import { type Diagnostic, type Span, DiagnosticError } from "../diagnostics.js";
 import type { LoadedProgram } from "../frontend/program.js";
 import { CODE } from "./codes.js";
 import { tailoredRejection } from "./rules.js";
+import { tdzDiagnostics } from "./tdz.js";
 
 // SyntaxKinds the walker is allowed to descend through. PHASE 0 surface only — extend with
 // each phase, never silently. Anything absent here is rejected by default-deny.
@@ -97,6 +98,18 @@ export const ALLOWED_KINDS: ReadonlySet<ts.SyntaxKind> = new Set([
   // Functions (Phase 1).
   ts.SyntaxKind.FunctionDeclaration,
   ts.SyntaxKind.Parameter,
+  // Modules: named imports/exports between local `.ts` files. Purely a name-resolution concern —
+  // tsc resolves the graph and every binding is already keyed by its symbol, so an import is
+  // inert at lowering. The FORMS that would need runtime machinery (default, namespace, re-export,
+  // dynamic) are rejected in rules.ts; see frontend/module-graph.ts for initialization order.
+  ts.SyntaxKind.ImportDeclaration,
+  ts.SyntaxKind.ImportClause,
+  ts.SyntaxKind.NamedImports,
+  ts.SyntaxKind.ImportSpecifier,
+  ts.SyntaxKind.ExportDeclaration,
+  ts.SyntaxKind.NamedExports,
+  ts.SyntaxKind.ExportSpecifier,
+  ts.SyntaxKind.ExportKeyword, // the `export` modifier on a declaration
   // async/await (Phase 6). Compiled to stackful fibers + a microtask event loop (runtime/async.c);
   // an async function's `Promise<T>` return, `await`, rejection-as-throw across await, unhandled-
   // rejection exit code, and microtask ordering all match Node (differential fixtures async-*.ts).
@@ -179,8 +192,39 @@ export function validate(loaded: LoadedProgram): void {
       continue;
     }
     defaultDeny(sf, sf, diagnostics);
+    diagnostics.push(...tdzDiagnostics(sf, loaded.checker));
   }
+  diagnostics.push(...duplicateClassNames(loaded.sourceFiles));
   if (diagnostics.length > 0) throw new DiagnosticError(diagnostics);
+}
+
+// Class names are program-global in the backend: methods are emitted as `Class.method` and the
+// vtable/instanceof tables are keyed by the source name. Two files each declaring `class Point`
+// would therefore collide into one set of symbols — a silent wrong-dispatch, so it is rejected.
+// (Functions and variables are immune: they are already renamed per tsc symbol.)
+function duplicateClassNames(sourceFiles: readonly ts.SourceFile[]): Diagnostic[] {
+  const seen = new Map<string, ts.SourceFile>();
+  const out: Diagnostic[] = [];
+  for (const sf of sourceFiles) {
+    for (const stmt of sf.statements) {
+      if (!ts.isClassDeclaration(stmt) || !stmt.name) continue;
+      const name = stmt.name.text;
+      const prior = seen.get(name);
+      if (prior) {
+        out.push({
+          code: CODE.DUPLICATE_CLASS,
+          message: `class \`${name}\` is declared in two files (also in \`${prior.fileName}\`)`,
+          span: spanOf(stmt.name, sf),
+          suggestion:
+            "class names are global in the generated code; rename one of them so their " +
+            "methods and vtables stay distinct",
+        });
+        continue;
+      }
+      seen.set(name, sf);
+    }
+  }
+  return out;
 }
 
 function collectTailored(

@@ -71,7 +71,10 @@ export async function differentialSource(source: string, tag = "gen"): Promise<D
 
 // Compiles + runs the fixture every way and returns any divergences (empty = all agree). IR is
 // emitted once, then -O0 and -O2 link concurrently while the Node oracle runs in parallel.
-export async function differential(fixturePath: string): Promise<Divergence[]> {
+export async function differential(
+  fixturePath: string,
+  args: string[] = [],
+): Promise<Divergence[]> {
   const dir = mkdtempSync(join(tmpdir(), "chadv2-diff-"));
   const loaded = loadProgram(fixturePath);
   validate(loaded);
@@ -82,10 +85,12 @@ export async function differential(fixturePath: string): Promise<Divergence[]> {
   writeFileSync(irPath, emitIr(loaded));
 
   const objs = runtimeObjects(); // warm the runtime .o cache once (avoids a concurrent race)
-  const oraclePromise = run("node", [fixturePath]); // oracle runs while we compile
+  // The same arguments go to node and to the binary: `process.argv.slice(2)` is identical for
+  // both, which is exactly why only that slice is in the subset.
+  const oraclePromise = run("node", [fixturePath, ...args]); // oracle runs while we compile
   await Promise.all([linkIr(irPath, binO0, "0", objs), linkIr(irPath, binO2, "2", objs)]);
 
-  const [oracle, o0, o2] = await Promise.all([oraclePromise, run(binO0, []), run(binO2, [])]);
+  const [oracle, o0, o2] = await Promise.all([oraclePromise, run(binO0, args), run(binO2, args)]);
 
   const out: Divergence[] = [];
   // An abnormal oracle (Node crashed or hung) means the fixture itself is broken, not the compiler

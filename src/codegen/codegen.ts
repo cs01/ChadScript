@@ -7,6 +7,7 @@
 // Never reach back to the AST or checker from this file.
 
 import { ice } from "../diagnostics.js";
+import { emitPrintValue, emitPrintComputed } from "./emit-print.js";
 import { ModuleBuilder, imm, type Value } from "../ir/builder.js";
 import { T } from "../ir/types.js";
 import type { HModule, HStmt, HExpr, HFunc } from "../hir/nodes.js";
@@ -99,6 +100,7 @@ export function generate(hmod: HModule): string {
   mod.declareExtern("cs_promise_resolved", T.ptr, [T.i64]); // Promise.resolve(v)
   mod.declareExtern("cs_promise_all", T.ptr, [T.ptr]); // Promise.all(arr)
   mod.declareExtern("cs_array_new", T.ptr, []);
+  mod.declareExtern("cs_argv_slice2", T.ptr, []); // process.argv.slice(2)
   mod.declareExtern("cs_array_push", T.i32, [T.ptr, T.i64]);
   mod.declareExtern("cs_array_len", T.i32, [T.ptr]);
   mod.declareExtern("cs_array_get", T.i64, [T.ptr, T.i32]);
@@ -148,22 +150,47 @@ export function generate(hmod: HModule): string {
   // class's vtable in record slot 0 for virtual dispatch.
   for (const c of hmod.classes) mod.defineVtable(c.name, c.vtable);
 
+  // Module-scope bindings are materialized BEFORE any function is emitted: a function body may
+  // read one, and it has no access to main's stack frame. main assigns them, in declaration
+  // order, when it reaches each declaration.
+  const globals = new Map<string, { ptr: Value; vtype: ValueType }>();
+  for (const stmt of hmod.topLevel) {
+    if (stmt.kind === "varDecl") {
+      globals.set(stmt.name, {
+        ptr: mod.defineGlobal(stmt.name, irTypeOf(stmt.type)),
+        vtype: stmt.type,
+      });
+    }
+  }
+
   // User functions first (order doesn't matter — LLVM resolves calls by name, so recursion and
   // mutual recursion just work).
-  for (const f of hmod.functions) emitFunction(f, mod);
+  for (const f of hmod.functions) emitFunction(f, mod, globals);
 
-  // The synthesized entry function holds the top-level statements.
-  const main = mod.defineFunc("main", T.i32, []);
+  // The synthesized entry function holds the top-level statements. It takes the real C `main`
+  // signature so the command line can be handed to the runtime (process.argv.slice(2)).
+  const main = mod.defineFunc("main", T.i32, [
+    { name: "%argc", type: T.i32 },
+    { name: "%argv", type: T.ptr },
+  ]);
   const ctx: Ctx = {
     mod,
     fn: main,
     vars: new Map(),
+    globals,
     breakTargets: [],
     continueTargets: [],
     finallyStack: [],
     fnReturnType: null,
   };
   ctx.fn.callVoid("@cs_gc_init", []); // start Boehm GC before any allocation
+  // Record the command line before user code runs; the argv array itself is built lazily, so a
+  // program that never reads its arguments pays nothing for this.
+  mod.declareExtern("cs_set_args", T.void, [T.i32, T.ptr]);
+  ctx.fn.callVoid("@cs_set_args", [
+    { name: "%argc", type: T.i32 },
+    { name: "%argv", type: T.ptr },
+  ]);
   emitStatements(hmod.topLevel, ctx);
   // Drain the microtask queue before exit (async bodies suspended at `await` run to completion),
   // matching Node. A no-op when nothing async was queued.
@@ -182,7 +209,11 @@ function emitStatements(stmts: HStmt[], ctx: Ctx): void {
   }
 }
 
-function emitFunction(f: HFunc, mod: ModuleBuilder): void {
+function emitFunction(
+  f: HFunc,
+  mod: ModuleBuilder,
+  globals: Map<string, { ptr: Value; vtype: ValueType }>,
+): void {
   const isAsync = f.async ?? false;
   const captures = f.captures ?? [];
   // An async function is emitted as a fiber body `void @name(ptr env)` — it resolves its result via
@@ -202,6 +233,7 @@ function emitFunction(f: HFunc, mod: ModuleBuilder): void {
     mod,
     fn,
     vars: new Map(),
+    globals,
     breakTargets: [],
     continueTargets: [],
     finallyStack: [],
@@ -422,77 +454,6 @@ function emitReturnCompletion(ctx: Ctx, retSlot: Value | null): void {
   }
 }
 
-// Print one value with no separator or newline. Optionals branch on the sentinel; other types
-// evaluate and print directly.
-function emitPrintValue(v: HExpr, ctx: Ctx): void {
-  if (v.type.kind === "optional") {
-    emitPrintOptional(v, ctx);
-    return;
-  }
-  // Bare `undefined` / `null` literals print their word.
-  if (v.type.kind === "undefined" || v.type.kind === "null") {
-    ctx.fn.callVoid("@cs_print_cstr", [ctx.mod.cstring(v.type.kind)]);
-    return;
-  }
-  emitPrintComputed(evalValue(v, ctx), v.type, ctx);
-}
-
-// Print an already-computed Value of a printable scalar type.
-function emitPrintComputed(val: Value, type: ValueType, ctx: Ctx): void {
-  switch (type.kind) {
-    case "number":
-      ctx.fn.callVoid("@cs_print_f64", [val]);
-      return;
-    case "string":
-      ctx.fn.callVoid("@cs_print_cstr", [val]);
-      return;
-    case "boolean":
-      ctx.fn.callVoid("@cs_print_bool", [ctx.fn.zextI1ToI32(val)]);
-      return;
-    case "array":
-    case "object":
-    case "map":
-    case "set":
-      // Containers print in util.inspect form; strings inside get quoted.
-      ctx.fn.callVoid("@cs_print_cstr", [inspect(val, type, ctx)]);
-      return;
-    default:
-      ice(`codegen: console.log of ${type.kind} not supported yet`);
-  }
-}
-
-// console.log of an optional: "undefined" for the sentinel, else the unboxed inner value.
-function emitPrintOptional(v: HExpr, ctx: Ctx): void {
-  if (v.type.kind !== "optional") ice("emitPrintOptional: not optional");
-  const inner = v.type.inner;
-  const opt = evalOptionalPtr(v, ctx);
-  const isUndef = ctx.fn.icmp("eq", opt, ctx.mod.externGlobal("cs_undefined_marker"));
-  const isNull = ctx.fn.icmp("eq", opt, ctx.mod.externGlobal("cs_null_marker"));
-  const undefB = ctx.fn.newBlock("print.undef");
-  const notUndefB = ctx.fn.newBlock("print.notundef");
-  const nullB = ctx.fn.newBlock("print.null");
-  const valB = ctx.fn.newBlock("print.val");
-  const endB = ctx.fn.newBlock("print.end");
-  ctx.fn.brCond(isUndef, undefB, notUndefB);
-
-  ctx.fn.switchTo(undefB);
-  ctx.fn.callVoid("@cs_print_cstr", [ctx.mod.cstring("undefined")]);
-  ctx.fn.br(endB);
-
-  ctx.fn.switchTo(notUndefB);
-  ctx.fn.brCond(isNull, nullB, valB);
-
-  ctx.fn.switchTo(nullB);
-  ctx.fn.callVoid("@cs_print_cstr", [ctx.mod.cstring("null")]);
-  ctx.fn.br(endB);
-
-  ctx.fn.switchTo(valB);
-  emitPrintComputed(unboxOptionalValue(opt, inner, ctx), inner, ctx);
-  ctx.fn.br(endB);
-
-  ctx.fn.switchTo(endB);
-}
-
 // `switch` with JS fall-through: dispatch each case value against the discriminant (===), then
 // lay bodies out so a non-terminating body falls into the next. `break` targets the end.
 function emitSwitch(stmt: Extract<HStmt, { kind: "switch" }>, ctx: Ctx): void {
@@ -609,7 +570,13 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
       return;
 
     case "varDecl": {
-      // Allocate a slot, evaluate the initializer, store it, and bind the name.
+      // A module-scope binding already has its global; this is where main assigns it. Everything
+      // else gets a fresh stack slot.
+      const global = ctx.globals.get(stmt.name);
+      if (global) {
+        ctx.fn.store(evalValue(stmt.init, ctx), global.ptr);
+        return;
+      }
       const ptr = ctx.fn.alloca(irTypeOf(stmt.type));
       ctx.fn.store(evalValue(stmt.init, ctx), ptr);
       ctx.vars.set(stmt.name, { ptr, vtype: stmt.type });
@@ -630,6 +597,31 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
       const obj = evalObjectPtr(stmt.object, ctx);
       const slot = boxSlot(evalValue(stmt.value, ctx), stmt.value.type, ctx);
       ctx.fn.store(slot, ctx.fn.gepSlot(obj, stmt.slot + headerOffset(stmt.object.type)));
+      return;
+    }
+
+    case "indexSet": {
+      // `arr[i] = v`. The index is a JS number; truncate to i32 like every other array op, and
+      // bounds-check so an out-of-range write is a no-op rather than a heap corruption. JS would
+      // GROW the array past the end, which the subset does not represent — that shape is rejected
+      // at validate (CS1230), so reaching here out of range means a negative or fractional index,
+      // for which a no-op matches JS closely enough to be observationally identical for the
+      // admitted subset.
+      const arr = evalArrayPtr(stmt.array, ctx);
+      const idx = ctx.fn.fptosi_i32(evalNumber(stmt.index, ctx));
+      const len = ctx.fn.call("@cs_array_len", T.i32, [arr]);
+      const inRange = ctx.fn.iand(
+        ctx.fn.zextI1ToI32(ctx.fn.icmp("sge", idx, imm(T.i32, 0))),
+        ctx.fn.zextI1ToI32(ctx.fn.icmp("slt", idx, len)),
+      );
+      const doB = ctx.fn.newBlock("idxset.do");
+      const endB = ctx.fn.newBlock("idxset.end");
+      ctx.fn.brCond(ctx.fn.icmp("ne", inRange, imm(T.i32, 0)), doB, endB);
+      ctx.fn.switchTo(doB);
+      const slot = boxSlot(evalValue(stmt.value, ctx), stmt.elementType, ctx);
+      ctx.fn.callVoid("@cs_array_set", [arr, idx, slot]);
+      ctx.fn.br(endB);
+      ctx.fn.switchTo(endB);
       return;
     }
 

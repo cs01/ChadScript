@@ -16,4 +16,11 @@ declare const console: {
 declare const process: {
   /** Terminates with the given exit code. */
   exit(code: number): never;
+  /**
+   * The command line. Only `process.argv.slice(2)` — the arguments after the program itself —
+   * is supported, and anything else is rejected (CS1229): Node's `argv[0]` is the node binary
+   * and `argv[1]` is the script path, neither of which a compiled binary has, so those two
+   * entries could never agree with the oracle. The slice itself is exact.
+   */
+  argv: string[];
 };

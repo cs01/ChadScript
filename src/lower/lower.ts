@@ -99,6 +99,11 @@ export function lower(loaded: LoadedProgram): HModule {
     for (const stmt of sf.statements) {
       // Type-only declarations have no runtime and are consumed by the checker, not lowered.
       if (ts.isInterfaceDeclaration(stmt) || ts.isTypeAliasDeclaration(stmt)) continue;
+      // Imports and bare `export { ... }` lists are name resolution only: tsc has already bound
+      // every reference to its symbol, and lowering names bindings by symbol, so a cross-file
+      // reference needs no more work than a local one. The imported file's own statements are
+      // lowered when its turn comes (dependency-ordered by frontend/module-graph.ts).
+      if (ts.isImportDeclaration(stmt) || ts.isExportDeclaration(stmt)) continue;
       if (ts.isFunctionDeclaration(stmt)) {
         ctx.functions.push(lowerFunction(stmt, ctx));
       } else if (ts.isClassDeclaration(stmt)) {
@@ -120,7 +125,7 @@ export function lower(loaded: LoadedProgram): HModule {
 // type is optional but it is being used here at a narrowed (non-optional) type — i.e. inside an
 // `if (x !== undefined)` guard — emit an `unwrap` so codegen unboxes the stored optional.
 function lowerIdentifier(ident: ts.Identifier, ctx: LowerCtx, useType: ValueType): HExpr {
-  const sym = ctx.checker.getSymbolAtLocation(ident);
+  const sym = symbolOf(ident, ctx);
   if (sym?.valueDeclaration && useType.kind !== "optional") {
     const declared = valueTypeOfTsType(
       ctx.checker.getTypeOfSymbolAtLocation(sym, sym.valueDeclaration),
@@ -138,6 +143,20 @@ function lowerIdentifier(ident: ts.Identifier, ctx: LowerCtx, useType: ValueType
   return { kind: "varRef", name: nameOf(ident, ctx), type: useType };
 }
 
+// An imported name resolves to an ALIAS symbol — a distinct symbol from the declaration it refers
+// to. Every decision keyed on a symbol (its HIR name, whether it declares a function, its declared
+// type) must therefore see through the alias, or the same binding gets two identities and a
+// cross-file reference reads a variable nothing ever wrote.
+export function resolveAlias(symbol: ts.Symbol, ctx: LowerCtx): ts.Symbol {
+  return symbol.flags & ts.SymbolFlags.Alias ? ctx.checker.getAliasedSymbol(symbol) : symbol;
+}
+
+// The symbol an identifier resolves to, with imports followed through to the declaration.
+export function symbolOf(node: ts.Node, ctx: LowerCtx): ts.Symbol | undefined {
+  const sym = ctx.checker.getSymbolAtLocation(node);
+  return sym ? resolveAlias(sym, ctx) : undefined;
+}
+
 // The stable HIR name for the variable an identifier resolves to. Falls back to the source
 // text keyed by position if the checker cannot produce a symbol (should not happen for the
 // admitted subset), so distinct-but-symbolless names never collide.
@@ -150,10 +169,11 @@ export function nameOf(ident: ts.Identifier, ctx: LowerCtx): string {
 // The stable unique HIR name for a symbol. Used directly for shorthand object properties, where
 // the property identifier's own symbol is the property — not the value variable we must bind to.
 export function nameForSymbol(symbol: ts.Symbol, hint: string, ctx: LowerCtx): string {
-  let name = ctx.names.get(symbol);
+  const target = resolveAlias(symbol, ctx);
+  let name = ctx.names.get(target);
   if (!name) {
     name = `${hint}.${ctx.counter.n++}`;
-    ctx.names.set(symbol, name);
+    ctx.names.set(target, name);
   }
   return name;
 }
@@ -171,7 +191,7 @@ function lowerCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
   const builtin = lowerGlobalBuiltin(call.expression.text, call, ctx);
   if (builtin) return builtin;
   // A call whose callee is NOT a top-level function declaration is a closure call.
-  const sym = ctx.checker.getSymbolAtLocation(call.expression);
+  const sym = symbolOf(call.expression, ctx);
   const isTopLevelFn = sym?.valueDeclaration && ts.isFunctionDeclaration(sym.valueDeclaration);
   if (!isTopLevelFn) {
     return {
@@ -337,7 +357,7 @@ export function coerceToTarget(h: HExpr, target: ValueType): HExpr {
 // The DECLARED type of the variable an identifier resolves to (its slot type, not the narrowed
 // use-type) — for coercing an assignment's RHS into an optional slot.
 export function declaredTypeOfIdent(ident: ts.Identifier, ctx: LowerCtx): ValueType {
-  const sym = ctx.checker.getSymbolAtLocation(ident);
+  const sym = symbolOf(ident, ctx);
   if (sym?.valueDeclaration) {
     return valueTypeOfTsType(
       ctx.checker.getTypeOfSymbolAtLocation(sym, sym.valueDeclaration),

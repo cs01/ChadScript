@@ -13,6 +13,11 @@ export const USER_COMPILER_OPTIONS: ts.CompilerOptions = {
   moduleResolution: ts.ModuleResolutionKind.Bundler,
   lib: ["lib.es2023.d.ts"],
 
+  // Imports must name the `.ts` file explicitly (`import { f } from "./util.ts"`). That is the
+  // specifier Node itself resolves when it runs the same source as our oracle — an extensionless
+  // or `.js` specifier would typecheck here and fail under Node, splitting compiler and oracle.
+  allowImportingTsExtensions: true,
+
   // User programs get ONLY the ChadScript global environment (stdlib/globals.d.ts, injected
   // in program.ts) — never @types/node or the DOM lib. `types: []` disables automatic @types
   // inclusion so a program cannot typecheck against globals we don't actually compile.

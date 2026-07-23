@@ -5,6 +5,7 @@ node_modules
 src/version.ts
 
 # Build outputs
+.build/bench/
 dist/
 build/
 .build/

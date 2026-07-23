@@ -36,6 +36,9 @@ export interface Ctx {
   fn: FuncBuilder;
   // Live variable slots: name → its stack pointer + resolved type.
   vars: Map<string, { ptr: Value; vtype: ValueType }>;
+  // Module-scope bindings (top-level `let`/`const`), shared by every function. These live in
+  // `internal global`s rather than main's frame precisely because functions must reach them.
+  globals: Map<string, { ptr: Value; vtype: ValueType }>;
   // `break` targets (pushed by loops AND switch); `continue` targets (loops only, so continue
   // inside a switch correctly reaches the enclosing loop). Innermost last.
   // break/continue targets, innermost last. Each records the `finallyStack` depth at the loop's
@@ -178,6 +181,13 @@ export function evalArrayPtr(expr: HExpr, ctx: Ctx): Value {
       return evalMemberGet(expr, ctx);
     case "strMethod":
       return evalStrMethod(expr, ctx); // e.g. "a,b".split(",")
+    case "runtimeCall":
+      // An array-returning runtime entry (process.argv.slice(2)).
+      return ctx.fn.call(
+        `@${expr.fn}`,
+        T.ptr,
+        expr.args.map((a) => evalValue(a, ctx)),
+      );
     case "arrayXform":
       // reverse/slice/concat → a single runtime call over the array ptr + extra args.
       return ctx.fn.call(`@${expr.fn}`, T.ptr, [
@@ -244,7 +254,9 @@ export function coerceValueToString(v: Value, type: ValueType, ctx: Ctx): Value 
 }
 
 export function lookupVar(name: string, ctx: Ctx): { ptr: Value; vtype: ValueType } {
-  const slot = ctx.vars.get(name);
+  // Locals shadow nothing here — names are already symbol-unique — but locals are checked first
+  // because they are by far the common case.
+  const slot = ctx.vars.get(name) ?? ctx.globals.get(name);
   if (!slot) ice(`codegen: reference to unbound variable ${name}`);
   return slot;
 }

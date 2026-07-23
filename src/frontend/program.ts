@@ -8,6 +8,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type Diagnostic, type Span, DiagnosticError } from "../diagnostics.js";
 import { USER_COMPILER_OPTIONS } from "./user-options.js";
+import { orderModules } from "./module-graph.js";
 
 // The ambient global environment injected into every user program (console, process, ...).
 const GLOBALS_DTS = join(
@@ -21,7 +22,9 @@ const GLOBALS_DTS = join(
 export interface LoadedProgram {
   program: ts.Program;
   checker: ts.TypeChecker;
-  // The entry source file and its transitive local sources (excludes lib.d.ts).
+  // The entry source file and its transitive local sources (excludes lib.d.ts), topologically
+  // ordered: a file always follows everything it imports. Lowering concatenates their top-level
+  // statements into `main`, so this order IS module initialization order.
   sourceFiles: ts.SourceFile[];
 }
 
@@ -47,7 +50,7 @@ export function loadProgram(entryFile: string): LoadedProgram {
     .getSourceFiles()
     .filter((sf) => !sf.isDeclarationFile && !program.isSourceFileFromExternalLibrary(sf));
 
-  return { program, checker, sourceFiles };
+  return { program, checker, sourceFiles: orderModules(sourceFiles, checker) };
 }
 
 function fromTsDiagnostic(d: ts.Diagnostic): Diagnostic {

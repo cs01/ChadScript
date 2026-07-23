@@ -168,6 +168,23 @@ export function tailoredRejection(
 
     case ts.SyntaxKind.PropertyAccessExpression: {
       const pa = node as ts.PropertyAccessExpression;
+      // `process.argv` is admitted ONLY as the exact expression `process.argv.slice(2)`. Node's
+      // argv[0] is the node binary and argv[1] the script path; a compiled binary has neither, so
+      // any use that can observe those two entries could not agree with the oracle. The slice IS
+      // exact, so that one form is supported and every other is rejected.
+      if (
+        ts.isIdentifier(pa.expression) &&
+        pa.expression.text === "process" &&
+        pa.name.text === "argv" &&
+        !isArgvSlice2(pa.parent)
+      ) {
+        return hit(
+          CODE.ARGV_FORM,
+          "`process.argv` is only supported as `process.argv.slice(2)`",
+          "argv[0] (the node binary) and argv[1] (the script path) have no equivalent in a " +
+            "compiled binary; take the slice and index into that",
+        );
+      }
       // `s.charCodeAt(...)`: byte value ≠ Node's UTF-16 code unit for non-ASCII. Gated (CS1216).
       // Type-guarded, so a user-defined method that happens to share the name is unaffected.
       if (pa.name.text === "charCodeAt" && isStringTyped(pa.expression, checker)) {
@@ -212,6 +229,28 @@ export function tailoredRejection(
         );
       }
       return null;
+
+    case ts.SyntaxKind.ImportDeclaration:
+      return checkImport(node as ts.ImportDeclaration, hit);
+
+    case ts.SyntaxKind.ExportDeclaration:
+      // `export { a, b }` is a pure visibility statement with no runtime. `export ... from "x"`
+      // re-exports, which would make a module's bindings depend on a file it never initializes.
+      return (node as ts.ExportDeclaration).moduleSpecifier
+        ? hit(
+            CODE.MODULE_FORM,
+            "re-exporting (`export ... from`) is not supported yet",
+            "import the binding and export it as its own declaration",
+          )
+        : null;
+
+    case ts.SyntaxKind.ExportAssignment:
+      // `export default x` / `export = x`.
+      return hit(
+        CODE.MODULE_FORM,
+        "default exports are not supported",
+        "use a named export: `export const x = ...` / `export function f() {}`",
+      );
 
     case ts.SyntaxKind.AsExpression:
     case ts.SyntaxKind.TypeAssertionExpression:
@@ -538,6 +577,70 @@ export const NAMESPACE_STATIC_ALLOW: Record<string, ReadonlySet<string>> = {
   // here until implemented.
   Promise: new Set(["resolve", "all"]),
 };
+
+// Whether `node` is the `.slice(2)` call wrapping a `process.argv` access — i.e. the one admitted
+// shape. `node` is the parent of the `process.argv` property access.
+function isArgvSlice2(node: ts.Node | undefined): boolean {
+  if (!node || !ts.isPropertyAccessExpression(node) || node.name.text !== "slice") return false;
+  const call = node.parent;
+  if (!call || !ts.isCallExpression(call) || call.expression !== node) return false;
+  const arg = call.arguments[0];
+  return (
+    call.arguments.length === 1 && arg !== undefined && ts.isNumericLiteral(arg) && arg.text === "2"
+  );
+}
+
+// Import forms. Only `import { a, b } from "./local.ts"` is in the subset: it needs no runtime at
+// all (tsc resolves the names; every binding is already keyed by its tsc symbol). Everything else
+// either needs a module object at runtime (namespace imports), a resolver we do not have
+// (packages), or has no compile-time shape (dynamic import).
+function checkImport(node: ts.ImportDeclaration, hit: Hit): Diagnostic | null {
+  const spec = node.moduleSpecifier;
+  if (!ts.isStringLiteral(spec)) {
+    return hit(
+      CODE.MODULE_FORM,
+      "a module specifier must be a string literal",
+      'use `import { x } from "./file.ts"`',
+    );
+  }
+  const text = spec.text;
+  if (!text.startsWith("./") && !text.startsWith("../")) {
+    return hit(
+      CODE.MODULE_FORM,
+      `importing \`${text}\` is not supported: only relative paths to local files`,
+      "there is no package resolution; vendor the code into a local `.ts` file and import that",
+    );
+  }
+  // Node runs the oracle from the same source, and it resolves the specifier literally — an
+  // extensionless or `.js` specifier would compile here and fail there.
+  if (!text.endsWith(".ts")) {
+    return hit(
+      CODE.MODULE_FORM,
+      `module specifier \`${text}\` must end in \`.ts\``,
+      "name the file exactly as Node resolves it, e.g. `./util.ts`",
+    );
+  }
+
+  const clause = node.importClause;
+  // `import "./x.ts"` for side effects only: the file IS initialized (its top-level statements are
+  // concatenated in dependency order), so this is meaningful and allowed.
+  if (!clause) return null;
+  if (clause.name) {
+    return hit(
+      CODE.MODULE_FORM,
+      "default imports are not supported",
+      'use a named import: `import { x } from "./file.ts"`',
+    );
+  }
+  if (clause.namedBindings && ts.isNamespaceImport(clause.namedBindings)) {
+    return hit(
+      CODE.MODULE_FORM,
+      "namespace imports (`import * as ns`) are not supported",
+      "a namespace would need a runtime module object; import the bindings by name instead",
+    );
+  }
+  return null;
+}
 
 function checkNew(node: ts.NewExpression, hit: Hit): Diagnostic | null {
   if (isNamedIdent(node.expression, "Function")) {

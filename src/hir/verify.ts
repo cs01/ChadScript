@@ -98,6 +98,11 @@ function verifyStmt(s: HStmt): void {
     case "exprStmt":
       verifyExpr(s.expr);
       return;
+    case "indexSet":
+      verifyExpr(s.array);
+      verifyExpr(s.index);
+      verifyExpr(s.value);
+      return;
     default:
       return assertNever(s, "statement");
   }
