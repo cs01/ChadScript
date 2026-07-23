@@ -55,6 +55,11 @@ export function evalOptionalPtr(expr: HExpr, ctx: Ctx): Value {
   if (expr.kind === "coalesce") return evalCoalesce(expr, ctx);
   if (expr.kind === "arrayHof") return evalArrayHof(expr, ctx); // .find() → element | undefined
   if (expr.kind === "mapGet") return evalMapGet(expr, ctx); // map.get() → value | undefined
+  // An `unwrap` says "this optional slot is being READ at its inner type", which is what tsc's
+  // narrowing produces (`let b: Box | null = null; b = mk(1); b === null` narrows b to Box before
+  // the comparison). A null check needs the slot ITSELF, not the unwrapped value — so look
+  // through the unwrap rather than unboxing and then failing to find a pointer.
+  if (expr.kind === "unwrap") return evalOptionalPtr(expr.value, ctx);
   return ice(`evalOptionalPtr: unhandled optional expression ${expr.kind}`);
 }
 
@@ -165,7 +170,47 @@ export function evalOptionalEquality(
 }
 
 // `a ?? b`: if `a` is nullish (undefined OR null), use `b`; else unwrap the boxed inner value.
+// Fused `arr[i] ?? fallback`: branch on the bounds check and load the slot directly on the
+// in-range path. Semantically identical to building an optional and immediately coalescing it,
+// minus the allocation.
+function evalIndexCoalesce(
+  index: Extract<HExpr, { kind: "index" }>,
+  fallback: HExpr,
+  type: ValueType,
+  ctx: Ctx,
+): Value {
+  const arr = evalArrayPtr(index.array, ctx);
+  const i = ctx.fn.fptosi_i32(evalNumber(index.index, ctx));
+  const len = ctx.fn.call("@cs_array_len", T.i32, [arr]);
+  const result = ctx.fn.alloca(irTypeOf(type));
+
+  const checkUpper = ctx.fn.newBlock("idxnn.check");
+  const inB = ctx.fn.newBlock("idxnn.in");
+  const outB = ctx.fn.newBlock("idxnn.out");
+  const endB = ctx.fn.newBlock("idxnn.end");
+
+  ctx.fn.brCond(ctx.fn.icmp("sge", i, imm(T.i32, 0)), checkUpper, outB);
+  ctx.fn.switchTo(checkUpper);
+  ctx.fn.brCond(ctx.fn.icmp("slt", i, len), inB, outB);
+
+  ctx.fn.switchTo(inB);
+  ctx.fn.store(unboxSlot(ctx.fn.call("@cs_array_get", T.i64, [arr, i]), type, ctx), result);
+  ctx.fn.br(endB);
+
+  ctx.fn.switchTo(outB);
+  ctx.fn.store(evalValue(fallback, ctx), result);
+  ctx.fn.br(endB);
+
+  ctx.fn.switchTo(endB);
+  return ctx.fn.load(irTypeOf(type), result);
+}
+
 export function evalCoalesce(expr: Extract<HExpr, { kind: "coalesce" }>, ctx: Ctx): Value {
+  // `arr[i] ?? d` is THE way an in-range element is read, because noUncheckedIndexedAccess types
+  // every `arr[i]` as `T | undefined`. Lowered naively it heap-allocates a box on the in-range
+  // path and unboxes it one block later — millions of GC allocations in any indexing loop. The
+  // bounds check already decides the answer, so fuse the two: no box is ever created.
+  if (expr.left.kind === "index") return evalIndexCoalesce(expr.left, expr.right, expr.type, ctx);
   const opt = evalOptionalPtr(expr.left, ctx);
   const isUndef = isNullishPtr(opt, ctx);
   const result = ctx.fn.alloca(irTypeOf(expr.type));

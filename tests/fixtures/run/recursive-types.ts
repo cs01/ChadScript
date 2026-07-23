@@ -18,12 +18,35 @@ function depth(node: TreeNode | null): number {
   return 1 + Math.max(depth(node.left), depth(node.right));
 }
 
-// Built bottom-up: each level is a complete value before it becomes a child.
-const leftLeaf: TreeNode = { value: 1, left: null, right: null };
-const rightLeaf: TreeNode = { value: 4, left: null, right: null };
-const left: TreeNode = { value: 3, left: leftLeaf, right: null };
-const root: TreeNode = { value: 5, left, right: rightLeaf };
+// The canonical BST insert: mutates optional fields at varying depth, which is exactly the shape
+// that used to segfault (a present value stored into a `T | null` slot without being boxed) and
+// then read back garbage (the box read as the record).
+function insert(node: TreeNode | null, value: number): TreeNode {
+  if (node === null) return { value, left: null, right: null };
+  if (value < node.value) {
+    node.left = insert(node.left, value);
+  } else {
+    node.right = insert(node.right, value);
+  }
+  return node;
+}
+
+let root: TreeNode | null = null;
+for (const v of [5, 3, 8, 1, 4, 7, 9, 2, 6]) {
+  root = insert(root, v);
+}
 console.log(sum(root), depth(root));
+
+// In-order traversal reads every optional field back at depth.
+function inorder(node: TreeNode | null, acc: number[]): void {
+  if (node === null) return;
+  inorder(node.left, acc);
+  acc.push(node.value);
+  inorder(node.right, acc);
+}
+const sorted: number[] = [];
+inorder(root, sorted);
+console.log(sorted.join(","));
 
 // A linked list: the classic single self-reference, built by prepending.
 interface ListNode {

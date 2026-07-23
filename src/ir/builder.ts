@@ -429,12 +429,17 @@ export class ModuleBuilder {
   defineVtable(className: string, fnNames: readonly string[]): Value {
     const name = `@${className}.vtable`;
     const n = fnNames.length;
-    if (n === 0) {
-      this.globals.push(`${name} = private constant [0 x ptr] zeroinitializer`);
-    } else {
-      const elems = fnNames.map((f) => `ptr @${f}`).join(", ");
-      this.globals.push(`${name} = private constant [${n} x ptr] [${elems}]`);
-    }
+    // A vtable's ADDRESS is the class's runtime identity (instanceof compares vtable pointers), so
+    // two classes must never share one. Two hazards, both linker-dependent:
+    //   - a method-less class would emit `[0 x ptr]`, and zero-sized objects legitimately share an
+    //     address, so `x instanceof SiblingClass` came out true for a base instance on GNU ld;
+    //   - identical `constant` contents are foldable, which two classes with the same method list
+    //     would hit.
+    // Emitting at least one element and using a mutable `global` (never merged) makes each address
+    // distinct by construction. The padding slot is never indexed — an empty table has no methods.
+    const elems = n === 0 ? "ptr null" : fnNames.map((f) => `ptr @${f}`).join(", ");
+    const len = n === 0 ? 1 : n;
+    this.globals.push(`${name} = private global [${len} x ptr] [${elems}]`);
     return { name, type: T.ptr };
   }
 

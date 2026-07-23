@@ -551,7 +551,22 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
       if (objType.kind === "object") {
         const slot = objType.shape.fields.findIndex((f) => f.name === pa.name.text);
         if (slot < 0) ice(`lower: object has no field ${pa.name.text}`);
-        return { kind: "memberGet", object: lowerExpr(pa.expression, ctx), slot, type };
+        // The slot is read at the FIELD's declared representation, which is what is actually
+        // stored there. tsc may have narrowed the use to the inner type (`if (n.next !== null)`),
+        // but the slot still holds a box or a sentinel — so narrowing becomes an explicit unwrap,
+        // exactly as lowerIdentifier does for a narrowed variable. Reading the box as the value
+        // itself yields garbage (a box pointer printed as a float).
+        const fieldType = objType.shape.fields[slot]!.type;
+        const get: HExpr = {
+          kind: "memberGet",
+          object: lowerExpr(pa.expression, ctx),
+          slot,
+          type: fieldType,
+        };
+        if (fieldType.kind === "optional" && type.kind !== "optional") {
+          return { kind: "unwrap", value: get, type };
+        }
+        return get;
       }
       return ice(`lower: unsupported property access .${pa.name.text}`);
     }

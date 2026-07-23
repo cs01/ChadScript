@@ -24,7 +24,17 @@ function runCTest(harness: string): void {
   const bin = join(dir, "t");
   execFileSync(
     CLANG,
-    [...GC_CFLAGS, ...runtimeCs, join(root, "tests", "runtime", harness), ...GC_LFLAGS, "-o", bin],
+    [
+      ...GC_CFLAGS,
+      ...runtimeCs,
+      join(root, "tests", "runtime", harness),
+      ...GC_LFLAGS,
+      // number.c/math.c call floor/fmod/trunc/nextafter. macOS libc resolves them implicitly;
+      // glibc needs -lm, so without this the harness only failed on Linux.
+      "-lm",
+      "-o",
+      bin,
+    ],
     { stdio: "pipe" },
   );
   execFileSync(bin, [], { stdio: "pipe" }); // throws (fails the test) on a non-zero exit

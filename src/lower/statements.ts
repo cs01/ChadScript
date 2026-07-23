@@ -369,7 +369,16 @@ export function lowerMemberAssignment(
   const fieldType = objType.shape.fields[slot]!.type;
   const object = lowerExpr(lhs.expression, ctx);
   if (op === ts.SyntaxKind.EqualsToken) {
-    return { kind: "memberSet", object, slot, value: lowerExpr(rhs, ctx) };
+    // Coerce into the FIELD's representation. Assigning a present `T` into a `T | null` slot has
+    // to box it — storing the bare pointer leaves the slot holding an object where every reader
+    // expects a box or a sentinel, which reads back as garbage (a segfault once the structure is
+    // deep enough for the slot to be read at a different level than it was written).
+    return {
+      kind: "memberSet",
+      object,
+      slot,
+      value: coerceToTarget(lowerExpr(rhs, ctx), fieldType),
+    };
   }
   const value: HExpr = {
     kind: "binary",
@@ -378,7 +387,7 @@ export function lowerMemberAssignment(
     right: lowerExpr(rhs, ctx),
     type: fieldType,
   };
-  return { kind: "memberSet", object, slot, value };
+  return { kind: "memberSet", object, slot, value: coerceToTarget(value, fieldType) };
 }
 
 export function lowerVarDecl(decl: ts.VariableDeclaration, ctx: LowerCtx): HStmt[] {
