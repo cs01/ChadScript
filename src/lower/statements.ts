@@ -13,6 +13,8 @@ import {
   resolveType,
   coerceToTarget,
   callReturnType,
+  constructorClassOf,
+  superMethodClassOf,
   vtableIndexOf,
   calleeName,
   compoundOp,
@@ -419,12 +421,13 @@ export function lowerCallStatement(call: ts.CallExpression, ctx: LowerCtx): HStm
   // `super(...)` — delegate to the base constructor with `this` prepended.
   if (call.expression.kind === ts.SyntaxKind.SuperKeyword) {
     if (!ctx.currentBaseClass) return ice("lower: `super()` with no base class");
-    return {
-      kind: "callStmt",
-      name: `${ctx.currentBaseClass}.constructor`,
-      args: [thisRef(ctx), ...call.arguments.map((a) => lowerExpr(a, ctx))],
-      returnType: null,
-    };
+    // The nearest ancestor that actually emits a constructor — the immediate base may declare
+    // neither a constructor nor a field initializer, in which case it has no HFunc to call.
+    const ctorClass = constructorClassOf(ctx.currentBaseClass, call, ctx);
+    const args = [thisRef(ctx), ...call.arguments.map((a) => lowerExpr(a, ctx))];
+    return ctorClass === null
+      ? { kind: "exprStmt", expr: thisRef(ctx) } // base is field-less: `super()` is a no-op
+      : { kind: "callStmt", name: `${ctorClass}.constructor`, args, returnType: null };
   }
 
   switch (target) {
@@ -448,7 +451,7 @@ export function lowerCallStatement(call: ts.CallExpression, ctx: LowerCtx): HStm
           if (!ctx.currentBaseClass) return ice("lower: `super` with no base class");
           return {
             kind: "callStmt",
-            name: `${ctx.currentBaseClass}.${pa.name.text}`,
+            name: `${superMethodClassOf(ctx.currentBaseClass, pa.name.text, ctx)}.${pa.name.text}`,
             args: [thisRef(ctx), ...call.arguments.map((a) => lowerExpr(a, ctx))],
             returnType: callReturnType(call, ctx),
           };

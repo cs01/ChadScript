@@ -271,7 +271,10 @@ export function lowerObjectNamespace(method: string, argExpr: ts.Expression, ctx
   return ice(`lower: Object.${method} not supported yet`);
 }
 
-function constructorClassOf(className: string, node: ts.Node, ctx: LowerCtx): string | null {
+// The class whose `Class.constructor` HFunc a `new`/`super()` must actually call. A class that
+// declares neither a constructor nor a field initializer emits no constructor at all, so naming
+// the immediate base blindly produces a call to a function that was never emitted.
+export function constructorClassOf(className: string, node: ts.Node, ctx: LowerCtx): string | null {
   const sym = ctx.checker.resolveName(className, node, ts.SymbolFlags.Class, false);
   let t = sym ? ctx.checker.getDeclaredTypeOfSymbol(sym) : undefined;
   while (t) {
@@ -293,6 +296,15 @@ function constructorClassOf(className: string, node: ts.Node, ctx: LowerCtx): st
     } else break;
   }
   return null;
+}
+
+// The class that implements `method` for a `super.method(...)` call from a subclass of `baseClass`
+// — i.e. the non-virtual target. `baseClass` may not declare the method itself (it can be inherited
+// from further up), and only the declaring class emits an HFunc for it.
+export function superMethodClassOf(baseClass: string, method: string, ctx: LowerCtx): string {
+  const impl = ctx.classTables.get(baseClass)?.impls.get(method);
+  if (impl === undefined) ice(`lower: super.${method}() has no implementation on ${baseClass}`);
+  return impl;
 }
 
 // The vtable slot index of `method` on class `className` (from the class's method table).

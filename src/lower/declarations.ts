@@ -7,7 +7,14 @@ import { ice } from "../diagnostics.js";
 import type { HExpr, HStmt, HFunc, HCapture } from "../hir/nodes.js";
 import { VT } from "../hir/types.js";
 import type { ValueType } from "../hir/types.js";
-import { type LowerCtx, lowerExpr, coerceToTarget, nameOf, nameForSymbol } from "./lower.js";
+import {
+  type LowerCtx,
+  constructorClassOf,
+  lowerExpr,
+  coerceToTarget,
+  nameOf,
+  nameForSymbol,
+} from "./lower.js";
 import { lowerStatements, thisRef, bindObjectPattern } from "./statements.js";
 import {
   valueTypeOf,
@@ -102,7 +109,7 @@ export function lowerClass(decl: ts.ClassDeclaration, ctx: LowerCtx): HFunc[] {
     }
   }
   if (!sawCtor && fieldInits.length > 0) {
-    funcs.push(synthesizeFieldInitCtor(className, thisType, fieldInits, ctx));
+    funcs.push(synthesizeFieldInitCtor(className, decl, thisType, fieldInits, ctx));
   }
   ctx.currentBaseClass = savedBase;
   return funcs;
@@ -130,10 +137,39 @@ export function fieldInitStmts(
   });
 }
 
-// A class with field initializers but no explicit constructor gets a synthesized one: `super()`
-// (arg-less; only reached for a parameterless base) followed by the field stores.
+// The parameter list a derived class inherits when it declares no constructor of its own: the
+// nearest ancestor's EXPLICIT constructor signature. Ancestors between here and there synthesize
+// forwarding constructors with this same signature, so the chain stays consistent.
+function inheritedCtorParams(
+  decl: ts.ClassDeclaration,
+  ctx: LowerCtx,
+): readonly ts.ParameterDeclaration[] {
+  const nextBase = (t: ts.Type): ts.Type | undefined =>
+    ctx.checker.getBaseTypes(t as ts.InterfaceType).find((b) => {
+      const bd = b.symbol?.valueDeclaration;
+      return bd !== undefined && ts.isClassDeclaration(bd);
+    });
+  const self = ctx.checker.getDeclaredTypeOfSymbol(ctx.checker.getSymbolAtLocation(decl.name!)!);
+  let t = nextBase(self);
+  while (t) {
+    const d = t.symbol?.valueDeclaration;
+    if (!d || !ts.isClassDeclaration(d)) break;
+    const ctor = d.members.find(
+      (m): m is ts.ConstructorDeclaration => ts.isConstructorDeclaration(m) && m.body !== undefined,
+    );
+    if (ctor) return ctor.parameters;
+    t = nextBase(t);
+  }
+  return [];
+}
+
+// A class with field initializers but no explicit constructor gets a synthesized one. JavaScript's
+// default derived constructor is `constructor(...args) { super(...args); }` — so it must adopt the
+// inherited signature and FORWARD it, then run the field stores (which run after super() returns,
+// and therefore win over anything the base assigned to the same field).
 export function synthesizeFieldInitCtor(
   className: string,
+  decl: ts.ClassDeclaration,
   thisType: ValueType,
   fieldInits: readonly ts.PropertyDeclaration[],
   ctx: LowerCtx,
@@ -143,12 +179,31 @@ export function synthesizeFieldInitCtor(
   const savedRet = ctx.currentReturnType;
   ctx.currentThis = { name: thisName, type: thisType };
   ctx.currentReturnType = null;
+
+  // Forwarded parameters have no source binding of their own, so they get synthetic names; nothing
+  // in the body refers to them except the super() call built right here.
+  const forwarded = ctx.currentBaseClass
+    ? inheritedCtorParams(decl, ctx).map((p) => {
+        if (ts.isObjectBindingPattern(p.name)) {
+          return { name: `__super.${ctx.counter.n++}`, type: valueTypeOf(p, ctx) };
+        }
+        if (!ts.isIdentifier(p.name)) ice("lower: array-destructured inherited parameter");
+        return { name: `__super.${ctx.counter.n++}`, type: valueTypeOf(p.name, ctx) };
+      })
+    : [];
+
   const body: HStmt[] = [];
-  if (ctx.currentBaseClass) {
+  const ctorClass = ctx.currentBaseClass
+    ? constructorClassOf(ctx.currentBaseClass, decl, ctx)
+    : null;
+  if (ctorClass !== null) {
     body.push({
       kind: "callStmt",
-      name: `${ctx.currentBaseClass}.constructor`,
-      args: [thisRef(ctx)],
+      name: `${ctorClass}.constructor`,
+      args: [
+        thisRef(ctx),
+        ...forwarded.map((p): HExpr => ({ kind: "varRef", name: p.name, type: p.type })),
+      ],
       returnType: null,
     });
   }
@@ -157,7 +212,7 @@ export function synthesizeFieldInitCtor(
   ctx.currentReturnType = savedRet;
   return {
     name: `${className}.constructor`,
-    params: [{ name: thisName, type: thisType }],
+    params: [{ name: thisName, type: thisType }, ...forwarded],
     returnType: null,
     body,
   };

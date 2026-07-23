@@ -14,6 +14,7 @@ import {
   lowerExpr,
   lowerObjectNamespace,
   resolveType,
+  superMethodClassOf,
   vtableIndexOf,
 } from "./lower.js";
 import { isMathNamespace, keyKindOf } from "./declarations.js";
@@ -124,7 +125,7 @@ export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
     if (rt === null) ice(`lower: void method super.${pa.name.text} used as a value`);
     return {
       kind: "call",
-      name: `${ctx.currentBaseClass}.${pa.name.text}`,
+      name: `${superMethodClassOf(ctx.currentBaseClass, pa.name.text, ctx)}.${pa.name.text}`,
       args: [thisRef(ctx), ...call.arguments.map((a) => lowerExpr(a, ctx))],
       type: rt,
     };
