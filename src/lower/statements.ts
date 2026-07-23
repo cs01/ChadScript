@@ -171,11 +171,29 @@ export function lowerForOf(stmt: ts.ForOfStatement, ctx: LowerCtx): HStmt {
     ice("lower: for...of requires a `const`/`let` binding");
   }
   const decl = stmt.initializer.declarations[0]!;
-  if (!ts.isIdentifier(decl.name)) ice("lower: for...of destructuring not supported yet");
+  const elementType = array.type.element;
+  // `for (const { x, y } of pts)` — bind each element to a synthetic loop var, then a prelude at the
+  // top of the body binds its fields (reuses the object-destructuring binder).
+  if (ts.isObjectBindingPattern(decl.name)) {
+    const loopName = `__elem.${ctx.counter.n++}`;
+    const prelude = bindObjectPattern(
+      decl.name,
+      { kind: "varRef", name: loopName, type: elementType },
+      ctx,
+    );
+    return {
+      kind: "forOf",
+      name: loopName,
+      elementType,
+      array,
+      body: [...prelude, ...lowerBranchBody(stmt.statement, ctx)],
+    };
+  }
+  if (!ts.isIdentifier(decl.name)) ice("lower: array-destructured for...of binding not supported");
   return {
     kind: "forOf",
     name: nameOf(decl.name, ctx),
-    elementType: array.type.element,
+    elementType,
     array,
     body: lowerBranchBody(stmt.statement, ctx),
   };
