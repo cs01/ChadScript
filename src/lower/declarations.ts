@@ -8,7 +8,7 @@ import type { HExpr, HStmt, HFunc, HCapture } from "../hir/nodes.js";
 import { VT } from "../hir/types.js";
 import type { ValueType } from "../hir/types.js";
 import { type LowerCtx, lowerExpr, coerceToTarget, nameOf, nameForSymbol } from "./lower.js";
-import { lowerStatements, thisRef } from "./statements.js";
+import { lowerStatements, thisRef, bindObjectPattern } from "./statements.js";
 import {
   valueTypeOf,
   valueTypeOfTsType,
@@ -176,10 +176,21 @@ export function lowerMethodLike(
   const memberName = isCtor ? "constructor" : (member.name as ts.Identifier).text;
   const thisName = `this.${ctx.counter.n++}`;
 
+  // Destructured object params are received under a synthetic name; a prelude binds their fields
+  // (same as free functions). See lowerFunction.
+  const paramPrelude: HStmt[] = [];
   const params = [
     { name: thisName, type: thisType },
     ...member.parameters.map((p) => {
-      if (!ts.isIdentifier(p.name)) ice("lower: destructured parameter not supported");
+      if (ts.isObjectBindingPattern(p.name)) {
+        const ptype = valueTypeOf(p, ctx);
+        const tempName = `__param.${ctx.counter.n++}`;
+        paramPrelude.push(
+          ...bindObjectPattern(p.name, { kind: "varRef", name: tempName, type: ptype }, ctx),
+        );
+        return { name: tempName, type: ptype };
+      }
+      if (!ts.isIdentifier(p.name)) ice("lower: array-destructured parameter not supported");
       return { name: nameOf(p.name, ctx), type: valueTypeOf(p.name, ctx) };
     }),
   ];
@@ -191,7 +202,7 @@ export function lowerMethodLike(
   const savedRet = ctx.currentReturnType;
   ctx.currentThis = { name: thisName, type: thisType };
   ctx.currentReturnType = returnType;
-  let body = lowerStatements(member.body.statements, ctx);
+  let body = [...paramPrelude, ...lowerStatements(member.body.statements, ctx)];
   // Field initializers run after `super()` returns (derived) or at the top (base class).
   if (isCtor && fieldInits.length > 0) {
     const inits = fieldInitStmts(fieldInits, thisType, ctx);
@@ -306,8 +317,22 @@ export function isDescendantOf(node: ts.Node, ancestor: ts.Node): boolean {
 export function lowerFunction(decl: ts.FunctionDeclaration, ctx: LowerCtx): HFunc {
   if (!decl.name) ice("lower: anonymous function declaration not supported");
   if (!decl.body) ice("lower: function without a body (overload/declare) not supported");
+  // A destructured object parameter `f({ x, y }: P)` is received as one object param under a
+  // synthetic name; its fields are then bound by a prelude prepended to the body (so `x`/`y` are
+  // ordinary locals). This reuses the variable-destructuring field binder.
+  const paramPrelude: HStmt[] = [];
   const params = decl.parameters.map((p) => {
-    if (!ts.isIdentifier(p.name)) ice("lower: destructured parameters not supported yet");
+    if (ts.isObjectBindingPattern(p.name)) {
+      if (p.questionToken || p.initializer)
+        ice("lower: optional/default destructured parameters not supported yet");
+      const ptype = valueTypeOf(p, ctx);
+      const tempName = `__param.${ctx.counter.n++}`;
+      paramPrelude.push(
+        ...bindObjectPattern(p.name, { kind: "varRef", name: tempName, type: ptype }, ctx),
+      );
+      return { name: tempName, type: ptype };
+    }
+    if (!ts.isIdentifier(p.name)) ice("lower: array-destructured parameters not supported yet");
     if (p.questionToken || p.initializer)
       ice("lower: optional/default parameters not supported yet");
     // A rest parameter `...xs: T[]` is received as a single array param — the call site packs
@@ -328,7 +353,7 @@ export function lowerFunction(decl: ts.FunctionDeclaration, ctx: LowerCtx): HFun
   }
   const saved = ctx.currentReturnType;
   ctx.currentReturnType = returnType;
-  const body = lowerStatements(decl.body.statements, ctx);
+  const body = [...paramPrelude, ...lowerStatements(decl.body.statements, ctx)];
   ctx.currentReturnType = saved;
   return { name: nameOf(decl.name, ctx), params, returnType, body, async: isAsync };
 }

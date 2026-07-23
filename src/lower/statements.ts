@@ -330,8 +330,7 @@ export function lowerVarDecl(decl: ts.VariableDeclaration, ctx: LowerCtx): HStmt
 }
 
 // `const { a, b: renamed } = obj` → bind the object to a temp (evaluated ONCE) then one varDecl per
-// field via memberGet. Nested patterns, defaults (`{a = 1}`), and rest (`{...r}`) are not in the
-// subset (validate admits only ObjectBindingPattern + a plain BindingElement).
+// field. The temp keeps the initializer's side effects to a single evaluation.
 function lowerObjectDestructuring(
   pattern: ts.ObjectBindingPattern,
   initializer: ts.Expression,
@@ -339,10 +338,26 @@ function lowerObjectDestructuring(
 ): HStmt[] {
   const init = lowerExpr(initializer, ctx);
   if (init.type.kind !== "object") ice("lower: object destructuring of a non-object value");
-  const shape = init.type.shape;
   const tempName = `__destr.${ctx.counter.n++}`;
   const tempRef: HExpr = { kind: "varRef", name: tempName, type: init.type };
-  const stmts: HStmt[] = [{ kind: "varDecl", name: tempName, init, type: init.type }];
+  return [
+    { kind: "varDecl", name: tempName, init, type: init.type },
+    ...bindObjectPattern(pattern, tempRef, ctx),
+  ];
+}
+
+// Bind each field of an object `source` (an already-lowered, object-typed HExpr that is cheap to
+// re-reference — a varRef) to a fresh local per the pattern, via memberGet. Shared by variable and
+// parameter destructuring. Nested patterns, defaults (`{a = 1}`), and rest (`{...r}`) are not in the
+// subset (validate admits only ObjectBindingPattern + a plain BindingElement).
+export function bindObjectPattern(
+  pattern: ts.ObjectBindingPattern,
+  source: HExpr,
+  ctx: LowerCtx,
+): HStmt[] {
+  if (source.type.kind !== "object") ice("lower: object destructuring of a non-object value");
+  const shape = source.type.shape;
+  const stmts: HStmt[] = [];
   for (const el of pattern.elements) {
     if (el.dotDotDotToken) ice("lower: rest in object destructuring not supported yet");
     if (el.initializer) ice("lower: default in object destructuring not supported yet");
@@ -356,7 +371,7 @@ function lowerObjectDestructuring(
     stmts.push({
       kind: "varDecl",
       name: nameOf(el.name, ctx),
-      init: { kind: "memberGet", object: tempRef, slot, type: fieldType },
+      init: { kind: "memberGet", object: source, slot, type: fieldType },
       type: fieldType,
     });
   }
