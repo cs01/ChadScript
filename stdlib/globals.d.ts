@@ -32,6 +32,21 @@ declare const process: {
 };
 
 /**
+ * `setTimeout` schedules a callback for a later turn of the event loop. Callbacks fire in
+ * (deadline, registration) order and a delay below 1ms is clamped to 1ms, exactly as Node does;
+ * the microtask queue drains fully between two callbacks.
+ *
+ * The callback must be SYNCHRONOUS. TypeScript's void-return bivariance would otherwise let an
+ * `async` arrow through here (`() => Promise<void>` is assignable to `() => void`), and its
+ * rejection would have no owner — so an async callback is rejected as CS1231 instead.
+ *
+ * Returns void, not a handle: Node returns a `Timeout` OBJECT, so a printable stand-in would
+ * diverge the moment a program logged it. `clearTimeout` therefore does not exist yet — it needs
+ * an opaque handle type the value domain does not have. Calling it fails at typecheck (CS0001).
+ */
+declare function setTimeout(callback: () => void, ms: number): void;
+
+/**
  * `node:path`, POSIX semantics only (the supported targets are macOS and Linux). `join` and
  * `resolve` are variadic here exactly as they are in Node — a `.d.ts` is not walked by the
  * validator, and each call site has a fixed argument list that lowers to an array literal.

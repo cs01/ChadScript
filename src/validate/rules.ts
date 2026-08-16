@@ -258,6 +258,9 @@ export function tailoredRejection(
     case ts.SyntaxKind.TypeAssertionExpression:
       return checkCast(node as ts.AsExpression | ts.TypeAssertion, hit);
 
+    case ts.SyntaxKind.Identifier:
+      return checkFunctionValueRef(node as ts.Identifier, hit, checker);
+
     case ts.SyntaxKind.CallExpression:
       return checkCall(node as ts.CallExpression, hit, checker);
 
@@ -451,6 +454,20 @@ function isDescendantOf(node: ts.Node, ancestor: ts.Node): boolean {
 function checkCall(node: ts.CallExpression, hit: Hit, checker: ts.TypeChecker): Diagnostic | null {
   if (isNamedIdent(node.expression, "eval")) {
     return hit(CODE.EVAL_OR_FUNCTION_CTOR, "`eval` is not supported", "there is no dynamic eval");
+  }
+  // `setTimeout(async () => ...)`. TypeScript ACCEPTS this — `() => Promise<void>` is assignable
+  // to `() => void` under return-type bivariance — so the type system cannot be the gate. The
+  // callback's promise would have no owner: nothing awaits it, so a rejection inside it would be
+  // swallowed rather than terminating the process the way Node does.
+  if (isAmbientGlobalCall(node, "setTimeout", checker)) {
+    const cb = node.arguments[0];
+    if (cb && isAsyncFunctionExpr(cb)) {
+      return hit(
+        CODE.TIMER_ASYNC_CALLBACK,
+        "`setTimeout` requires a synchronous callback",
+        "drop `async` and do the work synchronously; an async callback's rejection would have nothing to await it",
+      );
+    }
   }
   // JSON.* and Date.* are later phases — reject at validate so they fail closed with a rewrite,
   // rather than reaching the backend and ICE'ing (`unsupported method .stringify on object`).
@@ -679,4 +696,58 @@ function checkNew(node: ts.NewExpression, hit: Hit): Diagnostic | null {
     );
   }
   return null;
+}
+
+// An arrow or function expression carrying `async`. Only the literal forms are checked: a
+// reference to an async function declaration is caught by the type system, because
+// `() => Promise<void>` only slips through when the literal is contextually typed here.
+function isAsyncFunctionExpr(node: ts.Node): boolean {
+  if (!ts.isArrowFunction(node) && !ts.isFunctionExpression(node)) return false;
+  return node.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword) ?? false;
+}
+
+// Whether `call` targets the ambient global of that name declared in stdlib/globals.d.ts —
+// resolved by SYMBOL, so a user function that shadows the name is left alone.
+function isAmbientGlobalCall(
+  call: ts.CallExpression,
+  name: string,
+  checker: ts.TypeChecker,
+): boolean {
+  if (!isNamedIdent(call.expression, name)) return false;
+  const decl = checker.getSymbolAtLocation(call.expression)?.declarations?.[0];
+  return decl !== undefined && decl.getSourceFile().fileName.endsWith("stdlib/globals.d.ts");
+}
+
+// A `function` declaration used as a VALUE rather than called. Codegen has no binding for one —
+// function declarations live in a separate namespace from variables — so every such reference
+// reached `ice("reference to unbound variable")`. An admitted construct must never ICE, so this
+// rejects instead, until first-class references to declared functions are implemented.
+//
+// Arrow functions and function EXPRESSIONS assigned to a variable are unaffected: those are
+// ordinary closure values and already work.
+function checkFunctionValueRef(
+  id: ts.Identifier,
+  hit: Hit,
+  checker: ts.TypeChecker,
+): Diagnostic | null {
+  const parent = id.parent as ts.Node | undefined;
+  if (!parent) return null;
+  // Positions where the identifier is a NAME, not a value read.
+  if (ts.isFunctionDeclaration(parent) && parent.name === id) return null;
+  if (ts.isCallExpression(parent) && parent.expression === id) return null;
+  if (ts.isPropertyAccessExpression(parent) && parent.name === id) return null;
+  if (ts.isPropertyAssignment(parent) && parent.name === id) return null;
+  if (ts.isImportSpecifier(parent) || ts.isExportSpecifier(parent)) return null;
+  if (ts.isImportClause(parent) || ts.isNamespaceImport(parent)) return null;
+  if (ts.isBindingElement(parent) && parent.propertyName === id) return null;
+  if (ts.isTypeReferenceNode(parent) || ts.isTypeQueryNode(parent)) return null;
+
+  const decl = checker.getSymbolAtLocation(id)?.valueDeclaration;
+  if (!decl || !ts.isFunctionDeclaration(decl)) return null;
+
+  return hit(
+    CODE.FN_DECL_AS_VALUE,
+    `\`${id.text}\` is a function declaration and cannot be used as a value`,
+    `assign an arrow function instead: \`const ${id.text} = (...) => ...\`, or wrap the reference: \`(...args) => ${id.text}(...args)\``,
+  );
 }

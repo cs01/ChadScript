@@ -116,6 +116,7 @@ export function generate(hmod: HModule): string {
   mod.declareExtern("cs_path_basename", T.ptr, [T.ptr]);
   mod.declareExtern("cs_path_extname", T.ptr, [T.ptr]);
   mod.declareExtern("cs_path_is_absolute", T.i32, [T.ptr]);
+  mod.declareExtern("cs_set_timeout", T.void, [T.ptr, T.double]); // setTimeout(closure, ms)
   mod.declareExtern("cs_array_push", T.i32, [T.ptr, T.i64]);
   mod.declareExtern("cs_array_len", T.i32, [T.ptr]);
   mod.declareExtern("cs_array_get", T.i64, [T.ptr, T.i32]);

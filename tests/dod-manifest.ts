@@ -199,10 +199,31 @@ export const DOD: DodItem[] = [
   },
   {
     id: "timers",
-    title: "setTimeout and clearTimeout",
+    title: "setTimeout",
+    status: "done",
+    evidence: [
+      "run/timer-ordering.ts",
+      "run/timer-nested.ts",
+      "run/timer-async-interleave.ts",
+      "run/timer-callback-forms.ts",
+      "reject/timer-async-callback.ts",
+      "reject/timer-cleartimeout.ts",
+    ],
+    note: "SCOPED DOWN from the review's bare 'timers'. setInterval and timer-vs-microtask starvation ordering are explicitly out — they are the unbounded part, and every other item on this list is bounded. clearTimeout is its own item below.",
+  },
+  {
+    id: "cleartimeout",
+    title: "clearTimeout",
     status: "todo",
     evidence: [],
-    note: "SCOPED DOWN from the review's bare 'timers': setTimeout + clearTimeout only. setInterval and timer-vs-microtask starvation ordering are explicitly out — they are the unbounded part, and every other item on this list is bounded.",
+    note: "needs an OPAQUE handle type: Node's setTimeout returns a Timeout object, so any printable stand-in diverges the moment a program logs it. The value domain has no opaque variant, so setTimeout returns void for now and clearTimeout is undeclared (CS0001).",
+  },
+  {
+    id: "fn-decl-as-value",
+    title: "references to declared functions as first-class values",
+    status: "todo",
+    evidence: [],
+    note: "`const f = named` / `arr.map(named)` reached ice(\'reference to unbound variable\') because function declarations live outside the variable scope map. Now rejected as CS1232 (reject/fn-decl-as-value.ts) rather than ICEing. Arrow functions in variables already work, so this is a completeness gap, not a blocker.",
   },
   {
     id: "fs-promises",

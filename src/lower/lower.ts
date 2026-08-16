@@ -23,8 +23,7 @@ import {
   returnTypeOfSignature,
 } from "./type-translation.js";
 import { lowerMethodCall } from "./method-call.js";
-import { lowerNodeFsCall } from "./node-fs.js";
-import { lowerNodePathCall } from "./node-path.js";
+import { lowerInterceptedCall } from "./globals.js";
 // Re-exported so the many existing `resolveType` import sites keep resolving through lower.ts.
 import { resolveType } from "./resolve-type.js";
 export { resolveType };
@@ -192,15 +191,8 @@ function lowerCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
   if (!ts.isIdentifier(call.expression)) {
     return ice(`lower: unsupported call target ${ts.SyntaxKind[call.expression.kind]}`);
   }
-  // Global builtin functions (from the default lib, not user code): parseInt/parseFloat.
-  const builtin = lowerGlobalBuiltin(call.expression.text, call, ctx);
-  if (builtin) return builtin;
-  // An imported `node:fs` entry — checked by symbol, so a same-named user function is unaffected.
-  const fsCall = lowerNodeFsCall(call, ctx);
-  if (fsCall) return fsCall;
-  // An imported `node:path` entry — same symbol-keyed dispatch as node:fs above.
-  const pathCall = lowerNodePathCall(call, ctx);
-  if (pathCall) return pathCall;
+  const intercepted = lowerInterceptedCall(call, ctx);
+  if (intercepted) return intercepted;
   // A call whose callee is NOT a top-level function declaration is a closure call.
   const sym = symbolOf(call.expression, ctx);
   const isTopLevelFn = sym?.valueDeclaration && ts.isFunctionDeclaration(sym.valueDeclaration);
@@ -229,42 +221,6 @@ function lowerCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
     args: lowerCallArgs(call, ctx),
     type: valueTypeOf(call, ctx),
   };
-}
-
-// A bare-identifier call to a global builtin (parseInt/parseFloat). Returns null if `name` is
-// not a recognized builtin, so the caller falls back to user-function / closure handling. These
-// come from the default lib's type signatures; the runtime backs them in C.
-function lowerGlobalBuiltin(name: string, call: ts.CallExpression, ctx: LowerCtx): HExpr | null {
-  if (name === "parseInt") {
-    const radix = call.arguments[1];
-    return {
-      kind: "runtimeCall",
-      fn: "cs_parse_int",
-      // radix omitted → 0 sentinel (the runtime reads 0 as "default 10 with 0x auto-detect").
-      args: [lowerExpr(call.arguments[0]!, ctx), radix ? lowerExpr(radix, ctx) : numLit(0)],
-      type: VT.number,
-    };
-  }
-  if (name === "parseFloat") {
-    return {
-      kind: "runtimeCall",
-      fn: "cs_parse_float",
-      args: [lowerExpr(call.arguments[0]!, ctx)],
-      type: VT.number,
-    };
-  }
-  if (name === "String" || name === "Number" || name === "Boolean") {
-    const arg = call.arguments[0];
-    if (!arg) ice(`lower: ${name}() with no argument not supported`);
-    const resultType = name === "String" ? VT.string : name === "Number" ? VT.number : VT.boolean;
-    return { kind: "convert", op: name, value: lowerExpr(arg, ctx), type: resultType };
-  }
-  return null;
-}
-
-// A synthetic number literal HExpr (for builtin default arguments).
-function numLit(value: number): HExpr {
-  return { kind: "numberLit", value, type: VT.number };
 }
 
 // `Object.keys(o)` / `Object.values(o)` over a closed object shape. keys → the field names as a
