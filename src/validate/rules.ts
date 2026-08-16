@@ -476,12 +476,27 @@ function checkCall(node: ts.CallExpression, hit: Hit, checker: ts.TypeChecker): 
     const m = node.expression.name.text;
     // JSON.stringify is supported (codegen json.ts); JSON.parse is not (it needs a runtime parser
     // and a target type to shape the result).
+    // `JSON.parse` is admitted ONLY where an explicit annotation supplies the target type.
+    // lib's signature returns `any`, and `any` is not in the type domain — the annotation is what
+    // turns the call into a typed, shape-checked parse instead of an untyped hole. Requiring the
+    // declaration form also keeps the target statically known at the call site, which is what
+    // codegen walks the parsed tree against.
     if (isNamedIdent(recv, "JSON") && m === "parse") {
-      return hit(
-        CODE.JSON_API,
-        "`JSON.parse` is not supported yet",
-        "JSON.parse needs a runtime parser + target shape; build the structure field-by-field for now",
-      );
+      const parent = node.parent;
+      if (!ts.isVariableDeclaration(parent) || parent.initializer !== node || !parent.type) {
+        return hit(
+          CODE.JSON_API,
+          "`JSON.parse` requires an explicit target type annotation",
+          "write `const x: Shape = JSON.parse(text);` — the annotation is the shape the parsed JSON is checked against",
+        );
+      }
+      if (node.arguments.length !== 1) {
+        return hit(
+          CODE.JSON_API,
+          "`JSON.parse` takes exactly one argument",
+          "the reviver parameter is not in the subset",
+        );
+      }
     }
     // `Date.now()` is supported (runtime/time.c); the rest of the Date surface needs an instance
     // representation and a calendar, so it stays rejected.

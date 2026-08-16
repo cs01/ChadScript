@@ -270,6 +270,9 @@ function verifyExpr(e: HExpr): void {
     case "jsonStringify":
       verifyExpr(e.value);
       return;
+    case "jsonParse":
+      verifyExpr(e.text);
+      return;
     case "numberPredicate":
       verifyExpr(e.arg);
       return;

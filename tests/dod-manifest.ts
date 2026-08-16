@@ -147,10 +147,16 @@ export const DOD: DodItem[] = [
   },
   {
     id: "json-parse-typed",
-    title: "typed JSON.parse<T> with runtime shape validation",
-    status: "todo",
-    evidence: [],
-    note: "rejected as CS1214. Needs a runtime parser plus a target shape to validate against; the review calls this higher value than broad Array/Promise method parity. OPEN DESIGN QUESTION: shape validation necessarily diverges from Node on input that parses but does not match T — Node returns the wrong-shaped object, we would throw. Keeping the constitution intact means the divergence is deliberate and documented, and mismatch behavior is pinned by a runtime test rather than a differential fixture (which has no Node oracle to agree with).",
+    title: "typed JSON.parse with runtime shape validation",
+    status: "done",
+    evidence: [
+      "run/json-parse-scalars.ts",
+      "run/json-parse-nested.ts",
+      "run/json-parse-roundtrip.ts",
+      "reject/json-parse-unannotated.ts",
+      "reject/json-parse-reviver.ts",
+    ],
+    note: "Spelled `const x: Shape = JSON.parse(text)` rather than `JSON.parse<Shape>(text)`: lib's signature takes no type argument, and redeclaring the JSON global would collide. The annotation IS the target, so `any` never enters the type domain. DELIBERATE DIVERGENCE: for JSON that parses but does not match the target, Node returns the wrong-shaped object and we throw — there is no oracle to agree with, so those cases are pinned by tests/json-parse-runtime.test.ts (automatic, just not differential) while valid input stays fully differential. Malformed input and non-ASCII are there for the same reason.",
   },
   {
     id: "modules-esm",

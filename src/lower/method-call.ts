@@ -18,6 +18,7 @@ import {
   vtableIndexOf,
 } from "./lower.js";
 import { isMathNamespace, keyKindOf } from "./declarations.js";
+import { valueTypeOfTsType } from "./type-translation.js";
 import { thisRef } from "./statements.js";
 
 // The pretty-print indent unit for a JSON.stringify `space` argument: a literal number N → N spaces
@@ -74,6 +75,15 @@ export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
   // string (capped 10 chars) so the per-level indent is known at compile time. The 2nd arg (replacer)
   // must be null/undefined — a function/array replacer is out of the subset.
   if (ts.isIdentifier(pa.expression) && pa.expression.text === "JSON") {
+    // `JSON.parse` is admitted only where an explicit annotation supplies the target type (the
+    // validator enforces that), so the target SHAPE is available here and `any` never enters HIR.
+    if (pa.name.text === "parse") {
+      return {
+        kind: "jsonParse",
+        text: lowerExpr(call.arguments[0]!, ctx),
+        type: jsonParseTarget(call, ctx),
+      };
+    }
     if (pa.name.text !== "stringify") ice(`lower: unsupported JSON.${pa.name.text}`);
     const replacer = call.arguments[1];
     if (
@@ -401,3 +411,14 @@ export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
 // The class whose constructor runs for `new className(...)`: the nearest class in the chain
 // (self → base) that DECLARES a constructor. Constructors are called statically by `new` (not
 // virtual), and a subclass without one inherits its base's. null when none in the chain declares.
+
+// The declared type at a `JSON.parse` site. The validator has already established that the call
+// sits in a variable declaration carrying an explicit type annotation, so this reads that
+// annotation rather than the call's own (`any`) type.
+function jsonParseTarget(call: ts.CallExpression, ctx: LowerCtx): ValueType {
+  const parent = call.parent;
+  if (!ts.isVariableDeclaration(parent) || !parent.type) {
+    return ice("lower: JSON.parse without an explicit target annotation (validator should reject)");
+  }
+  return valueTypeOfTsType(ctx.checker.getTypeFromTypeNode(parent.type), parent.type, ctx.checker);
+}

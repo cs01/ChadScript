@@ -268,8 +268,8 @@ CsString *cs_path_resolve(const CsArray *parts) {
   if (!absolute) {
     char cwd[4096];
     if (getcwd(cwd, sizeof cwd) == NULL) {
-      CsString msg = {"path.resolve: getcwd failed", 27};
-      cs_throw(cs_new_error(&msg));
+      // cs_new_error stores this pointer rather than copying, so it must not be a stack local.
+      cs_throw(cs_new_error(cs_str_mk("path.resolve: getcwd failed", 27)));
     }
     size_t cwd_len = strlen(cwd);
     Buf next = buf_new();

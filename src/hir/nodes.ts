@@ -333,6 +333,10 @@ export type HExpr =
   // `JSON.stringify(v)`: the JSON text of v (a recursive, type-directed walk). Result is a string.
   // `indent` is the pretty-print unit (repeated per nesting level); null = compact single-line.
   | { kind: "jsonStringify"; value: HExpr; indent: string | null; type: ValueType }
+  // `JSON.parse` at a site with an explicit target annotation. `type` IS the target shape, so no
+  // `any` ever enters the type domain: codegen walks the parsed tree against it and throws on any
+  // disagreement, which is what makes the result trustworthy without a checker at runtime.
+  | { kind: "jsonParse"; text: HExpr; type: ValueType }
   // `Number.isInteger/isFinite/isNaN(x)` — no argument coercion (x is already number). Result bool.
   | { kind: "numberPredicate"; fn: "isInteger" | "isFinite" | "isNaN"; arg: HExpr; type: ValueType }
   | { kind: "unary"; op: UnaryOp; operand: HExpr; type: ValueType }

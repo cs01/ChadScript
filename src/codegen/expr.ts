@@ -22,6 +22,7 @@ import { evalArrayHof, evalArraySort, evalArraySearch, evalArrayJoin } from "./a
 import { evalObjectPtr, evalMemberGet, headerOffset } from "./objects.js";
 import { evalAsyncCall, evalAwait, evalPromiseResolve, evalPromiseAll } from "./async.js";
 import { jsonStringify } from "./json.js";
+import { jsonParse } from "./json-parse.js";
 import { evalNumber } from "./numbers.js";
 // Truthiness-based evaluation lives in truthiness.ts; re-exported so the existing import sites
 // (codegen.ts, numbers.ts) keep resolving through expr.ts.
@@ -382,6 +383,7 @@ export function evalConditional(expr: Extract<HExpr, { kind: "conditional" }>, c
 export function evalValue(expr: HExpr, ctx: Ctx): Value {
   // arrayHof spans result types (map/filter→array, reduce→any, forEach→undefined); handle it
   // before the type switch so forEach's `undefined` result type doesn't hit the default ICE.
+  if (expr.kind === "jsonParse") return jsonParse(evalString(expr.text, ctx), expr.type, ctx);
   if (expr.kind === "arrayHof") return evalArrayHof(expr, ctx);
   if (expr.kind === "conditional") return evalConditional(expr, ctx);
   // `await` yields its inner-typed value; handle before the type switch so it dispatches by result
