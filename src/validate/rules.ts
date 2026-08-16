@@ -10,6 +10,13 @@ import { spanOf } from "./validate.js";
 import { NODE_FS_MODULE } from "../lower/node-fs.js";
 import { NODE_PATH_MODULE } from "../lower/node-path.js";
 import { NODE_FS_PROMISES_MODULE } from "../lower/node-fs-promises.js";
+import {
+  checkFunctionValueRef,
+  checkRepresentableType,
+  checkRepresentableTypeNode,
+  isAmbientGlobalCall,
+  isAsyncFunctionExpr,
+} from "./type-rules.js";
 
 export function tailoredRejection(
   node: ts.Node,
@@ -261,6 +268,17 @@ export function tailoredRejection(
 
     case ts.SyntaxKind.Identifier:
       return checkFunctionValueRef(node as ts.Identifier, hit, checker);
+
+    case ts.SyntaxKind.ConditionalExpression:
+    case ts.SyntaxKind.VariableDeclaration:
+    case ts.SyntaxKind.Parameter:
+      return checkRepresentableType(node, hit, checker);
+
+    // A DECLARED union. The checks above read the type AT a node, which for an annotated
+    // declaration is the narrowed initializer type ("hello", not `string | number`) — so a written
+    // union has to be checked where it is written.
+    case ts.SyntaxKind.UnionType:
+      return checkRepresentableTypeNode(node as ts.UnionTypeNode, hit, checker);
 
     case ts.SyntaxKind.CallExpression:
       return checkCall(node as ts.CallExpression, hit, checker);
@@ -714,64 +732,4 @@ function checkNew(node: ts.NewExpression, hit: Hit): Diagnostic | null {
     );
   }
   return null;
-}
-
-// An arrow or function expression carrying `async`. Only the literal forms are checked: a
-// reference to an async function declaration is caught by the type system, because
-// `() => Promise<void>` only slips through when the literal is contextually typed here.
-function isAsyncFunctionExpr(node: ts.Node): boolean {
-  if (!ts.isArrowFunction(node) && !ts.isFunctionExpression(node)) return false;
-  return node.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword) ?? false;
-}
-
-// Whether `call` targets the ambient global of that name declared in stdlib/globals.d.ts —
-// resolved by SYMBOL, so a user function that shadows the name is left alone.
-function isAmbientGlobalCall(
-  call: ts.CallExpression,
-  name: string,
-  checker: ts.TypeChecker,
-): boolean {
-  if (!isNamedIdent(call.expression, name)) return false;
-  const decl = checker.getSymbolAtLocation(call.expression)?.declarations?.[0];
-  return decl !== undefined && decl.getSourceFile().fileName.endsWith("stdlib/globals.d.ts");
-}
-
-// An ASYNC `function` declaration used as a VALUE rather than called.
-//
-// Synchronous declarations are now first-class (lowerFunctionRef wraps them in a forwarding
-// closure). Async ones cannot be: a call to an async function spawns a fiber and returns a promise,
-// while a forwarding wrapper would run the body synchronously — the resulting value would have the
-// right type and the wrong semantics, which is exactly the "compiles but diverges from Node"
-// category the charter forbids.
-function checkFunctionValueRef(
-  id: ts.Identifier,
-  hit: Hit,
-  checker: ts.TypeChecker,
-): Diagnostic | null {
-  const parent = id.parent as ts.Node | undefined;
-  if (!parent) return null;
-  // Positions where the identifier is a NAME, not a value read.
-  if (ts.isFunctionDeclaration(parent) && parent.name === id) return null;
-  if (ts.isCallExpression(parent) && parent.expression === id) return null;
-  if (ts.isPropertyAccessExpression(parent) && parent.name === id) return null;
-  if (ts.isPropertyAssignment(parent) && parent.name === id) return null;
-  if (ts.isImportSpecifier(parent) || ts.isExportSpecifier(parent)) return null;
-  if (ts.isImportClause(parent) || ts.isNamespaceImport(parent)) return null;
-  if (ts.isBindingElement(parent) && parent.propertyName === id) return null;
-  if (ts.isTypeReferenceNode(parent) || ts.isTypeQueryNode(parent)) return null;
-
-  const decl = checker.getSymbolAtLocation(id)?.valueDeclaration;
-  if (!decl || !ts.isFunctionDeclaration(decl)) return null;
-
-  // A SYNCHRONOUS function declaration is fine as a value: lowering wraps it in a forwarding
-  // closure. An async one is not — calling it must spawn a fiber and yield a promise, and a
-  // forwarding wrapper would run the body synchronously instead, so the value would be a lie.
-  const isAsync = decl.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword) ?? false;
-  if (!isAsync) return null;
-
-  return hit(
-    CODE.FN_DECL_AS_VALUE,
-    `\`${id.text}\` is an async function and cannot be used as a value`,
-    `wrap the reference so the call still spawns: \`(...args) => ${id.text}(...args)\``,
-  );
 }

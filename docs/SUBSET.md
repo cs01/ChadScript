@@ -245,3 +245,4 @@ diagnostic — there is no "compiles but behaves differently than Node" third ca
 | `CS1230` | RECURSIVE_TYPE |
 | `CS1231` | TIMER_ASYNC_CALLBACK |
 | `CS1232` | FN_DECL_AS_VALUE |
+| `CS1233` | UNREPRESENTABLE_TYPE |

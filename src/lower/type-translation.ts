@@ -17,6 +17,21 @@ export function arrayElementType(t: ts.Type, checker: ts.TypeChecker): ts.Type |
   return undefined;
 }
 
+// A type the value domain cannot represent. Thrown by valueTypeOfTsType so that ONE definition of
+// "representable" serves both the validator (which turns this into a coded, spanned rejection
+// before lowering runs) and the lowerer (where escaping it is a compiler bug). Duplicating the
+// predicate in the validator would let the two drift — the same failure mode that let a construct
+// work as an expression and miscompile as a statement.
+export class UnrepresentableTypeError extends Error {
+  constructor(
+    readonly reason: string,
+    readonly suggestion: string,
+  ) {
+    super(reason);
+    this.name = "UnrepresentableTypeError";
+  }
+}
+
 export function valueTypeOf(node: ts.Node, ctx: LowerCtx): ValueType {
   return valueTypeOfTsType(ctx.checker.getTypeAtLocation(node), node, ctx.checker);
 }
@@ -206,11 +221,17 @@ export function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChe
       // `inner | undefined | null` → optional<inner>; pure `inner | inner` → inner.
       return nullish.length > 0 ? { kind: "optional", inner: restFirst } : restFirst;
     }
-    return ice(
-      `lower: mixed-representation union not supported yet at ${ts.SyntaxKind[node.kind]}`,
+    throw new UnrepresentableTypeError(
+      `a union whose members have different runtime representations (${members
+        .map((m) => m.kind)
+        .join(" | ")})`,
+      "give the value one representation — split it into separate variables, or wrap the arms in a common object shape",
     );
   }
-  return ice(`lower: unsupported value type (flags ${flags}) at ${ts.SyntaxKind[node.kind]}`);
+  throw new UnrepresentableTypeError(
+    `a type the value domain has no representation for (type flags ${flags})`,
+    "use a supported type: number, string, boolean, arrays, closed objects, Map/Set, or `T | undefined`",
+  );
 }
 
 // A function's return type as a ValueType, or null for void.

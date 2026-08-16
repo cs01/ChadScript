@@ -40,6 +40,7 @@ export const CODE = {
   RECURSIVE_TYPE: "CS1230", // a type that refers to itself (tree/linked list) — infinite ValueType
   TIMER_ASYNC_CALLBACK: "CS1231", // an async callback passed to setTimeout — its rejection has no owner
   FN_DECL_AS_VALUE: "CS1232", // an ASYNC `function` declaration referenced as a VALUE (not called)
+  UNREPRESENTABLE_TYPE: "CS1233", // a value whose TYPE the value domain cannot represent
 } as const;
 
 export type Code = (typeof CODE)[keyof typeof CODE];

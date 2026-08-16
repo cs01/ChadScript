@@ -239,9 +239,13 @@ export const DOD: DodItem[] = [
   {
     id: "mixed-union-ice",
     title: "mixed-representation unions reach a diagnostic rather than an ICE",
-    status: "todo",
-    evidence: [],
-    note: "FOUND 2026-08-16 while testing function references: `cond ? \'str\' : 42` (a union whose arms have different runtime representations) hits ice(\'lower: mixed-representation union not supported yet\') instead of a validator rejection. The charter says an admitted construct must never ICE, so this is a constitution violation, not a missing feature — the repair is a validator rule plus a rejection fixture, exactly as CS1232 was before it became supported.",
+    status: "done",
+    evidence: [
+      "reject/mixed-union-conditional.ts",
+      "reject/mixed-union-annotation.ts",
+      "reject/mixed-union-param.ts",
+    ],
+    note: "Type-level default-deny (CS1233), complementing the syntax-level ALLOWED_KINDS: syntax admits `cond ? a : b` but says nothing about whether the union of its arms has a runtime representation. The predicate is NOT reimplemented in the validator — it calls the real translator and catches UnrepresentableTypeError, so validator and lowerer cannot disagree about what is representable. Checked both at value nodes (inferred unions) and at written UnionType nodes (declared ones, where the type at the declaration is the narrowed initializer type instead).",
   },
   {
     id: "fs-promises",
