@@ -18,7 +18,8 @@
     "test": "bun test --timeout 60000 tests/",
     "fuzz": "bun run scripts/fuzz.ts",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "test:san": "CHAD_SAN=1 ASAN_OPTIONS=detect_leaks=0:detect_stack_use_after_return=0 bun test --timeout 120000 tests/"
   },
   "devDependencies": {
     "@types/node": "22.10.2",

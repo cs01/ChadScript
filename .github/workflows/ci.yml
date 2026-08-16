@@ -54,3 +54,11 @@ jobs:
       # bun's 5s default is too tight for a cold Homebrew clang on the macOS runner.
       - name: Test (rejection + differential + unit)
         run: bun test --timeout 60000 tests/
+
+      # Second lane over the SAME suite, with the runtime and every compiled fixture built under
+      # AddressSanitizer + UndefinedBehaviorSanitizer. -fno-sanitize-recover makes any report
+      # abort the binary, which the differential harness already sees as a crash divergence — so
+      # this needs no separate assertions. See src/driver/toolchain.ts for what it does and does
+      # not cover (notably: not the Boehm heap).
+      - name: Test (sanitized lane)
+        run: bun run test:san

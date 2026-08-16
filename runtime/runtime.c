@@ -50,16 +50,21 @@ typedef struct {
   const CsString *message;
 } CsThrown;
 
+// Both constructors COPY the message rather than retaining the caller's pointer. Retaining it
+// made a stack `CsString` in any C caller a dangling read at catch time — and that bug class is
+// invisible to AddressSanitizer, because cs_throw escapes by longjmp and ASan unpoisons the
+// abandoned frame (__asan_handle_no_return) to avoid false positives. Since no sanitizer can see
+// it, the API must not permit it. Throws are exceptional, so the copy is free in practice.
 CsThrown *cs_new_error(const CsString *message) {
   CsThrown *t = GC_malloc(sizeof(CsThrown));
   t->isError = 1;
-  t->message = message;
+  t->message = cs_str_from(message->data, message->len);
   return t;
 }
 CsThrown *cs_new_thrown_str(const CsString *s) {
   CsThrown *t = GC_malloc(sizeof(CsThrown));
   t->isError = 0;
-  t->message = s;
+  t->message = cs_str_from(s->data, s->len);
   return t;
 }
 int cs_thrown_is_error(CsThrown *t) { return t->isError; }

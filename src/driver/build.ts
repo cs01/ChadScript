@@ -25,7 +25,7 @@ import { fileURLToPath } from "node:url";
 import { lower } from "../lower/lower.js";
 import { verifyHir } from "../hir/verify.js";
 import { generate } from "../codegen/codegen.js";
-import { CLANG, GC_CFLAGS, GC_LFLAGS } from "./toolchain.js";
+import { CLANG, GC_CFLAGS, GC_LFLAGS, SAN_FLAGS } from "./toolchain.js";
 import type { LoadedProgram } from "../frontend/program.js";
 
 const execFileAsync = promisify(execFile);
@@ -41,7 +41,7 @@ const runtimeSources = readdirSync(runtimeDir)
   .map((f) => join(runtimeDir, f));
 
 // The compile flags a runtime object depends on (a flag change must invalidate the cache).
-const RUNTIME_COMPILE_FLAGS = ["-O2", "-c", ...GC_CFLAGS];
+const RUNTIME_COMPILE_FLAGS = ["-O2", "-c", ...GC_CFLAGS, ...SAN_FLAGS];
 
 // A content-addressed cache key for one runtime object: hashes the .c bytes, EVERY runtime header
 // (a header edit must rebuild the .c's that include it — the mtime scheme missed this), and the
@@ -92,6 +92,7 @@ function linkArgs(llPath: string, outPath: string, opt: "0" | "2", objs: string[
   return [
     `-O${opt}`,
     "-Wno-override-module",
+    ...SAN_FLAGS,
     llPath,
     ...objs,
     "-lm", // `%` lowers to an fmod libcall in libm; macOS auto-links it, Linux doesn't

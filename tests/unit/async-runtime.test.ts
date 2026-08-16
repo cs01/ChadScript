@@ -63,3 +63,7 @@ test("async runtime: concurrent try/catch across await catch their own rejection
 test("async runtime: promise values round-trip through resolve/await for each boxed representation", () => {
   assert.doesNotThrow(() => runCTest("async_boxing_test.c"));
 });
+
+test("runtime: cs_new_error copies the message so a caller's stack CsString cannot dangle", () => {
+  assert.doesNotThrow(() => runCTest("throw_msg_copy_test.c"));
+});
