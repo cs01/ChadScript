@@ -19,7 +19,7 @@ export const NODE_FS_MODULE = "node:fs";
 // The runtime entry and result type per supported name. This table and the ambient module
 // declaration must list the same names — anything declared but not here reaches `ice()` rather
 // than silently lowering to nothing.
-const FS_ENTRIES: Record<string, { entry: string; type: ValueType }> = {
+export const FS_ENTRIES: Record<string, { entry: string; type: ValueType }> = {
   readFileSync: { entry: "cs_fs_read_file", type: VT.string },
   writeFileSync: { entry: "cs_fs_write_file", type: VT.undefined },
   appendFileSync: { entry: "cs_fs_append_file", type: VT.undefined },

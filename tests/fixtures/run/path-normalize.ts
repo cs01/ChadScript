@@ -1,0 +1,23 @@
+import { normalize } from "node:path";
+
+console.log(normalize("a/b/c"));
+console.log(normalize("/a/b/c"));
+console.log(normalize("a//b"));
+console.log(normalize("a/./b"));
+console.log(normalize("a/../b"));
+console.log(normalize("/a/../.."));
+console.log(normalize("../a"));
+console.log(normalize("a/b/"));
+console.log(normalize("/"));
+console.log(normalize(""));
+console.log(normalize("."));
+console.log(normalize("./"));
+console.log(normalize(".."));
+console.log(normalize("../"));
+console.log(normalize("a/.."));
+console.log(normalize("a/../"));
+console.log(normalize("/../a"));
+console.log(normalize("////"));
+console.log(normalize("a/b/../../../c"));
+console.log(normalize("...."));
+console.log(normalize("a/...."));

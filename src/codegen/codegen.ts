@@ -108,6 +108,14 @@ export function generate(hmod: HModule): string {
   mod.declareExtern("cs_fs_append_file", T.void, [T.ptr, T.ptr]);
   mod.declareExtern("cs_fs_exists", T.i32, [T.ptr]);
   mod.declareExtern("cs_fs_unlink", T.void, [T.ptr]);
+  // node:path (runtime/path.c). join/resolve take one CsArray of strings; the rest are 1-arg.
+  mod.declareExtern("cs_path_join", T.ptr, [T.ptr]);
+  mod.declareExtern("cs_path_resolve", T.ptr, [T.ptr]);
+  mod.declareExtern("cs_path_normalize", T.ptr, [T.ptr]);
+  mod.declareExtern("cs_path_dirname", T.ptr, [T.ptr]);
+  mod.declareExtern("cs_path_basename", T.ptr, [T.ptr]);
+  mod.declareExtern("cs_path_extname", T.ptr, [T.ptr]);
+  mod.declareExtern("cs_path_is_absolute", T.i32, [T.ptr]);
   mod.declareExtern("cs_array_push", T.i32, [T.ptr, T.i64]);
   mod.declareExtern("cs_array_len", T.i32, [T.ptr]);
   mod.declareExtern("cs_array_get", T.i64, [T.ptr, T.i32]);

@@ -32,6 +32,25 @@ declare const process: {
 };
 
 /**
+ * `node:path`, POSIX semantics only (the supported targets are macOS and Linux). `join` and
+ * `resolve` are variadic here exactly as they are in Node — a `.d.ts` is not walked by the
+ * validator, and each call site has a fixed argument list that lowers to an array literal.
+ *
+ * Deliberately absent: `sep`/`delimiter` (constants, not calls — a later slice), `relative`,
+ * `parse`/`format`, and the `win32`/`posix` sub-objects. Importing any of them fails at
+ * typecheck (CS0001) rather than reaching lowering.
+ */
+declare module "node:path" {
+  export function join(...paths: string[]): string;
+  export function resolve(...paths: string[]): string;
+  export function normalize(path: string): string;
+  export function dirname(path: string): string;
+  export function basename(path: string): string;
+  export function extname(path: string): string;
+  export function isAbsolute(path: string): boolean;
+}
+
+/**
  * Synchronous filesystem access, imported exactly as Node resolves it: `import { readFileSync }
  * from "node:fs"`. It is a module, not a global, because the oracle runs this same source under
  * Node — where `fs` is not a global. Only the `utf8` encoding is supported: the runtime

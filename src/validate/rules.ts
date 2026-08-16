@@ -8,6 +8,7 @@ import type { Diagnostic } from "../diagnostics.js";
 import { CODE, type Code } from "./codes.js";
 import { spanOf } from "./validate.js";
 import { NODE_FS_MODULE } from "../lower/node-fs.js";
+import { NODE_PATH_MODULE } from "../lower/node-path.js";
 
 export function tailoredRejection(
   node: ts.Node,
@@ -612,11 +613,12 @@ function checkImport(node: ts.ImportDeclaration, hit: Hit): Diagnostic | null {
     );
   }
   const text = spec.text;
-  // `node:fs` is the one non-relative specifier in the subset: its bindings lower to runtime
-  // entries, and Node resolves the identical specifier when it runs the same source as the
-  // oracle. The ambient declaration in stdlib/globals.d.ts is the allowlist of names — importing
-  // anything else from it fails at typecheck (CS0001), so there is nothing to check here.
-  if (text === NODE_FS_MODULE) return checkImportClause(node, hit);
+  // `node:fs` and `node:path` are the only non-relative specifiers in the subset: their bindings
+  // lower to runtime entries, and Node resolves the identical specifier when it runs the same
+  // source as the oracle. The ambient declarations in stdlib/globals.d.ts are the allowlist of
+  // names — importing anything else from them fails at typecheck (CS0001), so there is nothing
+  // to check here.
+  if (text === NODE_FS_MODULE || text === NODE_PATH_MODULE) return checkImportClause(node, hit);
   if (!text.startsWith("./") && !text.startsWith("../")) {
     return hit(
       CODE.MODULE_FORM,

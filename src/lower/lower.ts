@@ -24,6 +24,7 @@ import {
 } from "./type-translation.js";
 import { lowerMethodCall } from "./method-call.js";
 import { lowerNodeFsCall } from "./node-fs.js";
+import { lowerNodePathCall } from "./node-path.js";
 // Re-exported so the many existing `resolveType` import sites keep resolving through lower.ts.
 import { resolveType } from "./resolve-type.js";
 export { resolveType };
@@ -197,6 +198,9 @@ function lowerCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
   // An imported `node:fs` entry — checked by symbol, so a same-named user function is unaffected.
   const fsCall = lowerNodeFsCall(call, ctx);
   if (fsCall) return fsCall;
+  // An imported `node:path` entry — same symbol-keyed dispatch as node:fs above.
+  const pathCall = lowerNodePathCall(call, ctx);
+  if (pathCall) return pathCall;
   // A call whose callee is NOT a top-level function declaration is a closure call.
   const sym = symbolOf(call.expression, ctx);
   const isTopLevelFn = sym?.valueDeclaration && ts.isFunctionDeclaration(sym.valueDeclaration);
