@@ -96,7 +96,8 @@ export function declareRuntimeExterns(mod: ModuleBuilder): void {
   mod.declareExtern("cs_path_basename", T.ptr, [T.ptr]);
   mod.declareExtern("cs_path_extname", T.ptr, [T.ptr]);
   mod.declareExtern("cs_path_is_absolute", T.i32, [T.ptr]);
-  mod.declareExtern("cs_set_timeout", T.void, [T.ptr, T.double]); // setTimeout(closure, ms)
+  mod.declareExtern("cs_set_timeout", T.ptr, [T.ptr, T.double]); // setTimeout → Timeout handle
+  mod.declareExtern("cs_clear_timeout", T.void, [T.ptr]);
   // JSON.parse (runtime/json-parse.c): text → tagged tree, walked by codegen against the target.
   mod.declareExtern("cs_json_parse", T.ptr, [T.ptr]);
   mod.declareExtern("cs_json_kind", T.i32, [T.ptr]);

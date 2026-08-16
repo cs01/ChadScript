@@ -52,6 +52,18 @@ export function lowerGlobalBuiltin(
       kind: "runtimeCall",
       fn: "cs_set_timeout",
       args: [lowerExpr(cb, ctx), lowerExpr(ms, ctx)],
+      type: VT.opaque("Timeout"),
+    };
+  }
+  // `clearTimeout(handle)` — cancels a pending timer. The handle is opaque, so the only thing the
+  // program could have done with it is hold it and pass it back here.
+  if (name === "clearTimeout" && isAmbientGlobal(call.expression, ctx)) {
+    const handle = call.arguments[0];
+    if (!handle) ice("lower: clearTimeout requires a handle");
+    return {
+      kind: "runtimeCall",
+      fn: "cs_clear_timeout",
+      args: [lowerExpr(handle, ctx)],
       type: VT.undefined,
     };
   }

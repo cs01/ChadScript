@@ -113,6 +113,8 @@ export function irTypeOf(vt: ValueType): IrType {
       return T.ptr; // pointer to a CsThrown (a caught value)
     case "promise":
       return T.ptr; // pointer to a runtime Promise
+    case "opaque":
+      return T.ptr; // an opaque runtime handle (setTimeout's Timeout)
     case "null":
     case "undefined":
       return ice(`irTypeOf: ${vt.kind} has no storage representation yet`);
@@ -136,6 +138,7 @@ export function boxSlot(v: Value, elemType: ValueType, ctx: Ctx): Value {
     case "set":
     case "unknown":
     case "promise":
+    case "opaque":
       return ctx.fn.ptrToI64(v); // all pointer-represented
     case "boolean":
       return ctx.fn.zextI1ToI64(v);
@@ -157,6 +160,7 @@ export function unboxSlot(slot: Value, elemType: ValueType, ctx: Ctx): Value {
     case "set":
     case "unknown":
     case "promise":
+    case "opaque":
       return ctx.fn.i64ToPtr(slot);
     case "boolean":
       return ctx.fn.truncI64ToI1(slot);
@@ -412,6 +416,19 @@ export function evalValue(expr: HExpr, ctx: Ctx): Value {
       // A caught value (CsThrown*): only a `varRef` (the catch binding) produces one directly.
       if (expr.kind === "varRef") return ctx.fn.load(T.ptr, lookupVar(expr.name, ctx).ptr);
       return ice(`evalValue: unknown expression ${expr.kind}`);
+    case "opaque":
+      // Only two forms reach here — the runtime call that MINTS the handle, and a read of the
+      // variable holding it. The validator (CS1234) rejects every other use, so anything else
+      // arriving is a compiler bug rather than a user error.
+      if (expr.kind === "varRef") return ctx.fn.load(T.ptr, lookupVar(expr.name, ctx).ptr);
+      if (expr.kind === "runtimeCall") {
+        return ctx.fn.call(
+          `@${expr.fn}`,
+          T.ptr,
+          expr.args.map((a) => evalValue(a, ctx)),
+        );
+      }
+      return ice(`evalValue: opaque expression ${expr.kind}`);
     case "promise":
       if (expr.kind === "asyncCall") return evalAsyncCall(expr, ctx);
       if (expr.kind === "promiseResolve") return evalPromiseResolve(expr, ctx);

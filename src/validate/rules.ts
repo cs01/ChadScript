@@ -14,6 +14,7 @@ import {
   checkFunctionValueRef,
   checkRepresentableType,
   checkRepresentableTypeNode,
+  checkOpaqueHandleUse,
   isAmbientGlobalCall,
   isAsyncFunctionExpr,
 } from "./type-rules.js";
@@ -267,7 +268,10 @@ export function tailoredRejection(
       return checkCast(node as ts.AsExpression | ts.TypeAssertion, hit);
 
     case ts.SyntaxKind.Identifier:
-      return checkFunctionValueRef(node as ts.Identifier, hit, checker);
+      return (
+        checkFunctionValueRef(node as ts.Identifier, hit, checker) ??
+        checkOpaqueHandleUse(node as ts.Identifier, hit, checker)
+      );
 
     case ts.SyntaxKind.ConditionalExpression:
     case ts.SyntaxKind.VariableDeclaration:
@@ -280,8 +284,15 @@ export function tailoredRejection(
     case ts.SyntaxKind.UnionType:
       return checkRepresentableTypeNode(node as ts.UnionTypeNode, hit, checker);
 
+    case ts.SyntaxKind.TemplateSpan:
+      return checkOpaqueHandleUse((node as ts.TemplateSpan).expression, hit, checker);
+
     case ts.SyntaxKind.CallExpression:
-      return checkCall(node as ts.CallExpression, hit, checker);
+      // A call can BE an opaque handle (`console.log(setTimeout(...))`), so both checks apply.
+      return (
+        checkCall(node as ts.CallExpression, hit, checker) ??
+        checkOpaqueHandleUse(node as ts.CallExpression, hit, checker)
+      );
 
     case ts.SyntaxKind.NewExpression:
       return checkNew(node as ts.NewExpression, hit);

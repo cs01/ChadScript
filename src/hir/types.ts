@@ -46,7 +46,13 @@ export type ValueType =
   | { kind: "unknown" }
   // `Promise<T>` — the result of an async-function call. Runtime rep: pointer to a runtime Promise
   // (see runtime/async.c). `await` unwraps it to `inner`; the value crosses as a boxed i64 slot.
-  | { kind: "promise"; inner: ValueType };
+  | { kind: "promise"; inner: ValueType }
+  // An OPAQUE runtime handle: a pointer the program may hold and hand back to the runtime, with no
+  // other operations. Exists because Node's setTimeout returns a `Timeout` OBJECT — any printable
+  // stand-in (a number, an empty record) would diverge the moment a program logged it, so the type
+  // carries "you may store this and pass it back, nothing else" into the type domain, and the
+  // validator enforces exactly that (CS1234).
+  | { kind: "opaque"; name: string };
 
 export const VT = {
   number: { kind: "number" } as ValueType,
@@ -55,6 +61,7 @@ export const VT = {
   null: { kind: "null" } as ValueType,
   undefined: { kind: "undefined" } as ValueType,
   unknown: { kind: "unknown" } as ValueType,
+  opaque: (name: string): ValueType => ({ kind: "opaque", name }),
   array: (element: ValueType): ValueType => ({ kind: "array", element }),
   map: (key: ValueType, value: ValueType): ValueType => ({ kind: "map", key, value }),
   set: (element: ValueType): ValueType => ({ kind: "set", element }),

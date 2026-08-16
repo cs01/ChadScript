@@ -40,11 +40,21 @@ declare const process: {
  * `async` arrow through here (`() => Promise<void>` is assignable to `() => void`), and its
  * rejection would have no owner — so an async callback is rejected as CS1231 instead.
  *
- * Returns void, not a handle: Node returns a `Timeout` OBJECT, so a printable stand-in would
- * diverge the moment a program logged it. `clearTimeout` therefore does not exist yet — it needs
- * an opaque handle type the value domain does not have. Calling it fails at typecheck (CS0001).
+ * Returns an opaque `Timeout` handle: storable and passable to `clearTimeout`, nothing else.
  */
-declare function setTimeout(callback: () => void, ms: number): void;
+declare function setTimeout(callback: () => void, ms: number): Timeout;
+
+/**
+ * The handle `setTimeout` returns. Deliberately OPAQUE: it may be stored in a variable and passed
+ * to `clearTimeout`, and nothing else. Node returns a `Timeout` object here, so a printable
+ * stand-in would diverge the first time a program logged it — printing one, or building one by
+ * hand, is rejected as CS1234.
+ */
+declare interface Timeout {
+  readonly __opaqueTimeout: unique symbol;
+}
+
+declare function clearTimeout(handle: Timeout): void;
 
 /**
  * `node:path`, POSIX semantics only (the supported targets are macOS and Linux). `join` and

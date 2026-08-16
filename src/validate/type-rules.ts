@@ -118,3 +118,67 @@ export function checkRepresentableTypeNode(
     return hit(CODE.UNREPRESENTABLE_TYPE, `this type is ${e.reason}`, e.suggestion);
   }
 }
+
+// An opaque runtime handle (setTimeout's `Timeout`) used as anything other than a value to store
+// or hand back. Printing one is the case that matters: Node prints a `Timeout` object with
+// internal fields, so any representation we chose would diverge — and the whole reason the type is
+// opaque is that there is nothing faithful to print.
+//
+// Admitted positions: the call that MINTS it, a variable initializer, and an argument. Everything
+// else — console.log, JSON.stringify, template interpolation, comparison — is rejected.
+export function checkOpaqueHandleUse(
+  node: ts.Expression,
+  hit: Hit,
+  checker: ts.TypeChecker,
+): Diagnostic | null {
+  const name = opaqueTypeName(node, checker);
+  if (name === null) return null;
+
+  const parent = node.parent as ts.Node | undefined;
+  if (!parent) return null;
+  // Positions where the identifier NAMES the handle rather than reading it. `const t = ...` has a
+  // Timeout-typed identifier on both sides; only the right-hand one is a use.
+  if (ts.isVariableDeclaration(parent) && parent.name === node) return null;
+  if (ts.isParameter(parent) && parent.name === node) return null;
+  if (ts.isBindingElement(parent) && parent.name === node) return null;
+  if (ts.isPropertyAccessExpression(parent) && parent.name === node) return null;
+  // Minting it, storing it, discarding it, or passing it on are the supported uses. Discarding is
+  // the COMMON case: `setTimeout(cb, 10);` as a statement never needs the handle.
+  if (ts.isExpressionStatement(parent)) return null;
+  if (ts.isVariableDeclaration(parent) && parent.initializer === node) return null;
+  if (ts.isCallExpression(parent) && parent.arguments.includes(node)) {
+    // ...but console.log/JSON.stringify take arguments too, and neither can render one.
+    return isRenderingCall(parent) ? renderRefusal(name, hit) : null;
+  }
+  if (ts.isCallExpression(parent) && parent.expression === node) return null;
+  if (ts.isReturnStatement(parent)) return null;
+  return renderRefusal(name, hit);
+}
+
+function renderRefusal(name: string, hit: Hit): Diagnostic {
+  return hit(
+    CODE.OPAQUE_HANDLE_USE,
+    `a \`${name}\` handle is opaque and cannot be used here`,
+    `store it in a variable and pass it back (e.g. \`clearTimeout(handle)\`) — there is no faithful way to print or serialize it`,
+  );
+}
+
+// The opaque type name of `node`, or null when its type is not an opaque handle. Mirrors
+// type-translation.ts's recognition: name plus declaring file.
+function opaqueTypeName(node: ts.Expression, checker: ts.TypeChecker): string | null {
+  const sym = checker.getTypeAtLocation(node).getSymbol();
+  const name = sym?.getName();
+  if (name !== "Timeout") return null;
+  const decl = sym?.declarations?.[0];
+  if (!decl || !decl.getSourceFile().fileName.endsWith("stdlib/globals.d.ts")) return null;
+  return name;
+}
+
+// Calls that turn a value into text and therefore cannot accept an opaque handle.
+function isRenderingCall(call: ts.CallExpression): boolean {
+  const callee = call.expression;
+  if (!ts.isPropertyAccessExpression(callee)) return false;
+  const recv = callee.expression;
+  if (isNamedIdent(recv, "console")) return true;
+  return isNamedIdent(recv, "JSON") && callee.name.text === "stringify";
+}

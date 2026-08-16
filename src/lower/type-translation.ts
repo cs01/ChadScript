@@ -22,6 +22,19 @@ export function arrayElementType(t: ts.Type, checker: ts.TypeChecker): ts.Type |
 // before lowering runs) and the lowerer (where escaping it is a compiler bug). Duplicating the
 // predicate in the validator would let the two drift — the same failure mode that let a construct
 // work as an expression and miscompile as a statement.
+// The names the ambient environment declares as opaque handles. A type matches only when its
+// symbol is declared in stdlib/globals.d.ts, so a user-defined `Timeout` is an ordinary object.
+const OPAQUE_HANDLE_NAMES = new Set(["Timeout"]);
+
+function opaqueHandleName(t: ts.Type): string | null {
+  const sym = t.getSymbol() ?? t.aliasSymbol;
+  const name = sym?.getName();
+  if (!name || !OPAQUE_HANDLE_NAMES.has(name)) return null;
+  const decl = sym?.declarations?.[0];
+  if (!decl || !decl.getSourceFile().fileName.endsWith("stdlib/globals.d.ts")) return null;
+  return name;
+}
+
 export class UnrepresentableTypeError extends Error {
   constructor(
     readonly reason: string,
@@ -106,6 +119,12 @@ export function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChe
   if (flags & ts.TypeFlags.Undefined) return VT.undefined;
   // `unknown` currently occurs only as a `catch (e)` binding (useUnknownInCatchVariables).
   if (flags & ts.TypeFlags.Unknown) return VT.unknown;
+  // Opaque runtime handles, recognized by NAME + declaring file so a user interface that happens
+  // to be called `Timeout` is unaffected. MUST precede the Object branch: the handle is nominally
+  // an interface, and structural handling would recurse into its `unique symbol` brand member.
+  const opaque = opaqueHandleName(t);
+  if (opaque !== null) return VT.opaque(opaque);
+
   if (flags & ts.TypeFlags.Object) {
     const ref = t as ts.TypeReference;
     // A function value: an object type with a call signature.

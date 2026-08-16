@@ -246,3 +246,4 @@ diagnostic — there is no "compiles but behaves differently than Node" third ca
 | `CS1231` | TIMER_ASYNC_CALLBACK |
 | `CS1232` | FN_DECL_AS_VALUE |
 | `CS1233` | UNREPRESENTABLE_TYPE |
+| `CS1234` | OPAQUE_HANDLE_USE |

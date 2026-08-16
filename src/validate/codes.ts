@@ -41,6 +41,7 @@ export const CODE = {
   TIMER_ASYNC_CALLBACK: "CS1231", // an async callback passed to setTimeout — its rejection has no owner
   FN_DECL_AS_VALUE: "CS1232", // an ASYNC `function` declaration referenced as a VALUE (not called)
   UNREPRESENTABLE_TYPE: "CS1233", // a value whose TYPE the value domain cannot represent
+  OPAQUE_HANDLE_USE: "CS1234", // an opaque runtime handle used as anything but a stored/passed value
 } as const;
 
 export type Code = (typeof CODE)[keyof typeof CODE];
