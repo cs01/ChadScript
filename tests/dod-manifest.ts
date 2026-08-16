@@ -150,7 +150,7 @@ export const DOD: DodItem[] = [
     title: "typed JSON.parse<T> with runtime shape validation",
     status: "todo",
     evidence: [],
-    note: "rejected as CS1214. Needs a runtime parser plus a target shape to validate against; the review calls this higher value than broad Array/Promise method parity.",
+    note: "rejected as CS1214. Needs a runtime parser plus a target shape to validate against; the review calls this higher value than broad Array/Promise method parity. OPEN DESIGN QUESTION: shape validation necessarily diverges from Node on input that parses but does not match T — Node returns the wrong-shaped object, we would throw. Keeping the constitution intact means the divergence is deliberate and documented, and mismatch behavior is pinned by a runtime test rather than a differential fixture (which has no Node oracle to agree with).",
   },
   {
     id: "modules-esm",
