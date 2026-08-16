@@ -130,6 +130,14 @@ export function lower(loaded: LoadedProgram): HModule {
 // `if (x !== undefined)` guard — emit an `unwrap` so codegen unboxes the stored optional.
 function lowerIdentifier(ident: ts.Identifier, ctx: LowerCtx, useType: ValueType): HExpr {
   const sym = symbolOf(ident, ctx);
+  // A `function` declaration referenced as a VALUE. Function declarations are not variables — they
+  // have no storage slot to load — so this synthesizes a wrapper taking the hidden `env` pointer a
+  // closure value is called through, and returns an ordinary closure over it. Everything
+  // downstream (callClosure, array HOFs, setTimeout) then treats it like any other closure.
+  const fnDecl = sym?.valueDeclaration;
+  if (fnDecl && ts.isFunctionDeclaration(fnDecl) && useType.kind === "function") {
+    return lowerFunctionRef(ident, fnDecl, useType, ctx);
+  }
   if (sym?.valueDeclaration && useType.kind !== "optional") {
     const declared = valueTypeOfTsType(
       ctx.checker.getTypeOfSymbolAtLocation(sym, sym.valueDeclaration),
@@ -744,4 +752,43 @@ export function calleeName(expr: ts.Expression): string {
   }
   if (ts.isIdentifier(expr)) return expr.text;
   return `<${ts.SyntaxKind[expr.kind]}>`;
+}
+
+// Wrap a top-level function declaration so it can be used as a first-class value.
+//
+// A closure is a {fnptr, env} record whose fnptr is called as `fn(env, ...args)`, while a top-level
+// function is emitted with no env parameter — so its address cannot be stored in a closure record
+// directly. The wrapper is an ordinary lifted lambda (an empty `captures` list is what gives it the
+// env parameter) whose body just forwards to the real function.
+//
+// Async function declarations are NOT admitted here: a call to one must SPAWN a fiber and yield a
+// promise, and a forwarding wrapper would instead run the body synchronously. The validator rejects
+// those as CS1232.
+function lowerFunctionRef(
+  ident: ts.Identifier,
+  decl: ts.FunctionDeclaration,
+  useType: ValueType,
+  ctx: LowerCtx,
+): HExpr {
+  const target = nameOf(ident, ctx);
+  const wrapperName = `fnref.${ctx.counter.n++}`;
+  const paramTypes = useType.kind === "function" ? useType.params : [];
+  const returnType = useType.kind === "function" ? useType.ret : null;
+  const params = paramTypes.map((type, i) => ({ name: `${wrapperName}.p${i}`, type }));
+  const args: HExpr[] = params.map((p) => ({ kind: "varRef", name: p.name, type: p.type }));
+
+  const body: HStmt[] = returnType
+    ? [{ kind: "return", value: { kind: "call", name: target, args, type: returnType } }]
+    : [
+        { kind: "callStmt", name: target, args, returnType: null },
+        { kind: "return", value: null },
+      ];
+
+  ctx.functions.push({ name: wrapperName, params, returnType, body, captures: [] });
+  return {
+    kind: "closure",
+    lambdaName: wrapperName,
+    captures: [],
+    type: { kind: "function", params: paramTypes, ret: returnType },
+  };
 }

@@ -62,6 +62,7 @@ diagnostic — there is no "compiles but behaves differently than Node" third ca
 - `OverrideKeyword`
 - `Parameter`
 - `ParenthesizedExpression`
+- `ParenthesizedType`
 - `PostfixUnaryExpression`
 - `PrefixUnaryExpression`
 - `PropertyAccessExpression`

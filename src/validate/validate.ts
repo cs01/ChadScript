@@ -122,7 +122,10 @@ export const ALLOWED_KINDS: ReadonlySet<ts.SyntaxKind> = new Set([
   ts.SyntaxKind.BooleanKeyword,
   ts.SyntaxKind.VoidKeyword,
   ts.SyntaxKind.ArrayType, // `T[]` annotation (type position, inert)
-  ts.SyntaxKind.FunctionType, // `(x: T) => U` annotation (type position, inert)
+  ts.SyntaxKind.FunctionType,
+  // `(a: number) => number` inside another type, e.g. an array of functions. Parentheses in a
+  // TYPE have no runtime meaning — the checker has already resolved the type they group.
+  ts.SyntaxKind.ParenthesizedType, // `(x: T) => U` annotation (type position, inert)
   ts.SyntaxKind.UnionType, // `T | null` / `T | undefined` annotation (type position, inert)
   ts.SyntaxKind.LiteralType, // `null` / `undefined` / literal in type position (inert)
   ts.SyntaxKind.UndefinedKeyword, // `undefined` annotation (type position, inert)

@@ -736,13 +736,13 @@ function isAmbientGlobalCall(
   return decl !== undefined && decl.getSourceFile().fileName.endsWith("stdlib/globals.d.ts");
 }
 
-// A `function` declaration used as a VALUE rather than called. Codegen has no binding for one —
-// function declarations live in a separate namespace from variables — so every such reference
-// reached `ice("reference to unbound variable")`. An admitted construct must never ICE, so this
-// rejects instead, until first-class references to declared functions are implemented.
+// An ASYNC `function` declaration used as a VALUE rather than called.
 //
-// Arrow functions and function EXPRESSIONS assigned to a variable are unaffected: those are
-// ordinary closure values and already work.
+// Synchronous declarations are now first-class (lowerFunctionRef wraps them in a forwarding
+// closure). Async ones cannot be: a call to an async function spawns a fiber and returns a promise,
+// while a forwarding wrapper would run the body synchronously — the resulting value would have the
+// right type and the wrong semantics, which is exactly the "compiles but diverges from Node"
+// category the charter forbids.
 function checkFunctionValueRef(
   id: ts.Identifier,
   hit: Hit,
@@ -763,9 +763,15 @@ function checkFunctionValueRef(
   const decl = checker.getSymbolAtLocation(id)?.valueDeclaration;
   if (!decl || !ts.isFunctionDeclaration(decl)) return null;
 
+  // A SYNCHRONOUS function declaration is fine as a value: lowering wraps it in a forwarding
+  // closure. An async one is not — calling it must spawn a fiber and yield a promise, and a
+  // forwarding wrapper would run the body synchronously instead, so the value would be a lie.
+  const isAsync = decl.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword) ?? false;
+  if (!isAsync) return null;
+
   return hit(
     CODE.FN_DECL_AS_VALUE,
-    `\`${id.text}\` is a function declaration and cannot be used as a value`,
-    `assign an arrow function instead: \`const ${id.text} = (...) => ...\`, or wrap the reference: \`(...args) => ${id.text}(...args)\``,
+    `\`${id.text}\` is an async function and cannot be used as a value`,
+    `wrap the reference so the call still spawns: \`(...args) => ${id.text}(...args)\``,
   );
 }

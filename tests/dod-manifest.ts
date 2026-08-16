@@ -227,9 +227,21 @@ export const DOD: DodItem[] = [
   {
     id: "fn-decl-as-value",
     title: "references to declared functions as first-class values",
+    status: "done",
+    evidence: [
+      "run/fn-ref-basic.ts",
+      "run/fn-ref-higher-order.ts",
+      "run/paren-type.ts",
+      "reject/fn-ref-async.ts",
+    ],
+    note: "Lowering wraps a declared function in a forwarding lambda whose hidden `env` parameter makes it a valid closure record, so no codegen changes were needed. ASYNC declarations stay rejected (CS1232): a call to one must spawn a fiber and yield a promise, and a forwarding wrapper would run the body synchronously — right type, wrong semantics.",
+  },
+  {
+    id: "mixed-union-ice",
+    title: "mixed-representation unions reach a diagnostic rather than an ICE",
     status: "todo",
     evidence: [],
-    note: "`const f = named` / `arr.map(named)` reached ice(\'reference to unbound variable\') because function declarations live outside the variable scope map. Now rejected as CS1232 (reject/fn-decl-as-value.ts) rather than ICEing. Arrow functions in variables already work, so this is a completeness gap, not a blocker.",
+    note: "FOUND 2026-08-16 while testing function references: `cond ? \'str\' : 42` (a union whose arms have different runtime representations) hits ice(\'lower: mixed-representation union not supported yet\') instead of a validator rejection. The charter says an admitted construct must never ICE, so this is a constitution violation, not a missing feature — the repair is a validator rule plus a rejection fixture, exactly as CS1232 was before it became supported.",
   },
   {
     id: "fs-promises",
