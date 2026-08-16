@@ -16,6 +16,7 @@ import { validate } from "../../src/validate/validate.js";
 import { emitIr } from "../../src/driver/build.js";
 import { FS_ENTRIES } from "../../src/lower/node-fs.js";
 import { PATH_ENTRIES } from "../../src/lower/node-path.js";
+import { FS_PROMISES_ENTRIES } from "../../src/lower/node-fs-promises.js";
 
 function declaredExterns(): Set<string> {
   const dir = mkdtempSync(join(tmpdir(), "chadv2-externs-"));
@@ -37,6 +38,7 @@ test("codegen declares every extern the runtime-module lowering tables emit", ()
   for (const [table, entries] of [
     ["node:fs", FS_ENTRIES],
     ["node:path", PATH_ENTRIES],
+    ["node:fs/promises", FS_PROMISES_ENTRIES],
   ] as const) {
     for (const [name, { entry }] of Object.entries(entries)) {
       if (!declared.has(entry)) missing.push(`${table}.${name} → ${entry}`);

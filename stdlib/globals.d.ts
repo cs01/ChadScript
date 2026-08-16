@@ -66,6 +66,21 @@ declare module "node:path" {
 }
 
 /**
+ * `node:fs/promises` — the async half of the same surface. The operation is issued when the
+ * function is called and its promise settles in the event loop's I/O phase, after any timers that
+ * are already due, which is the order Node delivers them in.
+ *
+ * A failure REJECTS the returned promise (as in Node) rather than throwing synchronously, so
+ * `try`/`catch` around an `await` handles it.
+ */
+declare module "node:fs/promises" {
+  export function readFile(path: string, encoding: "utf8"): Promise<string>;
+  export function writeFile(path: string, data: string): Promise<void>;
+  export function appendFile(path: string, data: string): Promise<void>;
+  export function unlink(path: string): Promise<void>;
+}
+
+/**
  * Synchronous filesystem access, imported exactly as Node resolves it: `import { readFileSync }
  * from "node:fs"`. It is a module, not a global, because the oracle runs this same source under
  * Node — where `fs` is not a global. Only the `utf8` encoding is supported: the runtime

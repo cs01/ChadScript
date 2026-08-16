@@ -82,6 +82,12 @@ export function declareRuntimeExterns(mod: ModuleBuilder): void {
   mod.declareExtern("cs_fs_append_file", T.void, [T.ptr, T.ptr]);
   mod.declareExtern("cs_fs_exists", T.i32, [T.ptr]);
   mod.declareExtern("cs_fs_unlink", T.void, [T.ptr]);
+  // node:fs/promises (runtime/fs-promises.c): the syscall runs now, the promise settles in the
+  // event loop's I/O phase.
+  mod.declareExtern("cs_fsp_read_file", T.ptr, [T.ptr]);
+  mod.declareExtern("cs_fsp_write_file", T.ptr, [T.ptr, T.ptr]);
+  mod.declareExtern("cs_fsp_append_file", T.ptr, [T.ptr, T.ptr]);
+  mod.declareExtern("cs_fsp_unlink", T.ptr, [T.ptr]);
   // node:path (runtime/path.c). join/resolve take one CsArray of strings; the rest are 1-arg.
   mod.declareExtern("cs_path_join", T.ptr, [T.ptr]);
   mod.declareExtern("cs_path_resolve", T.ptr, [T.ptr]);

@@ -417,6 +417,15 @@ export function evalValue(expr: HExpr, ctx: Ctx): Value {
       if (expr.kind === "promiseResolve") return evalPromiseResolve(expr, ctx);
       if (expr.kind === "promiseAll") return evalPromiseAll(expr, ctx);
       if (expr.kind === "varRef") return ctx.fn.load(T.ptr, lookupVar(expr.name, ctx).ptr);
+      // `node:fs/promises` entries: the runtime returns an already-created Promise* whose
+      // settlement the event loop delivers later.
+      if (expr.kind === "runtimeCall") {
+        return ctx.fn.call(
+          `@${expr.fn}`,
+          T.ptr,
+          expr.args.map((a) => evalValue(a, ctx)),
+        );
+      }
       return ice(`evalValue: promise expression ${expr.kind} not supported yet`);
     default:
       return ice(`evalValue: ${expr.type.kind} not supported yet`);

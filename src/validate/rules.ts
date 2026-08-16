@@ -9,6 +9,7 @@ import { CODE, type Code } from "./codes.js";
 import { spanOf } from "./validate.js";
 import { NODE_FS_MODULE } from "../lower/node-fs.js";
 import { NODE_PATH_MODULE } from "../lower/node-path.js";
+import { NODE_FS_PROMISES_MODULE } from "../lower/node-fs-promises.js";
 
 export function tailoredRejection(
   node: ts.Node,
@@ -650,7 +651,9 @@ function checkImport(node: ts.ImportDeclaration, hit: Hit): Diagnostic | null {
   // source as the oracle. The ambient declarations in stdlib/globals.d.ts are the allowlist of
   // names — importing anything else from them fails at typecheck (CS0001), so there is nothing
   // to check here.
-  if (text === NODE_FS_MODULE || text === NODE_PATH_MODULE) return checkImportClause(node, hit);
+  if (text === NODE_FS_MODULE || text === NODE_PATH_MODULE || text === NODE_FS_PROMISES_MODULE) {
+    return checkImportClause(node, hit);
+  }
   if (!text.startsWith("./") && !text.startsWith("../")) {
     return hit(
       CODE.MODULE_FORM,

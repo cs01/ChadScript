@@ -65,6 +65,11 @@ void cs_set_timeout(CsClosure *callback, double delay_ms) {
 
 int cs_timers_pending(void) { return cs_timers != NULL; }
 
+// Whether the earliest timer's deadline has already passed. The event loop runs DUE timers before
+// delivering I/O completions (Node's timers phase precedes poll), but must not sleep on a
+// not-yet-due timer while a completed read is sitting in the queue.
+int cs_timers_due(void) { return cs_timers != NULL && cs_timers->deadline_ms <= now_ms(); }
+
 // Sleep until the earliest timer is due, then run exactly ONE callback. The caller drains
 // microtasks between calls, which is what makes the interleaving match Node.
 void cs_timers_run_earliest(void) {

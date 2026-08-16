@@ -310,7 +310,10 @@ int64_t cs_await(Promise *p) {
 }
 
 extern int cs_timers_pending(void);
+extern int cs_timers_due(void);
 extern void cs_timers_run_earliest(void);
+extern int cs_io_pending(void);
+extern void cs_io_settle_one(void);
 
 // Drain the microtask queue, resuming each ready fiber.
 static void cs_drain_microtasks(void) {
@@ -326,8 +329,17 @@ static void cs_drain_microtasks(void) {
 // which is the interleaving Node produces. (IO extends this in a later slice.)
 void cs_run_event_loop(void) {
   cs_drain_microtasks();
-  while (cs_timers_pending()) {
-    cs_timers_run_earliest();
+  while (cs_timers_pending() || cs_io_pending()) {
+    // Timers whose deadline has PASSED go first: Node runs its timers phase before poll. A timer
+    // that is not due yet must not block a completed read, so it is only slept on once no I/O is
+    // waiting.
+    if (cs_timers_due()) {
+      cs_timers_run_earliest();
+    } else if (cs_io_pending()) {
+      cs_io_settle_one();
+    } else {
+      cs_timers_run_earliest(); // nothing ready: sleep to the next deadline
+    }
     cs_drain_microtasks();
   }
   // A rejection that no await ever consumed → Node terminates with exit code 1. stderr text is

@@ -234,9 +234,14 @@ export const DOD: DodItem[] = [
   {
     id: "fs-promises",
     title: "a narrow node:fs/promises surface",
-    status: "todo",
-    evidence: [],
-    note: "the review gates this behind a correct async scheduler; async-await is done, so this is unblocked.",
+    status: "done",
+    evidence: [
+      "run/fs-promises-basic.ts",
+      "run/fs-promises-ordering.ts",
+      "reject/fs-promises-unsupported-export.ts",
+      "reject/fs-promises-namespace-import.ts",
+    ],
+    note: "readFile/writeFile/appendFile/unlink. The syscall runs synchronously at call time and only the SETTLEMENT is deferred, onto an I/O queue the loop drains after any already-due timers — blocking is not observable in output, only ordering is, and this keeps the phase model (microtasks, due timers, I/O) matching Node's. Failures reject rather than throwing synchronously. Racing a timer against a read is NOT fixtured: that ordering is genuinely nondeterministic in Node too, so there would be no oracle to agree with.",
   },
   {
     id: "rejection-boundary",
