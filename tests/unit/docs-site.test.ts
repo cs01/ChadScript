@@ -79,7 +79,10 @@ test("pages embed only existing docs examples, and every example is shown", () =
   const pages = [...walk(docs, skip)].filter((p) => p.endsWith(".md"));
   const embedded = new Set<string>();
   for (const page of pages) {
-    for (const m of readFileSync(page, "utf8").matchAll(/^<<< @\/(\S+?)(?:\{[^}]*\})?(?:\s|$)/gm)) {
+    // `<<< @/examples/x.ts#region{lang}`: the file, then an optional VitePress region and language.
+    for (const m of readFileSync(page, "utf8").matchAll(
+      /^<<< @\/([^\s#{]+)(?:#[\w-]+)?(?:\{[^}]*\})?(?:\s|$)/gm,
+    )) {
       const target = m[1]!;
       assert.ok(
         target.startsWith("examples/"),
