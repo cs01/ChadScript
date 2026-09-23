@@ -30,9 +30,9 @@ from "./abi" import {
     TAG_ARRAY,
 }
 from "./array" import { cs_array_new, cs_array_push }
-from "./csstring" import { cs_str_mk, cs_str_from }
+from "./csstring" import { cs_str_mk, cs_str_from, strLit }
 from "./strings" import { cs_str_eq }
-from "./errors" import { throwErrorLit, throwError }
+from "./errors" import { throwKind, throwError, ERR_SYNTAX }
 from "./libc" import { strtod }
 from "./gc" import { gcAllocAtomic, gcAllocRecord, gcAllocStruct, gcAllocValues }
 
@@ -64,8 +64,9 @@ extern struct Parser {
 
 // Throws; never returns. Callers still write a `return` after it only because the throw is an
 // extern call the checker cannot see diverge.
+// Malformed JSON text is a SyntaxError, as in Node (the message wording is our own).
 fn fail(msg: &string) {
-    throwErrorLit(msg)
+    throwKind(ERR_SYNTAX, strLit(msg))
 }
 
 fn jvNew(kind: i32): *JsonValue {

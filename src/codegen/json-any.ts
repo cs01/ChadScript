@@ -11,7 +11,7 @@ import { ANY_OBJECT, VT, type ValueType } from "../hir/types.js";
 import type { ShapeDescriptor } from "../hir/nodes.js";
 import type { Ctx } from "./expr.js";
 import { inspect, inspectSlots } from "./inspect.js";
-import { jsonJoin, jsonStringify, linePrefix, nextDepth } from "./json.js";
+import { jsonEnter, jsonJoin, jsonStringify, linePrefix, nextDepth } from "./json.js";
 import { switchOnValue } from "./value-ops.js";
 import { unboxValue } from "./value.js";
 
@@ -79,9 +79,13 @@ export function emitJsonAnyFunctions(
         const open = concat(mod.cstring("["), child);
         const sep = concat(mod.cstring(","), child);
         const close = concat(linePrefix(ctx, indent, depth), mod.cstring("]"));
-        return jsonJoin(len, open, sep, close, "[]", ctx, (i) =>
-          jsonAny(fn.call("@cs_array_get", T.i64, [arr, i]), ctx, indent, inner),
-        );
+        jsonEnter(arr, "Array", ctx);
+        const text = jsonJoin(len, open, sep, close, "[]", ctx, (i) => {
+          fn.callVoid("@cs_json_key_index", [i]);
+          return jsonAny(fn.call("@cs_array_get", T.i64, [arr, i]), ctx, indent, inner);
+        });
+        fn.callVoid("@cs_json_leave", []);
+        return text;
       }),
     );
   }

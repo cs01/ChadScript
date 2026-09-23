@@ -78,7 +78,7 @@ The general rejection. The compiler accepts a construct only when it has a rule 
 
 **Status:** planned to be admitted in a later phase.
 
-**Rejection tests:** [`bigint-literal.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/bigint-literal.ts), [`destructure-array.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/destructure-array.ts), [`nested-function-declaration.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/nested-function-declaration.ts) and 9 more
+**Rejection tests:** [`bigint-literal.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/bigint-literal.ts), [`call-spread-library.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/call-spread-library.ts), [`class-extends-error.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/class-extends-error.ts) and 22 more
 
 ## CS1201: `any` {#cs1201}
 

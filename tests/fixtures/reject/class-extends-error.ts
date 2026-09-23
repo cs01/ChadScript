@@ -1,4 +1,6 @@
-// @known-bug: `class X extends Error` passes the validator and then ICEs in lower ("`super()` with no base class"); should be admitted or rejected with a CS code
+// @expect-reject: CS1000
+// A class extending a built-in class: an Error here is the runtime's error record, not a class
+// instance, so nothing can be both.
 class MyError extends Error {
   code: number;
   constructor(code: number) {

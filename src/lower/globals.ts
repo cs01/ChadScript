@@ -13,6 +13,7 @@ import { VT } from "../hir/types.js";
 import { type LowerCtx, lowerExpr, symbolOf } from "./lower.js";
 import { lowerNodeFsCall } from "./node-fs.js";
 import { stringOperand } from "./to-string.js";
+import { builtinErrorConstructor, lowerNewError } from "./errors.js";
 import { lowerNodePathCall } from "./node-path.js";
 import { lowerNodeFsPromisesCall } from "./node-fs-promises.js";
 
@@ -102,6 +103,8 @@ function isAmbientGlobal(node: ts.Node, ctx: LowerCtx): boolean {
 // bug shipped once (setTimeout emitted `@setTimeout.0`); statement-position fixtures now pin it.
 export function lowerInterceptedCall(call: ts.CallExpression, ctx: LowerCtx): HExpr | null {
   // Globals are only ever bare identifiers; module entries may also be reached as `ns.name(...)`.
+  const errorClass = builtinErrorConstructor(call.expression, ctx.checker);
+  if (errorClass) return lowerNewError(call, errorClass, ctx);
   const global = ts.isIdentifier(call.expression)
     ? lowerGlobalBuiltin(call.expression.text, call, ctx)
     : null;

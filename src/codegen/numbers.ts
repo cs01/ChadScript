@@ -91,10 +91,13 @@ export function evalNumber(expr: HExpr, ctx: Ctx): Value {
       return ctx.fn.sitofp(ctx.fn.call("@cs_array_len", T.i32, [evalArrayPtr(expr.array, ctx)]));
 
     case "arrayPush": {
-      // push returns the new length (a number). Box the value into a slot first.
+      // push returns the new length (a number). JS evaluates every argument before appending any
+      // (`a.push(a.length, a.length)` pushes the old length twice), so box all slots first.
       const arr = evalArrayPtr(expr.array, ctx);
-      const slot = boxSlot(evalValue(expr.value, ctx), expr.elementType, ctx);
-      return ctx.fn.sitofp(ctx.fn.call("@cs_array_push", T.i32, [arr, slot]));
+      const slots = expr.values.map((v) => boxSlot(evalValue(v, ctx), expr.elementType, ctx));
+      let len = ctx.fn.call("@cs_array_len", T.i32, [arr]);
+      for (const slot of slots) len = ctx.fn.call("@cs_array_push", T.i32, [arr, slot]);
+      return ctx.fn.sitofp(len);
     }
 
     case "memberGet":

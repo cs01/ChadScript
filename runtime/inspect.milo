@@ -81,7 +81,7 @@ pub fn sbStr(b: *Sb, s: *CsString) {
     }
 }
 
-fn sbLit(b: *Sb, s: &string) {
+pub fn sbLit(b: *Sb, s: &string) {
     sbBytes(b, s.cstr(), s.len)
 }
 
@@ -93,7 +93,7 @@ fn sbSpaces(b: *Sb, n: i64) {
     }
 }
 
-fn sbInt(b: *Sb, v: i64) {
+pub fn sbInt(b: *Sb, v: i64) {
     var buf: [u8; 40] = [0; 40]
     unsafe {
         let p = buf.addrOf() as *u8

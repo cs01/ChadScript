@@ -50,7 +50,7 @@ export function renderDiagnostic(
         suggestion:
           mode === "json"
             ? "serialize the plain-data fields you need explicitly: `JSON.stringify({ a: o.a })`"
-            : "print the plain-data fields you need explicitly (for a caught error, `e instanceof Error ? e.message : String(e)`)",
+            : "print the plain-data fields you need explicitly (for an error, `String(e)` or `e.message`)",
       };
     }
   }
@@ -157,7 +157,7 @@ export function renderWalker(
       case "promise":
         return `${where} is a Promise, whose printed state Node reads from the event loop`;
       case "unknown":
-        return `${where} is \`unknown\` (a caught value), whose rendering depends on what was thrown (Node prints an Error with its stack trace)`;
+        return `${where} is an error or a caught value, which Node prints with its stack trace`;
       case "opaque":
         return `${where} is an opaque \`${vt.name}\` handle`;
       default: {

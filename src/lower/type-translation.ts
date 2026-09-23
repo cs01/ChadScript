@@ -4,6 +4,7 @@
 
 import ts from "typescript";
 import { classIdOf } from "./class-ids.js";
+import { builtinErrorType } from "./errors.js";
 import { ice } from "../diagnostics.js";
 import { ANY_OBJECT, VALUE_ANY, VT, optionalOf } from "../hir/types.js";
 import type { ValueType } from "../hir/types.js";
@@ -147,6 +148,9 @@ export function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChe
   // Opaque runtime handles, recognized by NAME + declaring file so a user interface that happens
   // to be called `Timeout` is unaffected. MUST precede the Object branch: the handle is nominally
   // an interface, and structural handling would recurse into its `unique symbol` brand member.
+  // Error, TypeError, ... are a CsThrown pointer, like a caught value (lower/errors.ts). Also
+  // before the Object branch: the Error interface is not a shaped record.
+  if (builtinErrorType(t)) return VT.unknown;
   const opaque = opaqueHandleName(t);
   if (opaque !== null) return VT.opaque(opaque);
   if (flags & ts.TypeFlags.TypeParameter) return typeParameterType(t, node, checker);
@@ -394,8 +398,8 @@ function valueUnion(members: ValueType[]): ValueType {
       case "opaque":
       case "promise":
         throw new UnrepresentableTypeError(
-          `a union with a ${m.kind === "opaque" ? m.name : m.kind === "promise" ? "Promise" : "caught (unknown)"} member`,
-          "keep the handle in its own variable, apart from the union",
+          `a union with ${m.kind === "opaque" ? `a ${m.name}` : m.kind === "promise" ? "a Promise" : "an Error (or a caught value)"} and other kinds of values`,
+          "keep it in its own variable, apart from the union (`T | undefined` is fine)",
         );
       case "object":
         if (!out.some((o) => o.kind === "object")) out.push(ANY_OBJECT);

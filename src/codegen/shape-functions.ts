@@ -12,7 +12,7 @@ import { classDisplayName } from "../hir/types.js";
 import type { Ctx } from "./expr.js";
 import { RECORD_HEADER_SLOTS, loadShape, loadShapeWord, shapeGlobalName } from "./shapes.js";
 import { concat, formatContainer, inspectStored, pushEntry } from "./inspect.js";
-import { jsonStored, linePrefix, nextDepth } from "./json.js";
+import { jsonEnter, jsonStored, linePrefix, mayHoldContainer, nextDepth } from "./json.js";
 import { V_UNDEFINED } from "./value.js";
 import { emitJsonAnyFunctions, inspectAny, jsonAny } from "./json-any.js";
 
@@ -110,6 +110,11 @@ function jsonable(t: ValueType, field: boolean): boolean {
   }
 }
 
+// The constructor V8 names in a cycle message: the class, or Object for a literal.
+function ctorName(s: ShapeDescriptor): string {
+  return s.className !== undefined ? classDisplayName(s.className) : "Object";
+}
+
 function unsupported(ctx: Ctx, what: string): void {
   ctx.fn.callVoid("@cs_shape_unsupported", [ctx.mod.cstring(what)]);
   ctx.fn.unreachable();
@@ -201,6 +206,8 @@ function emitJson(mod: ModuleBuilder, s: ShapeDescriptor, shapes: readonly Shape
   const wrotePtr = fn.alloca(T.i1);
   fn.store(imm(T.i1, 0), wrotePtr);
   const append = (v: Value): void => fn.store(concat(ctx, fn.load(T.ptr, accPtr), v), accPtr);
+  const track = fields.some(({ f }) => mayHoldContainer(f.type));
+  if (track) jsonEnter(obj, ctorName(s), ctx);
 
   for (const { f, i } of fields) {
     const raw = fn.load(T.i64, fn.gepSlot(obj, i + RECORD_HEADER_SLOTS));
@@ -218,6 +225,7 @@ function emitJson(mod: ModuleBuilder, s: ShapeDescriptor, shapes: readonly Shape
     append(child);
     append(mod.cstring(JSON.stringify(f.name)));
     append(colon);
+    if (mayHoldContainer(f.type)) fn.callVoid("@cs_json_key_name", [mod.cstring(f.name)]);
     append(jsonStored(raw, f.type, ctx, indent, inner));
     fn.store(imm(T.i1, 1), wrotePtr);
     fn.br(nextB);
@@ -226,6 +234,7 @@ function emitJson(mod: ModuleBuilder, s: ShapeDescriptor, shapes: readonly Shape
   // Close: `<newline+indent>}` if anything was written (pretty), else just `}`.
   const closeWrote = concat(ctx, linePrefix(ctx, indent, depth), mod.cstring("}"));
   const close = fn.select(fn.load(T.i1, wrotePtr), closeWrote, mod.cstring("}"));
+  if (track) fn.callVoid("@cs_json_leave", []);
   fn.ret(concat(ctx, fn.load(T.ptr, accPtr), close));
 }
 
@@ -324,6 +333,8 @@ function emitTemplateJson(
   const accPtr = fn.alloca(T.ptr);
   fn.store(ctx.mod.cstring("{"), accPtr);
   const append = (v: Value): void => fn.store(concat(ctx, fn.load(T.ptr, accPtr), v), accPtr);
+  // A parsed object can be made part of a cycle by a later field write, so it is tracked too.
+  jsonEnter(obj, "Object", ctx);
   // Every laid-out key holds a JSON value (never undefined), so each one is written.
   forEachRuntimeField(s, ctx, obj, (k, f, raw, name) => {
     const commaB = fn.newBlock("json.comma");
@@ -334,6 +345,7 @@ function emitTemplateJson(
     fn.br(keyB);
     fn.switchTo(keyB);
     append(child);
+    fn.callVoid("@cs_json_key_name", [name]);
     if (f === null) {
       append(fn.call("@cs_json_str", T.ptr, [name]));
       append(colon);
@@ -347,5 +359,6 @@ function emitTemplateJson(
   const count = loadShapeWord(loadShape(obj, ctx), "fieldCount", ctx);
   const closeWrote = concat(ctx, linePrefix(ctx, indent, depth), ctx.mod.cstring("}"));
   const close = fn.select(fn.icmp("sgt", count, imm(T.i64, 0)), closeWrote, ctx.mod.cstring("}"));
+  fn.callVoid("@cs_json_leave", []);
   fn.ret(concat(ctx, fn.load(T.ptr, accPtr), close));
 }

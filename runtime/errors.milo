@@ -15,13 +15,20 @@ from "./gc" import { gcAllocAtomic, gcAllocConservative, gcAllocStruct, gcAllocV
 
 extern fn _longjmp(buf: *u8, v: i32)
 
-// A thrown value, in GC memory. `isError` distinguishes `throw new Error(m)` (1) from `throw "s"`
-// (0), which `String(e)` and `e instanceof Error` need. Only string-messaged throws are in the
-// subset.
+// A thrown value, in GC memory. `isError` is the error class: 0 for a thrown string (`throw "s"`),
+// else one of the ERR_* kinds below, which `String(e)`, `e.name` and `instanceof` need. Only
+// string-messaged throws are in the subset.
 pub extern struct CsThrown {
     isError: i32,
     message: *CsString,
 }
+
+// The builtin error classes (src/lower/errors.ts keeps the same numbering). Every one is an Error,
+// so `instanceof Error` is any nonzero kind.
+pub let ERR_ERROR: i32 = 1
+pub let ERR_TYPE: i32 = 2
+pub let ERR_RANGE: i32 = 3
+pub let ERR_SYNTAX: i32 = 4
 
 // Both constructors COPY the message rather than retaining the caller's pointer. Retaining it made a
 // stack CsString in any C caller a dangling read at catch time, and that bug class is invisible to
@@ -38,7 +45,13 @@ fn newThrown(isError: i32, message: *CsString): *CsThrown {
 
 @externalLinkage
 pub fn cs_new_error(message: *CsString): *CsThrown {
-    return newThrown(1, message)
+    return newThrown(ERR_ERROR, message)
+}
+
+// `new TypeError(m)` etc.: `kind` is one of the ERR_* kinds.
+@externalLinkage
+pub fn cs_new_error_kind(kind: i32, message: *CsString): *CsThrown {
+    return newThrown(kind, message)
 }
 
 @externalLinkage
@@ -53,6 +66,20 @@ pub fn cs_thrown_is_error(t: *CsThrown): i32 {
     }
 }
 
+// `e instanceof <kind>`: every error class is an Error; the others match only themselves.
+@externalLinkage
+pub fn cs_thrown_is_kind(t: *CsThrown, kind: i32): i32 {
+    unsafe {
+        if kind == ERR_ERROR && t.isError != 0 {
+            return 1
+        }
+        if t.isError == kind {
+            return 1
+        }
+        return 0
+    }
+}
+
 @externalLinkage
 pub fn cs_thrown_message(t: *CsThrown): *CsString {
     unsafe {
@@ -60,7 +87,29 @@ pub fn cs_thrown_message(t: *CsThrown): *CsString {
     }
 }
 
-// `String(e)`: an Error stringifies as "Error: <message>"; a thrown string as itself.
+fn kindName(kind: i32): *CsString {
+    if kind == ERR_TYPE {
+        return strLit("TypeError")
+    }
+    if kind == ERR_RANGE {
+        return strLit("RangeError")
+    }
+    if kind == ERR_SYNTAX {
+        return strLit("SyntaxError")
+    }
+    return strLit("Error")
+}
+
+// `e.name`.
+@externalLinkage
+pub fn cs_thrown_name(t: *CsThrown): *CsString {
+    unsafe {
+        return kindName(t.isError)
+    }
+}
+
+// `String(e)`: an Error stringifies as "<name>: <message>", or just "<name>" when the message is
+// empty (Error.prototype.toString); a thrown string as itself.
 @externalLinkage
 pub fn cs_thrown_to_string(t: *CsThrown): *CsString {
     unsafe {
@@ -68,11 +117,16 @@ pub fn cs_thrown_to_string(t: *CsThrown): *CsString {
         if t.isError == 0 {
             return cs_str_from(m.data, m.len)
         }
-        let pre = "Error: "
-        let r = gcAllocAtomic(7 + m.len)
-        memcpyLit(r, pre)
-        memcpyAt(r, 7, m.data, m.len)
-        return cs_str_mk(r, 7 + m.len)
+        let name = kindName(t.isError)
+        if m.len == 0 {
+            return name
+        }
+        let n = name.len + 2
+        let r = gcAllocAtomic(n + m.len)
+        memcpyAt(r, 0, name.data, name.len)
+        memcpyAt(r, name.len, ": ".cstr(), 2)
+        memcpyAt(r, n, m.data, m.len)
+        return cs_str_mk(r, n + m.len)
     }
 }
 
@@ -212,8 +266,8 @@ pub fn cs_throw(value: *CsThrown) {
     fiberUncaught(value)
     unsafe {
         if value as i64 != 0 && value.message as i64 != 0 {
-            writeErrLit("Error: ")
-            writeErr(value.message.data, value.message.len)
+            let text = cs_thrown_to_string(value)
+            writeErr(text.data, text.len)
             writeErrLit("\n")
         } else {
             writeErrLit("Error\n")
@@ -229,4 +283,8 @@ pub fn throwErrorLit(msg: &string) {
 
 pub fn throwError(msg: *CsString) {
     cs_throw(cs_new_error(msg))
+}
+
+pub fn throwKind(kind: i32, msg: *CsString) {
+    cs_throw(newThrown(kind, msg))
 }

@@ -312,8 +312,11 @@ export type HExpr =
   // `x instanceof C` → boolean. `shapes` are the shape ids of C and every subclass; codegen
   // compares the receiver's shape pointer to each.
   | { kind: "instanceofCheck"; value: HExpr; shapes: number[]; type: ValueType }
-  // `e instanceof Error` for a caught (unknown) value → the CsThrown's `isError` tag.
-  | { kind: "thrownIsError"; value: HExpr; type: ValueType }
+  // `e instanceof Error` / `TypeError` / ... for a caught value or an Error → a test of the
+  // CsThrown's error kind (lower/errors.ts ERROR_KINDS; Error matches every kind).
+  | { kind: "thrownIsError"; value: HExpr; errorKind: number; type: ValueType }
+  // `new Error(m)` / `new TypeError(m)` / ...: a fresh CsThrown of that kind (message "" if absent).
+  | { kind: "newError"; errorKind: number; message: HExpr | null; type: ValueType }
   // `x === undefined` / `x !== undefined` → boolean (compares against the sentinel).
   // `x === null`/`x === undefined` (and `!==`). `sentinel` says which marker to compare against,
   // so `x === null` and `x === undefined` are distinguished for a `T | null | undefined` value.
@@ -359,7 +362,8 @@ export type HExpr =
   | { kind: "nullLit"; type: ValueType }
   | { kind: "undefinedLit"; type: ValueType }
   // `arr.push(value)` → the new length (number). `elementType` says how to box the value.
-  | { kind: "arrayPush"; array: HExpr; value: HExpr; elementType: ValueType; type: ValueType }
+  // `arr.push(a, b, ...)`: every argument is evaluated, then appended in order.
+  | { kind: "arrayPush"; array: HExpr; values: HExpr[]; elementType: ValueType; type: ValueType }
   // `arr.pop()` / `arr.shift()` → `element | undefined`. `fn` is the runtime entry point.
   | { kind: "arrayPop"; array: HExpr; fn: string; type: ValueType }
   // `arr.at(i)` → `element | undefined` (negative index counts from the end).
@@ -485,6 +489,15 @@ export type HExpr =
   // `Promise.all(arr)`: `arr` is an array of promises; result is `Promise<T[]>` resolving to the
   // fulfilled values in order (or rejecting on the first rejection).
   | { kind: "promiseAll"; array: HExpr; type: ValueType }
+  // `new Promise<T>(executor)`: `executor` is a closure of `executorArity` parameters (resolve, then
+  // reject); resolve takes `resolveArity` arguments (0 for Promise<void>). codegen/promise-new.ts.
+  | {
+      kind: "promiseNew";
+      executor: HExpr;
+      executorArity: number;
+      resolveArity: number;
+      type: ValueType;
+    }
   // `JSON.stringify(v)`: the JSON text of v (a recursive, type-directed walk). Result is a string.
   // `indent` is the pretty-print unit (repeated per nesting level); null = compact single-line.
   | { kind: "jsonStringify"; value: HExpr; indent: string | null; type: ValueType }

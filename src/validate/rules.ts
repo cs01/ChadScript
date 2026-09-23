@@ -3,6 +3,10 @@
 // the "better message" layer on top of default-deny — several (any, enum, ==, delete, with,
 // index signatures, decorators, namespaces, eval) are PERMANENT non-goals per PLAN.md.
 
+import { checkBuiltinClassUse } from "./error-rules.js";
+import { checkPromiseNew } from "./promise-rules.js";
+import { checkCallSpread } from "./spread-rules.js";
+import { checkCollectionNew } from "./collection-rules.js";
 import ts from "typescript";
 import type { Diagnostic } from "../diagnostics.js";
 import type { ValueType } from "../hir/types.js";
@@ -43,7 +47,10 @@ export function tailoredRejection(
     suggestion,
   });
 
-  const form = checkForm(node, hit, checker);
+  const form =
+    checkForm(node, hit, checker) ??
+    checkBuiltinClassUse(node, hit, checker) ??
+    checkCallSpread(node, hit, checker);
   if (form) return form;
 
   switch (node.kind) {
@@ -339,7 +346,11 @@ export function tailoredRejection(
       );
 
     case ts.SyntaxKind.NewExpression:
-      return checkNew(node as ts.NewExpression, hit);
+      return (
+        checkNew(node as ts.NewExpression, hit) ??
+        checkPromiseNew(node as ts.NewExpression, hit, checker) ??
+        checkCollectionNew(node as ts.NewExpression, hit, checker)
+      );
 
     // Object literals hold data and closures, not methods: a method has a receiver-bound `this`,
     // and the subset's objects have no prototype to put one on.

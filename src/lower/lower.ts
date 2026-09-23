@@ -17,6 +17,15 @@ import type { HModule, HStmt, HExpr, HFunc, HCapture } from "../hir/nodes.js";
 import { VT } from "../hir/types.js";
 import { binaryOp, unaryOp, isAssignmentOp, compoundOp } from "./operators.js";
 import { stringOperand } from "./to-string.js";
+import { lowerPromiseNew } from "./promise-new.js";
+import { lowerMapNew } from "./map-new.js";
+import {
+  builtinErrorConstructor,
+  builtinErrorType,
+  lowerErrorProperty,
+  lowerNewError,
+} from "./errors.js";
+import { lowerInstanceof } from "./instanceof.js";
 import {
   coerceToTarget,
   coerceElement,
@@ -508,12 +517,10 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
 
     case ts.SyntaxKind.NewExpression: {
       const ne = expr as ts.NewExpression;
-      if (type.kind === "map") {
-        if (ne.arguments && ne.arguments.length > 0) {
-          ice("lower: `new Map(entries)` not supported yet — build an empty Map and .set()");
-        }
-        return { kind: "mapNew", type };
-      }
+      const errorClass = builtinErrorConstructor(ne.expression, ctx.checker);
+      if (errorClass) return lowerNewError(ne, errorClass, ctx);
+      if (type.kind === "promise") return lowerPromiseNew(ne, type, ctx);
+      if (type.kind === "map") return lowerMapNew(ne, type, ctx);
       if (type.kind === "set") {
         const arg = ne.arguments?.[0];
         if (arg) {
@@ -543,6 +550,10 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
       // `m.x` through a module namespace is a static reference to the exported `x`.
       const member = namespaceMemberOf(pa, ctx.checker);
       if (member) return lowerIdentifier(member, ctx, type);
+      // `e.message` / `e.name` of an Error (a CsThrown pointer, not a shaped record).
+      if (builtinErrorType(ctx.checker.getTypeAtLocation(pa.expression))) {
+        return lowerErrorProperty(lowerExpr(pa.expression, ctx), pa.name.text);
+      }
       // `Math.PI` etc. — a numeric constant.
       if (isMathNamespace(pa.expression)) {
         const c = MATH_CONSTS[pa.name.text];
@@ -653,31 +664,7 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
       const b = expr as ts.BinaryExpression;
       const opKind = b.operatorToken.kind;
       // `x instanceof C` → the receiver's vtable equals C's or any subclass's vtable.
-      if (opKind === ts.SyntaxKind.InstanceOfKeyword) {
-        // The class is named directly or through a module namespace (`x instanceof m.C`).
-        const right = unparen(b.right);
-        const classRef = ts.isIdentifier(right)
-          ? right
-          : (namespaceMemberOf(right, ctx.checker) ??
-            ice("lower: instanceof right side must be a class name"));
-        const left = lowerExpr(b.left, ctx);
-        // `e instanceof Error` for a caught (unknown) value → the CsThrown's isError tag. (Error is
-        // a builtin, not a user class, so it isn't in the vtable hierarchy.)
-        if (classRef.text === "Error" && left.type.kind === "unknown") {
-          return { kind: "thrownIsError", value: left, type };
-        }
-        const classDecl = symbolOf(classRef, ctx)?.valueDeclaration;
-        if (!classDecl || !ts.isClassDeclaration(classDecl)) {
-          return ice(`lower: instanceof ${classRef.text} is not a class`);
-        }
-        const target = classIdOf(classDecl);
-        const matches = [...ctx.classAncestors]
-          .filter(([, anc]) => anc.has(target))
-          .map(([name]) => name);
-        if (matches.length === 0) ice(`lower: instanceof unknown class ${target}`);
-        const shapes = matches.map((c) => ctx.shapes.classShape(c));
-        return { kind: "instanceofCheck", value: left, shapes, type };
-      }
+      if (opKind === ts.SyntaxKind.InstanceOfKeyword) return lowerInstanceof(b, type, ctx);
       // `&&` / `||` are short-circuiting with value semantics — a distinct HIR node, not a
       // plain binary (their result is an operand, not a computed value).
       if (

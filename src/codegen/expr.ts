@@ -42,6 +42,8 @@ import { jsonParse } from "./json-parse.js";
 import { evalClosure } from "./cells.js";
 import { evalAdaptClosure, evalConvertArray } from "./generics.js";
 import { evalNumber } from "./numbers.js";
+import { evalThrownPtr } from "./errors.js";
+import { evalPromiseNew } from "./promise-new.js";
 import {
   evalValueWord,
   evalUnbox,
@@ -432,9 +434,7 @@ export function evalValue(expr: HExpr, ctx: Ctx): Value {
     case "set":
       return evalSetPtr(expr, ctx);
     case "unknown":
-      // A caught value (CsThrown*): only a `varRef` (the catch binding) produces one directly.
-      if (expr.kind === "varRef") return ctx.fn.load(T.ptr, lookupVar(expr.name, ctx).ptr);
-      return ice(`evalValue: unknown expression ${expr.kind}`);
+      return evalThrownPtr(expr, ctx);
     case "opaque":
       // Only two forms reach here — the runtime call that MINTS the handle, and a read of the
       // variable holding it. The validator (CS1234) rejects every other use, so anything else
@@ -454,7 +454,12 @@ export function evalValue(expr: HExpr, ctx: Ctx): Value {
       if (expr.kind === "asyncCall") return evalAsyncCall(expr, ctx);
       if (expr.kind === "promiseResolve") return evalPromiseResolve(expr, ctx);
       if (expr.kind === "promiseAll") return evalPromiseAll(expr, ctx);
+      if (expr.kind === "promiseNew") return evalPromiseNew(expr, ctx);
       if (expr.kind === "varRef") return ctx.fn.load(T.ptr, lookupVar(expr.name, ctx).ptr);
+      // A plain (non-async) function that returns a promise it made.
+      if (expr.kind === "call") return evalCall(expr, ctx);
+      if (expr.kind === "callClosure") return evalCallClosure(expr, ctx);
+      if (expr.kind === "virtualCall") return evalVirtualCall(expr, ctx);
       // `node:fs/promises` entries: the runtime returns an already-created Promise* whose
       // settlement the event loop delivers later.
       if (expr.kind === "runtimeCall") {
@@ -476,6 +481,7 @@ export function evalString(expr: HExpr, ctx: Ctx): Value {
   if (expr.kind === "jsonStringify") {
     const indent = expr.indent === null ? ctx.fn.nullPtr() : ctx.mod.cstring(expr.indent);
     const v = evalValue(expr.value, ctx);
+    ctx.fn.callVoid("@cs_json_begin", []);
     return jsonStringify(v, expr.value.type, ctx, indent, imm(T.i32, 0));
   }
   switch (expr.kind) {
@@ -724,10 +730,13 @@ export function evalBool(expr: HExpr, ctx: Ctx): Value {
     case "convert": // `Boolean(x)` — JS truthiness of the value.
       return evalBooleanConvert(expr.value, ctx);
 
-    case "thrownIsError": // `e instanceof Error` on a caught value → the CsThrown's isError tag.
+    case "thrownIsError": // `e instanceof TypeError` → a test of the CsThrown's error kind.
       return ctx.fn.icmp(
         "ne",
-        ctx.fn.call("@cs_thrown_is_error", T.i32, [evalValue(expr.value, ctx)]),
+        ctx.fn.call("@cs_thrown_is_kind", T.i32, [
+          evalValue(expr.value, ctx),
+          imm(T.i32, expr.errorKind),
+        ]),
         imm(T.i32, 0),
       );
 

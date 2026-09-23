@@ -1,0 +1,164 @@
+// JSON.stringify's cycle check: the stack of containers being serialized (V8's JsonStringifier
+// stack_), each with the key it was reached by. A container already on the stack is a cycle, which
+// throws V8's TypeError, path description included:
+//
+//   Converting circular structure to JSON
+//       --> starting at object with constructor 'Object'
+//       |     property 'b' -> object with constructor 'Object'
+//       --- property 'next' closes the circle
+//
+// Generated JSON code (src/codegen/json.ts, shape-functions.ts) names the key before serializing a
+// child that can be a container (cs_json_key_name / cs_json_key_index), then the child enters and
+// leaves. Serialization runs no user code, so one global stack serves every call; a throw leaves
+// it mid-way, so each JSON.stringify starts with cs_json_begin.
+
+from "./abi" import { CsString, CsArray }
+from "./array" import { cs_array_new, cs_array_push, cs_array_len, cs_array_get }
+from "./csstring" import { strLit }
+from "./inspect" import { Sb, sbNew, sbStr, sbLit, sbInt, sbDone }
+from "./errors" import { throwKind, ERR_TYPE }
+
+// Parallel stacks: the container, its constructor name, and the key it was reached by (a
+// *CsString property name, or 0 with the index in gKeyIndex).
+var gStack: *CsArray = 0 as *CsArray
+var gCtor: *CsArray = 0 as *CsArray
+var gKeyName: *CsArray = 0 as *CsArray
+var gKeyIndex: *CsArray = 0 as *CsArray
+// The key the next container is reached by.
+var gPendingName: *CsString = 0 as *CsString
+var gPendingIndex: i64 = 0
+
+fn truncate(a: *CsArray, n: i32) {
+    if a as i64 != 0 {
+        unsafe {
+            a.len = n
+        }
+    }
+}
+
+@externalLinkage
+pub fn cs_json_begin() {
+    truncate(gStack, 0)
+    truncate(gCtor, 0)
+    truncate(gKeyName, 0)
+    truncate(gKeyIndex, 0)
+    // The top-level value is reached by the empty key, as in V8.
+    gPendingName = strLit("")
+}
+
+@externalLinkage
+pub fn cs_json_key_name(name: *CsString) {
+    gPendingName = name
+}
+
+@externalLinkage
+pub fn cs_json_key_index(i: i32) {
+    gPendingName = 0 as *CsString
+    gPendingIndex = i as i64
+}
+
+// Container `p` (constructor `ctor`) is about to serialize its entries.
+@externalLinkage
+pub fn cs_json_enter(p: *u8, ctor: *CsString) {
+    if gStack as i64 == 0 {
+        gStack = cs_array_new()
+        gCtor = cs_array_new()
+        gKeyName = cs_array_new()
+        gKeyIndex = cs_array_new()
+    }
+    let n = cs_array_len(gStack)
+    var i: i32 = 0
+    while i < n {
+        if cs_array_get(gStack, i) == p as i64 {
+            circular(i)
+        }
+        i = i + 1
+    }
+    cs_array_push(gStack, p as i64)
+    cs_array_push(gCtor, ctor as i64)
+    cs_array_push(gKeyName, gPendingName as i64)
+    cs_array_push(gKeyIndex, gPendingIndex)
+}
+
+@externalLinkage
+pub fn cs_json_leave() {
+    let n = cs_array_len(gStack) - 1
+    truncate(gStack, n)
+    truncate(gCtor, n)
+    truncate(gKeyName, n)
+    truncate(gKeyIndex, n)
+}
+
+fn appendKey(out: *Sb, i: i32) {
+    unsafe {
+        let name = cs_array_get(gKeyName, i) as *CsString
+        appendKeyOf(out, name, cs_array_get(gKeyIndex, i))
+    }
+}
+
+fn appendKeyOf(out: *Sb, name: *CsString, index: i64) {
+    if name as i64 == 0 {
+        sbLit(out, "index ")
+        sbInt(out, index)
+        return
+    }
+    unsafe {
+        if name.len == 0 {
+            sbLit(out, "<anonymous>")
+            return
+        }
+    }
+    sbLit(out, "property '")
+    sbStr(out, name)
+    sbLit(out, "'")
+}
+
+fn appendCtor(out: *Sb, i: i32) {
+    sbLit(out, "object with constructor '")
+    unsafe {
+        sbStr(out, cs_array_get(gCtor, i) as *CsString)
+    }
+    sbLit(out, "'")
+}
+
+fn appendLine(out: *Sb, i: i32) {
+    sbLit(out, "\n    |     ")
+    appendKey(out, i)
+    sbLit(out, " -> ")
+    appendCtor(out, i)
+}
+
+// The container at stack index `start` is reached again by the pending key. V8 prints the first
+// two links after it, `...` when more than one more follows, then the last link.
+fn circular(start: i32) {
+    let out = sbNew()
+    sbLit(out, "Converting circular structure to JSON\n    --> starting at ")
+    appendCtor(out, start)
+    let n = cs_array_len(gStack)
+    var prefixEnd = start + 3
+    if prefixEnd > n {
+        prefixEnd = n
+    }
+    var i = start + 1
+    while i < prefixEnd {
+        appendLine(out, i)
+        i = i + 1
+    }
+    if n > prefixEnd + 1 {
+        sbLit(out, "\n    |     ...")
+    }
+    i = prefixEnd
+    if n - 1 > prefixEnd {
+        i = n - 1
+    }
+    while i < n {
+        appendLine(out, i)
+        i = i + 1
+    }
+    sbLit(out, "\n    --- ")
+    appendKeyOf(out, gPendingName, gPendingIndex)
+    sbLit(out, " closes the circle")
+    let message = sbDone(out)
+    cs_json_begin()
+    throwKind(ERR_TYPE, message)
+}

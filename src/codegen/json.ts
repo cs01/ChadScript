@@ -135,10 +135,51 @@ function jsonArray(
   const open = concat(ctx, ctx.mod.cstring("["), child);
   const sep = concat(ctx, ctx.mod.cstring(","), child);
   const close = concat(ctx, linePrefix(ctx, indent, depth), ctx.mod.cstring("]"));
-  return jsonJoin(len, open, sep, close, "[]", ctx, (i) => {
+  const track = mayHoldContainer(elementType);
+  if (track) jsonEnter(arr, "Array", ctx);
+  const text = jsonJoin(len, open, sep, close, "[]", ctx, (i) => {
     const elem = unboxSlot(ctx.fn.call("@cs_array_get", T.i64, [arr, i]), elementType, ctx);
+    if (track) ctx.fn.callVoid("@cs_json_key_index", [i]);
     return jsonStringify(elem, elementType, ctx, indent, inner);
   });
+  if (track) ctx.fn.callVoid("@cs_json_leave", []);
+  return text;
+}
+
+// Whether a value of type `t` can be (or hold, as a union member) an object or array, the only
+// things a cycle runs through. Containers of nothing else skip the cycle bookkeeping
+// (runtime/json-cycle.milo): they can never be reached twice on one path.
+export function mayHoldContainer(t: ValueType): boolean {
+  switch (t.kind) {
+    case "object":
+    case "array":
+      return true;
+    case "optional":
+      return mayHoldContainer(t.inner);
+    case "value":
+      return t.members.some(mayHoldContainer);
+    case "number":
+    case "string":
+    case "boolean":
+    case "null":
+    case "undefined":
+    case "function":
+    case "map":
+    case "set":
+    case "unknown":
+    case "promise":
+    case "opaque":
+      return false;
+    default: {
+      const never: never = t;
+      return ice(`mayHoldContainer: ${(never as ValueType).kind}`);
+    }
+  }
+}
+
+// Container `self` (constructor name `ctor`) starts serializing: a cycle throws here.
+export function jsonEnter(self: Value, ctor: string, ctx: Ctx): void {
+  ctx.fn.callVoid("@cs_json_enter", [self, ctx.mod.cstring(ctor)]);
 }
 
 // Build `open` + `elemStr(0)` + `sep` + `elemStr(1)` + ... + `close` over `count` elements; an empty

@@ -380,6 +380,9 @@ function verifyExpr(e: HExpr): void {
     case "nullCheck":
       verifyExpr(e.value);
       return;
+    case "newError":
+      if (e.message) verifyExpr(e.message);
+      return;
     case "strLen":
       verifyExpr(e.str);
       return;
@@ -422,9 +425,11 @@ function verifyExpr(e: HExpr): void {
       verifyExpr(e.right);
       return;
     case "arrayPush":
-      checkFlow(e.value, e.elementType, "push");
       verifyExpr(e.array);
-      verifyExpr(e.value);
+      for (const v of e.values) {
+        checkFlow(v, e.elementType, "push");
+        verifyExpr(v);
+      }
       return;
     case "arrayPop":
       verifyExpr(e.array);
@@ -569,6 +574,9 @@ function verifyExpr(e: HExpr): void {
       return;
     case "promiseAll":
       verifyExpr(e.array);
+      return;
+    case "promiseNew":
+      verifyExpr(e.executor);
       return;
     case "jsonStringify":
       verifyExpr(e.value);

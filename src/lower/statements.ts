@@ -118,30 +118,14 @@ export function lowerStatement(stmt: ts.Statement, ctx: LowerCtx): HStmt[] {
   return ice(`lower: unsupported statement ${ts.SyntaxKind[stmt.kind]}`);
 }
 
-// `throw expr`. The subset supports `throw new Error(msg)` (isError) and `throw <string>`; a
-// re-throw of a caught value (`throw e`) carries it through unchanged. Other thrown types are
-// rejected (they'd need general value boxing we don't do).
+// `throw expr`. The subset throws strings (`throw "s"`) and errors (`throw new TypeError(m)`,
+// `throw e` for a caught value or an Error-typed one, which carry their CsThrown unchanged). Other
+// thrown types are rejected at validate (they would need general value boxing we do not do).
 export function lowerThrow(expr: ts.Expression, ctx: LowerCtx): HStmt {
-  // `new Error(msg)` — Error is a builtin; take its first argument as the message.
-  if (
-    ts.isNewExpression(expr) &&
-    ts.isIdentifier(expr.expression) &&
-    expr.expression.text === "Error"
-  ) {
-    const arg = expr.arguments?.[0];
-    return { kind: "throwError", isError: true, message: arg ? lowerExpr(arg, ctx) : null };
-  }
-  const t = ctx.checker.getTypeAtLocation(expr);
-  // `throw e` where e is a caught (unknown) value → re-throw it unchanged.
-  if (t.flags & ts.TypeFlags.Unknown) {
-    return { kind: "rethrowValue", value: lowerExpr(expr, ctx) };
-  }
-  if (t.flags & ts.TypeFlags.StringLike) {
-    return { kind: "throwError", isError: false, message: lowerExpr(expr, ctx) };
-  }
-  return ice(
-    "lower: throw only supports `new Error(msg)`, a string, or re-throwing a caught value",
-  );
+  const value = lowerExpr(expr, ctx);
+  if (value.type.kind === "unknown") return { kind: "rethrowValue", value };
+  if (value.type.kind === "string") return { kind: "throwError", isError: false, message: value };
+  return ice("lower: throw only supports an Error, a string, or re-throwing a caught value");
 }
 
 export function lowerStatements(stmts: readonly ts.Statement[], ctx: LowerCtx): HStmt[] {

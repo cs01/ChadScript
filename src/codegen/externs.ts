@@ -88,6 +88,16 @@ export function declareRuntimeExterns(mod: ModuleBuilder): void {
   mod.declareExtern("cs_run_event_loop", T.void, []);
   mod.declareExtern("cs_promise_resolved", T.ptr, [T.i64]); // Promise.resolve(v)
   mod.declareExtern("cs_promise_all", T.ptr, [T.ptr]); // Promise.all(arr)
+  // `new Promise(executor)` (codegen/promise-new.ts).
+  mod.declareExtern("cs_promise_new", T.ptr, []);
+  // JSON.stringify's cycle check (runtime/json-cycle.milo).
+  mod.declareExtern("cs_json_begin", T.void, []);
+  mod.declareExtern("cs_json_key_name", T.void, [T.ptr]);
+  mod.declareExtern("cs_json_key_index", T.void, [T.i32]);
+  mod.declareExtern("cs_json_enter", T.void, [T.ptr, T.ptr]);
+  mod.declareExtern("cs_json_leave", T.void, []);
+  mod.declareExtern("cs_promise_resolve", T.void, [T.ptr, T.i64]);
+  mod.declareExtern("cs_promise_reject", T.void, [T.ptr, T.ptr]);
   mod.declareExtern("cs_array_new", T.ptr, []);
   mod.declareExtern("cs_argv_slice2", T.ptr, []); // process.argv.slice(2)
   mod.declareExtern("cs_date_now", T.double, []); // Date.now()
@@ -176,6 +186,10 @@ export function declareRuntimeExterns(mod: ModuleBuilder): void {
   mod.declareExtern("cs_new_error", T.ptr, [T.ptr]);
   mod.declareExtern("cs_new_thrown_str", T.ptr, [T.ptr]);
   mod.declareExtern("cs_thrown_is_error", T.i32, [T.ptr]);
+  mod.declareExtern("cs_new_error_kind", T.ptr, [T.i32, T.ptr]);
+  mod.declareExtern("cs_thrown_is_kind", T.i32, [T.ptr, T.i32]);
+  mod.declareExtern("cs_thrown_message", T.ptr, [T.ptr]);
+  mod.declareExtern("cs_thrown_name", T.ptr, [T.ptr]);
   mod.declareExtern("cs_thrown_to_string", T.ptr, [T.ptr]);
   // Object shapes (runtime/shape.milo): inline-cache misses and shape-driven helpers.
   mod.declareExtern("cs_ic_get", T.i64, [T.ptr, T.ptr, T.ptr]);

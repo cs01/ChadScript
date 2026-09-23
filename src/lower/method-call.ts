@@ -202,7 +202,7 @@ export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
       return {
         kind: "arrayPush",
         array: receiver,
-        value: coerceToTarget(lowerExpr(call.arguments[0]!, ctx), recvType.element),
+        values: call.arguments.map((a) => coerceToTarget(lowerExpr(a, ctx), recvType.element)),
         elementType: recvType.element,
         type: VT.number,
       };

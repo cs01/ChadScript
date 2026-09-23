@@ -208,13 +208,19 @@ function pointerTagOf(m: ValueType): number | null {
       return TAG.map;
     case "set":
       return TAG.set;
+    // Only as the one present member of an optional (`Error | undefined`, `Promise<T> | undefined`):
+    // the union builder rejects them beside other kinds (type-translation.ts valueUnion).
+    case "promise":
+      return TAG.promise;
+    case "unknown":
+    case "opaque":
+      return TAG.other;
     case "number":
     case "boolean":
     case "null":
     case "undefined":
       return null;
     default:
-      // The union builder rejects every other member kind (type-translation.ts valueUnion).
       return ice(`Value member of kind ${m.kind}`);
   }
 }

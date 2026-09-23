@@ -1,4 +1,3 @@
-// @known-bug: JSON.stringify of a cyclic object overflows the stack instead of throwing TypeError
 interface Node2 {
   name: string;
   next: Node2 | null;
