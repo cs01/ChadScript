@@ -7,15 +7,10 @@ import { ice } from "../diagnostics.js";
 import type { HExpr, HStmt, HFunc, HCapture } from "../hir/nodes.js";
 import { VT } from "../hir/types.js";
 import type { ValueType } from "../hir/types.js";
-import {
-  type LowerCtx,
-  constructorClassOf,
-  lowerExpr,
-  coerceToTarget,
-  nameOf,
-  nameForSymbol,
-} from "./lower.js";
+import { type LowerCtx, lowerExpr, coerceToTarget, nameOf, nameForSymbol } from "./lower.js";
 import { lowerStatements, thisRef, bindObjectPattern } from "./statements.js";
+import { functionDeclSymbol } from "./default-export.js";
+import { classDeclOfType, classIdOf, constructorClassOf } from "./class-ids.js";
 import {
   valueTypeOf,
   valueTypeOfTsType,
@@ -27,8 +22,9 @@ import {
 // method's implementing class. An override re-`set`s an existing name — keeping its slot position
 // (Map preserves insertion order on update) but pointing the slot at the derived implementation.
 export function buildClassTable(decl: ts.ClassDeclaration, ctx: LowerCtx): void {
-  const className = decl.name!.text;
+  const className = classIdOf(decl);
   if (ctx.classTables.has(className)) return;
+  ctx.classDecls.set(className, decl);
   const classType = ctx.checker.getDeclaredTypeOfSymbol(
     ctx.checker.getSymbolAtLocation(decl.name!)!,
   );
@@ -38,11 +34,11 @@ export function buildClassTable(decl: ts.ClassDeclaration, ctx: LowerCtx): void 
       const bd = base.symbol?.valueDeclaration;
       if (bd && ts.isClassDeclaration(bd)) visit(base);
     }
-    const d = t.symbol?.valueDeclaration;
-    if (d && ts.isClassDeclaration(d) && d.name) {
+    const d = classDeclOfType(t);
+    if (d) {
       for (const m of d.members) {
         if (ts.isMethodDeclaration(m) && ts.isIdentifier(m.name)) {
-          impls.set(m.name.text, d.name.text);
+          impls.set(m.name.text, classIdOf(d));
         }
       }
     }
@@ -54,9 +50,9 @@ export function buildClassTable(decl: ts.ClassDeclaration, ctx: LowerCtx): void 
   const ancestors = new Set<string>([className]);
   const collectAncestors = (t: ts.Type): void => {
     for (const base of ctx.checker.getBaseTypes(t as ts.InterfaceType)) {
-      const bd = base.symbol?.valueDeclaration;
-      if (bd && ts.isClassDeclaration(bd) && bd.name) {
-        ancestors.add(bd.name.text);
+      const bd = classDeclOfType(base);
+      if (bd) {
+        ancestors.add(classIdOf(bd));
         collectAncestors(base);
       }
     }
@@ -70,7 +66,7 @@ export function buildClassTable(decl: ts.ClassDeclaration, ctx: LowerCtx): void 
 // member machinery. First pass: no inheritance / static / getters.
 export function lowerClass(decl: ts.ClassDeclaration, ctx: LowerCtx): HFunc[] {
   if (!decl.name) ice("lower: anonymous class not supported");
-  const className = decl.name.text;
+  const className = classIdOf(decl);
   const classSym = ctx.checker.getSymbolAtLocation(decl.name)!;
   const instanceType = ctx.checker.getDeclaredTypeOfSymbol(classSym);
   const thisType = valueTypeOfTsType(instanceType, decl.name, ctx.checker);
@@ -81,7 +77,8 @@ export function lowerClass(decl: ts.ClassDeclaration, ctx: LowerCtx): HFunc[] {
     const d = b.symbol?.valueDeclaration;
     return d && ts.isClassDeclaration(d);
   });
-  const baseClassName = baseType?.symbol?.name ?? null;
+  const baseDecl = baseType ? classDeclOfType(baseType) : null;
+  const baseClassName = baseDecl ? classIdOf(baseDecl) : null;
 
   const savedBase = ctx.currentBaseClass;
   ctx.currentBaseClass = baseClassName;
@@ -193,9 +190,7 @@ export function synthesizeFieldInitCtor(
     : [];
 
   const body: HStmt[] = [];
-  const ctorClass = ctx.currentBaseClass
-    ? constructorClassOf(ctx.currentBaseClass, decl, ctx)
-    : null;
+  const ctorClass = ctx.currentBaseClass ? constructorClassOf(ctx.currentBaseClass, ctx) : null;
   if (ctorClass !== null) {
     body.push({
       kind: "callStmt",
@@ -370,7 +365,6 @@ export function isDescendantOf(node: ts.Node, ancestor: ts.Node): boolean {
 }
 
 export function lowerFunction(decl: ts.FunctionDeclaration, ctx: LowerCtx): HFunc {
-  if (!decl.name) ice("lower: anonymous function declaration not supported");
   if (!decl.body) ice("lower: function without a body (overload/declare) not supported");
   // A destructured object parameter `f({ x, y }: P)` is received as one object param under a
   // synthetic name; its fields are then bound by a prelude prepended to the body (so `x`/`y` are
@@ -410,7 +404,8 @@ export function lowerFunction(decl: ts.FunctionDeclaration, ctx: LowerCtx): HFun
   ctx.currentReturnType = returnType;
   const body = [...paramPrelude, ...lowerStatements(decl.body.statements, ctx)];
   ctx.currentReturnType = saved;
-  return { name: nameOf(decl.name, ctx), params, returnType, body, async: isAsync };
+  const name = nameForSymbol(functionDeclSymbol(decl, ctx), decl.name?.text ?? "default", ctx);
+  return { name, params, returnType, body, async: isAsync };
 }
 
 // Object literal → fields in SHAPE (record-slot) order, regardless of source property order.

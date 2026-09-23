@@ -9,7 +9,8 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { loadProgram } from "../../src/frontend/program.js";
 import { validate } from "../../src/validate/validate.js";
 import { emitIr, linkIr, runtimeObjects } from "../../src/driver/build.js";
@@ -36,9 +37,14 @@ export async function run(
   cmd: string,
   args: string[],
   timeoutMs = RUN_TIMEOUT_MS,
+  env: NodeJS.ProcessEnv = process.env,
 ): Promise<RunResult> {
   try {
-    const { stdout } = await execFileAsync(cmd, args, { encoding: "utf8", timeout: timeoutMs });
+    const { stdout } = await execFileAsync(cmd, args, {
+      encoding: "utf8",
+      timeout: timeoutMs,
+      env,
+    });
     return { stdout, exit: 0, signal: null, timedOut: false };
   } catch (e) {
     const err = e as {
@@ -53,6 +59,21 @@ export async function run(
     const exit = typeof err.code === "number" ? err.code : null;
     return { stdout: (err.stdout ?? "").toString(), exit, signal, timedOut };
   }
+}
+
+// The oracle is Node itself, with tsx as a loader only for what plain `node file.ts` lacks:
+// TypeScript's module resolution (`./util`, `./util.js`, `./dir`, packages whose entry is `.ts`)
+// and syntax that type stripping refuses (parameter properties). Runtime semantics stay Node's.
+// tsx is resolved to an absolute URL so the oracle does not depend on the cwd, and its tsconfig
+// is pinned so the compiler's own tsconfig.json never shapes how a fixture is transpiled.
+const TSX_LOADER = import.meta.resolve("tsx");
+const ORACLE_ENV: NodeJS.ProcessEnv = {
+  ...process.env,
+  TSX_TSCONFIG_PATH: join(dirname(fileURLToPath(import.meta.url)), "oracle-tsconfig.json"),
+};
+
+export function runOracle(entry: string, args: string[] = []): Promise<RunResult> {
+  return run("node", ["--import", TSX_LOADER, entry, ...args], RUN_TIMEOUT_MS, ORACLE_ENV);
 }
 
 export interface Divergence {
@@ -87,7 +108,7 @@ export async function differential(
   const objs = runtimeObjects(); // warm the runtime .o cache once (avoids a concurrent race)
   // The same arguments go to node and to the binary: `process.argv.slice(2)` is identical for
   // both, which is exactly why only that slice is in the subset.
-  const oraclePromise = run("node", [fixturePath, ...args]); // oracle runs while we compile
+  const oraclePromise = runOracle(fixturePath, args); // oracle runs while we compile
   await Promise.all([linkIr(irPath, binO0, "0", objs), linkIr(irPath, binO2, "2", objs)]);
 
   const [oracle, o0, o2] = await Promise.all([oraclePromise, run(binO0, args), run(binO2, args)]);

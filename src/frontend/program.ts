@@ -6,9 +6,10 @@
 import ts from "typescript";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { type Diagnostic, type Span, DiagnosticError } from "../diagnostics.js";
+import { type Diagnostic, type Span, DiagnosticError, ice } from "../diagnostics.js";
 import { USER_COMPILER_OPTIONS } from "./user-options.js";
-import { orderModules } from "./module-graph.js";
+import { assignModuleIds, orderModules } from "./module-graph.js";
+import { moduleFormDiagnostic } from "./module-diagnostics.js";
 
 // The ambient global environment injected into every user program (console, process, ...).
 const GLOBALS_DTS = join(
@@ -22,10 +23,13 @@ const GLOBALS_DTS = join(
 export interface LoadedProgram {
   program: ts.Program;
   checker: ts.TypeChecker;
-  // The entry source file and its transitive local sources (excludes lib.d.ts), topologically
-  // ordered: a file always follows everything it imports. Lowering concatenates their top-level
-  // statements into `main`, so this order IS module initialization order.
+  // Every TypeScript source in the program (user files and `.ts` packages under node_modules; no
+  // declaration files). All of them are validated, including files reached only by `import type`.
   sourceFiles: ts.SourceFile[];
+  // The modules Node actually loads, starting at the entry, topologically ordered: a file always
+  // follows everything it imports. Lowering concatenates their top-level statements into `main`,
+  // so this order IS module initialization order.
+  initOrder: ts.SourceFile[];
 }
 
 // Load + typecheck `entryFile`. Throws DiagnosticError with CS0001 for each tsc diagnostic.
@@ -46,11 +50,14 @@ export function loadProgram(entryFile: string): LoadedProgram {
   }
 
   const checker = program.getTypeChecker();
-  const sourceFiles = program
-    .getSourceFiles()
-    .filter((sf) => !sf.isDeclarationFile && !program.isSourceFileFromExternalLibrary(sf));
+  // A `.ts` file under node_modules is a package shipped as TypeScript source and is compiled like
+  // user code; only declaration files are excluded (they have no bodies to compile).
+  const sourceFiles = program.getSourceFiles().filter((sf) => !sf.isDeclarationFile);
+  const entry = program.getSourceFile(entryFile);
+  if (!entry) return ice(`entry file ${entryFile} is not in the program`);
+  assignModuleIds(sourceFiles, entry);
 
-  return { program, checker, sourceFiles: orderModules(sourceFiles, checker) };
+  return { program, checker, sourceFiles, initOrder: orderModules(entry, checker) };
 }
 
 function fromTsDiagnostic(d: ts.Diagnostic): Diagnostic {
@@ -60,6 +67,8 @@ function fromTsDiagnostic(d: ts.Diagnostic): Diagnostic {
     const { line, character } = d.file.getLineAndCharacterOfPosition(d.start);
     span = { file: d.file.fileName, line: line + 1, col: character + 1 };
   }
+  const moduleForm = moduleFormDiagnostic(d, span);
+  if (moduleForm) return moduleForm;
   return {
     code: `CS0001`,
     message: `does not typecheck under ChadScript strict mode: ${message} (TS${d.code})`,

@@ -49,6 +49,8 @@ function* walkTsFiles(dir: string): Generator<string> {
     return;
   }
   for (const entry of entries) {
+    // A package inside a fixture is a dependency of that fixture, never a program of its own.
+    if (entry === "node_modules") continue;
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) {
       yield* walkTsFiles(full);

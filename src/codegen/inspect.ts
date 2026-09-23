@@ -7,7 +7,7 @@
 import { ice } from "../diagnostics.js";
 import { imm, type Value } from "../ir/builder.js";
 import { T } from "../ir/types.js";
-import type { ValueType } from "../hir/types.js";
+import { classDisplayName, type ValueType } from "../hir/types.js";
 import { unboxSlot, type Ctx } from "./expr.js";
 import { headerOffset } from "./objects.js";
 
@@ -112,7 +112,7 @@ function inspectObject(
   depth: number,
 ): Value {
   const fields = type.shape.fields;
-  const prefix = type.className !== undefined ? `${type.className} ` : "";
+  const prefix = type.className !== undefined ? `${classDisplayName(type.className)} ` : "";
   if (fields.length === 0) return ctx.mod.cstring(`${prefix}{}`);
   const off = headerOffset(type);
   let acc = ctx.mod.cstring(`${prefix}{ `);

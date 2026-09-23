@@ -1,0 +1,13 @@
+{
+  "//": "The tsconfig tsx applies when the Node oracle runs a fixture. Pinned here so tsx never picks up the compiler's own tsconfig.json. It mirrors the emit-relevant half of src/frontend/user-options.ts: verbatimModuleSyntax keeps every non-`import type` import (and its side effects) exactly as the compiler does, and ES2022 gives class fields define semantics.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "strict": true,
+    "noEmit": true
+  }
+}

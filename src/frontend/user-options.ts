@@ -13,10 +13,18 @@ export const USER_COMPILER_OPTIONS: ts.CompilerOptions = {
   moduleResolution: ts.ModuleResolutionKind.Bundler,
   lib: ["lib.es2023.d.ts"],
 
-  // Imports must name the `.ts` file explicitly (`import { f } from "./util.ts"`). That is the
-  // specifier Node itself resolves when it runs the same source as our oracle — an extensionless
-  // or `.js` specifier would typecheck here and fail under Node, splitting compiler and oracle.
+  // Specifiers are written as TypeScript resolves them: `./util`, `./util.js`, `./util.ts`,
+  // `./dir`. The oracle runs Node with tsx as its loader, which resolves the same way.
   allowImportingTsExtensions: true,
+
+  // An import that is not `import type` is kept, with its module's side effects, exactly as
+  // written. Without this tsc would elide imports whose bindings are only used as types, and the
+  // program Node runs would load a different set of modules than the one we compile. It also
+  // makes tsc reject importing a type without `type`, which Node would fail on at runtime.
+  verbatimModuleSyntax: true,
+  // Every file is an ES module, as it is when Node runs it: a file with no import/export still
+  // has module scope rather than contributing its declarations to a shared global script scope.
+  moduleDetection: ts.ModuleDetectionKind.Force,
 
   // User programs get ONLY the ChadScript global environment (stdlib/globals.d.ts, injected
   // in program.ts) — never @types/node or the DOM lib. `types: []` disables automatic @types

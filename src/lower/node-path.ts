@@ -13,6 +13,7 @@ import type { HExpr } from "../hir/nodes.js";
 import { VT } from "../hir/types.js";
 import type { ValueType } from "../hir/types.js";
 import { type LowerCtx, lowerExpr, symbolOf } from "./lower.js";
+import { calleeIdentifier } from "./module-refs.js";
 
 export const NODE_PATH_MODULE = "node:path";
 
@@ -43,11 +44,13 @@ function isNodePathDeclaration(decl: ts.Declaration): boolean {
 // `join(a, b)` / `dirname(p)` → a direct runtime call. Returns null when the callee is not a
 // `node:path` binding, so the caller falls through to normal function/closure lowering.
 export function lowerNodePathCall(call: ts.CallExpression, ctx: LowerCtx): HExpr | null {
-  if (!ts.isIdentifier(call.expression)) return null;
-  const decl = symbolOf(call.expression, ctx)?.declarations?.[0];
+  const callee = calleeIdentifier(call, ctx.checker);
+  if (!callee) return null;
+  const decl = symbolOf(callee, ctx)?.declarations?.[0];
   if (!decl || !isNodePathDeclaration(decl)) return null;
 
-  const name = call.expression.text;
+  // The DECLARED name picks the entry: the call may spell it `alias(...)` or `ns.name(...)`.
+  const name = ts.getNameOfDeclaration(decl)?.getText() ?? ice("lower: unnamed node:path export");
   const fn = PATH_ENTRIES[name];
   if (!fn) return ice(`lower: unsupported node:path export ${name}`);
 

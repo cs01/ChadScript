@@ -3,6 +3,7 @@
 // Split out of lower.ts; it queries the checker directly and imports LowerCtx + isMethodSymbol back.
 
 import ts from "typescript";
+import { classIdOf } from "./class-ids.js";
 import { ice } from "../diagnostics.js";
 import { VT } from "../hir/types.js";
 import type { ValueType } from "../hir/types.js";
@@ -200,7 +201,7 @@ export function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChe
       const result: ValueType = {
         kind: "object",
         shape: { fields: [] },
-        className: t.symbol!.name,
+        className: classIdOf(classDecl),
       };
       objectShapeCache.set(t, result);
       const ordered = new Map<string, ValueType>();

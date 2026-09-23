@@ -24,6 +24,9 @@ import {
 } from "./type-translation.js";
 import { lowerMethodCall } from "./method-call.js";
 import { lowerInterceptedCall } from "./globals.js";
+import { calleeIdentifier, namespaceMemberOf } from "./module-refs.js";
+import { lowerDefaultExport } from "./default-export.js";
+import { classIdOf, constructorClassOf } from "./class-ids.js";
 // Re-exported so the many existing `resolveType` import sites keep resolving through lower.ts.
 import { resolveType } from "./resolve-type.js";
 export { resolveType };
@@ -64,6 +67,8 @@ export interface LowerCtx {
   // Each class → its ancestor class names INCLUDING itself. `x instanceof C` matches every class
   // whose ancestor set contains C (i.e. C and all its descendants).
   classAncestors: Map<string, Set<string>>;
+  // Class id → its declaration, for questions asked about a class by id (its constructor chain).
+  classDecls: Map<string, ts.ClassDeclaration>;
   // Output list of all functions, incl. lambdas lifted from arrow/function expressions.
   functions: HFunc[];
 }
@@ -89,20 +94,25 @@ export function lower(loaded: LoadedProgram): HModule {
     currentBaseClass: null,
     classTables: new Map(),
     classAncestors: new Map(),
+    classDecls: new Map(),
     functions: [],
   };
   // Precompute every class's method table BEFORE lowering, so a call site (which may precede the
   // class in source) can resolve a method's vtable index.
-  for (const sf of loaded.sourceFiles) {
+  for (const sf of loaded.initOrder) {
     for (const stmt of sf.statements) {
       if (ts.isClassDeclaration(stmt) && stmt.name) buildClassTable(stmt, ctx);
     }
   }
   const topLevel: HStmt[] = [];
-  for (const sf of loaded.sourceFiles) {
+  for (const sf of loaded.initOrder) {
     for (const stmt of sf.statements) {
       // Type-only declarations have no runtime and are consumed by the checker, not lowered.
       if (ts.isInterfaceDeclaration(stmt) || ts.isTypeAliasDeclaration(stmt)) continue;
+      if (ts.isExportAssignment(stmt)) {
+        topLevel.push(...lowerDefaultExport(stmt, ctx));
+        continue;
+      }
       // Imports and bare `export { ... }` lists are name resolution only: tsc has already bound
       // every reference to its symbol, and lowering names bindings by symbol, so a cross-file
       // reference needs no more work than a local one. The imported file's own statements are
@@ -193,16 +203,16 @@ export function nameForSymbol(symbol: ts.Symbol, hint: string, ctx: LowerCtx): s
 // A call used as a value: a user function `foo(args)`, a method `obj.method(args)`, or a call
 // through a function VALUE (closure) held in a variable.
 function lowerCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
-  if (ts.isPropertyAccessExpression(call.expression)) {
-    return lowerMethodCall(call, ctx);
-  }
-  if (!ts.isIdentifier(call.expression)) {
+  // `f(...)`, or `m.f(...)` through a module namespace, which is the same static call.
+  const callee = calleeIdentifier(call, ctx.checker);
+  if (!callee) {
+    if (ts.isPropertyAccessExpression(call.expression)) return lowerMethodCall(call, ctx);
     return ice(`lower: unsupported call target ${ts.SyntaxKind[call.expression.kind]}`);
   }
   const intercepted = lowerInterceptedCall(call, ctx);
   if (intercepted) return intercepted;
   // A call whose callee is NOT a top-level function declaration is a closure call.
-  const sym = symbolOf(call.expression, ctx);
+  const sym = symbolOf(callee, ctx);
   const isTopLevelFn = sym?.valueDeclaration && ts.isFunctionDeclaration(sym.valueDeclaration);
   if (!isTopLevelFn) {
     return {
@@ -218,14 +228,14 @@ function lowerCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
   if (isAsync) {
     return {
       kind: "asyncCall",
-      name: nameOf(call.expression, ctx),
+      name: nameOf(callee, ctx),
       args: lowerCallArgs(call, ctx),
       type: valueTypeOf(call, ctx), // Promise<T>
     };
   }
   return {
     kind: "call",
-    name: nameOf(call.expression, ctx),
+    name: nameOf(callee, ctx),
     args: lowerCallArgs(call, ctx),
     type: valueTypeOf(call, ctx),
   };
@@ -264,33 +274,6 @@ export function lowerObjectNamespace(method: string, argExpr: ts.Expression, ctx
     };
   }
   return ice(`lower: Object.${method} not supported yet`);
-}
-
-// The class whose `Class.constructor` HFunc a `new`/`super()` must actually call. A class that
-// declares neither a constructor nor a field initializer emits no constructor at all, so naming
-// the immediate base blindly produces a call to a function that was never emitted.
-export function constructorClassOf(className: string, node: ts.Node, ctx: LowerCtx): string | null {
-  const sym = ctx.checker.resolveName(className, node, ts.SymbolFlags.Class, false);
-  let t = sym ? ctx.checker.getDeclaredTypeOfSymbol(sym) : undefined;
-  while (t) {
-    const d = t.symbol?.valueDeclaration;
-    if (d && ts.isClassDeclaration(d)) {
-      // A class runs its own constructor if it declares one, OR if it has field initializers (which
-      // are lowered into a synthesized constructor — see lowerClass).
-      const hasCtorWork = d.members.some(
-        (m) =>
-          (ts.isConstructorDeclaration(m) && m.body) ||
-          (ts.isPropertyDeclaration(m) && m.initializer !== undefined),
-      );
-      if (hasCtorWork) return d.name!.text;
-      const bases = ctx.checker.getBaseTypes(t as ts.InterfaceType);
-      t = bases.find((b) => {
-        const bd = b.symbol?.valueDeclaration;
-        return bd && ts.isClassDeclaration(bd);
-      });
-    } else break;
-  }
-  return null;
 }
 
 // The class that implements `method` for a `super.method(...)` call from a subclass of `baseClass`
@@ -487,7 +470,7 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
       return {
         kind: "new",
         className: type.className,
-        ctorClass: constructorClassOf(type.className, ne, ctx),
+        ctorClass: constructorClassOf(type.className, ctx),
         fieldCount: type.shape.fields.length,
         args: (ne.arguments ?? []).map((a) => lowerExpr(a, ctx)),
         type,
@@ -496,6 +479,9 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
 
     case ts.SyntaxKind.PropertyAccessExpression: {
       const pa = expr as ts.PropertyAccessExpression;
+      // `m.x` through a module namespace is a static reference to the exported `x`.
+      const member = namespaceMemberOf(pa, ctx.checker);
+      if (member) return lowerIdentifier(member, ctx, type);
       // `Math.PI` etc. — a numeric constant.
       if (isMathNamespace(pa.expression)) {
         const c = MATH_CONSTS[pa.name.text];
@@ -587,14 +573,22 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
       const opKind = b.operatorToken.kind;
       // `x instanceof C` → the receiver's vtable equals C's or any subclass's vtable.
       if (opKind === ts.SyntaxKind.InstanceOfKeyword) {
-        if (!ts.isIdentifier(b.right)) ice("lower: instanceof right side must be a class name");
-        const target = b.right.text;
+        // The class is named directly or through a module namespace (`x instanceof m.C`).
+        const classRef = ts.isIdentifier(b.right)
+          ? b.right
+          : (namespaceMemberOf(b.right, ctx.checker) ??
+            ice("lower: instanceof right side must be a class name"));
         const left = lowerExpr(b.left, ctx);
         // `e instanceof Error` for a caught (unknown) value → the CsThrown's isError tag. (Error is
         // a builtin, not a user class, so it isn't in the vtable hierarchy.)
-        if (target === "Error" && left.type.kind === "unknown") {
+        if (classRef.text === "Error" && left.type.kind === "unknown") {
           return { kind: "thrownIsError", value: left, type };
         }
+        const classDecl = symbolOf(classRef, ctx)?.valueDeclaration;
+        if (!classDecl || !ts.isClassDeclaration(classDecl)) {
+          return ice(`lower: instanceof ${classRef.text} is not a class`);
+        }
+        const target = classIdOf(classDecl);
         const matches = [...ctx.classAncestors]
           .filter(([, anc]) => anc.has(target))
           .map(([name]) => name);

@@ -26,8 +26,10 @@ diagnostic — there is no "compiles but behaves differently than Node" third ca
 - `Constructor`
 - `ContinueStatement`
 - `DefaultClause`
+- `DefaultKeyword`
 - `ElementAccessExpression`
 - `EndOfFileToken`
+- `ExportAssignment`
 - `ExportDeclaration`
 - `ExportKeyword`
 - `ExportSpecifier`
@@ -35,6 +37,7 @@ diagnostic — there is no "compiles but behaves differently than Node" third ca
 - `ExpressionWithTypeArguments`
 - `FalseKeyword`
 - `FirstLiteralToken`
+- `FirstNode`
 - `FirstStatement`
 - `FirstTemplateToken`
 - `ForOfStatement`
@@ -54,6 +57,7 @@ diagnostic — there is no "compiles but behaves differently than Node" third ca
 - `MethodDeclaration`
 - `NamedExports`
 - `NamedImports`
+- `NamespaceImport`
 - `NewExpression`
 - `NullKeyword`
 - `NumberKeyword`

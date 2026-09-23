@@ -30,6 +30,7 @@ export type ValueType =
   // A closed-shape object. Runtime rep: pointer to a GC record of one i64 slot per field.
   // `className` is set for class instances (enables method dispatch to `Class.method`); unset
   // for plain interface/type-literal objects.
+  // The class name is a program-unique id (see lower/class-ids.ts), not the source name.
   | { kind: "object"; shape: ObjectShape; className?: string }
   // `inner | undefined` (from `arr[i]`, `.pop()`, optional fields). Runtime rep: a pointer that
   // is either the `undefined` sentinel or a pointer to a GC box holding the boxed inner value.
@@ -67,3 +68,9 @@ export const VT = {
   set: (element: ValueType): ValueType => ({ kind: "set", element }),
   promise: (inner: ValueType): ValueType => ({ kind: "promise", inner }),
 } as const;
+
+// The source name of a class id. Ids are `<name>` or `<name>.<module id>` (lower/class-ids.ts), and
+// a TypeScript class name cannot contain `.`, so the first segment is exactly the source name.
+export function classDisplayName(classId: string): string {
+  return classId.split(".")[0]!;
+}

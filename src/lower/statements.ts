@@ -13,7 +13,6 @@ import {
   resolveType,
   coerceToTarget,
   callReturnType,
-  constructorClassOf,
   superMethodClassOf,
   vtableIndexOf,
   calleeName,
@@ -28,6 +27,8 @@ import { isMathNamespace } from "./declarations.js";
 import { valueTypeOf } from "./type-translation.js";
 import { lowerMethodCall } from "./method-call.js";
 import { lowerInterceptedCall } from "./globals.js";
+import { namespaceMemberOf } from "./module-refs.js";
+import { classIdOf, constructorClassOf } from "./class-ids.js";
 
 // Returns an array because one `let a = 1, b = 2;` lowers to several varDecls.
 export function lowerStatement(stmt: ts.Statement, ctx: LowerCtx): HStmt[] {
@@ -459,7 +460,7 @@ export function methodDefiningClass(name: ts.MemberName, ctx: LowerCtx, fallback
   const d = sym?.valueDeclaration ?? sym?.declarations?.[0];
   if (d && (ts.isMethodDeclaration(d) || ts.isMethodSignature(d))) {
     const parent = d.parent;
-    if (parent && ts.isClassDeclaration(parent) && parent.name) return parent.name.text;
+    if (parent && ts.isClassDeclaration(parent) && parent.name) return classIdOf(parent);
   }
   return fallback;
 }
@@ -477,12 +478,17 @@ export function lowerCallStatement(call: ts.CallExpression, ctx: LowerCtx): HStm
     if (!ctx.currentBaseClass) return ice("lower: `super()` with no base class");
     // The nearest ancestor that actually emits a constructor — the immediate base may declare
     // neither a constructor nor a field initializer, in which case it has no HFunc to call.
-    const ctorClass = constructorClassOf(ctx.currentBaseClass, call, ctx);
+    const ctorClass = constructorClassOf(ctx.currentBaseClass, ctx);
     const args = [thisRef(ctx), ...call.arguments.map((a) => lowerExpr(a, ctx))];
     return ctorClass === null
       ? { kind: "exprStmt", expr: thisRef(ctx) } // base is field-less: `super()` is a no-op
       : { kind: "callStmt", name: `${ctorClass}.constructor`, args, returnType: null };
   }
+
+  // `m.f(...)` through a module namespace is a static call to `f`, never a method call and never
+  // one of the global names below (a namespace may well be called `console`).
+  const nsCallee = namespaceMemberOf(call.expression, ctx.checker);
+  if (nsCallee) return lowerIdentifierCallStatement(call, nsCallee, ctx);
 
   switch (target) {
     case "console.log":
@@ -529,24 +535,33 @@ export function lowerCallStatement(call: ts.CallExpression, ctx: LowerCtx): HStm
       if (!ts.isIdentifier(call.expression)) {
         return ice(`lower: unsupported call target ${ts.SyntaxKind[call.expression.kind]}`);
       }
-      // `writeFileSync(...)` / `setTimeout(...)` and friends are void, so statement position is
-      // their normal use. Shares the interceptor list with expression-position lowering.
-      const intercepted = lowerInterceptedCall(call, ctx);
-      if (intercepted) return { kind: "exprStmt", expr: intercepted };
-      // An async call in statement position must SPAWN a fiber (and discard the promise), not call
-      // the body directly — route through lowerExpr so it becomes an asyncCall.
-      const fnDecl = symbolOf(call.expression, ctx)?.valueDeclaration;
-      const isAsync =
-        fnDecl !== undefined &&
-        ts.isFunctionDeclaration(fnDecl) &&
-        (fnDecl.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword) ?? false);
-      if (isAsync) return { kind: "exprStmt", expr: lowerExpr(call, ctx) };
-      return {
-        kind: "callStmt",
-        name: nameOf(call.expression, ctx),
-        args: lowerCallArgs(call, ctx),
-        returnType: callReturnType(call, ctx),
-      };
+      return lowerIdentifierCallStatement(call, call.expression, ctx);
     }
   }
+}
+
+// A call through a name (`f(...)` or `m.f(...)`) in statement position.
+function lowerIdentifierCallStatement(
+  call: ts.CallExpression,
+  callee: ts.Identifier,
+  ctx: LowerCtx,
+): HStmt {
+  // `writeFileSync(...)` / `setTimeout(...)` and friends are void, so statement position is
+  // their normal use. Shares the interceptor list with expression-position lowering.
+  const intercepted = lowerInterceptedCall(call, ctx);
+  if (intercepted) return { kind: "exprStmt", expr: intercepted };
+  // An async call in statement position must SPAWN a fiber (and discard the promise), not call
+  // the body directly — route through lowerExpr so it becomes an asyncCall.
+  const fnDecl = symbolOf(callee, ctx)?.valueDeclaration;
+  const isAsync =
+    fnDecl !== undefined &&
+    ts.isFunctionDeclaration(fnDecl) &&
+    (fnDecl.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword) ?? false);
+  if (isAsync) return { kind: "exprStmt", expr: lowerExpr(call, ctx) };
+  return {
+    kind: "callStmt",
+    name: nameOf(callee, ctx),
+    args: lowerCallArgs(call, ctx),
+    returnType: callReturnType(call, ctx),
+  };
 }

@@ -13,6 +13,7 @@ import type { HExpr } from "../hir/nodes.js";
 import { VT } from "../hir/types.js";
 import type { ValueType } from "../hir/types.js";
 import { type LowerCtx, lowerExpr, symbolOf } from "./lower.js";
+import { calleeIdentifier } from "./module-refs.js";
 
 export const NODE_FS_MODULE = "node:fs";
 
@@ -40,11 +41,13 @@ function isNodeFsDeclaration(decl: ts.Declaration): boolean {
 // `readFileSync(path, "utf8")` and friends → a direct runtime call. Returns null when the callee
 // is not a `node:fs` binding, so the caller falls through to normal function/closure lowering.
 export function lowerNodeFsCall(call: ts.CallExpression, ctx: LowerCtx): HExpr | null {
-  if (!ts.isIdentifier(call.expression)) return null;
-  const decl = symbolOf(call.expression, ctx)?.declarations?.[0];
+  const callee = calleeIdentifier(call, ctx.checker);
+  if (!callee) return null;
+  const decl = symbolOf(callee, ctx)?.declarations?.[0];
   if (!decl || !isNodeFsDeclaration(decl)) return null;
 
-  const name = call.expression.text;
+  // The DECLARED name picks the entry: the call may spell it `alias(...)` or `ns.name(...)`.
+  const name = ts.getNameOfDeclaration(decl)?.getText() ?? ice("lower: unnamed node:fs export");
   const fn = FS_ENTRIES[name];
   if (!fn) return ice(`lower: unsupported node:fs export ${name}`);
   // readFileSync's encoding argument is dropped: the ambient signature admits only the literal

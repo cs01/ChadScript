@@ -7,9 +7,14 @@ import ts from "typescript";
 import type { Diagnostic } from "../diagnostics.js";
 import { CODE, type Code } from "./codes.js";
 import { spanOf } from "./validate.js";
-import { NODE_FS_MODULE } from "../lower/node-fs.js";
-import { NODE_PATH_MODULE } from "../lower/node-path.js";
-import { NODE_FS_PROMISES_MODULE } from "../lower/node-fs-promises.js";
+import { namespaceMemberOf } from "../lower/module-refs.js";
+import {
+  checkDefaultClass,
+  checkExportAssignment,
+  checkExportDeclaration,
+  checkImport,
+  checkNamespaceValue,
+} from "./module-rules.js";
 import {
   checkFunctionValueRef,
   checkRepresentableType,
@@ -242,26 +247,16 @@ export function tailoredRejection(
       return null;
 
     case ts.SyntaxKind.ImportDeclaration:
-      return checkImport(node as ts.ImportDeclaration, hit);
+      return checkImport(node as ts.ImportDeclaration, hit, checker);
 
     case ts.SyntaxKind.ExportDeclaration:
-      // `export { a, b }` is a pure visibility statement with no runtime. `export ... from "x"`
-      // re-exports, which would make a module's bindings depend on a file it never initializes.
-      return (node as ts.ExportDeclaration).moduleSpecifier
-        ? hit(
-            CODE.MODULE_FORM,
-            "re-exporting (`export ... from`) is not supported yet",
-            "import the binding and export it as its own declaration",
-          )
-        : null;
+      return checkExportDeclaration(node as ts.ExportDeclaration, hit, checker);
 
     case ts.SyntaxKind.ExportAssignment:
-      // `export default x` / `export = x`.
-      return hit(
-        CODE.MODULE_FORM,
-        "default exports are not supported",
-        "use a named export: `export const x = ...` / `export function f() {}`",
-      );
+      return checkExportAssignment(node as ts.ExportAssignment, hit, checker);
+
+    case ts.SyntaxKind.ClassDeclaration:
+      return checkDefaultClass(node as ts.ClassDeclaration, hit);
 
     case ts.SyntaxKind.AsExpression:
     case ts.SyntaxKind.TypeAssertionExpression:
@@ -269,6 +264,7 @@ export function tailoredRejection(
 
     case ts.SyntaxKind.Identifier:
       return (
+        checkNamespaceValue(node as ts.Identifier, hit, checker) ??
         checkFunctionValueRef(node as ts.Identifier, hit, checker) ??
         checkOpaqueHandleUse(node as ts.Identifier, hit, checker)
       );
@@ -482,6 +478,16 @@ function isDescendantOf(node: ts.Node, ancestor: ts.Node): boolean {
 }
 
 function checkCall(node: ts.CallExpression, hit: Hit, checker: ts.TypeChecker): Diagnostic | null {
+  if (node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+    return hit(
+      CODE.MODULE_FORM,
+      "dynamic `import()` is not supported",
+      'use a static import at the top of the module: `import * as m from "./m"`',
+    );
+  }
+  // `m.f(...)` through a module namespace is a static call, not a method call on an object; the
+  // receiver-type rules below do not apply to it.
+  if (namespaceMemberOf(node.expression, checker)) return null;
   if (isNamedIdent(node.expression, "eval")) {
     return hit(CODE.EVAL_OR_FUNCTION_CTOR, "`eval` is not supported", "there is no dynamic eval");
   }
@@ -659,71 +665,6 @@ function isArgvSlice2(node: ts.Node | undefined): boolean {
   return (
     call.arguments.length === 1 && arg !== undefined && ts.isNumericLiteral(arg) && arg.text === "2"
   );
-}
-
-// Import forms. Only `import { a, b } from "./local.ts"` is in the subset: it needs no runtime at
-// all (tsc resolves the names; every binding is already keyed by its tsc symbol). Everything else
-// either needs a module object at runtime (namespace imports), a resolver we do not have
-// (packages), or has no compile-time shape (dynamic import).
-function checkImport(node: ts.ImportDeclaration, hit: Hit): Diagnostic | null {
-  const spec = node.moduleSpecifier;
-  if (!ts.isStringLiteral(spec)) {
-    return hit(
-      CODE.MODULE_FORM,
-      "a module specifier must be a string literal",
-      'use `import { x } from "./file.ts"`',
-    );
-  }
-  const text = spec.text;
-  // `node:fs` and `node:path` are the only non-relative specifiers in the subset: their bindings
-  // lower to runtime entries, and Node resolves the identical specifier when it runs the same
-  // source as the oracle. The ambient declarations in stdlib/globals.d.ts are the allowlist of
-  // names — importing anything else from them fails at typecheck (CS0001), so there is nothing
-  // to check here.
-  if (text === NODE_FS_MODULE || text === NODE_PATH_MODULE || text === NODE_FS_PROMISES_MODULE) {
-    return checkImportClause(node, hit);
-  }
-  if (!text.startsWith("./") && !text.startsWith("../")) {
-    return hit(
-      CODE.MODULE_FORM,
-      `importing \`${text}\` is not supported: only relative paths to local files`,
-      "there is no package resolution; vendor the code into a local `.ts` file and import that",
-    );
-  }
-  // Node runs the oracle from the same source, and it resolves the specifier literally — an
-  // extensionless or `.js` specifier would compile here and fail there.
-  if (!text.endsWith(".ts")) {
-    return hit(
-      CODE.MODULE_FORM,
-      `module specifier \`${text}\` must end in \`.ts\``,
-      "name the file exactly as Node resolves it, e.g. `./util.ts`",
-    );
-  }
-
-  return checkImportClause(node, hit);
-}
-
-// The binding forms an import may use, independent of which module it names.
-function checkImportClause(node: ts.ImportDeclaration, hit: Hit): Diagnostic | null {
-  const clause = node.importClause;
-  // `import "./x.ts"` for side effects only: the file IS initialized (its top-level statements are
-  // concatenated in dependency order), so this is meaningful and allowed.
-  if (!clause) return null;
-  if (clause.name) {
-    return hit(
-      CODE.MODULE_FORM,
-      "default imports are not supported",
-      'use a named import: `import { x } from "./file.ts"`',
-    );
-  }
-  if (clause.namedBindings && ts.isNamespaceImport(clause.namedBindings)) {
-    return hit(
-      CODE.MODULE_FORM,
-      "namespace imports (`import * as ns`) are not supported",
-      "a namespace would need a runtime module object; import the bindings by name instead",
-    );
-  }
-  return null;
 }
 
 function checkNew(node: ts.NewExpression, hit: Hit): Diagnostic | null {

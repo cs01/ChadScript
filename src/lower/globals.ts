@@ -94,9 +94,12 @@ function isAmbientGlobal(node: ts.Node, ctx: LowerCtx): boolean {
 // expression and silently lowers to a call to a nonexistent user function as a statement. That
 // bug shipped once (setTimeout emitted `@setTimeout.0`); statement-position fixtures now pin it.
 export function lowerInterceptedCall(call: ts.CallExpression, ctx: LowerCtx): HExpr | null {
-  if (!ts.isIdentifier(call.expression)) return null;
+  // Globals are only ever bare identifiers; module entries may also be reached as `ns.name(...)`.
+  const global = ts.isIdentifier(call.expression)
+    ? lowerGlobalBuiltin(call.expression.text, call, ctx)
+    : null;
   return (
-    lowerGlobalBuiltin(call.expression.text, call, ctx) ??
+    global ??
     lowerNodeFsCall(call, ctx) ??
     lowerNodeFsPromisesCall(call, ctx) ??
     lowerNodePathCall(call, ctx)
