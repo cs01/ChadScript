@@ -10,13 +10,14 @@ set of programs the compiler agrees to build.
    `exactOptionalPropertyTypes`, `noImplicitOverride` and `noPropertyAccessFromIndexSignature`
    are always on, with zero diagnostics allowed. Array reads are `T | undefined`, so you narrow or
    default them (`xs[i] ?? 0`).
-2. **Every construct must be on the allowlist.** The [accepted subset](/reference/subset) is
-   generated from the validator's tables. Anything else is rejected with a
+2. **Every construct must be one the compiler supports.** The [accepted subset](/reference/subset)
+   lists them, straight from the compiler's own tables. Anything else is rejected with a
    [code](/reference/errors) and a rewrite.
 3. **Objects keep the shape they were created with.** No adding or deleting properties, no
    prototype edits. Optional fields (`x?: T`) are how you model "maybe present".
-4. **Types choose the representation.** `number`, `string` and `boolean` are unboxed. Unions of
-   different kinds become one tagged word that you narrow before most operations.
+4. **Types decide the machine layout.** `number`, `string` and `boolean` are stored directly.
+   A union of different kinds (`number | string`) carries a small type tag, and you narrow it
+   (`typeof x === "number"`) before most operations.
 5. **Strings are UTF-8 and exact for ASCII.** Operations whose results depend on UTF-16 code
    units (`charCodeAt`, `s[i]`, `<` on strings, non-ASCII literals) are rejected for now, not
    approximated.
@@ -52,3 +53,5 @@ Not yet, planned: regular expressions, `Date` instances, optional and default pa
 getters and setters, `toFixed`, generics instantiated with arrays or functions (wrap them in an
 object), optional chains longer than one `?.`, and `Map`/`Set` keyed by a union. Each is rejected
 today with a specific code; see the [roadmap](/roadmap).
+
+Next: [Modules and imports](/guide/modules).

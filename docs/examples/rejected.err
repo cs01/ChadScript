@@ -1,4 +1,9 @@
 $ bin/chad check rejected.ts
-error[CS1221]: `toFixed` on a number is not supported yet
-  --> rejected.ts:3:13
-  help: build the string form manually, or use `.toString()` / template interpolation
+error[CS1222]: iterating a Map directly with `for...of` is not supported yet
+  --> rejected.ts:6:1
+  help: iterate its keys and read each value: `for (const k of m.keys())`
+error[CS1203]: `==` is not supported
+  --> rejected.ts:7:7
+  help: use `===`
+
+2 error(s)

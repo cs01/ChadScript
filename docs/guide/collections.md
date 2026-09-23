@@ -8,7 +8,7 @@ iteration the way Node's do.
 
 <<< @/examples/collections.out{text}
 
-The supported methods are listed, generated from the validator, in the
+The supported methods are listed, straight from the compiler, in the
 [subset reference](/reference/subset#supported-map-methods).
 
 ## Limits today
@@ -20,3 +20,5 @@ The supported methods are listed, generated from the validator, in the
 - A union as the key type is rejected ([CS1233](/reference/errors#cs1233)).
 - Plain objects are not dictionaries: index signatures (`{ [k: string]: T }`) are rejected
   ([CS1207](/reference/errors#cs1207)). Use a `Map`.
+
+Next: [async / await](/guide/async).

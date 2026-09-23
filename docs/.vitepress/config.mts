@@ -20,9 +20,11 @@ export default defineConfig({
   themeConfig: {
     search: { provider: "local" },
 
+    // Organized by what the reader is doing (tutorial, task, lookup, understanding).
     nav: [
-      { text: "Guide", link: "/guide/getting-started" },
-      { text: "Reference", link: "/reference/subset" },
+      { text: "Quickstart", link: "/guide/getting-started" },
+      { text: "How-to", link: "/howto/multi-file" },
+      { text: "Reference", link: "/guide/language" },
       { text: "How it works", link: "/internals/how-it-works" },
       { text: "Benchmarks", link: "/benchmarks" },
       { text: "Roadmap", link: "/roadmap" },
@@ -30,10 +32,24 @@ export default defineConfig({
 
     sidebar: [
       {
-        text: "Guide",
+        text: "Start here",
         items: [
-          { text: "Getting started", link: "/guide/getting-started" },
-          { text: "Language overview", link: "/guide/language" },
+          { text: "Quickstart", link: "/guide/getting-started" },
+          { text: "Is ChadScript for you?", link: "/reference/limitations" },
+        ],
+      },
+      {
+        text: "How-to guides",
+        items: [
+          { text: "Build a multi-file project", link: "/howto/multi-file" },
+          { text: "Parse a JSON config file", link: "/howto/json-config" },
+          { text: "Build a CLI tool", link: "/howto/cli-tool" },
+        ],
+      },
+      {
+        text: "Language reference",
+        items: [
+          { text: "Overview", link: "/guide/language" },
           { text: "Modules and imports", link: "/guide/modules" },
           { text: "Classes and interfaces", link: "/guide/classes" },
           { text: "Unions and narrowing", link: "/guide/unions" },
@@ -48,16 +64,20 @@ export default defineConfig({
         ],
       },
       {
-        text: "Reference",
+        text: "Lookup",
         items: [
           { text: "Accepted subset", link: "/reference/subset" },
           { text: "Error codes", link: "/reference/errors" },
+          { text: "CLI", link: "/reference/cli" },
         ],
       },
       {
-        text: "Project",
+        text: "How it works",
         items: [
-          { text: "How it works", link: "/internals/how-it-works" },
+          { text: "Pipeline", link: "/internals/how-it-works" },
+          { text: "Value model", link: "/internals/value-model" },
+          { text: "Memory", link: "/internals/memory" },
+          { text: "Testing philosophy", link: "/internals/testing" },
           { text: "Benchmarks", link: "/benchmarks" },
           { text: "Roadmap", link: "/roadmap" },
         ],
@@ -73,7 +93,7 @@ export default defineConfig({
 
     footer: {
       message:
-        'Pre-alpha. MIT licensed. <a href="https://github.com/cs01/ChadScript/tree/main">Source on GitHub</a>',
+        'Pre-alpha. MIT licensed. <a href="https://github.com/cs01/ChadScript">Source on GitHub</a> · <a href="https://github.com/cs01/ChadScript/issues/new?title=divergence%3A+">Report a program that behaves differently from Node</a>',
     },
   },
 });

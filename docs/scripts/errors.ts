@@ -23,7 +23,7 @@ const EXTRA: Record<string, Entry> = {
   CS0001: {
     title: "TypeScript error",
     meaning:
-      "The program does not typecheck under the strict options ChadScript imposes (`strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`, `noPropertyAccessFromIndexSignature`). tsc is the type oracle, so a program with any type error is not compiled. Importing a name that a built-in module (`node:fs`, `node:path`) does not provide in the subset also lands here, because `stdlib/globals.d.ts` only declares what is supported.",
+      "The program does not typecheck under the strict options ChadScript imposes (`strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`, `noPropertyAccessFromIndexSignature`). TypeScript's checker decides every type, so a program with any type error is not compiled. Importing a name that a built-in module (`node:fs`, `node:path`) does not provide in the subset also lands here, because `stdlib/globals.d.ts` only declares what is supported.",
     rewrite: "Fix the type error tsc reports. The message after the code is tsc's own.",
   },
   CS9000: {
@@ -39,7 +39,7 @@ export const EXPLANATIONS: Record<keyof typeof CODE, Entry> = {
   NOT_IN_SUBSET: {
     title: "Not in the subset",
     meaning:
-      "The generic default-deny rejection. The validator admits a syntax kind or type only through an explicit allowlist rule backed by a differential test; anything else stops here. The message names the construct (for example `GetAccessor`, a method in an object literal, top-level `await`, a nested `function` declaration, an optional chain longer than one `?.`).",
+      "The general rejection. The compiler accepts a construct only when it has a rule for it, backed by a test that checks the result against Node; anything else stops here. The message names the construct (for example `GetAccessor`, a method in an object literal, top-level `await`, a nested `function` declaration, an optional chain longer than one `?.`).",
     rewrite:
       "Follow the `help:` line, which is specific to the construct. The [subset reference](/reference/subset) lists every admitted syntax kind.",
     planned: true,
@@ -391,7 +391,9 @@ error[CS1221]: \`toFixed\` on a number is not supported yet
 | ---- | ------- |
 ${index.join("\n")}
 
-${rows.map(([code, e]) => entry(code, e, fixtures.get(code) ?? [])).join("\n")}`;
+${rows.map(([code, e]) => entry(code, e, fixtures.get(code) ?? [])).join("\n")}
+Next: [CLI](/reference/cli) · [Is ChadScript for you?](/reference/limitations).
+`;
 }
 
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];

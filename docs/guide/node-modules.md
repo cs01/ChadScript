@@ -40,3 +40,5 @@ $ bin/chad build argv.ts -o greet && ./greet ada lin
 
 Planned: more of `fs` (directories, stat), `node:process` as an importable module, and
 environment variables.
+
+Next: [console.log](/guide/console).

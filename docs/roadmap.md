@@ -44,6 +44,8 @@ and CommonJS.
 
 Branch `v1` holds v1, a self-hosting compiler that resolved types during code generation and could
 not be stabilized. A second attempt went fully dynamic and lost scope. This is the third,
-built around tsc as the type oracle and Node as the test oracle. The post-mortems are in the plan.
+built around two rules: TypeScript's own checker decides every type, and Node decides what every program must print. The post-mortems are in the plan.
 
 Follow progress and file issues on [GitHub](https://github.com/cs01/ChadScript/tree/main).
+
+Next: [Quickstart](/guide/getting-started), and try it on your own code.

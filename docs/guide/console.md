@@ -18,7 +18,9 @@ even when it is reached through an interface or a union.
 - A value that can hold something the runtime cannot render the way Node does (for example a
   promise) is rejected in `console.log` and `JSON.stringify` ([CS1238](/reference/errors#cs1238)).
 - Interpolating an array into a template literal (`` `${xs}` ``) is not supported yet. Today it
-  slips past the validator and stops with an internal compiler error; a known-bug test tracks the
+  slips past the compile-time checks and stops with an internal compiler error; a known-bug test tracks the
   fix. Use `xs.join(",")`.
 - `console.log` is the only console method today; `console.error` and the others fail to
   typecheck ([CS0001](/reference/errors#cs0001)).
+
+Next: [Accepted subset](/reference/subset), the complete list.

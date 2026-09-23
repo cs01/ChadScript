@@ -1,0 +1,2 @@
+compile once
+run anywhere the binary runs

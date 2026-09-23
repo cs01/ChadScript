@@ -1,0 +1,3 @@
+gateway on port 8080, debug false
+  /api       -> http://localhost:9000
+  /static    -> /var/www

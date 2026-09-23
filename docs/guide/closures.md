@@ -22,3 +22,5 @@ with `===`.
   ([CS1246](/reference/errors#cs1246)); wrap them: `xs.map((x) => String(x))`.
 - Reading a narrowed variable that a closure reassigns, after a call that might run the closure,
   is rejected ([CS1241](/reference/errors#cs1241)), because tsc's narrowing can be stale there.
+
+Next: [Map and Set](/guide/collections).

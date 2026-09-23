@@ -20,7 +20,7 @@ An unhandled rejection ends the program with Node's exit code.
 
 ## Limits today
 
-- `new Promise(executor)` is not supported yet. Today it slips past the validator and stops with
+- `new Promise(executor)` is not supported yet. Today it slips past the compile-time checks and stops with
   an internal compiler error; the fix (admit it or reject it with a code) is tracked by a
   known-bug test.
 - `Promise.reject`, `Promise.race` and `Promise.allSettled` are rejected
@@ -30,3 +30,5 @@ An unhandled rejection ends the program with Node's exit code.
   code in `async function main()` and call it.
 - `setTimeout(async () => ...)` is rejected ([CS1231](/reference/errors#cs1231)); a rejection
   inside it would have nothing to await it.
+
+Next: [Errors](/guide/errors).

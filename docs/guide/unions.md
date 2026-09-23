@@ -1,7 +1,7 @@
 # Unions and narrowing
 
-A union of values with different representations (`number | string`, `string[] | boolean |
-null`) is stored as one tagged 64-bit word. Narrowing with `typeof`, `===`, `instanceof`,
+A union of different kinds of values (`number | string`, `string[] | boolean | null`) is stored
+as one 64-bit word with a small type tag. Narrowing with `typeof`, `===`, `instanceof`,
 `Array.isArray`, truthiness or a `switch` on a discriminant is a tag test, and inside the
 narrowed branch the value is unboxed again.
 
@@ -27,3 +27,5 @@ like `Event` above needs no tag word at all: `e.kind` is an ordinary field read.
   into a new array of the wider type.
 - `as` casts that narrow are not allowed; narrowing is done with runtime checks, which tsc then
   follows.
+
+Next: [Generics](/guide/generics).

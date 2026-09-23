@@ -35,3 +35,5 @@ them as Node would.
 - Spreading an object made by `JSON.parse` is rejected ([CS1236](/reference/errors#cs1236)),
   because its key order is only known at run time. Copy the fields you need.
 - Non-ASCII text is refused rather than approximated, as everywhere in the subset today.
+
+Next: [node:fs and node:path](/guide/node-modules).

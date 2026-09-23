@@ -65,7 +65,8 @@ function rejected(path: string, code: string): string[] {
     )
     .join("\n");
   const expected = readFileSync(path.replace(/\.ts$/, ".err"), "utf8");
-  const want = `$ bin/chad check ${basename(path)}\n${rendered}\n`;
+  // Mirrors src/cli.ts reportAndExit: each diagnostic, a blank line, then the count.
+  const want = `$ bin/chad check ${basename(path)}\n${rendered}\n\n${result.diagnostics.length} error(s)\n`;
   const problems: string[] = [];
   if (!result.diagnostics.some((d) => d.code === code)) problems.push(`no ${code} diagnostic`);
   if (expected !== want) problems.push(`.err is stale; the compiler prints:\n${want}`);

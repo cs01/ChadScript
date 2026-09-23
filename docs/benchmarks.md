@@ -30,10 +30,10 @@ for the same source: that difference is what ahead-of-time compilation buys.
 The benchmarks that lose to Node point at known work, not general slowness:
 
 - `map_lookup` and `matmul`: under `noUncheckedIndexedAccess` every `arr[i]` read is typed
-  `T | undefined`, and hot loops pay for that representation. An unboxed representation for reads
-  that are provably in range is the planned fix.
-- `binary_trees` is allocation-bound. V8's generational collector handles short-lived objects in
-  a nursery; ChadScript's collector is new and has no nursery yet (planned).
+  `T | undefined`, and hot loops pay for handling the `undefined` case. Skipping that
+  check for reads that are provably in range is the planned fix.
+- `binary_trees` mostly allocates short-lived objects. Node's garbage collector is generational,
+  which suits that pattern; ChadScript's collector is new and not generational yet (planned).
 
 ## Regenerating
 
@@ -43,3 +43,5 @@ bun run docs/scripts/bench-page.ts      # runs scripts/bench.ts (slow), rewrites
 
 The script records the machine, OS, toolchain versions and date with the numbers. Numbers from
 different machines are not comparable; rerun all of them together.
+
+Next: [Roadmap](/roadmap).

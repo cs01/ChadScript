@@ -14,7 +14,9 @@ stdout and the exit code; the text of the report on stderr is not compared.
 ## Limits today
 
 - Custom error classes (`class MyError extends Error`) are not supported yet. Today they slip past
-  the validator and stop with an internal compiler error; a known-bug test tracks the fix.
+  the compile-time checks and stop with an internal compiler error; a known-bug test tracks the fix.
 - Reading `e.message` after narrowing a caught value with `instanceof Error` compiles but crashes
   today. It is recorded as a known-bug test that must keep failing until it is fixed; use
   `String(e)` (which prints `Error: message`) meanwhile.
+
+Next: [JSON](/guide/json).

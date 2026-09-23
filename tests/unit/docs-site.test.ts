@@ -62,14 +62,15 @@ test("codes documented as reserved are the ones nothing emits", () => {
 test("the subset page embeds the generated SUBSET.md", () => {
   const page = readFileSync(join(docs, "reference", "subset.md"), "utf8");
   assert.ok(
-    page.includes("<!--@include: ../SUBSET.md{3,}-->"),
+    page.includes("<!--@include: ../SUBSET.md{8,}-->"),
     "reference/subset.md must include SUBSET.md",
   );
-  // `{3,}` skips the generated-file comment and SUBSET.md's own title; the page has its own.
-  const [comment, title] = readFileSync(join(docs, "SUBSET.md"), "utf8").split("\n");
+  // `{8,}` starts at the first list section, skipping the generated-file comment, SUBSET.md's own
+  // title and its intro paragraph; the page has its own title and intro.
+  const lines = readFileSync(join(docs, "SUBSET.md"), "utf8").split("\n");
   assert.ok(
-    comment?.startsWith("<!--") && title?.startsWith("# "),
-    "SUBSET.md header layout changed",
+    lines[0]?.startsWith("<!--") && lines[1]?.startsWith("# ") && lines[7]?.startsWith("## "),
+    "SUBSET.md header layout changed; update the include range in reference/subset.md",
   );
 });
 

@@ -47,3 +47,5 @@ in dependency order, as in Node.
 | reading a module variable before its declaration runs | [CS1228](/reference/errors#cs1228) | move the declaration up       |
 
 `node:process` as an importable module is not supported yet; use the global `process`.
+
+Next: [Classes and interfaces](/guide/classes).

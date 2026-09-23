@@ -1,8 +1,8 @@
 # Generics
 
 Generic functions and classes compile **once** per declaration. Each type parameter becomes one
-self-describing word (a number, string, boolean, `null`, `undefined` or object reference), or its
-constraint's representation when it has one (`T extends HasId` reads `x.id` like any object).
+64-bit word that knows its own type (a number, string, boolean, `null`, `undefined` or object
+reference), or takes its constraint's layout when it has one (`T extends HasId` reads `x.id` like any object).
 Calls convert values at the boundary between the declaration's erased signature and tsc's
 resolved one.
 
@@ -20,3 +20,5 @@ resolved one.
   ([CS1243](/reference/errors#cs1243)); write the resulting type out.
 - Generic code cannot construct its type parameter (`new () => T`,
   [CS1244](/reference/errors#cs1244)); pass a factory function.
+
+Next: [Closures](/guide/closures).

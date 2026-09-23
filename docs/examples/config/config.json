@@ -1,0 +1,8 @@
+{
+  "name": "gateway",
+  "port": 8080,
+  "routes": [
+    { "path": "/api", "target": "http://localhost:9000" },
+    { "path": "/static", "target": "/var/www" }
+  ]
+}

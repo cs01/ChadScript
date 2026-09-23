@@ -2,87 +2,112 @@
 import { data } from "./toolchain.data";
 </script>
 
-# Getting started
+# Quickstart
 
-ChadScript is pre-alpha and is built from source. There is no release binary yet.
+From a fresh clone to a running native binary. ChadScript is pre-alpha and builds from source;
+there is no release binary yet.
 
-## Prerequisites
+## 1. Install the prerequisites
 
-- [bun](https://bun.sh) runs the compiler (it is TypeScript, and never compiles itself).
-- clang and LLVM tools (`clang`, `opt`). Homebrew's `llvm` on macOS, `clang-18` and `llvm-18` on
-  Ubuntu. Set `CHAD_CLANG` / `CHAD_OPT` to use specific binaries.
-- The [Milo](https://github.com/milo-language/milo) compiler, which builds the runtime. You do
-  not install it yourself: `scripts/setup-milo.sh` fetches the commit pinned in
-  `scripts/milo-pin.sh` into `.milo/`.
-- Node, only to compare results (it is the semantics oracle for the tests), and `rustc` if you
-  want to run the benchmarks.
+You need [bun](https://bun.sh) (it runs the compiler) and LLVM's `clang` and `opt`.
+
+::: code-group
+
+```sh [macOS]
+curl -fsSL https://bun.sh/install | bash
+brew install llvm          # then put "$(brew --prefix llvm)/bin" on your PATH
+```
+
+```sh [Ubuntu]
+curl -fsSL https://bun.sh/install | bash
+sudo apt-get install -y clang-18 llvm-18
+export CHAD_CLANG=clang-18 CHAD_OPT=opt-18
+```
+
+:::
 
 <div v-if="data.linksLibgc">
 
-- The Boehm garbage collector, which the runtime uses until its own GC lands (see the
-  [roadmap](/roadmap)): `brew install bdw-gc` or `apt install libgc-dev`. A Homebrew install is
-  found automatically; `CHAD_GC_PREFIX` points at another prefix.
+The runtime also needs the Boehm garbage collector until its own collector lands:
+`brew install bdw-gc` or `sudo apt-get install -y libgc-dev`.
 
 </div>
+
+## 2. Clone and set up
 
 ```sh
 git clone https://github.com/cs01/ChadScript.git
 cd ChadScript
 bun install
-sh scripts/setup-milo.sh
+sh scripts/setup-milo.sh      # fetches the pinned Milo compiler that builds the runtime
+sh scripts/check-prereqs.sh
 ```
 
-## Commands
+The last command checks everything in one go. Expect this (versions and paths will differ):
+
+```text
+ok       bun: 1.3.10
+ok       clang: Homebrew clang version 22.1.8
+ok       opt: Homebrew LLVM version 22.1.8
+ok       milo: /home/you/ChadScript/.milo/milo
+ok       dependencies: node_modules
+ok       node: v25.3.0
+optional rustc (rustc) not found: only needed for the benchmarks
+ready: bin/chad can build programs
+```
+
+Any `MISSING` line names its fix. Node is optional for building; it is what the test suite
+compares against.
+
+## 3. Compile a program
+
+Save this as `hello.ts` in the repository root. It is ordinary TypeScript: an interface, an
+array of objects, a `Map`, a template string.
+
+<<< @/examples/hello.ts
 
 ```sh
-bin/chad check file.ts            # typecheck + subset validation only, no binary
-bin/chad build file.ts -o out     # native binary (-O2)
-bin/chad run   file.ts [args...]  # build to a temp dir and run it
+bin/chad run hello.ts
 ```
 
-`check` is fast and answers "is this program in the subset?". A rejected program prints one
-diagnostic per problem, each with a code from the [error reference](/reference/errors), and
-exits with status 1.
+<<< @/examples/hello.out{text}
 
-The first build compiles the runtime once and caches the object file; later builds reuse it.
-
-## A multi-file program
-
-The entry file names the program; the compiler follows its imports (whole-program compilation).
-Specifiers are written the way TypeScript resolves them: `./stats`, `./stats.js` and
-`./stats.ts` all work.
-
-::: code-group
-
-<<< @/examples/getting-started/main.ts
-
-<<< @/examples/getting-started/stats.ts
-
-<<< @/examples/getting-started/format.ts
-
-:::
+The first build also compiles the runtime and caches it; later builds reuse it. `run` builds
+into a temp directory and runs the result. `build` writes the binary where you say:
 
 ```sh
-$ bin/chad build main.ts -o stats && ./stats
+bin/chad build hello.ts -o hello
+./hello
+ls -lh hello
 ```
 
-<<< @/examples/getting-started/main.out{text}
+The binary is self-contained: on macOS, `otool -L hello` lists only the system C library. The same
+file runs under Node unchanged (`node hello.ts` on Node 23.6 or later) and prints the same
+bytes.
 
-The same entry runs under Node unchanged (`node --import tsx main.ts`; plain `node main.ts`
-also works on a Node with type stripping when the imports use `.ts` extensions) and prints the
-same bytes. That equivalence is what the
-test suite checks for every sample on this site.
+## 4. See a rejection
 
-## Running the tests
+Now a program outside the subset: it iterates a `Map` directly and uses loose equality. Save it
+as `rejected.ts`:
+
+<<< @/examples/rejected.ts
 
 ```sh
-bun run test         # fast lane: unit, rejection, admission and definition-of-done checks
-bun run test:slow    # differential suite vs Node at -O0 and -O2, fuzzers, runtime tests
+bin/chad check rejected.ts
 ```
 
-See [How it works](/internals/how-it-works#testing) for what each lane proves.
+<<< @/examples/rejected.err{text}
+
+`check` runs only the type checker and the subset checks, so it is the fast way to ask "is this in
+the subset?". Each diagnostic has a code (explained in the [error reference](/reference/errors)),
+a location, and a rewrite that stays inside the subset. Applying both hints:
+
+<<< @/examples/accepted.ts
+
+<<< @/examples/accepted.out{text}
 
 ## Next
 
-- [Language overview](/guide/language): what the subset covers, with examples.
-- [Accepted subset](/reference/subset): the exact allowlist, generated from the validator.
+- [Build a multi-file project](/howto/multi-file), or [a CLI tool](/howto/cli-tool).
+- [Language reference](/guide/language): what the subset covers, one topic per page.
+- [Is ChadScript for you?](/reference/limitations): what fits today and what does not.

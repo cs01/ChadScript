@@ -64,7 +64,7 @@ error[CS1221]: `toFixed` on a number is not supported yet
 
 ## CS0001: TypeScript error {#cs0001}
 
-The program does not typecheck under the strict options ChadScript imposes (`strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`, `noPropertyAccessFromIndexSignature`). tsc is the type oracle, so a program with any type error is not compiled. Importing a name that a built-in module (`node:fs`, `node:path`) does not provide in the subset also lands here, because `stdlib/globals.d.ts` only declares what is supported.
+The program does not typecheck under the strict options ChadScript imposes (`strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`, `noPropertyAccessFromIndexSignature`). TypeScript's checker decides every type, so a program with any type error is not compiled. Importing a name that a built-in module (`node:fs`, `node:path`) does not provide in the subset also lands here, because `stdlib/globals.d.ts` only declares what is supported.
 
 **Rewrite:** Fix the type error tsc reports. The message after the code is tsc's own.
 
@@ -72,7 +72,7 @@ The program does not typecheck under the strict options ChadScript imposes (`str
 
 ## CS1000: Not in the subset {#cs1000}
 
-The generic default-deny rejection. The validator admits a syntax kind or type only through an explicit allowlist rule backed by a differential test; anything else stops here. The message names the construct (for example `GetAccessor`, a method in an object literal, top-level `await`, a nested `function` declaration, an optional chain longer than one `?.`).
+The general rejection. The compiler accepts a construct only when it has a rule for it, backed by a test that checks the result against Node; anything else stops here. The message names the construct (for example `GetAccessor`, a method in an object literal, top-level `await`, a nested `function` declaration, an optional chain longer than one `?.`).
 
 **Rewrite:** Follow the `help:` line, which is specific to the construct. The [subset reference](/reference/subset) lists every admitted syntax kind.
 
@@ -455,3 +455,5 @@ A built-in such as `String`, `Math.floor` or `console.log` passed as a value.
 A program passed the validator but a later stage could not compile it. This is always a compiler bug: the validator should have admitted the construct fully or rejected it with a code from this page.
 
 **Rewrite:** Please [open an issue](https://github.com/cs01/ChadScript/issues) with the smallest program that triggers it. Until it is fixed, rewrite the construct named in the message.
+
+Next: [CLI](/reference/cli) · [Is ChadScript for you?](/reference/limitations).
