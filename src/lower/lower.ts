@@ -49,6 +49,7 @@ import { ShapeRegistry } from "./shapes.js";
 import { fieldAccessAt } from "./member-access.js";
 import { type LayoutAnalysis, layoutsOf } from "./layouts.js";
 import { lowerObjectLit, resolveSpreads } from "./object-literal.js";
+import { findCellSymbols } from "./cells.js";
 import {
   buildClassTable,
   registerClassShape,
@@ -98,6 +99,8 @@ export interface LowerCtx {
   pendingSpreads: Map<ts.ObjectLiteralExpression, Extract<HExpr, { kind: "objectSpread" }>[]>;
   // Every `o.f = v` write, applied to the reaching shapes' field types at the end (field-writes.ts).
   fieldWrites: FieldWrite[];
+  // Local bindings that live in heap cells (captured by a closure AND reassigned; lower/cells.ts).
+  cells: Set<ts.Symbol>;
 }
 
 // The `undefined` literal (a global identifier in TS).
@@ -128,6 +131,7 @@ export function lower(loaded: LoadedProgram): HModule {
     layoutShapes: new Map(),
     pendingSpreads: new Map(),
     fieldWrites: [],
+    cells: findCellSymbols(loaded.sourceFiles, loaded.checker),
   };
   // Precompute every class's method table and shape BEFORE lowering, so a call site (which may
   // precede the class in source) can resolve a method's vtable index and a `new` its shape.

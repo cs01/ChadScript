@@ -26,7 +26,8 @@ export const CODE = {
   STRING_UNICODE_OP: "CS1216", // charCodeAt / string relational — need UTF-16 semantics, gated
   PARAM_FORM: "CS1217", // default (`x = v`) / optional (`x?`) parameters — a later phase
   UNINIT_VAR: "CS1218", // `let x;` declaration with no initializer — a later phase
-  MUTABLE_CAPTURE: "CS1219", // closure capturing a mutable `let` — needs capture-by-reference
+  // CS1219 (a closure capturing a mutable `let`) was retired in phase 5: such bindings live in heap
+  // cells (lower/cells.ts). The number stays unused so old diagnostics never change meaning.
   STDLIB_STATIC: "CS1220", // unsupported namespace static (Array.*/Number.*/Object.* beyond allow)
   NUMBER_METHOD: "CS1221", // unsupported number instance method (toFixed/toPrecision/toExponential)
   COLLECTION_METHOD: "CS1222", // unsupported Map/Set instance method (forEach/entries/clear/…)
@@ -48,6 +49,7 @@ export const CODE = {
   UNRENDERABLE_VALUE: "CS1238", // console.log/JSON.stringify of a value that can hold a Promise etc.
   VALUE_OPERATION: "CS1239", // an operation on an un-narrowed union of different kinds (`x + 1`)
   REPRESENTATION_MISMATCH: "CS1240", // a flow whose nested elements differ in representation
+  STALE_NARROWING: "CS1241", // a narrowed read of a closure-reassigned variable after a call
 } as const;
 
 export type Code = (typeof CODE)[keyof typeof CODE];

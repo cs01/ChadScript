@@ -27,6 +27,7 @@ export { evalVirtualCall, evalVirtualCallStmt };
 import { evalAsyncCall, evalAwait, evalPromiseResolve, evalPromiseAll } from "./async.js";
 import { jsonStringify } from "./json.js";
 import { jsonParse } from "./json-parse.js";
+import { evalClosure } from "./cells.js";
 import { evalNumber } from "./numbers.js";
 import {
   evalValueWord,
@@ -58,8 +59,9 @@ import {
 export interface Ctx {
   mod: ModuleBuilder;
   fn: FuncBuilder;
-  // Live variable slots: name → its stack pointer + resolved type.
-  vars: Map<string, { ptr: Value; vtype: ValueType }>;
+  // Live variable slots: name → its stack pointer + resolved type. A `cell` variable's stack slot
+  // holds the pointer to its heap cell (codegen/cells.ts); lookupVar returns the cell itself.
+  vars: Map<string, { ptr: Value; vtype: ValueType; cell?: true }>;
   // Module-scope bindings (top-level `let`/`const`), shared by every function. These live in
   // `internal global`s rather than main's frame precisely because functions must reach them.
   globals: Map<string, { ptr: Value; vtype: ValueType }>;
@@ -302,6 +304,8 @@ export function lookupVar(name: string, ctx: Ctx): { ptr: Value; vtype: ValueTyp
   // because they are by far the common case.
   const slot = ctx.vars.get(name) ?? ctx.globals.get(name);
   if (!slot) ice(`codegen: reference to unbound variable ${name}`);
+  // The cell pointer is reloaded at every use: a per-iteration loop binding swaps it (cells.ts).
+  if ("cell" in slot) return { ptr: ctx.fn.load(T.ptr, slot.ptr), vtype: slot.vtype };
   return slot;
 }
 
@@ -310,28 +314,6 @@ export function lookupVar(name: string, ctx: Ctx): { ptr: Value; vtype: ValueTyp
 export function evalCall(expr: Extract<HExpr, { kind: "call" }>, ctx: Ctx): Value {
   const args = expr.args.map((a) => evalValue(a, ctx));
   return ctx.fn.call(`@${expr.name}`, irTypeOf(expr.type), args);
-}
-
-// Create a closure: a GC record {fnptr, env, display}. `env` holds the captured values (or null
-// when there are no captures); captures are read from the enclosing scope at creation time.
-// `display` is the function's util.inspect text, read when an object holding it is printed.
-export function evalClosure(expr: Extract<HExpr, { kind: "closure" }>, ctx: Ctx): Value {
-  let env: Value;
-  if (expr.captures.length > 0) {
-    env = ctx.fn.call("@cs_gc_alloc", T.ptr, [imm(T.i64, expr.captures.length * 8)]);
-    expr.captures.forEach((c, i) => {
-      const slot = lookupVar(c.name, ctx);
-      const v = ctx.fn.load(irTypeOf(c.type), slot.ptr);
-      ctx.fn.store(boxSlot(v, c.type, ctx), ctx.fn.gepSlot(env, i));
-    });
-  } else {
-    env = ctx.fn.nullPtr();
-  }
-  const rec = ctx.fn.call("@cs_gc_alloc", T.ptr, [imm(T.i64, 24)]);
-  ctx.fn.store(ctx.fn.ptrToI64(ctx.fn.funcRef(expr.lambdaName)), ctx.fn.gepSlot(rec, 0));
-  ctx.fn.store(ctx.fn.ptrToI64(env), ctx.fn.gepSlot(rec, 1));
-  ctx.fn.store(ctx.mod.internedString(expr.display), ctx.fn.gepSlot(rec, 2));
-  return rec;
 }
 
 // Evaluate a function-typed HExpr to a closure-record pointer.

@@ -272,7 +272,7 @@ export const DOD: DodItem[] = [
       "reject/any-annotation.ts",
       "reject/as-any.ts",
       "reject/date-new.ts",
-      "reject/closure-mutable-capture.ts",
+      "reject/stale-narrowing.ts",
       "reject/const-reassign.ts",
     ],
     note: "default-DENY by SyntaxKind; admission-ice.test.ts additionally proves admitted constructs reach a diagnostic rather than an ICE.",

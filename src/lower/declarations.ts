@@ -18,6 +18,7 @@ import {
 import { functionDeclSymbol } from "./default-export.js";
 import { classDeclOfType, classIdOf, constructorClassOf } from "./class-ids.js";
 import { accessIn } from "./member-access.js";
+import { cellFlag, isModuleVariable } from "./cells.js";
 import {
   valueTypeOf,
   valueTypeOfTsType,
@@ -261,7 +262,11 @@ export function lowerMethodLike(
         return { name: tempName, type: ptype };
       }
       if (!ts.isIdentifier(p.name)) ice("lower: array-destructured parameter not supported");
-      return { name: nameOf(p.name, ctx), type: valueTypeOf(p.name, ctx) };
+      return {
+        name: nameOf(p.name, ctx),
+        type: valueTypeOf(p.name, ctx),
+        ...cellFlag(p.name, ctx.cells, ctx.checker),
+      };
     }),
   ];
 
@@ -297,7 +302,11 @@ export function lowerArrow(arrow: ts.ArrowFunction | ts.FunctionExpression, ctx:
   const lambdaName = `lambda.${ctx.counter.n++}`;
   const params = arrow.parameters.map((p) => {
     if (!ts.isIdentifier(p.name)) ice("lower: destructured lambda parameter not supported");
-    return { name: nameOf(p.name, ctx), type: valueTypeOf(p.name, ctx) };
+    return {
+      name: nameOf(p.name, ctx),
+      type: valueTypeOf(p.name, ctx),
+      ...cellFlag(p.name, ctx.cells, ctx.checker),
+    };
   });
   // Capture free variables (found by walking the body AFTER params are registered, so params
   // aren't mistaken for captures).
@@ -382,16 +391,15 @@ export function findCaptures(
     if (ts.isIdentifier(node)) {
       const sym = ctx.checker.getSymbolAtLocation(node);
       if (sym && !caps.has(sym)) {
-        const kind = captureKind(sym, arrow);
-        // Capture by value at closure creation. That is only SOUND for immutable (`const`)
-        // bindings — a mutable capture would need capture-by-reference (heap-boxed), so reject
-        // it rather than silently diverge from JS.
-        if (kind === "mutable") {
-          ice(`lower: closures may only capture const variables yet ('${node.text}' is mutable)`);
-        }
-        if (kind === "const") {
+        const kind = captureKind(sym, arrow, ctx.cells);
+        // A cell binding is captured by reference (the env holds its cell pointer); every other
+        // binding never changes after capture, so copying its value is exact.
+        if (kind === "value" || kind === "cell") {
           const name = ctx.names.get(sym);
-          if (name) caps.set(sym, { name, type: captureType(sym, node, ctx) });
+          if (name) {
+            const type = captureType(sym, node, ctx);
+            caps.set(sym, kind === "cell" ? { name, type, byRef: true } : { name, type });
+          }
         }
       }
     }
@@ -419,18 +427,24 @@ function captureType(sym: ts.Symbol, node: ts.Identifier, ctx: LowerCtx): ValueT
 }
 
 // Whether a symbol referenced in an arrow is captured, and if so how. "no" = the arrow's own
-// local/param, a top-level function, or a global (referenced by name, not captured).
-export function captureKind(sym: ts.Symbol, arrow: ts.Node): "const" | "mutable" | "no" {
+// local/param, a top-level function, a class, or a module variable (an IR global every function
+// reads by name). "cell" = a binding lower/cells.ts put in a heap cell (captured and reassigned);
+// "value" = any other local, which never changes once the closure exists.
+export function captureKind(
+  sym: ts.Symbol,
+  arrow: ts.Node,
+  cells: ReadonlySet<ts.Symbol>,
+): "value" | "cell" | "no" {
   const d = sym.valueDeclaration;
   if (!d) return "no";
   if (isDescendantOf(d, arrow)) return "no"; // declared inside the arrow → local
-  // Capture is by value at creation, so it must be a binding whose value is stable. `const`
-  // vars are guaranteed stable; parameters are captured by value too (a parameter reassigned
-  // after the closure is created would diverge — a documented limitation until capture-by-
-  // reference lands). A mutable `let` is rejected outright.
-  if (ts.isParameter(d)) return "const";
+  if (cells.has(sym)) return "cell";
+  if (ts.isParameter(d)) return "value";
   if (ts.isVariableDeclaration(d)) {
-    return d.parent.flags & ts.NodeFlags.Const ? "const" : "mutable";
+    // A module-level `const` keeps its historical by-value capture (same IR as before cells); a
+    // module-level `let` is read and written through its global, so it is shared by construction.
+    if (isModuleVariable(d) && !(d.parent.flags & ts.NodeFlags.Const)) return "no";
+    return "value";
   }
   return "no"; // functions, classes, globals
 }
@@ -462,7 +476,11 @@ export function lowerFunction(decl: ts.FunctionDeclaration, ctx: LowerCtx): HFun
       ice("lower: optional/default parameters not supported yet");
     // A rest parameter `...xs: T[]` is received as a single array param — the call site packs
     // the trailing arguments into it, so the callee treats it like any array parameter.
-    return { name: nameOf(p.name, ctx), type: valueTypeOf(p.name, ctx) };
+    return {
+      name: nameOf(p.name, ctx),
+      type: valueTypeOf(p.name, ctx),
+      ...cellFlag(p.name, ctx.cells, ctx.checker),
+    };
   });
   const isAsync = decl.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword) ?? false;
   // An async function's declared return is `Promise<T>`; the BODY returns T (the value cs_fiber_return

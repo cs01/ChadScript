@@ -73,14 +73,21 @@ export type MethodDispatch =
   | { kind: "vtable"; index: number }
   | { kind: "byName"; site: number; name: string };
 
+// `cell`: the binding is shared with a closure and reassigned (lower/cells.ts), so its storage is
+// a GC-allocated heap cell the frame holds a pointer to, instead of a stack slot. Set on a
+// parameter, a varDecl, a for-of binding or a catch binding.
 export interface HParam {
   name: string;
   type: ValueType;
+  cell?: true;
 }
 
+// `byRef`: the captured variable is a cell; the env slot holds the cell pointer (shared storage)
+// rather than a copy of the value.
 export interface HCapture {
   name: string; // the HIR name of the captured variable (from the enclosing scope)
   type: ValueType;
+  byRef?: true;
 }
 
 export interface HFunc {
@@ -102,7 +109,7 @@ export type HStmt =
   | { kind: "processExit"; code: HExpr }
   // A `let`/`const` binding with an initializer. `name` is unique per module (Phase 1 has a
   // single scope — the entry function). `type` is the variable's resolved type.
-  | { kind: "varDecl"; name: string; init: HExpr; type: ValueType }
+  | { kind: "varDecl"; name: string; init: HExpr; type: ValueType; cell?: true }
   // Reassignment to an existing `let` binding (const reassignment is blocked by the tsc gate).
   // Compound assignment (`+=` etc.) is lowered to `value = <var> <op> rhs`.
   | { kind: "assign"; name: string; value: HExpr }
@@ -120,9 +127,28 @@ export type HStmt =
   // `for (init; cond; update) { body }`. `cond` null means an always-true loop. init/update
   // are statement lists (a decl or assignment). The update block is kept distinct from the body
   // so `continue` can target it once supported.
-  | { kind: "for"; init: HStmt[]; cond: HExpr | null; update: HStmt[]; body: HStmt[] }
-  // `for (const name of array) { body }`. Binds `name` (type `elementType`) to each element.
-  | { kind: "forOf"; name: string; elementType: ValueType; array: HExpr; body: HStmt[] }
+  // `perIteration` names the cell variables `init` declares: JS gives each iteration its own
+  // binding (CreatePerIterationEnvironment), so before the first test and again before each update
+  // they move to a fresh cell holding the current value, and a closure made in one iteration keeps
+  // that iteration's cell. Non-cell loop variables need nothing: no closure can observe the copy.
+  | {
+      kind: "for";
+      init: HStmt[];
+      cond: HExpr | null;
+      update: HStmt[];
+      body: HStmt[];
+      perIteration?: string[];
+    }
+  // `for (const name of array) { body }`. Binds `name` (type `elementType`) to each element; a
+  // `cell` binding gets a fresh cell per iteration (each iteration is its own binding in JS).
+  | {
+      kind: "forOf";
+      name: string;
+      elementType: ValueType;
+      array: HExpr;
+      body: HStmt[];
+      cell?: true;
+    }
   // `return expr;` (value null for a bare `return;` in a void function).
   | { kind: "return"; value: HExpr | null }
   // `throw expr;` — unwinds to the innermost enclosing `try` handler (setjmp/longjmp), or
@@ -140,6 +166,7 @@ export type HStmt =
       catchBody: HStmt[] | null;
       catchParam: string | null;
       finallyBody: HStmt[] | null;
+      catchCell?: true;
     }
   // `break;` / `continue;` — target the innermost enclosing loop (no labels yet).
   | { kind: "break" }

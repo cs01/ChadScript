@@ -62,11 +62,6 @@ const CORPUS: Case[] = [
     src: `function f(x?: number): number { return x ?? 0; }\nconsole.log(f());\n`,
   },
   { name: "uninitialized let", code: "CS1218", src: `let x: number;\nx = 1;\nconsole.log(x);\n` },
-  {
-    name: "mutable capture",
-    code: "CS1219",
-    src: `let c = 0;\nconst f = () => { c = c + 1; };\nf();\nconsole.log(c);\n`,
-  },
 
   // Unsupported stdlib surface.
   { name: "Array.from", code: "CS1220", src: `console.log(Array.from([1]));\n` },

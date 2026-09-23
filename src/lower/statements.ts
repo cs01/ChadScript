@@ -30,6 +30,7 @@ import { namespaceMemberOf } from "./module-refs.js";
 import { accessIn, fieldAccessAt, methodDispatchAt } from "./member-access.js";
 import { classIdOf, constructorClassOf } from "./class-ids.js";
 import { recordFieldWrite } from "./field-writes.js";
+import { cellFlag } from "./cells.js";
 
 // Returns an array because one `let a = 1, b = 2;` lowers to several varDecls.
 export function lowerStatement(stmt: ts.Statement, ctx: LowerCtx): HStmt[] {
@@ -75,11 +76,15 @@ export function lowerStatement(stmt: ts.Statement, ctx: LowerCtx): HStmt[] {
     // supported.
     const cc = stmt.catchClause;
     let catchParam: string | null = null;
+    let catchCell: { catchCell?: true } = {};
     if (cc?.variableDeclaration) {
       if (!ts.isIdentifier(cc.variableDeclaration.name)) {
         ice("lower: destructured catch binding not supported");
       }
       catchParam = nameOf(cc.variableDeclaration.name as ts.Identifier, ctx);
+      if (cellFlag(cc.variableDeclaration.name, ctx.cells, ctx.checker).cell) {
+        catchCell = { catchCell: true };
+      }
     }
     return [
       {
@@ -88,6 +93,7 @@ export function lowerStatement(stmt: ts.Statement, ctx: LowerCtx): HStmt[] {
         catchBody: cc ? lowerStatements(cc.block.statements, ctx) : null,
         catchParam,
         finallyBody: stmt.finallyBlock ? lowerStatements(stmt.finallyBlock.statements, ctx) : null,
+        ...catchCell,
       },
     ];
   }
@@ -203,6 +209,7 @@ export function lowerForOf(stmt: ts.ForOfStatement, ctx: LowerCtx): HStmt {
     elementType,
     array,
     body: lowerBranchBody(stmt.statement, ctx),
+    ...cellFlag(decl.name, ctx.cells, ctx.checker),
   };
 }
 
@@ -214,12 +221,15 @@ export function lowerFor(stmt: ts.ForStatement, ctx: LowerCtx): HStmt {
       : [lowerExprStatement(stmt.initializer, ctx)];
   }
   const update = stmt.incrementor ? [lowerExprStatement(stmt.incrementor, ctx)] : [];
+  // Only `let` declarations get per-iteration bindings; `const` ones are never cells.
+  const perIteration = init.flatMap((s) => (s.kind === "varDecl" && s.cell ? [s.name] : []));
   return {
     kind: "for",
     init,
     cond: stmt.condition ? lowerExpr(stmt.condition, ctx) : null,
     update,
     body: lowerBranchBody(stmt.statement, ctx),
+    ...(perIteration.length > 0 ? { perIteration } : {}),
   };
 }
 
@@ -423,7 +433,15 @@ export function lowerVarDecl(decl: ts.VariableDeclaration, ctx: LowerCtx): HStmt
   // an `x: T | null` var stores the optional rep even when initialized with a present value.
   const declaredType = valueTypeOf(decl.name, ctx);
   const init = coerceToTarget(lowerExpr(decl.initializer, ctx), declaredType);
-  return [{ kind: "varDecl", name: nameOf(decl.name, ctx), init, type: declaredType }];
+  return [
+    {
+      kind: "varDecl",
+      name: nameOf(decl.name, ctx),
+      init,
+      type: declaredType,
+      ...cellFlag(decl.name, ctx.cells, ctx.checker),
+    },
+  ];
 }
 
 // `const { a, b: renamed } = obj` → bind the object to a temp (evaluated ONCE) then one varDecl per
@@ -478,6 +496,7 @@ export function bindObjectPattern(
         type: fieldType,
       },
       type: fieldType,
+      ...cellFlag(el.name, ctx.cells, ctx.checker),
     });
   }
   return stmts;

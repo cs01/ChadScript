@@ -237,7 +237,6 @@ diagnostic — there is no "compiles but behaves differently than Node" third ca
 | `CS1216` | STRING_UNICODE_OP |
 | `CS1217` | PARAM_FORM |
 | `CS1218` | UNINIT_VAR |
-| `CS1219` | MUTABLE_CAPTURE |
 | `CS1220` | STDLIB_STATIC |
 | `CS1221` | NUMBER_METHOD |
 | `CS1222` | COLLECTION_METHOD |
@@ -259,3 +258,4 @@ diagnostic — there is no "compiles but behaves differently than Node" third ca
 | `CS1238` | UNRENDERABLE_VALUE |
 | `CS1239` | VALUE_OPERATION |
 | `CS1240` | REPRESENTATION_MISMATCH |
+| `CS1241` | STALE_NARROWING |

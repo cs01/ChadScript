@@ -17,6 +17,9 @@ let shapes: readonly ShapeDescriptor[] = [];
 // flowing into a call argument or an assignment can be checked against where it lands.
 let funcs = new Map<string, HFunc>();
 let varTypes = new Map<string, ValueType>();
+// Variables stored in heap cells: a by-reference capture or a per-iteration binding of anything else
+// would share (or renew) storage that is not a cell.
+let cellVars = new Set<string>();
 // The return type of the function whose body is being walked (null: void or top level).
 let returnType: ValueType | null = null;
 
@@ -27,8 +30,12 @@ export function verifyHir(mod: HModule): HModule {
   });
   funcs = new Map(mod.functions.map((f) => [f.name, f]));
   varTypes = new Map();
+  cellVars = new Set();
   for (const f of mod.functions) {
-    for (const p of f.params) varTypes.set(p.name, p.type);
+    for (const p of f.params) {
+      varTypes.set(p.name, p.type);
+      if (p.cell) cellVars.add(p.name);
+    }
     for (const c of f.captures ?? []) varTypes.set(c.name, c.type);
     collectVars(f.body);
   }
@@ -44,9 +51,11 @@ function collectVars(stmts: HStmt[]): void {
     switch (s.kind) {
       case "varDecl":
         varTypes.set(s.name, s.type);
+        if (s.cell) cellVars.add(s.name);
         break;
       case "forOf":
         varTypes.set(s.name, s.elementType);
+        if (s.cell) cellVars.add(s.name);
         collectVars(s.body);
         break;
       case "if":
@@ -62,6 +71,7 @@ function collectVars(stmts: HStmt[]): void {
         collectVars(s.update);
         break;
       case "tryCatch":
+        if (s.catchParam !== null && s.catchCell) cellVars.add(s.catchParam);
         collectVars(s.tryBody);
         if (s.catchBody) collectVars(s.catchBody);
         if (s.finallyBody) collectVars(s.finallyBody);
@@ -173,6 +183,11 @@ function verifyStmt(s: HStmt): void {
       verifyStmts(s.body);
       return;
     case "for":
+      for (const name of s.perIteration ?? []) {
+        if (!s.init.some((d) => d.kind === "varDecl" && d.name === name && d.cell)) {
+          ice(`verifyHir: per-iteration binding ${name} is not a cell declared by the for header`);
+        }
+      }
       verifyStmts(s.init);
       if (s.cond) verifyExpr(s.cond);
       verifyStmts(s.update);
@@ -275,7 +290,13 @@ function verifyExpr(e: HExpr): void {
       e.args.forEach(verifyExpr);
       return;
     case "closure":
-      return; // captures are variable references resolved at closure creation, not sub-expressions
+      // Captures are variable references resolved at closure creation, not sub-expressions.
+      for (const c of e.captures) {
+        if (c.byRef && !cellVars.has(c.name)) {
+          ice(`verifyHir: closure captures ${c.name} by reference but it is not a cell`);
+        }
+      }
+      return;
     case "callClosure":
       if (e.callee.type.kind === "function")
         checkArgs(e.args, e.callee.type.params, "closure call");

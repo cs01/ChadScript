@@ -17,6 +17,7 @@ import { CODE } from "./codes.js";
 import { tailoredRejection } from "./rules.js";
 import { tdzDiagnostics } from "./tdz.js";
 import { layoutDiagnostics } from "./layout-rules.js";
+import { cellNarrowingDiagnostics } from "./cell-rules.js";
 import { flowDiagnostic, valueUseDiagnostic } from "./value-rules.js";
 
 // SyntaxKinds the walker is allowed to descend through. PHASE 0 surface only — extend with
@@ -213,6 +214,9 @@ export function validate(loaded: LoadedProgram): void {
   // Whole-program layout rules need every allocation site, and only make sense once each file is
   // otherwise in the subset (the analysis assumes admitted constructs).
   if (diagnostics.length === 0) diagnostics.push(...layoutDiagnostics(loaded));
+  // A closure-shared variable's narrowings are only trusted where no call can have invalidated
+  // them (cell-rules.ts); like the layout rules, this needs the whole program in the subset.
+  if (diagnostics.length === 0) diagnostics.push(...cellNarrowingDiagnostics(loaded));
   // The Value-union rules (value-rules.ts) ask the type translator about every expression, which
   // only has an answer for types the admitted constructs can produce, so they wait until every file
   // is otherwise in the subset. They run last so a more specific layout diagnostic (CS1237 for a

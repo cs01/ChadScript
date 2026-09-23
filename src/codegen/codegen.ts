@@ -37,6 +37,7 @@ import type { ShapeDescriptor } from "../hir/nodes.js";
 import { evalOptionalPtr, unboxOptionalValue, unboxSlotValue } from "./optional.js";
 import { evalNumber } from "./numbers.js";
 import { inspect } from "./inspect.js";
+import { bindVar, bindCellPtr, renewCell } from "./cells.js";
 
 export function generate(hmod: HModule): string {
   const mod = new ModuleBuilder();
@@ -145,9 +146,7 @@ function emitFunction(
     const env = irParams[0]!;
     f.params.forEach((p, i) => {
       const raw = fn.load(T.i64, fn.gepSlot(env, i));
-      const ptr = fn.alloca(irTypeOf(p.type));
-      fn.store(unboxSlotValue(raw, p.type, ctx), ptr);
-      ctx.vars.set(p.name, { ptr, vtype: p.type });
+      bindVar(p.name, p.type, () => unboxSlotValue(raw, p.type, ctx), p.cell, ctx);
     });
   } else {
     // Bind captured variables from the env record (env is %arg0), then declared params.
@@ -155,17 +154,13 @@ function emitFunction(
       const env = irParams[0]!;
       captures.forEach((c, i) => {
         const raw = fn.load(T.i64, fn.gepSlot(env, i));
-        const ptr = fn.alloca(irTypeOf(c.type));
-        fn.store(unboxSlotValue(raw, c.type, ctx), ptr);
-        ctx.vars.set(c.name, { ptr, vtype: c.type });
+        if (c.byRef) bindCellPtr(c.name, c.type, fn.i64ToPtr(raw), ctx);
+        else bindVar(c.name, c.type, () => unboxSlotValue(raw, c.type, ctx), false, ctx);
       });
     }
-    // Copy each declared parameter into a stack slot so it can be reassigned like any local.
-    f.params.forEach((p, i) => {
-      const ptr = fn.alloca(irTypeOf(p.type));
-      fn.store(declaredParams[i]!, ptr);
-      ctx.vars.set(p.name, { ptr, vtype: p.type });
-    });
+    // Copy each declared parameter into a stack slot (or its cell) so it can be reassigned like
+    // any local.
+    f.params.forEach((p, i) => bindVar(p.name, p.type, () => declaredParams[i]!, p.cell, ctx));
   }
 
   emitStatements(f.body, ctx);
@@ -240,9 +235,8 @@ function emitTryCatch(stmt: Extract<HStmt, { kind: "tryCatch" }>, ctx: Ctx): voi
     ctx.fn.switchTo(innerCatchB);
     // Bind `catch (e)`: the caught CsThrown value is in the inner handler.
     if (stmt.catchParam !== null) {
-      const slot = ctx.fn.alloca(T.ptr);
-      ctx.fn.store(ctx.fn.call("@cs_handler_thrown", T.ptr, [inner]), slot);
-      ctx.vars.set(stmt.catchParam, { ptr: slot, vtype: { kind: "unknown" } });
+      const thrown = (): Value => ctx.fn.call("@cs_handler_thrown", T.ptr, [inner]);
+      bindVar(stmt.catchParam, { kind: "unknown" }, thrown, stmt.catchCell, ctx);
     }
     emitStatements(stmt.catchBody!, ctx);
     if (!ctx.fn.currentBlock.isTerminated) ctx.fn.br(cleanupB);
@@ -493,9 +487,7 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
         ctx.fn.store(evalValue(stmt.init, ctx), global.ptr);
         return;
       }
-      const ptr = ctx.fn.alloca(irTypeOf(stmt.type));
-      ctx.fn.store(evalValue(stmt.init, ctx), ptr);
-      ctx.vars.set(stmt.name, { ptr, vtype: stmt.type });
+      bindVar(stmt.name, stmt.type, () => evalValue(stmt.init, ctx), stmt.cell, ctx);
       return;
     }
 
@@ -584,6 +576,10 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
 
     case "for": {
       emitStatements(stmt.init, ctx);
+      // Per spec the first iteration already gets a copy: a closure created by the initializer
+      // keeps the init-time cell.
+      const perIteration = stmt.perIteration ?? [];
+      for (const name of perIteration) renewCell(name, ctx);
       const headerB = ctx.fn.newBlock("for.header");
       const bodyB = ctx.fn.newBlock("for.body");
       const latchB = ctx.fn.newBlock("for.latch"); // runs the update, then re-checks
@@ -605,6 +601,9 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
       if (!ctx.fn.currentBlock.isTerminated) ctx.fn.br(latchB);
 
       ctx.fn.switchTo(latchB);
+      // The next iteration's binding is created BEFORE the update runs, so `i++` advances the new
+      // cell and closures from this iteration keep seeing the value they closed over.
+      for (const name of perIteration) renewCell(name, ctx);
       emitStatements(stmt.update, ctx);
       ctx.fn.br(headerB);
 
@@ -619,8 +618,9 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
       ctx.fn.store(evalArrayPtr(stmt.array, ctx), arrPtr);
       const idxPtr = ctx.fn.alloca(T.i32);
       ctx.fn.store(imm(T.i32, 0), idxPtr);
-      const elemPtr = ctx.fn.alloca(irTypeOf(stmt.elementType));
-      ctx.vars.set(stmt.name, { ptr: elemPtr, vtype: stmt.elementType });
+      // A cell binding gets a new cell each iteration (bound below); a plain one reuses one slot.
+      const elemPtr = stmt.cell ? null : ctx.fn.alloca(irTypeOf(stmt.elementType));
+      if (elemPtr) ctx.vars.set(stmt.name, { ptr: elemPtr, vtype: stmt.elementType });
 
       const headerB = ctx.fn.newBlock("forof.header");
       const bodyB = ctx.fn.newBlock("forof.body");
@@ -640,7 +640,8 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
         stmt.elementType,
         ctx,
       );
-      ctx.fn.store(elem, elemPtr);
+      if (elemPtr) ctx.fn.store(elem, elemPtr);
+      else bindVar(stmt.name, stmt.elementType, () => elem, true, ctx);
       ctx.breakTargets.push({ block: endB, finallyDepth: ctx.finallyStack.length });
       ctx.continueTargets.push({ block: latchB, finallyDepth: ctx.finallyStack.length });
       emitStatements(stmt.body, ctx);
