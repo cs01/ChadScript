@@ -2,10 +2,28 @@
 // often installed as versioned binaries like `opt-18`) can point us at the right ones without
 // touching code. Defaults assume `clang`/`opt` are on PATH (true for a Homebrew LLVM install).
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 export const CLANG = process.env["CHAD_CLANG"] ?? "clang";
 export const OPT = process.env["CHAD_OPT"] ?? "opt";
+
+// The Milo compiler the runtime is built with (runtime/*.milo). `scripts/setup-milo.sh` fetches
+// the commit pinned in `scripts/milo-pin.sh` into `.milo/`; `CHAD_MILO` points at another `milo`
+// wrapper instead (a local checkout, when working on Milo itself; its edits are not in the
+// runtime cache key, so clear `.build/runtime` after changing it).
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+export const MILO = process.env["CHAD_MILO"] ?? join(repoRoot, ".milo", "milo");
+
+// The pinned Milo commit, read from the pin file so the setup script, CI and the runtime cache
+// key share one source of truth.
+export function miloPin(): string {
+  const text = readFileSync(join(repoRoot, "scripts", "milo-pin.sh"), "utf8");
+  const m = /^MILO_COMMIT="([0-9a-f]{40})"$/m.exec(text);
+  if (!m) throw new Error('scripts/milo-pin.sh: no MILO_COMMIT="<40-hex sha>" line');
+  return m[1]!;
+}
 
 // Boehm GC (libgc) locations. Linux (apt libgc-dev) installs into system paths; a Homebrew
 // install needs explicit -I/-L. `CHAD_GC_PREFIX` overrides. Compile flags (-I, for the runtime

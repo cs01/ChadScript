@@ -2,7 +2,7 @@ name: ci
 
 on:
   push:
-    branches: [v2]
+    branches: [v2, phase2-milo]
   pull_request:
     branches: [v2]
 
@@ -43,6 +43,10 @@ jobs:
           echo "CHAD_GC_PREFIX=$(brew --prefix bdw-gc)" >> "$GITHUB_ENV"
 
       - run: bun install --frozen-lockfile
+
+      # The runtime is written in Milo: fetch the pinned compiler (scripts/milo-pin.sh) into .milo/.
+      - name: Fetch Milo
+        run: sh scripts/setup-milo.sh
 
       - name: Typecheck
         run: bun run typecheck

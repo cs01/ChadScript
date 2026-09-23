@@ -6,19 +6,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readdirSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { CLANG, GC_CFLAGS, GC_LFLAGS } from "../../src/driver/toolchain.js";
+import { CLANG, GC_CFLAGS, GC_LFLAGS, SAN_FLAGS } from "../../src/driver/toolchain.js";
+import { runtimeObjects } from "../../src/driver/build.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const runtimeCs = readdirSync(join(root, "runtime"))
-  .filter((f) => f.endsWith(".c"))
-  .map((f) => join(root, "runtime", f));
 
-// Compile a C harness against the WHOLE runtime (async.c plus the exception/string/etc. runtime a
-// rejection test needs — cs_throw & the handler chain live in runtime.c) and run it.
+// Compile a C harness against the WHOLE runtime (the same cached Milo + C objects a program links,
+// since a rejection test needs the exception machinery and strings too) and run it.
 function runCTest(harness: string): void {
   const dir = mkdtempSync(join(tmpdir(), "chad-async-"));
   const bin = join(dir, "t");
@@ -26,7 +24,10 @@ function runCTest(harness: string): void {
     CLANG,
     [
       ...GC_CFLAGS,
-      ...runtimeCs,
+      // The runtime objects are sanitizer-instrumented in the sanitized lane, so the harness
+      // must link the sanitizer runtimes too.
+      ...SAN_FLAGS,
+      ...runtimeObjects(),
       join(root, "tests", "runtime", harness),
       ...GC_LFLAGS,
       // number.c/math.c call floor/fmod/trunc/nextafter. macOS libc resolves them implicitly;

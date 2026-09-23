@@ -1,0 +1,20 @@
+// Raising a runtime error from Milo through the same path a `throw new Error(...)` takes, so a
+// user try/catch handles it.
+
+from "./abi" import { CsString }
+from "./csstring" import { strLit }
+
+extern fn cs_new_error(message: *CsString): *u8
+extern fn cs_throw(thrown: *u8)
+
+// Throw `Error(msg)`. Does not return (cs_throw longjmps or exits). cs_new_error copies its
+// message, so wrapping the literal without a GC copy is safe.
+pub fn throwErrorLit(msg: &string) {
+    throwError(strLit(msg))
+}
+
+pub fn throwError(msg: *CsString) {
+    unsafe {
+        cs_throw(cs_new_error(msg))
+    }
+}

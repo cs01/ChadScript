@@ -1,0 +1,417 @@
+// `node:path`, the POSIX subset. Every function is a byte-faithful port of Node's lib/path.js
+// `posix` object, because the differential oracle IS Node: any deviation in the `..` /
+// duplicate-slash / trailing-slash rules shows up as a stdout mismatch, not as a subtle bug.
+//
+// POSIX only. The win32 half of Node's path is not ported and `node:path` is not re-exported as
+// `path.win32` / `path.posix`, so the subset has no way to reach it.
+//
+// Strings are CsString {ptr,len}: no strlen on them, and an embedded NUL is an ordinary byte that
+// flows through unharmed (Node treats it that way too; only the syscall boundary in fs truncates).
+
+from "./abi" import { CsString, CsArray, GC_malloc_atomic, memcpy, byteAt }
+from "./csstring" import { cs_str_mk, cs_str_from, strLit }
+from "./errors" import { throwErrorLit }
+
+extern fn getcwd(buf: *u8, size: i64): *u8
+extern fn strlen(s: *u8): i64
+
+// A growable GC byte buffer. `data` is GC memory, so wrapping it with cs_str_mk (which does not
+// copy) is safe: the returned header keeps the buffer reachable. Lives on the stack, where Boehm
+// sees the `data` pointer.
+extern struct Buf {
+    data: *u8,
+    len: i64,
+    cap: i64,
+}
+
+fn bufNew(): Buf {
+    unsafe {
+        return Buf { data: GC_malloc_atomic(64), len: 0, cap: 64 }
+    }
+}
+
+fn bufAppend(b: &mut Buf, src: *u8, n: i64) {
+    if n == 0 {
+        return
+    }
+    unsafe {
+        if b.len + n > b.cap {
+            var cap = b.cap * 2
+            while cap < b.len + n {
+                cap = cap * 2
+            }
+            let grown = GC_malloc_atomic(cap)
+            memcpy(grown, b.data, b.len)
+            b.data = grown
+            b.cap = cap
+        }
+        memcpy(byteAt(b.data, b.len), src, n)
+    }
+    b.len = b.len + n
+}
+
+fn bufAppendLit(b: &mut Buf, s: &string) {
+    bufAppend(&mut b, s.cstr(), s.len)
+}
+
+// Index of the last `c` in the buffer, or -1. Stands in for String.prototype.lastIndexOf in the
+// ported algorithm.
+fn bufLastIndexOf(b: &Buf, c: u8): i64 {
+    var i = b.len - 1
+    while i >= 0 {
+        unsafe {
+            if b.data[i] == c {
+                return i
+            }
+        }
+        i = i - 1
+    }
+    return -1
+}
+
+fn bufToStr(b: &Buf): *CsString {
+    return cs_str_mk(b.data, b.len)
+}
+
+let SLASH: u8 = 47
+let DOT: u8 = 46
+
+// Port of Node's internal normalizeString(path, allowAboveRoot, '/', isPosixPathSeparator).
+// Resolves `.` and `..` segments and collapses repeated separators, appending the result to
+// `res`. `allowAboveRoot` keeps leading `..` that would escape a relative root.
+fn normalizeString(path: *u8, plen: i64, allowAboveRoot: bool, res: &mut Buf) {
+    var lastSegmentLength: i64 = 0
+    var lastSlash: i64 = -1
+    var dots: i64 = 0
+    var code: u8 = 0
+    var i: i64 = 0
+    while i <= plen {
+        if i < plen {
+            unsafe {
+                code = path[i]
+            }
+        } else if code == SLASH {
+            break
+        } else {
+            code = SLASH
+        }
+
+        if code == SLASH {
+            if lastSlash == i - 1 || dots == 1 {
+                // NOOP: an empty segment ("//") or a lone ".".
+            } else if dots == 2 {
+                var lastTwoAreDots = false
+                if res.len >= 2 {
+                    unsafe {
+                        lastTwoAreDots = res.data[res.len - 1] == DOT && res.data[res.len - 2] == DOT
+                    }
+                }
+                if res.len < 2 || lastSegmentLength != 2 || !lastTwoAreDots {
+                    if res.len > 2 {
+                        let lastSlashIndex = bufLastIndexOf(res, SLASH)
+                        if lastSlashIndex == -1 {
+                            res.len = 0
+                            lastSegmentLength = 0
+                        } else {
+                            res.len = lastSlashIndex
+                            lastSegmentLength = res.len - 1 - bufLastIndexOf(res, SLASH)
+                        }
+                        lastSlash = i
+                        dots = 0
+                        i = i + 1
+                        continue
+                    } else if res.len != 0 {
+                        res.len = 0
+                        lastSegmentLength = 0
+                        lastSlash = i
+                        dots = 0
+                        i = i + 1
+                        continue
+                    }
+                }
+                if allowAboveRoot {
+                    if res.len > 0 {
+                        bufAppendLit(&mut res, "/..")
+                    } else {
+                        bufAppendLit(&mut res, "..")
+                    }
+                    lastSegmentLength = 2
+                }
+            } else {
+                if res.len > 0 {
+                    bufAppendLit(&mut res, "/")
+                }
+                bufAppend(&mut res, byteAt(path, lastSlash + 1), i - lastSlash - 1)
+                lastSegmentLength = i - lastSlash - 1
+            }
+            lastSlash = i
+            dots = 0
+        } else if code == DOT && dots != -1 {
+            dots = dots + 1
+        } else {
+            dots = -1
+        }
+        i = i + 1
+    }
+}
+
+fn byteOf(s: *CsString, i: i64): u8 {
+    unsafe {
+        return (*s).data[i]
+    }
+}
+
+fn lenOf(s: *CsString): i64 {
+    unsafe {
+        return (*s).len
+    }
+}
+
+@externalLinkage
+pub fn cs_path_normalize(p: *CsString): *CsString {
+    let plen = lenOf(p)
+    if plen == 0 {
+        return strLit(".")
+    }
+    let isAbsolute = byteOf(p, 0) == SLASH
+    let trailingSeparator = byteOf(p, plen - 1) == SLASH
+
+    var res = bufNew()
+    unsafe {
+        normalizeString((*p).data, plen, !isAbsolute, &mut res)
+    }
+
+    if res.len == 0 {
+        if isAbsolute {
+            return strLit("/")
+        }
+        if trailingSeparator {
+            return strLit("./")
+        }
+        return strLit(".")
+    }
+    if trailingSeparator {
+        bufAppendLit(&mut res, "/")
+    }
+    if !isAbsolute {
+        return bufToStr(res)
+    }
+
+    var out = bufNew()
+    bufAppendLit(&mut out, "/")
+    bufAppend(&mut out, res.data, res.len)
+    return bufToStr(out)
+}
+
+fn arrayStr(parts: *CsArray, i: i32): *CsString {
+    unsafe {
+        return (*parts).data[i as i64] as *CsString
+    }
+}
+
+fn arrayLen(parts: *CsArray): i32 {
+    unsafe {
+        return (*parts).len
+    }
+}
+
+@externalLinkage
+pub fn cs_path_join(parts: *CsArray): *CsString {
+    var joined = bufNew()
+    var any = false
+    let n = arrayLen(parts)
+    var i: i32 = 0
+    while i < n {
+        let s = arrayStr(parts, i)
+        i = i + 1
+        // Node skips empty segments entirely, including the separator.
+        if lenOf(s) == 0 {
+            continue
+        }
+        if any {
+            bufAppendLit(&mut joined, "/")
+        }
+        unsafe {
+            bufAppend(&mut joined, (*s).data, (*s).len)
+        }
+        any = true
+    }
+    if !any {
+        return strLit(".")
+    }
+    return cs_path_normalize(bufToStr(joined))
+}
+
+@externalLinkage
+pub fn cs_path_dirname(p: *CsString): *CsString {
+    let plen = lenOf(p)
+    if plen == 0 {
+        return strLit(".")
+    }
+    let hasRoot = byteOf(p, 0) == SLASH
+    var end: i64 = -1
+    var matchedSlash = true
+    var i = plen - 1
+    while i >= 1 {
+        if byteOf(p, i) == SLASH {
+            if !matchedSlash {
+                end = i
+                break
+            }
+        } else {
+            matchedSlash = false
+        }
+        i = i - 1
+    }
+    if end == -1 {
+        if hasRoot {
+            return strLit("/")
+        }
+        return strLit(".")
+    }
+    // "//foo" dirnames to "//": POSIX reserves a leading double slash, and Node preserves it.
+    if hasRoot && end == 1 {
+        return strLit("//")
+    }
+    unsafe {
+        return cs_str_from((*p).data, end)
+    }
+}
+
+@externalLinkage
+pub fn cs_path_basename(p: *CsString): *CsString {
+    var start: i64 = 0
+    var end: i64 = -1
+    var matchedSlash = true
+    var i = lenOf(p) - 1
+    while i >= 0 {
+        if byteOf(p, i) == SLASH {
+            // Only the FIRST slash after the last non-slash byte ends the scan: trailing slashes
+            // are skipped, so basename("/foo/bar//") is "bar".
+            if !matchedSlash {
+                start = i + 1
+                break
+            }
+        } else if end == -1 {
+            matchedSlash = false
+            end = i + 1
+        }
+        i = i - 1
+    }
+    if end == -1 {
+        return strLit("")
+    }
+    unsafe {
+        return cs_str_from(byteAt((*p).data, start), end - start)
+    }
+}
+
+@externalLinkage
+pub fn cs_path_extname(p: *CsString): *CsString {
+    var startDot: i64 = -1
+    var startPart: i64 = 0
+    var end: i64 = -1
+    var matchedSlash = true
+    // 0 = start of segment, 1 = saw one or more dots, -1 = saw a non-dot byte after a dot.
+    // Distinguishes "index.js" (has an extension) from ".bashrc" and ".." (neither does).
+    var preDotState: i64 = 0
+
+    var i = lenOf(p) - 1
+    while i >= 0 {
+        let code = byteOf(p, i)
+        if code == SLASH {
+            if !matchedSlash {
+                startPart = i + 1
+                break
+            }
+            i = i - 1
+            continue
+        }
+        if end == -1 {
+            matchedSlash = false
+            end = i + 1
+        }
+        if code == DOT {
+            if startDot == -1 {
+                startDot = i
+            } else if preDotState != 1 {
+                preDotState = 1
+            }
+        } else if startDot != -1 {
+            preDotState = -1
+        }
+        i = i - 1
+    }
+
+    if startDot == -1 || end == -1 || preDotState == 0 ||
+        (preDotState == 1 && startDot == end - 1 && startDot == startPart + 1) {
+        return strLit("")
+    }
+    unsafe {
+        return cs_str_from(byteAt((*p).data, startDot), end - startDot)
+    }
+}
+
+@externalLinkage
+pub fn cs_path_is_absolute(p: *CsString): i32 {
+    if lenOf(p) > 0 && byteOf(p, 0) == SLASH {
+        return 1
+    }
+    return 0
+}
+
+@externalLinkage
+pub fn cs_path_resolve(parts: *CsArray): *CsString {
+    var resolved = bufNew()
+    var absolute = false
+
+    // Node walks right-to-left and stops at the first absolute segment: everything to its left is
+    // irrelevant, so resolve("/a", "/b") is "/b".
+    var i = arrayLen(parts) - 1
+    while i >= 0 && !absolute {
+        let s = arrayStr(parts, i)
+        i = i - 1
+        if lenOf(s) == 0 {
+            continue
+        }
+        var next = bufNew()
+        unsafe {
+            bufAppend(&mut next, (*s).data, (*s).len)
+        }
+        bufAppendLit(&mut next, "/")
+        bufAppend(&mut next, resolved.data, resolved.len)
+        resolved = next
+        absolute = byteOf(s, 0) == SLASH
+    }
+
+    if !absolute {
+        var cwd: [u8; 4096] = [0; 4096]
+        var cwdLen: i64 = 0
+        unsafe {
+            if getcwd(cwd, 4096) as i64 == 0 {
+                throwErrorLit("path.resolve: getcwd failed")
+            }
+            cwdLen = strlen(cwd)
+        }
+        var next = bufNew()
+        bufAppend(&mut next, cwd, cwdLen)
+        bufAppendLit(&mut next, "/")
+        bufAppend(&mut next, resolved.data, resolved.len)
+        resolved = next
+        absolute = cwdLen > 0 && cwd[0] == SLASH
+    }
+
+    var out = bufNew()
+    normalizeString(resolved.data, resolved.len, !absolute, &mut out)
+    if !absolute {
+        if out.len > 0 {
+            return bufToStr(out)
+        }
+        return strLit(".")
+    }
+
+    var rooted = bufNew()
+    bufAppendLit(&mut rooted, "/")
+    bufAppend(&mut rooted, out.data, out.len)
+    return bufToStr(rooted)
+}

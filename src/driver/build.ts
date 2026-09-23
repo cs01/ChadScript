@@ -1,12 +1,14 @@
 // Driver: turn a validated program into a native binary. Emits IR, then invokes clang to
-// compile the IR and link it with the C runtime. Every build verifies the IR (clang fails on
-// malformed IR; the LLVM verifier runs as part of that). No IR reaches a binary unverified.
+// compile the IR and link it with the runtime (Milo, plus a small C residue). Every build verifies
+// the IR (clang fails on malformed IR; the LLVM verifier runs as part of that). No IR reaches a
+// binary unverified.
 //
-// The runtime .c files are compiled ONCE to cached .o files (CONTENT-ADDRESSED — keyed by a hash
-// of the source + runtime headers + compiler flags) and reused across every build; recompiling
-// them per program was the dominant cost of the test suite. Content addressing (vs the old mtime
-// key) survives `git checkout`/`touch`, never serves a stale object, and rebuilds when any runtime
-// header changes.
+// The runtime is compiled ONCE to cached .o files (CONTENT-ADDRESSED: keyed by a hash of the
+// sources + headers + compiler identity + flags) and reused across every build; recompiling it per
+// program was the dominant cost of the test suite. Content addressing (vs the old mtime key)
+// survives `git checkout`/`touch`, never serves a stale object, and rebuilds when any input
+// changes. Each C file compiles to its own object; all Milo files compile as ONE unit rooted at
+// runtime/lib.milo, so Milo-internal helpers are defined once rather than once per module.
 
 import { execFileSync, execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -18,6 +20,8 @@ import {
   readdirSync,
   mkdirSync,
   existsSync,
+  renameSync,
+  rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname, basename } from "node:path";
@@ -25,7 +29,7 @@ import { fileURLToPath } from "node:url";
 import { lower } from "../lower/lower.js";
 import { verifyHir } from "../hir/verify.js";
 import { generate } from "../codegen/codegen.js";
-import { CLANG, GC_CFLAGS, GC_LFLAGS, SAN_FLAGS } from "./toolchain.js";
+import { CLANG, GC_CFLAGS, GC_LFLAGS, MILO, SAN_FLAGS, SANITIZE, miloPin } from "./toolchain.js";
 import type { LoadedProgram } from "../frontend/program.js";
 
 const execFileAsync = promisify(execFile);
@@ -65,21 +69,74 @@ function headerContents(): Buffer[] {
     .map((f) => readFileSync(join(runtimeDir, f)));
 }
 
-// Compile each runtime .c to a content-addressed cached .o (`.build/runtime/<name>.<key>.o`);
-// reuse it whenever that exact file already exists (a cache hit needs no recompile). Runtime code
-// is independent of the program's opt level, so a single -O2 build is reused for both -O0 and -O2
-// program links. Call once before launching concurrent links so the (racy) cache-fill happens once.
+// Milo emits IR and we compile it with the same clang and flags as the C files, rather than via
+// `milo emit-obj`: that keeps one toolchain (CHAD_CLANG) and lets the sanitized lane instrument
+// the Milo runtime too (`--sanitize` marks every function sanitize_address, which is what makes
+// clang's ASan pass touch IR input; UBSan checks are inserted by clang's C frontend, so the Milo
+// code gets ASan but not UBSan).
+const MILO_EMIT_FLAGS = ["emit-ir", ...(SANITIZE ? ["--sanitize"] : [])];
+
+// Every .milo under runtime/ is hashed into the key, not just the root: an edit to any imported
+// module must rebuild the unit. Sorted so the key is independent of readdir order.
+function miloSources(): Buffer {
+  const files = readdirSync(runtimeDir)
+    .filter((f) => f.endsWith(".milo"))
+    .sort();
+  return Buffer.concat(files.flatMap((f) => [Buffer.from(f), readFileSync(join(runtimeDir, f))]));
+}
+
+// Write-then-rename, so a concurrent build never links a half-written object.
+function compileInto(obj: string, compile: (tmp: string) => void): void {
+  const tmp = `${obj}.${process.pid}.tmp`;
+  compile(tmp);
+  renameSync(tmp, obj);
+}
+
+function miloRuntimeObject(): string {
+  if (!existsSync(MILO)) {
+    throw new Error(
+      `Milo compiler not found at ${MILO}: run scripts/setup-milo.sh or set CHAD_MILO`,
+    );
+  }
+  const identity = [miloPin(), MILO, process.platform, process.arch, ...MILO_EMIT_FLAGS];
+  const key = runtimeObjectKey(miloSources(), [], [...identity, ...RUNTIME_COMPILE_FLAGS]);
+  const obj = join(cacheDir, `milo.${key}.o`);
+  if (existsSync(obj)) return obj;
+  compileInto(obj, (tmp) => {
+    const ll = `${tmp}.ll`;
+    execFileSync(MILO, [...MILO_EMIT_FLAGS, join(runtimeDir, "lib.milo"), "-o", ll], {
+      stdio: "pipe",
+    });
+    try {
+      execFileSync(CLANG, [...RUNTIME_COMPILE_FLAGS, "-Wno-override-module", ll, "-o", tmp], {
+        stdio: "pipe",
+      });
+    } finally {
+      rmSync(ll, { force: true });
+    }
+  });
+  return obj;
+}
+
+// Compile each runtime .c, and the Milo unit, to a content-addressed cached .o
+// (`.build/runtime/<name>.<key>.o`); reuse it whenever that exact file already exists (a cache hit
+// needs no recompile). Runtime code is independent of the program's opt level, so a single -O2
+// build is reused for both -O0 and -O2 program links. Call once before launching concurrent links
+// so the cache-fill happens once.
 export function runtimeObjects(): string[] {
   mkdirSync(cacheDir, { recursive: true });
   const headers = headerContents();
-  return runtimeSources.map((src) => {
+  const cObjs = runtimeSources.map((src) => {
     const key = runtimeObjectKey(readFileSync(src), headers, RUNTIME_COMPILE_FLAGS);
     const obj = join(cacheDir, `${basename(src, ".c")}.${key}.o`);
     if (!existsSync(obj)) {
-      execFileSync(CLANG, [...RUNTIME_COMPILE_FLAGS, src, "-o", obj], { stdio: "pipe" });
+      compileInto(obj, (tmp) =>
+        execFileSync(CLANG, [...RUNTIME_COMPILE_FLAGS, src, "-o", tmp], { stdio: "pipe" }),
+      );
     }
     return obj;
   });
+  return [...cObjs, miloRuntimeObject()];
 }
 
 // frontend (loaded) → lower (HIR) → verify → codegen (IR). The checker stops at lower; verifyHir

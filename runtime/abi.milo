@@ -1,0 +1,70 @@
+// The runtime's C-ABI seam: the layouts generated IR and the remaining C share with the Milo
+// runtime, plus the libc and Boehm entry points it calls. Declared once here so every module
+// agrees on them.
+//
+// GC rule: runtime memory comes from Boehm (GC_malloc / GC_malloc_atomic). Boehm scans only its
+// own heap, thread stacks, static data and registered roots, so a GC pointer may live in a local,
+// a global, or GC memory, and NEVER in Milo-owned heap memory (Vec, Heap, string buffers), which
+// is malloc'd and invisible to the collector.
+
+// A JS string: UTF-8 bytes, `len` is the only authority on length (no NUL terminator, and an
+// embedded NUL is an ordinary byte). Generated IR passes it as an opaque `ptr`.
+pub extern struct CsString {
+    data: *u8,
+    len: i64,
+}
+
+// A uniform-slot array: every element is one 8-byte slot (a double's bits, a pointer's bits, or
+// 0/1). Generated IR only ever calls cs_array_* on it, never reads the fields.
+pub extern struct CsArray {
+    data: *i64,
+    len: i32,
+    cap: i32,
+}
+
+pub extern fn GC_malloc(n: i64): *u8
+// Pointer-free memory: Boehm never scans it, so it is only for byte buffers.
+pub extern fn GC_malloc_atomic(n: i64): *u8
+
+pub extern fn memcpy(dst: *u8, src: *u8, n: i64): *u8
+pub extern fn memmove(dst: *u8, src: *u8, n: i64): *u8
+pub extern fn memcmp(a: *u8, b: *u8, n: i64): i32
+
+// `p + i` for a raw byte pointer. Milo has no pointer arithmetic, so the offset goes through an
+// integer; the result is only ever used inside the allocation `p` points into.
+pub fn byteAt(p: *u8, i: i64): *u8 {
+    unsafe {
+        return (p as i64 + i) as *u8
+    }
+}
+
+// The IEEE bit pattern of a double and back (LLVM folds the store/load into a bitcast).
+pub fn f64Bits(v: f64): u64 {
+    var bits: u64 = 0
+    unsafe {
+        bits = *(v.addrOf() as *u64)
+    }
+    return bits
+}
+
+pub fn f64FromBits(b: u64): f64 {
+    var v: f64 = 0.0
+    unsafe {
+        v = *(b.addrOf() as *f64)
+    }
+    return v
+}
+
+pub fn isNan(x: f64): bool {
+    return x != x
+}
+
+pub fn isFinite(x: f64): bool {
+    return x - x == 0.0
+}
+
+pub fn signBit(x: f64): bool {
+    return f64Bits(x) >> 63 == 1
+}
+
+pub let NEG_ZERO_BITS: u64 = 0x8000000000000000

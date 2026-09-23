@@ -1,0 +1,7 @@
+// The runtime's single Milo compilation unit. Every module is imported here so the driver
+// compiles them into ONE object (src/driver/build.ts): Milo-internal helpers are then defined
+// once instead of once per module object. An `@externalLinkage` fn is emitted with its C symbol
+// whether or not anything here names it; the imports only pull each module into the build.
+
+from "./csstring" import { cs_str_mk }
+from "./path" import { cs_path_normalize }
