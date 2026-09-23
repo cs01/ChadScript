@@ -246,7 +246,18 @@ manifest. Estimates in LOC.
    A field write through a wider static type widens the reaching shapes' field types. JSON.parse
    keeps undeclared keys as Value words (printed, serialized, listed like Node). Union fuzzer in
    tests/slow. (~2.5k)
-5. **Mutable captures** (CS1219 retired, ~200) and **erased generics** (~600).
+5. **Mutable captures and erased generics.** DONE (dod `captures-generics`). A local that a closure
+   captures and anything reassigns lives in a GC heap cell shared by the frame and every closure;
+   `for (let ...)` and `for...of` give each iteration its own cell (per-iteration copy before the
+   update), and variables never reassigned are still captured by value (same IR as before). CS1219
+   is retired; CS1241 rejects a narrowed read of a multi-representation cell after a call, where
+   tsc's narrowing can be stale. Generics compile once per declaration with each type parameter a
+   Value word (or its constraint's representation); calls convert at the boundary using the
+   declaration's signature against tsc's resolved one (box/unbox, array literals built in Value
+   slots, closures adapted, fresh result arrays copied) and reject what cannot cross: containers or
+   functions as type arguments (CS1242), aliased containers of other representations (CS1240),
+   type-level computation (CS1243), constructor types (CS1244). `x!` is admitted where it is a
+   no-op on a Value word. Closures + generics fuzzer in tests/slow. (~1.6k)
 6. **Precise GC** in Milo; drop libgc. (~2k)
 7. **0.1 "TS CLI tools"**: argv, fs, JSON parsed and validated against the declared type,
    async, `chad run --fallback=node|milojs`, generated SUBSET.md, release binaries.

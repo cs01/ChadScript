@@ -48,12 +48,14 @@ each backed by a test that runs the program under Node and natively and diffs th
 Anything else fails with a code, a source span and a suggested rewrite:
 
 ```text
-error[CS1219]: a closure cannot capture the mutable variable `count` yet
-  --> f.ts:2:13
-  help: declare it `const`, or restructure so the closure does not close over an outer `let`
+error[CS1242]: a generic type parameter instantiated with number[]: an erased T holds one self-describing value (a number, string, boolean, null, undefined or object)
+  --> f.ts:6:13
+  help: wrap it in an object (`{ items: xs }`), or write a non-generic function for this type
 ```
 
-Supported today: numbers, strings, booleans, control flow, functions and closures, arrays,
+Supported today: numbers, strings, booleans, control flow, functions and closures (including
+closures that reassign captured variables, with JS per-iteration loop bindings), erased generic
+functions and classes, arrays,
 object literals, classes with inheritance and virtual dispatch, `Map`/`Set`, optional values,
 unions of different kinds (`number | string`, `string[] | boolean | null`) narrowed by `typeof`,
 `===`, `instanceof`, `Array.isArray` and truthiness, spread, try/catch/finally, async/await, timers, `node:fs` (sync and promises), `node:path`,
@@ -66,8 +68,8 @@ runtime, CommonJS, packages that ship only JavaScript. Programs that need those 
 [milojs](https://github.com/milo-language/milojs)); since every accepted program is valid
 TypeScript, the same file runs there unchanged.
 
-Not supported yet, planned: generics; closures that mutate captured variables; optional chains
-longer than one `?.`; operations on an un-narrowed union beyond printing, `===`, `typeof`, `??`
+Not supported yet, planned: generics instantiated with arrays, maps or functions (wrap them in an
+object), and generic containers shared with non-generic code; optional chains longer than one `?.`; operations on an un-narrowed union beyond printing, `===`, `typeof`, `??`
 and truthiness (narrow it first); `Map`/`Set` keyed by a union. See the phases in [`PLAN.md`](PLAN.md).
 
 ## How it works
