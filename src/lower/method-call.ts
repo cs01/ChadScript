@@ -2,6 +2,7 @@
 // strings, Math namespace, Object namespace, class instances via vtable). The largest single lowering
 // unit; split out of lower.ts, which it imports its helpers back from (circular, resolved at call time).
 
+import { adaptCallback } from "./callback-adapt.js";
 import ts from "typescript";
 import { ice } from "../diagnostics.js";
 import type { HExpr } from "../hir/nodes.js";
@@ -268,6 +269,10 @@ export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
     if (HOF_METHODS.includes(method)) {
       // reduce(fn, init?) — the optional seed is the 2nd argument.
       const init = method === "reduce" && call.arguments.length >= 2 ? call.arguments[1]! : null;
+      const hofType = method === "forEach" ? VT.undefined : resolveType(call, ctx);
+      // The arguments the loop passes (codegen/array.ts): reduce leads with the accumulator.
+      const passed: ValueType[] = [recvType.element, VT.number, recvType];
+      if (method === "reduce") passed.unshift(hofType);
       const node: HExpr = {
         kind: "arrayHof",
         op: method as
@@ -281,12 +286,12 @@ export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
           | "every"
           | "flatMap",
         array: receiver,
-        callback: lowerExpr(call.arguments[0]!, ctx),
+        callback: adaptCallback(lowerExpr(call.arguments[0]!, ctx), passed),
         init: init ? lowerExpr(init, ctx) : null,
         elementType: recvType.element,
         // map/filter → array; forEach → undefined; find → element|undefined; findIndex → number;
         // some/every → boolean; reduce → its result. resolveType(call) covers all value cases.
-        type: method === "forEach" ? VT.undefined : resolveType(call, ctx),
+        type: hofType,
       };
       return method === "find" ? optionalRead(node, recvType.element, node.type) : node;
     }
@@ -295,7 +300,9 @@ export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
       return {
         kind: "arraySort",
         array: receiver,
-        comparator: cmp ? lowerExpr(cmp, ctx) : null,
+        comparator: cmp
+          ? adaptCallback(lowerExpr(cmp, ctx), [recvType.element, recvType.element])
+          : null,
         elementType: recvType.element,
         type: resolveType(call, ctx),
       };
@@ -483,10 +490,17 @@ function lowerCollectionVoid(
       type: VT.undefined,
     };
   }
+  const t = collection.type;
+  const passed: ValueType[] =
+    t.kind === "map"
+      ? [t.value, t.key, t]
+      : t.kind === "set"
+        ? [t.element, t.element, t]
+        : ice(`lower: forEach over ${t.kind}`);
   return {
     kind: "collectionForEach",
     collection,
-    callback: lowerExpr(call.arguments[0]!, ctx),
+    callback: adaptCallback(lowerExpr(call.arguments[0]!, ctx), passed),
     type: VT.undefined,
   };
 }

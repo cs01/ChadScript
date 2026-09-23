@@ -8,7 +8,7 @@ import { CODE } from "./codes.js";
 import type { Hit } from "./type-rules.js";
 import { isValuePosition } from "./builtin-rules.js";
 import { UnrepresentableTypeError, valueTypeOfTsType } from "../lower/type-translation.js";
-import { slotIdentical } from "../lower/generics.js";
+import { callbackParamProblem } from "../lower/callback-adapt.js";
 import { builtinIdOf } from "../lower/builtin-values.js";
 import type { ValueType } from "../hir/types.js";
 
@@ -101,7 +101,7 @@ export function checkForm(node: ts.Node, hit: Hit, checker: ts.TypeChecker): Dia
     case ts.SyntaxKind.CallExpression: {
       const coll = collectionCall(node as ts.CallExpression, checker);
       return coll === null
-        ? null
+        ? arrayCallbackProblem(node as ts.CallExpression, hit, checker)
         : checkCollectionCall(node as ts.CallExpression, coll, hit, checker);
     }
 
@@ -158,9 +158,9 @@ function checkCollectionCall(
   return null;
 }
 
-// forEach calls its callback with (value, key, collection) in the collection's own slot
-// representations, so each parameter the callback declares must have exactly that representation
-// (a wider `number | string` parameter would be handed an unboxed number).
+// forEach calls its callback with (value, key, collection) in the collection's own
+// representations; a wider parameter is converted by an adapter (lower/callback-adapt.ts) when
+// one word conversion reaches it.
 function forEachCallbackMismatch(
   call: ts.CallExpression,
   kind: "Map" | "Set",
@@ -176,44 +176,108 @@ function forEachCallbackMismatch(
       "drop the thisArg; use an arrow function that captures what it needs",
     );
   }
+  let passed: ValueType[] = [];
   try {
     const collType = valueTypeOfTsType(
       checker.getTypeAtLocation(callee.expression),
       callee.expression,
       checker,
     );
-    const passed: ValueType[] =
+    passed =
       collType.kind === "map"
         ? [collType.value, collType.key, collType]
         : collType.kind === "set"
           ? [collType.element, collType.element, collType]
           : [];
-    // A builtin (`m.forEach(console.log)`) is wrapped at exactly the callback type forEach
-    // passes, and checked by builtin-rules.ts.
-    let bare: ts.Expression = cb;
-    while (ts.isParenthesizedExpression(bare)) bare = bare.expression;
-    if (builtinIdOf(bare, checker) !== null) return null;
-    const sig = checker.getSignaturesOfType(checker.getTypeAtLocation(cb), ts.SignatureKind.Call);
-    if (sig.length !== 1 || passed.length === 0) return null; // other rules own these
-    const params = sig[0]!.getParameters();
-    const ok = params.every((p, i) => {
-      const decl = p.valueDeclaration;
-      if (decl && ts.isParameter(decl) && decl.dotDotDotToken) return false;
-      const want = passed[i];
-      if (!want) return false;
-      const have = valueTypeOfTsType(checker.getTypeOfSymbolAtLocation(p, cb), cb, checker);
-      return have.kind === want.kind && slotIdentical(have, want);
-    });
-    if (ok) return null;
   } catch (err) {
     if (err instanceof UnrepresentableTypeError) return null;
     throw err;
   }
+  const problem = callbackProblem(cb, passed, checker);
+  if (problem === null) return null;
   return hit(
-    CODE.COLLECTION_METHOD,
-    `this \`${kind}.forEach\` callback's parameters are not typed as the ${kind}'s ${kind === "Map" ? "value and key" : "elements"}`,
-    "declare the parameters with exactly the element types (or leave them unannotated)",
+    CODE.REPRESENTATION_MISMATCH,
+    `this \`${kind}.forEach\` callback cannot be called with the ${kind}'s entries: ${problem}`,
+    "declare the parameters with the element types (or leave them unannotated)",
   );
+}
+
+// The array methods whose callback a generated loop calls (codegen/array.ts), with what it passes.
+const ARRAY_CALLBACK_METHODS: ReadonlySet<string> = new Set([
+  "map",
+  "filter",
+  "forEach",
+  "reduce",
+  "find",
+  "findIndex",
+  "some",
+  "every",
+  "flatMap",
+  "sort",
+]);
+
+function arrayCallbackProblem(
+  call: ts.CallExpression,
+  hit: Hit,
+  checker: ts.TypeChecker,
+): Diagnostic | null {
+  const callee = call.expression;
+  if (!ts.isPropertyAccessExpression(callee)) return null;
+  const method = callee.name.text;
+  const cb = call.arguments[0];
+  if (!ARRAY_CALLBACK_METHODS.has(method) || !cb) return null;
+  let passed: ValueType[];
+  try {
+    const recv = valueTypeOfTsType(
+      checker.getTypeAtLocation(callee.expression),
+      callee.expression,
+      checker,
+    );
+    if (recv.kind !== "array") return null;
+    if (method === "sort") passed = [recv.element, recv.element];
+    else passed = [recv.element, { kind: "number" }, recv];
+    if (method === "reduce") {
+      passed.unshift(valueTypeOfTsType(checker.getTypeAtLocation(call), call, checker));
+    }
+  } catch (err) {
+    if (err instanceof UnrepresentableTypeError) return null;
+    throw err;
+  }
+  const problem = callbackProblem(cb, passed, checker);
+  if (problem === null) return null;
+  return hit(
+    CODE.REPRESENTATION_MISMATCH,
+    `this \`${method}\` callback cannot be called with the array's elements: ${problem}`,
+    "declare the parameters with the element types (or leave them unannotated)",
+  );
+}
+
+// Why callback `cb` cannot be called by a builtin loop passing `passed`, or null
+// (lower/callback-adapt.ts converts what can be converted).
+function callbackProblem(
+  cb: ts.Expression,
+  passed: readonly ValueType[],
+  checker: ts.TypeChecker,
+): string | null {
+  // A builtin (`xs.forEach(console.log)`) is wrapped at exactly the type the loop passes, and
+  // checked by builtin-rules.ts.
+  let bare: ts.Expression = cb;
+  while (ts.isParenthesizedExpression(bare)) bare = bare.expression;
+  if (builtinIdOf(bare, checker) !== null || passed.length === 0) return null;
+  const sig = checker.getSignaturesOfType(checker.getTypeAtLocation(cb), ts.SignatureKind.Call);
+  if (sig.length !== 1) return null; // other rules own these
+  const declared: ValueType[] = [];
+  try {
+    for (const p of sig[0]!.getParameters()) {
+      const decl = p.valueDeclaration;
+      if (decl && ts.isParameter(decl) && decl.dotDotDotToken) return "it takes a rest parameter";
+      declared.push(valueTypeOfTsType(checker.getTypeOfSymbolAtLocation(p, cb), cb, checker));
+    }
+  } catch (err) {
+    if (err instanceof UnrepresentableTypeError) return null;
+    throw err;
+  }
+  return callbackParamProblem(declared, passed);
 }
 
 function collectionName(e: ts.Expression, checker: ts.TypeChecker): "Map" | "Set" | null {

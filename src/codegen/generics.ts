@@ -18,12 +18,13 @@ import { boxValue, unboxValue } from "./value.js";
 
 // A machine value of `from` in the representation of `to`. Exactly one side is a Value word (or
 // both are the same representation): the boundary only ever converts between T's word and the
-// instantiation's own machine value.
+// instantiation's own machine value. Two containers of one kind are the same representation by
+// the time an adapter exists (lower/generics.ts elementPlan, lower/callback-adapt.ts paramPlan).
 function convertMachine(v: Value, from: ValueType, to: ValueType, ctx: Ctx): Value {
   if (from.kind === "value" && to.kind === "value") return v;
   if (to.kind === "value") return boxValue(v, from, ctx);
   if (from.kind === "value") return unboxValue(v, to, ctx);
-  if (from.kind === to.kind && from.kind !== "array" && from.kind !== "function") return v;
+  if (from.kind === to.kind) return v;
   return ice(`codegen: no generic conversion from ${from.kind} to ${to.kind}`);
 }
 
