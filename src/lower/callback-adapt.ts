@@ -45,7 +45,7 @@ export function callbackParamProblem(
   if (declared.length > passed.length) return "it declares more parameters than are passed";
   for (let i = 0; i < declared.length; i++) {
     if (paramPlan(declared[i]!, passed[i]!) === null) {
-      return `its parameter ${i + 1} has a representation the argument cannot be converted to`;
+      return `its parameter ${i + 1} cannot receive the value passed to it`;
     }
   }
   return null;

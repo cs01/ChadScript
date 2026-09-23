@@ -29,12 +29,16 @@ export function checkCallSpread(
     return null;
   }
   const callee = call.expression.getText();
+  const own =
+    last !== undefined && !last.getSourceFile().isDeclarationFile && !callee.startsWith("Math.");
   return hit(
     CODE.NOT_IN_SUBSET,
     `spreading an array into the arguments of \`${callee}\` is not supported`,
     callee.endsWith(".push")
       ? "push the elements in a loop: `for (const x of xs) arr.push(x)`"
-      : "pass the elements explicitly, or loop or reduce over the array " +
+      : own
+        ? "pass the elements explicitly, or give the function a rest parameter (`...xs: number[]`)"
+        : "pass the elements explicitly, or loop or reduce over the array " +
           "(`xs.reduce((m, x) => Math.max(m, x), -Infinity)`)",
   );
 }

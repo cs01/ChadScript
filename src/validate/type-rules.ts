@@ -87,6 +87,8 @@ export function checkRepresentableType(
   // positions (a statement-position call, a void return) are not values either.
   const t = checker.getTypeAtLocation(node);
   if (t.flags & (ts.TypeFlags.Void | ts.TypeFlags.Any | ts.TypeFlags.Never)) return null;
+  // `any[]`, `Map<string, any>`: the `any` is reported where it is written (CS1201), once.
+  if (involvesAny(t, checker)) return null;
   // A bigint can only come from a bigint literal, which default-deny rejects where it is written.
   if (t.flags & ts.TypeFlags.BigIntLike) return null;
   try {
@@ -124,8 +126,10 @@ export function checkRepresentableTypeNode(
   hit: Hit,
   checker: ts.TypeChecker,
 ): Diagnostic | null {
+  const written = checker.getTypeFromTypeNode(node);
+  if (involvesAny(written, checker)) return null;
   try {
-    valueTypeOfTsType(checker.getTypeFromTypeNode(node), node, checker);
+    valueTypeOfTsType(written, node, checker);
     return null;
   } catch (e) {
     if (!(e instanceof UnrepresentableTypeError)) throw e;
@@ -172,8 +176,9 @@ export function checkOpaqueHandleUse(
 function renderRefusal(name: string, hit: Hit): Diagnostic {
   return hit(
     CODE.OPAQUE_HANDLE_USE,
-    `a \`${name}\` handle is opaque and cannot be used here`,
-    `store it in a variable and pass it back (e.g. \`clearTimeout(handle)\`) — there is no faithful way to print or serialize it`,
+    `a \`${name}\` handle can only be stored and passed back to the runtime`,
+    "keep it in a variable and pass it to `clearTimeout(handle)`; Node prints it as an object " +
+      "with internal fields, which a compiled program cannot reproduce",
   );
 }
 
@@ -209,7 +214,7 @@ export function checkOptionalChain(
   if (!pa.questionDotToken) {
     // A link after the first one carries the chain flag but no `?.` token.
     return pa.flags & ts.NodeFlags.OptionalChain
-      ? "an optional chain longer than one `?.` link is not in the subset yet"
+      ? "an optional chain longer than one `?.` link is not supported yet"
       : null;
   }
   const continues =
@@ -217,7 +222,7 @@ export function checkOptionalChain(
       parent.expression === pa) ||
     (ts.isCallExpression(parent) && parent.expression === pa);
   if (continues) {
-    return "an optional chain longer than one `?.` link, or `?.` on a method call, is not in the subset yet";
+    return "an optional chain longer than one `?.` link, or `?.` on a method call, is not supported yet";
   }
   const recv = checker.getNonNullableType(checker.getTypeAtLocation(pa.expression));
   try {
@@ -229,4 +234,34 @@ export function checkOptionalChain(
     return null; // an unrepresentable type is reported where it is declared
   }
   return null;
+}
+
+// Whether `t` has `any` anywhere a value of it could hold one: a union member, a type argument
+// (`any[]`, `Promise<any>`), a property, or a parameter or return of a function type.
+function involvesAny(t: ts.Type, checker: ts.TypeChecker, seen = new Set<ts.Type>()): boolean {
+  if (t.flags & ts.TypeFlags.Any) return true;
+  if (seen.has(t)) return false;
+  seen.add(t);
+  if (t.isUnionOrIntersection()) return t.types.some((m) => involvesAny(m, checker, seen));
+  if (!(t.flags & ts.TypeFlags.Object)) return false;
+  const args = checker.getTypeArguments(t as ts.TypeReference);
+  if (args.some((a) => involvesAny(a, checker, seen))) return true;
+  for (const sig of checker.getSignaturesOfType(t, ts.SignatureKind.Call)) {
+    if (involvesAny(checker.getReturnTypeOfSignature(sig), checker, seen)) return true;
+    for (const p of sig.parameters) {
+      const decl = p.valueDeclaration;
+      if (decl && involvesAny(checker.getTypeOfSymbolAtLocation(p, decl), checker, seen)) {
+        return true;
+      }
+    }
+  }
+  // Only the program's own object types: a library type's members are not the program's to fix.
+  const decls = t.getSymbol()?.declarations ?? [];
+  if (decls.length === 0 || decls.some((d) => d.getSourceFile().isDeclarationFile)) return false;
+  return checker.getPropertiesOfType(t).some((p) => {
+    const decl = p.valueDeclaration;
+    return (
+      decl !== undefined && involvesAny(checker.getTypeOfSymbolAtLocation(p, decl), checker, seen)
+    );
+  });
 }

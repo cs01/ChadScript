@@ -333,7 +333,7 @@ export function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChe
     return valueUnion(members);
   }
   throw new UnrepresentableTypeError(
-    `a type the value domain has no representation for (type flags ${flags})`,
+    `a type ChadScript does not support here (\`${checker.typeToString(t)}\`)`,
     "use a supported type: number, string, boolean, arrays, closed objects, Map/Set, or `T | undefined`",
   );
 }

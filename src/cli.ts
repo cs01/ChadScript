@@ -41,7 +41,10 @@ function reportAndExit(diagnostics: Diagnostic[]): never {
   process.exit(1);
 }
 
-// Compile `entry` to `outPath`. Returns the diagnostics when the program is rejected.
+const ICE_PREFIX = "[CS9000 internal compiler error] ";
+
+// Compile `entry` to `outPath`. Returns the diagnostics when the program is rejected, or when the
+// compiler hit an internal error (reported as CS9000: a compiler bug, not the program's fault).
 function compile(entry: string, outPath: string): Diagnostic[] | null {
   try {
     const loaded = loadProgram(entry);
@@ -50,6 +53,19 @@ function compile(entry: string, outPath: string): Diagnostic[] | null {
     return null;
   } catch (e) {
     if (e instanceof DiagnosticError) return e.diagnostics;
+    if (e instanceof Error && e.message.startsWith(ICE_PREFIX)) {
+      return [
+        {
+          code: "CS9000",
+          message: `internal compiler error: ${e.message.slice(ICE_PREFIX.length)}`,
+          span: null,
+          suggestion:
+            "this is a bug in ChadScript, not in your program; please report it with the program " +
+            "at https://github.com/cs01/ChadScript/issues (`chad run --fallback=node` runs it " +
+            "under Node meanwhile)",
+        },
+      ];
+    }
     throw e;
   }
 }

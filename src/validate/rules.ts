@@ -274,7 +274,7 @@ export function tailoredRejection(
       if ((node as ts.ElementAccessExpression).questionDotToken) {
         return hit(
           CODE.NOT_IN_SUBSET,
-          "optional element access `?.[i]` is not in the subset yet",
+          "optional element access `?.[i]` is not supported yet",
           "test the array first: `xs === undefined ? d : xs[i]`",
         );
       }
@@ -358,7 +358,7 @@ export function tailoredRejection(
       if (ts.isObjectLiteralExpression(node.parent)) {
         return hit(
           CODE.NOT_IN_SUBSET,
-          "a method in an object literal is not in the subset",
+          "a method in an object literal is not supported",
           "use an arrow function field (`speak: () => ...`), or a class for methods that use `this`",
         );
       }
@@ -372,7 +372,7 @@ export function tailoredRejection(
         if (ts.isFunctionExpression(p) || ts.isFunctionDeclaration(p)) {
           return hit(
             CODE.NOT_IN_SUBSET,
-            "`this` inside a `function` is not in the subset",
+            "`this` inside a `function` is not supported",
             "use an arrow function (which keeps the enclosing method's `this`), or a class method",
           );
         }
@@ -583,7 +583,7 @@ function checkCall(node: ts.CallExpression, hit: Hit, checker: ts.TypeChecker): 
         return hit(
           CODE.JSON_API,
           "`JSON.parse` takes exactly one argument",
-          "the reviver parameter is not in the subset",
+          "the reviver parameter is not supported",
         );
       }
       if (unionWithObject(checker.getTypeFromTypeNode(parent.type), parent.type, checker)) {
@@ -600,7 +600,7 @@ function checkCall(node: ts.CallExpression, hit: Hit, checker: ts.TypeChecker): 
       return hit(
         CODE.DATE_API,
         `\`Date.${m}\` is not supported yet`,
-        "only `Date.now()` is in the subset; Date instances are a later phase",
+        "only `Date.now()` is supported; Date objects are not yet",
       );
     }
     // String.fromCharCode / fromCodePoint build strings from UTF-16 code units — same UTF-16-over-
@@ -650,7 +650,7 @@ function checkCall(node: ts.CallExpression, hit: Hit, checker: ts.TypeChecker): 
         return hit(
           CODE.STDLIB_STATIC,
           `\`${recv.text}.${m}\` is not supported yet`,
-          `this static is not in the subset yet${allowed}`,
+          `this static is not supported yet${allowed}`,
         );
       }
     }
@@ -781,8 +781,7 @@ function checkNew(node: ts.NewExpression, hit: Hit): Diagnostic | null {
     return hit(
       CODE.DATE_API,
       "`new Date()` is not supported yet",
-      "a Date instance needs a value representation and calendar arithmetic; `Date.now()` " +
-        "(epoch milliseconds) is supported",
+      "for a timestamp use `Date.now()` (milliseconds since 1970), which is supported",
     );
   }
   return null;

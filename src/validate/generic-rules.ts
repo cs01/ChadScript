@@ -124,8 +124,8 @@ function checkGenericField(
     if (site && stored && !fieldCompatible(stored, site)) {
       throw new GenericBoundaryError(
         "CS1240",
-        `\`.${name}\` can belong to an object built by generic code, which stores it with T as a ` +
-          "Value word; this access expects the instantiation's own representation",
+        `\`.${name}\` can belong to an object built by generic code, which stores it in its ` +
+          "generic form; reading it here as the specific type is not supported",
         "use it inside the generic code, or expose it through a generic method (for an array, " +
           "one that returns a copy: `items(): T[] { return [...this.xs]; }`)",
       );

@@ -30,8 +30,8 @@ export function layoutDiagnostics(loaded: LoadedProgram): Diagnostic[] {
     out.push({
       code: CODE.LAYOUT_LIMIT,
       message:
-        `this spread can copy from objects of more than ${MAX_SPREAD_CASES} different layouts ` +
-        "(the product of each source's possible layouts)",
+        `this spread can copy from objects of more than ${MAX_SPREAD_CASES} different shapes ` +
+        "(each combination of the fields its sources may have)",
       span: spanOf(node, node.getSourceFile()),
       suggestion: "copy the fields you need explicitly: `{ a: src.a, b: src.b }`",
     });

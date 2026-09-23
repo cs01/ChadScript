@@ -180,15 +180,47 @@ function selfDescribing(t: ValueType): boolean {
   }
 }
 
+// A type as the user wrote it, roughly (for messages).
 function describe(t: ValueType): string {
-  return t.kind === "array" ? `${describe(t.element)}[]` : t.kind;
+  switch (t.kind) {
+    case "array":
+      return `${describe(t.element)}[]`;
+    case "optional":
+      return `${describe(t.inner)} | undefined`;
+    case "value":
+      return t.members.map(describe).join(" | ");
+    case "map":
+      return "a Map";
+    case "set":
+      return "a Set";
+    case "promise":
+      return "a Promise";
+    case "function":
+      return "a function";
+    case "object":
+      return "an object";
+    case "unknown":
+      return "an Error";
+    case "opaque":
+      return `a ${t.name}`;
+    case "number":
+    case "string":
+    case "boolean":
+    case "null":
+    case "undefined":
+      return t.kind;
+    default: {
+      const never: never = t;
+      return ice(`describe: ${(never as ValueType).kind}`);
+    }
+  }
 }
 
 function notSelfDescribing(t: ValueType): GenericBoundaryError {
   return new GenericBoundaryError(
     "CS1242",
-    `a generic type parameter instantiated with ${describe(t)}: an erased T holds one ` +
-      "self-describing value (a number, string, boolean, null, undefined or object)",
+    `a type parameter set to ${describe(t)}: generic code can only hold a number, string, ` +
+      "boolean, null, undefined or object in a type parameter",
     "wrap it in an object (`{ items: xs }`), or write a non-generic function for this type",
   );
 }
@@ -209,7 +241,7 @@ export function fieldCompatible(a: ValueType, b: ValueType): boolean {
 function containerMismatch(what: string, hint: string): GenericBoundaryError {
   return new GenericBoundaryError(
     "CS1240",
-    `${what}: the generic code stores T as a Value word, this instantiation does not`,
+    `${what}, and generic code stores the elements in a generic form this code does not use`,
     hint,
   );
 }

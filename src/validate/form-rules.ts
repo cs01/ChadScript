@@ -21,7 +21,7 @@ export function checkForm(node: ts.Node, hit: Hit, checker: ts.TypeChecker): Dia
       if (ts.isSourceFile(node.parent)) return null;
       return hit(
         CODE.NOT_IN_SUBSET,
-        "a `function` declaration inside a function or block is not in the subset yet",
+        "a `function` declaration inside a function or block is not supported yet",
         "move it to the top level (pass what it needs as parameters), or bind an arrow function " +
           "with `const` before its first use",
       );

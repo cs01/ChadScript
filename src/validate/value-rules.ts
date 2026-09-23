@@ -360,7 +360,7 @@ export function flowDiagnostic(node: ts.Node, checker: ts.TypeChecker): Diagnost
   if (!s || !d || flowAgrees(s, d)) return null;
   return {
     code: CODE.REPRESENTATION_MISMATCH,
-    message: `\`${checker.typeToString(src)}\` cannot be used as \`${checker.typeToString(dst)}\`: their elements (or parameters) have different runtime representations, and the value is shared by reference`,
+    message: `\`${checker.typeToString(src)}\` cannot be used as \`${checker.typeToString(dst)}\`: their elements (or parameters) are stored differently, and both would share the same object`,
     span: spanOf(at, at.getSourceFile()),
     suggestion:
       "make a converted copy with the target's type, e.g. `xs.map((x): number | string => x)`, or declare the source with the target's type",

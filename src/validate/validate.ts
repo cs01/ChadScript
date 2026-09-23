@@ -256,17 +256,19 @@ function collectTailored(
 // un-admitted kind is reported once and not recursed into (its children are moot).
 function defaultDeny(node: ts.Node, sf: ts.SourceFile, out: Diagnostic[]): void {
   if (!isTrivialToken(node.kind) && !ALLOWED_KINDS.has(node.kind)) {
-    out.push(notInSubset(ts.SyntaxKind[node.kind], node, sf));
+    out.push(notInSubset(describeKind(node.kind), node, sf));
     return;
   }
   // Operator-granularity gating: an admitted expression kind must not smuggle in an operator
   // codegen can't lower. Reject the unsupported operator specifically, then stop descending.
   if (ts.isBinaryExpression(node) && !SUPPORTED_BINARY_OPS.has(node.operatorToken.kind)) {
-    out.push(notInSubset(`operator ${ts.tokenToString(node.operatorToken.kind)}`, node, sf));
+    out.push(
+      notInSubset(`the \`${ts.tokenToString(node.operatorToken.kind)}\` operator`, node, sf),
+    );
     return;
   }
   if (ts.isPrefixUnaryExpression(node) && !SUPPORTED_UNARY_OPS.has(node.operator)) {
-    out.push(notInSubset(`unary operator ${ts.tokenToString(node.operator)}`, node, sf));
+    out.push(notInSubset(`the unary \`${ts.tokenToString(node.operator)}\` operator`, node, sf));
     return;
   }
   ts.forEachChild(node, (child) => defaultDeny(child, sf, out));
@@ -275,10 +277,20 @@ function defaultDeny(node: ts.Node, sf: ts.SourceFile, out: Diagnostic[]): void 
 function notInSubset(what: string, node: ts.Node, sf: ts.SourceFile): Diagnostic {
   return {
     code: CODE.NOT_IN_SUBSET,
-    message: `${what} is not in the ChadScript subset yet`,
+    message: `${what} is not supported by ChadScript yet`,
     span: spanOf(node, sf),
-    suggestion: "this construct has no allowlist rule + fixture yet; see PLAN.md phases",
+    suggestion:
+      "rewrite it with a supported construct (docs/SUBSET.md lists them), or run the program " +
+      "under Node with `chad run --fallback=node`",
   };
+}
+
+// A syntax kind as words: `TupleType` is "a tuple type", `NeverKeyword` is "`never`".
+function describeKind(kind: ts.SyntaxKind): string {
+  const name = ts.SyntaxKind[kind];
+  if (name.endsWith("Keyword")) return `\`${name.slice(0, -"Keyword".length).toLowerCase()}\``;
+  const words = name.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+  return `${/^[aeiou]/.test(words) ? "an" : "a"} ${words}`;
 }
 
 // Punctuation and template-fragment tokens are not independently gated — their parent node kind

@@ -159,7 +159,7 @@ export function renderWalker(
       case "unknown":
         return `${where} is an error or a caught value, which Node prints with its stack trace`;
       case "opaque":
-        return `${where} is an opaque \`${vt.name}\` handle`;
+        return `${where} is a \`${vt.name}\` handle, which Node prints with its internal fields`;
       default: {
         const never: never = vt;
         return ice(`render-rules: unhandled ${(never as { kind: string }).kind}`);
