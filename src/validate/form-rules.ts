@@ -55,6 +55,17 @@ export function checkForm(node: ts.Node, hit: Hit, checker: ts.TypeChecker): Dia
       );
     }
 
+    // `await` outside any function (a module's top level): main is not a fiber, so there is nothing
+    // to suspend, and the compiled program crashed. Node runs it as top-level await.
+    case ts.SyntaxKind.AwaitExpression: {
+      if (ts.findAncestor(node.parent, ts.isFunctionLike) !== undefined) return null;
+      return hit(
+        CODE.NOT_IN_SUBSET,
+        "`await` at the top level of a module is not supported yet",
+        "move the code into `async function main(): Promise<void> { ... }` and call `main()`",
+      );
+    }
+
     // A Map iterated directly yields [key, value] entries, which need tuples. (A Set iterated
     // directly, and keys()/values() of either, iterate the table live: lower/statements.ts.)
     case ts.SyntaxKind.ForOfStatement: {
