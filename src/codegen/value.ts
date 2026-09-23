@@ -23,6 +23,7 @@ import { T } from "../ir/types.js";
 import type { HExpr } from "../hir/nodes.js";
 import type { ValueType } from "../hir/types.js";
 import { type Ctx, boxSlot, unboxSlot, evalValue } from "./expr.js";
+import { allocSlotBox } from "./alloc.js";
 
 export const V_UNDEFINED = 0;
 export const V_NULL = 1;
@@ -187,7 +188,7 @@ function unboxOptional(raw: Value, inner: ValueType, ctx: Ctx): Value {
   ctx.fn.store(ctx.mod.externGlobal("cs_null_marker"), result);
   ctx.fn.br(endB);
   ctx.fn.switchTo(presentB);
-  const box = ctx.fn.call("@cs_gc_alloc", T.ptr, [imm(T.i64, 8)]);
+  const box = allocSlotBox(inner, ctx);
   ctx.fn.store(boxSlot(unboxValue(raw, inner, ctx), inner, ctx), box);
   ctx.fn.store(box, result);
   ctx.fn.br(endB);

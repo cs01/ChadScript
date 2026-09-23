@@ -7,6 +7,7 @@ import { imm, type Value } from "../ir/builder.js";
 import { T } from "../ir/types.js";
 import type { HExpr } from "../hir/nodes.js";
 import { type Ctx, boxSlot, unboxSlot, evalValue } from "./expr.js";
+import { allocSlots, slotMayPoint } from "./alloc.js";
 
 // A call to an async function → spawn a fiber running its body. Arguments are boxed into a GC env
 // struct (the same {slot}* shape as a closure env) that the fiber body unpacks; a 0-arg call passes
@@ -19,7 +20,10 @@ export function evalAsyncCall(expr: Extract<HExpr, { kind: "asyncCall" }>, ctx: 
   if (expr.args.length === 0) {
     env = ctx.fn.nullPtr();
   } else {
-    env = ctx.fn.call("@cs_gc_alloc", T.ptr, [imm(T.i64, expr.args.length * 8)]);
+    env = allocSlots(
+      expr.args.map((a) => slotMayPoint(a.type)),
+      ctx,
+    );
     expr.args.forEach((a, i) => {
       ctx.fn.store(boxSlot(evalValue(a, ctx), a.type, ctx), ctx.fn.gepSlot(env, i));
     });

@@ -2,11 +2,12 @@
 // that read an object through its own shape (Object.keys, spread snapshots, printing indents).
 // Records are `[*CsShape, field Values...]`; see CsShape and the Value encoding in abi.milo.
 
-from "./abi" import { CsShape, CsString, CsArray, GC_malloc, memcpy, VALUE_UNDEFINED }
+from "./abi" import { CsShape, CsString, CsArray, memcpy, VALUE_UNDEFINED }
 from "./strings" import { cs_str_eq, cs_str_concat }
 from "./csstring" import { strLit }
 from "./array" import { cs_array_new, cs_array_push }
 from "./stdio" import { writeErrLit, writeErr }
+from "./gc" import { gcAllocRecord }
 
 // A field inline-cache site (a zeroed global per access site in generated code). `slot` is the
 // RECORD slot (field index + 1), so a hit is one indexed load.
@@ -162,7 +163,7 @@ pub fn cs_obj_clone(obj: *u64): *u64 {
     let shape = shapeOf(obj)
     unsafe {
         let n = (shape.fieldCount + 1) * 8
-        let copy = GC_malloc(n)
+        let copy = gcAllocRecord(n)
         memcpy(copy, obj as *u8, n)
         return copy as *u64
     }

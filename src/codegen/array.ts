@@ -22,6 +22,7 @@ import {
 } from "./expr.js";
 import { valueJoinString, valueSameValueZero, valueStrictEq } from "./value-ops.js";
 import { boxValue, unboxValue } from "./value.js";
+import { allocSlotBox } from "./alloc.js";
 
 // The slot `filter` keeps for an element. Normally the original slot, but a type-predicate callback
 // (`(v) => typeof v === "number"`, which tsc infers as `v is number`) narrows the RESULT's element
@@ -148,7 +149,7 @@ export function evalArrayHof(expr: Extract<HExpr, { kind: "arrayHof" }>, ctx: Ct
       else ctx.fn.brCond(keep, hitB, latchB);
       ctx.fn.switchTo(hitB);
       if (expr.op === "find") {
-        const box = ctx.fn.call("@cs_gc_alloc", T.ptr, [imm(T.i64, 8)]);
+        const box = allocSlotBox(expr.elementType, ctx);
         ctx.fn.store(elemI64, box); // present optional: a box holding the element's raw slot
         ctx.fn.store(box, predPtr!);
       } else if (expr.op === "findIndex") {

@@ -11,14 +11,15 @@
 // thread entirely. Either way the normal scan misses it, so a value held only there (a boxed await
 // result across a suspend, a local live across a nested spawn's allocation) would be reclaimed: a
 // GC-timing heisenbug that vanishes under GC_DONT_GC=1. Fiber stacks are therefore plain malloc
-// (NOT GC_malloc: Boehm ignores roots inside its own heap) registered as explicit GC roots, so the
+// (not GC memory: Boehm ignores roots inside its own heap) registered as explicit GC roots, so the
 // whole stack is scanned every collection wherever the SP is. Stacks are never freed or recycled:
 // freeing a scanned region corrupts the collector, and recycling a just-retired stack is unsafe
 // while an ancestor fiber is still suspended. Memory grows with total async invocations. TODO: a
 // safe pool (recycle only once a fiber is provably unreferenced). Do NOT swap the GC's stack bottom
 // to the fiber instead: that hides the MAIN stack and drops its roots.
 
-from "./abi" import { CsArray, GC_malloc }
+from "./abi" import { CsArray }
+from "./gc" import { gcAddRoots, gcAllocConservative, gcAllocStruct, gcAllocValues }
 from "./errors" import { CsThrown, HandlerCtx, handlerCtxGet, handlerCtxSet, cs_throw }
 from "./array" import { cs_array_new, cs_array_push, cs_array_len, cs_array_get }
 from "./timer" import { timersPending, timersDue, timersRunEarliest }
@@ -26,7 +27,6 @@ from "./fs-promises" import { ioPending, ioSettleOne }
 from "./stdio" import { writeErrLit }
 
 extern fn malloc(n: i64): *u8
-extern fn GC_add_roots(lo: *u8, hi: *u8)
 extern fn swapcontext(from: *u8, to: *u8): i32
 extern fn cs_fiber_ctx_size(): i64
 extern fn cs_fiber_ctx_init(ctx: *u8, stack: *u8, size: i64, entry: () => void)
@@ -97,7 +97,7 @@ fn isNullFiber(f: *Fiber): bool {
 fn schedCtx(): *u8 {
     if gSchedCtx as i64 == 0 {
         unsafe {
-            gSchedCtx = GC_malloc(cs_fiber_ctx_size())
+            gSchedCtx = gcAllocConservative(cs_fiber_ctx_size())
         }
     }
     return gSchedCtx
@@ -106,7 +106,7 @@ fn schedCtx(): *u8 {
 fn newStack(): *u8 {
     unsafe {
         let stk = malloc(FIBER_STACK)
-        GC_add_roots(stk, (stk as i64 + FIBER_STACK) as *u8)
+        gcAddRoots(stk, (stk as i64 + FIBER_STACK) as *u8)
         return stk
     }
 }
@@ -153,7 +153,7 @@ fn mtqPush(f: *Fiber) {
     unsafe {
         if gMtqCount == gMtqCap {
             let newCap = if gMtqCap > 0 { gMtqCap * 2 } else { 64 }
-            let nb = GC_malloc(newCap * 8) as **Fiber
+            let nb = gcAllocValues(newCap * 8) as **Fiber
             var i: i64 = 0
             while i < gMtqCount {
                 *ringSlot(nb, i) = *ringSlot(gMtq, (gMtqHead + i) % gMtqCap)
@@ -186,7 +186,7 @@ fn mtqPop(): *Fiber {
 @externalLinkage
 pub fn cs_promise_new(): *Promise {
     unsafe {
-        let p = GC_malloc(40) as *Promise
+        let p = gcAllocStruct(40, 0b1110) as *Promise
         p.state = PENDING
         p.value = 0
         p.reason = 0 as *u8
@@ -299,7 +299,7 @@ pub fn cs_fiber_return(boxedValue: i64) {
 
 fn spawn(entry: *Entry): *Promise {
     unsafe {
-        let f = GC_malloc(80) as *Fiber
+        let f = gcAllocStruct(80, 0b1011111) as *Fiber
         f.entry = entry
         f.result = cs_promise_new()
         f.done = 0
@@ -307,7 +307,7 @@ fn spawn(entry: *Entry): *Promise {
         f.hStack = 0 as **u8
         f.hN = 0
         f.hCap = 0
-        f.ctx = GC_malloc(cs_fiber_ctx_size())
+        f.ctx = gcAllocConservative(cs_fiber_ctx_size())
         cs_fiber_ctx_init(f.ctx, newStack(), FIBER_STACK, fiberTrampoline)
         let from = if isNullFiber(gCurrent) { schedCtx() } else { gCurrent.ctx }
         // Run until the first suspend or completion (JS: an async call runs synchronously up to its
@@ -321,7 +321,7 @@ fn spawn(entry: *Entry): *Promise {
 @externalLinkage
 pub fn cs_fiber_spawn(body: *u8, arg: *u8): *Promise {
     unsafe {
-        let raw = GC_malloc(16) as *EntryRaw
+        let raw = gcAllocStruct(16, 0b10) as *EntryRaw
         raw.body = body
         raw.arg = arg
         return spawn(raw as *Entry)
@@ -351,7 +351,7 @@ fn allDriver(arg: *u8) {
 @externalLinkage
 pub fn cs_promise_all(promises: *CsArray): *Promise {
     unsafe {
-        let e = GC_malloc(16) as *Entry
+        let e = gcAllocStruct(16, 0b10) as *Entry
         // A whole-struct store: assigning the fn-pointer field on its own (`e.body = allDriver`)
         // stores a two-word closure into the one-word field (Milo bug, see the phase 2 report).
         *e = Entry { body: allDriver, arg: promises as *u8 }
@@ -368,7 +368,7 @@ pub fn cs_await(p: *Promise): i64 {
     unsafe {
         let me = gCurrent
         if p.state == PENDING {
-            let w = GC_malloc(16) as *Waiter
+            let w = gcAllocStruct(16, 0b11) as *Waiter
             w.fiber = me
             w.next = 0 as *Waiter
             // Append at the TAIL so several awaiters of one promise resume in registration order

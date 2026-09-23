@@ -15,6 +15,7 @@ import {
   type Ctx,
 } from "./expr.js";
 import { boxValue, unboxValue } from "./value.js";
+import { allocClosureRecord, allocSlots } from "./alloc.js";
 
 // A machine value of `from` in the representation of `to`. Exactly one side is a Value word (or
 // both are the same representation): the boundary only ever converts between T's word and the
@@ -100,9 +101,9 @@ export function evalAdaptClosure(expr: Extract<HExpr, { kind: "adaptClosure" }>,
     fn.ret(convertMachine(r, inner.ret, outer.ret, actx));
   }
 
-  const envRec = ctx.fn.call("@cs_gc_alloc", T.ptr, [imm(T.i64, 8)]);
+  const envRec = allocSlots([true], ctx);
   ctx.fn.store(ctx.fn.ptrToI64(orig), ctx.fn.gepSlot(envRec, 0));
-  const out = ctx.fn.call("@cs_gc_alloc", T.ptr, [imm(T.i64, 24)]);
+  const out = allocClosureRecord(ctx);
   ctx.fn.store(ctx.fn.ptrToI64(ctx.fn.funcRef(name)), ctx.fn.gepSlot(out, 0));
   ctx.fn.store(ctx.fn.ptrToI64(envRec), ctx.fn.gepSlot(out, 1));
   // Word 2 is the display text util.inspect prints: the adapted function keeps the original's.

@@ -5,8 +5,9 @@
 //
 // The header and its data buffer are GC memory, so an unreachable array is reclaimed.
 
-from "./abi" import { CsArray, GC_malloc, memcpy, memmove }
+from "./abi" import { CsArray, memcpy, memmove }
 from "./nullable" import { undefinedMarker, boxSlot }
+from "./gc" import { gcAllocStruct, gcAllocValues }
 
 fn slotAt(data: *i64, i: i64): *u8 {
     unsafe {
@@ -17,7 +18,7 @@ fn slotAt(data: *i64, i: i64): *u8 {
 @externalLinkage
 pub fn cs_array_new(): *CsArray {
     unsafe {
-        let a = GC_malloc(16) as *CsArray
+        let a = gcAllocStruct(16, 0b1) as *CsArray
         a.data = 0 as *i64
         a.len = 0
         a.cap = 0
@@ -32,7 +33,7 @@ pub fn cs_array_push(a: *CsArray, slot: i64): i32 {
         let len = a.len
         if len == a.cap {
             let ncap: i32 = if a.cap == 0 { 4 } else { a.cap * 2 }
-            let nd = GC_malloc(ncap as i64 * 8) as *i64
+            let nd = gcAllocValues(ncap as i64 * 8) as *i64
             if len > 0 {
                 memcpy(nd as *u8, a.data as *u8, len as i64 * 8)
             }

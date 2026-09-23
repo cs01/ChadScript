@@ -11,7 +11,7 @@
 // order. Sorting alone would reproduce ordering but not elapsed time, and a program that measures
 // `Date.now()` across a timeout would then diverge from Node.
 
-from "./abi" import { GC_malloc }
+from "./gc" import { gcAllocStruct }
 from "./time" import { Timespec, clockMs, clockMonotonic }
 
 extern fn nanosleep(req: *Timespec, rem: *Timespec): i32
@@ -64,7 +64,7 @@ pub fn cs_set_timeout(callback: *CsClosure, delay0: f64): *Timer {
     // `!(delay >= 1)` rather than `delay < 1` so NaN clamps too: Node treats NaN as 1ms.
     let delay = if !(delay0 >= 1.0) { 1.0 } else { delay0 }
     unsafe {
-        let t = GC_malloc(40) as *Timer
+        let t = gcAllocStruct(40, 0b10100) as *Timer
         t.deadline = nowMs() + delay
         t.seq = gTimerSeq
         gTimerSeq = gTimerSeq + 1

@@ -24,6 +24,7 @@ import type { JsonObjectTarget } from "../hir/nodes.js";
 import { boxSlot, type Ctx } from "./expr.js";
 import { shapeGlobalName, shapeRef } from "./shapes.js";
 import { boxValue, V_NULL, V_UNDEFINED } from "./value.js";
+import { allocSlots, slotMayPoint } from "./alloc.js";
 
 // Mirrors the enum in runtime/json-parse.milo.
 const KIND = { null: 0, bool: 1, number: 2, string: 3, array: 4, object: 5 } as const;
@@ -122,7 +123,10 @@ function extract(node: Value, type: ValueType, path: string, targets: Targets, c
         ice("jsonParse: an object type in the target has no registered shape");
       // Every declared field is validated (and its Value built) before the record exists, into a
       // scratch array in declared order; cs_json_object then lays out the keys the text has.
-      const vals = ctx.fn.call("@cs_gc_alloc", T.ptr, [imm(T.i64, Math.max(fields.length, 1) * 8)]);
+      const vals = allocSlots(
+        fields.map((f) => slotMayPoint(f.type)),
+        ctx,
+      );
       fields.forEach((f, i) => {
         const fieldNode = ctx.fn.call("@cs_json_field", T.ptr, [node, ctx.mod.cstring(f.name)]);
         const presence = target.presence[i] ?? ice("jsonParse: field without presence info");

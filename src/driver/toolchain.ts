@@ -53,7 +53,7 @@ export const GC_LFLAGS = prefix ? [`-L${prefix}/lib`, "-lgc"] : ["-lgc"];
 //
 // WHAT THIS LANE COVERS, measured by injecting each bug and checking it is reported:
 //   - stack and global buffer overflows, out-of-bounds array indexing, integer/alignment UB — YES
-//   - overflows of Boehm-managed memory — NO. GC_malloc has its own mmap-based heap, so ASan's
+//   - overflows of Boehm-managed memory — NO. Boehm has its own mmap-based heap, so ASan's
 //     redzones never apply to it, and most runtime data lives there. Covering it needs Boehm's
 //     own GC_DEBUG redzones, which is a separate lane.
 //   - a stack pointer escaping through cs_throw — NO, and no sanitizer can. longjmp triggers

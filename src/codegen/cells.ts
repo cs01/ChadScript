@@ -7,14 +7,15 @@
 // iteration a new cell: the swap is a store, and nothing downstream has to dominate it.
 
 import { ice } from "../diagnostics.js";
-import { imm, type Value } from "../ir/builder.js";
+import { type Value } from "../ir/builder.js";
 import { T } from "../ir/types.js";
 import type { ValueType } from "../hir/types.js";
 import type { HExpr } from "../hir/nodes.js";
 import { boxSlot, irTypeOf, lookupVar, type Ctx } from "./expr.js";
+import { allocClosureRecord, allocSlotBox, allocSlots, slotMayPoint } from "./alloc.js";
 
-function newCell(init: Value, ctx: Ctx): Value {
-  const cell = ctx.fn.call("@cs_gc_alloc", T.ptr, [imm(T.i64, 8)]);
+function newCell(init: Value, vtype: ValueType, ctx: Ctx): Value {
+  const cell = allocSlotBox(vtype, ctx);
   ctx.fn.store(init, cell);
   return cell;
 }
@@ -30,7 +31,7 @@ export function bindVar(
   ctx: Ctx,
 ): void {
   if (cell) {
-    bindCellPtr(name, vtype, newCell(init(), ctx), ctx);
+    bindCellPtr(name, vtype, newCell(init(), vtype, ctx), ctx);
     return;
   }
   const ptr = ctx.fn.alloca(irTypeOf(vtype));
@@ -58,7 +59,7 @@ export function renewCell(name: string, ctx: Ctx): void {
   const entry = ctx.vars.get(name);
   if (!entry?.cell) return ice(`codegen: per-iteration binding ${name} is not a cell`);
   const current = ctx.fn.load(irTypeOf(entry.vtype), ctx.fn.load(T.ptr, entry.ptr));
-  ctx.fn.store(newCell(current, ctx), entry.ptr);
+  ctx.fn.store(newCell(current, entry.vtype, ctx), entry.ptr);
 }
 
 // Create a closure: a GC record {fnptr, env, display}. `env` holds the captured values (or null
@@ -79,7 +80,10 @@ export function evalClosure(expr: Extract<HExpr, { kind: "closure" }>, ctx: Ctx)
   }
   let env: Value;
   if (expr.captures.length > 0) {
-    env = ctx.fn.call("@cs_gc_alloc", T.ptr, [imm(T.i64, expr.captures.length * 8)]);
+    env = allocSlots(
+      expr.captures.map((c) => c.byRef || slotMayPoint(c.type)),
+      ctx,
+    );
     expr.captures.forEach((c, i) => {
       // A by-reference capture shares the cell itself, not a copy of its value.
       if (c.byRef) {
@@ -93,7 +97,7 @@ export function evalClosure(expr: Extract<HExpr, { kind: "closure" }>, ctx: Ctx)
   } else {
     env = ctx.fn.nullPtr();
   }
-  const rec = ctx.fn.call("@cs_gc_alloc", T.ptr, [imm(T.i64, 24)]);
+  const rec = allocClosureRecord(ctx);
   ctx.fn.store(ctx.fn.ptrToI64(ctx.fn.funcRef(expr.lambdaName)), ctx.fn.gepSlot(rec, 0));
   ctx.fn.store(ctx.fn.ptrToI64(env), ctx.fn.gepSlot(rec, 1));
   ctx.fn.store(ctx.mod.internedString(expr.display), ctx.fn.gepSlot(rec, 2));

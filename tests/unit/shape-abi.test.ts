@@ -9,6 +9,7 @@ import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { SHAPE_FIELDS, KIND_CODE } from "../../src/codegen/shapes.js";
+import { GC_KIND } from "../../src/codegen/alloc.js";
 import { TAG, V_UNDEFINED, V_NULL, V_FALSE, V_TRUE } from "../../src/codegen/value.js";
 
 const abi = readFileSync(
@@ -46,5 +47,19 @@ test("Value immediates and pointer tags match", () => {
 test("shape kind codes match", () => {
   for (const [kind, code] of Object.entries(KIND_CODE)) {
     assert.equal(constant(`KIND_${kind.toUpperCase()}`), code, `kind ${kind}`);
+  }
+});
+
+// The GC header word is built by generated IR (src/codegen/alloc.ts) and read by the collector
+// (runtime/gc.milo); a kind code that drifts would make the collector skip or misread pointers.
+test("gc header kinds match", () => {
+  const gc = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "..", "..", "runtime", "gc.milo"),
+    "utf8",
+  );
+  for (const [kind, code] of Object.entries(GC_KIND)) {
+    const m = new RegExp(`pub let GC_${kind.toUpperCase()}: u64 = (\\d+)`).exec(gc);
+    assert.ok(m, `runtime/gc.milo has no GC_${kind.toUpperCase()}`);
+    assert.equal(Number(m[1]), code, `gc kind ${kind}`);
   }
 });

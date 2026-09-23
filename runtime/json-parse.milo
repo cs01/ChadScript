@@ -18,8 +18,6 @@
 from "./abi" import {
     CsString,
     CsShape,
-    GC_malloc,
-    GC_malloc_atomic,
     memcpy,
     byteAt,
     f64Bits,
@@ -36,6 +34,7 @@ from "./csstring" import { cs_str_mk, cs_str_from }
 from "./strings" import { cs_str_eq }
 from "./errors" import { throwErrorLit, throwError }
 from "./libc" import { strtod }
+from "./gc" import { gcAllocAtomic, gcAllocRecord, gcAllocStruct, gcAllocValues }
 
 let JSON_NULL: i32 = 0
 let JSON_BOOL: i32 = 1
@@ -71,7 +70,7 @@ fn fail(msg: &string) {
 
 fn jvNew(kind: i32): *JsonValue {
     unsafe {
-        let v = GC_malloc(64) as *JsonValue
+        let v = gcAllocStruct(64, 0b1101100) as *JsonValue
         v.kind = kind
         return v
     }
@@ -137,7 +136,7 @@ fn sbufPush(b: &mut SBuf, c: u8) {
     unsafe {
         if b.len == b.cap {
             let cap = if b.cap > 0 { b.cap * 2 } else { 32 }
-            let grown = GC_malloc_atomic(cap)
+            let grown = gcAllocAtomic(cap)
             if b.len > 0 {
                 memcpy(grown, b.data, b.len)
             }
@@ -297,7 +296,7 @@ fn parseNumber(p: &mut Parser): *JsonValue {
     let n = p.i - start
     let v = jvNew(JSON_NUMBER)
     unsafe {
-        let buf = GC_malloc_atomic(n + 1)
+        let buf = gcAllocAtomic(n + 1)
         memcpy(buf, byteAt(p.s, start), n)
         buf[n] = 0
         v.num = strtod(buf, 0 as **u8)
@@ -314,7 +313,7 @@ fn ptrSlot(base: **u8, i: i64): **u8 {
 // Copy `n` pointer slots into a fresh GC array of `cap` slots.
 fn growSlots(old: **u8, n: i64, cap: i64): **u8 {
     unsafe {
-        let grown = GC_malloc(cap * 8) as **u8
+        let grown = gcAllocValues(cap * 8) as **u8
         if n > 0 {
             memcpy(grown as *u8, old as *u8, n * 8)
         }
@@ -618,8 +617,8 @@ fn internShape(
             }
             cur = cur.next
         }
-        let names = GC_malloc(n * 8 + 8) as **CsString
-        let kinds = GC_malloc_atomic(n + 1)
+        let names = gcAllocValues(n * 8 + 8) as **CsString
+        let kinds = gcAllocAtomic(n + 1)
         var k: i64 = 0
         while k < n {
             if order[k] >= 0 {
@@ -631,7 +630,7 @@ fn internShape(
             }
             k = k + 1
         }
-        let shape = GC_malloc(72) as *CsShape
+        let shape = gcAllocStruct(72, 0b1101110) as *CsShape
         shape.fieldCount = n
         shape.names = names
         shape.kinds = kinds
@@ -641,7 +640,7 @@ fn internShape(
         shape.methodNames = template.methodNames
         shape.inspect = template.inspect
         shape.json = template.json
-        let node = GC_malloc(16) as *JsonShapeNode
+        let node = gcAllocStruct(16, 0b11) as *JsonShapeNode
         node.next = *cache
         node.shape = shape
         *cache = node
@@ -703,14 +702,14 @@ pub fn cs_json_object(
 ): *u64 {
     unsafe {
         let n = v.nfields as i64
-        let order = GC_malloc_atomic(n * 8 + 8) as *i64
+        let order = gcAllocAtomic(n * 8 + 8) as *i64
         var k: i64 = 0
         while k < n {
             order[k] = templateIndex(template, v.keys[k])
             k = k + 1
         }
         let shape = internShape(template, cache, order, v.keys, n)
-        let rec = GC_malloc(n * 8 + 8) as *u64
+        let rec = gcAllocRecord(n * 8 + 8) as *u64
         rec[0] = shape as i64 as u64
         k = 0
         while k < n {

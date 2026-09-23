@@ -1,11 +1,94 @@
-// Raw GC allocation for object records (an i64 slot per field). The collector itself is started by
-// cs_gc_init in residue.c (GC_INIT is a C macro).
+// The allocator API. Every heap object is preceded by a one-word header naming its pointer layout,
+// so the collector can trace the heap precisely (only roots are scanned conservatively). Generated
+// IR builds the same header word (src/codegen/alloc.ts; tests/unit/shape-abi.test.ts pins the
+// constants) and calls cs_alloc; runtime code calls the gcAlloc* helpers below. Nothing else in the
+// runtime may allocate GC memory (tests/unit/gc-alloc-audit.test.ts).
+//
+// Header word:
+//   bits 0..7    kind (GC_*)
+//   bits 8..31   GC_STRUCT only: bit i set = payload word i may hold a pointer or Value
+//   bits 32..63  payload size in bytes, a multiple of 8 (the header word not included)
 
-from "./abi" import { GC_malloc }
+pub extern fn GC_malloc(n: i64): *u8
+pub extern fn GC_malloc_atomic(n: i64): *u8
+extern fn GC_add_roots(lo: *u8, hi: *u8)
+extern fn memset(p: *u8, c: i32, n: i64): *u8
 
+// Never scanned: bytes, doubles, i32 tables.
+pub let GC_ATOMIC: u64 = 1
+// Every word may be a pointer (raw or tagged), a Value, or a scalar: arrays, rings, boxes.
+pub let GC_VALUES: u64 = 2
+// An object record: word 0 is the shape, whose per-field kinds name the traced fields.
+pub let GC_RECORD: u64 = 3
+// A fixed layout whose traced words are the header's bitmap.
+pub let GC_STRUCT: u64 = 4
+// Saved machine state (ucontext_t, jmp_buf): registers of a suspended context, so every word is a
+// possible pointer. Payload is 16-byte aligned (ucontext_t holds SIMD state).
+pub let GC_CONSERVATIVE: u64 = 5
+
+pub fn gcHeader(kind: u64, size: i64, map: u64): u64 {
+    // A zero-size object would end where the next one's header starts, so a pointer to it would
+    // resolve to its neighbor; every object has at least one word.
+    let rounded = if size <= 8 { 8 } else { (size + 7) / 8 * 8 }
+    return ((rounded as u64) << 32) | (map << 8) | kind
+}
+
+pub fn gcHeaderSize(h: u64): i64 {
+    return (h >> 32) as i64
+}
+
+pub fn gcHeaderKind(h: u64): u64 {
+    return h & 255
+}
+
+// The one allocation entry point, for generated IR and the helpers below. Returns zeroed memory.
 @externalLinkage
-pub fn cs_gc_alloc(n: i64): *u8 {
+pub fn cs_alloc(header: u64): *u8 {
+    let size = gcHeaderSize(header)
+    let kind = gcHeaderKind(header)
     unsafe {
-        return GC_malloc(n)
+        if kind == GC_CONSERVATIVE {
+            let raw = GC_malloc(size + 16)
+            *((raw as i64 + 8) as *u64) = header
+            return (raw as i64 + 16) as *u8
+        }
+        if kind == GC_ATOMIC {
+            let raw = GC_malloc_atomic(size + 8)
+            memset(raw, 0, size + 8)
+            *(raw as *u64) = header
+            return (raw as i64 + 8) as *u8
+        }
+        let raw = GC_malloc(size + 8)
+        *(raw as *u64) = header
+        return (raw as i64 + 8) as *u8
+    }
+}
+
+pub fn gcAllocAtomic(n: i64): *u8 {
+    return cs_alloc(gcHeader(GC_ATOMIC, n, 0))
+}
+
+pub fn gcAllocValues(n: i64): *u8 {
+    return cs_alloc(gcHeader(GC_VALUES, n, 0))
+}
+
+pub fn gcAllocRecord(n: i64): *u8 {
+    return cs_alloc(gcHeader(GC_RECORD, n, 0))
+}
+
+// `map`: bit i set = word i may hold a pointer. Layouts are at most 24 words.
+pub fn gcAllocStruct(n: i64, map: u64): *u8 {
+    return cs_alloc(gcHeader(GC_STRUCT, n, map))
+}
+
+pub fn gcAllocConservative(n: i64): *u8 {
+    return cs_alloc(gcHeader(GC_CONSERVATIVE, n, 0))
+}
+
+// Register [lo, hi) as a conservatively scanned root range (a fiber stack: memory outside the GC
+// heap that holds GC pointers).
+pub fn gcAddRoots(lo: *u8, hi: *u8) {
+    unsafe {
+        GC_add_roots(lo, hi)
     }
 }

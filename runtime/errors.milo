@@ -7,10 +7,11 @@
 // across a call that can throw (locals are raw pointers, scalars and static literals), so nothing
 // leaks.
 
-from "./abi" import { CsString, GC_malloc, byteAt, memcpy }
+from "./abi" import { CsString, byteAt, memcpy }
 from "./csstring" import { cs_str_mk, cs_str_from, strLit }
 from "./stdio" import { writeErr, writeErrLit }
 from "./async" import { fiberUncaught }
+from "./gc" import { gcAllocAtomic, gcAllocConservative, gcAllocStruct, gcAllocValues }
 
 extern fn _longjmp(buf: *u8, v: i32)
 
@@ -28,7 +29,7 @@ pub extern struct CsThrown {
 // API must not permit it. Throws are exceptional, so the copy is free in practice.
 fn newThrown(isError: i32, message: *CsString): *CsThrown {
     unsafe {
-        let t = GC_malloc(16) as *CsThrown
+        let t = gcAllocStruct(16, 0b10) as *CsThrown
         t.isError = isError
         t.message = cs_str_from(message.data, message.len)
         return t
@@ -68,7 +69,7 @@ pub fn cs_thrown_to_string(t: *CsThrown): *CsString {
             return cs_str_from(m.data, m.len)
         }
         let pre = "Error: "
-        let r = GC_malloc(7 + m.len)
+        let r = gcAllocAtomic(7 + m.len)
         memcpyLit(r, pre)
         memcpyAt(r, 7, m.data, m.len)
         return cs_str_mk(r, 7 + m.len)
@@ -141,7 +142,7 @@ fn handlerSlot(i: i32): **u8 {
 @externalLinkage
 pub fn cs_handler_alloc(): *u8 {
     unsafe {
-        return GC_malloc(JMPBUF_BYTES + 8)
+        return gcAllocConservative(JMPBUF_BYTES + 8)
     }
 }
 
@@ -150,7 +151,7 @@ pub fn cs_push_handler(h: *u8) {
     unsafe {
         if gHandlerN == gHandlerCap {
             let nc: i32 = if gHandlerCap > 0 { gHandlerCap * 2 } else { 16 }
-            let nb = GC_malloc(nc as i64 * 8) as **u8
+            let nb = gcAllocValues(nc as i64 * 8) as **u8
             var i: i32 = 0
             while i < gHandlerN {
                 *((nb as i64 + i as i64 * 8) as **u8) = *handlerSlot(i)

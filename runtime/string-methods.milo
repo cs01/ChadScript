@@ -2,12 +2,13 @@
 // NUL-safe (cs_mem_find, memcmp), never strlen/strstr. New strings are GC-allocated. Semantics are
 // JS-exact for ASCII (per the UTF-8 decision); the fuzzer stays ASCII-only.
 
-from "./abi" import { CsString, CsArray, GC_malloc, memcpy, memcmp, byteAt, isNan }
+from "./abi" import { CsString, CsArray, memcpy, memcmp, byteAt, isNan }
 from "./csstring" import { cs_str_mk, cs_str_from, cs_mem_find, strLit }
 from "./strings" import { isWs, digitValue }
 from "./array" import { cs_array_new, cs_array_push }
 from "./nullable" import { undefinedMarker, boxSlot }
 from "./libc" import { strtod }
+from "./gc" import { gcAllocAtomic }
 
 fn sdata(s: *CsString): *u8 {
     unsafe {
@@ -56,7 +57,7 @@ fn substr(s: *CsString, a: i64, b: i64): *CsString {
 fn dupCase(s: *CsString, upper: bool): *CsString {
     let n = slen(s)
     unsafe {
-        let r = GC_malloc(if n > 0 { n } else { 1 })
+        let r = gcAllocAtomic(n)
         var i: i64 = 0
         while i < n {
             let c = sbyte(s, i)
@@ -108,7 +109,7 @@ pub fn cs_str_repeat(s: *CsString, count: f64): *CsString {
     let n = slen(s)
     let total = n * c
     unsafe {
-        let r = GC_malloc(if total > 0 { total } else { 1 })
+        let r = gcAllocAtomic(total)
         var i: i64 = 0
         while i < c {
             memcpy(byteAt(r, i * n), sdata(s), n)
@@ -296,7 +297,7 @@ pub fn cs_str_replace(s: *CsString, a: *CsString, b: *CsString): *CsString {
     let rest = slen(s) - hit - la
     let total = hit + lb + rest
     unsafe {
-        let r = GC_malloc(if total > 0 { total } else { 1 })
+        let r = gcAllocAtomic(total)
         memcpy(r, sdata(s), hit)
         memcpy(byteAt(r, hit), sdata(b), lb)
         memcpy(byteAt(r, hit + lb), byteAt(sdata(s), hit + la), rest)
@@ -314,7 +315,7 @@ pub fn cs_str_replaceAll(s: *CsString, a: *CsString, b: *CsString): *CsString {
     unsafe {
         if la == 0 {
             let total0 = lb * (ls + 1) + ls
-            let r0 = GC_malloc(if total0 > 0 { total0 } else { 1 })
+            let r0 = gcAllocAtomic(total0)
             var o0: i64 = 0
             var i: i64 = 0
             while i < ls {
@@ -336,7 +337,7 @@ pub fn cs_str_replaceAll(s: *CsString, a: *CsString, b: *CsString): *CsString {
             p = find(s, a, p + la)
         }
         let total = ls + count * (if lb > la { lb - la } else { 0 })
-        let r = GC_malloc(if total > 0 { total } else { 1 })
+        let r = gcAllocAtomic(total)
         var o: i64 = 0
         var start: i64 = 0
         var hit = find(s, a, start)
@@ -433,7 +434,7 @@ fn pad(s: *CsString, dtarget: f64, padStr: *CsString, atStart: bool): *CsString 
     }
     let fill = target - n
     unsafe {
-        let r = GC_malloc(target)
+        let r = gcAllocAtomic(target)
         let dst = if atStart { r } else { byteAt(r, n) }
         var i: i64 = 0
         while i < fill {
@@ -461,7 +462,7 @@ pub fn cs_str_pad_end(s: *CsString, target: f64, padStr: *CsString): *CsString {
 fn nulTerm(s: *CsString): *u8 {
     let n = slen(s)
     unsafe {
-        let b = GC_malloc(n + 1)
+        let b = gcAllocAtomic(n + 1)
         memcpy(b, sdata(s), n)
         b[n] = 0
         return b

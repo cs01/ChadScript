@@ -12,12 +12,13 @@
 // Strings are ASCII here (PLAN.md "Decisions locked"), so a string's JS length is its byte count
 // and Node's getStringWidth is "bytes >= 0x20".
 
-from "./abi" import { CsString, CsArray, GC_malloc, GC_malloc_atomic, memcpy, byteAt }
+from "./abi" import { CsString, CsArray, memcpy, byteAt }
 from "./csstring" import { cs_str_mk }
 from "./array" import { cs_array_new, cs_array_push, cs_array_len, cs_array_get }
 from "./number" import { numToStr }
 from "./math" import { cs_math_round }
 from "./libc" import { floor, sqrt }
+from "./gc" import { gcAllocAtomic, gcAllocStruct }
 
 let BREAK_LENGTH: i64 = 80
 // ctx.compact; also caps grouped columns at compact * 4.
@@ -39,8 +40,8 @@ pub extern struct Sb {
 
 pub fn sbNew(): *Sb {
     unsafe {
-        let b = GC_malloc(24) as *Sb
-        b.p = GC_malloc_atomic(64)
+        let b = gcAllocStruct(24, 0b1) as *Sb
+        b.p = gcAllocAtomic(64)
         b.n = 0
         b.cap = 64
         return b
@@ -54,7 +55,7 @@ pub fn sbBytes(b: *Sb, p: *u8, n: i64) {
             while nc < b.n + n {
                 nc = nc * 2
             }
-            let np = GC_malloc_atomic(nc)
+            let np = gcAllocAtomic(nc)
             memcpy(np, b.p, b.n)
             b.p = np
             b.cap = nc

@@ -30,6 +30,7 @@ import { evalMapGet } from "./collections.js";
 import { evalUnbox, evalValueCoalesce, evalValueWord } from "./value-ops.js";
 import { V_NULL, V_UNDEFINED } from "./value.js";
 import { evalAwait } from "./async.js";
+import { allocSlotBox } from "./alloc.js";
 
 // Evaluate an optional-typed HExpr to its pointer rep (undefined sentinel, or a box pointer).
 export function evalOptionalPtr(expr: HExpr, ctx: Ctx): Value {
@@ -72,7 +73,7 @@ export function evalOptionalPtr(expr: HExpr, ctx: Ctx): Value {
 // Wrap an inner value into a present optional: a GC box holding the boxed inner value.
 function evalWrap(expr: Extract<HExpr, { kind: "wrap" }>, ctx: Ctx): Value {
   const inner = expr.type.kind === "optional" ? expr.type.inner : ice("wrap: not optional-typed");
-  const box = ctx.fn.call("@cs_gc_alloc", T.ptr, [imm(T.i64, 8)]);
+  const box = allocSlotBox(inner, ctx);
   ctx.fn.store(boxSlot(evalValue(expr.value, ctx), inner, ctx), box);
   return box;
 }
@@ -95,7 +96,9 @@ function evalIndex(expr: Extract<HExpr, { kind: "index" }>, ctx: Ctx): Value {
   ctx.fn.brCond(ctx.fn.icmp("slt", i, len), inB, outB);
 
   ctx.fn.switchTo(inB);
-  const box = ctx.fn.call("@cs_gc_alloc", T.ptr, [imm(T.i64, 8)]);
+  const elemType =
+    expr.type.kind === "optional" ? expr.type.inner : ice("index: not optional-typed");
+  const box = allocSlotBox(elemType, ctx);
   ctx.fn.store(ctx.fn.call("@cs_array_get", T.i64, [arr, i]), box); // store the raw i64 slot
   ctx.fn.store(box, result);
   ctx.fn.br(endB);

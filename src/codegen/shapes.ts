@@ -11,6 +11,7 @@ import { T } from "../ir/types.js";
 import type { ShapeDescriptor } from "../hir/nodes.js";
 import { classDisplayName, type ValueType } from "../hir/types.js";
 import type { Ctx } from "./expr.js";
+import { allocRecordWords } from "./alloc.js";
 
 // CsShape (runtime/abi.milo), one 8-byte word per field, in this order. The test in
 // tests/unit/shape-abi.test.ts reads abi.milo and compares it to this list.
@@ -116,9 +117,7 @@ export function loadShapeWord(shape: Value, field: (typeof SHAPE_FIELDS)[number]
 // Allocate a zeroed record for `fieldCount` fields and store its shape. Zeroed field slots read as
 // `undefined` (Value 0) until assigned.
 export function allocRecord(shapeId: number, fieldCount: number, ctx: Ctx): Value {
-  const rec = ctx.fn.call("@cs_gc_alloc", T.ptr, [
-    imm(T.i64, (fieldCount + RECORD_HEADER_SLOTS) * 8),
-  ]);
+  const rec = allocRecordWords(fieldCount + RECORD_HEADER_SLOTS - 1, ctx);
   ctx.fn.store(shapeRef(ctx, shapeId), ctx.fn.gepSlot(rec, 0));
   return rec;
 }

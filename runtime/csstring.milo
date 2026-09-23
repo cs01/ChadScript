@@ -1,7 +1,8 @@
 // CsString constructors and NUL-safe byte search: the primitives every string helper builds on.
 // Strings are {data,len} (see abi.milo); an embedded NUL is an ordinary byte here.
 
-from "./abi" import { CsString, GC_malloc, memcpy, memcmp, byteAt }
+from "./abi" import { CsString, memcpy, memcmp, byteAt }
+from "./gc" import { gcAllocAtomic, gcAllocStruct }
 
 // Wrap an already-stable buffer (a static literal, or GC memory the caller just filled) into a
 // CsString header WITHOUT copying. The buffer must outlive the header; when it is GC memory, the
@@ -9,7 +10,7 @@ from "./abi" import { CsString, GC_malloc, memcpy, memcmp, byteAt }
 @externalLinkage
 pub fn cs_str_mk(data: *u8, len: i64): *CsString {
     unsafe {
-        let s = GC_malloc(16) as *CsString
+        let s = gcAllocStruct(16, 0b1) as *CsString
         s.data = data
         s.len = len
         return s
@@ -20,8 +21,7 @@ pub fn cs_str_mk(data: *u8, len: i64): *CsString {
 @externalLinkage
 pub fn cs_str_from(data: *u8, len: i64): *CsString {
     unsafe {
-        // GC_malloc(0) is legal, but a non-empty buffer keeps `data` a valid pointer always.
-        let buf = GC_malloc(if len > 0 { len } else { 1 })
+        let buf = gcAllocAtomic(len)
         if len > 0 {
             memcpy(buf, data, len)
         }

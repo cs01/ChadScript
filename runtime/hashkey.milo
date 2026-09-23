@@ -8,8 +8,9 @@
 // Keeping entries separate from buckets is what lets iteration stay a straight walk in JS order
 // while lookup is O(1).
 
-from "./abi" import { CsString, GC_malloc_atomic, f64Bits, f64FromBits, isNan, NEG_ZERO_BITS }
+from "./abi" import { CsString, f64Bits, f64FromBits, isNan, NEG_ZERO_BITS }
 from "./strings" import { cs_str_eq }
+from "./gc" import { gcAllocAtomic }
 
 // Key kind tags, passed by generated IR (equality depends on the key's source type).
 pub let KEY_NUMBER: i32 = 0
@@ -116,7 +117,7 @@ fn bucketIndex(k: i64, kind: i32, mask: u32): i64 {
 pub fn indexRebuild(ix: *CsIndex, entries: *i64, len: i32, newCap: i32, kind: i32) {
     unsafe {
         ix.cap = newCap
-        let buckets = GC_malloc_atomic(newCap as i64 * 4) as *i32
+        let buckets = gcAllocAtomic(newCap as i64 * 4) as *i32
         ix.buckets = buckets
         var i: i64 = 0
         while i < newCap as i64 {

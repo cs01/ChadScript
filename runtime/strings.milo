@@ -1,10 +1,11 @@
 // String runtime: concatenation, to-string coercions, inspect formatting, and Number(str) parsing.
 // Strings are {data,len} (see abi.milo); NUL is an ordinary byte. Heap goes through Boehm.
 
-from "./abi" import { CsString, GC_malloc, GC_malloc_atomic, memcpy, memcmp, byteAt, isNan, isFinite, signBit }
+from "./abi" import { CsString, memcpy, memcmp, byteAt, isNan, isFinite, signBit }
 from "./csstring" import { cs_str_mk, cs_str_from, strLit }
 from "./number" import { numToStr, numToRadix }
 from "./libc" import { strtod }
+from "./gc" import { gcAllocAtomic }
 
 fn sdata(s: *CsString): *u8 {
     unsafe {
@@ -30,7 +31,7 @@ pub fn cs_str_concat(a: *CsString, b: *CsString): *CsString {
     let lb = slen(b)
     let n = la + lb
     unsafe {
-        let r = GC_malloc(if n > 0 { n } else { 1 })
+        let r = gcAllocAtomic(n)
         memcpy(r, sdata(a), la)
         memcpy(byteAt(r, la), sdata(b), lb)
         return cs_str_mk(r, n)

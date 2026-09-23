@@ -15,12 +15,13 @@
 //     frees the chain once no loop can observe it (a `break` or a throw out of a loop needs no
 //     cleanup).
 
-from "./abi" import { CsArray, GC_malloc, GC_malloc_atomic }
+from "./abi" import { CsArray }
 from "./array" import { cs_array_new, cs_array_push }
 from "./hashkey" import {
     CsIndex, indexFind, indexInsert, indexRebuild, indexRemove, indexShouldGrow, storedKey,
     TOMBSTONE,
 }
+from "./gc" import { gcAllocAtomic, gcAllocStruct, gcAllocValues }
 
 pub extern struct CsIterRec {
     next: *CsIterRec,
@@ -30,7 +31,7 @@ pub extern struct CsIterRec {
     cleared: i32,
 }
 
-// GC memory: keys/vals may hold pointer slots, so they come from GC_malloc (scanned).
+// GC memory: keys/vals may hold pointer slots, so they are GC_VALUES (traced).
 pub extern struct CsOrdered {
     keys: *i64,
     vals: *i64,
@@ -44,7 +45,7 @@ pub extern struct CsOrdered {
 
 pub fn ordNew(hasVals: bool): *CsOrdered {
     unsafe {
-        let o = GC_malloc(56) as *CsOrdered
+        let o = gcAllocStruct(56, 0b1010011) as *CsOrdered
         o.keys = 0 as *i64
         o.vals = 0 as *i64
         o.len = 0
@@ -66,7 +67,7 @@ pub fn ordFind(o: *CsOrdered, k: i64, kind: i32): i32 {
 
 fn newRec(): *CsIterRec {
     unsafe {
-        let r = GC_malloc(24) as *CsIterRec
+        let r = gcAllocStruct(24, 0b11) as *CsIterRec
         r.next = 0 as *CsIterRec
         r.removed = 0 as *i32
         r.nremoved = 0
@@ -97,12 +98,12 @@ fn rehash(o: *CsOrdered, kind: i32) {
     unsafe {
         let live = o.live
         let nc: i32 = if live < 2 { 4 } else { live * 2 }
-        let nk = GC_malloc(nc as i64 * 8) as *i64
-        let nv = if o.hasVals != 0 { GC_malloc(nc as i64 * 8) as *i64 } else { 0 as *i64 }
+        let nk = gcAllocValues(nc as i64 * 8) as *i64
+        let nv = if o.hasVals != 0 { gcAllocValues(nc as i64 * 8) as *i64 } else { 0 as *i64 }
         let dead = o.len - live
         // Only needed when a parked iterator could be holding a position past a dropped tombstone.
         let track = dead > 0 && o.rec as i64 != 0
-        let removed = if track { GC_malloc_atomic(dead as i64 * 4) as *i32 } else { 0 as *i32 }
+        let removed = if track { gcAllocAtomic(dead as i64 * 4) as *i32 } else { 0 as *i32 }
         var r: i64 = 0
         var w: i64 = 0
         var i: i64 = 0

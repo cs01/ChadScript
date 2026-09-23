@@ -6,10 +6,11 @@
 // a non-throwing core that reports the failure, so fs/promises can turn the same failure into a
 // rejection without catching a throw (see fs-promises.milo).
 
-from "./abi" import { CsString, GC_malloc, memcpy }
+from "./abi" import { CsString, memcpy }
 from "./csstring" import { cs_str_mk }
 from "./errors" import { throwError }
 from "./libc" import { fopen, fclose, fseek, ftell, rewind, fread, fwrite, access, unlink }
+from "./gc" import { gcAllocAtomic }
 
 let SEEK_END: i32 = 2
 
@@ -38,7 +39,7 @@ pub fn isFailure(r: &FsResult): bool {
 // here, which is exactly what the OS would do with it anyway.
 fn pathCstr(p: *CsString): *u8 {
     unsafe {
-        let buf = GC_malloc(p.len + 1)
+        let buf = gcAllocAtomic(p.len + 1)
         memcpy(buf, p.data, p.len)
         buf[p.len] = 0
         return buf
@@ -57,7 +58,7 @@ pub fn fsError(r: &FsResult, path: *CsString): *CsString {
     let pre = "ENOENT: no such file or directory, "
     unsafe {
         let total = pre.len + r.failedOpLen + 2 + path.len + 1
-        let msg = GC_malloc(total)
+        let msg = gcAllocAtomic(total)
         var o = appendBytes(msg, 0, pre.cstr(), pre.len)
         o = appendBytes(msg, o, r.failedOp, r.failedOpLen)
         o = appendBytes(msg, o, " '".cstr(), 2)
@@ -87,7 +88,7 @@ pub fn readFile(path: *CsString): FsResult {
             return failed("read")
         }
         rewind(f)
-        let buf = GC_malloc(size + 1)
+        let buf = gcAllocAtomic(size + 1)
         let got = if size > 0 { fread(buf, 1, size, f) } else { 0 }
         fclose(f)
         return ok(cs_str_mk(buf, got))

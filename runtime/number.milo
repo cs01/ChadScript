@@ -3,8 +3,9 @@
 // byte for byte: shortest round-tripping digits, JS decimal/exponent placement, and the
 // "Infinity"/"NaN"/"0" (for both zeros) spellings.
 
-from "./abi" import { GC_malloc, isNan, isFinite, byteAt, memcpy }
+from "./abi" import { isNan, isFinite, byteAt, memcpy }
 from "./libc" import { snprintf, strtod, floor, trunc, fmod, nextafter }
+from "./gc" import { gcAllocAtomic }
 
 // A fixed-capacity byte builder over a caller's buffer. Every caller sizes the buffer for its
 // worst case (a formatted double is at most 25 bytes), so there is no growth path.
@@ -310,7 +311,7 @@ pub fn numToRadix(value0: f64, radix: i64, lenOut: &mut i64): *u8 {
     let len = fractionCursor - integerCursor
     let total = len + if negative { 1 } else { 0 }
     unsafe {
-        let result = GC_malloc(total + 1)
+        let result = gcAllocAtomic(total + 1)
         var k: i64 = 0
         if negative {
             result[0] = '-'

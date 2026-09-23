@@ -8,10 +8,11 @@
 // Errors become REJECTIONS rather than synchronous throws, as in Node. fs.milo's non-throwing cores
 // report the failure directly, so no handler has to catch a throw here.
 
-from "./abi" import { CsString, GC_malloc }
+from "./abi" import { CsString }
 from "./fs" import { FsResult, readFile, writeFile, unlinkFile, isFailure, fsError }
 from "./errors" import { cs_new_error }
 from "./async" import { Promise, cs_promise_new, cs_promise_resolve, cs_promise_reject }
+from "./gc" import { gcAllocStruct }
 
 // One deferred settlement, in GC memory. Kept in FIFO order: two reads issued back to back settle
 // in the order they were issued, which is what makes a fixture's output deterministic.
@@ -23,13 +24,13 @@ extern struct Completion {
     next: *Completion,
 }
 
-// Queue ends. GC pointers in Milo globals are fine: Boehm scans the program's static data.
+// Queue ends. GC pointers in Milo globals are fine: the collector scans the program's static data.
 var gIoHead: *Completion = 0 as *Completion
 var gIoTail: *Completion = 0 as *Completion
 
 fn enqueue(p: *Promise, rejected: bool, value: i64, reason: *u8) {
     unsafe {
-        let c = GC_malloc(40) as *Completion
+        let c = gcAllocStruct(40, 0b11101) as *Completion
         c.promise = p
         c.rejected = if rejected { 1 } else { 0 }
         c.value = value

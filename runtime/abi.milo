@@ -1,11 +1,11 @@
 // The runtime's C-ABI seam: the layouts generated IR and the remaining C share with the Milo
-// runtime, plus the libc and Boehm entry points it calls. Declared once here so every module
-// agrees on them.
+// runtime, plus the libc entry points it calls. Declared once here so every module agrees on them.
 //
-// GC rule: runtime memory comes from Boehm (GC_malloc / GC_malloc_atomic). Boehm scans only its
-// own heap, thread stacks, static data and registered roots, so a GC pointer may live in a local,
-// a global, or GC memory, and NEVER in Milo-owned heap memory (Vec, Heap, string buffers), which
-// is malloc'd and invisible to the collector.
+// GC rule: runtime memory comes from the allocator API in gc.milo (cs_alloc / gcAlloc*), which
+// records each object's pointer layout. The collector scans stacks, static data and registered
+// roots, and traces the heap through those layouts, so a GC pointer may live in a local, a global,
+// or a GC slot its layout declares, and NEVER in Milo-owned heap memory (Vec, Heap, string
+// buffers), which is malloc'd and invisible to the collector.
 
 // A JS string: UTF-8 bytes, `len` is the only authority on length (no NUL terminator, and an
 // embedded NUL is an ordinary byte). Generated IR passes it as an opaque `ptr`.
@@ -76,10 +76,6 @@ pub let KIND_UNKNOWN: u8 = 12
 pub let KIND_PROMISE: u8 = 13
 pub let KIND_OPAQUE: u8 = 14
 pub let KIND_VALUE: u8 = 15
-
-pub extern fn GC_malloc(n: i64): *u8
-// Pointer-free memory: Boehm never scans it, so it is only for byte buffers.
-pub extern fn GC_malloc_atomic(n: i64): *u8
 
 pub extern fn memcpy(dst: *u8, src: *u8, n: i64): *u8
 pub extern fn memmove(dst: *u8, src: *u8, n: i64): *u8

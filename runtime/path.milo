@@ -8,10 +8,11 @@
 // Strings are CsString {ptr,len}: no strlen on them, and an embedded NUL is an ordinary byte that
 // flows through unharmed (Node treats it that way too; only the syscall boundary in fs truncates).
 
-from "./abi" import { CsString, CsArray, GC_malloc_atomic, memcpy, byteAt }
+from "./abi" import { CsString, CsArray, memcpy, byteAt }
 from "./csstring" import { cs_str_mk, cs_str_from, strLit }
 from "./errors" import { throwErrorLit }
 from "./libc" import { getcwd, strlen }
+from "./gc" import { gcAllocAtomic }
 
 // A growable GC byte buffer. `data` is GC memory, so wrapping it with cs_str_mk (which does not
 // copy) is safe: the returned header keeps the buffer reachable. Lives on the stack, where Boehm
@@ -24,7 +25,7 @@ extern struct Buf {
 
 fn bufNew(): Buf {
     unsafe {
-        return Buf { data: GC_malloc_atomic(64), len: 0, cap: 64 }
+        return Buf { data: gcAllocAtomic(64), len: 0, cap: 64 }
     }
 }
 
@@ -38,7 +39,7 @@ fn bufAppend(b: &mut Buf, src: *u8, n: i64) {
             while cap < b.len + n {
                 cap = cap * 2
             }
-            let grown = GC_malloc_atomic(cap)
+            let grown = gcAllocAtomic(cap)
             memcpy(grown, b.data, b.len)
             b.data = grown
             b.cap = cap
