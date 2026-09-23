@@ -80,6 +80,7 @@ export function declareRuntimeExterns(mod: ModuleBuilder): void {
   }
   mod.declareExtern("cs_gc_init", T.void, []);
   mod.declareExtern("cs_alloc", T.ptr, [T.i64]); // header word (alloc.ts)
+  mod.declareExtern("cs_alloc_slow", T.ptr, [T.i64]); // alloc.ts inline fast path miss
   // Async runtime (runtime/async.milo): fibers, promises, await, and the microtask event loop.
   mod.declareExtern("cs_fiber_spawn", T.ptr, [T.ptr, T.ptr]);
   mod.declareExtern("cs_fiber_return", T.void, [T.i64]);

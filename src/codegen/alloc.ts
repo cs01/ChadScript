@@ -11,7 +11,7 @@
 //   bits 32..63  payload size in bytes (the header itself not included)
 
 import { ice } from "../diagnostics.js";
-import { imm, type Value } from "../ir/builder.js";
+import { imm, type ModuleBuilder, type Value } from "../ir/builder.js";
 import { T } from "../ir/types.js";
 import type { ValueType } from "../hir/types.js";
 import type { Ctx } from "./expr.js";
@@ -38,8 +38,54 @@ export function gcHeader(kind: number, size: number, ptrMap = 0): string {
   return ((BigInt(size) << 32n) | (BigInt(ptrMap) << 8n) | BigInt(kind)).toString();
 }
 
+// runtime/gc.milo block geometry the inline fast path relies on.
+const BLOCK_BYTES = 32768;
+const LARGE_TOTAL = 8192;
+const ALLOC_FN = "cs.alloc";
+const withAllocFn = new WeakSet<ModuleBuilder>();
+
+// The allocation fast path, one small function per module that -O2 inlines at every site (with
+// the header a constant, the size arithmetic folds away): bump the cursor of the runtime's region
+// (residue.c `cs_gc_bump`), write the header, and set the object's bit in its block's start
+// bitmap (the word holding bit (addr & 32767) / 8, at the block's base; runtime/gc.milo lays the
+// bitmap out bytewise, which is the same bits on a little-endian target). When the region is
+// exhausted (or empty: the stress mode keeps it empty so the runtime sees every allocation) it
+// calls cs_alloc_slow.
+function defineAllocFn(mod: ModuleBuilder): void {
+  if (withAllocFn.has(mod)) return;
+  withAllocFn.add(mod);
+  const header: Value = { name: "%header", type: T.i64 };
+  const fn = mod.defineFunc(ALLOC_FN, T.ptr, [header]);
+  const bump = mod.externGlobal("cs_gc_bump");
+  const total = fn.ladd(fn.llshr(header, imm(T.i64, 32)), imm(T.i64, 8));
+  const cursor = fn.load(T.i64, bump);
+  const end = fn.ladd(cursor, total);
+  const limit = fn.load(T.i64, fn.gepSlot(bump, 1));
+  const fast = fn.newBlock("alloc.fast");
+  const slow = fn.newBlock("alloc.slow");
+  fn.brCond(fn.icmp("ule", end, limit), fast, slow);
+
+  fn.switchTo(fast);
+  fn.store(end, bump);
+  fn.store(header, fn.i64ToPtr(cursor));
+  const block = fn.land(cursor, imm(T.i64, -BLOCK_BYTES));
+  const offset = fn.land(cursor, imm(T.i64, BLOCK_BYTES - 1));
+  const wordAddr = fn.ladd(block, fn.lshl(fn.llshr(offset, imm(T.i64, 9)), imm(T.i64, 3)));
+  const bit = fn.land(fn.llshr(offset, imm(T.i64, 3)), imm(T.i64, 63));
+  const wordPtr = fn.i64ToPtr(wordAddr);
+  fn.store(fn.lor(fn.load(T.i64, wordPtr), fn.lshl(imm(T.i64, 1), bit)), wordPtr);
+  fn.ret(fn.i64ToPtr(fn.ladd(cursor, imm(T.i64, 8))));
+
+  fn.switchTo(slow);
+  fn.ret(fn.call("@cs_alloc_slow", T.ptr, [header]));
+}
+
 function alloc(header: string, ctx: Ctx): Value {
-  return ctx.fn.call("@cs_alloc", T.ptr, [imm(T.i64, header)]);
+  const size = Number(BigInt(header) >> 32n);
+  // A large object never fits a bump region; skip the inline check.
+  if (size + 8 > LARGE_TOTAL) return ctx.fn.call("@cs_alloc", T.ptr, [imm(T.i64, header)]);
+  defineAllocFn(ctx.mod);
+  return ctx.fn.call(`@${ALLOC_FN}`, T.ptr, [imm(T.i64, header)]);
 }
 
 // Whether a slot of this type (its machine representation, see expr.ts boxSlot) can hold a heap

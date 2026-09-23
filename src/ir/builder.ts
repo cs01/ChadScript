@@ -281,6 +281,12 @@ export class FuncBuilder {
   lor(a: Value, b: Value): Value {
     return this.lbin("or", a, b);
   }
+  lshl(a: Value, b: Value): Value {
+    return this.lbin("shl", a, b);
+  }
+  llshr(a: Value, b: Value): Value {
+    return this.lbin("lshr", a, b);
+  }
 
   // Pointer to slot `index` (an i64 Value, not a constant) of an i64 record: a field slot whose
   // position is only known at run time (an inline-cache hit).
