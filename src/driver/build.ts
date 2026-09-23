@@ -108,6 +108,15 @@ function miloRuntimeObject(): string {
       stdio: "pipe",
     });
     try {
+      // A global whose initializer is not a constant (a `string`, anything allocated) is set by
+      // Milo's global_init, which only a Milo `main` calls. The runtime has no Milo main, so such
+      // a global would silently stay zeroed; refuse to build instead.
+      if (readFileSync(ll, "utf8").includes("@__milo.global_init")) {
+        throw new Error(
+          "runtime/*.milo: a global needs a runtime initializer (Milo global_init), which never " +
+            "runs without a Milo main; use a constant initializer or a function-local value",
+        );
+      }
       execFileSync(CLANG, [...RUNTIME_COMPILE_FLAGS, "-Wno-override-module", ll, "-o", tmp], {
         stdio: "pipe",
       });

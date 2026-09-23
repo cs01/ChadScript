@@ -1,0 +1,37 @@
+// Clock access. `Date.now()` is milliseconds since the epoch as a JS number (f64), which is what
+// the whole subset uses for numbers: no int64 crosses the ABI.
+
+// struct timespec on every 64-bit target we build for: time_t and long are both 8 bytes.
+pub extern struct Timespec {
+    tv_sec: i64,
+    tv_nsec: i64,
+}
+
+extern fn clock_gettime(clock: i32, ts: *Timespec): i32
+
+// CLOCK_REALTIME is 0 on both macOS and Linux; CLOCK_MONOTONIC is not (6 vs 1).
+let CLOCK_REALTIME: i32 = 0
+
+pub fn clockMonotonic(): i32 {
+    if @targetOs() == "darwin" {
+        return 6
+    }
+    return 1
+}
+
+pub fn clockMs(clock: i32): f64 {
+    var ts = Timespec { tv_sec: 0, tv_nsec: 0 }
+    unsafe {
+        clock_gettime(clock, ts.addrOf())
+    }
+    return ts.tv_sec as f64 * 1000.0 + ts.tv_nsec as f64 / 1000000.0
+}
+
+// Milliseconds since the Unix epoch. Node's Date.now() truncates to whole milliseconds, so this
+// does too: sub-millisecond precision would be a visible divergence in any program that prints
+// the value.
+@externalLinkage
+pub fn cs_date_now(): f64 {
+    // Truncate toward zero; the epoch value is positive, so this is a floor.
+    return clockMs(CLOCK_REALTIME) as i64 as f64
+}
