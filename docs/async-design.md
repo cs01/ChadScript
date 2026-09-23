@@ -1,6 +1,6 @@
 # Async design (Phase 6)
 
-Status: design. Implementation lands in slices behind this doc (PLAN's design-doc-first gate).
+Status: implemented (async/await, Promise.all, timers, fs/promises). Kept as the design record; fiber stacks are now scanned by the runtime GC (runtime/gc-stacks.milo).
 
 ## Why this is not optional-shaped
 
