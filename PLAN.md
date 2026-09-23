@@ -328,7 +328,7 @@ manifest. Estimates in LOC.
    blocks and lines, bump allocation inlined into generated IR, lazy sweep; libgc dropped from
    the link, the driver and CI. `CHAD_GC_STRESS=1` lane over the differential suite in CI. See
    "Memory: our own GC in Milo". (~1.2k)
-7. **0.1 "TS CLI tools"**. DONE (dod `release-0.1`, released as `v2.0.0-alpha.1`, CHANGELOG.md). argv, fs, JSON
+7. **0.1 "TS CLI tools"**. DONE (dod `release-0.1`, to be released as 2.0.0-alpha.1, CHANGELOG.md). argv, fs, JSON
    parsed and validated against the declared type, async, generated SUBSET.md; every `@known-bug`
    fixture cleared (Error classes with `message`/`name`/`instanceof`, `new Promise` with a typed
    executor, the JSON cycle TypeError, `new Map` from pair literals, String() of objects and

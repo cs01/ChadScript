@@ -1,6 +1,6 @@
 # Roadmap
 
-Latest: [2.0.0-alpha.1](https://github.com/cs01/ChadScript/releases) (2026-09-23). What it added is in the [changelog](https://github.com/cs01/ChadScript/blob/main/CHANGELOG.md).
+Nothing is released yet; 2.0.0-alpha.1 is in preparation, and what it adds is in the [changelog](https://github.com/cs01/ChadScript/blob/main/CHANGELOG.md).
 
 The charter is [`PLAN.md`](https://github.com/cs01/ChadScript/blob/main/PLAN.md); this page summarizes its phases. Each phase lands fixtures first, keeps every gate green,
 and records its outcome in the definition-of-done manifest
@@ -16,7 +16,7 @@ Status as of 2026-09-23.
 | 4     | `Value` words, mixed unions, narrowing                                                                  | done                                         |
 | 5     | Mutable captures in heap cells, erased generics                                                         | done                                         |
 | 6     | Own garbage collector in Milo (conservative roots, precise heap, inline bump allocation); libgc dropped | done                                         |
-| 7     | 0.1 "TS CLI tools": argv, fs, validated `JSON.parse`, async, `chad run --fallback=node`, `chad doctor`  | done (released as 2.0.0-alpha.1)             |
+| 7     | 0.1 "TS CLI tools": argv, fs, validated `JSON.parse`, async, `chad run --fallback=node`, `chad doctor`  | done (2.0.0-alpha.1 in preparation)          |
 
 ## Planned, not scheduled to a phase
 

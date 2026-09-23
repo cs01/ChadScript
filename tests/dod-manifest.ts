@@ -459,6 +459,6 @@ export const DOD: DodItem[] = [
       "reject/map-ctor-variable.ts",
       "run/array-push-many.ts",
     ],
-    note: "Every @known-bug fixture is cleared: implemented to match Node (string conversion of objects and arrays, the Error classes, new Promise with a typed executor, the JSON cycle TypeError, new Map from pair literals) or rejected at validate (a class extending Error). The CLI half (chad run --fallback=node, chad doctor, chad --version) is pinned by tests/slow/cli.test.ts. Released as v2.0.0-alpha.1 (the phase is still called 0.1); see CHANGELOG.md.",
+    note: "Every @known-bug fixture is cleared: implemented to match Node (string conversion of objects and arrays, the Error classes, new Promise with a typed executor, the JSON cycle TypeError, new Map from pair literals) or rejected at validate (a class extending Error). The CLI half (chad run --fallback=node, chad doctor, chad --version) is pinned by tests/slow/cli.test.ts. To be released as 2.0.0-alpha.1 (the phase is still called 0.1; nothing is published yet); see CHANGELOG.md.",
   },
 ];

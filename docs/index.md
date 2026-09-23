@@ -136,7 +136,7 @@ the [language guide](/guide/language) shows what you can write.
 
 <div class="home-section closing">
 
-ChadScript is an alpha ([2.0.0-alpha.1](https://github.com/cs01/ChadScript/releases)) and developed in the open. If you find a program that compiles but prints
+ChadScript is an alpha, not released yet, and developed in the open. If you find a program that compiles but prints
 something different from Node, that is the most important kind of bug:
 [please open an issue](https://github.com/cs01/ChadScript/issues/new). Curious how it works?
 Read [how it works](/internals/how-it-works) or see the [roadmap](/roadmap).

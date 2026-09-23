@@ -5,8 +5,8 @@ in, a small native binary out. Every program it accepts behaves exactly as it do
 everything else is rejected at compile time with a diagnostic that says why.
 Documentation: **[cs01.github.io/ChadScript](https://cs01.github.io/ChadScript/)**.
 
-> Status: alpha. Latest release: [2.0.0-alpha.1](https://github.com/cs01/ChadScript/releases)
-> ([changelog](CHANGELOG.md)). It builds from a source checkout; no prebuilt binaries yet.
+> Status: alpha, not released yet; 2.0.0-alpha.1 is in preparation ([changelog](CHANGELOG.md)).
+> It builds from a source checkout; no prebuilt binaries yet.
 
 ```ts
 // examples/shapes.ts (excerpt)

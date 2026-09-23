@@ -6,8 +6,9 @@ import { data } from "./toolchain.data";
 
 From a fresh clone to a running native binary. With bun and LLVM already installed, every command
 on this page (clone, setup, first build including the runtime, a rejection) finishes in seconds.
-The latest release is [2.0.0-alpha.1](https://github.com/cs01/ChadScript/releases). ChadScript
-builds from a source checkout; there is no prebuilt binary yet.
+Nothing is released yet (2.0.0-alpha.1 is in preparation, see the
+[changelog](https://github.com/cs01/ChadScript/blob/main/CHANGELOG.md)). ChadScript builds from a source checkout; there is no prebuilt binary
+yet.
 
 ## 1. Install the prerequisites
 

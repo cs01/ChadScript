@@ -1,7 +1,7 @@
 # Is ChadScript for you?
 
-ChadScript is an alpha: the first release is
-[2.0.0-alpha.1](https://github.com/cs01/ChadScript/releases). Every accepted program is tested
+ChadScript is an alpha, not released yet (2.0.0-alpha.1 is in preparation, see the
+[changelog](https://github.com/cs01/ChadScript/blob/main/CHANGELOG.md)). Every accepted program is tested
 against Node, but the subset is still growing. Here is an honest fit check.
 
 If you are not sure, try `chad run --fallback=node file.ts`: when ChadScript can't compile the
