@@ -122,16 +122,28 @@ Programs are directory trees of `.ts` files. Target surface:
 - `runtime/` Milo (`runtime/*.milo`, one compilation unit rooted at `lib.milo`) plus the C residue
   `runtime/residue.c`. `stdlib/globals.d.ts` the ambient environment programs see (no `@types/node`).
 
-### Memory: Boehm now, precise GC after the value model
+### Memory: our own GC in Milo (phase 6)
 
-Boehm is conservative, non-moving and non-generational; it forced the fiber-stack rooting hack
-in `runtime/async.c` and will lose to V8's nursery on allocation-heavy code. A precise GC is
-cheap here because HIR types and shapes give exact root and heap maps. Target: codegen-emitted
-shadow-stack roots (one per fiber), bump nursery + copying minor GC, mark-sweep old gen,
-statepoints only if the shadow stack measurably costs too much. Gate: `CHAD_GC_STRESS=1`
-(collect every allocation) over the full differential suite, plus the ASan lane. Not before
-the value model lands: never swap two foundations at once. No-GC ownership is not an option:
-TS programs alias and form cycles freely.
+Boehm is conservative everywhere, non-moving and allocates through a library call; it forced the
+fiber-stack rooting hack and is slow on allocation-heavy code.
+
+Revised 2026-09-23: exact stack roots (shadow stacks or statepoints) are out. The runtime is Milo
+code that holds raw heap pointers in its own frames across allocations, and the Milo compiler
+emits no stack maps, so an exact root set is not available without instrumenting Milo itself.
+Design instead: **conservative roots, precise heap.**
+
+- Roots: the machine stack, every fiber stack, registers (via setjmp spill), and registered data
+  ranges (globals, shape constants), scanned conservatively. A word is a candidate if it points
+  into an allocated object after masking the Value tag bits.
+- Heap: every object has a header naming its layout (shape for records, element kind for arrays,
+  atomic for strings and number buffers, descriptors for closure envs, cells, map/set tables,
+  promises, runtime structs). Marking follows exactly those pointer slots, never guesses.
+- Allocation: Immix-style blocks and lines with a bump-pointer fast path inlined into generated IR;
+  lazy sweep of free lines. Non-moving first; opportunistic evacuation of objects not pinned by a
+  conservative root is a later, flag-gated optimization.
+- Gates: `CHAD_GC_STRESS=1` (collect every N allocations) over the full differential suite, the
+  ASan lane, and benchmarks including an allocation-heavy one (binary trees).
+- No-GC ownership is not an option: TS programs alias and form cycles freely.
 
 ### Runtime language: Milo
 
@@ -259,7 +271,7 @@ manifest. Estimates in LOC.
    functions as type arguments (CS1242), aliased containers of other representations (CS1240),
    type-level computation (CS1243), constructor types (CS1244). `x!` is admitted where it is a
    no-op on a Value word. Closures + generics fuzzer in tests/slow. (~1.6k)
-6. **Precise GC** in Milo; drop libgc. (~2k)
+6. **Own GC** in Milo (conservative roots, precise heap, inline bump allocation); drop libgc. (~2k)
 7. **0.1 "TS CLI tools"**: argv, fs, JSON parsed and validated against the declared type,
    async, `chad run --fallback=node|milojs`, generated SUBSET.md, release binaries.
 
