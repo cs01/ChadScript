@@ -1,0 +1,183 @@
+// `setTimeout`: the timers phase of the event loop. Kept apart from async.milo so the microtask
+// queue and the timer queue stay separately readable; the event loop drives both through the
+// entry points at the bottom of this file.
+//
+// Node's observable contract, which the differential fixtures pin:
+//   - callbacks fire in (deadline, insertion) order, so equal delays keep registration order;
+//   - a delay below 1ms (including 0, negative, and NaN) is clamped to 1ms;
+//   - the microtask queue drains FULLY between two timer callbacks, not just at the end.
+//
+// The loop really SLEEPS until each deadline rather than firing everything immediately in sorted
+// order. Sorting alone would reproduce ordering but not elapsed time, and a program that measures
+// `Date.now()` across a timeout would then diverge from Node.
+
+from "./abi" import { GC_malloc }
+from "./time" import { Timespec, clockMs, clockMonotonic }
+
+extern fn nanosleep(req: *Timespec, rem: *Timespec): i32
+extern fn __error(): *i32
+extern fn __errno_location(): *i32
+
+let EINTR: i32 = 4
+
+// A closure value: the {fnptr, env} GC record codegen builds (see evalCallClosure: slot 0 is the
+// function pointer, slot 1 the environment). A zero-argument void callback is `fn(env)`.
+extern struct CsClosure {
+    fnptr: (*u8) => void,
+    env: *u8,
+}
+
+// GC memory.
+extern struct Timer {
+    // monotonic, not wall-clock: immune to clock adjustment mid-run
+    deadline: f64,
+    // registration order: the tiebreak for equal deadlines
+    seq: i64,
+    callback: *CsClosure,
+    // cleared timers stay linked and are skipped when due (see cs_clear_timeout)
+    cancelled: i32,
+    next: *Timer,
+}
+
+// Sorted singly linked list, earliest first. Linear insert is O(n) per timer, the right tradeoff at
+// the scale the subset targets; a heap lands if a profile ever justifies it.
+var gTimers: *Timer = 0 as *Timer
+var gTimerSeq: i64 = 0
+
+fn isNull(t: *Timer): bool {
+    return t as i64 == 0
+}
+
+fn nowMs(): f64 {
+    return clockMs(clockMonotonic())
+}
+
+// True when `a` fires before `t` (earlier deadline, or equal deadline registered first).
+fn firesBefore(a: *Timer, t: *Timer): bool {
+    unsafe {
+        return a.deadline < t.deadline || (a.deadline == t.deadline && a.seq < t.seq)
+    }
+}
+
+@externalLinkage
+pub fn cs_set_timeout(callback: *CsClosure, delay0: f64): *Timer {
+    // `!(delay >= 1)` rather than `delay < 1` so NaN clamps too: Node treats NaN as 1ms.
+    let delay = if !(delay0 >= 1.0) { 1.0 } else { delay0 }
+    unsafe {
+        let t = GC_malloc(40) as *Timer
+        t.deadline = nowMs() + delay
+        t.seq = gTimerSeq
+        gTimerSeq = gTimerSeq + 1
+        t.callback = callback
+        t.cancelled = 0
+        t.next = 0 as *Timer
+
+        if isNull(gTimers) || !firesBefore(gTimers, t) {
+            t.next = gTimers
+            gTimers = t
+            return t
+        }
+        var prev = gTimers
+        while !isNull(prev.next) && firesBefore(prev.next, t) {
+            prev = prev.next
+        }
+        t.next = prev.next
+        prev.next = t
+        return t
+    }
+}
+
+// Cancel a pending timer. The node is left in the list and skipped when its deadline arrives rather
+// than unlinked: the handle the program holds is this pointer, and clearing the same timer twice
+// (or one that already fired) must be a no-op, which a tombstone makes trivially true.
+@externalLinkage
+pub fn cs_clear_timeout(t: *Timer) {
+    if !isNull(t) {
+        unsafe {
+            t.cancelled = 1
+        }
+    }
+}
+
+// The first live timer, or null.
+fn firstLive(): *Timer {
+    var t = gTimers
+    unsafe {
+        while !isNull(t) && t.cancelled != 0 {
+            t = t.next
+        }
+    }
+    return t
+}
+
+// Only LIVE timers count as pending: a queue of cancelled tombstones must not keep the event loop
+// (or a sleep) alive.
+pub fn timersPending(): bool {
+    return !isNull(firstLive())
+}
+
+// Whether the earliest timer's deadline has passed. The event loop runs DUE timers before
+// delivering I/O completions (Node's timers phase precedes poll), but must not sleep on a
+// not-yet-due timer while a completed read is waiting.
+pub fn timersDue(): bool {
+    let t = firstLive()
+    if isNull(t) {
+        return false
+    }
+    unsafe {
+        return t.deadline <= nowMs()
+    }
+}
+
+fn errnoValue(): i32 {
+    unsafe {
+        if @targetOs() == "darwin" {
+            return *__error()
+        }
+        return *__errno_location()
+    }
+}
+
+// Sleep until the earliest timer is due, then run exactly ONE callback. The caller drains
+// microtasks between calls, which is what makes the interleaving match Node.
+pub fn timersRunEarliest() {
+    // Drop any cancelled timers ahead of the first live one.
+    gTimers = firstLive()
+    let t = gTimers
+    if isNull(t) {
+        return
+    }
+    unsafe {
+        gTimers = t.next
+        let remaining = t.deadline - nowMs()
+        if remaining > 0.0 {
+            let secs = remaining / 1000.0
+            var req = Timespec { tv_sec: secs as i64, tv_nsec: 0 }
+            req.tv_nsec = ((remaining - req.tv_sec as f64 * 1000.0) * 1000000.0) as i64
+            // Restart on EINTR so a signal cannot make a timer fire early. Any other error means
+            // the remaining time is unrepresentable, and looping on it would hang: fire instead.
+            var retry = true
+            while retry {
+                retry = nanosleep(req.addrOf(), req.addrOf()) == -1 && errnoValue() == EINTR
+            }
+        }
+        let cb = t.callback
+        cb.fnptr(cb.env)
+    }
+}
+
+// C-facing entry points for the event loop in async.c.
+@externalLinkage
+pub fn cs_timers_pending(): i32 {
+    return if timersPending() { 1 } else { 0 }
+}
+
+@externalLinkage
+pub fn cs_timers_due(): i32 {
+    return if timersDue() { 1 } else { 0 }
+}
+
+@externalLinkage
+pub fn cs_timers_run_earliest() {
+    timersRunEarliest()
+}
