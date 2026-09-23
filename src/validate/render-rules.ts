@@ -57,6 +57,11 @@ export function renderDiagnostic(
 
   // A description of the first unrenderable thing reachable from `t`, or null.
   function walk(t: ts.Type, pos: Position, where: string, at: ts.Node): string | null {
+    // `m.keys()` / `s.values()` lower to a materialized array, but Node prints the iterator
+    // object itself (`[Map Iterator] { 1, 2 }`).
+    if (/Iterator$/.test(t.getSymbol()?.getName() ?? "")) {
+      return `${where} is an iterator, which Node prints as an iterator object`;
+    }
     let vt: ValueType;
     try {
       vt = valueTypeOfTsType(t, at, checker);

@@ -29,6 +29,7 @@ import { lowerInterceptedCall } from "./globals.js";
 import { namespaceMemberOf } from "./module-refs.js";
 import { accessIn, fieldAccessAt, methodDispatchAt } from "./member-access.js";
 import { classIdOf, constructorClassOf } from "./class-ids.js";
+import { recordFieldWrite } from "./field-writes.js";
 
 // Returns an array because one `let a = 1, b = 2;` lowers to several varDecls.
 export function lowerStatement(stmt: ts.Statement, ctx: LowerCtx): HStmt[] {
@@ -396,7 +397,9 @@ export function lowerMemberAssignment(
   if (op === ts.SyntaxKind.EqualsToken) {
     // The slot stores a self-describing Value boxed from the value's own type, so no coercion to
     // the field's static representation is needed.
-    return { kind: "memberSet", object, access, value: lowerExpr(rhs, ctx) };
+    const value = lowerExpr(rhs, ctx);
+    recordFieldWrite(lhs.expression, lhs.name.text, value.type, ctx);
+    return { kind: "memberSet", object, access, value };
   }
   // A Value field is read at the type tsc narrowed the access to (the slot is a word either way).
   const readType = fieldType.kind === "value" ? resolveType(lhs, ctx) : fieldType;
@@ -407,6 +410,7 @@ export function lowerMemberAssignment(
     right: lowerExpr(rhs, ctx),
     type: readType,
   };
+  recordFieldWrite(lhs.expression, lhs.name.text, readType, ctx);
   return { kind: "memberSet", object, access, value };
 }
 

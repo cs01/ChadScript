@@ -15,7 +15,14 @@ import type { LoadedProgram } from "../frontend/program.js";
 import type { HModule, HStmt, HExpr, HFunc, HCapture } from "../hir/nodes.js";
 import { VT, optionalOf } from "../hir/types.js";
 import { binaryOp, unaryOp, isAssignmentOp, compoundOp } from "./operators.js";
-import { coerceToTarget, coerceElement, typeofTest } from "./value-lower.js";
+import {
+  coerceToTarget,
+  coerceElement,
+  typeofTest,
+  isNullishType,
+  valueCoalesce,
+} from "./value-lower.js";
+import { type FieldWrite, applyFieldWrites } from "./field-writes.js";
 // Re-exported: statements.ts and friends import these through lower.ts.
 export { isAssignmentOp, compoundOp, coerceToTarget };
 import type { ValueType } from "../hir/types.js";
@@ -86,15 +93,13 @@ export interface LowerCtx {
   layouts: LayoutAnalysis;
   layoutShapes: Map<number, Set<number>>;
   pendingSpreads: Map<ts.ObjectLiteralExpression, Extract<HExpr, { kind: "objectSpread" }>[]>;
+  // Every `o.f = v` write, applied to the reaching shapes' field types at the end (field-writes.ts).
+  fieldWrites: FieldWrite[];
 }
 
 // The `undefined` literal (a global identifier in TS).
 function isUndefinedLiteral(e: ts.Expression): boolean {
   return ts.isIdentifier(e) && e.text === "undefined";
-}
-
-function isNullishType(t: ValueType): boolean {
-  return t.kind === "null" || t.kind === "undefined";
 }
 
 // A property whose declaration is a method (as opposed to a data field).
@@ -119,6 +124,7 @@ export function lower(loaded: LoadedProgram): HModule {
     layouts: layoutsOf(loaded),
     layoutShapes: new Map(),
     pendingSpreads: new Map(),
+    fieldWrites: [],
   };
   // Precompute every class's method table and shape BEFORE lowering, so a call site (which may
   // precede the class in source) can resolve a method's vtable index and a `new` its shape.
@@ -155,7 +161,9 @@ export function lower(loaded: LoadedProgram): HModule {
       }
     }
   }
+  applyFieldWrites(ctx);
   resolveSpreads(ctx);
+  applyFieldWrites(ctx);
   return { functions: ctx.functions, topLevel, shapes: ctx.shapes.shapes };
 }
 
@@ -666,14 +674,11 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
         if (left.type.kind === "null" || left.type.kind === "undefined") {
           return lowerExpr(b.right, ctx);
         }
-        // A Value left: nullish is a word test. The fallback lands in the result's representation.
-        if (left.type.kind === "value") {
-          return {
-            kind: "coalesce",
-            left,
-            right: coerceToTarget(lowerExpr(b.right, ctx), type),
-            type,
-          };
+        if (
+          left.type.kind === "value" ||
+          (left.type.kind === "optional" && type.kind === "value")
+        ) {
+          return valueCoalesce(left, lowerExpr(b.right, ctx), type);
         }
         if (left.type.kind !== "optional") return left;
         return { kind: "coalesce", left, right: lowerExpr(b.right, ctx), type };

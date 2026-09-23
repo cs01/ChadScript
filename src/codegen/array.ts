@@ -20,6 +20,29 @@ import {
   emitStrictEq,
   coerceValueToString,
 } from "./expr.js";
+import { valueJoinString, valueSameValueZero } from "./value-ops.js";
+import { unboxValue } from "./value.js";
+
+// The slot `filter` keeps for an element. Normally the original slot, but a type-predicate callback
+// (`(v) => typeof v === "number"`, which tsc infers as `v is number`) narrows the RESULT's element
+// type, and when that changes the representation (a Value union or an optional narrowed to one
+// concrete kind) the kept element is converted into the result's slot form.
+function filteredSlot(
+  slot: Value,
+  elem: Value,
+  expr: Extract<HExpr, { kind: "arrayHof" }>,
+  ctx: Ctx,
+): Value {
+  const out = expr.type.kind === "array" ? expr.type.element : ice("filter result is not an array");
+  const src = expr.elementType;
+  if (src.kind === "value" && out.kind !== "value") {
+    return boxSlot(unboxValue(slot, out, ctx), out, ctx);
+  }
+  if (src.kind === "optional" && out.kind !== "optional") {
+    return boxSlot(unboxSlot(ctx.fn.load(T.i64, elem), out, ctx), out, ctx);
+  }
+  return slot;
+}
 
 // Higher-order array methods (map/filter/forEach/reduce), lowered to an inline loop that
 // invokes the callback closure per element. The closure is called with the SAME typed ABI as a
@@ -112,7 +135,7 @@ export function evalArrayHof(expr: Extract<HExpr, { kind: "arrayHof" }>, ctx: Ct
       const pushB = ctx.fn.newBlock("hof.push");
       ctx.fn.brCond(keep, pushB, latchB);
       ctx.fn.switchTo(pushB);
-      ctx.fn.call("@cs_array_push", T.i32, [result!, elemI64]); // keep the original boxed slot
+      ctx.fn.call("@cs_array_push", T.i32, [result!, filteredSlot(elemI64, elem, expr, ctx)]);
       ctx.fn.br(latchB);
     } else if (isPredicate) {
       const keep = ctx.fn.callIndirect(fnptr, T.i1, args);
@@ -284,7 +307,13 @@ export function evalArraySearch(
 
   ctx.fn.switchTo(bodyB);
   const elem = arrayElementAt(ctx.fn.load(T.ptr, arrSlot), i, elementType, ctx);
-  ctx.fn.brCond(emitStrictEq(elem, target, elementType, ctx), endB, contB); // match → stop
+  // includes() is SameValueZero, indexOf() is ===; they differ only for NaN, which only a Value
+  // element distinguishes here.
+  const match =
+    elementType.kind === "value" && !wantIndex
+      ? valueSameValueZero(elem, target, ctx)
+      : emitStrictEq(elem, target, elementType, ctx);
+  ctx.fn.brCond(match, endB, contB); // match → stop
 
   ctx.fn.switchTo(contB);
   ctx.fn.store(ctx.fn.iadd(i, imm(T.i32, 1)), idxSlot);
@@ -328,11 +357,11 @@ export function evalArrayJoin(expr: Extract<HExpr, { kind: "arrayJoin" }>, ctx: 
   ctx.fn.switchTo(bodyB);
   const arr = ctx.fn.load(T.ptr, arrSlot);
   const idx = ctx.fn.load(T.i32, idxSlot);
-  const elemStr = coerceValueToString(
-    arrayElementAt(arr, idx, expr.elementType, ctx),
-    expr.elementType,
-    ctx,
-  );
+  const elem = arrayElementAt(arr, idx, expr.elementType, ctx);
+  const elemStr =
+    expr.elementType.kind === "value"
+      ? valueJoinString(elem, expr.elementType, ctx)
+      : coerceValueToString(elem, expr.elementType, ctx);
   const prefix = ctx.fn.select(ctx.fn.icmp("eq", idx, imm(T.i32, 0)), empty, sep);
   let acc = ctx.fn.call("@cs_str_concat", T.ptr, [ctx.fn.load(T.ptr, resultSlot), prefix]);
   acc = ctx.fn.call("@cs_str_concat", T.ptr, [acc, elemStr]);

@@ -33,6 +33,7 @@ import {
   evalUnbox,
   evalTypeOf,
   evalTypeIs,
+  evalInstanceof,
   valueStrictEq,
   valueToString,
 } from "./value-ops.js";
@@ -722,19 +723,8 @@ export function evalBool(expr: HExpr, ctx: Ctx): Value {
         imm(T.i32, 0),
       );
 
-    case "instanceofCheck": {
-      // The receiver's shape pointer equals the target class's or any subclass's.
-      if (expr.value.type.kind !== "object") {
-        return ice(`instanceof on ${expr.value.type.kind} not supported yet`);
-      }
-      const shape = loadShape(evalObjectPtr(expr.value, ctx), ctx);
-      let acc: Value | null = null;
-      for (const id of expr.shapes) {
-        const eq = ctx.fn.icmp("eq", shape, shapeRef(ctx, id));
-        acc = acc === null ? eq : ctx.fn.logicalOr(acc, eq);
-      }
-      return acc ?? imm(T.i1, 0);
-    }
+    case "instanceofCheck":
+      return evalInstanceof(expr, ctx);
 
     default:
       return ice(`evalBool: unhandled boolean expression ${expr.kind}`);

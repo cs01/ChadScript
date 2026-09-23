@@ -4,7 +4,7 @@
 
 import ts from "typescript";
 import type { ArrayElement, HExpr, TypeTest } from "../hir/nodes.js";
-import { VT } from "../hir/types.js";
+import { VT, optionalOf } from "../hir/types.js";
 import type { ValueType } from "../hir/types.js";
 import { type LowerCtx, lowerExpr } from "./lower.js";
 
@@ -54,6 +54,41 @@ export function typeofTest(b: ts.BinaryExpression, ctx: LowerCtx): HExpr | null 
     };
   };
   return pick(b.left, b.right) ?? pick(b.right, b.left);
+}
+
+export function isNullishType(t: ValueType): boolean {
+  return t.kind === "null" || t.kind === "undefined";
+}
+
+// `left ?? right` where the left is a Value (nullish is a word test) or an optional whose result is
+// a union (`a ?? b` with `a: string | undefined`, `b: number`), which is boxed first so its present
+// value lands in the union as a word too. The fallback lands in the result's representation.
+export function valueCoalesce(left: HExpr, right: HExpr, type: ValueType): HExpr {
+  const word: HExpr =
+    left.type.kind === "value" ? left : { kind: "box", value: left, type: withNullish(type) };
+  return { kind: "coalesce", left: word, right: coerceToTarget(right, type), type };
+}
+
+// A Value union that can also hold undefined and null (the left of `??` before the test).
+function withNullish(t: ValueType): ValueType {
+  if (t.kind !== "value") return t;
+  const extra = [VT.undefined, VT.null].filter((n) => !t.members.some((m) => m.kind === n.kind));
+  return { kind: "value", members: [...t.members, ...extra] };
+}
+
+// A read that yields `inner | undefined` through an optional pointer (`arr.pop()`, `arr.at(i)`,
+// `arr.find(f)`, `map.get(k)`), stamped with the site's type. For a Value `inner` the site's type is
+// the union itself (a Value absorbs `undefined`), which the optional-pointer machinery does not
+// produce; so the node keeps its optional pointer form and an explicit box turns it into the word,
+// unboxed again where tsc narrowed the site.
+export function optionalRead(node: HExpr, inner: ValueType, siteType: ValueType): HExpr {
+  if (inner.kind !== "value") return { ...node, type: siteType } as HExpr;
+  const raw = { ...node, type: { kind: "optional", inner } } as HExpr;
+  const word: HExpr = { kind: "box", value: raw, type: optionalOf(inner) };
+  if (siteType.kind === "value" || siteType.kind === "undefined" || siteType.kind === "null") {
+    return word;
+  }
+  return { kind: "unbox", value: word, type: siteType };
 }
 
 // An array literal element (or rest argument) in the array's element representation.

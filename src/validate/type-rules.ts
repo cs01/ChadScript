@@ -87,6 +87,8 @@ export function checkRepresentableType(
   // positions (a statement-position call, a void return) are not values either.
   const t = checker.getTypeAtLocation(node);
   if (t.flags & (ts.TypeFlags.Void | ts.TypeFlags.Any | ts.TypeFlags.Never)) return null;
+  // A bigint can only come from a bigint literal, which default-deny rejects where it is written.
+  if (t.flags & ts.TypeFlags.BigIntLike) return null;
   try {
     valueTypeOfTsType(t, node, checker);
     return null;

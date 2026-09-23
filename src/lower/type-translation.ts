@@ -191,7 +191,7 @@ export function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChe
       const args = checker.getTypeArguments(ref);
       if (args.length === 2) {
         return VT.map(
-          valueTypeOfTsType(args[0]!, node, checker),
+          collectionKey(valueTypeOfTsType(args[0]!, node, checker)),
           valueTypeOfTsType(args[1]!, node, checker),
         );
       }
@@ -199,7 +199,9 @@ export function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChe
     // `Set<T>`: one type argument.
     if (ref.symbol?.name === "Set") {
       const args = checker.getTypeArguments(ref);
-      if (args.length === 1) return VT.set(valueTypeOfTsType(args[0]!, node, checker));
+      if (args.length === 1) {
+        return VT.set(collectionKey(valueTypeOfTsType(args[0]!, node, checker)));
+      }
     }
     // `Promise<T>`: the result of an async call. `Promise<void>`'s inner is modeled as `undefined`
     // (don't recurse into the `void` type, which has no ValueType).
@@ -286,6 +288,18 @@ export function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChe
     `a type the value domain has no representation for (type flags ${flags})`,
     "use a supported type: number, string, boolean, arrays, closed objects, Map/Set, or `T | undefined`",
   );
+}
+
+// A Map key / Set element type. The runtime hashes and compares keys by one fixed kind (number,
+// string or boolean); a Value union key would need a kind-dispatching hash, which does not exist.
+function collectionKey(t: ValueType): ValueType {
+  if (t.kind === "value") {
+    throw new UnrepresentableTypeError(
+      "a Map key or Set element that is a union of different kinds",
+      "key the collection by one kind (convert with `String(k)`), or keep one collection per kind",
+    );
+  }
+  return t;
 }
 
 // The Value union over `members` (already translated). Members are deduplicated by kind; object

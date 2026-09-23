@@ -17,6 +17,7 @@ import {
   superMethodClassOf,
 } from "./lower.js";
 import { methodDispatchAt } from "./member-access.js";
+import { optionalRead } from "./value-lower.js";
 import { isMathNamespace, keyKindOf } from "./declarations.js";
 import { valueTypeOfTsType } from "./type-translation.js";
 import { thisRef } from "./statements.js";
@@ -58,6 +59,16 @@ export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
   // `Object.keys(o)` / `Object.values(o)` on a closed object shape.
   if (ts.isIdentifier(pa.expression) && pa.expression.text === "Object") {
     return lowerObjectNamespace(pa.name.text, call.arguments[0]!, ctx);
+  }
+  // `Array.isArray(x)`: a tag test on a Value union, a constant on any other type (validate
+  // allowlists only `isArray` on Array).
+  if (ts.isIdentifier(pa.expression) && pa.expression.text === "Array") {
+    return {
+      kind: "typeIs",
+      value: lowerExpr(call.arguments[0]!, ctx),
+      test: "array",
+      type: VT.boolean,
+    };
   }
   // `Number.isInteger/isFinite/isNaN(x)` → a boolean predicate (validate allowlists the names).
   if (ts.isIdentifier(pa.expression) && pa.expression.text === "Number") {
@@ -192,12 +203,13 @@ export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
       };
     }
     if (method === "pop" || method === "shift") {
-      return {
+      const node: HExpr = {
         kind: "arrayPop",
         array: receiver,
         fn: method === "pop" ? "cs_array_pop" : "cs_array_shift",
         type: resolveType(call, ctx), // element | undefined
       };
+      return optionalRead(node, recvType.element, node.type);
     }
     if (method === "join") {
       const sep = call.arguments[0];
@@ -210,12 +222,13 @@ export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
       };
     }
     if (method === "at") {
-      return {
+      const node: HExpr = {
         kind: "arrayAt",
         array: receiver,
         index: lowerExpr(call.arguments[0]!, ctx),
         type: resolveType(call, ctx), // element | undefined
       };
+      return optionalRead(node, recvType.element, node.type);
     }
     if (method === "flat") {
       if (call.arguments.length > 0) ice("lower: .flat(depth) not supported yet (depth 1 only)");
@@ -251,7 +264,7 @@ export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
     if (HOF_METHODS.includes(method)) {
       // reduce(fn, init?) — the optional seed is the 2nd argument.
       const init = method === "reduce" && call.arguments.length >= 2 ? call.arguments[1]! : null;
-      return {
+      const node: HExpr = {
         kind: "arrayHof",
         op: method as
           | "map"
@@ -271,6 +284,7 @@ export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
         // some/every → boolean; reduce → its result. resolveType(call) covers all value cases.
         type: method === "forEach" ? VT.undefined : resolveType(call, ctx),
       };
+      return method === "find" ? optionalRead(node, recvType.element, node.type) : node;
     }
     if (method === "sort") {
       const cmp = call.arguments[0];
@@ -313,7 +327,7 @@ export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
       };
     }
     if (method === "get") {
-      return {
+      const node: HExpr = {
         kind: "mapGet",
         map,
         key: lowerExpr(call.arguments[0]!, ctx),
@@ -321,6 +335,7 @@ export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
         valueType: recvType.value,
         type: resolveType(call, ctx), // value | undefined
       };
+      return optionalRead(node, recvType.value, node.type);
     }
     if (method === "has") {
       return {

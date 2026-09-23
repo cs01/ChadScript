@@ -101,7 +101,7 @@ export function tailoredRejection(
           "apply the default in the body: `const v = x === undefined ? DEFAULT : x`",
         );
       }
-      return null;
+      return checkRepresentableType(node, hit, checker);
     }
 
     // Regex literals sort into the literal-token band that default-deny treats as trivial, so they
@@ -137,7 +137,9 @@ export function tailoredRejection(
           "initialize at the declaration: `let x: T = <initial value>`",
         );
       }
-      return null;
+      // (The representability check below shares this case; a second `case` label for the same
+      // kind further down would never be reached.)
+      return checkRepresentableType(node, hit, checker);
     }
 
     case ts.SyntaxKind.ArrowFunction:
@@ -281,9 +283,8 @@ export function tailoredRejection(
         checkOpaqueHandleUse(node as ts.Identifier, hit, checker)
       );
 
+    // (VariableDeclaration and Parameter run the same check from their own cases above.)
     case ts.SyntaxKind.ConditionalExpression:
-    case ts.SyntaxKind.VariableDeclaration:
-    case ts.SyntaxKind.Parameter:
       return checkRepresentableType(node, hit, checker);
 
     // A DECLARED union. The checks above read the type AT a node, which for an annotated
@@ -697,7 +698,7 @@ function isClassInstanceType(t: ts.Type): boolean {
 export const NAMESPACE_STATIC_ALLOW: Record<string, ReadonlySet<string>> = {
   Object: new Set(["keys", "values"]),
   Date: new Set(["now"]),
-  Array: new Set(),
+  Array: new Set(["isArray"]),
   Number: new Set(["isInteger", "isFinite", "isNaN"]),
   // Math methods codegen actually lowers (evalMathCall). Others (hypot/pow/random/sin/…) ICE, so
   // reject them here. Math CONSTANTS (Math.PI) are property reads, not calls — unaffected.

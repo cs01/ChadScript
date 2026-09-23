@@ -27,7 +27,8 @@ import {
   lookupVar,
 } from "./expr.js";
 import { evalLogical } from "./truthiness.js";
-import { evalMemberGet, loadField } from "./objects.js";
+import { evalMemberGet, evalObjectPtr, loadField } from "./objects.js";
+import { loadShape, shapeRef } from "./shapes.js";
 import { evalOptionalPtr, isNullishPtr, unboxOptionalValue } from "./optional.js";
 import { evalNumber } from "./numbers.js";
 import { evalAwait } from "./async.js";
@@ -261,6 +262,24 @@ export function valueToString(raw: Value, t: ValueType, ctx: Ctx): Value {
   });
 }
 
+// An element's text in `arr.join()`: like String(x), except that undefined and null join as "".
+export function valueJoinString(raw: Value, t: ValueType, ctx: Ctx): Value {
+  const members = membersOf(t);
+  const nullish = members.filter((m) => m.kind === "undefined" || m.kind === "null");
+  if (nullish.length === 0) return valueToString(raw, t, ctx);
+  return switchOnValue(raw, members, T.ptr, ctx, (m) =>
+    m.kind === "undefined" || m.kind === "null"
+      ? ctx.mod.cstring("")
+      : valueToString(raw, { kind: "value", members: [m] }, ctx),
+  );
+}
+
+// `arr.includes(x)` compares with SameValueZero: like ===, except NaN matches NaN.
+export function valueSameValueZero(a: Value, b: Value, ctx: Ctx): Value {
+  const r = ctx.fn.call("@cs_value_same_zero", T.i32, [a, b]);
+  return ctx.fn.icmp("ne", r, imm(T.i32, 0));
+}
+
 // JS truthiness of a Value word.
 export function truthyValue(raw: Value, t: ValueType, ctx: Ctx): Value {
   return switchOnValue(raw, membersOf(t), T.i1, ctx, (m) => {
@@ -332,6 +351,30 @@ export function evalTypeIs(value: HExpr, test: TypeTest, ctx: Ctx): Value {
   }
   const raw = evalBoxed(value, ctx);
   return switchOnValue(raw, members, T.i1, ctx, (m) => imm(T.i1, holds(m) ? 1 : 0));
+}
+
+// `x instanceof C`: the receiver's shape pointer equals C's or a subclass's. On a Value union (or a
+// nullable object) only an object word can be an instance; every other kind answers false without
+// touching memory.
+export function evalInstanceof(expr: Extract<HExpr, { kind: "instanceofCheck" }>, ctx: Ctx): Value {
+  const shapeMatches = (obj: Value): Value => {
+    const shape = loadShape(obj, ctx);
+    let acc: Value | null = null;
+    for (const id of expr.shapes) {
+      const eq = ctx.fn.icmp("eq", shape, shapeRef(ctx, id));
+      acc = acc === null ? eq : ctx.fn.logicalOr(acc, eq);
+    }
+    return acc ?? imm(T.i1, 0);
+  };
+  const t = expr.value.type;
+  if (t.kind === "object") return shapeMatches(evalObjectPtr(expr.value, ctx));
+  if (t.kind === "value" || t.kind === "optional") {
+    const raw = evalBoxed(expr.value, ctx);
+    return switchOnValue(raw, membersOf(t), T.i1, ctx, (m) =>
+      m.kind === "object" ? shapeMatches(unboxValue(raw, m, ctx)) : imm(T.i1, 0),
+    );
+  }
+  return ice(`instanceof on ${t.kind} not supported yet`);
 }
 
 // `a === b` on two Value words (strictly: SameValue for everything except NaN and -0, which

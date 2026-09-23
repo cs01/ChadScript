@@ -42,6 +42,16 @@ pub fn cs_value_strict_eq(a: u64, b: u64): i32 {
     return 0
 }
 
+// SameValueZero (`includes`, Map/Set keys): strict equality, except that NaN equals NaN. NaN is
+// canonicalized before boxing, so two NaN words are the same bits.
+@externalLinkage
+pub fn cs_value_same_zero(a: u64, b: u64): i32 {
+    if a == b {
+        return 1
+    }
+    return cs_value_strict_eq(a, b)
+}
+
 // Generated code met a Value whose tag is not a member of the union the compiler proved it holds.
 // Only a TypeScript soundness hole the validator missed can get here, so stop loudly.
 @externalLinkage

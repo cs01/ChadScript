@@ -207,7 +207,7 @@ diagnostic — there is no "compiles but behaves differently than Node" third ca
 
 ## Supported namespace statics
 
-- `Array`: _(none)_
+- `Array`: `isArray`
 - `Date`: `now`
 - `Math`: `abs`, `ceil`, `floor`, `max`, `min`, `pow`, `round`, `sign`, `sqrt`, `trunc`
 - `Number`: `isFinite`, `isInteger`, `isNaN`
