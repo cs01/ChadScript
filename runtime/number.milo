@@ -289,9 +289,10 @@ pub fn numToRadix(value0: f64, radix: i64, lenOut: &mut i64): *u8 {
         }
     }
 
-    // Integer part, written downward. For values >= 2^53 the ULP exceeds 1, so shift by radix and
-    // pad with zeros (matches V8's exponent-driven path).
-    while integer >= 9007199254740992.0 {
+    // Integer part, written downward. V8 pads with '0' only while `Double(integer / radix)
+    // .Exponent() > 0`, i.e. while the QUOTIENT is >= 2^53 (its ULP exceeds 1). Testing `integer`
+    // itself dropped one real digit for integers in [2^53, radix * 2^53).
+    while integer / rf >= 9007199254740992.0 {
         integer = integer / rf
         integerCursor = integerCursor - 1
         buffer[integerCursor] = '0'
