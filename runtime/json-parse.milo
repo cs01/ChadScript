@@ -1,6 +1,7 @@
 // JSON.parse's runtime half: text -> a generic tagged tree. Codegen walks that tree against the
-// STATIC target shape (see src/codegen/json-parse.ts), mirroring how stringify is type-directed:
-// the runtime never learns what shape it is building, and the compiler never parses text.
+// STATIC target shape (see src/codegen/json-parse.ts), mirroring how stringify is type-directed,
+// and the compiler never parses text. The one thing decided here is each object's record layout
+// (cs_json_object), because Node orders an object's keys by the text.
 //
 // Strict RFC 8259, which is what Node accepts: no trailing commas, no comments, no single quotes,
 // no leading `+`, no leading zeros, no NaN/Infinity literals. Duplicate object keys keep the LAST
@@ -14,7 +15,7 @@
 // that needs a drop (every local is a raw pointer, a scalar or a literal), so skipping the frames
 // leaks nothing.
 
-from "./abi" import { CsString, GC_malloc, GC_malloc_atomic, memcpy, byteAt }
+from "./abi" import { CsString, CsShape, GC_malloc, GC_malloc_atomic, memcpy, byteAt }
 from "./csstring" import { cs_str_mk, cs_str_from }
 from "./strings" import { cs_str_eq }
 from "./errors" import { throwErrorLit, throwError }
@@ -535,4 +536,122 @@ pub fn cs_json_expect_fail(path: *CsString, expected: *CsString) {
     sbufPushLit(&mut b, " at ")
     sbufPushStr(&mut b, path)
     throwError(cs_str_mk(b.data, b.len))
+}
+
+// The shapes cs_json_object has made for one template, as a GC linked list whose head lives in a
+// codegen-emitted zeroed global (`shape.N.jsoncache`); Boehm scans globals, so the list and every
+// shape on it stay alive. Interning keeps one shape per distinct key order, which is what lets the
+// inline caches at the program's field reads hit.
+extern struct JsonShapeNode {
+    next: *JsonShapeNode,
+    shape: *CsShape,
+}
+
+// The template's field index for `key`, or -1 when the target type does not declare it.
+fn templateIndex(template: *CsShape, key: *CsString): i64 {
+    var i: i64 = 0
+    unsafe {
+        while i < template.fieldCount {
+            if cs_str_eq(template.names[i], key) != 0 {
+                return i
+            }
+            i = i + 1
+        }
+    }
+    return -1
+}
+
+// Whether `shape` lays out exactly the template fields `order[0..n)`. Derived shapes hold the
+// template's own name pointers, so pointer equality is the comparison.
+fn sameOrder(shape: *CsShape, template: *CsShape, order: *i64, n: i64): bool {
+    unsafe {
+        if shape.fieldCount != n {
+            return false
+        }
+        var k: i64 = 0
+        while k < n {
+            if shape.names[k] as i64 != template.names[order[k]] as i64 {
+                return false
+            }
+            k = k + 1
+        }
+    }
+    return true
+}
+
+fn internShape(template: *CsShape, cache: **JsonShapeNode, order: *i64, n: i64): *CsShape {
+    unsafe {
+        var cur = *cache
+        while cur as i64 != 0 {
+            if sameOrder(cur.shape, template, order, n) {
+                return cur.shape
+            }
+            cur = cur.next
+        }
+        let names = GC_malloc(n * 8 + 8) as **CsString
+        let kinds = GC_malloc_atomic(n + 1)
+        var k: i64 = 0
+        while k < n {
+            names[k] = template.names[order[k]]
+            kinds[k] = template.kinds[order[k]]
+            k = k + 1
+        }
+        let shape = GC_malloc(72) as *CsShape
+        shape.fieldCount = n
+        shape.names = names
+        shape.kinds = kinds
+        shape.className = template.className
+        shape.methodCount = template.methodCount
+        shape.methods = template.methods
+        shape.methodNames = template.methodNames
+        shape.inspect = template.inspect
+        shape.json = template.json
+        let node = GC_malloc(16) as *JsonShapeNode
+        node.next = *cache
+        node.shape = shape
+        *cache = node
+        return shape
+    }
+}
+
+// Build the record for a parsed JSON object whose declared fields codegen already validated into
+// `vals` (template field order). The record holds the keys the TEXT has, in text order (the parser
+// already folded duplicates: first position, last value), so it prints, serializes and lists keys
+// like Node's object. A key the target type does not declare throws: see src/codegen/json-parse.ts.
+@externalLinkage
+pub fn cs_json_object(
+    v: *JsonValue,
+    template: *CsShape,
+    cache: **JsonShapeNode,
+    vals: *u64,
+    path: *CsString,
+): *u64 {
+    unsafe {
+        let n = v.nfields as i64
+        let order = GC_malloc_atomic(n * 8 + 8) as *i64
+        var k: i64 = 0
+        while k < n {
+            let j = templateIndex(template, v.keys[k])
+            if j < 0 {
+                var b = SBuf { data: 0 as *u8, len: 0, cap: 0 }
+                sbufPushLit(&mut b, "JSON.parse: unexpected property '")
+                sbufPushStr(&mut b, v.keys[k])
+                sbufPushLit(&mut b, "' at ")
+                sbufPushStr(&mut b, path)
+                sbufPushLit(&mut b, " (not declared by the target type)")
+                throwError(cs_str_mk(b.data, b.len))
+            }
+            order[k] = j
+            k = k + 1
+        }
+        let shape = internShape(template, cache, order, n)
+        let rec = GC_malloc(n * 8 + 8) as *u64
+        rec[0] = shape as i64 as u64
+        k = 0
+        while k < n {
+            rec[k + 1] = vals[order[k]]
+            k = k + 1
+        }
+        return rec
+    }
 }

@@ -230,8 +230,11 @@ manifest. Estimates in LOC.
    JSON.stringify and Object.keys/values read the runtime shape. Unions of object types are one
    object type over their common fields. New rejections: CS1235 (property add), CS1236 (spread or
    Object.values over too many or mixed layouts), CS1237 (method implementations with other
-   machine types than the call). Not yet: optional chains longer than one link, JSON.parse key
-   order and absent optional keys (both still follow the target type). (~1.5k)
+   machine types than the call). JSON.parse objects get a runtime shape derived from a per-type
+   template (key order and present keys from the JSON text, cs_json_object), so their layouts
+   never agree on a static slot; a spread over one is CS1236, a write that could add an absent
+   optional key CS1235, and an undeclared key throws. Not yet: optional chains longer than one
+   link. (~1.5k)
 4. **`Value`, unions, narrowing.** Exit: discriminated unions, `number | string`; CS1233
    retired. (~1.5k)
 5. **Mutable captures** (CS1219 retired, ~200) and **erased generics** (~600).

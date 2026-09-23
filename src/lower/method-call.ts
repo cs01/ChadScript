@@ -21,6 +21,7 @@ import { isMathNamespace, keyKindOf } from "./declarations.js";
 import { valueTypeOfTsType } from "./type-translation.js";
 import { thisRef } from "./statements.js";
 import { lowerObjectNamespace } from "./object-literal.js";
+import { jsonFieldPresence } from "./layouts.js";
 
 // The pretty-print indent unit for a JSON.stringify `space` argument: a literal number N → N spaces
 // (JSON caps at 10), a literal string → up to its first 10 chars, anything falsy/absent → null
@@ -80,13 +81,19 @@ export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
     // validator enforces that), so the target SHAPE is available here and `any` never enters HIR.
     if (pa.name.text === "parse") {
       const target = jsonParseTarget(call, ctx);
-      // Each object type in the target is allocated with its static field order.
+      // Each object type in the target gets a template; the record's real shape (key order, which
+      // optional keys exist) is made at run time from the JSON text. No layoutShapes entry: a spread
+      // that could read one of these is rejected (CS1236), so nothing enumerates its shapes.
       const objectShapes = ctx.layouts.jsonParseLayouts(call).map((l) => {
         const type = valueTypeOfTsType(l.type, call, ctx.checker);
         if (type.kind !== "object") return ice("lower: JSON.parse layout is not an object type");
-        const shape = ctx.shapes.literal(type.shape.fields);
-        ctx.layoutShapes.set(l.id, new Set([shape]));
-        return { type, shape };
+        const presence = type.shape.fields.map((f) => {
+          const prop =
+            ctx.checker.getPropertyOfType(l.type, f.name) ??
+            ice(`lower: JSON.parse field ${f.name} has no property`);
+          return jsonFieldPresence(prop, call, ctx.checker);
+        });
+        return { type, shape: ctx.shapes.jsonTemplate(type.shape.fields), presence };
       });
       return {
         kind: "jsonParse",

@@ -35,12 +35,25 @@ export function layoutDiagnostics(loaded: LoadedProgram): Diagnostic[] {
     });
   }
 
+  for (const node of analysis.dynamicSpreads) {
+    out.push({
+      code: CODE.LAYOUT_LIMIT,
+      message:
+        "this spread can copy from an object made by JSON.parse, whose key order is only known " +
+        "at run time",
+      span: spanOf(node, node.getSourceFile()),
+      suggestion: "copy the fields you need explicitly: `{ a: src.a, b: src.b }`",
+    });
+  }
+
   const checkWrite = (pa: ts.PropertyAccessExpression): void => {
     const name = pa.name.text;
     const recv = checker.getNonNullableType(checker.getTypeAtLocation(pa.expression));
     const prop = checker.getPropertyOfType(recv, name);
     if (!prop || !(prop.flags & ts.SymbolFlags.Property)) return;
-    const without = analysis.reaching(pa.expression).find((l) => !l.names.includes(name));
+    const without = analysis
+      .reaching(pa.expression)
+      .find((l) => !l.names.includes(name) || l.maybeAbsent?.has(name));
     if (!without) return;
     out.push({
       code: CODE.PROPERTY_ADD,
@@ -49,8 +62,10 @@ export function layoutDiagnostics(loaded: LoadedProgram): Diagnostic[] {
         `(${describeSite(without.site)}); objects cannot gain properties`,
       span: spanOf(pa, pa.getSourceFile()),
       suggestion:
-        `create every such object with the property: declare it \`${name}?: T | undefined\` and ` +
-        `initialize it (\`${name}: undefined\`), or use a class that declares \`${name}\``,
+        without.site.kind === "json"
+          ? `copy the parsed fields into a new literal that includes it: \`{ a: p.a, ${name}: value }\``
+          : `create every such object with the property: declare it \`${name}?: T | undefined\` and ` +
+            `initialize it (\`${name}: undefined\`), or use a class that declares \`${name}\``,
     });
   };
 
@@ -236,7 +251,7 @@ function describeSite(site: LayoutSite): string {
     case "spread":
       return `the object literal at ${at(site.node)}`;
     case "json":
-      return `JSON.parse at ${at(site.call)}`;
+      return `JSON.parse at ${at(site.call)}, which omits keys absent from the JSON text`;
     default: {
       const never: never = site;
       return ice(`describeSite: unhandled ${(never as { kind: string }).kind}`);

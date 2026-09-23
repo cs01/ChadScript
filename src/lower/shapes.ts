@@ -24,6 +24,18 @@ export class ShapeRegistry {
     return id;
   }
 
+  // The template for one JSON.parse object type (see ShapeDescriptor.jsonTemplate). Never shared
+  // with a literal of the same fields: its print functions read the record's own runtime shape.
+  jsonTemplate(fields: readonly ObjectField[]): number {
+    const key = "json:" + fields.map((f) => `${f.name}:${reprKey(f.type)}`).join(",");
+    const hit = this.byKey.get(key);
+    if (hit !== undefined) return hit;
+    const id = this.shapes.length;
+    this.shapes.push({ id, fields: [...fields], methods: [], jsonTemplate: true });
+    this.byKey.set(key, id);
+    return id;
+  }
+
   // A class's layout, registered once per class id.
   defineClass(
     className: string,

@@ -26,6 +26,7 @@ const PRELUDE = `interface Rec {
   s: string;
   inner: Inner;
   list: number[];
+  opt?: string;
 }
 interface Inner {
   flag: boolean;
@@ -78,6 +79,19 @@ const MISMATCHES: Array<{ name: string; json: string; mentions: string }> = [
     name: "null where a value is required",
     json: '{"n":null,"s":"x","inner":{"flag":true},"list":[]}',
     mentions: "value.n",
+  },
+  {
+    // `opt?: string` admits a missing key, not null: Node would hand the program a null there.
+    name: "null for an optional property whose type has no null",
+    json: '{"n":1,"s":"x","inner":{"flag":true},"list":[],"opt":null}',
+    mentions: "value.opt",
+  },
+  {
+    // Node keeps an undeclared key, and printing or re-serializing the object would show it; the
+    // target type gives it no representation, so it is a mismatch.
+    name: "property the type does not declare",
+    json: '{"n":1,"s":"x","inner":{"flag":true,"zz":2},"list":[]}',
+    mentions: "unexpected property 'zz' at value.inner",
   },
 ];
 

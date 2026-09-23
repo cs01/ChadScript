@@ -1,25 +1,34 @@
 // JSON.parse codegen: a type-directed walk over the parsed tree (runtime/json-parse.milo), the mirror
 // image of json.ts. The target shape is known at compile time, so every field name, every kind
-// check, and every error path is emitted statically — the runtime never learns what it is building.
+// check, and every error path is emitted statically; the runtime only lays out the validated
+// values in the text's key order (cs_json_object).
 //
 // The contract this enforces: a value only reaches the program if the JSON AGREED with the target
 // type at every position. Anything else throws with a compile-time-known path naming where the
 // disagreement was. That is what lets the rest of the compiler trust the declared type without a
 // checker at runtime, and it is why `any` never enters the type domain.
+//
+// Objects are built the way Node builds them: keys in JSON text order (a duplicate key keeps its
+// first position and its last value), an absent optional key does not exist on the object. The
+// record's shape is therefore chosen at run time (cs_json_object, from the type's template shape),
+// and every access to these types goes through an inline cache (lower/layouts.ts). A key the type
+// does not declare throws: Node would keep it, and printing, Object.keys or JSON.stringify of the
+// object would show it, but there is no declared type to give its value, so dropping it silently
+// would diverge and keeping it is not representable.
 
 import { ice } from "../diagnostics.js";
 import { imm, type Value } from "../ir/builder.js";
 import { T } from "../ir/types.js";
 import type { ValueType } from "../hir/types.js";
+import type { JsonObjectTarget } from "../hir/nodes.js";
 import { boxSlot, type Ctx } from "./expr.js";
-import { allocRecord, RECORD_HEADER_SLOTS } from "./shapes.js";
-import { boxValue } from "./value.js";
+import { shapeGlobalName, shapeRef } from "./shapes.js";
+import { boxValue, V_NULL, V_UNDEFINED } from "./value.js";
 
 // Mirrors the enum in runtime/json-parse.milo.
 const KIND = { null: 0, bool: 1, number: 2, string: 3, array: 4, object: 5 } as const;
 
-// The layout each object type in the target is allocated with (from lower).
-type ObjectShapes = readonly { type: ValueType; shape: number }[];
+type ObjectShapes = readonly JsonObjectTarget[];
 
 export function jsonParse(text: Value, target: ValueType, shapes: ObjectShapes, ctx: Ctx): Value {
   const root = ctx.fn.call("@cs_json_parse", T.ptr, [text]);
@@ -100,18 +109,26 @@ function extract(
       }
       requireKind(node, KIND.object, path, "an object", ctx);
       const fields = type.shape.fields;
-      const shape =
-        shapes.find((s) => s.type === type)?.shape ??
+      const target =
+        shapes.find((s) => s.type === type) ??
         ice("jsonParse: an object type in the target has no registered shape");
-      // Field values are extracted first so a mismatch throws before anything is allocated.
-      const vals = fields.map((f) => {
+      // Every declared field is validated (and its Value built) before the record exists, into a
+      // scratch array in declared order; cs_json_object then lays out the keys the text has.
+      const vals = ctx.fn.call("@cs_gc_alloc", T.ptr, [imm(T.i64, Math.max(fields.length, 1) * 8)]);
+      fields.forEach((f, i) => {
         const fieldNode = ctx.fn.call("@cs_json_field", T.ptr, [node, ctx.mod.cstring(f.name)]);
-        const value = extractField(fieldNode, f.type, `${path}.${f.name}`, shapes, ctx);
-        return boxValue(value, f.type, ctx);
+        const presence = target.presence[i] ?? ice("jsonParse: field without presence info");
+        const v = extractField(fieldNode, f.type, presence, `${path}.${f.name}`, shapes, ctx);
+        ctx.fn.store(v, ctx.fn.gepSlot(vals, i));
       });
-      const rec = allocRecord(shape, fields.length, ctx);
-      vals.forEach((v, i) => ctx.fn.store(v, ctx.fn.gepSlot(rec, i + RECORD_HEADER_SLOTS)));
-      return rec;
+      const cache = ctx.mod.defineZeroWords(`${shapeGlobalName(target.shape)}.jsoncache`, 1);
+      return ctx.fn.call("@cs_json_object", T.ptr, [
+        node,
+        shapeRef(ctx, target.shape),
+        cache,
+        vals,
+        ctx.mod.cstring(path),
+      ]);
     }
 
     default:
@@ -119,56 +136,57 @@ function extract(
   }
 }
 
-// A field lookup returns null when the key is ABSENT, which is a different condition from the key
-// being present with a wrong type. An optional field tolerates absence; a required one does not.
+// The record Value of one declared field. A lookup returns null when the key is ABSENT, which is a
+// different condition from the key being present with a wrong type: absence is fine only where the
+// type admits it (its Value is then never stored, since the key is not laid out), and JSON `null`
+// only where the type includes null. Otherwise null goes to the inner extraction and fails its kind
+// check, because Node would hand the program a null its declared type says cannot be there.
 function extractField(
   fieldNode: Value,
   type: ValueType,
+  presence: JsonObjectTarget["presence"][number],
   path: string,
   shapes: ObjectShapes,
   ctx: Ctx,
 ): Value {
-  if (type.kind !== "optional") {
-    const present = ctx.fn.icmp("ne", ctx.fn.ptrToI64(fieldNode), imm(T.i64, 0));
-    const okB = ctx.fn.newBlock("json.field.present");
-    const missB = ctx.fn.newBlock("json.field.missing");
-    ctx.fn.brCond(present, okB, missB);
-    ctx.fn.switchTo(missB);
+  const inner = type.kind === "optional" ? type.inner : type;
+  if ((presence.absentOk || presence.nullable) && type.kind !== "optional") {
+    return ice(`jsonParse: ${path} admits null/undefined but its type is not optional`);
+  }
+  const result = ctx.fn.alloca(T.i64);
+  const absentB = ctx.fn.newBlock("json.field.absent");
+  const presentB = ctx.fn.newBlock("json.field.present");
+  const endB = ctx.fn.newBlock("json.field.end");
+  const present = ctx.fn.icmp("ne", ctx.fn.ptrToI64(fieldNode), imm(T.i64, 0));
+  ctx.fn.brCond(present, presentB, absentB);
+
+  ctx.fn.switchTo(absentB);
+  if (presence.absentOk) {
+    ctx.fn.store(imm(T.i64, V_UNDEFINED), result);
+    ctx.fn.br(endB);
+  } else {
     ctx.fn.callVoid("@cs_json_expect_fail", [
       ctx.mod.cstring(path),
       ctx.mod.cstring("a required property"),
     ]);
     ctx.fn.unreachable();
-    ctx.fn.switchTo(okB);
-    return extract(fieldNode, type, path, shapes, ctx);
   }
 
-  // `T | undefined`: absent OR JSON null both produce the undefined sentinel, matching how the
-  // rest of the language represents an optional field.
-  const result = ctx.fn.alloca(T.ptr);
-  const absentB = ctx.fn.newBlock("json.opt.absent");
-  const checkNullB = ctx.fn.newBlock("json.opt.checknull");
-  const presentB = ctx.fn.newBlock("json.opt.present");
-  const endB = ctx.fn.newBlock("json.opt.end");
-
-  const present = ctx.fn.icmp("ne", ctx.fn.ptrToI64(fieldNode), imm(T.i64, 0));
-  ctx.fn.brCond(present, checkNullB, absentB);
-
-  ctx.fn.switchTo(absentB);
-  ctx.fn.store(ctx.mod.externGlobal("cs_undefined_marker"), result);
-  ctx.fn.br(endB);
-
-  ctx.fn.switchTo(checkNullB);
-  const kind = ctx.fn.call("@cs_json_kind", T.i32, [fieldNode]);
-  ctx.fn.brCond(ctx.fn.icmp("eq", kind, imm(T.i32, KIND.null)), absentB, presentB);
-
   ctx.fn.switchTo(presentB);
-  const inner = extract(fieldNode, type.inner, path, shapes, ctx);
-  const box = ctx.fn.call("@cs_gc_alloc", T.ptr, [imm(T.i64, 8)]);
-  ctx.fn.store(boxSlot(inner, type.inner, ctx), box);
-  ctx.fn.store(box, result);
+  if (presence.nullable) {
+    const nullB = ctx.fn.newBlock("json.field.null");
+    const valueB = ctx.fn.newBlock("json.field.value");
+    const kind = ctx.fn.call("@cs_json_kind", T.i32, [fieldNode]);
+    ctx.fn.brCond(ctx.fn.icmp("eq", kind, imm(T.i32, KIND.null)), nullB, valueB);
+    ctx.fn.switchTo(nullB);
+    ctx.fn.store(imm(T.i64, V_NULL), result);
+    ctx.fn.br(endB);
+    ctx.fn.switchTo(valueB);
+  }
+  const value = extract(fieldNode, inner, path, shapes, ctx);
+  ctx.fn.store(boxValue(value, inner, ctx), result);
   ctx.fn.br(endB);
 
   ctx.fn.switchTo(endB);
-  return ctx.fn.load(T.ptr, result);
+  return ctx.fn.load(T.i64, result);
 }

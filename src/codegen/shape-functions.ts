@@ -10,7 +10,7 @@ import type { ShapeDescriptor } from "../hir/nodes.js";
 import type { ValueType } from "../hir/types.js";
 import { classDisplayName } from "../hir/types.js";
 import type { Ctx } from "./expr.js";
-import { RECORD_HEADER_SLOTS, shapeGlobalName } from "./shapes.js";
+import { RECORD_HEADER_SLOTS, loadShape, loadShapeWord, shapeGlobalName } from "./shapes.js";
 import { MAX_DEPTH, inspectStored } from "./inspect.js";
 import { jsonStored, linePrefix, nextDepth } from "./json.js";
 import { V_UNDEFINED } from "./value.js";
@@ -117,6 +117,10 @@ function emitInspect(mod: ModuleBuilder, s: ShapeDescriptor, shapes: readonly Sh
     unsupported(ctx, `console.log of an object whose field '${bad.name}' is a ${bad.type.kind}`);
     return;
   }
+  if (s.jsonTemplate) {
+    emitTemplateInspect(s, ctx, obj, depth);
+    return;
+  }
 
   const deepB = fn.newBlock("deep");
   const bodyB = fn.newBlock("body");
@@ -160,6 +164,10 @@ function emitJson(mod: ModuleBuilder, s: ShapeDescriptor, shapes: readonly Shape
     );
     return;
   }
+  if (s.jsonTemplate) {
+    emitTemplateJson(s, ctx, obj, indent, depth);
+    return;
+  }
   if (fields.length === 0) {
     fn.ret(mod.cstring("{}"));
     return;
@@ -198,5 +206,118 @@ function emitJson(mod: ModuleBuilder, s: ShapeDescriptor, shapes: readonly Shape
   // Close: `<newline+indent>}` if anything was written (pretty), else just `}`.
   const closeWrote = concat(ctx, linePrefix(ctx, indent, depth), mod.cstring("}"));
   const close = fn.select(fn.load(T.i1, wrotePtr), closeWrote, mod.cstring("}"));
+  fn.ret(concat(ctx, fn.load(T.ptr, accPtr), close));
+}
+
+// A JSON.parse record's fields are the keys its JSON text had, in text order, laid out by its own
+// runtime shape (derived from the template `s`). These walk that shape and pick each field's
+// formatter by name; the derived shape's names are the template's interned name pointers, so the
+// match is a pointer compare.
+function forEachRuntimeField(
+  s: ShapeDescriptor,
+  ctx: Ctx,
+  obj: Value,
+  each: (k: Value, field: ShapeDescriptor["fields"][number], raw: Value) => void,
+): void {
+  const fn = ctx.fn;
+  const shape = loadShape(obj, ctx);
+  const count = loadShapeWord(shape, "fieldCount", ctx);
+  const names = loadShapeWord(shape, "names", ctx);
+  const kPtr = fn.alloca(T.i64);
+  fn.store(imm(T.i64, 0), kPtr);
+  const headB = fn.newBlock("tmpl.head");
+  const bodyB = fn.newBlock("tmpl.body");
+  const nextB = fn.newBlock("tmpl.next");
+  const doneB = fn.newBlock("tmpl.done");
+  fn.br(headB);
+  fn.switchTo(headB);
+  fn.brCond(fn.icmp("slt", fn.load(T.i64, kPtr), count), bodyB, doneB);
+  fn.switchTo(bodyB);
+  const k = fn.load(T.i64, kPtr);
+  const name = fn.load(T.ptr, fn.gepPtrDyn(names, k));
+  const raw = fn.load(T.i64, fn.gepSlotDyn(obj, fn.ladd(k, imm(T.i64, RECORD_HEADER_SLOTS))));
+  for (const f of s.fields) {
+    const hitB = fn.newBlock("tmpl.field");
+    const missB = fn.newBlock("tmpl.nofield");
+    fn.brCond(fn.icmp("eq", name, ctx.mod.internedString(f.name)), hitB, missB);
+    fn.switchTo(hitB);
+    each(k, f, raw);
+    fn.br(nextB);
+    fn.switchTo(missB);
+  }
+  // cs_json_object only ever lays out the template's own names.
+  fn.callVoid("@cs_shape_mismatch", []);
+  fn.unreachable();
+  fn.switchTo(nextB);
+  fn.store(fn.ladd(k, imm(T.i64, 1)), kPtr);
+  fn.br(headB);
+  fn.switchTo(doneB);
+}
+
+function emitTemplateInspect(s: ShapeDescriptor, ctx: Ctx, obj: Value, depth: Value): void {
+  const fn = ctx.fn;
+  const deepB = fn.newBlock("deep");
+  const bodyB = fn.newBlock("body");
+  fn.brCond(fn.icmp("sgt", depth, imm(T.i32, MAX_DEPTH)), deepB, bodyB);
+  fn.switchTo(deepB);
+  fn.ret(ctx.mod.cstring("[Object]"));
+  fn.switchTo(bodyB);
+  const count = loadShapeWord(loadShape(obj, ctx), "fieldCount", ctx);
+  const emptyB = fn.newBlock("empty");
+  const fieldsB = fn.newBlock("fields");
+  fn.brCond(fn.icmp("eq", count, imm(T.i64, 0)), emptyB, fieldsB);
+  fn.switchTo(emptyB);
+  fn.ret(ctx.mod.cstring("{}"));
+  fn.switchTo(fieldsB);
+  const inner = fn.iadd(depth, imm(T.i32, 1));
+  const accPtr = fn.alloca(T.ptr);
+  fn.store(ctx.mod.cstring("{ "), accPtr);
+  const append = (v: Value): void => fn.store(concat(ctx, fn.load(T.ptr, accPtr), v), accPtr);
+  forEachRuntimeField(s, ctx, obj, (k, f, raw) => {
+    const sepB = fn.newBlock("insp.sep");
+    const keyB = fn.newBlock("insp.key");
+    fn.brCond(fn.icmp("sgt", k, imm(T.i64, 0)), sepB, keyB);
+    fn.switchTo(sepB);
+    append(ctx.mod.cstring(", "));
+    fn.br(keyB);
+    fn.switchTo(keyB);
+    append(ctx.mod.cstring(`${f.name}: `));
+    append(inspectStored(raw, f.type, ctx, inner));
+  });
+  fn.ret(concat(ctx, fn.load(T.ptr, accPtr), ctx.mod.cstring(" }")));
+}
+
+function emitTemplateJson(
+  s: ShapeDescriptor,
+  ctx: Ctx,
+  obj: Value,
+  indent: Value,
+  depth: Value,
+): void {
+  const fn = ctx.fn;
+  const inner = nextDepth(ctx, depth);
+  const child = linePrefix(ctx, indent, inner);
+  const compact = fn.icmp("eq", fn.ptrToI64(indent), imm(T.i64, 0));
+  const colon = fn.select(compact, ctx.mod.cstring(":"), ctx.mod.cstring(": "));
+  const accPtr = fn.alloca(T.ptr);
+  fn.store(ctx.mod.cstring("{"), accPtr);
+  const append = (v: Value): void => fn.store(concat(ctx, fn.load(T.ptr, accPtr), v), accPtr);
+  // Every laid-out key holds a JSON value (never undefined), so each one is written.
+  forEachRuntimeField(s, ctx, obj, (k, f, raw) => {
+    const commaB = fn.newBlock("json.comma");
+    const keyB = fn.newBlock("json.key");
+    fn.brCond(fn.icmp("sgt", k, imm(T.i64, 0)), commaB, keyB);
+    fn.switchTo(commaB);
+    append(ctx.mod.cstring(","));
+    fn.br(keyB);
+    fn.switchTo(keyB);
+    append(child);
+    append(ctx.mod.cstring(`"${f.name}"`));
+    append(colon);
+    append(jsonStored(raw, f.type, ctx, indent, inner));
+  });
+  const count = loadShapeWord(loadShape(obj, ctx), "fieldCount", ctx);
+  const closeWrote = concat(ctx, linePrefix(ctx, indent, depth), ctx.mod.cstring("}"));
+  const close = fn.select(fn.icmp("sgt", count, imm(T.i64, 0)), closeWrote, ctx.mod.cstring("}"));
   fn.ret(concat(ctx, fn.load(T.ptr, accPtr), close));
 }

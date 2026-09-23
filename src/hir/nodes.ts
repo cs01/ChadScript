@@ -25,6 +25,18 @@ export interface ShapeDescriptor {
   fields: ObjectField[];
   className?: string;
   methods: { name: string; fn: string }[];
+  // A JSON.parse TEMPLATE: no record points at it. Each parsed object gets a runtime shape derived
+  // from it (cs_json_object) holding the present keys in JSON text order, and shares its print and
+  // JSON functions, which therefore walk the record's own shape instead of `fields`.
+  jsonTemplate?: true;
+}
+
+// One object type inside a JSON.parse target: its template shape, and per declared field (in
+// `type.shape.fields` order) whether the key may be absent and whether JSON `null` is a value of it.
+export interface JsonObjectTarget {
+  type: ValueType;
+  shape: number;
+  presence: { absentOk: boolean; nullable: boolean }[];
 }
 
 // An item of a spread literal, in source order. A spread's `snapshot` says its source must be
@@ -398,7 +410,7 @@ export type HExpr =
   | {
       kind: "jsonParse";
       text: HExpr;
-      objectShapes: { type: ValueType; shape: number }[];
+      objectShapes: JsonObjectTarget[];
       type: ValueType;
     }
   // `Number.isInteger/isFinite/isNaN(x)` — no argument coercion (x is already number). Result bool.

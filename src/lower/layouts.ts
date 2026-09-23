@@ -34,6 +34,10 @@ export interface Layout {
   // Widening drops the freshness while keeping contextual literal types (a `kind: "c"` stays "c").
   type: ts.Type;
   site: LayoutSite;
+  // A JSON.parse layout's record follows the JSON TEXT: `names` are the fields it CAN have, in
+  // declared order, but at run time they come in any order and these may be missing entirely.
+  // Such a layout never agrees on a slot (agreedIndex), so every access to it is an inline cache.
+  maybeAbsent?: ReadonlySet<string>;
 }
 
 // One item of a literal's property list, in source order.
@@ -52,11 +56,20 @@ export class LayoutAnalysis {
   private readonly jsonLayouts = new Map<ts.CallExpression, Layout[]>();
   // Spread literals that would need more than MAX_SPREAD_CASES result layouts.
   readonly explodedSpreads: ts.ObjectLiteralExpression[] = [];
+  // Spread literals with a source that can be a JSON.parse object, whose layouts are made at run
+  // time and so cannot be enumerated into spread cases.
+  readonly dynamicSpreads: ts.ObjectLiteralExpression[] = [];
 
   constructor(readonly checker: ts.TypeChecker) {}
 
-  private add(names: readonly string[], type: ts.Type, site: LayoutSite): Layout {
+  private add(
+    names: readonly string[],
+    type: ts.Type,
+    site: LayoutSite,
+    maybeAbsent?: ReadonlySet<string>,
+  ): Layout {
     const l: Layout = { id: this.layouts.length, names, type, site };
+    if (maybeAbsent) l.maybeAbsent = maybeAbsent;
     this.layouts.push(l);
     return l;
   }
@@ -88,7 +101,8 @@ export class LayoutAnalysis {
     this.literalLayouts.set(node, this.add(names, type, { kind: "literal", node }));
   }
 
-  // Every object type a JSON.parse target contains is built with its static field order.
+  // Every object type a JSON.parse target contains is one layout whose record order and optional
+  // keys come from the JSON text at run time (see Layout.maybeAbsent).
   addJsonParse(call: ts.CallExpression, target: ts.Type): void {
     const out: Layout[] = [];
     const seen = new Set<ts.Type>();
@@ -107,11 +121,16 @@ export class LayoutAnalysis {
       }
       const vt = valueTypeOfTsType(t, call, this.checker);
       if (vt.kind !== "object") return;
+      const absent = new Set<string>();
+      for (const p of this.checker.getPropertiesOfType(t)) {
+        if (jsonFieldPresence(p, call, this.checker).absentOk) absent.add(p.name);
+      }
       out.push(
         this.add(
           vt.shape.fields.map((f) => f.name),
           t,
           { kind: "json", call },
+          absent,
         ),
       );
       for (const p of this.checker.getPropertiesOfType(t)) {
@@ -136,9 +155,14 @@ export class LayoutAnalysis {
       for (const [node, results] of this.spreadResults) {
         if (this.explodedSpreads.includes(node)) continue;
         const items = literalItems(node);
+        if (this.dynamicSpreads.includes(node)) continue;
         const sourceSets = items
           .filter((i): i is Extract<LiteralItem, { kind: "spread" }> => i.kind === "spread")
           .map((i) => this.reachingType(this.checker.getTypeAtLocation(i.expr)));
+        if (sourceSets.some((set) => set.some((l) => l.site.kind === "json"))) {
+          this.dynamicSpreads.push(node);
+          continue;
+        }
         const count = sourceSets.reduce((n, s) => n * s.length, 1);
         if (count > MAX_SPREAD_CASES) {
           this.explodedSpreads.push(node);
@@ -219,9 +243,28 @@ export class LayoutAnalysis {
 // far as the analysis can see, and a by-name lookup is correct whatever arrives.
 export function agreedIndex(layouts: readonly Layout[], name: string): number | null {
   if (layouts.length === 0) return null;
+  if (layouts.some((l) => l.site.kind === "json")) return null;
   const idx = layouts[0]!.names.indexOf(name);
   if (idx < 0) return null;
   return layouts.every((l) => l.names[idx] === name) ? idx : null;
+}
+
+// How JSON text may supply a declared property: `absentOk` when the key may be missing (`x?:` or a
+// type that includes undefined, which JSON cannot spell), `nullable` when JSON `null` is a value of
+// the type. A JSON null for a property whose type has no null is a mismatch, like any other.
+export function jsonFieldPresence(
+  prop: ts.Symbol,
+  node: ts.Node,
+  checker: ts.TypeChecker,
+): { absentOk: boolean; nullable: boolean } {
+  const t = checker.getTypeOfSymbolAtLocation(prop, node);
+  const members = t.isUnion() ? t.types : [t];
+  return {
+    absentOk:
+      (prop.flags & ts.SymbolFlags.Optional) !== 0 ||
+      members.some((m) => (m.flags & ts.TypeFlags.Undefined) !== 0),
+    nullable: members.some((m) => (m.flags & ts.TypeFlags.Null) !== 0),
+  };
 }
 
 // The property items of an object literal in source order.
