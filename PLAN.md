@@ -230,7 +230,3 @@ manifest. Estimates in LOC.
   lodash coverage. Lesson: bounded scope; dynamic JS belongs to an engine.
 - **v2, July 2026** (this branch): right pipeline, wrong value model (layout from static type).
   Lesson: constitution rule 6.
-
-## Open questions
-
-1. Promote `v2` to `main` (tag the v1 tip as `v1-final`)?
