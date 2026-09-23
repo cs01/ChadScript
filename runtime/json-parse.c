@@ -41,9 +41,8 @@ typedef struct {
   size_t i;
 } Parser;
 
-// cs_new_error STORES the CsString pointer it is given (it does not copy), so the header must be
-// GC memory that outlives this frame — a stack `CsString` here dangles and the catch reads freed
-// memory.
+// `msg` is always a string literal; cs_new_error copies the message (9bb8916d), so wrapping the
+// literal without a GC copy is safe.
 static void fail(const char *msg) {
   cs_throw(cs_new_error(cs_str_mk(msg, strlen(msg))));
 }
