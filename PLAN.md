@@ -15,7 +15,8 @@ Compile ordinary, statically analyzable TypeScript ahead of time to small native
   not a single-file toy.
 
 Product: CLI tools and services as a ~100 KB binary with ~2 ms startup (today:
-`examples/shapes.ts` builds to 94 KB plus libgc and runs in ~2 ms vs ~48 ms under Node). The
+`examples/shapes.ts` builds to a self-contained ~130 KB binary and runs in ~2 ms vs ~48 ms under
+Node). The
 same source also runs on Node (or [milojs](https://github.com/milo-language/milojs)), so rejection
 never strands a program.
 
@@ -122,10 +123,12 @@ Programs are directory trees of `.ts` files. Target surface:
 - `runtime/` Milo (`runtime/*.milo`, one compilation unit rooted at `lib.milo`) plus the C residue
   `runtime/residue.c`. `stdlib/globals.d.ts` the ambient environment programs see (no `@types/node`).
 
-### Memory: our own GC in Milo (phase 6)
+### Memory: our own GC in Milo (phase 6, done)
 
-Boehm is conservative everywhere, non-moving and allocates through a library call; it forced the
-fiber-stack rooting hack and is slow on allocation-heavy code.
+Boehm was conservative everywhere, non-moving and allocated through a library call; it forced the
+fiber-stack rooting hack and was slow on allocation-heavy code. It is gone: `runtime/gc.milo`
+(collector + allocator), `runtime/gc-stacks.milo` (stack registry), `src/codegen/alloc.ts`
+(headers + inline fast path), a platform seam in `runtime/residue.c`.
 
 Revised 2026-09-23: exact stack roots (shadow stacks or statepoints) are out. The runtime is Milo
 code that holds raw heap pointers in its own frames across allocations, and the Milo compiler
@@ -143,6 +146,34 @@ Design instead: **conservative roots, precise heap.**
   conservative root is a later, flag-gated optimization.
 - Gates: `CHAD_GC_STRESS=1` (collect every N allocations) over the full differential suite, the
   ASan lane, and benchmarks including an allocation-heavy one (binary trees).
+
+What landed (all lanes green; numbers in `benchmarks/README.md`):
+
+- Header word before every object: kind in bits 0..7 (atomic, values, record, struct,
+  conservative), a 24-bit pointer bitmap for struct layouts, payload size in bits 32..63.
+  Codegen picks the kind from each slot's static type (numbers and booleans are raw bits and are
+  never traced); runtime structs name their pointer words; ucontext and jmp_buf buffers are
+  `conservative`. A record's field kinds come from its shape.
+- Heap: 1 MB-aligned chunks of 32 KB blocks of 128 B lines; per-block start and mark bitmaps
+  (one bit per 8-byte granule) and line marks; objects over 8 KB in a malloc'd large-object
+  space. Interior and tagged pointers resolve through the start bitmap. Blocks with no live line
+  go on a free list, the rest are swept lazily when the allocator reaches them; medium objects
+  that do not fit the current hole use an overflow block.
+- Roots: registers via `_setjmp` into the collector's frame, the running stack from `cs_sp()`,
+  every other live stack (main or fiber) from the SP saved in the ucontext of its last
+  `swapcontext` (not an SP taken before the call: swapcontext spills the caller's callee-saved
+  registers below it; `closures/async-capture.ts` lost a cell that way under stress), and the
+  executable's writable data segment (every global: program, codegen caches, runtime Milo
+  globals), located by linker symbols rather than per-global registration so a new global cannot
+  be forgotten. A candidate counts only if it points into an object's payload. Finished fibers'
+  stacks are retired and pooled.
+- Policy: collect when bytes handed out since the last collection exceed max(2 x live, 1 MB).
+- Debug modes: `CHAD_GC_STRESS=N` (collect before every Nth allocation; the inline path is
+  disabled so the runtime sees each one) and `CHAD_GC_VERIFY=1` (poison freed lines, abort on a
+  precisely traced slot that points into a chunk but at no object). Under ASan the collector
+  poisons free lines, so an instrumented runtime read of a collected object is reported
+  (`tests/runtime/gc_poison_test.c`).
+- Not yet: evacuation/compaction, returning chunks to the OS, a generational nursery.
 - No-GC ownership is not an option: TS programs alias and form cycles freely.
 
 ### Runtime language: Milo
@@ -164,15 +195,17 @@ the same clang and flags as the C residue, into one content-addressed cached obj
 
 Split inside the Milo runtime:
 
-- **Core, in `unsafe` Milo:** object header + shapes, `Value` tags, IC miss path, GC (Boehm
-  via `extern` until the precise GC, which is then written in Milo), fibers (`ucontext` via
+- **Core, in `unsafe` Milo:** object header + shapes, `Value` tags, IC miss path, the GC
+  (conservative roots, precise heap), fibers (`ucontext` via
   `extern`), exception unwinding. These are layouts the generated IR reads directly, so they
   are specified once as `extern struct`s and a test checks the IR builder's view against them.
 - **Library, in safe Milo:** number formatting / dtoa, strings, JSON, path, fs, process,
   timers, later http. Nothing here holds a GC pointer across a call it does not own.
 
-C that remains (`runtime/residue.c`, ~20 lines of code), each item commented with why:
-`GC_INIT` (a C macro); the `cs_undefined_marker`/`cs_null_marker` globals whose addresses
+C that remains (`runtime/residue.c`, ~60 lines of code), each item commented with why: the
+collector's platform seam (the `cs_gc_bump` region generated IR bumps through, the main stack
+top, the data segment bounds, a noinline frame address, a ucontext's saved SP, the
+un-instrumented conservative scan loop, and the ASan poison/unpoison calls); the `cs_undefined_marker`/`cs_null_marker` globals whose addresses
 generated IR compares against (Milo cannot define or address a named data symbol); accessors for
 `stdout`/`stderr` (data symbols, `__stdoutp` on macOS); a static assert that `jmp_buf` fits the
 512 bytes `errors.milo` reserves; and `getcontext`/`makecontext` setup for fibers (the
@@ -234,8 +267,8 @@ manifest. Estimates in LOC.
    Every record is `[*CsShape, field Values...]` (runtime/abi.milo); one shape per allocation
    layout (class, literal field list, spread result, JSON.parse target) carrying field names and
    kinds, class name, method table, and the per-shape print/JSON functions. Field slots hold
-   `Value`s (src/codegen/value.ts: numbers offset by 2^49, pointers raw with a 3-bit tag so Boehm
-   still sees them, `undefined` = 0). `lower/layouts.ts` computes, per static type, the layouts
+   `Value`s (src/codegen/value.ts: numbers offset by 2^49, pointers raw with a 3-bit tag so a
+   conservative root scan still sees them, `undefined` = 0). `lower/layouts.ts` computes, per static type, the layouts
    whose allocating type is assignable to it; a site whose reaching layouts agree is one static
    load, otherwise a per-site inline cache with a by-name miss path (runtime/shape.milo). Literals
    allocate exactly their own properties in JS order; spreads dispatch on source shapes; method
@@ -271,7 +304,10 @@ manifest. Estimates in LOC.
    functions as type arguments (CS1242), aliased containers of other representations (CS1240),
    type-level computation (CS1243), constructor types (CS1244). `x!` is admitted where it is a
    no-op on a Value word. Closures + generics fuzzer in tests/slow. (~1.6k)
-6. **Own GC** in Milo (conservative roots, precise heap, inline bump allocation); drop libgc. (~2k)
+6. **Own GC** in Milo. DONE (dod `precise-gc`). Conservative roots, precise heap, Immix-style
+   blocks and lines, bump allocation inlined into generated IR, lazy sweep; libgc dropped from
+   the link, the driver and CI. `CHAD_GC_STRESS=1` lane over the differential suite in CI. See
+   "Memory: our own GC in Milo". (~1.2k)
 7. **0.1 "TS CLI tools"**: argv, fs, JSON parsed and validated against the declared type,
    async, `chad run --fallback=node|milojs`, generated SUBSET.md, release binaries.
 
@@ -284,8 +320,8 @@ manifest. Estimates in LOC.
 - Numbers cross the C ABI as `double`, never `int`/`long`.
 - Whole-program compilation from one entry file.
 - `Value` is NaN-boxed (slots are already 64-bit), in the pointer-favoring variant: doubles are
-  offset by 2^49 and pointers stay raw with a low 3-bit tag, because Boehm cannot see a pointer
-  hidden under NaN tag bits (src/codegen/value.ts).
+  offset by 2^49 and pointers stay raw with a low 3-bit tag, because a conservative root scan
+  cannot see a pointer hidden under NaN tag bits (src/codegen/value.ts).
 
 ## History
 

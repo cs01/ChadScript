@@ -66,21 +66,34 @@ uint64_t cs_gc_data_hi(void) {
 __attribute__((noinline)) uint64_t cs_sp(void) { return (uint64_t)__builtin_frame_address(0); }
 
 // The SP saved in a ucontext by swapcontext: where the scan of a suspended stack starts. The
-// machine-context layout is per platform. glibc names the x86-64 slot REG_RSP (15) only under
-// _GNU_SOURCE.
+// machine-context layout is per platform. Under _XOPEN_SOURCE alone glibc spells the x86-64
+// register array __gregs, and the RSP index (REG_RSP = 15) has no name.
 uint64_t cs_ctx_sp(ucontext_t *c) {
 #if defined(__APPLE__) && defined(__aarch64__)
   return c->uc_mcontext->__ss.__sp;
 #elif defined(__APPLE__) && defined(__x86_64__)
   return c->uc_mcontext->__ss.__rsp;
 #elif defined(__linux__) && defined(__x86_64__)
-  return (uint64_t)c->uc_mcontext.gregs[15];
+  return (uint64_t)c->uc_mcontext.__gregs[15];
 #elif defined(__linux__) && defined(__aarch64__)
-  return c->uc_mcontext.sp;
+  return c->uc_mcontext.__sp;
 #else
 #error "cs_ctx_sp: add this platform's saved-SP field"
 #endif
 }
+
+// Under ASan the collector poisons free lines and unpoisons a hole when it hands it out, so a
+// runtime read of a collected object is reported until its line is reused. The interface is a
+// sanitizer header, reachable only from C; without ASan these are no-ops. (The runtime is always
+// compiled by clang, which defines __has_feature.)
+#if __has_feature(address_sanitizer)
+#include <sanitizer/asan_interface.h>
+void cs_gc_poison(uint64_t p, uint64_t n) { __asan_poison_memory_region((void *)p, n); }
+void cs_gc_unpoison(uint64_t p, uint64_t n) { __asan_unpoison_memory_region((void *)p, n); }
+#else
+void cs_gc_poison(uint64_t p, uint64_t n) {}
+void cs_gc_unpoison(uint64_t p, uint64_t n) {}
+#endif
 
 // Conservative scan of [lo, hi): `visit` every aligned word inside the heap's address range. Not
 // ASan-instrumented: stacks and static data hold redzones, and this reads them on purpose.

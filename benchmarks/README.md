@@ -18,12 +18,13 @@ different is not a benchmark. Reported time is best-of-5 wall clock including pr
 
 ## What each one exercises
 
-| Benchmark | Stresses                                                |
-| --------- | ------------------------------------------------------- |
-| `fib`     | function-call overhead, f64 arithmetic, recursion       |
-| `sieve`   | array element writes, tight integer-ish loops           |
-| `matmul`  | nested array indexing, multiply-accumulate              |
-| `nbody`   | classes, field mutation through references, `Math.sqrt` |
+| Benchmark      | Stresses                                                                                      |
+| -------------- | --------------------------------------------------------------------------------------------- |
+| `fib`          | function-call overhead, f64 arithmetic, recursion                                             |
+| `sieve`        | array element writes, tight integer-ish loops                                                 |
+| `matmul`       | nested array indexing, multiply-accumulate                                                    |
+| `nbody`        | classes, field mutation through references, `Math.sqrt`                                       |
+| `binary_trees` | allocation throughput and collector cost (millions of short-lived nodes, one long-lived tree) |
 
 ## Reading the results
 
@@ -37,3 +38,22 @@ under `noUncheckedIndexedAccess`, and the optional representation heap-allocates
 In an inner loop that is millions of GC allocations, which is why `matmul` is the one benchmark
 that loses to Node. An unboxed representation for statically-in-range reads is the fix; it is
 tracked as representation work, not a tuning knob.
+
+## Collector: Boehm vs our own (phase 6)
+
+Same machine (Apple M-series, macOS), best of 5, `chad` column only; "Boehm" is v2 at 43d4d919,
+"own GC" is runtime/gc.milo with the inline bump path.
+
+| Benchmark      | Boehm  | own GC | Node   |
+| -------------- | ------ | ------ | ------ |
+| `binary_trees` | 267 ms | 232 ms | 130 ms |
+| `fib`          | 25 ms  | 25 ms  | 96 ms  |
+| `map_lookup`   | 111 ms | 105 ms | 57 ms  |
+| `matmul`       | 108 ms | 105 ms | 89 ms  |
+| `montecarlo`   | 935 ms | 925 ms | 1.03 s |
+| `nbody`        | 127 ms | 126 ms | 248 ms |
+| `sieve`        | 55 ms  | 52 ms  | 113 ms |
+| `sorting`      | 49 ms  | 48 ms  | 77 ms  |
+
+`binary_trees` still trails Node: the collector is non-generational, so every collection marks
+the whole long-lived tree, where V8 only scavenges its nursery.

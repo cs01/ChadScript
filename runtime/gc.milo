@@ -56,7 +56,7 @@ let LARGE_TOTAL: i64 = 8192
 // Collect once this many bytes were handed out since the last collection, or live * GROWTH if
 // that is larger (the heap then settles near (1 + GROWTH) x live).
 let MIN_TRIGGER: i64 = 1048576
-let GROWTH: i64 = 1
+let GROWTH: i64 = 2
 
 extern struct Bump {
     cursor: i64,
@@ -68,6 +68,10 @@ extern fn cs_sp(): i64
 extern fn cs_gc_data_lo(): i64
 extern fn cs_gc_data_hi(): i64
 extern fn cs_gc_scan(lo: i64, hi: i64, heapLo: i64, heapHi: i64, visit: (i64) => void)
+// ASan annotations (no-ops in other builds): free lines are poisoned, a hole is unpoisoned when
+// handed out, so an instrumented read of a collected object is reported until the line is reused.
+extern fn cs_gc_poison(p: i64, n: i64)
+extern fn cs_gc_unpoison(p: i64, n: i64)
 
 var gReady: bool = false
 var gInGc: bool = false
@@ -98,6 +102,11 @@ var gNChunks: i64 = 0
 var gChunkCap: i64 = 0
 var gHeapLo: i64 = 0
 var gHeapHi: i64 = 0
+// A byte per 1 MB between the lowest and highest chunk (1 = a chunk of ours): the membership test
+// every candidate pointer takes. 0 when that span is too wide to map; chunkKnown then decides.
+var gChunkLo: i64 = 0
+var gChunkHi: i64 = 0
+var gChunkMap: *u8 = 0 as *u8
 // Blocks with live lines, swept lazily in order from gRecycleIdx; blocks with none.
 var gRecycle: *i64 = 0 as *i64
 var gNRecycle: i64 = 0
@@ -289,6 +298,37 @@ fn chunkKnown(c: i64): bool {
     return false
 }
 
+fn rebuildChunkMap() {
+    gChunkLo = ld(gChunks as i64)
+    gChunkHi = ld(gChunks as i64 + (gNChunks - 1) * 8) + CHUNK_BYTES
+    let n = (gChunkHi - gChunkLo) >> 20
+    unsafe {
+        free(gChunkMap)
+        gChunkMap = 0 as *u8
+        if n <= 1048576 {
+            gChunkMap = calloc(n, 1)
+        }
+    }
+    if gChunkMap as i64 == 0 {
+        return
+    }
+    var i: i64 = 0
+    while i < gNChunks {
+        stb(gChunkMap as i64 + ((ld(gChunks as i64 + i * 8) - gChunkLo) >> 20), 1)
+        i = i + 1
+    }
+}
+
+fn inChunk(w: i64): bool {
+    if w < gChunkLo || w >= gChunkHi {
+        return false
+    }
+    if gChunkMap as i64 != 0 {
+        return ldb(gChunkMap as i64 + ((w - gChunkLo) >> 20)) != 0
+    }
+    return chunkKnown(w & (0 - CHUNK_BYTES))
+}
+
 fn widen(lo: i64, hi: i64) {
     if gHeapHi == 0 || lo < gHeapLo {
         gHeapLo = lo
@@ -324,11 +364,13 @@ fn growHeap() {
     st(gChunks as i64 + i * 8, c)
     gNChunks = gNChunks + 1
     widen(c, c + CHUNK_BYTES)
+    rebuildChunkMap()
     // Highest block pushed first, so blocks are handed out in address order.
     var b = BLOCKS_PER_CHUNK - 1
     while b >= 0 {
         let blk = c + b * BLOCK_BYTES
         zero(blk, FIRST_BYTE)
+        cs_gc_poison(blk + FIRST_BYTE, BLOCK_BYTES - FIRST_BYTE)
         pushFree(blk)
         b = b - 1
     }
@@ -365,6 +407,7 @@ fn nextHole(): bool {
                 gLine = e
                 gCur = gBlock + l * LINE_BYTES
                 gLim = gBlock + e * LINE_BYTES
+                cs_gc_unpoison(gCur, gLim - gCur)
                 zero(gCur, gLim - gCur)
                 gAllocSince = gAllocSince + (gLim - gCur)
                 return true
@@ -425,6 +468,7 @@ fn blockSpace(total: i64, align16: bool): i64 {
                 let blk = ld(gFree as i64 + gNFree * 8)
                 gOvCur = blk + FIRST_BYTE
                 gOvLim = blk + BLOCK_BYTES
+                cs_gc_unpoison(gOvCur, gOvLim - gOvCur)
                 zero(gOvCur, gOvLim - gOvCur)
                 gAllocSince = gAllocSince + (gOvLim - gOvCur)
             }
@@ -561,7 +605,7 @@ fn largeIndex(w: i64): i64 {
         return -1
     }
     let hdr = ld(gLarge as i64 + (lo - 1) * 8)
-    if w < hdr + 8 + gcHeaderSize(ld(hdr) as u64) {
+    if w >= hdr + 8 && w < hdr + 8 + gcHeaderSize(ld(hdr) as u64) {
         return lo - 1
     }
     return -1
@@ -586,7 +630,9 @@ fn blockObject(blk: i64, w: i64): i64 {
         bits = ld(blk + wi * 8)
     }
     let hdr = blk + (wi * 64 + 63 - bits.leadingZeros()) * 8
-    if w >= hdr + 8 + gcHeaderSize(ld(hdr) as u64) {
+    // A word inside the header is no reference (every real one points into the payload);
+    // stale bump cursors and header addresses left on the stack would otherwise pin objects.
+    if w < hdr + 8 || w >= hdr + 8 + gcHeaderSize(ld(hdr) as u64) {
         return 0
     }
     return hdr
@@ -604,17 +650,23 @@ fn visit(w: i64): bool {
     if w < gHeapLo || w >= gHeapHi {
         return true
     }
-    if chunkKnown(w & (0 - CHUNK_BYTES)) {
+    if inChunk(w) {
         let blk = blockOf(w)
-        let hdr = blockObject(blk, w)
-        if hdr == 0 {
-            return false
+        // Most words point at an object's payload start (possibly tagged): its header is the word
+        // before, and a start bit there settles it without the backward bitmap search.
+        var hdr = (w & (0 - 8)) - 8
+        if hdr < blk + FIRST_BYTE || !testBit(0, blk, hdr) {
+            hdr = blockObject(blk, w)
+            if hdr == 0 {
+                return false
+            }
         }
         if testBit(MARK_BITS, blk, hdr) {
             return true
         }
         setBit(MARK_BITS, blk, hdr)
-        let total = gcHeaderSize(ld(hdr) as u64) + 8
+        let h = ld(hdr) as u64
+        let total = gcHeaderSize(h) + 8
         var l = (hdr - blk) >> 7
         let last = (hdr + total - 1 - blk) >> 7
         while l <= last {
@@ -622,7 +674,10 @@ fn visit(w: i64): bool {
             l = l + 1
         }
         gLiveBytes = gLiveBytes + total
-        push(hdr)
+        // Nothing to trace inside a byte buffer.
+        if gcHeaderKind(h) != GC_ATOMIC {
+            push(hdr)
+        }
         return true
     }
     let i = largeIndex(w)
@@ -770,15 +825,29 @@ fn anyLineMarked(blk: i64): bool {
     return false
 }
 
+// Every run of free lines: filled with a pattern in verify mode (a stale read then sees garbage
+// instead of the old object), then ASan-poisoned.
 fn poisonFreeLines(blk: i64) {
     var l = FIRST_LINE
     while l < LINES {
-        if !lineMarked(blk, l) {
-            unsafe {
-                memset((blk + l * LINE_BYTES) as *u8, 171, LINE_BYTES)
+        if lineMarked(blk, l) {
+            l = l + 1
+        } else {
+            var e = l + 1
+            while e < LINES && !lineMarked(blk, e) {
+                e = e + 1
             }
+            let lo = blk + l * LINE_BYTES
+            let n = (e - l) * LINE_BYTES
+            if gVerify {
+                unsafe {
+                    cs_gc_unpoison(lo, n)
+                    memset(lo as *u8, 171, n)
+                }
+            }
+            cs_gc_poison(lo, n)
+            l = e
         }
-        l = l + 1
     }
 }
 
@@ -833,9 +902,7 @@ fn collect() {
                 zero(blk, LINE_MARKS)
                 pushFree(blk)
             }
-            if gVerify {
-                poisonFreeLines(blk)
-            }
+            poisonFreeLines(blk)
             b = b + 1
         }
         c = c + 1

@@ -425,8 +425,14 @@ export const DOD: DodItem[] = [
   {
     id: "precise-gc",
     title: "phase 6: precise GC in Milo, libgc dropped",
-    status: "todo",
-    evidence: [],
-    note: "after the value model; gated by a collect-every-allocation stress lane",
+    status: "done",
+    evidence: [
+      "run/gc-trees-churn.ts",
+      "run/gc-roots-everywhere.ts",
+      "run/gc-async-stacks.ts",
+      "run/closures/async-capture.ts",
+      "run/timer-async-interleave.ts",
+    ],
+    note: "runtime/gc.milo + gc-stacks.milo: conservative roots (registers, running stack, suspended stacks from their ucontext SP, data segment), precise heap through per-object layout headers (src/codegen/alloc.ts), Immix blocks/lines, inline bump fast path, lazy sweep. Every fixture also runs under CHAD_GC_STRESS=1 (collect before each allocation) in CI; the two async fixtures above are the ones that caught the swapcontext register-spill root bug.",
   },
 ];

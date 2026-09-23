@@ -39,11 +39,14 @@ export function miloPin(): string {
 //
 // WHAT THIS LANE COVERS, measured by injecting each bug and checking it is reported:
 //   - stack and global buffer overflows, out-of-bounds array indexing, integer/alignment UB — YES
-//   - overflows between GC objects — NO. The collector (runtime/gc.milo) bump-allocates objects
-//     back to back inside malloc'd chunks, so ASan sees one live chunk and puts no redzones
-//     between objects. The collector's own bugs have their own gates: CHAD_GC_STRESS (collect on
-//     every Nth allocation) and CHAD_GC_VERIFY (poison freed lines, abort on a traced slot that
-//     points at freed memory).
+//   - a runtime read of a collected GC object — YES while its line is free: the collector
+//     (runtime/gc.milo) ASan-poisons free lines and unpoisons a hole when it hands it out
+//     (tests/runtime/gc_poison_test.c pins it). Generated code is not instrumented (its IR has no
+//     sanitize_address attribute), so only runtime reads are checked.
+//   - overflows between GC objects — NO. Objects are bump-allocated back to back inside a hole,
+//     with no redzones between them. The collector's own bugs have their own gates:
+//     CHAD_GC_STRESS (collect before every Nth allocation) and CHAD_GC_VERIFY (fill freed lines
+//     with a pattern, abort on a traced slot that points at freed memory).
 //   - a stack pointer escaping through cs_throw — NO, and no sanitizer can. longjmp triggers
 //     __asan_handle_no_return, which unpoisons the abandoned frame to avoid false positives.
 //     That class is closed structurally instead: cs_new_error copies its message

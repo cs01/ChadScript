@@ -23,14 +23,13 @@ class Circle extends Shape {
 ```
 
 ```sh
-bin/chad build examples/shapes.ts -o shapes   # 94 KB binary (+ libgc)
+bin/chad build examples/shapes.ts -o shapes   # ~130 KB self-contained binary
 ./shapes                                      # ~2 ms; the same file under Node: ~48 ms
 ```
 
 ## Quick start
 
-Needs [bun](https://bun.sh), clang/LLVM, and Boehm GC (`brew install bdw-gc` or
-`apt install libgc-dev`).
+Needs [bun](https://bun.sh) and clang/LLVM. No GC library: the runtime brings its own collector.
 
 ```sh
 bun install
@@ -84,7 +83,8 @@ and truthiness (narrow it first); `Map`/`Set` keyed by a union. See the phases i
 - **Node is the semantics oracle.** Every fixture is diffed against Node at `-O0` and `-O2`, and
   the IR is checked with `opt -passes=verify`. A seeded fuzzer generates programs in the subset.
 - **Runtime** (`runtime/`, written in [Milo](https://github.com/milo-language/milo) with a
-  ~20-line C residue; `sh scripts/setup-milo.sh` fetches the pinned compiler): UTF-8 `{ptr, len}` strings, JS-exact number formatting, Boehm GC, ucontext fibers for async,
+  ~20-line C residue; `sh scripts/setup-milo.sh` fetches the pinned compiler): UTF-8 `{ptr, len}` strings, JS-exact number formatting, its own garbage collector (conservative roots, precise
+  heap, inline bump allocation, no libgc dependency), ucontext fibers for async,
   a microtask/timer/I/O event loop.
 
 ## Docs

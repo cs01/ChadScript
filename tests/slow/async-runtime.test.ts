@@ -10,7 +10,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { CLANG, SAN_FLAGS } from "../../src/driver/toolchain.js";
+import { CLANG, SAN_FLAGS, SANITIZE } from "../../src/driver/toolchain.js";
 import { runtimeObjects } from "../../src/driver/build.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -66,3 +66,12 @@ test("async runtime: promise values round-trip through resolve/await for each bo
 test("runtime: cs_new_error copies the message so a caller's stack CsString cannot dangle", () => {
   assert.doesNotThrow(() => runCTest("throw_msg_copy_test.c"));
 });
+
+// Only meaningful in the sanitized lane: proves the collector's free-line poisoning turns a read of
+// a collected object into an ASan report (so that lane covers the GC heap at all). Registered only
+// there: bun's node:test ignores the `skip` option.
+if (SANITIZE) {
+  test("runtime: under ASan, reading a collected object is reported", () => {
+    assert.throws(() => runCTest("gc_poison_test.c"), /use-after-poison/);
+  });
+}
