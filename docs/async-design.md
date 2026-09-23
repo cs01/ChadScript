@@ -8,8 +8,13 @@ Status: design. Implementation lands in slices behind this doc (PLAN's design-do
 as a microtask — Node runs later synchronous code before an awaited continuation:
 
 ```ts
-async function main() { console.log(1); await Promise.resolve(); console.log(2); }
-main(); console.log(3);         // Node prints 1, 3, 2
+async function main() {
+  console.log(1);
+  await Promise.resolve();
+  console.log(2);
+}
+main();
+console.log(3); // Node prints 1, 3, 2
 ```
 
 A naive "run eagerly, unwrap the resolved value" implementation prints `1, 2, 3` — a divergence

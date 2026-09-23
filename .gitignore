@@ -1,103 +1,10 @@
-# Dependencies
-node_modules
-
-# Generated
-src/version.ts
-
-# Build outputs
-.build/bench/
-dist/
-build/
-.build/
-src-js/
-src/**/*.js
-c_bridges/*.o
-
-# Generated files
-lib/*.js
-lib/*.js.map
-lib/*.d.ts
-lib/*.d.ts.map
-
-# Compiled binaries and LLVM IR
+node_modules/
 *.ll
 *.o
-native-compiler2
-
-# Test artifacts at root level
-test-*.ts
-test-*.sh
-!tests/test-discovery.ts
-
-# TypeScript
-*.tsbuildinfo
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# IDE / Editor
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.claude/*
-!.claude/rules.md
-
-# Logs and process output
 *.log
-nohup.out
-npm-debug.log*
-.crush
-sentinel.log
-
-# Agent state and notes (generated/private)
-agent-state/
-logs/
-AGENT_*.md
-CLAUDE.md
-LEARNINGS.md
-todo.md
-
-# Roadmap (local only)
-roadmap/
-
-# LLM rules
-.llms/*
-!.llms/rules/
-.llms/rules/*
-!.llms/rules/rules.md
-
-# LLM-generated notes (local only)
-llmnotes/
-
-# Accidental/temporary files
-vendor/
-
-# Scripts that are local/private
-ralph.sh
-
-# Compiled binaries in fixtures and examples (no extension = likely ELF binary)
-# Use a shell script or Makefile to build these, don't commit them
-examples/hello
-examples/cli-parser-demo
-examples/he
-
-# VitePress docs build artifacts
-docs/.vitepress/dist/
-docs/.vitepress/cache/
-benchmarks/tools/httpbench
+*.tsbuildinfo
+.DS_Store
+.claude/*
 .worktrees/
-
-# Coverage
-coverage/
-
-.baseline-build/
-
-.diff-build/
-
-tests/baseline/differential-exec.json
-
-.diff-fuzz/
 .fuzz/
+.build/

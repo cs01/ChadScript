@@ -1,6 +1,6 @@
 // Codegen for async/await: an async call spawns a fiber, `await` suspends on its promise. The
 // runtime machinery (fibers, the microtask loop, promise settlement, rejection-as-throw) lives in
-// runtime/async.c; this file only emits the calls into it. See docs/async-codegen-design.md.
+// runtime/async.c; this file only emits the calls into it. See docs/history/async-codegen-design.md.
 
 import { ice } from "../diagnostics.js";
 import { imm, type Value } from "../ir/builder.js";

@@ -15,6 +15,11 @@ import { differential } from "./harness/differential.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const runRoot = join(here, "fixtures", "run");
+// examples/ are user-facing showcases; running them here keeps them from rotting.
+const exampleRoot = join(here, "..", "examples");
+// CHAD_FIXTURE=<substring> narrows the suite to matching fixture paths (the dev-loop filter;
+// bun's -t cannot select inside this single pooled test).
+const only = process.env["CHAD_FIXTURE"];
 
 // Run `fn` over `items` with at most `concurrency` in flight (each item spawns clang + node
 // processes, so we cap parallelism near the core count rather than launching all at once).
@@ -33,13 +38,19 @@ async function pool<T>(
   await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
 }
 
-test("differential suite (all fixtures vs Node, O0 + O2)", async () => {
-  const fixtures = [...discoverFixtures(runRoot)];
+// One pooled test for the whole suite, so it gets its own budget instead of bun's per-test
+// --timeout (the suite outgrew 60 s on a laptop and failed as a timeout, not a divergence).
+test("differential suite (all fixtures vs Node, O0 + O2)", { timeout: 900_000 }, async () => {
+  const fixtures = [...discoverFixtures(runRoot), ...discoverFixtures(exampleRoot)].filter(
+    (fx) => only === undefined || fx.path.includes(only),
+  );
+  // A filter typo or a discovery regression must not pass as "0 checked".
+  assert.ok(fixtures.length > 0, `no fixtures matched${only ? ` CHAD_FIXTURE=${only}` : ""}`);
   const failures: string[] = [];
   await pool(fixtures, Math.max(2, cpus().length), async (fx) => {
     const divergences = await differential(fx.path, fx.args);
     if (divergences.length > 0) {
-      const name = relative(runRoot, fx.path);
+      const name = relative(join(here, ".."), fx.path);
       failures.push(
         `${name}:\n    ${divergences.map((d) => `[${d.kind}] ${d.detail}`).join("\n    ")}`,
       );

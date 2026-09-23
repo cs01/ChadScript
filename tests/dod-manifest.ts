@@ -1,5 +1,5 @@
-// The definition of done, as DATA. `docs/architecture-review-2026-07-22.md` states the stopping
-// point in prose, which makes "are we there yet?" a reading rather than a check. This manifest is
+// The definition of done, as DATA. PLAN.md lists the phases in prose, which makes "are we there
+// yet?" a reading rather than a check. This manifest is
 // the executable version: each item names the fixtures that PROVE it, and dod.test.ts fails if a
 // `done` item cites a fixture that does not exist or is not actually executed by a suite.
 //

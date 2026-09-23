@@ -1,379 +1,234 @@
-# ChadScript v2 — Static TypeScript Subset Compiler
+# ChadScript plan
 
-Charter for the from-scratch rewrite: a **principled, statically analyzable subset of
-TypeScript** compiled AOT to native binaries. This document is the implementation plan for
-Opus-class agents. Read it fully before writing code. `CLAUDE.md` holds the standing rules;
-this file holds the mission, the language contract, the architecture, and the phase plan.
-
-**Repo strategy:** this lives on the `v2` branch of the ChadScript repo. `main` is the dead
-v1 compiler — never land work there. Commit directly to this branch and push; no PRs
-required. The branch keeps v1's salvageable assets in-tree (see "Kept in-tree" below);
-everything being reimplemented was deleted in the branch's first commit — recover any v1
-code via `git show main:<path>`.
+The one charter. Mission, contract, architecture, phases. `CLAUDE.md` holds the working rules;
+`docs/SUBSET.md` (generated) is what the compiler accepts today. Nothing else is authoritative.
+Superseded plans and reviews were deleted on 2026-09-22; recover them from git history.
 
 ## Mission
 
-Every accepted program behaves **exactly** like Node runs it. Every program outside the
-subset is **rejected at compile time** with a precise diagnostic and a suggested rewrite.
-There is no third category. "Compiles but behaves differently than Node" is the defining
-failure of the predecessor and is treated as a P0 bug, always.
+Compile ordinary, statically analyzable TypeScript ahead of time to small native binaries.
+
+- **Accepted programs behave exactly like Node.** Same stdout, same exit code.
+- **Everything else is rejected at compile time** with a `CS####` code, a span, and a rewrite
+  suggestion. There is no third category ("compiles but diverges"): that is a P0 bug.
+- **Real programs are multi-file.** `import`/`export` across files is a first-class feature,
+  not a single-file toy.
+
+Product: CLI tools and services as a ~100 KB binary with ~2 ms startup (today:
+`examples/shapes.ts` builds to 94 KB plus libgc and runs in ~2 ms vs ~48 ms under Node). The
+same source also runs on Node (or [milojs](https://github.com/milo-language/milojs)), so rejection
+never strands a program.
 
 ## Non-goals (permanent)
 
-- **Self-hosting.** The compiler runs on Node forever. Both predecessors proved the
-  bootstrap trap: every codegen bug becomes a stage1/stage2 segfault archaeology session.
-- **Full JS semantics.** No prototype mutation, no `eval`, no monkey-patching, no `Proxy`.
-  We are not building a slow V8. Programs that need dynamic JS should run on Node.
-- **npm compat as a goal.** A package works iff it happens to fit the subset. We do not
-  chase lodash coverage percentages (this is where hir lost the thread).
-- **A custom parser or a custom type checker.** See "tsc is the oracle" below.
+- A JS engine. No `eval`, prototype mutation, property add/delete, `Proxy`, getters on
+  literals. Programs that need dynamic JS run on Node or milojs.
+- Custom type inference or a custom parser. tsc does both.
+- Self-hosting. The compiler runs on Node (via bun) forever.
+- npm compatibility as a goal. A package works iff its **TypeScript source** is in the subset.
+- CommonJS and `require`. ESM only.
 
-## Post-mortem: why the predecessors died (and what each lesson buys us)
+## Constitution (never violate)
 
-### ChadScript v1 (this repo's `main`, ~88K LOC TS, dead)
+1. **tsc is the type oracle.** Programs must typecheck at max strictness (`strict`,
+   `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`,
+   `noPropertyAccessFromIndexSignature`) with zero diagnostics. We never infer a type.
+2. **Default-deny validator.** A construct is admitted only by an explicit allowlist rule
+   with a passing differential fixture. Anything unconsidered fails closed.
+3. **Sema before codegen.** Every HIR node carries a `ValueType` before the backend runs.
+   Only `src/lower/` imports TypeScript (a test enforces it). Codegen never infers; a
+   missing fact is an `ice()`.
+4. **Node is the semantics oracle.** Tests diff native stdout + exit code against Node at
+   `-O0` and `-O2`; the IR passes `opt -passes=verify`. No self-reporting fixtures.
+5. **No silent anything.** Discriminated dispatch is `switch` + `never` + throwing default.
+6. **Representation belongs to the value, not the static type.** TypeScript is structural and
+   unsound; its types choose _optimizations_, never _layout correctness_. (Added 2026-09-22;
+   see "Why the value model changes".)
 
-1. **Types were resolved during codegen.** The mutable `SymbolTable` was populated as
-   codegen ran, so expression types could not be computed ahead of time. The salvage
-   audit measured it: `member_access` was ~100% annotation-cache miss across 648 fixtures;
-   every attempt to pre-compute (issues #658/#662–#666) segfaulted self-hosting and was
-   reverted. See `docs/tranche3-abort-decision.md` — the incremental fix was formally
-   judged walled. **Lesson: types are fully resolved before the backend starts, or the
-   architecture is unsalvageable later.**
-2. **Semantics enforced by honor system.** "Patterns That Crash" was prose in CLAUDE.md:
-   closures captured by value (a semantic lie patched with a checker), `|| {literal}`
-   produced garbage reads, stack structs escaped into fields. Accepted programs were
-   silently wrong. **Lesson: if the compiler can't do it correctly, it must reject it.**
-3. **LLVM IR emitted as string concatenation.** Unverified IR, `inttoptr i64 0` fallbacks
-   that -O2 exploited as UB, parallel bookkeeping arrays to track terminators.
-   **Lesson: typed IR builder with structural invariants + mandatory verification.**
-4. **Custom parser + custom type inference** consumed the majority of the 88K LOC and
-   produced the majority of the bugs — all reinventing what `tsc` already does.
-5. **Differential testing arrived last instead of first.** The salvage tranche's
-   Node-oracle harness + seeded fuzzer immediately found real miscompiles (integer
-   narrowing broke `Math.ceil` on params; `toString(radix)` ignored the radix;
-   `Infinity` printed as C's `inf`). **Lesson: diff-vs-Node is the default test type
-   from commit 1.**
+## Why the value model changes
 
-### hir (`~/git/hir`, the first rewrite, stalled 2026-05)
+Until now, object layout was derived from the static type: a closed shape, field _i_ at slot _i_.
+tsc happily passes a `{y, x}` where a `{x}` is expected, so the callee read the wrong slot:
 
-Right calls, keep them: SWC-class off-the-shelf parser, no self-hosting, tests diff
-stdout against Node, small modular codebase, C runtime bridges, Boehm GC.
+```ts
+interface P {
+  x: number;
+}
+function f(p: P): number {
+  return p.x;
+}
+const q = { y: 2, x: 5 };
+console.log(f(q)); // node: 5, chad (2026-09-22): 2
+```
 
-Wrong call, avoid it: **NaN-box-first dynamic semantics.** Chasing prototype chains,
-`Object.defineProperty`, `this`-binding, and lodash compat is reimplementing V8 slowly —
-an unbounded goal with no principled stopping point. Momentum died there.
+Same root cause, all reproduced 2026-09-22: a class instance and a literal in one `HasB[]`
+(wrong output), two interfaces with reordered fields aliasing one object (wrong output),
+discriminated unions (ICE), optional fields read through a `Map` value (ICE). And it is why
+generics, mixed unions and interface method calls could never be admitted cleanly: each one
+fights the layout assumption. That is the "every fix fails" pattern of the previous attempts.
 
-**Synthesis: v1 failed on architecture, hir failed on scope. v2 takes hir's hygiene and
-replaces the open-ended dynamic goal with a hard static contract.**
+## Value model (target)
 
-## Design principles (the constitution)
+1. **Shaped objects.** Every object starts with a pointer to an immutable runtime shape
+   (field name to slot, method name to function, per-slot pointer map for the GC). Class
+   instances and literals share the model. Shapes never change after allocation, because
+   the subset forbids property add/delete.
+2. **Static field access wherever possible.** The program is closed-world, so the compiler
+   knows every allocation shape assignable to each static type. If one shape reaches, or all
+   reaching shapes put `x` at the same slot (whole-program field ordering), `p.x` is one load.
+   Otherwise a per-site inline cache: compare shape pointer, load; miss goes to a shape lookup.
+3. **`Value` (NaN-boxed u64)** only where the static type is a union of different
+   representations, a type parameter, or `unknown`. `number`, `string`, `boolean` stay
+   unboxed. Narrowing (`typeof`, literal discriminant, `instanceof`, `in`) is a tag test.
+   NaNs are canonicalized before boxing.
+4. **Generics by erasure** to `Value`. Monomorphization later, as a flag-off optimization.
+5. **Mutable captures** live in heap cells.
+6. **TS soundness holes closed in the validator:** no `any`, no narrowing `as`, `x!` is a
+   runtime check that throws.
 
-1. **tsc is the type oracle.** The frontend is the official TypeScript Compiler API.
-   A program must typecheck under maximum strictness (`strict`, `noUncheckedIndexedAccess`,
-   `exactOptionalPropertyTypes`, `noImplicitOverride`, `noPropertyAccessFromIndexSignature`)
-   with **zero diagnostics** before we look at it. We never write type inference. The
-   checker's answer for every expression is recorded into our IR. This deletes the entire
-   bug class that killed v1 and the biggest LOC sink of both predecessors.
-2. **Reject, don't approximate.** The subset validator is a first-class product surface.
-   Every rejection has: an error code, the offending span, a one-line reason, and where
-   possible a suggested rewrite ("`==` is not supported; use `===`"). Every rejection
-   rule ships with a fixture proving it fires.
-3. **Sema before codegen, totally.** After validation + lowering, every HIR node carries an
-   interned `TypeId`. The backend contains **zero** type inference and throws (never-typed
-   `ice()`) on any missing annotation. Codegen is mechanical; all intelligence lives in
-   passes that run before it.
-4. **Node is the semantics oracle.** The default test asserts
-   `stdout(native binary) === stdout(node)` on the same source. Divergence = failure.
-   No `TEST_PASSED` self-reporting fixtures.
-5. **No silent anything.** Discriminated dispatch is `switch` + exhaustive `never` check +
-   `throw` default. No fallback paths that emit null pointers, no default LLVM types, no
-   "probably i8\*". An unhandled case is a loud ICE, not garbage IR.
-6. **Small files, mechanical structure.** No file over ~800 lines. New feature = new file.
-   The 133KB monolith is a documented cause of death.
-7. **JS semantics exactly, or rejection.** Where we support a construct, we match Node:
-   f64 numbers, int32 bitwise (JS masks shift counts to 5 bits and truncates operands to
-   int32 — adopt wholesale on day 1, this was v1's last open silent divergence),
-   JS truthiness, `undefined` vs `null` distinct, closure capture **by reference**,
-   `Infinity`/`NaN` spellings, `util.inspect`-compatible `console.log` for supported types.
+What remains "runtime" is shapes, the inline cache, and NaN-box helpers: ~1-2k LOC of C.
+There is no parser, interpreter, JIT, or deoptimizer in the binary.
 
-## Decisions locked (2026-07-21)
+## Modules
 
-- **Hard sema/backend separation from commit 1 (the core discipline this rewrite exists to
-  enforce).** Three walls, structural not conventional:
-  - `lower/` is the ONLY place that imports `ts` and touches the `TypeChecker`. It walks the
-    tsc AST and produces HIR, stamping every node with its resolved type (from the checker).
-  - `hir/` nodes carry their resolved type. HIR does not reference `ts` at all.
-  - `codegen/` consumes HIR and emits IR. It MUST NOT import `ts` or the checker — the backend
-    has no oracle to reach for; a HIR node missing its type is an `ice()`, not a lookup.
-    This is enforced by a test that fails if `codegen/` or `hir/` imports `typescript`. v1 died
-    because the type/codegen boundary was a convention that eroded under a mutable SymbolTable;
-    here it is a wall built while the surface is tiny (cheapest to get right, impossible to rot).
-    Full canonical `TypeId` interning (a global type table) is a separate, genuinely deferrable
-    optimization — the resolved-type annotation on HIR nodes starts as a small semantic
-    `ValueType` and grows into an interned table when passes over HIR demand it. The SEPARATION
-    is not deferred; only the interning table is.
-- **The validator is default-DENY (allowlist).** This is what makes the subset a real
-  definition instead of prose. The validator walks every AST node kind and every type the
-  checker reports; a construct is admitted **only** if an explicit ALLOW rule handles it,
-  and every ALLOW rule ships with ≥1 passing differential fixture. Anything else is
-  rejected with `CS####` + span + "not in the subset (yet)". Consequence: **the subset is,
-  at every commit, exactly the set of constructs with a passing differential fixture** —
-  there is no fuzzy middle where an un-considered construct reaches codegen. This is the
-  precise inversion of v1's default-allow-then-segfault. The accepted/rejected lists below
-  are the _roadmap_ for which ALLOW rules to write, in what order — not the definition.
-  The definition is the allowlist in code. A phase "adds to the subset" by adding ALLOW
-  rules + fixtures; it can never do so by omission.
-- **Strings are UTF-8** internally, `{ptr, len}` layout. Semantics are JS-exact for ASCII;
-  the fuzzer generates ASCII-only strings until this is revisited (Phase 4) — at which
-  point either `length`/`charCodeAt`/index get code-unit-exact UTF-16 semantics or the
-  divergence gets documented + validator-gated (e.g. reject `charCodeAt` on non-ASCII-
-  provable strings). Do not silently diverge in the meantime.
-- **`==` and `!=` are rejected entirely.** Use `===`/`!==`. Simpler than a same-type
-  carve-out, and strictly analyzable.
-- **`JSON.parse` validates at runtime against the declared type.** `JSON.parse<T>(s)` (or
-  contextual typing) emits a shape validator for `T`; mismatch throws a clear error.
-  No `any` result ever exists.
-- Boehm GC. Whole-program compilation from one entry file. ESM only.
+Programs are directory trees of `.ts` files. Target surface:
 
-## The language contract (v1 of the subset)
-
-Input: ESM TypeScript, whole-program compilation from one entry file. `tsconfig` is owned
-by the compiler (max strictness, non-negotiable).
-
-### Accepted
-
-- Primitives: `number` (f64), `boolean`, `string`, `null`, `undefined`, literal types.
-- All arithmetic/comparison/logical ops with JS semantics; bitwise ops with JS int32
-  semantics; `===`/`!==` only.
-- Control flow: `if`/`else`, `while`, `do`, `for`, `for...of` (arrays, strings, Map, Set),
-  `switch`, labeled break/continue, ternary, `&&`/`||`/`??` with JS value semantics.
-- Functions: declarations, arrow functions, closures (capture by reference — mutable
-  captures are boxed), default params, rest params, overload-free generics.
-- Objects: object literals against a declared interface/type — **closed shape**, fixed
-  layout. Optional properties (`x?: T`) as tagged presence. Readonly.
-- Classes: fields, methods, constructors, `extends` (single), `implements`, `private`/
-  `protected`/`public`, static members, getters/setters on classes only. Nominal layout,
-  vtable dispatch.
-- Interfaces: structural at check time (tsc's job); at runtime, values used at interface
-  type get a fat pointer (data + itable). Details in Phase 3.
-- Unions: `T | null | undefined`, discriminated unions of object types (tsc narrows;
-  we compile the narrowing), unions of literal types. Represented as tagged values.
-- Generics: functions and classes, compiled by **monomorphization** (depth cap with a
-  clear diagnostic on explosion). No `keyof`-metaprogramming beyond what resolves to a
-  finite literal union at compile time.
-- Enums: `const enum` only (inlined literals). Regular `enum` rejected (suggest
-  `as const` object — carry over v1's rule).
-- Built-ins (phased): `console`, `Math`, `JSON`, `Array`, `Map`, `Set`, string methods,
-  `Number`, `Object.keys/values/entries` (on closed shapes — statically known),
-  template literals, spread of arrays/args, destructuring, optional chaining `?.`,
-  `throw` (Phase 1: terminates process with Node-identical message; try/catch Phase 5).
-- Modules: static ESM `import`/`export` only; per-module scoping in the IR (v1's flat
-  merge caused builtin/user name collisions — namespace all symbols by module).
-
-### Rejected (each with error code + suggested rewrite)
-
-- `any`, bare `unknown` escaping a narrowing context, `as any`, `@ts-ignore`,
-  `@ts-expect-error`, non-null `!` (use explicit checks), `as` casts that aren't
-  upcasts/const-assertions, `==`/`!=`.
-- `eval`, `new Function`, `with`, `arguments`, `Proxy`, `Reflect`, `Symbol` (except
-  `Symbol.iterator` internally, later), prototype access/mutation of any kind, `delete`,
-  dynamic property add/remove, index signatures `[k: string]: T` (use `Map`),
-  getters/setters on object literals, `Object.defineProperty`.
-- Declaration merging, namespaces, decorators, `abstract` (initially), mixins,
-  `instanceof` on interfaces, `typeof x` value-tests except where tsc uses them to narrow
-  a union we support.
-- Sparse arrays, array holes, `Array(n)` without fill, heterogeneous arrays without a
-  declared union type.
-- `async`/`await`/Promises/generators/iterator-protocol customization — until Phase 6.
-  try/catch/finally — until Phase 5. Regex — until its phase (c_bridges/regex-bridge.c
-  is the salvage).
-- Dynamic `import()`, `require`, CJS.
-
-The contract grows monotonically: constructs move rejected→accepted, never the reverse,
-and only with full differential coverage.
+- Named, default, and namespace imports and exports; `export { x as y }`; re-exports
+  (`export * from`, `export { x } from`).
+- Specifiers as TypeScript writes them: `./util`, `./util.js`, `./util.ts`, `./dir/index`.
+  Resolution is tsc's (`moduleResolution: bundler`), never ours.
+- Namespace imports (`import * as u`) lower to static symbol references; using the namespace
+  as a first-class value is rejected.
+- Builtins as modules: `node:fs`, `node:fs/promises`, `node:path`, `node:process`, with named,
+  default and namespace forms.
+- Packages: a bare specifier that resolves to **TypeScript source** in `node_modules` is
+  compiled like user code, whole-program. One that resolves only to `.js` + `.d.ts` is rejected
+  with a diagnostic naming the package and suggesting `--fallback=node`.
+- Module scoping: every top-level symbol is namespaced by module in the IR; module
+  initialization runs once, in dependency order, cycles rejected until a fixture needs them.
+- `require`, `module.exports`, dynamic `import()`: rejected with the ESM rewrite as the hint.
 
 ## Architecture
 
-```
-entry.ts
-  → tsc Program (parse + typecheck, zero-diagnostic gate)          src/frontend/
-  → Subset validator (AST + checker walk; reject or admit)        src/validate/
-  → Lowering to HIR (tree, every node stamped with TypeId          src/lower/
-     from an interned TypeTable; module-namespaced symbols)
-  → Passes over HIR/MIR                                            src/passes/
-     monomorphize → devirtualize → narrowing-to-i32 (opt-in,
-     fuzzer-gated) → layout (struct/vtable/itable tables)
-  → Codegen: typed IR builder → LLVM .ll text                      src/codegen/
-  → clang -O2 link with runtime                                    src/driver/
-runtime: small C library (strings, arrays, map/set, format,       runtime/
-     Boehm GC), `cs_` prefix (kept from v1), double ABI for JS numbers
+```text
+.ts tree ──tsc (types, resolution)──▶ validate (default-deny) ──▶ lower ──▶ HIR (typed)
+        ──▶ verifyHir ──▶ codegen ──▶ typed IR builder ──▶ clang ──▶ binary + runtime
 ```
 
-Implementation language: **TypeScript on Node** — forced by the tsc-API frontend, and
-fine because we never self-host.
+- `src/frontend` tsc program + module graph. `src/validate` allowlist + `CS####` codes.
+  `src/lower` the only tsc consumer. `src/hir` typed nodes + verifier. `src/codegen` HIR to IR.
+  `src/ir` typed LLVM IR builder (raw IR text is banned outside it). `src/driver` clang/link.
+- `runtime/` C today, Milo after phase 2. `stdlib/globals.d.ts` the ambient environment programs see (no `@types/node`).
 
-Backend choice: emit **.ll text via a typed builder**, not string concat and not the LLVM
-C API (yet). The builder is the guardrail: values are `{name, type}` records, a
-`BasicBlock` object requires exactly one terminator (enforced by construction, not by a
-parallel bookkeeping array), function emission fails loudly on an unterminated block.
-Every compile runs `clang`-side verification; CI additionally runs `opt -passes=verify`
-on every fixture's IR at -O0 **and** -O2. Moving to the LLVM C API is a possible later
-optimization, not a Phase-0 dependency (`git show main:c_bridges/llvm-bridge.c` if so).
+### Memory: Boehm now, precise GC after the value model
 
-## Testing strategy (built in Phase 0, before any codegen)
+Boehm is conservative, non-moving and non-generational; it forced the fiber-stack rooting hack
+in `runtime/async.c` and will lose to V8's nursery on allocation-heavy code. A precise GC is
+cheap here because HIR types and shapes give exact root and heap maps. Target: codegen-emitted
+shadow-stack roots (one per fiber), bump nursery + copying minor GC, mark-sweep old gen,
+statepoints only if the shadow stack measurably costs too much. Gate: `CHAD_GC_STRESS=1`
+(collect every allocation) over the full differential suite, plus the ASan lane. Not before
+the value model lands: never swap two foundations at once. No-GC ownership is not an option:
+TS programs alias and form cycles freely.
 
-1. **Differential runner** (the default): fixture `.ts` → run under Node, compile with
-   v2, diff stdout + exit code. Auto-discovered from `tests/fixtures/**`, no registry.
-2. **Rejection fixtures**: `// @expect-reject: CS1234` — compile must fail with that
-   code and a span. Every validator rule has ≥1.
-3. **Seeded fuzzer**: grammar-based generator over the _accepted_ subset, differential
-   against Node. Grows with each phase's grammar. Nightly long runs; 300-case smoke in CI.
-   (v1's fuzzer found real miscompiles within days of existing — it goes in first, not last.)
-4. **IR verification**: `opt -passes=verify` on every fixture, -O0 and -O2.
-5. **-O0 vs -O2 output diff**: any behavioral difference between opt levels = UB leak = P0.
-6. Optimization passes (narrowing, devirt) each land **off by default** behind a flag,
-   fuzzer-gated, flipped on only after N clean nightly runs.
+### Runtime language: Milo
 
-## Phase plan
+The runtime (`runtime/*.c`, ~2.9k LOC today) moves to [Milo](https://github.com/milo-language/milo)
+and new runtime code is written in Milo from the start. Why:
 
-Each phase = a sequence of agent-sized commits. **Gate to exit a phase: all differential
-fixtures green, all rejection fixtures green, fuzzer clean over the phase's grammar,
-`opt -verify` clean.** LOC are estimates for planning, not quotas.
+- Runtime memory bugs are a live bug class here (9bb8916d fixed a dangling `CsString` in
+  `cs_new_error`), and Milo's second-class references rule that class out in safe code.
+- Milo has what a runtime needs at the seam: `@externalLinkage` functions with fixed C
+  symbols, `extern struct` layouts, `cfn` function pointers (for `makecontext` and callbacks),
+  raw `*u8` inside `unsafe`, `(ptr, len)` views via `std/foreign`, and `std/fs`, `std/json`,
+  `std/http` to build the library layer on.
+- Milo emits LLVM IR, so runtime and program can be linked as one module (`llvm-link`) and
+  LTO can inline hot runtime helpers into generated code. C `.o` files never allowed that.
 
-> **Status (2026-07-22, 256 tests green):** Phases 0–2 DONE. Phase 3 mostly done (closures,
-> nullable/tagged-`T|null|undefined`, classes with vtable virtual dispatch + `instanceof`;
-> interfaces = plain object shapes, no itable fat-pointers yet; generics NOT done, treated as
-> optional per user). Phase 4 partial (Map/Set, Math.\*, Number/String conversions, many string
-> methods, `console.log` util.inspect done; JSON/Date/fs/process NOT done). **Phase 5 (errors) is
-> next — user requires try/catch/throw + Phase 6 async before "done".** `toString(radix)` done;
-> `toFixed` deferred (needs JS dtoa).
->
-> **Architecture review gate (2026-07-22):** read
-> [`docs/architecture-review-2026-07-22.md`](docs/architecture-review-2026-07-22.md) before
-> extending Phase 5, async, strings, or the standard library. In particular, finish structured
-> exception/finally semantics and make exception state fiber-local before wiring async codegen.
-> The current NUL-terminated string runtime also violates the locked `{ptr, len}` ABI and must be
-> corrected before adding JSON, fs, or more string methods.
-> Follow the review's recovery sequence one bounded semantic slice at a time; do not resume broad
-> feature accumulation until the Phase 5, string ABI, and validator audits are closed or explicitly
-> deferred with compile-time rejection.
-> Validator-audit holes default to rejection, not new stdlib breadth. Resolve the review's Unicode
-> blockers for `charCodeAt` and string comparison before treating the string audit as complete.
+Split inside the Milo runtime:
 
-### Phase 0 — Skeleton + oracle harness (~3K LOC)
+- **Core, in `unsafe` Milo:** object header + shapes, `Value` tags, IC miss path, GC (Boehm
+  via `extern` until the precise GC, which is then written in Milo), fibers (`ucontext` via
+  `extern`), exception unwinding. These are layouts the generated IR reads directly, so they
+  are specified once as `extern struct`s and a test checks the IR builder's view against them.
+- **Library, in safe Milo:** number formatting / dtoa, strings, JSON, path, fs, process,
+  timers, later http. Nothing here holds a GC pointer across a call it does not own.
 
-- New `package.json`/`tsconfig.json` for the compiler itself (strict), prettier, CI
-  (mac + linux) — replacing the deleted v1 build config.
-- tsc frontend: load program, enforce zero-diagnostic gate, walk API surfaced cleanly.
-- Validator skeleton + first 10 rejection rules (`any`, `eval`, `enum`, `==`, index
-  signatures, …).
-- Differential test runner + rejection runner + fixture auto-discovery.
-- Typed IR builder core (values, blocks, terminator discipline) with unit tests — no
-  real codegen yet, just `main` returning an exit code end-to-end through clang.
-- Runtime stub + build script (`runtime/`, Boehm vendored via `scripts/build-vendor.sh`,
-  trimmed to what v2 needs).
-- **Exit demo**: `console.log("hello")` + exit codes, diffed against Node, both OSes.
+C that remains: only what Milo cannot express, expected to be `setjmp` (returns twice, so it
+is called from generated IR directly, never through a wrapper) and `main`'s GC init if needed.
+Target: under 100 lines of C, each line with a comment saying why it is not Milo.
 
-### Phase 1 — Scalars + control flow (~4K LOC)
+Preconditions: pin the Milo compiler commit in the repo and build it in CI (Milo moves fast;
+`docs/breaking-changes.md` there is the upgrade checklist). Before porting, a spike proves the
+seam: one Milo function taking and returning `CsString {ptr, len}` by value, called from
+generated IR at O0 and O2 on macOS arm64 and Linux x64, ASan clean. If by-value struct ABI or
+`cfn` breaks, that is a Milo bug to fix in Milo, not a reason to keep C.
 
-- number/boolean/string/null/undefined; all operators incl. int32 bitwise; template
-  literals; truthiness; `&&`/`||`/`??` value semantics; if/while/for/switch/labels.
-- Functions + calls (no closures yet), default/rest params.
-- Runtime: number formatting **exactly** matching Node (shortest-roundtrip f64 — port
-  or bind a ryu/grisu implementation; v1's printf approach diverged), string basics,
-  `console.log` for scalars.
-- Fuzzer grammar v1 (expressions + control flow). This phase is where the fuzzer earns
-  its keep — v1's narrowing bugs were exactly here.
+milojs (the JS engine written in Milo) is separate: it is a fallback target for programs outside
+the subset, and it may share library modules (dtoa, JSON) with this runtime. No shared heap.
 
-### Phase 2 — Data: arrays, objects, classes (~5K LOC)
+Not options: compiling TS to Milo _source_ (TS aliasing does not fit Milo ownership, and we would
+lose control of layout and GC roots); writing the compiler in Milo (tsc is the oracle).
 
-- `T[]`: layout per element type, literals, index (with `noUncheckedIndexedAccess`
-  semantics: OOB read is `undefined`, tsc already forces callers to handle it), push/pop/
-  slice/length/for...of, spread.
-- Closed-shape objects from interfaces/type literals; optional props; readonly.
-- Classes: layout, ctor, methods, `extends`, vtables, `instanceof` (classes only),
-  getters/setters, statics, visibility (compile-time only).
-- Destructuring (array + object), `Object.keys/values/entries` on closed shapes.
-- `console.log` structural formatting matching `util.inspect` for supported types.
+## Testing
 
-### Phase 3 — Closures, unions, interfaces, generics (~5K LOC)
+- `tests/fixtures/run/**`: differential, run under Node and native at O0 and O2, stdout + exit
+  code diffed; a multi-file fixture is a directory with `main.ts`.
+- `tests/fixtures/reject/**`: `// @expect-reject: CS1234`, must fail with that code.
+- Every validator rule has a rejection fixture; every admitted construct a differential one.
+- `tests/unit`: IR builder, HIR verifier, architecture walls, runtime C tests.
+- Seeded fuzzer over the accepted grammar. Phase 0 adds a structural-subtyping fuzzer.
+- `tests/dod-manifest.ts`: the definition of done as data, each `done` item citing fixtures.
+- Sanitized lane (`bun run test:san`): ASan + UBSan over the whole suite.
+- `scripts/bench.ts` + `benchmarks/`: native vs Node timings.
 
-- Closures: environment records, capture by reference, mutable captures boxed. JS
-  semantics — no capture-by-value checker hacks.
-- Tagged unions: `T | null | undefined`, discriminated object unions, literal unions;
-  compile tsc's narrowing (the checker tells us the narrowed type per branch — trust it).
-- Interface-typed values: fat pointer {data, itable}; itables built at layout time per
-  (class, interface) pair actually used.
-- Monomorphization pass for generic fns/classes; depth cap diagnostic.
+## Phases
 
-### Phase 4 — Stdlib breadth (~4K LOC + C runtime)
+Each phase: fixtures first, all gates green, then stop and record the outcome in the DoD
+manifest. Estimates in LOC.
 
-- String method set (v1's fixtures are the menu; runtime in C, `{ptr,len}` discipline).
-  Revisit the UTF-8/unicode decision here with real fixtures.
-- `Map`/`Set` (typed specializations), `Math.*`, `Number.*`, `JSON.parse/stringify`
-  (salvage `c_bridges/yyjson-bridge.c`; parse validates against declared type per the
-  locked decision above).
-- `process.argv/env/exit`, minimal `fs` (readFileSync/writeFileSync) to make the tool
-  usable for real CLI programs.
+0. **Gates.** The value-model probes above as fixtures (marked expected-fail until phase 3).
+   Structural-subtyping fuzzer: random interfaces, literals and classes with reordered and
+   extra fields, cross-assigned, read and written through each type; it must reproduce the
+   miscompiles on today's compiler. Fix the differential suite's 60 s timeout. (~400)
+1. **Modules.** The full "Modules" surface above, including default/namespace imports,
+   extensionless and `.js` specifiers, re-exports, `node:*` default imports, TS-source
+   packages, and CommonJS rejections. Independent of the value model, and it unblocks writing
+   real multi-file programs as tests. (~600)
+2. **Runtime to Milo.** Seam spike first (above), then port `runtime/*.c` file by file,
+   leaf modules first (`path`, `number`, `string-methods`, `json-parse`), `async` last. Pure
+   refactor under an unchanged differential suite, done before new runtime code exists so
+   shapes and `Value` are born in Milo. Exit: C residue under 100 lines, all lanes green,
+   benchmarks no worse. (~3k Milo)
+3. **Shaped objects + static field ordering + inline caches.** Delete positional shape
+   identity. Exit: all probes pass, subtyping fuzzer clean, benchmarks recorded. (~1.5k)
+4. **`Value`, unions, narrowing.** Exit: discriminated unions, `number | string`; CS1233
+   retired. (~1.5k)
+5. **Mutable captures** (CS1219 retired, ~200) and **erased generics** (~600).
+6. **Precise GC** in Milo; drop libgc. (~2k)
+7. **0.1 "TS CLI tools"**: argv, fs, JSON parsed and validated against the declared type,
+   async, `chad run --fallback=node|milojs`, generated SUBSET.md, release binaries.
 
-### Phase 5 — Errors (~2K LOC)
+## Decisions locked
 
-- `Error` classes, `throw`/`try`/`catch`/`finally` via proper unwinding (Itanium ABI
-  through clang; `invoke`/`landingpad` in the builder). Until this phase `throw` is
-  compile-accepted but terminates (Node-identical message + non-zero exit).
-- Stack traces: best-effort (function names, no line info initially).
+- Strings are UTF-8 `{ptr, len}`. JS-exact for ASCII; every operation whose result depends on
+  UTF-16 code units is gated until the Unicode decision.
+- `==`/`!=` rejected; use `===`/`!==`.
+- `JSON.parse` validates against the declared type and throws on mismatch; no `any` exists.
+- Numbers cross the C ABI as `double`, never `int`/`long`.
+- Whole-program compilation from one entry file.
+- `Value` is NaN-boxed (slots are already 64-bit).
 
-### Phase 6 — Async (~5K LOC, design doc first)
+## History
 
-- `async`/`await`/`Promise` subset on libuv; CPS or state-machine transform in HIR
-  (design doc + review gate before implementation). Timers, `fs/promises` subset.
-- This unlocks "real tool" territory; do not start before Phases 0–5 are boring.
+- **v1** (`main`, ~88K LOC, dead): types were resolved during codegen against a mutable symbol
+  table, so nothing could be computed ahead of time; every fix destabilized self-hosting.
+  Lesson: types fully resolved before the backend.
+- **hir** (`~/git/hir`, stalled 2026-05): everything NaN-boxed, chased prototype chains and
+  lodash coverage. Lesson: bounded scope; dynamic JS belongs to an engine.
+- **v2, July 2026** (this branch): right pipeline, wrong value model (layout from static type).
+  Lesson: constitution rule 6.
 
-### Continuous (any phase)
+## Open questions
 
-- Benchmarks vs Node + Bun on numeric/string workloads — the narrowing pass (i32 for
-  provably-integer locals) lands here, flag-gated, fuzzer-proven. v1 measured 3.5×
-  on Monte Carlo from this; it is the perf story, but correctness gates it.
-
-## Kept in-tree (the salvage)
-
-Deliberately kept on this branch; everything else from v1 is on `main`:
-
-- **`tests/fixtures/` (~730 files)**: raw material. Triage per phase: each becomes a
-  differential fixture (strip `TEST_PASSED` scaffolding — Node is the oracle now), a
-  rejection fixture documenting a deliberate non-goal, or gets deleted. Until triaged,
-  a fixture's presence does NOT imply the construct is in the subset.
-- **`c_bridges/`**: yyjson, os, child-process-spawn (refcount design documented + sound),
-  regex, etc. Keep the `cs_` prefix; double-ABI rule (JS numbers cross
-  as `double`, never `int`).
-- **`scripts/`**: `differential-exec.ts`, `diff-fuzz.ts`, `compiler-baseline.ts` (port
-  the runner logic — they reference deleted v1 paths and won't run as-is),
-  `build-vendor.sh` + `vendor-pins.sh` (Boehm etc.), `pre-commit`/`pre-push` hooks.
-- **`examples/`, `lib/`**: real programs written against v1 — future fixture/stdlib menu.
-  Same caveat as fixtures: presence ≠ subset membership.
-- **`docs/`**: `salvage-findings.md` (divergence catalog = semantics checklist),
-  `tranche3-abort-decision.md` + `compiler-salvage-plan.md` (post-mortem evidence).
-- Also reread before Phase 2/3 design: the v1 pitfall memories (Map-object-keys, vtable
-  index stability, alloca-escape class) — each becomes either impossible-by-construction
-  or a validator rule with a fixture.
-
-## Process rules for implementing agents
-
-(Also in CLAUDE.md — distilled from two years of feedback on the predecessors.)
-
-1. Every commit: differential suite + rejection suite green. Fixture first for any
-   behavior change.
-2. Suspected miscompile → **<50-LOC synthetic fixture first**, compiled and run, before
-   any speculative fix. No fix plans sized before the mechanism is empirically confirmed.
-3. No silent defaults ever: `switch` + `never`-exhaustiveness + throw. `ice()` is
-   `never`-typed.
-4. New feature = new file. Nothing grows past ~800 lines without a split commit first.
-5. Estimates in LOC, never time.
-6. Land optimization passes dark (flag off), fuzzer-gate, then flip.
-7. When a rejection rule feels annoying, the fix is a better diagnostic or a designed
-   extension of the contract — never a silent semantic approximation.
-8. Keep Node-oracle cross-checks forever; deleting oracles comes last, if ever.
-
-## Unresolved questions
-
-None. Name stays **ChadScript**; this rewrite is v2, living on the `v2` branch.
+1. Promote `v2` to `main` (tag the v1 tip as `v1-final`)?

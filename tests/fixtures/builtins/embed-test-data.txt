@@ -1,3 +1,0 @@
-Hello from embedded file!
-This content is baked into the binary at compile time.
-Line 3 of the test data.

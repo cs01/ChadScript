@@ -12,8 +12,9 @@ const rows = [...counts.keys()].map((word: string): { word: string; count: numbe
   word,
   count: counts.get(word) ?? 0,
 }));
-rows.sort((a: { word: string; count: number }, b: { word: string; count: number }): number =>
-  b.count - a.count,
+rows.sort(
+  (a: { word: string; count: number }, b: { word: string; count: number }): number =>
+    b.count - a.count,
 );
 
 for (const row of rows) {
