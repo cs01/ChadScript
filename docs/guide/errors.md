@@ -21,14 +21,30 @@ and told apart with `instanceof`. After `instanceof`, read `.message` and `.name
 
 <<< @/examples/error-classes.out{text}
 
+## What a caught value is
+
+A caught value is the value that was thrown. For a thrown string, `typeof e` is `"string"`,
+`e === "text"` compares the text, a `switch (e)` matches its cases, an empty string is falsy,
+and `Number(e)` parses it. After `typeof e === "string"`, `e` is that string. For an error,
+`typeof e` is `"object"` and `===` compares identity, as in Node:
+
+<<< @/examples/caught-values.ts
+
+<<< @/examples/caught-values.out{text}
+
 ## Limits today
 
 - A class cannot extend `Error` or any other built-in class
   ([CS1000](/reference/errors#cs1000)). Throw a built-in error, and keep extra data in a variable
   of its own or return a result object instead.
-- Only strings and the four error classes can be thrown. Throwing any other value (a number, an
-  object, an instance of your own class) is not supported; today it stops with an internal
-  compiler error ([CS9000](/reference/errors#cs9000)) instead of a clean rejection.
+- Only strings, the four error classes and caught values can be thrown. Throwing any other
+  value (a number, an object, an instance of your own class, a value that may be `undefined`)
+  is rejected ([CS1247](/reference/errors#cs1247)); throw `new Error(String(x))` instead.
+- `&&`, `||` and `??` on a caught value are rejected
+  ([CS1248](/reference/errors#cs1248)), because their result has no type ChadScript can hold.
+  Test the value first, or convert it: `String(e) || "default"`. So is reading `e` after a
+  test that proves it is a number or an array, which a thrown value never is, and assigning to
+  a caught value.
 - An error has no `.stack`, and its fields cannot be assigned (`e.message = ...`)
   ([CS1000](/reference/errors#cs1000)).
 - `console.log(e)` of a caught value is rejected ([CS1238](/reference/errors#cs1238)), because

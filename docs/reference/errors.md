@@ -60,6 +60,8 @@ error[CS1221]: `toFixed` on a number is not supported yet
 | [CS1243](#cs1243) | Type-level computation |
 | [CS1244](#cs1244) | Constructor type |
 | [CS1246](#cs1246) | Built-in function used as a value |
+| [CS1247](#cs1247) | Value that cannot be thrown |
+| [CS1248](#cs1248) | Unsupported use of a caught value |
 | [CS9000](#cs9000) | Internal compiler error |
 
 ## CS0001: TypeScript error {#cs0001}
@@ -449,6 +451,22 @@ A built-in such as `String`, `Math.floor` or `console.log` passed as a value.
 **Rewrite:** Wrap it in an arrow function: `xs.map((x) => String(x))`.
 
 **Rejection tests:** [`builtin-member-as-value.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/builtin-member-as-value.ts), [`builtin-value-unsupported.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/builtin-value-unsupported.ts)
+
+## CS1247: Value that cannot be thrown {#cs1247}
+
+`throw` of something other than a string, one of the built-in errors (`Error`, `TypeError`, `RangeError`, `SyntaxError`) or a caught value: a number, an object, an instance of your own class, or a value that may be `undefined`.
+
+**Rewrite:** Throw an error that describes it: `throw new Error(String(x))`. Keep extra data in a variable of its own, or return a result object instead of throwing.
+
+**Rejection tests:** [`throw-class-instance.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/throw-class-instance.ts), [`throw-number.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/throw-number.ts), [`throw-object.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/throw-object.ts) and 1 more
+
+## CS1248: Unsupported use of a caught value {#cs1248}
+
+`&&`, `||` or `??` with a caught value (`catch (e)`) as an operand, whose result's type (`unknown` or `{}`) has no representation in a compiled program; or a read of a caught value after a test proved it is something no thrown value is (a number after `typeof e === "number"`, an array after `Array.isArray(e)`); or an assignment to a caught value. Only strings and errors can be thrown.
+
+**Rewrite:** Test the value first (`e instanceof Error`, `typeof e === "string"`), or convert it: `String(e) || "default"`.
+
+**Rejection tests:** [`caught-value-assign.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/caught-value-assign.ts), [`caught-value-coalesce.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/caught-value-coalesce.ts), [`caught-value-narrowed-array.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/caught-value-narrowed-array.ts) and 2 more
 
 ## CS9000: Internal compiler error {#cs9000}
 

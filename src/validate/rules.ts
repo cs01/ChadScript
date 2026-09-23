@@ -5,6 +5,7 @@
 
 import { checkBuiltinClassUse } from "./error-rules.js";
 import { checkPromiseNew } from "./promise-rules.js";
+import { checkThrowUse } from "./throw-rules.js";
 import { checkCallSpread } from "./spread-rules.js";
 import { checkCollectionNew } from "./collection-rules.js";
 import ts from "typescript";
@@ -50,6 +51,7 @@ export function tailoredRejection(
   const form =
     checkForm(node, hit, checker) ??
     checkBuiltinClassUse(node, hit, checker) ??
+    checkThrowUse(node, hit, checker) ??
     checkCallSpread(node, hit, checker);
   if (form) return form;
 

@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- A caught value now behaves like the value that was thrown. For a thrown string, `typeof e` is
+  `"string"` (it was `"object"`), `e === "text"` and `switch (e)` compare its text (they
+  compared identity), `typeof e === "string"` narrows `e` to that string, an empty thrown
+  string is falsy, and `Number(e)` / `Boolean(e)` convert it. `e instanceof C` for one of your
+  own classes is `false`. Truthiness, `Number()`, `Boolean()` and `instanceof` of your own
+  class on a caught value used to stop with an internal compiler error.
+- Throwing a number, an object, an instance of your own class or a value that may be
+  `undefined` is rejected with CS1247 and a rewrite (`throw new Error(String(x))`), instead of
+  passing `chad check` and failing at build with an internal compiler error.
+- `&&`, `||` and `??` on a caught value, and a read of a caught value after a test proved it
+  is something no thrown value is (a number, an array), are rejected with CS1248; they crashed
+  the compiler. So is assigning to a caught value, which miscompiled. Tests such as `e !== null` keep working.
+- `String()`, template literals, `+` and `join` of arrays whose elements are nested arrays,
+  unions with arrays or objects, or `null`/`undefined` match Node (`[1, [2, 3]]` is `1,2,3`);
+  they stopped with an internal compiler error or were rejected.
+- An array literal of nested arrays whose inner literals have different element types
+  (`[[1, 2], [3, [4]]]`) built its first inner array in the wrong representation and printed
+  wrong numbers.
+- An arrow function whose body always throws (`() => { throw "x"; }`) crashed the compiler.
+
 ## 2.0.0-alpha.1 (2026-09-23)
 
 The first release of ChadScript 2: a from-scratch compiler that replaces the v1 compiler (whose
@@ -87,8 +111,8 @@ program builds to a self-contained binary of about 130 KB that starts in about 2
   `Map`), tuples of different element types, getters and setters, labeled statements, optional
   chains longer than one `?.`, `.then()` on promises (use `await`), spreading an array into the
   arguments of a library function.
-- Only strings and the four Error classes can be thrown, and a class cannot extend `Error` (or
-  any other built-in class). An error has no `.stack`.
+- Only strings, the four Error classes and caught values can be thrown, and a class cannot extend
+  `Error` (or any other built-in class). An error has no `.stack`.
 - `JSON.parse` of malformed text throws a `SyntaxError` like Node, but the message text is
   ChadScript's own; a value that does not match the declared type throws an `Error`, where Node
   would return it unchecked.

@@ -196,8 +196,9 @@ export function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChe
         valueTypeOfTsType(checker.getTypeOfSymbolAtLocation(p, node), node, checker),
       );
       const retT = checker.getReturnTypeOfSignature(sig);
+      // A `never` result (an arrow whose body always throws) produces no value, like void.
       const ret =
-        retT.flags & (ts.TypeFlags.Void | ts.TypeFlags.Undefined)
+        retT.flags & (ts.TypeFlags.Void | ts.TypeFlags.Undefined | ts.TypeFlags.Never)
           ? null
           : valueTypeOfTsType(retT, node, checker);
       return { kind: "function", params, ret };

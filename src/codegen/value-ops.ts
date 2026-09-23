@@ -25,6 +25,7 @@ import {
   evalArrayPtr,
   irTypeOf,
   lookupVar,
+  coerceValueToString,
 } from "./expr.js";
 import { evalLogical } from "./truthiness.js";
 import { evalMemberGet, evalObjectPtr, loadField } from "./objects.js";
@@ -34,6 +35,7 @@ import { evalNumber } from "./numbers.js";
 import { evalAwait } from "./async.js";
 import { emitPrintComputed } from "./emit-print.js";
 import { inspect } from "./inspect.js";
+import { thrownTypeIs, thrownTypeof } from "./errors.js";
 import { jsonStringify } from "./json.js";
 import { TAG, V_NULL, V_TRUE, V_UNDEFINED, evalBoxed, unboxValue } from "./value.js";
 
@@ -246,26 +248,16 @@ export function inspectValue(raw: Value, t: ValueType, ctx: Ctx, depth: Value): 
   );
 }
 
-// `String(x)` / template interpolation of a Value. The validator admits it only for unions of
-// primitives and nullish members (an object's String() would call its toString).
+// `String(x)` / template interpolation of a Value: each member converts by its own rule (an array
+// joins its elements, recursively; an object is "[object Object]"). The validator
+// (string-rules.ts) rejects the members whose conversion would run code: a function, a timer
+// handle, an object with its own toString or valueOf.
 export function valueToString(raw: Value, t: ValueType, ctx: Ctx): Value {
-  return switchOnValue(raw, membersOf(t), T.ptr, ctx, (m) => {
-    switch (m.kind) {
-      case "number":
-        return ctx.fn.call("@cs_num_to_string", T.ptr, [unboxValue(raw, m, ctx)]);
-      case "string":
-        return unboxValue(raw, m, ctx);
-      case "boolean":
-        return ctx.fn.call("@cs_bool_to_string", T.ptr, [
-          ctx.fn.zextI1ToI32(unboxValue(raw, m, ctx)),
-        ]);
-      case "undefined":
-      case "null":
-        return ctx.mod.cstring(m.kind);
-      default:
-        return ice(`String() of a Value holding a ${m.kind}`);
-    }
-  });
+  return switchOnValue(raw, membersOf(t), T.ptr, ctx, (m) =>
+    m.kind === "undefined" || m.kind === "null"
+      ? ctx.mod.cstring(m.kind)
+      : coerceValueToString(unboxValue(raw, m, ctx), m, ctx),
+  );
 }
 
 // An element's text in `arr.join()`: like String(x), except that undefined and null join as "".
@@ -337,6 +329,8 @@ function typeofName(m: ValueType): string {
 
 // `typeof x` for an expression of any type: evaluated once, then answered from its kind.
 export function evalTypeOf(value: HExpr, ctx: Ctx): Value {
+  // A caught value's typeof is the thrown value's, known only at run time.
+  if (value.type.kind === "unknown") return thrownTypeof(evalValue(value, ctx), ctx);
   const members = membersOf(value.type);
   if (members.length === 1) {
     if (value.type.kind !== "undefined" && value.type.kind !== "null") evalValue(value, ctx);
@@ -350,6 +344,7 @@ export function evalTypeOf(value: HExpr, ctx: Ctx): Value {
 export function evalTypeIs(value: HExpr, test: TypeTest, ctx: Ctx): Value {
   const holds = (m: ValueType): boolean =>
     test === "array" ? m.kind === "array" : typeofName(m) === test;
+  if (value.type.kind === "unknown") return thrownTypeIs(evalValue(value, ctx), test, ctx);
   const members = membersOf(value.type);
   if (members.length === 1) {
     if (value.type.kind !== "undefined" && value.type.kind !== "null") evalValue(value, ctx);

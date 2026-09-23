@@ -54,6 +54,8 @@ export const CODE = {
   TYPE_COMPUTATION: "CS1243", // conditional / mapped / indexed-access / keyof types
   CONSTRUCTOR_TYPE: "CS1244", // `new () => T` (constructing through a type parameter)
   BUILTIN_AS_VALUE: "CS1246", // a built-in function (String, Math.floor, console.log) used as a value
+  THROWN_VALUE: "CS1247", // `throw` of a value that is not a string, an Error or a caught value
+  CAUGHT_VALUE_USE: "CS1248", // `&&` `||` `??` on a caught value, or a read of one narrowed to a non-string
 } as const;
 
 export type Code = (typeof CODE)[keyof typeof CODE];

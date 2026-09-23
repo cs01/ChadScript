@@ -9,6 +9,7 @@ import type { ValueType } from "../hir/types.js";
 import { type Ctx, evalBool, evalString, evalValue } from "./expr.js";
 import { evalNumber } from "./numbers.js";
 import { evalValueWord, valueStrictEq } from "./value-ops.js";
+import { thrownStrictEq } from "./errors.js";
 import { evalOptionalEquality, evalBothOptionalEquality } from "./optional.js";
 
 // Strict-equality (`===`) of two already-computed Values, dispatched on their shared type.
@@ -71,6 +72,17 @@ export function evalComparison(expr: Extract<HExpr, { kind: "binary" }>, ctx: Ct
   }
   if (op === "eq" || op === "ne") {
     const operandType = expr.left.type.kind;
+    // A caught value (or an Error) on either side: compared as the thrown value (codegen/errors.ts).
+    // Both operands are evaluated left to right before the comparison.
+    if (operandType === "unknown" || expr.right.type.kind === "unknown") {
+      const l = evalValue(expr.left, ctx);
+      const r = evalValue(expr.right, ctx);
+      const eq =
+        operandType === "unknown"
+          ? thrownStrictEq(l, r, expr.right.type, ctx)
+          : thrownStrictEq(r, l, expr.left.type, ctx);
+      return op === "eq" ? eq : ctx.fn.logicalNot(eq);
+    }
     // A Value operand: lower boxed the other side too, so this compares two words.
     if (operandType === "value") {
       const eq = valueStrictEq(evalValueWord(expr.left, ctx), evalValueWord(expr.right, ctx), ctx);
@@ -90,7 +102,6 @@ export function evalComparison(expr: Extract<HExpr, { kind: "binary" }>, ctx: Ct
       operandType === "array" ||
       operandType === "map" ||
       operandType === "set" ||
-      operandType === "unknown" ||
       operandType === "function"
     ) {
       const eq = emitStrictEq(

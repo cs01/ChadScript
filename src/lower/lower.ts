@@ -24,8 +24,10 @@ import {
   builtinErrorType,
   lowerErrorProperty,
   lowerNewError,
+  lowerNarrowedCaughtRead,
 } from "./errors.js";
 import { lowerInstanceof } from "./instanceof.js";
+import { lowerArrayLiteral } from "./array-literal.js";
 import {
   coerceToTarget,
   coerceElement,
@@ -443,6 +445,10 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
     const builtin = builtinIdOf(expr, ctx.checker);
     if (builtin !== null) return lowerBuiltinValue(expr, builtin, ctx);
   }
+  if (ts.isIdentifier(expr)) {
+    const caught = lowerNarrowedCaughtRead(expr, ctx);
+    if (caught !== null) return caught;
+  }
   const type = resolveType(expr, ctx);
   switch (expr.kind) {
     case ts.SyntaxKind.NullKeyword:
@@ -477,13 +483,7 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
       return lowerArrow(expr as ts.ArrowFunction | ts.FunctionExpression, ctx);
 
     case ts.SyntaxKind.ArrayLiteralExpression:
-      return {
-        kind: "arrayLit",
-        elements: (expr as ts.ArrayLiteralExpression).elements.map((e) =>
-          coerceElement(lowerArrayElement(e, ctx), type),
-        ),
-        type,
-      };
+      return lowerArrayLiteral(expr as ts.ArrayLiteralExpression, type, ctx);
 
     case ts.SyntaxKind.ObjectLiteralExpression:
       return lowerObjectLit(expr as ts.ObjectLiteralExpression, ctx, type);
@@ -731,6 +731,11 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
           return isEq ? test : { kind: "unary", op: "not", operand: test, type: VT.boolean };
         const left = lowerExpr(b.left, ctx);
         const right = lowerExpr(b.right, ctx);
+        // A caught value is compared as the thrown value in codegen (codegen/errors.ts), against
+        // the other side in its own representation.
+        if (left.type.kind === "unknown" || right.type.kind === "unknown") {
+          return { kind: "binary", op: isEq ? "eq" : "ne", left, right, type };
+        }
         // `===` with a Value side compares words: box the other side into the same union. Two
         // optionals (`a === b` with both `string | null`) compare as words too, which gets the
         // nullish cases right without a four-way branch.

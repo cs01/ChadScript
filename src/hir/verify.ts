@@ -417,8 +417,13 @@ function verifyExpr(e: HExpr): void {
       verifyExpr(e.right);
       return;
     case "binary":
-      // `===` with a Value operand compares Value words, so both sides must be boxed.
-      if ((e.op === "eq" || e.op === "ne") && e.left.type.kind === "value") {
+      // `===` with a Value operand compares Value words, so both sides must be boxed; a caught
+      // value against a union is the exception (codegen/errors.ts dispatches on the union word).
+      if (
+        (e.op === "eq" || e.op === "ne") &&
+        e.left.type.kind === "value" &&
+        e.right.type.kind !== "unknown"
+      ) {
         checkFlow(e.right, e.left.type, "=== operand");
       }
       verifyExpr(e.left);

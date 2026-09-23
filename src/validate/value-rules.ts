@@ -83,12 +83,12 @@ function isArrayType(t: ts.Type, checker: ts.TypeChecker): boolean {
   return t.symbol?.name === "Array" || checker.isTupleType(t);
 }
 
-// Only primitive and nullish members have a String() form the compiler implements (an object's
-// would call its toString, an array's would join its elements).
-function primitiveOnly(vt: ValueType): boolean {
+// Every member converts to a string without running program code: an array joins its elements, an
+// object is "[object Object]" (string-rules.ts rejects one with its own toString or valueOf). A
+// function converts to its source text and a timer handle to its id, which have no form here.
+function hasStringForm(vt: ValueType): boolean {
   return (
-    vt.kind === "value" &&
-    vt.members.every((m) => ["number", "string", "boolean", "null", "undefined"].includes(m.kind))
+    vt.kind === "value" && vt.members.every((m) => m.kind !== "function" && m.kind !== "opaque")
   );
 }
 
@@ -115,7 +115,7 @@ function valueUseProblem(e: ts.Expression, vt: ValueType, checker: ts.TypeChecke
   if (ts.isShorthandPropertyAssignment(p)) return null;
   if (ts.isPrefixUnaryExpression(p) && p.operator === ts.SyntaxKind.ExclamationToken) return null;
   if (ts.isTemplateSpan(p)) {
-    return primitiveOnly(vt) ? null : "interpolating a union that can hold an object or array";
+    return hasStringForm(vt) ? null : "interpolating a union that can hold a function";
   }
   if (ts.isBinaryExpression(p)) {
     switch (p.operatorToken.kind) {
@@ -128,7 +128,7 @@ function valueUseProblem(e: ts.Expression, vt: ValueType, checker: ts.TypeChecke
       case ts.SyntaxKind.PlusEqualsToken: {
         // `"v=" + x` is string concatenation, which converts x exactly like String(x).
         const result = vtOf(checker.getTypeAtLocation(p), p, checker);
-        if (result?.kind === "string" && primitiveOnly(vt)) return null;
+        if (result?.kind === "string" && hasStringForm(vt)) return null;
         return "`+` on a union of different kinds (narrow it, or concatenate with a string)";
       }
       case ts.SyntaxKind.InstanceOfKeyword:
@@ -156,7 +156,7 @@ function valueUseProblem(e: ts.Expression, vt: ValueType, checker: ts.TypeChecke
     if (name === "console.log" || name === "Array.isArray" || name === "Boolean") return null;
     if (name === "JSON.stringify" && p.arguments[0] === at) return null;
     if (name === "String") {
-      return primitiveOnly(vt) ? null : "String() of a union that can hold an object or array";
+      return hasStringForm(vt) ? null : "String() of a union that can hold a function";
     }
     // Array and Map methods whose parameter is the element / value type take the word as is.
     const callee = p.expression;
@@ -175,8 +175,8 @@ function valueUseProblem(e: ts.Expression, vt: ValueType, checker: ts.TypeChecke
 }
 
 export function valueUseDiagnostic(node: ts.Node, checker: ts.TypeChecker): Diagnostic | null {
-  // `xs.join()` stringifies each element like String(x), so an element union holding an object
-  // (an erased `T[]`, a `(Pt | string)[]`) has no implemented form either.
+  // `xs.join()` stringifies each element like String(x), so an element union holding a function
+  // or a timer handle has no implemented form either.
   if (
     ts.isCallExpression(node) &&
     ts.isPropertyAccessExpression(node.expression) &&
@@ -184,14 +184,14 @@ export function valueUseDiagnostic(node: ts.Node, checker: ts.TypeChecker): Diag
   ) {
     const recv = vtOf(checker.getTypeAtLocation(node.expression.expression), node, checker);
     const el = recv?.kind === "array" ? recv.element : null;
-    const objectLike =
+    const noForm =
       el?.kind === "value"
-        ? !primitiveOnly(el)
-        : el?.kind === "optional" && !["number", "string", "boolean"].includes(el.inner.kind);
-    if (objectLike) {
+        ? !hasStringForm(el)
+        : el?.kind === "optional" && (el.inner.kind === "function" || el.inner.kind === "opaque");
+    if (noForm) {
       return {
         code: CODE.VALUE_OPERATION,
-        message: "`join` of an array whose elements can be objects is not supported",
+        message: "`join` of an array whose elements can be functions is not supported",
         span: spanOf(node, node.getSourceFile()),
         suggestion: "map the elements to strings first: `xs.map((x) => ...).join()`",
       };

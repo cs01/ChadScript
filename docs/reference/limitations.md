@@ -55,6 +55,9 @@ Each of these is rejected at compile time with a specific code, never silently m
   ([CS1000](/reference/errors#cs1000)); see [async / await](/guide/async#new-promise).
 - A class that extends `Error` or any other built-in class, `.stack` on an error, and assigning
   to an error's fields ([CS1000](/reference/errors#cs1000)).
+- Throwing anything but a string, one of the four error classes (`Error`, `TypeError`,
+  `RangeError`, `SyntaxError`) or a caught value ([CS1247](/reference/errors#cs1247)), and
+  `&&`, `||` or `??` on a caught value ([CS1248](/reference/errors#cs1248)).
 - Spreading an array into the arguments of a library function (`Math.max(...xs)`)
   ([CS1000](/reference/errors#cs1000)).
 - `new Map(...)` from anything but an array literal of pairs
@@ -69,9 +72,6 @@ Each of these is rejected at compile time with a specific code, never silently m
 
 Other differences in this release:
 
-- Only strings and the four error classes (`Error`, `TypeError`, `RangeError`, `SyntaxError`)
-  can be thrown. Throwing another value is not supported, and today it stops with an internal
-  compiler error ([CS9000](/reference/errors#cs9000)) instead of a clean rejection.
 - `JSON.parse` of malformed text throws a `SyntaxError` like Node, but the message text is
   ChadScript's own. A document that does not match the declared type throws an `Error`, where
   Node would return it unchecked ([JSON](/guide/json)).

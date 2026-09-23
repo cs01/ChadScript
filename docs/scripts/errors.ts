@@ -324,6 +324,28 @@ export const EXPLANATIONS: Record<keyof typeof CODE, Entry> = {
     meaning: "A built-in such as `String`, `Math.floor` or `console.log` passed as a value.",
     rewrite: "Wrap it in an arrow function: `xs.map((x) => String(x))`.",
   },
+  THROWN_VALUE: {
+    title: "Value that cannot be thrown",
+    meaning:
+      "`throw` of something other than a string, one of the built-in errors (`Error`, " +
+      "`TypeError`, `RangeError`, `SyntaxError`) or a caught value: a number, an object, an " +
+      "instance of your own class, or a value that may be `undefined`.",
+    rewrite:
+      "Throw an error that describes it: `throw new Error(String(x))`. Keep extra data in a " +
+      "variable of its own, or return a result object instead of throwing.",
+  },
+  CAUGHT_VALUE_USE: {
+    title: "Unsupported use of a caught value",
+    meaning:
+      "`&&`, `||` or `??` with a caught value (`catch (e)`) as an operand, whose result's type " +
+      "(`unknown` or `{}`) has no representation in a compiled program; or a read of a caught " +
+      'value after a test proved it is something no thrown value is (a number after `typeof e === "number"`, ' +
+      "an array after `Array.isArray(e)`); or an assignment to a caught value. Only strings and " +
+      "errors can be thrown.",
+    rewrite:
+      'Test the value first (`e instanceof Error`, `typeof e === "string"`), or convert it: ' +
+      '`String(e) || "default"`.',
+  },
 };
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), "..", "..");

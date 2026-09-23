@@ -269,3 +269,5 @@ diagnostic — there is no "compiles but behaves differently than Node" third ca
 | `CS1243` | TYPE_COMPUTATION |
 | `CS1244` | CONSTRUCTOR_TYPE |
 | `CS1246` | BUILTIN_AS_VALUE |
+| `CS1247` | THROWN_VALUE |
+| `CS1248` | CAUGHT_VALUE_USE |

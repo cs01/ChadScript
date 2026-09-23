@@ -7,7 +7,7 @@ import ts from "typescript";
 import { ice } from "../diagnostics.js";
 import type { HExpr } from "../hir/nodes.js";
 import { VT } from "../hir/types.js";
-import { type LowerCtx, lowerExpr } from "./lower.js";
+import { type LowerCtx, lowerExpr, nameOf } from "./lower.js";
 
 // The runtime's ERR_* kinds (runtime/errors.milo); 0 is a thrown string.
 export const ERROR_KINDS = {
@@ -17,6 +17,8 @@ export const ERROR_KINDS = {
   SyntaxError: 4,
 } as const;
 export type ErrorClass = keyof typeof ERROR_KINDS;
+// A kind no CsThrown has: `e instanceof C` for a program class C tests against it (always false).
+export const NO_ERROR_KIND = -1;
 
 function isErrorClassName(name: string): name is ErrorClass {
   return Object.hasOwn(ERROR_KINDS, name);
@@ -67,6 +69,34 @@ export function lowerNewError(
     message: arg ? lowerExpr(arg, ctx) : null,
     type: VT.unknown,
   };
+}
+
+// A read of a caught value (declared `unknown`) where tsc narrowed it, or null for any other
+// identifier. The slot always holds the CsThrown: narrowed to a string (`typeof e === "string"`,
+// `e === "s"`), a thrown string is its message; narrowed to an error (`instanceof`) or to `{}` /
+// `object` (`e !== null`), it is the CsThrown itself. validate/throw-rules.ts rejects the other
+// narrowings (to a number, an array, ...), which a caught value can never have.
+export function lowerNarrowedCaughtRead(ident: ts.Identifier, ctx: LowerCtx): HExpr | null {
+  const sym = ctx.checker.getSymbolAtLocation(ident);
+  if (!sym?.valueDeclaration || !isCaughtSymbol(sym, ctx.checker)) return null;
+  const narrowed = ctx.checker.getTypeAtLocation(ident);
+  if (narrowed.flags & ts.TypeFlags.Unknown) return null;
+  const read: HExpr = { kind: "varRef", name: nameOf(ident, ctx), type: VT.unknown };
+  if (!isStringType(narrowed)) return read;
+  return { kind: "runtimeCall", fn: "cs_thrown_message", args: [read], type: VT.string };
+}
+
+// A variable whose declared type is `unknown`: a catch binding (the only `unknown` the subset has).
+export function isCaughtSymbol(sym: ts.Symbol, checker: ts.TypeChecker): boolean {
+  const decl = sym.valueDeclaration;
+  if (!decl) return false;
+  return (checker.getTypeOfSymbolAtLocation(sym, decl).flags & ts.TypeFlags.Unknown) !== 0;
+}
+
+// A string, or a union of string literals.
+export function isStringType(t: ts.Type): boolean {
+  const parts = t.isUnion() ? t.types : [t];
+  return parts.every((p) => (p.flags & ts.TypeFlags.StringLike) !== 0);
 }
 
 export function lowerErrorProperty(recv: HExpr, name: string): HExpr {

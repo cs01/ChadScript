@@ -315,8 +315,9 @@ export function lowerArrow(arrow: ts.ArrowFunction | ts.FunctionExpression, ctx:
 
   const sig = ctx.checker.getSignatureFromDeclaration(arrow);
   const retT = sig ? ctx.checker.getReturnTypeOfSignature(sig) : undefined;
+  // An arrow whose body always throws returns `never`: no value, like void.
   const returnType =
-    !retT || retT.flags & (ts.TypeFlags.Void | ts.TypeFlags.Undefined)
+    !retT || retT.flags & (ts.TypeFlags.Void | ts.TypeFlags.Undefined | ts.TypeFlags.Never)
       ? null
       : valueTypeOfTsType(retT, arrow, ctx.checker);
 

@@ -12,6 +12,7 @@ import { T } from "../ir/types.js";
 import { declareRuntimeExterns } from "./externs.js";
 import type { HModule, HStmt, HExpr, HFunc, ForOfSource } from "../hir/nodes.js";
 import type { ValueType } from "../hir/types.js";
+import { thrownStrictEq } from "./errors.js";
 import {
   evalBool,
   evalString,
@@ -360,7 +361,12 @@ function emitSwitch(stmt: Extract<HStmt, { kind: "switch" }>, ctx: Ctx): void {
   // Dispatch chain: test each non-default case in order; on match jump to its body.
   stmt.cases.forEach((c, i) => {
     if (c.test === null) return;
-    const eq = emitStrictEq(disc, evalValue(c.test, ctx), stmt.discType, ctx);
+    const test = evalValue(c.test, ctx);
+    // A caught value matches a case as the thrown value would (a thrown string by its text).
+    const eq =
+      stmt.discType.kind === "unknown"
+        ? thrownStrictEq(disc, test, c.test.type, ctx)
+        : emitStrictEq(disc, test, stmt.discType, ctx);
     const next = ctx.fn.newBlock("case.test");
     ctx.fn.brCond(eq, bodies[i]!, next);
     ctx.fn.switchTo(next);

@@ -1,0 +1,5 @@
+0 string: ZERO IS NOT ALLOWED
+string true zero is not allowed
+-1 RangeError: negative: -1
+object false RangeError: negative: -1
+1 ok

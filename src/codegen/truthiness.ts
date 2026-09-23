@@ -11,6 +11,7 @@ import { type Ctx, evalValue, evalBool, evalString, irTypeOf } from "./expr.js";
 import { evalNumber } from "./numbers.js";
 import { truthyValue } from "./value-ops.js";
 import { boxValue } from "./value.js";
+import { thrownToNumber, thrownTruthy } from "./errors.js";
 
 // JS truthiness of an expression → i1 (evaluates the expression once).
 export function toBool(expr: HExpr, ctx: Ctx): Value {
@@ -45,6 +46,9 @@ export function truthyOfValue(v: Value, vt: ValueType, ctx: Ctx): Value {
     case "map":
     case "set":
       return imm(T.i1, 1);
+    // A caught value: a thrown "" is falsy, anything else thrown is truthy.
+    case "unknown":
+      return thrownTruthy(v, ctx);
     default:
       return ice(`truthiness: ${vt.kind} not supported yet`);
   }
@@ -83,6 +87,8 @@ export function evalNumberConvert(value: HExpr, ctx: Ctx): Value {
       return ctx.fn.uitofp(ctx.fn.zextI1ToI32(evalBool(value, ctx)));
     case "string":
       return ctx.fn.call("@cs_string_to_number", T.double, [evalString(value, ctx)]);
+    case "unknown":
+      return thrownToNumber(evalValue(value, ctx), ctx);
     default:
       return ice(`Number(): conversion from ${value.type.kind} not supported yet`);
   }
@@ -104,6 +110,8 @@ export function evalBooleanConvert(value: HExpr, ctx: Ctx): Value {
       );
     case "value":
       return truthyValue(evalValue(value, ctx), value.type, ctx);
+    case "unknown":
+      return thrownTruthy(evalValue(value, ctx), ctx);
     default:
       return ice(`Boolean(): conversion from ${value.type.kind} not supported yet`);
   }
