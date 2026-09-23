@@ -10,3 +10,5 @@ from "./time" import { cs_date_now }
 from "./gc" import { cs_gc_alloc }
 from "./array" import { cs_array_new }
 from "./argv" import { cs_argv_slice2 }
+from "./number" import { cs_to_int32 }
+from "./number-c" import { cs_num_to_str }

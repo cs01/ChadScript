@@ -1,0 +1,322 @@
+// JS-exact number formatting. The predecessor diverged here by leaning on printf %g; this
+// implements the ECMAScript Number::toString algorithm (spec 6.1.6.1.20) so output matches Node
+// byte for byte: shortest round-tripping digits, JS decimal/exponent placement, and the
+// "Infinity"/"NaN"/"0" (for both zeros) spellings.
+
+from "./abi" import { GC_malloc, isNan, isFinite, byteAt, memcpy }
+from "./libc" import { snprintf, strtod, floor, trunc, fmod, nextafter }
+
+// A fixed-capacity byte builder over a caller's buffer. Every caller sizes the buffer for its
+// worst case (a formatted double is at most 25 bytes), so there is no growth path.
+extern struct Out {
+    p: *u8,
+    n: i64,
+}
+
+fn put(o: &mut Out, c: u8) {
+    unsafe {
+        o.p[o.n] = c
+    }
+    o.n = o.n + 1
+}
+
+fn putLit(o: &mut Out, s: &string) {
+    var i: i64 = 0
+    while i < s.len {
+        put(&mut o, s[i])
+        i = i + 1
+    }
+}
+
+// Shortest decimal for a finite, positive x: fills `digits` with the significant digit string (no
+// point, no sign, no trailing zeros) and returns k (the digit count); *nOut receives the
+// ECMAScript `n` (the decimal point sits after position n). `digits` holds at least 18 bytes.
+fn shortestDigits(x: f64, digits: *u8, nOut: &mut i64): i64 {
+    var buf: [u8; 32] = [0; 32]
+    // The smallest precision whose %e round-trips exactly yields the shortest significant-digit
+    // string (ties resolved to the correctly rounded nearest, as JS requires).
+    var prec: i32 = 0
+    unsafe {
+        while prec <= 16 {
+            snprintf(buf, 32, "%.*e", prec, x)
+            if strtod(buf, 0 as **u8) == x {
+                break
+            }
+            prec = prec + 1
+        }
+        snprintf(buf, 32, "%.*e", prec, x)
+    }
+
+    // buf is "d.ddddde+XX" (or "de+XX" when prec == 0): collect mantissa digits, then the exponent.
+    var mant: [u8; 32] = [0; 32]
+    var mi: i64 = 0
+    var p: i64 = 0
+    while buf[p] != 0 && buf[p] != 'e' && buf[p] != 'E' {
+        if buf[p] >= '0' && buf[p] <= '9' {
+            mant[mi] = buf[p]
+            mi = mi + 1
+        }
+        p = p + 1
+    }
+    // Exponent of the leading digit (value = d.ddd x 10^exp10): skip 'e', read the sign + digits.
+    p = p + 1
+    var expNeg = false
+    if buf[p] == '-' {
+        expNeg = true
+        p = p + 1
+    } else if buf[p] == '+' {
+        p = p + 1
+    }
+    var exp10: i64 = 0
+    while buf[p] >= '0' && buf[p] <= '9' {
+        exp10 = exp10 * 10 + (buf[p] - '0') as i64
+        p = p + 1
+    }
+    if expNeg {
+        exp10 = 0 - exp10
+    }
+
+    // Strip trailing zeros from the mantissa to get the minimal digit string.
+    var k = mi
+    while k > 1 && mant[k - 1] == '0' {
+        k = k - 1
+    }
+    var i: i64 = 0
+    while i < k {
+        unsafe {
+            digits[i] = mant[i]
+        }
+        i = i + 1
+    }
+    nOut = exp10 + 1
+    return k
+}
+
+fn putDecimal(o: &mut Out, v: i64) {
+    var tmp: [u8; 24] = [0; 24]
+    var n = v
+    var t: i64 = 0
+    while true {
+        tmp[t] = (48 + n % 10) as u8
+        t = t + 1
+        n = n / 10
+        if n == 0 {
+            break
+        }
+    }
+    while t > 0 {
+        t = t - 1
+        put(&mut o, tmp[t])
+    }
+}
+
+// Appends the ECMAScript string form of finite positive x.
+fn formatPositive(x: f64, o: &mut Out) {
+    var digits: [u8; 18] = [0; 18]
+    var n: i64 = 0
+    var k: i64 = 0
+    unsafe { k = shortestDigits(x, digits.addrOf() as *u8, &mut n) }
+    var i: i64 = 0
+
+    if k <= n && n <= 21 {
+        // Integer with trailing zeros: all digits, then (n-k) zeros.
+        while i < k {
+            put(&mut o, digits[i])
+            i = i + 1
+        }
+        i = 0
+        while i < n - k {
+            put(&mut o, '0')
+            i = i + 1
+        }
+    } else if 0 < n && n <= 21 {
+        // The point falls inside the digits.
+        while i < n {
+            put(&mut o, digits[i])
+            i = i + 1
+        }
+        put(&mut o, '.')
+        while i < k {
+            put(&mut o, digits[i])
+            i = i + 1
+        }
+    } else if -6 < n && n <= 0 {
+        // Small magnitude: "0." then (-n) zeros then the digits.
+        putLit(&mut o, "0.")
+        while i < 0 - n {
+            put(&mut o, '0')
+            i = i + 1
+        }
+        i = 0
+        while i < k {
+            put(&mut o, digits[i])
+            i = i + 1
+        }
+    } else {
+        // Exponential form: exponent n-1 with an explicit sign.
+        let e = n - 1
+        put(&mut o, digits[0])
+        if k > 1 {
+            put(&mut o, '.')
+            i = 1
+            while i < k {
+                put(&mut o, digits[i])
+                i = i + 1
+            }
+        }
+        put(&mut o, 'e')
+        if e >= 0 {
+            put(&mut o, '+')
+            putDecimal(&mut o, e)
+        } else {
+            put(&mut o, '-')
+            putDecimal(&mut o, 0 - e)
+        }
+    }
+}
+
+// ECMAScript ToInt32 (spec 7.1.6): the coercion JS bitwise operators apply to their operands.
+// NaN/Infinity -> 0; otherwise truncate toward zero, reduce modulo 2^32, reinterpret as a signed
+// 32-bit integer. The raw 32 bits also serve ToUint32 (the caller picks signed vs unsigned when
+// converting back to a double). v1 got this wrong (64-bit bitwise), so it must match JS exactly.
+@externalLinkage
+pub fn cs_to_int32(x: f64): i32 {
+    if !isFinite(x) {
+        return 0
+    }
+    let t = trunc(x)
+    var m = fmod(t, 4294967296.0)
+    if m < 0.0 {
+        m = m + 4294967296.0
+    }
+    // m is in [0, 2^32), so the u32 conversion is exact; the i32 reinterpretation wraps.
+    return (m as u32) as i32
+}
+
+// Writes the JS Number::toString form of x into `out` (at least 32 bytes) and returns its length.
+pub fn numToStr(x: f64, out: *u8): i64 {
+    var o = Out { p: out, n: 0 }
+    if isNan(x) {
+        putLit(&mut o, "NaN")
+    } else if x == 0.0 {
+        // Both +0 and -0 print as "0".
+        putLit(&mut o, "0")
+    } else if !isFinite(x) {
+        if x < 0.0 {
+            putLit(&mut o, "-Infinity")
+        } else {
+            putLit(&mut o, "Infinity")
+        }
+    } else if x < 0.0 {
+        put(&mut o, '-')
+        formatPositive(0.0 - x, &mut o)
+    } else {
+        formatPositive(x, &mut o)
+    }
+    return o.n
+}
+
+// A function-local literal, not a global: a string global needs Milo's global_init, which only a Milo
+// `main` runs, and the runtime has none.
+fn radixChar(d: i64): u8 {
+    let chars = "0123456789abcdefghijklmnopqrstuvwxyz"
+    return chars[d]
+}
+
+fn radixDigit(c: u8): i64 {
+    if c > '9' {
+        return (c - 'a') as i64 + 10
+    }
+    return (c - '0') as i64
+}
+
+// Number.prototype.toString(radix) for radix in [2,36], ported from V8's DoubleToRadixCString so
+// the digit sequence (integer + fractional, with round-to-nearest carry) matches Node byte for
+// byte. radix 10, NaN, the zeros and the infinities are handled by the caller. Returns a GC
+// buffer of `*lenOut` bytes.
+pub fn numToRadix(value0: f64, radix: i64, lenOut: &mut i64): *u8 {
+    let kBufSize: i64 = 2200
+    var buffer: [u8; 2200] = [0; 2200]
+    var integerCursor = kBufSize / 2
+    var fractionCursor = integerCursor
+    let rf = radix as f64
+
+    let negative = value0 < 0.0
+    let value = if negative { 0.0 - value0 } else { value0 }
+
+    var integer = floor(value)
+    var fraction = value - integer
+
+    // Fractional part: multiply-extract with a half-ULP delta driving termination and rounding.
+    var delta = 0.5 * (nextafter(value, f64.INF) - value)
+    let smallest = nextafter(0.0, f64.INF)
+    if delta < smallest {
+        delta = smallest
+    }
+    if fraction >= delta {
+        buffer[fractionCursor] = '.'
+        fractionCursor = fractionCursor + 1
+        while true {
+            fraction = fraction * rf
+            delta = delta * rf
+            let digit = fraction as i64
+            buffer[fractionCursor] = radixChar(digit)
+            fractionCursor = fractionCursor + 1
+            fraction = fraction - digit as f64
+            if fraction > 0.5 || (fraction == 0.5 && (digit & 1) == 1) {
+                if fraction + delta > 1.0 {
+                    // Round up: carry back through the already-written digits.
+                    while true {
+                        fractionCursor = fractionCursor - 1
+                        if fractionCursor == kBufSize / 2 {
+                            // Carry into the integer part.
+                            integer = integer + 1.0
+                            break
+                        }
+                        let d = radixDigit(buffer[fractionCursor])
+                        if d + 1 < radix {
+                            buffer[fractionCursor] = radixChar(d + 1)
+                            fractionCursor = fractionCursor + 1
+                            break
+                        }
+                    }
+                    break
+                }
+            }
+            if fraction < delta {
+                break
+            }
+        }
+    }
+
+    // Integer part, written downward. For values >= 2^53 the ULP exceeds 1, so shift by radix and
+    // pad with zeros (matches V8's exponent-driven path).
+    while integer >= 9007199254740992.0 {
+        integer = integer / rf
+        integerCursor = integerCursor - 1
+        buffer[integerCursor] = '0'
+    }
+    while true {
+        let remainder = fmod(integer, rf)
+        integerCursor = integerCursor - 1
+        buffer[integerCursor] = radixChar(remainder as i64)
+        integer = (integer - remainder) / rf
+        if !(integer > 0.0) {
+            break
+        }
+    }
+
+    let len = fractionCursor - integerCursor
+    let total = len + if negative { 1 } else { 0 }
+    unsafe {
+        let result = GC_malloc(total + 1)
+        var k: i64 = 0
+        if negative {
+            result[0] = '-'
+            k = 1
+        }
+        memcpy(byteAt(result, k), byteAt(buffer.addrOf() as *u8, integerCursor), len)
+        lenOut = total
+        return result
+    }
+}
