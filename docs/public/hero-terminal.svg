@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="300" viewBox="0 0 520 300" role="img" aria-label="Terminal: build a TypeScript file into a 128 KB native binary and run it">
+  <rect width="520" height="300" rx="14" fill="#16161a" stroke="#2e2e32"/>
+  <circle cx="24" cy="22" r="6" fill="#ff5f57"/><circle cx="44" cy="22" r="6" fill="#febc2e"/><circle cx="64" cy="22" r="6" fill="#28c840"/>
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="17" fill="#dfdfd6">
+    <text x="24" y="72"><tspan fill="#8b8b92">$</tspan> bin/chad build orders.ts -o orders</text>
+    <text x="24" y="104"><tspan fill="#8b8b92">$</tspan> ls -lh orders</text>
+    <text x="24" y="128" fill="#a1a1aa">-rwxr-xr-x  128K  orders</text>
+    <text x="24" y="160"><tspan fill="#8b8b92">$</tspan> ./orders</text>
+    <text x="24" y="184" fill="#a1a1aa">ada  165.5</text>
+    <text x="24" y="208" fill="#a1a1aa">lin  80</text>
+    <text x="24" y="248" fill="#f0b429">no Node, no runtime, just the program</text>
+  </g>
+</svg>

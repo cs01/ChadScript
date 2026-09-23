@@ -4,6 +4,9 @@ hero:
   name: ChadScript
   text: Ship TypeScript as a tiny native program.
   tagline: "ChadScript compiles ordinary TypeScript into one small executable that starts instantly. If it compiles, it prints exactly what Node would. If it can't promise that, it tells you why and how to fix it."
+  image:
+    src: /hero-terminal.svg
+    alt: Building a TypeScript file into a 128 KB native binary and running it
   actions:
     - theme: brand
       text: Get started
@@ -47,7 +50,7 @@ ChadScript knows the shape of every object when the program is compiled, which i
 why the binary is small and fast. Code that would change an object's shape later is stopped
 before it ships, with a message that points at the line and says how to fix it:
 
-<<< @/examples/rejected-shape.ts
+<<< @/examples/rejected-shape.ts#show
 
 <<< @/examples/rejected-shape.err{text}
 
@@ -223,6 +226,45 @@ Read [how it works](/internals/how-it-works) or see the [roadmap](/roadmap).
   padding-left: 1.2rem;
   color: var(--vp-c-text-2);
   line-height: 1.8;
+}
+/* The hero terminal repeats what the first section shows; on narrow screens it would push the
+   pitch below the fold, so it is desktop-only. */
+@media (max-width: 959px) {
+  .VPHero .image {
+    display: none;
+  }
+}
+.VPHero .image-src {
+  max-width: 520px;
+  max-height: 300px;
+}
+/* Code blocks inside these custom sections otherwise inherit the doc layout's full-bleed mobile
+   margins and stick out past the text column. */
+.home-section div[class*="language-"] {
+  margin: 16px 0 !important;
+  border-radius: 8px !important;
+}
+/* Program output and diagnostics wrap instead of scrolling sideways; source code keeps its layout. */
+.home-section div.language-text pre,
+.home-section div.language-text code {
+  white-space: pre-wrap !important;
+  word-break: break-word;
+}
+@media (max-width: 640px) {
+  .stat-cards {
+    gap: 0.75rem;
+    flex-wrap: nowrap;
+  }
+  .stat {
+    min-width: 0;
+    flex: 1;
+  }
+  .stat-value {
+    font-size: 1.25rem;
+  }
+  .stat-label {
+    font-size: 0.72rem;
+  }
 }
 .closing {
   margin-bottom: 4rem;
