@@ -2,3 +2,5 @@ $ bin/chad check rejected-shape.ts
 error[CS1235]: assigning `.email` can add a property to an object created without it (the object literal at rejected-shape.ts:7); objects cannot gain properties
   --> rejected-shape.ts:8:1
   help: create every such object with the property: declare it `email?: T | undefined` and initialize it (`email: undefined`), or use a class that declares `email`
+
+1 error(s)
