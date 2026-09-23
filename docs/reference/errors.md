@@ -350,7 +350,7 @@ A value whose type the value domain cannot represent: a tuple with different ele
 
 **Status:** planned to be admitted in a later phase.
 
-**Rejection tests:** [`empty-array-no-type.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/empty-array-no-type.ts), [`never-narrowed-read.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/never-narrowed-read.ts), [`tuple-mixed-elements.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/tuple-mixed-elements.ts) and 2 more
+**Rejection tests:** [`empty-array-no-type.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/empty-array-no-type.ts), [`never-narrowed-read.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/never-narrowed-read.ts), [`promise-of-null.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/promise-of-null.ts) and 3 more
 
 ## CS1234: Opaque handle used as a value {#cs1234}
 

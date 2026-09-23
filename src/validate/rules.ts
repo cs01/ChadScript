@@ -335,6 +335,14 @@ export function tailoredRejection(
     case ts.SyntaxKind.UnionType:
       return checkRepresentableTypeNode(node as ts.UnionTypeNode, hit, checker);
 
+    // A written `Promise<...>` (an async function's return type is not a value node the checks
+    // above visit).
+    case ts.SyntaxKind.TypeReference: {
+      const ref = node as ts.TypeReferenceNode;
+      if (!ts.isIdentifier(ref.typeName) || ref.typeName.text !== "Promise") return null;
+      return checkRepresentableTypeNode(ref, hit, checker);
+    }
+
     case ts.SyntaxKind.TemplateSpan:
       return checkOpaqueHandleUse((node as ts.TemplateSpan).expression, hit, checker);
 

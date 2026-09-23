@@ -251,6 +251,13 @@ export function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChe
     // (don't recurse into the `void` type, which has no ValueType).
     if (ref.symbol?.name === "Promise") {
       const a = checker.getTypeArguments(ref)[0];
+      // An awaited `null` has no machine value to carry (undefined does: Promise<void>).
+      if (a && a.flags & ts.TypeFlags.Null) {
+        throw new UnrepresentableTypeError(
+          "a Promise of only `null`",
+          "use `Promise<void>`, or a Promise of a type that includes a value (`Promise<string | null>`)",
+        );
+      }
       const inner =
         a && !(a.flags & (ts.TypeFlags.Void | ts.TypeFlags.Undefined))
           ? valueTypeOfTsType(a, node, checker)

@@ -93,8 +93,24 @@ function slotKey(t: ValueType): string {
       return "i1";
     case "value":
       return "word";
-    default:
+    case "string":
+    case "array":
+    case "object":
+    case "optional":
+    case "function":
+    case "map":
+    case "set":
+    case "unknown":
+    case "promise":
+    case "opaque":
       return "ptr";
+    case "null":
+    case "undefined":
+      return ice(`promise resolve: ${t.kind} has no slot form`);
+    default: {
+      const never: never = t;
+      return ice(`promise resolve: ${(never as ValueType).kind}`);
+    }
   }
 }
 
