@@ -12,6 +12,10 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
+        # `main`: typecheck, format, the full suite and the sanitized lane. `gc-stress`: the
+        # differential suite with the collector running before EVERY allocation, in parallel
+        # because it is the slowest lane.
+        lane: [main, gc-stress]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -24,23 +28,21 @@ jobs:
 
       # LLVM (clang + opt). Installed as versioned binaries on Linux; point the compiler at
       # them via CHAD_CLANG / CHAD_OPT (see src/driver/toolchain.ts).
-      - name: Install LLVM + Boehm GC (Linux)
+      - name: Install LLVM (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-18 llvm-18 libgc-dev
+          sudo apt-get install -y clang-18 llvm-18
           echo "CHAD_CLANG=clang-18" >> "$GITHUB_ENV"
           echo "CHAD_OPT=opt-18" >> "$GITHUB_ENV"
-          # libgc-dev installs into system paths; no CHAD_GC_PREFIX needed.
 
-      - name: Install LLVM + Boehm GC (macOS)
+      - name: Install LLVM (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install llvm bdw-gc
+          brew install llvm
           PREFIX="$(brew --prefix llvm)"
           echo "CHAD_CLANG=$PREFIX/bin/clang" >> "$GITHUB_ENV"
           echo "CHAD_OPT=$PREFIX/bin/opt" >> "$GITHUB_ENV"
-          echo "CHAD_GC_PREFIX=$(brew --prefix bdw-gc)" >> "$GITHUB_ENV"
 
       - run: bun install --frozen-lockfile
 
@@ -49,20 +51,31 @@ jobs:
         run: sh scripts/setup-milo.sh
 
       - name: Typecheck
+        if: matrix.lane == 'main'
         run: bun run typecheck
 
       - name: Format check
+        if: matrix.lane == 'main'
         run: bun run format:check
 
       # Generous per-test timeout: differential tests each run two clang compiles (O0+O2);
       # bun's 5s default is too tight for a cold Homebrew clang on the macOS runner.
       - name: Test (rejection + differential + unit)
+        if: matrix.lane == 'main'
         run: bun run test:all
 
       # Second lane over the SAME suite, with the runtime and every compiled fixture built under
       # AddressSanitizer + UndefinedBehaviorSanitizer. -fno-sanitize-recover makes any report
       # abort the binary, which the differential harness already sees as a crash divergence — so
       # this needs no separate assertions. See src/driver/toolchain.ts for what it does and does
-      # not cover (notably: not the Boehm heap).
+      # not cover (notably: overflows between GC objects).
       - name: Test (sanitized lane)
+        if: matrix.lane == 'main'
         run: bun run test:san
+
+      # CHAD_GC_STRESS=1 makes every compiled fixture collect before each allocation (the inline
+      # bump path is disabled so the runtime sees them all): any object the collector fails to
+      # keep alive is reused at once, which shows up as a divergence from Node.
+      - name: Test (GC stress lane)
+        if: matrix.lane == 'gc-stress'
+        run: bun run test:stress

@@ -5,7 +5,8 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include <gc.h>
+void cs_gc_init(void);
+void *cs_alloc(uint64_t header);
 
 typedef struct Promise Promise;
 extern Promise *cs_promise_resolved(int64_t boxedValue);
@@ -27,7 +28,7 @@ static void body(void *arg) {
   if (back != d) { printf("FAIL: number %g != %g\n", back, d); failed = 1; }
 
   // pointer: a heap object round-trips as its address.
-  void *obj = GC_malloc(16);
+  void *obj = cs_alloc(((uint64_t)16 << 32) | 2);
   int64_t gotP = cs_await(cs_promise_resolved((int64_t)(intptr_t)obj));
   if ((void *)(intptr_t)gotP != obj) { printf("FAIL: pointer mismatch\n"); failed = 1; }
 
@@ -37,7 +38,7 @@ static void body(void *arg) {
 }
 
 int main(void) {
-  GC_INIT();
+  cs_gc_init();
   cs_fiber_spawn(body, 0);
   cs_run_event_loop();
   return failed;

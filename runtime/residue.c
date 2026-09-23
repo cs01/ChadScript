@@ -4,23 +4,90 @@
 // ucontext_t's full layout (macOS inlines the machine context only under _XOPEN_SOURCE; without it
 // getcontext writes past the struct), so this must precede every include.
 #define _XOPEN_SOURCE 700
-#include <gc.h>
+// _XOPEN_SOURCE hides Darwin's non-POSIX API (pthread_get_stackaddr_np); this restores it.
+#define _DARWIN_C_SOURCE
+#include <pthread.h>
 #include <setjmp.h>
 #include <stdint.h>
 #include <stdio.h>
 // ucontext is deprecated on macOS but has no replacement with the same whole-stack-swap semantics.
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 #include <ucontext.h>
+#ifdef __APPLE__
+#include <mach-o/getsect.h>
+#include <mach-o/ldsyms.h>
+#endif
 
-// GC_INIT is a macro (on some platforms it expands to more than a call, e.g. registering the data
-// segment), so a C compiler has to expand it. Emitted first in `main`.
-// Interior pointers must be recognized: an object field holds a Value, which is a pointer with a
-// 3-bit kind tag in its low bits (src/codegen/value.ts), so it points INTO its target rather than
-// at its start. This is Boehm's usual default, but a build can turn it off, and it must be set
-// before GC_INIT.
-void cs_gc_init(void) {
-  GC_set_all_interior_pointers(1);
-  GC_INIT();
+// The collector's platform seam (runtime/gc.milo). Each piece needs a data symbol, a platform API
+// or a compiler builtin that Milo cannot reach.
+//
+// The bump-allocation region. Generated IR inlines the allocation fast path, so the region is a
+// data symbol with a fixed C name, which Milo cannot define.
+struct {
+  uint64_t cursor, limit;
+} cs_gc_bump;
+void *cs_gc_bump_ptr(void) { return &cs_gc_bump; }
+
+// Highest address of the main thread's stack, where the conservative stack scan ends. glibc
+// exports __libc_stack_end (just above main's frame); Darwin has a pthread query.
+uint64_t cs_stack_top(void) {
+#ifdef __APPLE__
+  return (uint64_t)pthread_get_stackaddr_np(pthread_self());
+#else
+  extern void *__libc_stack_end;
+  return (uint64_t)__libc_stack_end;
+#endif
+}
+
+// The executable's writable static data, where every global lives (the program's module variables
+// and codegen caches, the runtime's Milo globals): one conservatively scanned root range. The
+// bounds are linker-defined symbols.
+uint64_t cs_gc_data_lo(void) {
+#ifdef __APPLE__
+  unsigned long size;
+  return (uint64_t)getsegmentdata(&_mh_execute_header, "__DATA", &size);
+#else
+  extern char __data_start[];
+  return (uint64_t)__data_start;
+#endif
+}
+uint64_t cs_gc_data_hi(void) {
+#ifdef __APPLE__
+  unsigned long size = 0;
+  return (uint64_t)getsegmentdata(&_mh_execute_header, "__DATA", &size) + size;
+#else
+  extern char _end[];
+  return (uint64_t)_end;
+#endif
+}
+
+// An address below every frame of its caller (a noinline callee's frame address): where the
+// collector starts scanning the running stack.
+__attribute__((noinline)) uint64_t cs_sp(void) { return (uint64_t)__builtin_frame_address(0); }
+
+// The SP saved in a ucontext by swapcontext: where the scan of a suspended stack starts. The
+// machine-context layout is per platform. glibc names the x86-64 slot REG_RSP (15) only under
+// _GNU_SOURCE.
+uint64_t cs_ctx_sp(ucontext_t *c) {
+#if defined(__APPLE__) && defined(__aarch64__)
+  return c->uc_mcontext->__ss.__sp;
+#elif defined(__APPLE__) && defined(__x86_64__)
+  return c->uc_mcontext->__ss.__rsp;
+#elif defined(__linux__) && defined(__x86_64__)
+  return (uint64_t)c->uc_mcontext.gregs[15];
+#elif defined(__linux__) && defined(__aarch64__)
+  return c->uc_mcontext.sp;
+#else
+#error "cs_ctx_sp: add this platform's saved-SP field"
+#endif
+}
+
+// Conservative scan of [lo, hi): `visit` every aligned word inside the heap's address range. Not
+// ASan-instrumented: stacks and static data hold redzones, and this reads them on purpose.
+__attribute__((no_sanitize("address"))) void cs_gc_scan(uint64_t lo, uint64_t hi, uint64_t heapLo,
+                                                        uint64_t heapHi, void (*visit)(uint64_t)) {
+  for (uint64_t *p = (uint64_t *)((lo + 7) & ~(uint64_t)7); (uint64_t)(p + 1) <= hi; p++)
+    if (*p - heapLo < heapHi - heapLo) visit(*p);
 }
 
 // Nullable `T | undefined` / `T | null`: generated IR compares an optional pointer against the

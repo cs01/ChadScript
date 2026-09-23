@@ -42,8 +42,11 @@ writing code meanwhile. A test that makes the fast lane exceed 10 s moves to `te
 - Runtime is Milo (`runtime/*.milo`, pinned compiler: `sh scripts/setup-milo.sh` once).
   Exported entry points are `@externalLinkage` with the `cs_` C symbol names; every module is
   imported from `runtime/lib.milo`. C only for what Milo cannot express, in `runtime/residue.c`,
-  each item commented with why. Runtime memory is Boehm (`GC_malloc`); never keep a GC pointer
-  in Milo-owned heap memory (Vec, Heap, string), which Boehm does not scan. Globals need constant
+  each item commented with why. Runtime memory comes from our collector (`runtime/gc.milo`):
+  allocate only through `cs_alloc` / `gcAlloc*` with the layout that names every pointer slot
+  (atomic, values, struct bitmap, record, conservative); generated IR through
+  `src/codegen/alloc.ts`. Never keep a GC pointer in Milo-owned heap memory (Vec, Heap, string)
+  or other malloc memory, which the collector does not scan. Globals need constant
   initializers. Declare libc externs once, in `runtime/libc.milo` (Milo `extern fn` is
   program-wide). Numbers cross the ABI as `double`. Strings are UTF-8 `{ptr, len}`; never rely
   on NUL termination.

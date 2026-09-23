@@ -7,7 +7,7 @@
 //
 // The test builds the message in a frame that is then abandoned AND overwritten, so a retained
 // pointer reads clobbered bytes rather than getting lucky. Exits 0 on pass.
-#include <gc.h>
+void cs_gc_init(void);
 #include <stdio.h>
 #include <string.h>
 
@@ -39,7 +39,7 @@ static void clobber_frame(void) {
 }
 
 int main(void) {
-  GC_INIT();
+  cs_gc_init();
   CsThrown *t = make_error_from_stack_header();
   clobber_frame();
 

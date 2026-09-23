@@ -5,7 +5,7 @@
 // parent's try/catch around the await. Exits 0 on pass.
 #include <stdint.h>
 #include <stdio.h>
-#include <gc.h>
+void cs_gc_init(void);
 
 typedef struct Promise Promise;
 extern Promise *cs_fiber_spawn(void (*body)(void *), void *arg);
@@ -39,7 +39,7 @@ static void parent(void *arg) {
 }
 
 int main(void) {
-  GC_INIT();
+  cs_gc_init();
   cs_fiber_spawn(parent, 0);
   cs_run_event_loop();
   if (!caught) { printf("FAIL: escaping throw did not reject the fiber's result promise\n"); return 1; }

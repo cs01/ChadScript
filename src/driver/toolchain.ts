@@ -2,7 +2,7 @@
 // often installed as versioned binaries like `opt-18`) can point us at the right ones without
 // touching code. Defaults assume `clang`/`opt` are on PATH (true for a Homebrew LLVM install).
 
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -25,20 +25,6 @@ export function miloPin(): string {
   return m[1]!;
 }
 
-// Boehm GC (libgc) locations. Linux (apt libgc-dev) installs into system paths; a Homebrew
-// install needs explicit -I/-L. `CHAD_GC_PREFIX` overrides. Compile flags (-I, for the runtime
-// .c files that include <gc.h>) are split from link flags (-L, -lgc).
-function gcPrefix(): string {
-  return (
-    process.env["CHAD_GC_PREFIX"] ??
-    (existsSync("/opt/homebrew/opt/bdw-gc") ? "/opt/homebrew/opt/bdw-gc" : "")
-  );
-}
-
-const prefix = gcPrefix();
-export const GC_CFLAGS = prefix ? [`-I${prefix}/include`] : [];
-export const GC_LFLAGS = prefix ? [`-L${prefix}/lib`, "-lgc"] : ["-lgc"];
-
 // Sanitizer lane. `CHAD_SAN=1` builds the runtime AND the program with AddressSanitizer +
 // UndefinedBehaviorSanitizer. Run the ordinary suite with it set (`bun run test:san`): with
 // -fno-sanitize-recover any report aborts the binary, which the differential harness already sees
@@ -53,18 +39,22 @@ export const GC_LFLAGS = prefix ? [`-L${prefix}/lib`, "-lgc"] : ["-lgc"];
 //
 // WHAT THIS LANE COVERS, measured by injecting each bug and checking it is reported:
 //   - stack and global buffer overflows, out-of-bounds array indexing, integer/alignment UB — YES
-//   - overflows of Boehm-managed memory — NO. Boehm has its own mmap-based heap, so ASan's
-//     redzones never apply to it, and most runtime data lives there. Covering it needs Boehm's
-//     own GC_DEBUG redzones, which is a separate lane.
+//   - overflows between GC objects — NO. The collector (runtime/gc.milo) bump-allocates objects
+//     back to back inside malloc'd chunks, so ASan sees one live chunk and puts no redzones
+//     between objects. The collector's own bugs have their own gates: CHAD_GC_STRESS (collect on
+//     every Nth allocation) and CHAD_GC_VERIFY (poison freed lines, abort on a traced slot that
+//     points at freed memory).
 //   - a stack pointer escaping through cs_throw — NO, and no sanitizer can. longjmp triggers
 //     __asan_handle_no_return, which unpoisons the abandoned frame to avoid false positives.
 //     That class is closed structurally instead: cs_new_error copies its message
 //     (tests/runtime/throw_msg_copy_test.c pins it).
 //
-// Boehm needs two ASan behaviors disabled to coexist, set in the lane's ASAN_OPTIONS:
-// detect_leaks (a conservative GC never frees, so every live object reads as a leak) and
-// detect_stack_use_after_return (ASan's fake stack hides real frames from the GC's conservative
-// scan, which would collect objects that are still reachable).
+// The collector needs two ASan behaviors disabled to coexist, set in the lane's ASAN_OPTIONS:
+// detect_leaks (heap chunks and fiber stacks are process-lifetime memory, which reads as a leak)
+// and detect_stack_use_after_return (ASan's fake stack moves locals off the machine stack, where
+// the conservative root scan would not see them, so reachable objects would be collected). The
+// scan itself (residue.c cs_gc_scan) is not instrumented, since it reads stack and global redzones
+// on purpose.
 export const SANITIZE = process.env["CHAD_SAN"] === "1";
 
 export const SAN_FLAGS = SANITIZE

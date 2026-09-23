@@ -5,7 +5,7 @@
 // fiber-local-handler-stack item, see docs/async-gate-status.md.)
 #include <stdint.h>
 #include <stdio.h>
-#include <gc.h>
+void cs_gc_init(void);
 
 typedef struct Promise Promise;
 extern Promise *cs_promise_new(void);
@@ -37,7 +37,7 @@ static void body(void *arg) {
 }
 
 int main(void) {
-  GC_INIT();
+  cs_gc_init();
   shared = cs_promise_new();
   cs_fiber_spawn(body, 0);                 // runs to the await, suspends as a waiter
   cs_promise_reject(shared, (void *)0x1);  // reject with a dummy non-null CsThrown*

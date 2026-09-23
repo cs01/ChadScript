@@ -8,6 +8,7 @@ from "./path" import { cs_path_normalize }
 from "./math" import { cs_math_round }
 from "./time" import { cs_date_now }
 from "./gc" import { cs_alloc }
+from "./gc-stacks" import { gcStackCurrent }
 from "./array" import { cs_array_new }
 from "./argv" import { cs_argv_slice2 }
 from "./number" import { cs_to_int32 }

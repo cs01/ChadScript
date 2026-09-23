@@ -31,8 +31,9 @@ transform. We instead use **stackful coroutines (fibers)** via `ucontext` (`make
   stack. `await` is just "swap back to the scheduler."
 - We already lower everything through allocas (memory, not SSA across suspension points), so a
   fiber switch is safe (no live SSA values to spill — they are in the fiber's stack).
-- Boehm GC already scans the C stack conservatively; each fiber stack is registered so its roots
-  stay alive across a suspend.
+- The collector scans stacks conservatively; each fiber stack is registered with it
+  (runtime/gc-stacks.milo), and every context switch records the suspended stack's SP, so its
+  roots stay alive across a suspend.
 
 Cost: one heap stack per in-flight async call. Fine for an educational/experimental compiler; a
 state-machine transform is a later optimization if it ever matters.

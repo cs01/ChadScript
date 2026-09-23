@@ -6,27 +6,23 @@
 // context is created by cs_fiber_ctx_init in residue.c and is opaque here; swapcontext is called
 // directly.
 //
-// GC + fiber stacks: Boehm scans exactly ONE stack per thread, from its stack bottom to the current
-// SP. While a fiber runs, SP is on the fiber's stack; while a fiber is suspended, its stack is off
-// thread entirely. Either way the normal scan misses it, so a value held only there (a boxed await
-// result across a suspend, a local live across a nested spawn's allocation) would be reclaimed: a
-// GC-timing heisenbug that vanishes under GC_DONT_GC=1. Fiber stacks are therefore plain malloc
-// (not GC memory: Boehm ignores roots inside its own heap) registered as explicit GC roots, so the
-// whole stack is scanned every collection wherever the SP is. Stacks are never freed or recycled:
-// freeing a scanned region corrupts the collector, and recycling a just-retired stack is unsafe
-// while an ancestor fiber is still suspended. Memory grows with total async invocations. TODO: a
-// safe pool (recycle only once a fiber is provably unreferenced). Do NOT swap the GC's stack bottom
-// to the fiber instead: that hides the MAIN stack and drops its roots.
+// GC + fiber stacks: the collector scans every live fiber stack as a root (gc-stacks.milo). Every
+// swapcontext is preceded by gcStackSwitch, which records the ucontext the suspended side is saved
+// into: the collector scans that stack from the SP saved there and marks the ucontext (its
+// registers) as a GC_CONSERVATIVE object. Stacks are plain malloc (not GC memory, which the collector
+// would trace precisely instead of scanning). A finished fiber's stack is retired (no longer
+// scanned) and recycled through a pool once control is back on the stack that entered it.
 
 from "./abi" import { CsArray }
-from "./gc" import { gcAddRoots, gcAllocConservative, gcAllocStruct, gcAllocValues }
+from "./gc" import { gcAllocConservative, gcAllocStruct, gcAllocValues }
+from "./gc-stacks" import { gcStackNew, gcStackCurrent, gcStackSwitch, gcStackRetire }
+from "./libc" import { malloc, realloc }
 from "./errors" import { CsThrown, HandlerCtx, handlerCtxGet, handlerCtxSet, cs_throw }
 from "./array" import { cs_array_new, cs_array_push, cs_array_len, cs_array_get }
 from "./timer" import { timersPending, timersDue, timersRunEarliest }
 from "./fs-promises" import { ioPending, ioSettleOne }
 from "./stdio" import { writeErrLit }
 
-extern fn malloc(n: i64): *u8
 extern fn swapcontext(from: *u8, to: *u8): i32
 extern fn cs_fiber_ctx_size(): i64
 extern fn cs_fiber_ctx_init(ctx: *u8, stack: *u8, size: i64, entry: () => void)
@@ -83,6 +79,11 @@ extern struct Fiber {
     hStack: **u8,
     hN: i32,
     hCap: i32,
+    // FIBER_STACK bytes of malloc memory, and its slot in the collector's stack registry
+    stack: *u8,
+    stackId: i64,
+    // the registry slot of the stack that entered this fiber (where retCtx runs)
+    retStack: i64,
 }
 
 // The scheduler's own context (the main stack the event loop runs on) and the running fiber. One
@@ -103,12 +104,30 @@ fn schedCtx(): *u8 {
     return gSchedCtx
 }
 
+// Finished fibers' stacks, reused before a new one is malloc'd (a malloc'd side table).
+var gPool: *i64 = 0 as *i64
+var gPoolN: i64 = 0
+var gPoolCap: i64 = 0
+
 fn newStack(): *u8 {
     unsafe {
-        let stk = malloc(FIBER_STACK)
-        gcAddRoots(stk, (stk as i64 + FIBER_STACK) as *u8)
-        return stk
+        if gPoolN > 0 {
+            gPoolN = gPoolN - 1
+            return (*((gPool as i64 + gPoolN * 8) as *i64)) as *u8
+        }
+        return malloc(FIBER_STACK)
     }
+}
+
+fn releaseStack(stk: *u8) {
+    unsafe {
+        if gPoolN == gPoolCap {
+            gPoolCap = if gPoolCap == 0 { 16 } else { gPoolCap * 2 }
+            gPool = realloc(gPool as *u8, gPoolCap * 8) as *i64
+        }
+        *((gPool as i64 + gPoolN * 8) as *i64) = stk as i64
+    }
+    gPoolN = gPoolN + 1
 }
 
 // Run `f` (swapping from context `from`) with ITS handler stack active: save the caller's, install
@@ -125,8 +144,15 @@ pub fn cs_fiber_enter(f: *Fiber, from: *u8) {
         let prev = gCurrent
         gCurrent = f
         f.retCtx = from
+        f.retStack = gcStackCurrent()
+        gcStackSwitch(f.stackId, from)
         swapcontext(from, f.ctx)
         gCurrent = prev
+        // Back on the entering stack: a finished fiber's stack is no longer in use by anyone.
+        if f.done != 0 && f.stack as i64 != 0 {
+            releaseStack(f.stack)
+            f.stack = 0 as *u8
+        }
         let mine = handlerCtxGet()
         f.hStack = mine.stack
         f.hN = mine.n
@@ -258,6 +284,8 @@ fn finishFiber() {
     unsafe {
         let f = gCurrent
         f.done = 1
+        gcStackRetire(f.stackId)
+        gcStackSwitch(f.retStack, f.ctx)
         swapcontext(f.ctx, f.retCtx)
     }
 }
@@ -299,7 +327,7 @@ pub fn cs_fiber_return(boxedValue: i64) {
 
 fn spawn(entry: *Entry): *Promise {
     unsafe {
-        let f = gcAllocStruct(80, 0b1011111) as *Fiber
+        let f = gcAllocStruct(104, 0b1011111) as *Fiber
         f.entry = entry
         f.result = cs_promise_new()
         f.done = 0
@@ -308,7 +336,9 @@ fn spawn(entry: *Entry): *Promise {
         f.hN = 0
         f.hCap = 0
         f.ctx = gcAllocConservative(cs_fiber_ctx_size())
-        cs_fiber_ctx_init(f.ctx, newStack(), FIBER_STACK, fiberTrampoline)
+        f.stack = newStack()
+        f.stackId = gcStackNew(f.stack as i64 + FIBER_STACK)
+        cs_fiber_ctx_init(f.ctx, f.stack, FIBER_STACK, fiberTrampoline)
         let from = if isNullFiber(gCurrent) { schedCtx() } else { gCurrent.ctx }
         // Run until the first suspend or completion (JS: an async call runs synchronously up to its
         // first await), with f's handler stack installed.
@@ -382,10 +412,12 @@ pub fn cs_await(p: *Promise): i64 {
                 }
                 t.next = w
             }
+            gcStackSwitch(me.retStack, me.ctx)
             swapcontext(me.ctx, me.retCtx)
         } else {
             me.resumeVal = p.value
             mtqPush(me)
+            gcStackSwitch(me.retStack, me.ctx)
             swapcontext(me.ctx, me.retCtx)
         }
         // Resumed: the promise is settled. Consuming a rejection clears its unhandled mark (the

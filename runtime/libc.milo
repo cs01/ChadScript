@@ -24,3 +24,19 @@ pub extern fn access(path: *u8, mode: i32): i32
 pub extern fn unlink(path: *u8): i32
 pub extern fn getcwd(buf: *u8, size: i64): *u8
 pub extern fn getpid(): i32
+
+// Memory the collector manages for itself (runtime/gc.milo): heap chunks, its side tables, fiber
+// stacks. None of it is GC memory.
+pub extern fn malloc(n: i64): *u8
+pub extern fn calloc(n: i64, size: i64): *u8
+pub extern fn realloc(p: *u8, n: i64): *u8
+pub extern fn free(p: *u8)
+pub extern fn posix_memalign(out: **u8, align: i64, size: i64): i32
+pub extern fn memset(p: *u8, c: i32, n: i64): *u8
+pub extern fn qsort(base: *u8, n: i64, size: i64, cmp: (*u8, *u8) => i32)
+pub extern fn getenv(name: *u8): *u8
+pub extern fn atoi(s: *u8): i32
+pub extern fn abort()
+// Called only to spill callee-saved registers into a buffer the stack scan covers; never longjmp'd
+// to, so its returns-twice nature does not matter.
+pub extern fn _setjmp(buf: *u8): i32

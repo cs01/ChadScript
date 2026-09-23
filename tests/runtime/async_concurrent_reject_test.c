@@ -4,7 +4,7 @@
 // the shared stack) and longjmp into B's suspended frame — misrouted/corrupt. Exits 0 on pass.
 #include <stdint.h>
 #include <stdio.h>
-#include <gc.h>
+void cs_gc_init(void);
 
 typedef struct Promise Promise;
 extern Promise *cs_promise_new(void);
@@ -36,7 +36,7 @@ static void bodyB(void *arg) {
 }
 
 int main(void) {
-  GC_INIT();
+  cs_gc_init();
   pa = cs_promise_new();
   pb = cs_promise_new();
   cs_fiber_spawn(bodyA, 0); // suspends inside its try, on pa

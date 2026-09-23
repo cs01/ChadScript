@@ -21,6 +21,7 @@
     "fuzz": "bun run scripts/fuzz.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "test:stress": "CHAD_GC_STRESS=1 bun test --timeout 1800000 tests/slow/differential.test.ts",
     "test:san": "CHAD_SAN=1 ASAN_OPTIONS=detect_leaks=0:detect_stack_use_after_return=0 bun test --timeout 120000 tests/"
   },
   "devDependencies": {

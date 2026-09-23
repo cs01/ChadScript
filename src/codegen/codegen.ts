@@ -83,7 +83,7 @@ export function generate(hmod: HModule): string {
     fnReturnType: null,
     shapes: hmod.shapes,
   };
-  ctx.fn.callVoid("@cs_gc_init", []); // start Boehm GC before any allocation
+  ctx.fn.callVoid("@cs_gc_init", []); // runtime/gc.milo: stack registry, CHAD_GC_STRESS
   // Record the command line before user code runs; the argv array itself is built lazily, so a
   // program that never reads its arguments pays nothing for this.
   mod.declareExtern("cs_set_args", T.void, [T.i32, T.ptr]);
@@ -698,7 +698,7 @@ function forOfStepper(source: ForOfSource, elementType: ValueType, ctx: Ctx): Fo
     }
     case "collection": {
       // A live walk (runtime/ordered.milo): the iterator is a record pointer plus a position,
-      // both in stack slots the runtime updates (the stack keeps the record alive for Boehm).
+      // both in stack slots the runtime updates (the stack keeps the record alive for the collector).
       const coll = evalCollectionPtr(source.collection, ctx);
       const recPtr = ctx.fn.alloca(T.ptr);
       ctx.fn.store(ctx.fn.call("@cs_ord_iter_start", T.ptr, [coll]), recPtr);

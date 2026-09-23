@@ -10,11 +10,12 @@
 //                       6 Promise, 7 other runtime handle (caught value, opaque handle).
 //
 // Why pointers are raw and doubles are offset (rather than doubles raw and pointers in the NaN
-// space): the collector is Boehm, which scans conservatively and only recognizes a word that
-// points into (or, with interior pointers on, anywhere inside) a heap block. A pointer hidden
-// under NaN tag bits would be invisible to it and its object would be freed while still in use.
-// A low 3-bit tag keeps the word an interior pointer, which Boehm recognizes (residue.c turns
-// interior-pointer recognition on explicitly). `undefined` is 0 so a zeroed record reads as
+// space): the collector (runtime/gc.milo) scans roots conservatively and only recognizes a word
+// that points into (or anywhere inside) a heap object. A pointer hidden under NaN tag bits would
+// be invisible to it and its object would be freed while still in use. A low 3-bit tag keeps the
+// word an interior pointer, which the collector resolves to its object through the block's
+// object-start bitmap; every object is at least one word, so the tag never reaches past it.
+// Doubles land at or above 2^49, above every heap address. `undefined` is 0 so a zeroed record reads as
 // all-undefined, which is what a JS object's declared-but-unassigned class fields hold.
 
 import { ice } from "../diagnostics.js";

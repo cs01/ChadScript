@@ -334,7 +334,7 @@ export const DOD: DodItem[] = [
       "run/async-promise-all.ts", // async
       "run/async-unhandled-reject.ts", // async
     ],
-    note: "C residue: runtime/residue.c (GC_INIT, marker globals, stdio handles, jmp_buf size, ucontext setup)",
+    note: "C residue: runtime/residue.c (GC platform seam, marker globals, stdio handles, jmp_buf size, ucontext setup)",
   },
   {
     id: "shaped-objects",

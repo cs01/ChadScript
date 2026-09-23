@@ -29,7 +29,7 @@ import { fileURLToPath } from "node:url";
 import { lower } from "../lower/lower.js";
 import { verifyHir } from "../hir/verify.js";
 import { generate } from "../codegen/codegen.js";
-import { CLANG, GC_CFLAGS, GC_LFLAGS, MILO, SAN_FLAGS, SANITIZE, miloPin } from "./toolchain.js";
+import { CLANG, MILO, SAN_FLAGS, SANITIZE, miloPin } from "./toolchain.js";
 import type { LoadedProgram } from "../frontend/program.js";
 
 const execFileAsync = promisify(execFile);
@@ -45,7 +45,7 @@ const runtimeSources = readdirSync(runtimeDir)
   .map((f) => join(runtimeDir, f));
 
 // The compile flags a runtime object depends on (a flag change must invalidate the cache).
-const RUNTIME_COMPILE_FLAGS = ["-O2", "-c", ...GC_CFLAGS, ...SAN_FLAGS];
+const RUNTIME_COMPILE_FLAGS = ["-O2", "-c", ...SAN_FLAGS];
 
 // A content-addressed cache key for one runtime object: hashes the .c bytes, EVERY runtime header
 // (a header edit must rebuild the .c's that include it — the mtime scheme missed this), and the
@@ -162,7 +162,6 @@ function linkArgs(llPath: string, outPath: string, opt: "0" | "2", objs: string[
     llPath,
     ...objs,
     "-lm", // `%` lowers to an fmod libcall in libm; macOS auto-links it, Linux doesn't
-    ...GC_LFLAGS, // Boehm GC
     "-o",
     outPath,
   ];

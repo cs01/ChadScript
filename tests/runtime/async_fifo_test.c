@@ -4,7 +4,7 @@
 // waiter list would produce. Exits 0 on pass, non-zero on failure.
 #include <stdint.h>
 #include <stdio.h>
-#include <gc.h>
+void cs_gc_init(void);
 
 typedef struct Promise Promise;
 extern Promise *cs_promise_new(void);
@@ -24,7 +24,7 @@ static void body(void *arg) {
 }
 
 int main(void) {
-  GC_INIT();
+  cs_gc_init();
   shared = cs_promise_new();
   // Spawn in id order 1,2,3 — each runs to its await and registers a waiter.
   cs_fiber_spawn(body, (void *)(intptr_t)1);

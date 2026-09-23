@@ -20,7 +20,7 @@ test("C residue in runtime/ stays under 100 lines of code", () => {
       if (t !== "" && !t.startsWith("//")) code++;
     }
   }
-  assert.ok(code > 0, "no C found: residue.c (GC_INIT, marker globals) must exist");
+  assert.ok(code > 0, "no C found: residue.c (GC seam, marker globals) must exist");
   assert.ok(code < 100, `runtime C residue is ${code} lines of code; the budget is under 100`);
 });
 

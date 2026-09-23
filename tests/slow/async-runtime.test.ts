@@ -10,7 +10,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { CLANG, GC_CFLAGS, GC_LFLAGS, SAN_FLAGS } from "../../src/driver/toolchain.js";
+import { CLANG, SAN_FLAGS } from "../../src/driver/toolchain.js";
 import { runtimeObjects } from "../../src/driver/build.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -23,13 +23,11 @@ function runCTest(harness: string): void {
   execFileSync(
     CLANG,
     [
-      ...GC_CFLAGS,
       // The runtime objects are sanitizer-instrumented in the sanitized lane, so the harness
       // must link the sanitizer runtimes too.
       ...SAN_FLAGS,
       ...runtimeObjects(),
       join(root, "tests", "runtime", harness),
-      ...GC_LFLAGS,
       // number.milo/math.milo call floor/fmod/trunc/nextafter. macOS libc resolves them implicitly;
       // glibc needs -lm, so without this the harness only failed on Linux.
       "-lm",

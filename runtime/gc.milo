@@ -1,18 +1,31 @@
-// The allocator API. Every heap object is preceded by a one-word header naming its pointer layout,
-// so the collector can trace the heap precisely (only roots are scanned conservatively). Generated
-// IR builds the same header word (src/codegen/alloc.ts; tests/unit/shape-abi.test.ts pins the
-// constants) and calls cs_alloc; runtime code calls the gcAlloc* helpers below. Nothing else in the
-// runtime may allocate GC memory (tests/unit/gc-alloc-audit.test.ts).
+// The garbage collector: conservative roots, precise heap, Immix-style non-moving mark-region
+// (PLAN.md "Memory: our own GC in Milo"). Generated IR builds header words itself
+// (src/codegen/alloc.ts; tests/unit/shape-abi.test.ts pins the constants) and inlines the bump
+// fast path; everything else allocates through cs_alloc / the gcAlloc* helpers below. Nothing else
+// in the runtime may allocate GC memory (tests/unit/gc-alloc-audit.test.ts).
 //
-// Header word:
+// Every object is preceded by one header word naming its pointer layout:
 //   bits 0..7    kind (GC_*)
 //   bits 8..31   GC_STRUCT only: bit i set = payload word i may hold a pointer or Value
 //   bits 32..63  payload size in bytes, a multiple of 8 (the header word not included)
+//
+// Heap: 1 MB chunks (1 MB aligned, so a pointer's chunk is an AND) of 32 KB blocks of 128 B lines.
+// A block's first 1536 bytes are its metadata: an object-start bitmap and a mark bitmap (one bit
+// per 8-byte granule, set for each object's header granule), then one mark byte per line. Small
+// and medium objects are bump-allocated into holes (runs of free lines); objects over 8 KB live in
+// a malloc'd large-object space. Nothing moves.
+//
+// Collection: sweep what the allocator has not reached yet (so start bits name only live
+// objects), spill registers, scan the stacks and static data conservatively, then trace precisely
+// through headers. A word counts only if it points into an allocated object (the start bitmap
+// resolves interior and tagged pointers to their object). Blocks with no marked line become free;
+// the rest are swept lazily when the allocator next takes them.
 
-pub extern fn GC_malloc(n: i64): *u8
-pub extern fn GC_malloc_atomic(n: i64): *u8
-extern fn GC_add_roots(lo: *u8, hi: *u8)
-extern fn memset(p: *u8, c: i32, n: i64): *u8
+@!wrapping
+
+from "./libc" import { calloc, realloc, free, posix_memalign, memset, qsort, getenv, atoi, abort, _setjmp }
+from "./stdio" import { writeErrLit }
+from "./gc-stacks" import { gcStacksInit, gcStackCount, gcStackCtx, gcStackLo, gcStackTop }
 
 // Never scanned: bytes, doubles, i32 tables.
 pub let GC_ATOMIC: u64 = 1
@@ -23,8 +36,91 @@ pub let GC_RECORD: u64 = 3
 // A fixed layout whose traced words are the header's bitmap.
 pub let GC_STRUCT: u64 = 4
 // Saved machine state (ucontext_t, jmp_buf): registers of a suspended context, so every word is a
-// possible pointer. Payload is 16-byte aligned (ucontext_t holds SIMD state).
+// possible pointer. The payload is 16-byte aligned (ucontext_t holds SIMD state).
 pub let GC_CONSERVATIVE: u64 = 5
+
+let CHUNK_BYTES: i64 = 1048576
+let BLOCKS_PER_CHUNK: i64 = 32
+let BLOCK_BYTES: i64 = 32768
+let LINE_BYTES: i64 = 128
+let LINES: i64 = 256
+let MARK_BITS: i64 = 512
+let LINE_MARKS: i64 = 1024
+// Metadata ends at byte 1280; objects start at the first whole line after it.
+let FIRST_LINE: i64 = 12
+let FIRST_BYTE: i64 = 1536
+// First start-bitmap word that can have a bit set (granule 192 = byte 1536).
+let FIRST_WORD: i64 = 3
+// Header + payload above this goes to the large-object space.
+let LARGE_TOTAL: i64 = 8192
+// Collect once this many bytes were handed out since the last collection, or live * GROWTH if
+// that is larger (the heap then settles near (1 + GROWTH) x live).
+let MIN_TRIGGER: i64 = 1048576
+let GROWTH: i64 = 1
+
+extern struct Bump {
+    cursor: i64,
+    limit: i64,
+}
+
+extern fn cs_gc_bump_ptr(): *Bump
+extern fn cs_sp(): i64
+extern fn cs_gc_data_lo(): i64
+extern fn cs_gc_data_hi(): i64
+extern fn cs_gc_scan(lo: i64, hi: i64, heapLo: i64, heapHi: i64, visit: (i64) => void)
+
+var gReady: bool = false
+var gInGc: bool = false
+// The region generated IR bumps through (residue.c). Held empty in stress mode, so every
+// allocation reaches the slow path, which counts them.
+var gBump: *Bump = 0 as *Bump
+// CHAD_GC_STRESS=N: collect before every Nth allocation.
+var gStress: i64 = 0
+var gStressCount: i64 = 0
+// CHAD_GC_VERIFY=1: fill freed lines with a pattern, and abort when a precisely traced slot points
+// into a chunk but at no object (a dangling pointer the collector itself created).
+var gVerify: bool = false
+
+// The current hole [gCur, gLim), mirrored into gBump when not stressed.
+var gCur: i64 = 0
+var gLim: i64 = 0
+// The block the allocator is taking holes from, and the next line to look at.
+var gBlock: i64 = 0
+var gLine: i64 = 0
+// Medium objects that do not fit the current hole go to an overflow region carved from a free
+// block, so the small-object hole is not abandoned.
+var gOvCur: i64 = 0
+var gOvLim: i64 = 0
+
+// Chunk bases, sorted (pointer lookup). All address arrays are malloc'd side tables.
+var gChunks: *i64 = 0 as *i64
+var gNChunks: i64 = 0
+var gChunkCap: i64 = 0
+var gHeapLo: i64 = 0
+var gHeapHi: i64 = 0
+// Blocks with live lines, swept lazily in order from gRecycleIdx; blocks with none.
+var gRecycle: *i64 = 0 as *i64
+var gNRecycle: i64 = 0
+var gRecycleIdx: i64 = 0
+var gRecycleCap: i64 = 0
+var gFree: *i64 = 0 as *i64
+var gNFree: i64 = 0
+var gFreeCap: i64 = 0
+// Large objects: header addresses (sorted at each collection) and their mark bytes.
+var gLarge: *i64 = 0 as *i64
+var gLargeMarks: *u8 = 0 as *u8
+var gNLarge: i64 = 0
+var gLargeCap: i64 = 0
+// The trace's work list of header addresses.
+var gStack: *i64 = 0 as *i64
+var gNStack: i64 = 0
+var gStackCap: i64 = 0
+
+var gAllocSince: i64 = 0
+var gTrigger: i64 = 1048576
+var gLiveBytes: i64 = 0
+
+// ---- header words ----
 
 pub fn gcHeader(kind: u64, size: i64, map: u64): u64 {
     // A zero-size object would end where the next one's header starts, so a pointer to it would
@@ -41,27 +137,388 @@ pub fn gcHeaderKind(h: u64): u64 {
     return h & 255
 }
 
-// The one allocation entry point, for generated IR and the helpers below. Returns zeroed memory.
+// ---- raw memory helpers (addresses as i64) ----
+
+fn ld(a: i64): i64 {
+    unsafe {
+        return *(a as *i64)
+    }
+}
+
+fn st(a: i64, v: i64) {
+    unsafe {
+        *(a as *i64) = v
+    }
+}
+
+fn ldb(a: i64): u8 {
+    unsafe {
+        return *(a as *u8)
+    }
+}
+
+fn stb(a: i64, v: u8) {
+    unsafe {
+        *(a as *u8) = v
+    }
+}
+
+fn zero(a: i64, n: i64) {
+    unsafe {
+        memset(a as *u8, 0, n)
+    }
+}
+
+fn fatal(msg: &string) {
+    writeErrLit("chad gc: ")
+    writeErrLit(msg)
+    writeErrLit("\n")
+    unsafe {
+        abort()
+    }
+}
+
+fn newCap(n: i64, cap: i64): i64 {
+    if n == cap {
+        return if cap == 0 { 64 } else { cap * 2 }
+    }
+    return cap
+}
+
+// Store `v` at index `n` of a malloc'd i64 array of capacity `cap`, growing it to newCap(n, cap)
+// when full; returns the (possibly moved) array.
+fn pushI64(arr: *i64, n: i64, cap: i64, v: i64): *i64 {
+    var a = arr
+    if n == cap {
+        unsafe {
+            a = realloc(arr as *u8, newCap(n, cap) * 8) as *i64
+        }
+        if a as i64 == 0 {
+            fatal("out of memory (side table)")
+        }
+    }
+    st(a as i64 + n * 8, v)
+    return a
+}
+
+// ---- init ----
+
+fn envFlag(name: &string): i64 {
+    unsafe {
+        let s = getenv(name.cstr())
+        if s as i64 == 0 {
+            return 0
+        }
+        return atoi(s) as i64
+    }
+}
+
+fn ensureInit() {
+    if gReady {
+        return
+    }
+    gReady = true
+    unsafe {
+        gBump = cs_gc_bump_ptr()
+    }
+    gcStacksInit()
+    gStress = envFlag("CHAD_GC_STRESS")
+    if gStress < 0 {
+        gStress = 0
+    }
+    gVerify = envFlag("CHAD_GC_VERIFY") != 0
+}
+
+// Called first thing in `main` (generated IR). Allocation also initializes lazily, so runtime
+// harnesses that never call this still work.
+@externalLinkage
+pub fn cs_gc_init() {
+    ensureInit()
+}
+
+// ---- block metadata ----
+
+fn blockOf(a: i64): i64 {
+    return a & (0 - BLOCK_BYTES)
+}
+
+fn setBit(base: i64, blk: i64, a: i64) {
+    let g = (a - blk) >> 3
+    let p = blk + base + (g >> 3)
+    stb(p, ldb(p) | ((1 as u8) << ((g & 7) as u8)))
+}
+
+fn testBit(base: i64, blk: i64, a: i64): bool {
+    let g = (a - blk) >> 3
+    return ((ldb(blk + base + (g >> 3)) >> ((g & 7) as u8)) & 1) != 0
+}
+
+// Keep only the start bits of objects the last collection marked, and clear the marks. Runs once
+// per block per cycle, before the allocator reuses the block's free lines or the next collection.
+fn sweepBlock(blk: i64) {
+    var i: i64 = 0
+    while i < 64 {
+        let s = blk + i * 8
+        st(s, ld(s) & ld(s + MARK_BITS))
+        st(s + MARK_BITS, 0)
+        i = i + 1
+    }
+}
+
+fn lineMarked(blk: i64, line: i64): bool {
+    return ldb(blk + LINE_MARKS + line) != 0
+}
+
+// ---- chunks ----
+
+fn chunkKnown(c: i64): bool {
+    var lo: i64 = 0
+    var hi = gNChunks
+    while lo < hi {
+        let mid = (lo + hi) / 2
+        let v = ld(gChunks as i64 + mid * 8)
+        if v == c {
+            return true
+        }
+        if v < c {
+            lo = mid + 1
+        } else {
+            hi = mid
+        }
+    }
+    return false
+}
+
+fn widen(lo: i64, hi: i64) {
+    if gHeapHi == 0 || lo < gHeapLo {
+        gHeapLo = lo
+    }
+    if hi > gHeapHi {
+        gHeapHi = hi
+    }
+}
+
+fn pushFree(blk: i64) {
+    gFree = pushI64(gFree, gNFree, gFreeCap, blk)
+    gFreeCap = newCap(gNFree, gFreeCap)
+    gNFree = gNFree + 1
+}
+
+// A fresh chunk: its blocks' metadata zeroed, all of them free.
+fn growHeap() {
+    var p = 0 as *u8
+    unsafe {
+        if posix_memalign(p.addrOf(), CHUNK_BYTES, CHUNK_BYTES) != 0 {
+            fatal("out of memory")
+        }
+    }
+    let c = p as i64
+    // Insert into the sorted chunk table.
+    gChunks = pushI64(gChunks, gNChunks, gChunkCap, c)
+    gChunkCap = newCap(gNChunks, gChunkCap)
+    var i = gNChunks
+    while i > 0 && ld(gChunks as i64 + (i - 1) * 8) > c {
+        st(gChunks as i64 + i * 8, ld(gChunks as i64 + (i - 1) * 8))
+        i = i - 1
+    }
+    st(gChunks as i64 + i * 8, c)
+    gNChunks = gNChunks + 1
+    widen(c, c + CHUNK_BYTES)
+    // Highest block pushed first, so blocks are handed out in address order.
+    var b = BLOCKS_PER_CHUNK - 1
+    while b >= 0 {
+        let blk = c + b * BLOCK_BYTES
+        zero(blk, FIRST_BYTE)
+        pushFree(blk)
+        b = b - 1
+    }
+}
+
+// ---- allocation ----
+
+fn publish() {
+    unsafe {
+        if gStress > 0 {
+            gBump.cursor = 0
+            gBump.limit = 0
+        } else {
+            gBump.cursor = gCur
+            gBump.limit = gLim
+        }
+    }
+}
+
+// Take the next hole into [gCur, gLim): the next free-line run of the current block, else the next
+// recyclable block (swept now), else a free block. False when neither is left.
+fn nextHole(): bool {
+    while true {
+        if gBlock != 0 {
+            var l = gLine
+            while l < LINES && lineMarked(gBlock, l) {
+                l = l + 1
+            }
+            if l < LINES {
+                var e = l + 1
+                while e < LINES && !lineMarked(gBlock, e) {
+                    e = e + 1
+                }
+                gLine = e
+                gCur = gBlock + l * LINE_BYTES
+                gLim = gBlock + e * LINE_BYTES
+                zero(gCur, gLim - gCur)
+                gAllocSince = gAllocSince + (gLim - gCur)
+                return true
+            }
+            gBlock = 0
+        }
+        if gRecycleIdx < gNRecycle {
+            gBlock = ld(gRecycle as i64 + gRecycleIdx * 8)
+            gRecycleIdx = gRecycleIdx + 1
+            sweepBlock(gBlock)
+            gLine = FIRST_LINE
+        } else if gNFree > 0 {
+            gNFree = gNFree - 1
+            gBlock = ld(gFree as i64 + gNFree * 8)
+            gLine = FIRST_LINE
+        } else {
+            return false
+        }
+    }
+    return false
+}
+
+fn collectIfDue(): bool {
+    if gAllocSince >= gTrigger {
+        collect()
+        return true
+    }
+    return false
+}
+
+// Space for `total` bytes (header included) in a block; returns the header address. `align16`:
+// the payload (header + 8) must be 16-byte aligned; the skipped word is dead space no start bit
+// names.
+fn blockSpace(total: i64, align16: bool): i64 {
+    while true {
+        var c = gCur
+        if align16 && (c + 8) % 16 != 0 {
+            c = c + 8
+        }
+        if c + total <= gLim {
+            gCur = c + total
+            return c
+        }
+        if total > LINE_BYTES {
+            var o = gOvCur
+            if align16 && (o + 8) % 16 != 0 {
+                o = o + 8
+            }
+            if o + total <= gOvLim {
+                gOvCur = o + total
+                return o
+            }
+            if !collectIfDue() {
+                if gNFree == 0 {
+                    growHeap()
+                }
+                gNFree = gNFree - 1
+                let blk = ld(gFree as i64 + gNFree * 8)
+                gOvCur = blk + FIRST_BYTE
+                gOvLim = blk + BLOCK_BYTES
+                zero(gOvCur, gOvLim - gOvCur)
+                gAllocSince = gAllocSince + (gOvLim - gOvCur)
+            }
+        } else if !collectIfDue() {
+            if !nextHole() {
+                growHeap()
+            }
+        }
+    }
+    return 0
+}
+
+fn largeSpace(header: u64): i64 {
+    let total = gcHeaderSize(header) + 8
+    collectIfDue()
+    // One spare word in front keeps the payload 16-byte aligned (calloc returns 16-aligned memory).
+    var raw = 0 as *u8
+    unsafe {
+        raw = calloc(1, total + 8)
+    }
+    if raw as i64 == 0 {
+        fatal("out of memory (large object)")
+    }
+    let hdr = raw as i64 + 8
+    if gNLarge == gLargeCap {
+        unsafe {
+            gLargeMarks = realloc(gLargeMarks, newCap(gNLarge, gLargeCap))
+        }
+    }
+    gLarge = pushI64(gLarge, gNLarge, gLargeCap, hdr)
+    gLargeCap = newCap(gNLarge, gLargeCap)
+    gNLarge = gNLarge + 1
+    widen(raw as i64, hdr + total)
+    gAllocSince = gAllocSince + total
+    st(hdr, header as i64)
+    return hdr
+}
+
+// The slow path: generated IR calls it when its inline bump check fails.
+@externalLinkage
+pub fn cs_alloc_slow(header: u64): *u8 {
+    ensureInit()
+    if gInGc {
+        fatal("allocation during collection")
+    }
+    let size = gcHeaderSize(header)
+    if size >= 2147483648 {
+        fatal("allocation too large")
+    }
+    if gStress > 0 {
+        gStressCount = gStressCount + 1
+        if gStressCount >= gStress {
+            gStressCount = 0
+            collect()
+        }
+    } else {
+        // The inline fast path advanced the published cursor since the last slow path.
+        unsafe {
+            gCur = gBump.cursor
+        }
+    }
+    let total = size + 8
+    if total > LARGE_TOTAL {
+        unsafe {
+            return (largeSpace(header) + 8) as *u8
+        }
+    }
+    let hdr = blockSpace(total, gcHeaderKind(header) == GC_CONSERVATIVE)
+    st(hdr, header as i64)
+    setBit(0, blockOf(hdr), hdr)
+    publish()
+    unsafe {
+        return (hdr + 8) as *u8
+    }
+}
+
+// The allocation entry point for runtime code (and generated IR that does not inline the fast
+// path). Returns zeroed memory.
 @externalLinkage
 pub fn cs_alloc(header: u64): *u8 {
-    let size = gcHeaderSize(header)
-    let kind = gcHeaderKind(header)
+    let total = gcHeaderSize(header) + 8
     unsafe {
-        if kind == GC_CONSERVATIVE {
-            let raw = GC_malloc(size + 16)
-            *((raw as i64 + 8) as *u64) = header
-            return (raw as i64 + 16) as *u8
+        let b = gBump
+        if b as i64 != 0 && gcHeaderKind(header) != GC_CONSERVATIVE {
+            let c = b.cursor
+            if c + total <= b.limit {
+                b.cursor = c + total
+                st(c, header as i64)
+                setBit(0, blockOf(c), c)
+                return (c + 8) as *u8
+            }
         }
-        if kind == GC_ATOMIC {
-            let raw = GC_malloc_atomic(size + 8)
-            memset(raw, 0, size + 8)
-            *(raw as *u64) = header
-            return (raw as i64 + 8) as *u8
-        }
-        let raw = GC_malloc(size + 8)
-        *(raw as *u64) = header
-        return (raw as i64 + 8) as *u8
     }
+    return cs_alloc_slow(header)
 }
 
 pub fn gcAllocAtomic(n: i64): *u8 {
@@ -85,10 +542,339 @@ pub fn gcAllocConservative(n: i64): *u8 {
     return cs_alloc(gcHeader(GC_CONSERVATIVE, n, 0))
 }
 
-// Register [lo, hi) as a conservatively scanned root range (a fiber stack: memory outside the GC
-// heap that holds GC pointers).
-pub fn gcAddRoots(lo: *u8, hi: *u8) {
-    unsafe {
-        GC_add_roots(lo, hi)
+// ---- marking ----
+
+// Index of the large object containing `w`, or -1 (gLarge is sorted during a collection).
+fn largeIndex(w: i64): i64 {
+    var lo: i64 = 0
+    var hi = gNLarge
+    // Find the last header <= w.
+    while lo < hi {
+        let mid = (lo + hi) / 2
+        if ld(gLarge as i64 + mid * 8) <= w {
+            lo = mid + 1
+        } else {
+            hi = mid
+        }
     }
+    if lo == 0 {
+        return -1
+    }
+    let hdr = ld(gLarge as i64 + (lo - 1) * 8)
+    if w < hdr + 8 + gcHeaderSize(ld(hdr) as u64) {
+        return lo - 1
+    }
+    return -1
+}
+
+// The header of the object in block `blk` that `w` points into, or 0.
+fn blockObject(blk: i64, w: i64): i64 {
+    let off = w - blk
+    if off < FIRST_BYTE {
+        return 0
+    }
+    let g = off >> 3
+    var wi = g >> 6
+    let b = g & 63
+    let mask: i64 = if b == 63 { -1 } else { (1 << (b + 1)) - 1 }
+    var bits = ld(blk + wi * 8) & mask
+    while bits == 0 {
+        if wi <= FIRST_WORD {
+            return 0
+        }
+        wi = wi - 1
+        bits = ld(blk + wi * 8)
+    }
+    let hdr = blk + (wi * 64 + 63 - bits.leadingZeros()) * 8
+    if w >= hdr + 8 + gcHeaderSize(ld(hdr) as u64) {
+        return 0
+    }
+    return hdr
+}
+
+fn push(hdr: i64) {
+    gStack = pushI64(gStack, gNStack, gStackCap, hdr)
+    gStackCap = newCap(gNStack, gStackCap)
+    gNStack = gNStack + 1
+}
+
+// Mark the object `w` points into (raw, tagged or interior), if any. False when `w` lies inside a
+// chunk but inside no object.
+fn visit(w: i64): bool {
+    if w < gHeapLo || w >= gHeapHi {
+        return true
+    }
+    if chunkKnown(w & (0 - CHUNK_BYTES)) {
+        let blk = blockOf(w)
+        let hdr = blockObject(blk, w)
+        if hdr == 0 {
+            return false
+        }
+        if testBit(MARK_BITS, blk, hdr) {
+            return true
+        }
+        setBit(MARK_BITS, blk, hdr)
+        let total = gcHeaderSize(ld(hdr) as u64) + 8
+        var l = (hdr - blk) >> 7
+        let last = (hdr + total - 1 - blk) >> 7
+        while l <= last {
+            stb(blk + LINE_MARKS + l, 1)
+            l = l + 1
+        }
+        gLiveBytes = gLiveBytes + total
+        push(hdr)
+        return true
+    }
+    let i = largeIndex(w)
+    if i < 0 {
+        return true
+    }
+    let m = gLargeMarks as i64 + i
+    if ldb(m) == 0 {
+        stb(m, 1)
+        let hdr = ld(gLarge as i64 + i * 8)
+        gLiveBytes = gLiveBytes + gcHeaderSize(ld(hdr) as u64) + 8
+        push(hdr)
+    }
+    return true
+}
+
+// A root word (the conservative scan's callback, from residue.c).
+fn visitRoot(w: i64) {
+    visit(w)
+}
+
+// A precisely traced slot. In verify mode, a slot that points into a chunk but at no object is a
+// dangling pointer: something freed an object still in use.
+fn visitSlot(w: i64) {
+    if !visit(w) && gVerify {
+        fatal("verify: a traced slot points at freed memory")
+    }
+}
+
+fn scanObject(hdr: i64) {
+    let h = ld(hdr) as u64
+    let kind = gcHeaderKind(h)
+    let n = gcHeaderSize(h) >> 3
+    let p = hdr + 8
+    if kind == GC_ATOMIC {
+        return
+    }
+    if kind == GC_VALUES {
+        var i: i64 = 0
+        while i < n {
+            visitSlot(ld(p + i * 8))
+            i = i + 1
+        }
+        return
+    }
+    if kind == GC_CONSERVATIVE {
+        var i: i64 = 0
+        while i < n {
+            visit(ld(p + i * 8))
+            i = i + 1
+        }
+        return
+    }
+    if kind == GC_STRUCT {
+        var m = ((h >> 8) & 16777215) as i64
+        while m != 0 {
+            let i = m.trailingZeros()
+            if i < n {
+                visitSlot(ld(p + i * 8))
+            }
+            m = m & (m - 1)
+        }
+        return
+    }
+    if kind == GC_RECORD {
+        // CsShape (abi.milo): fieldCount at word 0, kinds (one byte per field) at word 2.
+        let shape = ld(p)
+        if shape == 0 {
+            return
+        }
+        visitSlot(shape)
+        var count = ld(shape)
+        if count > n - 1 {
+            count = n - 1
+        }
+        let kinds = ld(shape + 16)
+        var i: i64 = 0
+        while i < count {
+            // KIND_NUMBER / BOOLEAN / NULL / UNDEFINED hold raw scalars; every other kind may point.
+            let k = ldb(kinds + i)
+            if k != 1 && k != 3 && k != 4 && k != 5 {
+                visitSlot(ld(p + 8 + i * 8))
+            }
+            i = i + 1
+        }
+        return
+    }
+    fatal("corrupt object header")
+}
+
+fn drain() {
+    while gNStack > 0 {
+        gNStack = gNStack - 1
+        scanObject(ld(gStack as i64 + gNStack * 8))
+    }
+}
+
+fn cmpI64(a: *u8, b: *u8): i32 {
+    unsafe {
+        let x = *(a as *i64)
+        let y = *(b as *i64)
+        if x < y {
+            return -1
+        }
+        if x > y {
+            return 1
+        }
+        return 0
+    }
+}
+
+// _setjmp spills the callee-saved registers (where a caller may hold the only copy of a pointer)
+// into `regs`, a local of this frame, which the scan of the running stack (from cs_sp, below this
+// frame) covers.
+fn markRoots() {
+    var regs: [i64; 64] = [0; 64]
+    unsafe {
+        _setjmp(regs[0].addrOf() as *u8)
+    }
+    let sp = cs_sp()
+    var i: i64 = 0
+    while i < gcStackCount() {
+        visit(gcStackCtx(i))
+        cs_gc_scan(gcStackLo(i, sp), gcStackTop(i), gHeapLo, gHeapHi, visitRoot)
+        i = i + 1
+    }
+    cs_gc_scan(cs_gc_data_lo(), cs_gc_data_hi(), gHeapLo, gHeapHi, visitRoot)
+    drain()
+    // A use after the trace, so `regs` stays in this frame until it is done.
+    if regs[0] == 1 && regs[1] == 2 {
+        writeErrLit("")
+    }
+}
+
+// ---- collection ----
+
+fn anyLineMarked(blk: i64): bool {
+    var i: i64 = 0
+    while i < 32 {
+        if ld(blk + LINE_MARKS + i * 8) != 0 {
+            return true
+        }
+        i = i + 1
+    }
+    return false
+}
+
+fn poisonFreeLines(blk: i64) {
+    var l = FIRST_LINE
+    while l < LINES {
+        if !lineMarked(blk, l) {
+            unsafe {
+                memset((blk + l * LINE_BYTES) as *u8, 171, LINE_BYTES)
+            }
+        }
+        l = l + 1
+    }
+}
+
+fn blockAt(c: i64, b: i64): i64 {
+    return ld(gChunks as i64 + c * 8) + b * BLOCK_BYTES
+}
+
+fn collect() {
+    if gInGc {
+        fatal("recursive collection")
+    }
+    gInGc = true
+    // Start bits must name only live objects before anything resolves a pointer.
+    while gRecycleIdx < gNRecycle {
+        sweepBlock(ld(gRecycle as i64 + gRecycleIdx * 8))
+        gRecycleIdx = gRecycleIdx + 1
+    }
+    var c: i64 = 0
+    while c < gNChunks {
+        var b: i64 = 0
+        while b < BLOCKS_PER_CHUNK {
+            zero(blockAt(c, b) + LINE_MARKS, LINES)
+            b = b + 1
+        }
+        c = c + 1
+    }
+    unsafe {
+        if gNLarge > 1 {
+            qsort(gLarge as *u8, gNLarge, 8, cmpI64)
+        }
+        if gNLarge > 0 {
+            memset(gLargeMarks, 0, gNLarge)
+        }
+    }
+    gLiveBytes = 0
+    markRoots()
+
+    // Blocks: any marked line = recyclable (swept when the allocator reaches it), else free.
+    gNRecycle = 0
+    gRecycleIdx = 0
+    gNFree = 0
+    c = 0
+    while c < gNChunks {
+        var b: i64 = 0
+        while b < BLOCKS_PER_CHUNK {
+            let blk = blockAt(c, b)
+            if anyLineMarked(blk) {
+                gRecycle = pushI64(gRecycle, gNRecycle, gRecycleCap, blk)
+                gRecycleCap = newCap(gNRecycle, gRecycleCap)
+                gNRecycle = gNRecycle + 1
+            } else {
+                zero(blk, LINE_MARKS)
+                pushFree(blk)
+            }
+            if gVerify {
+                poisonFreeLines(blk)
+            }
+            b = b + 1
+        }
+        c = c + 1
+    }
+    // Large objects: free the unmarked, keep the rest in order.
+    var keep: i64 = 0
+    var i: i64 = 0
+    while i < gNLarge {
+        let hdr = ld(gLarge as i64 + i * 8)
+        if ldb(gLargeMarks as i64 + i) != 0 {
+            st(gLarge as i64 + keep * 8, hdr)
+            keep = keep + 1
+        } else {
+            unsafe {
+                free((hdr - 8) as *u8)
+            }
+        }
+        i = i + 1
+    }
+    gNLarge = keep
+    // The current hole and overflow region are abandoned: their unused lines are unmarked, so the
+    // allocator finds them again as free lines.
+    gBlock = 0
+    gCur = 0
+    gLim = 0
+    gOvCur = 0
+    gOvLim = 0
+    publish()
+    gAllocSince = 0
+    gTrigger = gLiveBytes * GROWTH
+    if gTrigger < MIN_TRIGGER {
+        gTrigger = MIN_TRIGGER
+    }
+    gInGc = false
+}
+
+// Run a full collection now (runtime tests).
+@externalLinkage
+pub fn cs_gc_collect() {
+    ensureInit()
+    collect()
 }

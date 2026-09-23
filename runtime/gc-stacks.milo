@@ -1,0 +1,132 @@
+// The stacks the collector scans as roots: the main stack and every live fiber stack (async.milo).
+// Exactly one stack is running; the collector scans it from its own frame up. Every other live
+// stack is suspended inside swapcontext, and gcStackSwitch recorded the ucontext it was saved into:
+// its registers are there (the collector marks the ucontext, a GC_CONSERVATIVE object), and the
+// stack is scanned from the SP saved in it. That SP, not one taken before the call, is the lower
+// bound: swapcontext's own prologue spills the caller's callee-saved registers into its frame,
+// below any SP its caller can observe (a pointer held only in such a register was lost that way).
+//
+// Entries live in malloc'd side tables (never GC memory, which would make the registry depend on
+// itself being traced). A retired fiber's slot is reused by the next fiber.
+
+@!wrapping
+
+from "./libc" import { realloc }
+
+extern fn cs_stack_top(): i64
+extern fn cs_ctx_sp(ctx: i64): i64
+
+// Per slot: top (highest address, exclusive), the ucontext it was last suspended into (0 = never
+// suspended), live flag (0/1).
+var gTop: *i64 = 0 as *i64
+var gCtx: *i64 = 0 as *i64
+var gLive: *i64 = 0 as *i64
+var gN: i64 = 0
+var gCap: i64 = 0
+var gCur: i64 = 0
+
+fn at(p: *i64, i: i64): *i64 {
+    unsafe {
+        return (p as i64 + i * 8) as *i64
+    }
+}
+
+fn grow() {
+    let nc = if gCap == 0 { 16 } else { gCap * 2 }
+    unsafe {
+        gTop = realloc(gTop as *u8, nc * 8) as *i64
+        gCtx = realloc(gCtx as *u8, nc * 8) as *i64
+        gLive = realloc(gLive as *u8, nc * 8) as *i64
+    }
+    gCap = nc
+}
+
+// Slot 0 is the main stack.
+pub fn gcStacksInit() {
+    let top = cs_stack_top()
+    gcStackNew(top)
+    gCur = 0
+}
+
+// Register a stack whose highest address is `top`; returns its slot.
+pub fn gcStackNew(top: i64): i64 {
+    var i: i64 = 0
+    unsafe {
+        while i < gN {
+            if *at(gLive, i) == 0 {
+                break
+            }
+            i = i + 1
+        }
+        if i == gN {
+            if gN == gCap {
+                grow()
+            }
+            gN = gN + 1
+        }
+        *at(gTop, i) = top
+        *at(gCtx, i) = 0
+        *at(gLive, i) = 1
+    }
+    return i
+}
+
+pub fn gcStackCurrent(): i64 {
+    return gCur
+}
+
+// Called right before swapcontext(ctx, ...) leaves the running stack for stack `to`.
+pub fn gcStackSwitch(to: i64, ctx: *u8) {
+    unsafe {
+        *at(gCtx, gCur) = ctx as i64
+    }
+    gCur = to
+}
+
+// The fiber on this stack has finished: nothing on it is live any more.
+pub fn gcStackRetire(i: i64) {
+    unsafe {
+        *at(gLive, i) = 0
+    }
+}
+
+pub fn gcStackCount(): i64 {
+    return gN
+}
+
+// The ucontext a suspended live slot was saved into, else 0. The collector marks it: the registry
+// is a malloc'd table, so this is what keeps a suspended stack's saved registers alive.
+pub fn gcStackCtx(i: i64): i64 {
+    unsafe {
+        if *at(gLive, i) == 0 || i == gCur {
+            return 0
+        }
+        return *at(gCtx, i)
+    }
+}
+
+// The live range of slot `i` as [lo, top), given the running stack's current SP; lo == top for a
+// retired or never-suspended slot.
+pub fn gcStackLo(i: i64, runningSp: i64): i64 {
+    unsafe {
+        let top = *at(gTop, i)
+        if *at(gLive, i) == 0 {
+            return top
+        }
+        if i == gCur {
+            return runningSp
+        }
+        let ctx = *at(gCtx, i)
+        if ctx == 0 {
+            return top
+        }
+        let sp = cs_ctx_sp(ctx)
+        return if sp > top { top } else { sp }
+    }
+}
+
+pub fn gcStackTop(i: i64): i64 {
+    unsafe {
+        return *at(gTop, i)
+    }
+}

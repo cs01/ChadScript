@@ -4,7 +4,7 @@
 // The old fixed 4096 ring with no overflow check would silently drop tasks. Exits 0 on pass.
 #include <stdint.h>
 #include <stdio.h>
-#include <gc.h>
+void cs_gc_init(void);
 
 #define N 200  // > the queue's initial capacity (64), so growth is exercised
 
@@ -26,7 +26,7 @@ static void body(void *arg) {
 }
 
 int main(void) {
-  GC_INIT();
+  cs_gc_init();
   shared = cs_promise_new();
   for (int i = 0; i < N; i++) cs_fiber_spawn(body, (void *)(intptr_t)i);
   cs_promise_resolve(shared, 0);
