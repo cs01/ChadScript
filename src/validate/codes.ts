@@ -45,6 +45,7 @@ export const CODE = {
   PROPERTY_ADD: "CS1235", // a write that can add a property to an object created without it
   LAYOUT_LIMIT: "CS1236", // too many possible runtime layouts at one site (spread, Object.values)
   METHOD_REPRESENTATION: "CS1237", // a method call whose implementations disagree on machine types
+  UNRENDERABLE_VALUE: "CS1238", // console.log/JSON.stringify of a value that can hold a Promise etc.
 } as const;
 
 export type Code = (typeof CODE)[keyof typeof CODE];

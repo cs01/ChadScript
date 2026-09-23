@@ -41,7 +41,9 @@ const concat = (ctx: Ctx, a: Value, b: Value): Value =>
 
 // Field types the formatters support. Every shape gets both functions whether or not it is ever
 // printed, so a layout holding something else (a Promise, a caught error) gets a function that
-// stops with an error when called instead of failing the whole compile.
+// stops with an error when called instead of failing the whole compile. Validation (CS1238,
+// validate/render-rules.ts) rejects every console.log / JSON.stringify site such a layout can
+// reach, so these stubs are unreachable in an accepted program; they stay as a loud backstop.
 function inspectable(t: ValueType): boolean {
   switch (t.kind) {
     case "number":

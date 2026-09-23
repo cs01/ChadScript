@@ -43,6 +43,7 @@ export function emitPrintComputed(val: Value, type: ValueType, ctx: Ctx): void {
     case "object":
     case "map":
     case "set":
+    case "function":
       // Containers print in util.inspect form; strings inside get quoted.
       ctx.fn.callVoid("@cs_print_cstr", [inspect(val, type, ctx, imm(T.i32, 0))]);
       return;

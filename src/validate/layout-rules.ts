@@ -6,6 +6,8 @@
 //   - CS1236: a site whose possible runtime layouts the compiler will not enumerate (a spread with
 //     too many source-layout combinations), or cannot read with one representation
 //     (Object.values over objects whose fields have different representations).
+//   - CS1238: console.log / JSON.stringify of a value that can hold something unrenderable
+//     (render-rules.ts).
 
 import ts from "typescript";
 import { type Diagnostic, ice } from "../diagnostics.js";
@@ -15,6 +17,7 @@ import { UnrepresentableTypeError, valueTypeOfTsType } from "../lower/type-trans
 import type { ValueType } from "../hir/types.js";
 import { CODE } from "./codes.js";
 import { spanOf } from "./validate.js";
+import { renderDiagnostic } from "./render-rules.js";
 
 export function layoutDiagnostics(loaded: LoadedProgram): Diagnostic[] {
   const analysis = layoutsOf(loaded);
@@ -117,6 +120,8 @@ export function layoutDiagnostics(loaded: LoadedProgram): Diagnostic[] {
   const visit = (node: ts.Node): void => {
     if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
       checkMethodCall(node, node.expression);
+      const render = renderDiagnostic(node, analysis, checker);
+      if (render) out.push(render);
     }
     if (
       ts.isBinaryExpression(node) &&

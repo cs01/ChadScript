@@ -255,3 +255,4 @@ diagnostic — there is no "compiles but behaves differently than Node" third ca
 | `CS1235` | PROPERTY_ADD |
 | `CS1236` | LAYOUT_LIMIT |
 | `CS1237` | METHOD_REPRESENTATION |
+| `CS1238` | UNRENDERABLE_VALUE |
