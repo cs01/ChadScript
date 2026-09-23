@@ -18,3 +18,4 @@ from "./map" import { cs_map_new }
 from "./set" import { cs_set_new }
 from "./json" import { cs_json_num }
 from "./json-parse" import { cs_json_parse }
+from "./fs" import { cs_fs_read_file }

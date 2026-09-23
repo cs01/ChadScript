@@ -1,0 +1,164 @@
+// Filesystem access. Paths and contents are CsString {ptr,len} like every other string, so nothing
+// relies on NUL termination except the POSIX calls themselves, which get a NUL-terminated copy.
+//
+// Errors follow Node: a failed read/unlink THROWS (so try/catch handles it) rather than returning
+// a sentinel a caller could ignore; existsSync answers false instead. Each operation is split into
+// a non-throwing core that reports the failure, so fs/promises can turn the same failure into a
+// rejection without catching a throw (see fs-promises.milo).
+
+from "./abi" import { CsString, GC_malloc, memcpy }
+from "./csstring" import { cs_str_mk }
+from "./errors" import { throwError }
+from "./libc" import { fopen, fclose, fseek, ftell, rewind, fread, fwrite, access, unlink }
+
+let SEEK_END: i32 = 2
+
+// A failed operation: the syscall name that failed ("open", "read", "unlink"), or "" for success.
+// Node's message names it: "ENOENT: no such file or directory, open 'x'".
+pub extern struct FsResult {
+    failedOp: *u8,
+    failedOpLen: i64,
+    value: *CsString,
+}
+
+fn ok(value: *CsString): FsResult {
+    return FsResult { failedOp: 0 as *u8, failedOpLen: 0, value: value }
+}
+
+fn failed(op: &string): FsResult {
+    // Literals are static data, so keeping their pointer past this call is safe.
+    return FsResult { failedOp: op.cstr(), failedOpLen: op.len, value: 0 as *CsString }
+}
+
+pub fn isFailure(r: &FsResult): bool {
+    return r.failedOpLen != 0
+}
+
+// A NUL-terminated copy of a CsString for the POSIX calls. An embedded NUL truncates the path
+// here, which is exactly what the OS would do with it anyway.
+fn pathCstr(p: *CsString): *u8 {
+    unsafe {
+        let buf = GC_malloc(p.len + 1)
+        memcpy(buf, p.data, p.len)
+        buf[p.len] = 0
+        return buf
+    }
+}
+
+fn appendBytes(dst: *u8, o: i64, src: *u8, n: i64): i64 {
+    unsafe {
+        memcpy((dst as i64 + o) as *u8, src, n)
+    }
+    return o + n
+}
+
+// The Error for a failed operation, shaped like Node's message so a caught error reads the same.
+pub fn fsError(r: &FsResult, path: *CsString): *CsString {
+    let pre = "ENOENT: no such file or directory, "
+    unsafe {
+        let total = pre.len + r.failedOpLen + 2 + path.len + 1
+        let msg = GC_malloc(total)
+        var o = appendBytes(msg, 0, pre.cstr(), pre.len)
+        o = appendBytes(msg, o, r.failedOp, r.failedOpLen)
+        o = appendBytes(msg, o, " '".cstr(), 2)
+        o = appendBytes(msg, o, path.data, path.len)
+        o = appendBytes(msg, o, "'".cstr(), 1)
+        return cs_str_mk(msg, o)
+    }
+}
+
+fn raise(r: &FsResult, path: *CsString) {
+    throwError(fsError(r, path))
+}
+
+pub fn readFile(path: *CsString): FsResult {
+    unsafe {
+        let f = fopen(pathCstr(path), "rb")
+        if f as i64 == 0 {
+            return failed("open")
+        }
+        if fseek(f, 0, SEEK_END) != 0 {
+            fclose(f)
+            return failed("read")
+        }
+        let size = ftell(f)
+        if size < 0 {
+            fclose(f)
+            return failed("read")
+        }
+        rewind(f)
+        let buf = GC_malloc(size + 1)
+        let got = if size > 0 { fread(buf, 1, size, f) } else { 0 }
+        fclose(f)
+        return ok(cs_str_mk(buf, got))
+    }
+}
+
+// Truncating write ("wb") or append ("ab").
+pub fn writeFile(path: *CsString, data: *CsString, mode: &string): FsResult {
+    unsafe {
+        let f = fopen(pathCstr(path), mode.cstr())
+        if f as i64 == 0 {
+            return failed("open")
+        }
+        if data.len > 0 {
+            fwrite(data.data, 1, data.len, f)
+        }
+        fclose(f)
+    }
+    return ok(0 as *CsString)
+}
+
+pub fn unlinkFile(path: *CsString): FsResult {
+    unsafe {
+        if unlink(pathCstr(path)) != 0 {
+            return failed("unlink")
+        }
+    }
+    return ok(0 as *CsString)
+}
+
+// fs.readFileSync(path, "utf8") -> the whole file as a string.
+@externalLinkage
+pub fn cs_fs_read_file(path: *CsString): *CsString {
+    let r = readFile(path)
+    if isFailure(r) {
+        raise(r, path)
+    }
+    return r.value
+}
+
+// fs.writeFileSync(path, data). Truncates like Node.
+@externalLinkage
+pub fn cs_fs_write_file(path: *CsString, data: *CsString) {
+    let r = writeFile(path, data, "wb")
+    if isFailure(r) {
+        raise(r, path)
+    }
+}
+
+// fs.appendFileSync(path, data).
+@externalLinkage
+pub fn cs_fs_append_file(path: *CsString, data: *CsString) {
+    let r = writeFile(path, data, "ab")
+    if isFailure(r) {
+        raise(r, path)
+    }
+}
+
+// fs.existsSync(path) -> 0/1. Never throws: absence is the answer, not an error.
+@externalLinkage
+pub fn cs_fs_exists(path: *CsString): i32 {
+    unsafe {
+        return if access(pathCstr(path), 0) == 0 { 1 } else { 0 }
+    }
+}
+
+// fs.unlinkSync(path).
+@externalLinkage
+pub fn cs_fs_unlink(path: *CsString) {
+    let r = unlinkFile(path)
+    if isFailure(r) {
+        raise(r, path)
+    }
+}
