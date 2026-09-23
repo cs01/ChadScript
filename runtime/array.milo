@@ -1,0 +1,192 @@
+// Array runtime. One uniform representation serves every element type: each element is one 8-byte
+// slot (i64). Generated IR boxes an element into a slot before pushing (number: the double's bits,
+// string: the pointer's bits, boolean: 0/1) and unboxes on read, so number[] / string[] /
+// boolean[] share one implementation.
+//
+// The header and its data buffer are GC memory, so an unreachable array is reclaimed.
+
+from "./abi" import { CsArray, GC_malloc, memcpy, memmove }
+from "./nullable" import { undefinedMarker, boxSlot }
+
+fn slotAt(data: *i64, i: i64): *u8 {
+    unsafe {
+        return (data as i64 + i * 8) as *u8
+    }
+}
+
+@externalLinkage
+pub fn cs_array_new(): *CsArray {
+    unsafe {
+        let a = GC_malloc(16) as *CsArray
+        a.data = 0 as *i64
+        a.len = 0
+        a.cap = 0
+        return a
+    }
+}
+
+// Append one slot, growing the buffer geometrically. Returns the new length (JS `push` result).
+@externalLinkage
+pub fn cs_array_push(a: *CsArray, slot: i64): i32 {
+    unsafe {
+        let len = a.len
+        if len == a.cap {
+            let ncap: i32 = if a.cap == 0 { 4 } else { a.cap * 2 }
+            let nd = GC_malloc(ncap as i64 * 8) as *i64
+            if len > 0 {
+                memcpy(nd as *u8, a.data as *u8, len as i64 * 8)
+            }
+            a.data = nd
+            a.cap = ncap
+        }
+        a.data[len as i64] = slot
+        a.len = len + 1
+        return len + 1
+    }
+}
+
+@externalLinkage
+pub fn cs_array_len(a: *CsArray): i32 {
+    unsafe {
+        return a.len
+    }
+}
+
+// Raw slot read. Callers (for...of, index access) stay within [0, len) by construction.
+@externalLinkage
+pub fn cs_array_get(a: *CsArray, i: i32): i64 {
+    unsafe {
+        return a.data[i as i64]
+    }
+}
+
+// Raw slot write, in bounds by construction (used by the in-place sort).
+@externalLinkage
+pub fn cs_array_set(a: *CsArray, i: i32, slot: i64) {
+    unsafe {
+        a.data[i as i64] = slot
+    }
+}
+
+// Append all of `src`'s slots to `dst` (array-literal spread `[...src]`). Same element type, so the
+// boxed slots copy over unchanged.
+@externalLinkage
+pub fn cs_array_extend(dst: *CsArray, src: *CsArray) {
+    var i: i32 = 0
+    while i < cs_array_len(src) {
+        cs_array_push(dst, cs_array_get(src, i))
+        i = i + 1
+    }
+}
+
+// `arr.flat()` (depth 1): concatenate every element array's slots into a fresh array. Each outer
+// slot holds an inner array pointer.
+@externalLinkage
+pub fn cs_array_flat(a: *CsArray): *CsArray {
+    let r = cs_array_new()
+    var i: i32 = 0
+    while i < cs_array_len(a) {
+        unsafe {
+            cs_array_extend(r, cs_array_get(a, i) as *CsArray)
+        }
+        i = i + 1
+    }
+    return r
+}
+
+// `arr.at(i)` -> `element | undefined`. A negative index counts from the end (JS semantics).
+@externalLinkage
+pub fn cs_array_at(a: *CsArray, di: f64): *u8 {
+    let n = cs_array_len(a) as i64
+    var i = di as i64
+    if i < 0 {
+        i = i + n
+    }
+    if i < 0 || i >= n {
+        return undefinedMarker()
+    }
+    return boxSlot(cs_array_get(a, i as i32))
+}
+
+// pop: remove and return the last element as `element | undefined`.
+@externalLinkage
+pub fn cs_array_pop(a: *CsArray): *u8 {
+    unsafe {
+        if a.len == 0 {
+            return undefinedMarker()
+        }
+        a.len = a.len - 1
+        return boxSlot(a.data[a.len as i64])
+    }
+}
+
+// shift: remove and return the first element as `element | undefined`; shifts the rest down.
+@externalLinkage
+pub fn cs_array_shift(a: *CsArray): *u8 {
+    unsafe {
+        if a.len == 0 {
+            return undefinedMarker()
+        }
+        let first = a.data[0]
+        a.len = a.len - 1
+        memmove(a.data as *u8, slotAt(a.data, 1), a.len as i64 * 8)
+        return boxSlot(first)
+    }
+}
+
+// reverse: in place; returns the same array (JS `reverse` returns `this`).
+@externalLinkage
+pub fn cs_array_reverse(a: *CsArray): *CsArray {
+    unsafe {
+        var i: i64 = 0
+        var j = a.len as i64 - 1
+        while i < j {
+            let t = a.data[i]
+            a.data[i] = a.data[j]
+            a.data[j] = t
+            i = i + 1
+            j = j - 1
+        }
+    }
+    return a
+}
+
+// JS relative-index normalization for slice: negative counts from the end, then clamp [0, n].
+pub fn relIndex(i: i64, n: i64): i64 {
+    if i < 0 {
+        return if i + n < 0 { 0 } else { i + n }
+    }
+    return if i > n { n } else { i }
+}
+
+fn sliceNorm(a: *CsArray, start: i64, end: i64): *CsArray {
+    let n = cs_array_len(a) as i64
+    let s = relIndex(start, n)
+    let e = relIndex(end, n)
+    let r = cs_array_new()
+    var i = s
+    while i < e {
+        cs_array_push(r, cs_array_get(a, i as i32))
+        i = i + 1
+    }
+    return r
+}
+
+@externalLinkage
+pub fn cs_array_slice1(a: *CsArray, start: f64): *CsArray {
+    return sliceNorm(a, start as i64, cs_array_len(a) as i64)
+}
+
+@externalLinkage
+pub fn cs_array_slice2(a: *CsArray, start: f64, end: f64): *CsArray {
+    return sliceNorm(a, start as i64, end as i64)
+}
+
+// concat: a new array = a followed by b.
+@externalLinkage
+pub fn cs_array_concat(a: *CsArray, b: *CsArray): *CsArray {
+    let r = cs_array_new()
+    cs_array_extend(r, a)
+    cs_array_extend(r, b)
+    return r
+}

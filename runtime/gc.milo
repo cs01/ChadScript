@@ -1,0 +1,11 @@
+// Raw GC allocation for object records (an i64 slot per field). The collector itself is started by
+// cs_gc_init in residue.c (GC_INIT is a C macro).
+
+from "./abi" import { GC_malloc }
+
+@externalLinkage
+pub fn cs_gc_alloc(n: i64): *u8 {
+    unsafe {
+        return GC_malloc(n)
+    }
+}

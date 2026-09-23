@@ -1,0 +1,23 @@
+// Nullable (`T | undefined`) support. An optional value is a pointer: either the address of the
+// `cs_undefined_marker` global (meaning `undefined`) or a pointer to a GC box holding the boxed
+// inner value. The marker globals are defined in C (runtime/residue.c) because generated IR
+// compares against their addresses and Milo has no way to define or name a data symbol.
+
+from "./abi" import { GC_malloc }
+
+extern fn cs_undefined_ptr(): *u8
+
+pub fn undefinedMarker(): *u8 {
+    unsafe {
+        return cs_undefined_ptr()
+    }
+}
+
+// Box one i64 slot into an optional (a GC pointer to the slot), for `element | undefined` results.
+pub fn boxSlot(slot: i64): *u8 {
+    unsafe {
+        let b = GC_malloc(8) as *i64
+        *b = slot
+        return b as *u8
+    }
+}
