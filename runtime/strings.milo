@@ -1,0 +1,302 @@
+// String runtime: concatenation, to-string coercions, inspect formatting, and Number(str) parsing.
+// Strings are {data,len} (see abi.milo); NUL is an ordinary byte. Heap goes through Boehm.
+
+from "./abi" import { CsString, GC_malloc, GC_malloc_atomic, memcpy, memcmp, byteAt, isNan, isFinite, signBit }
+from "./csstring" import { cs_str_mk, cs_str_from, strLit }
+from "./number" import { numToStr, numToRadix }
+from "./libc" import { strtod }
+
+fn sdata(s: *CsString): *u8 {
+    unsafe {
+        return s.data
+    }
+}
+
+fn slen(s: *CsString): i64 {
+    unsafe {
+        return s.len
+    }
+}
+
+fn sbyte(s: *CsString, i: i64): u8 {
+    unsafe {
+        return s.data[i]
+    }
+}
+
+@externalLinkage
+pub fn cs_str_concat(a: *CsString, b: *CsString): *CsString {
+    let la = slen(a)
+    let lb = slen(b)
+    let n = la + lb
+    unsafe {
+        let r = GC_malloc(if n > 0 { n } else { 1 })
+        memcpy(r, sdata(a), la)
+        memcpy(byteAt(r, la), sdata(b), lb)
+        return cs_str_mk(r, n)
+    }
+}
+
+// Number -> string via Number::toString semantics. This is the string COERCION path (`"" + x`,
+// template literals), so -0 becomes "0", unlike console.log(-0).
+@externalLinkage
+pub fn cs_num_to_string(x: f64): *CsString {
+    var buf: [u8; 40] = [0; 40]
+    var n: i64 = 0
+    unsafe { n = numToStr(x, buf.addrOf() as *u8) }
+    return cs_str_from(buf, n)
+}
+
+// The two boolean spellings, built once. A GC pointer in a Milo global is fine: Boehm scans the
+// program's static data.
+var gTrue: *CsString = 0 as *CsString
+var gFalse: *CsString = 0 as *CsString
+
+@externalLinkage
+pub fn cs_bool_to_string(b: i32): *CsString {
+    if b != 0 {
+        if gTrue as i64 == 0 {
+            gTrue = strLit("true")
+        }
+        return gTrue
+    }
+    if gFalse as i64 == 0 {
+        gFalse = strLit("false")
+    }
+    return gFalse
+}
+
+// util.inspect number: like Number::toString, except -0 prints as "-0" (Node shows the sign in
+// inspect output, unlike String(-0)).
+@externalLinkage
+pub fn cs_inspect_num(x: f64): *CsString {
+    if x == 0.0 && signBit(x) {
+        return strLit("-0")
+    }
+    return cs_num_to_string(x)
+}
+
+// Function-local literal: see radixChar in number.milo for why this is not a global.
+fn hexUpper(d: i64): u8 {
+    let chars = "0123456789ABCDEF"
+    return chars[d]
+}
+
+// util.inspect string: quoted. Node prefers single quotes; if the string has a single quote but no
+// double quote it uses double quotes; otherwise single quotes with `'` escaped. Backslash and
+// control chars are escaped exactly as Node does: \b \t \n \f \r are named, every other byte below
+// 0x20 (NUL included) becomes \xHH with UPPERCASE hex.
+@externalLinkage
+pub fn cs_inspect_str(s: *CsString): *CsString {
+    let n = slen(s)
+    var hasSingle = false
+    var hasDouble = false
+    var i: i64 = 0
+    while i < n {
+        let c = sbyte(s, i)
+        if c == '\'' {
+            hasSingle = true
+        } else if c == '"' {
+            hasDouble = true
+        }
+        i = i + 1
+    }
+    let quote: u8 = if hasSingle && !hasDouble { '"' } else { '\'' }
+    unsafe {
+        // Worst case every byte becomes \xHH (4 bytes), plus the two quotes.
+        let r = GC_malloc(n * 4 + 2)
+        var o: i64 = 0
+        r[o] = quote
+        o = o + 1
+        i = 0
+        while i < n {
+            let c = sbyte(s, i)
+            i = i + 1
+            var named: u8 = 0
+            if c == quote || c == '\\' {
+                r[o] = '\\'
+                r[o + 1] = c
+                o = o + 2
+                continue
+            } else if c == 8 {
+                named = 'b'
+            } else if c == '\t' {
+                named = 't'
+            } else if c == '\n' {
+                named = 'n'
+            } else if c == 12 {
+                named = 'f'
+            } else if c == '\r' {
+                named = 'r'
+            }
+            if named != 0 {
+                r[o] = '\\'
+                r[o + 1] = named
+                o = o + 2
+            } else if c < 32 {
+                r[o] = '\\'
+                r[o + 1] = 'x'
+                r[o + 2] = hexUpper((c >> 4) as i64)
+                r[o + 3] = hexUpper((c & 15) as i64)
+                o = o + 4
+            } else {
+                r[o] = c
+                o = o + 1
+            }
+        }
+        r[o] = quote
+        o = o + 1
+        return cs_str_mk(r, o)
+    }
+}
+
+pub fn isWs(c: u8): bool {
+    return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == 11 || c == 12
+}
+
+// Digit value of an ASCII alphanumeric in radix 36, or 99 for anything else.
+pub fn digitValue(c: u8): i64 {
+    if c >= '0' && c <= '9' {
+        return (c - '0') as i64
+    }
+    if c >= 'a' && c <= 'z' {
+        return (c - 'a') as i64 + 10
+    }
+    if c >= 'A' && c <= 'Z' {
+        return (c - 'A') as i64 + 10
+    }
+    return 99
+}
+
+// Parse bytes [a, b) of p as a whole radix integer (Number("0x1f") etc.); NaN if empty or any bad
+// digit.
+fn parseRadixWhole(p: *u8, a: i64, b: i64, radix: i64): f64 {
+    if a >= b {
+        return f64.NAN
+    }
+    var v = 0.0
+    var i = a
+    while i < b {
+        var d: i64 = 0
+        unsafe { d = digitValue(p[i]) }
+        if d >= radix {
+            return f64.NAN
+        }
+        v = v * radix as f64 + d as f64
+        i = i + 1
+    }
+    return v
+}
+
+fn bytesEq(p: *u8, n: i64, lit: &string): bool {
+    if n != lit.len {
+        return false
+    }
+    unsafe {
+        return memcmp(p, lit.cstr(), n) == 0
+    }
+}
+
+// ECMAScript StringToNumber (what `Number(str)` uses): the WHOLE trimmed string must be a valid
+// numeric literal, else NaN. Empty/whitespace -> 0. Supports 0x/0o/0b (unsigned), Infinity, and
+// decimal with exponent. An embedded NUL is not a numeric char, so such a string -> NaN (matching
+// Node: `Number("1\x000")` is NaN).
+@externalLinkage
+pub fn cs_string_to_number(str: *CsString): f64 {
+    let base = sdata(str)
+    var start: i64 = 0
+    var end = slen(str)
+    while start < end && isWs(sbyte(str, start)) {
+        start = start + 1
+    }
+    while end > start && isWs(sbyte(str, end - 1)) {
+        end = end - 1
+    }
+    let len = end - start
+    if len == 0 {
+        return 0.0
+    }
+    if len >= 600 {
+        return f64.NAN
+    }
+    // A NUL-terminated private copy, which strtod needs.
+    var buf: [u8; 600] = [0; 600]
+    unsafe {
+        memcpy(buf, byteAt(base, start), len)
+    }
+    var pb: *u8 = 0 as *u8
+    unsafe { pb = buf.addrOf() as *u8 }
+
+    // Non-decimal integer literals (no sign permitted).
+    if buf[0] == '0' && len >= 2 {
+        let x = buf[1]
+        if x == 'x' || x == 'X' {
+            return parseRadixWhole(pb, 2, len, 16)
+        }
+        if x == 'o' || x == 'O' {
+            return parseRadixWhole(pb, 2, len, 8)
+        }
+        if x == 'b' || x == 'B' {
+            return parseRadixWhole(pb, 2, len, 2)
+        }
+    }
+
+    var p: i64 = 0
+    var sign = 1.0
+    if buf[0] == '+' {
+        p = 1
+    } else if buf[0] == '-' {
+        sign = -1.0
+        p = 1
+    }
+    if bytesEq(byteAt(pb, p), len - p, "Infinity") {
+        return sign * f64.INF
+    }
+
+    // Decimal: only [0-9.eE+-] permitted (so an embedded NUL, "inf", "nan", hex floats all reject).
+    var i: i64 = 0
+    while i < len {
+        let ch = buf[i]
+        if !((ch >= '0' && ch <= '9') || ch == '.' || ch == 'e' || ch == 'E' || ch == '+' || ch == '-') {
+            return f64.NAN
+        }
+        i = i + 1
+    }
+    var pe: *u8 = 0 as *u8
+    var v: f64 = 0.0
+    unsafe { v = strtod(pb, pe.addrOf()) }
+    // Trailing garbage: not a complete literal.
+    if pe as i64 != pb as i64 + len {
+        return f64.NAN
+    }
+    return v
+}
+
+// Number.prototype.toString(radix). Radix 10 (and NaN / the zeros / the infinities, whose spelling
+// is radix-independent) use the base-10 formatter; other radices use the ported V8 algorithm.
+@externalLinkage
+pub fn cs_num_to_string_radix(x: f64, dradix: f64): *CsString {
+    let radix = dradix as i32 as i64
+    if radix == 10 || isNan(x) || x == 0.0 || !isFinite(x) {
+        return cs_num_to_string(x)
+    }
+    var n: i64 = 0
+    let r = numToRadix(x, radix, &mut n)
+    return cs_str_mk(r, n)
+}
+
+// String equality (for `switch` on strings, and `===`). Length then bytes, so an embedded NUL is
+// compared, not treated as a terminator. 1 if equal, else 0.
+@externalLinkage
+pub fn cs_str_eq(a: *CsString, b: *CsString): i32 {
+    let n = slen(a)
+    if n != slen(b) {
+        return 0
+    }
+    unsafe {
+        if memcmp(sdata(a), sdata(b), n) == 0 {
+            return 1
+        }
+    }
+    return 0
+}
