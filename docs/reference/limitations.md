@@ -1,11 +1,11 @@
 # Is ChadScript for you?
 
 ChadScript is an alpha, not released yet (2.0.0-alpha.1 is in preparation, see the
-[changelog](https://github.com/cs01/ChadScript/blob/main/CHANGELOG.md)). Every accepted program is tested
-against Node, but the subset is still growing. Here is an honest fit check.
+[changelog](https://github.com/cs01/ChadScript/blob/main/CHANGELOG.md)). Every accepted program is
+tested against Node, but the subset is still growing. Here is an honest fit check.
 
-If you are not sure, try `chad run --fallback=node file.ts`: when ChadScript can't compile the
-file it tells you why and runs it with Node instead, with the same arguments and exit code.
+If you are not sure, run `chad check file.ts`: it tells you whether the file is in the subset,
+and why not. A rejected file is still valid TypeScript and runs on Node unchanged.
 
 ## Good fit today
 

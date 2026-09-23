@@ -7,13 +7,13 @@ import { data } from "./toolchain.data";
 From a fresh clone to a running native binary. With bun and LLVM already installed, every command
 on this page (clone, setup, first build including the runtime, a rejection) finishes in seconds.
 Nothing is released yet (2.0.0-alpha.1 is in preparation, see the
-[changelog](https://github.com/cs01/ChadScript/blob/main/CHANGELOG.md)). ChadScript builds from a source checkout; there is no prebuilt binary
-yet.
+[changelog](https://github.com/cs01/ChadScript/blob/main/CHANGELOG.md)). ChadScript builds from a source
+checkout; there is no prebuilt binary yet.
 
 ## 1. Install the prerequisites
 
 You need [bun](https://bun.sh) 1.3 (it runs the compiler), LLVM's `clang` and `opt`, and
-Node.js 20.6 or newer (for `--fallback=node` and the test suite). ChadScript is tested on macOS
+Node.js 20.6 or newer (for the test suite). ChadScript is tested on macOS
 arm64 and Linux x86-64.
 
 ::: code-group
@@ -54,7 +54,6 @@ whole path works. Expect this (versions will differ):
 ```text
   ok    bun          1.3.10
   ok    node         v25.3.0
-  ok    tsx          loads under node (for --fallback=node)
   ok    clang        22.1.8 (clang)
   ok    opt          22.1.8 (opt)
   ok    milo         pinned ba9484985954
@@ -63,8 +62,8 @@ whole path works. Expect this (versions will differ):
 all checks passed
 ```
 
-A failed check prints the fix on the next line. Node is only needed for `--fallback=node` and the
-test suite; building programs does not use it.
+A failed check prints the fix on the next line. Node is only needed for the test suite;
+building programs does not use it.
 
 ## 3. Compile a program
 
@@ -112,29 +111,6 @@ a location, and a rewrite that stays inside the subset. Applying both hints:
 <<< @/examples/accepted.ts
 
 <<< @/examples/accepted.out{text}
-
-## 5. Run it anyway with `--fallback=node`
-
-When you are not sure a program fits the subset, `chad run --fallback=node` runs it either way.
-If ChadScript rejects the file, it prints why and then runs the same file with Node instead,
-with the same arguments and the same exit code. If the file compiles, it runs natively.
-
-```sh
-bin/chad run --fallback=node rejected.ts
-```
-
-```text
-error[CS1222]: iterating a Map directly with `for...of` is not supported yet
-  --> rejected.ts:6:1
-  help: iterate its keys and read each value: `for (const k of m.keys())`
-error[CS1203]: `==` is not supported
-  --> rejected.ts:7:7
-  help: use `===`
-
-2 error(s)
-chad: running the program under node instead (--fallback=node)
-pears: sold out
-```
 
 ## Next
 

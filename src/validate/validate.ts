@@ -280,8 +280,8 @@ function notInSubset(what: string, node: ts.Node, sf: ts.SourceFile): Diagnostic
     message: `${what} is not supported by ChadScript yet`,
     span: spanOf(node, sf),
     suggestion:
-      "rewrite it with a supported construct (docs/SUBSET.md lists them), or run the program " +
-      "under Node with `chad run --fallback=node`",
+      "rewrite it with a supported construct; docs/SUBSET.md " +
+      "(https://cs01.github.io/ChadScript/reference/subset) lists them",
   };
 }
 

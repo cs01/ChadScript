@@ -30,7 +30,7 @@ bin/chad build examples/shapes.ts -o shapes   # ~130 KB self-contained binary
 ## Install
 
 Needs [bun](https://bun.sh) 1.3, LLVM (`clang` and `opt`), git, and Node.js 20.6 or newer (for
-`--fallback=node` and the test suite). No GC library: the runtime brings its own collector.
+the test suite). No GC library: the runtime brings its own collector.
 Tested on macOS arm64 and Linux x86-64.
 
 ```sh
@@ -46,7 +46,6 @@ bin/chad doctor             # checks the toolchain, then compiles and runs a hel
 ```text
   ok    bun          1.3.10
   ok    node         v25.3.0
-  ok    tsx          loads under node (for --fallback=node)
   ok    clang        22.1.8 (clang)
   ok    opt          22.1.8 (opt)
   ok    milo         pinned ba9484985954
@@ -58,30 +57,11 @@ all checks passed
 ## Commands
 
 ```sh
-bin/chad check file.ts                          # typecheck + subset check only, no binary
-bin/chad build file.ts -o out                   # native binary
-bin/chad run file.ts [args...]                  # build to a temp dir and run
-bin/chad run --fallback=node file.ts [args...]  # same, but run under Node if rejected
-bin/chad doctor                                 # check the toolchain
-bin/chad --version                              # chad 2.0.0-alpha.1 (milo <pinned commit>)
-```
-
-`--fallback=node` is for programs that might use something ChadScript does not support yet. If
-the compiler rejects the file, it prints why, then runs the same file under Node with the same
-arguments and exits with Node's exit code. If the file compiles, it runs natively as usual.
-Here [`docs/examples/fallback.ts`](docs/examples/fallback.ts) uses `==`, which is not supported:
-
-```text
-$ bin/chad run --fallback=node fallback.ts hello world
-error[CS1203]: `==` is not supported
-  --> fallback.ts:4:5
-  help: use `===`
-
-1 error(s)
-chad: running the program under node instead (--fallback=node)
-2 word(s): hello world
-$ echo $?
-3
+bin/chad check file.ts            # typecheck + subset check only, no binary
+bin/chad build file.ts -o out     # native binary
+bin/chad run file.ts [args...]    # build to a temp dir and run
+bin/chad doctor                   # check the toolchain
+bin/chad --version                # chad 2.0.0-alpha.1 (milo <pinned commit>)
 ```
 
 ## What "subset" means
@@ -112,7 +92,7 @@ The generated [`docs/SUBSET.md`](docs/SUBSET.md) is the exact list.
 Not supported, by design: `any`, `eval`, prototype mutation, adding or deleting properties at
 runtime, CommonJS, packages that ship only JavaScript. Programs that need those should run on Node (or
 [milojs](https://github.com/milo-language/milojs)); since every accepted program is valid
-TypeScript, the same file runs there unchanged (`chad run --fallback=node` does this for you).
+TypeScript, the same file runs there unchanged.
 
 Not supported yet: regular expressions, `Date` objects (only `Date.now()`), optional and default
 parameters, getters and setters, `.then()` on promises (use `await`), classes that extend `Error`,

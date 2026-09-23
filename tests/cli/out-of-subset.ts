@@ -1,4 +1,4 @@
-// Outside the compiled subset (an enum): `chad run --fallback=node` runs it under Node instead.
+// Outside the compiled subset (an enum): `chad run` reports it and runs nothing.
 enum Color {
   Red,
   Green,

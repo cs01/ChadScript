@@ -1,7 +1,7 @@
 // CLI entry.
 //   chad check <entry.ts>                          frontend gate + subset validation, no binary
 //   chad build <entry.ts> -o <out>                 compile to a native binary
-//   chad run [--fallback=node] <entry.ts> [args]   compile to a temp binary and execute it
+//   chad run <entry.ts> [args]                     compile to a temp binary and execute it
 //   chad doctor                                    check the toolchain, compile a hello world
 //   chad --version
 
@@ -16,7 +16,6 @@ import { validate } from "./validate/validate.js";
 import { build } from "./driver/build.js";
 import { miloPin } from "./driver/toolchain.js";
 import { DiagnosticError, renderDiagnostic, type Diagnostic } from "./diagnostics.js";
-import { runUnderNode } from "./fallback.js";
 import { doctor } from "./doctor.js";
 
 function usage(): never {
@@ -24,7 +23,7 @@ function usage(): never {
     "usage:\n" +
       "  chad check <entry.ts>\n" +
       "  chad build <entry.ts> -o <out>\n" +
-      "  chad run [--fallback=node] <entry.ts> [args...]\n" +
+      "  chad run <entry.ts> [args...]\n" +
       "  chad doctor\n" +
       "  chad --version\n",
   );
@@ -61,8 +60,7 @@ function compile(entry: string, outPath: string): Diagnostic[] | null {
           span: null,
           suggestion:
             "this is a bug in ChadScript, not in your program; please report it with the program " +
-            "at https://github.com/cs01/ChadScript/issues (`chad run --fallback=node` runs it " +
-            "under Node meanwhile)",
+            "at https://github.com/cs01/ChadScript/issues",
         },
       ];
     }
@@ -83,29 +81,17 @@ function version(): string {
 }
 
 function runCommand(rest: string[]): void {
-  let fallback: "node" | null = null;
-  let i = 0;
-  // Flags come before the entry file; everything after it belongs to the program.
-  for (; i < rest.length && rest[i]!.startsWith("--"); i++) {
-    const flag = rest[i]!;
-    if (flag === "--fallback=node") fallback = "node";
-    else {
-      process.stderr.write(`chad: unknown option ${flag} (supported: --fallback=node)\n`);
-      process.exit(2);
-    }
-  }
-  const entry = rest[i];
+  // `run` takes no options; everything after the entry file belongs to the program.
+  const [entry, ...args] = rest;
   if (!entry) usage();
+  if (entry.startsWith("--")) {
+    process.stderr.write(`chad: unknown option ${entry} (\`chad run\` takes no options)\n`);
+    process.exit(2);
+  }
   requireFile(entry);
-  const args = rest.slice(i + 1);
   const outPath = join(mkdtempSync(join(tmpdir(), "chad-run-")), "a.out");
   const rejected = compile(entry, outPath);
-  if (rejected) {
-    printDiagnostics(rejected);
-    if (fallback === null) process.exit(1);
-    process.stderr.write("chad: running the program under node instead (--fallback=node)\n");
-    process.exit(runUnderNode(entry, args));
-  }
+  if (rejected) reportAndExit(rejected);
   // Forward the child's stdio and exit code.
   try {
     execFileSync(outPath, args, { stdio: "inherit" });

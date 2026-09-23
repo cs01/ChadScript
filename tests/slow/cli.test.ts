@@ -1,6 +1,6 @@
-// The `chad` command line: `run --fallback=node` (a rejected program runs under Node with the same
-// arguments and exit code; an accepted one still runs natively), `--version`, and `doctor` (its
-// failure report, and a full pass on a machine that has the toolchain).
+// The `chad` command line: `run` (a rejected program is only reported; an accepted one runs natively
+// with its arguments and exit code), `--version`, and `doctor` (its failure report, and a full pass
+// on a machine that has the toolchain).
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -19,30 +19,23 @@ function chadRun(args: string[], env: NodeJS.ProcessEnv = process.env) {
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
 
-test("run --fallback=node: a rejected program prints its diagnostics, then runs under node", () => {
-  const r = chadRun(["run", "--fallback=node", outOfSubset, "a", "b"]);
-  assert.equal(r.stdout, "color 1 args a,b\n");
-  assert.equal(r.status, 3);
-  assert.match(r.stderr, /error\[CS1202\]: `enum` is not supported/);
-  assert.match(r.stderr, /running the program under node instead/);
-});
-
-test("run without --fallback: a rejected program is only reported", () => {
+test("run: a rejected program is only reported", () => {
   const r = chadRun(["run", outOfSubset, "a"]);
   assert.equal(r.stdout, "");
   assert.equal(r.status, 1);
-  assert.match(r.stderr, /error\[CS1202\]/);
+  assert.match(r.stderr, /error\[CS1202\]: `enum` is not supported/);
 });
 
-test("run --fallback=node: an accepted program runs natively", () => {
-  const r = chadRun(["run", "--fallback=node", inSubset, "x", "y"]);
+test("run: an accepted program runs natively with its arguments and exit code", () => {
+  const r = chadRun(["run", inSubset, "x", "y"]);
   assert.equal(r.stdout, "native x,y\n");
   assert.equal(r.status, 4);
-  assert.doesNotMatch(r.stderr, /under node/);
 });
 
-test("run: an unknown option and a missing file are usage errors", () => {
-  assert.equal(chadRun(["run", "--fallback=deno", inSubset]).status, 2);
+test("run: an option (the removed --fallback=node too) and a missing file are usage errors", () => {
+  const option = chadRun(["run", "--fallback=node", inSubset]);
+  assert.equal(option.status, 2);
+  assert.match(option.stderr, /unknown option --fallback=node/);
   const missing = chadRun(["run", join(root, "tests", "cli", "absent.ts")]);
   assert.equal(missing.status, 2);
   assert.match(missing.stderr, /no such file/);

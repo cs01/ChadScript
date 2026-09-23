@@ -16,7 +16,7 @@ Status as of 2026-09-23.
 | 4     | `Value` words, mixed unions, narrowing                                                                  | done                                         |
 | 5     | Mutable captures in heap cells, erased generics                                                         | done                                         |
 | 6     | Own garbage collector in Milo (conservative roots, precise heap, inline bump allocation); libgc dropped | done                                         |
-| 7     | 0.1 "TS CLI tools": argv, fs, validated `JSON.parse`, async, `chad run --fallback=node`, `chad doctor`  | done (2.0.0-alpha.1 in preparation)          |
+| 7     | 0.1 "TS CLI tools": argv, fs, validated `JSON.parse`, async, `chad doctor`                              | done (2.0.0-alpha.1 in preparation)          |
 
 ## Planned, not scheduled to a phase
 

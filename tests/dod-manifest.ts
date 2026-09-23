@@ -437,7 +437,7 @@ export const DOD: DodItem[] = [
   },
   {
     id: "release-0.1",
-    title: "phase 7: the 0.1 release (no known-bug fixtures left, --fallback=node, doctor)",
+    title: "phase 7: the 0.1 release (no known-bug fixtures left, doctor)",
     status: "done",
     evidence: [
       "run/template-array.ts",
@@ -459,6 +459,6 @@ export const DOD: DodItem[] = [
       "reject/map-ctor-variable.ts",
       "run/array-push-many.ts",
     ],
-    note: "Every @known-bug fixture is cleared: implemented to match Node (string conversion of objects and arrays, the Error classes, new Promise with a typed executor, the JSON cycle TypeError, new Map from pair literals) or rejected at validate (a class extending Error). The CLI half (chad run --fallback=node, chad doctor, chad --version) is pinned by tests/slow/cli.test.ts. To be released as 2.0.0-alpha.1 (the phase is still called 0.1; nothing is published yet); see CHANGELOG.md.",
+    note: "Every @known-bug fixture is cleared: implemented to match Node (string conversion of objects and arrays, the Error classes, new Promise with a typed executor, the JSON cycle TypeError, new Map from pair literals) or rejected at validate (a class extending Error). The CLI half (chad run, chad doctor, chad --version) is pinned by tests/slow/cli.test.ts; `chad run --fallback=node` shipped in this phase and was later removed. To be released as 2.0.0-alpha.1 (the phase is still called 0.1; nothing is published yet); see CHANGELOG.md.",
   },
 ];

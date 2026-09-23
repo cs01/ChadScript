@@ -10,7 +10,6 @@ import { CLANG, MILO, OPT, miloPin } from "./driver/toolchain.js";
 import { loadProgram } from "./frontend/program.js";
 import { validate } from "./validate/validate.js";
 import { build } from "./driver/build.js";
-import { nodeLoader } from "./fallback.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -31,7 +30,8 @@ function firstLine(s: string): string {
   return s.split("\n")[0] ?? "";
 }
 
-// `--import` (used to load tsx for `--fallback=node`) needs Node 18.19 / 20.6 or newer.
+// The test suite runs its Node oracle with `--import` (to load tsx), which needs Node 18.19 / 20.6
+// or newer.
 function nodeSupportsImport(version: string): boolean {
   const m = /^v(\d+)\.(\d+)/.exec(version);
   if (!m) return false;
@@ -60,7 +60,7 @@ function checkNode(): Check[] {
         name: "node",
         ok: false,
         detail: "not found on PATH",
-        fix: "install Node.js 20.6 or newer (https://nodejs.org); tests and --fallback=node use it",
+        fix: "install Node.js 20.6 or newer (https://nodejs.org); the test suite uses it as the reference",
       },
     ];
   }
@@ -76,17 +76,6 @@ function checkNode(): Check[] {
     return out;
   }
   out.push({ name: "node", ok: true, detail: version });
-  const tsx = run("node", ["--import", nodeLoader(), "-e", "0"]);
-  out.push(
-    tsx.ok
-      ? { name: "tsx", ok: true, detail: "loads under node (for --fallback=node)" }
-      : {
-          name: "tsx",
-          ok: false,
-          detail: firstLine(tsx.out),
-          fix: "run `bun install` in the ChadScript checkout",
-        },
-  );
   return out;
 }
 

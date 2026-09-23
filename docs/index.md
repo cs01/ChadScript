@@ -111,8 +111,6 @@ A program either behaves exactly like Node or does not compile. There is no thir
 </div>
 
 When ChadScript says no, your code is still valid TypeScript, so the same file runs on Node.
-`chad run --fallback=node` does that for you: if ChadScript can't compile a file, it tells you
-why and runs it with Node instead.
 See the [full list of what works](/reference/subset) and the [limitations](/roadmap).
 
 </div>

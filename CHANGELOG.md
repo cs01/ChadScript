@@ -3,9 +3,9 @@
 ## Unreleased (2.0.0-alpha.1 in preparation)
 
 The first release of ChadScript 2 (not published yet): a from-scratch compiler that replaces
-the v1 compiler (whose releases went up to 0.3.0-beta; its code lives on the `v1` branch). This is an alpha. ChadScript
-compiles a statically analyzable subset of TypeScript ahead of time
-to native binaries. A program the compiler accepts behaves like it does under Node (same stdout,
+the v1 compiler (whose releases went up to 0.3.0-beta; its code lives on the `v1` branch). This
+is an alpha. ChadScript compiles a statically analyzable subset of TypeScript ahead of time to
+native binaries. A program the compiler accepts behaves like it does under Node (same stdout,
 same exit code); every other program is rejected at compile time with a `CS####` code, the
 source location and a suggested rewrite. `docs/SUBSET.md` is the generated list of what compiles.
 
@@ -22,16 +22,14 @@ bin/chad doctor             # checks bun, node, clang/opt and Milo, then compile
 ```
 
 Requirements: bun 1.3, LLVM (`clang` and `opt`; CI uses LLVM 18 on Linux and Homebrew LLVM on
-macOS), git, and Node.js 20.6 or newer for `--fallback=node` and the test suite. Tested on macOS
-arm64 and Linux x86-64.
+macOS), git, and Node.js 20.6 or newer for the test suite. Tested on macOS arm64 and Linux
+x86-64.
 
 ### Commands
 
 - `chad check <file.ts>`: typecheck and validate, no output.
 - `chad build <file.ts> -o <out>`: compile to a native binary.
 - `chad run <file.ts> [args...]`: compile and run.
-- `chad run --fallback=node <file.ts> [args...]`: if the program is rejected, print the
-  diagnostics and run it under Node instead, with the same arguments and exit code.
 - `chad doctor`: check the toolchain and compile a hello world, with a fix for each failure.
 - `chad --version`: the compiler version and the pinned Milo commit.
 
@@ -110,7 +108,8 @@ program builds to a self-contained binary of about 130 KB that starts in about 2
   passing `chad check` and failing at build with an internal compiler error.
 - `&&`, `||` and `??` on a caught value, and a read of a caught value after a test proved it
   is something no thrown value is (a number, an array), are rejected with CS1248; they crashed
-  the compiler. So is assigning to a caught value, which miscompiled. Tests such as `e !== null` keep working.
+  the compiler. So is assigning to a caught value, which miscompiled. Tests such as
+  `e !== null` keep working.
 - `String()`, template literals, `+` and `join` of arrays whose elements are nested arrays,
   unions with arrays or objects, or `null`/`undefined` match Node (`[1, [2, 3]]` is `1,2,3`);
   they stopped with an internal compiler error or were rejected.

@@ -107,7 +107,7 @@ Programs are directory trees of `.ts` files. Target surface:
   default and namespace forms.
 - Packages: a bare specifier that resolves to **TypeScript source** in `node_modules` is
   compiled like user code, whole-program. One that resolves only to `.js` + `.d.ts` is rejected
-  with a diagnostic naming the package and suggesting `--fallback=node`.
+  with a diagnostic naming the package; such a program runs on Node, not here.
 - Module scoping: every top-level symbol is namespaced by module in the IR; module
   initialization runs once, in dependency order, cycles rejected until a fixture needs them.
 - `require`, `module.exports`, dynamic `import()`: rejected with the ESM rewrite as the hint.
@@ -332,8 +332,8 @@ manifest. Estimates in LOC.
    parsed and validated against the declared type, async, generated SUBSET.md; every `@known-bug`
    fixture cleared (Error classes with `message`/`name`/`instanceof`, `new Promise` with a typed
    executor, the JSON cycle TypeError, `new Map` from pair literals, String() of objects and
-   arrays); `chad run --fallback=node` runs a rejected program under Node; `chad doctor` checks
-   the toolchain. Not in 0.1: `--fallback=milojs` and prebuilt binaries (the compiler runs from a
+   arrays); `chad doctor` checks the toolchain (`chad run --fallback=node` shipped here and was
+   later removed). Not in 0.1: `--fallback=milojs` and prebuilt binaries (the compiler runs from a
    checkout under bun).
 
 ## Decisions locked
