@@ -26,6 +26,7 @@ import { lowerCallValue } from "./generic-calls.js";
 import { thisRef } from "./statements.js";
 import { lowerObjectNamespace } from "./object-literal.js";
 import { jsonFieldPresence } from "./layouts.js";
+import { lowerHostMethodCall } from "./host-api.js";
 
 // The pretty-print indent unit for a JSON.stringify `space` argument: a literal number N → N spaces
 // (JSON caps at 10), a literal string → up to its first 10 chars, anything falsy/absent → null
@@ -46,6 +47,9 @@ function jsonIndentUnit(arg: ts.Expression | undefined): string | null {
 // A method call `obj.method(args)`. Dispatched on the receiver's type + method name.
 export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
   const pa = call.expression as ts.PropertyAccessExpression;
+  // A method of a host handle (`socket.write(s)`): a runtime call per declared member.
+  const host = lowerHostMethodCall(call, ctx);
+  if (host) return host;
   // `Math.floor(x)` etc. — a builtin namespace call, not a value method. Check before resolving
   // the receiver's type (Math is not a value).
   if (isMathNamespace(pa.expression)) {

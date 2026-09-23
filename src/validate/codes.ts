@@ -56,6 +56,8 @@ export const CODE = {
   BUILTIN_AS_VALUE: "CS1246", // a built-in function (String, Math.floor, console.log) used as a value
   THROWN_VALUE: "CS1247", // `throw` of a value that is not a string, an Error or a caught value
   CAUGHT_VALUE_USE: "CS1248", // `&&` `||` `??` on a caught value, or a read of one narrowed to a non-string
+  HOST_CALL_FORM: "CS1249", // a network API call in a form the compiler cannot lower (options not a literal, ...)
+  SELF_INIT_CAPTURE: "CS1250", // a closure that may run inside its own variable's initializer reads that variable
 } as const;
 
 export type Code = (typeof CODE)[keyof typeof CODE];

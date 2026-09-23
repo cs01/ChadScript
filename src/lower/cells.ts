@@ -47,6 +47,11 @@ function isLocalBinding(d: ts.Declaration): boolean {
   return ts.isVariableDeclaration(d) && !isModuleVariable(d);
 }
 
+function isWithin(node: ts.Node, ancestor: ts.Node): boolean {
+  for (let p: ts.Node | undefined = node; p; p = p.parent) if (p === ancestor) return true;
+  return false;
+}
+
 function assignedIdentifier(node: ts.Node): ts.Identifier | null {
   if (ts.isBinaryExpression(node)) {
     const k = node.operatorToken.kind;
@@ -82,6 +87,13 @@ export function findCellSymbols(
       const d = sym?.valueDeclaration;
       if (sym && d && d !== node.parent && isLocalBinding(d) && scopeOf(node) !== scopeOf(d)) {
         captured.add(sym);
+        // Captured by a closure inside its own initializer (`const c = connect(o, () =>
+        // c.write(s))`): the closure is created before the value exists, so a by-value copy would
+        // capture nothing. A cell gives the closure the binding itself, filled in when the
+        // initializer finishes, which is when Node's callback could first see it too.
+        if (ts.isVariableDeclaration(d) && d.initializer && isWithin(node, d.initializer)) {
+          reassigned.add(sym);
+        }
       }
     }
     ts.forEachChild(node, visit);

@@ -20,6 +20,7 @@
 import ts from "typescript";
 import type { Diagnostic } from "../diagnostics.js";
 import { CODE } from "./codes.js";
+import { isHostCall } from "./host-rules.js";
 
 type FnLike =
   | ts.FunctionDeclaration
@@ -234,7 +235,11 @@ export function tdzDiagnostics(sf: ts.SourceFile, checker: ts.TypeChecker): Diag
       // A builtin calls only the functions handed to it (conservatively, right away), except a
       // timer callback, which runs after all top-level code unless a top-level await can let the
       // event loop run in between.
-      const deferred = !topLevelAwait && ts.isIdentifier(callee) && callee.text === "setTimeout";
+      // Network listeners are deferred the same way: the runtime only ever calls them from the
+      // event loop.
+      const deferred =
+        !topLevelAwait &&
+        ((ts.isIdentifier(callee) && callee.text === "setTimeout") || isHostCall(call, checker));
       for (const a of args) {
         const arg = unparen(a);
         if (deferred && (ts.isArrowFunction(arg) || ts.isFunctionExpression(arg))) continue;

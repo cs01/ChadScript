@@ -16,6 +16,7 @@ import { stringOperand } from "./to-string.js";
 import { builtinErrorConstructor, lowerNewError } from "./errors.js";
 import { lowerNodePathCall } from "./node-path.js";
 import { lowerNodeFsPromisesCall } from "./node-fs-promises.js";
+import { lowerHostFunctionCall } from "./host-api.js";
 
 // A bare-identifier call to a global builtin (parseInt/parseFloat). Returns null if `name` is
 // not a recognized builtin, so the caller falls back to user-function / closure handling. These
@@ -112,6 +113,7 @@ export function lowerInterceptedCall(call: ts.CallExpression, ctx: LowerCtx): HE
     global ??
     lowerNodeFsCall(call, ctx) ??
     lowerNodeFsPromisesCall(call, ctx) ??
-    lowerNodePathCall(call, ctx)
+    lowerNodePathCall(call, ctx) ??
+    lowerHostFunctionCall(call, ctx)
   );
 }

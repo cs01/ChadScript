@@ -62,6 +62,8 @@ error[CS1221]: `toFixed` on a number is not supported yet
 | [CS1246](#cs1246) | Built-in function used as a value |
 | [CS1247](#cs1247) | Value that cannot be thrown |
 | [CS1248](#cs1248) | Unsupported use of a caught value |
+| [CS1249](#cs1249) | Network API call in an unsupported form |
+| [CS1250](#cs1250) | Variable read by a function in its own initializer |
 | [CS9000](#cs9000) | Internal compiler error |
 
 ## CS0001: TypeScript error {#cs0001}
@@ -80,7 +82,7 @@ The general rejection. The compiler accepts a construct only when it has a rule 
 
 **Status:** planned to be admitted in a later phase.
 
-**Rejection tests:** [`bigint-literal.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/bigint-literal.ts), [`call-spread-library.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/call-spread-library.ts), [`class-extends-error.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/class-extends-error.ts) and 22 more
+**Rejection tests:** [`assign-as-value.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/assign-as-value.ts), [`bigint-literal.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/bigint-literal.ts), [`call-spread-library.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/call-spread-library.ts) and 23 more
 
 ## CS1201: `any` {#cs1201}
 
@@ -360,7 +362,7 @@ A runtime handle (a timer id, a promise) used as anything but a stored or passed
 
 **Rewrite:** Only store it, pass it, or give it back to the API that made it (`clearTimeout(id)`).
 
-**Rejection tests:** [`timer-handle-interpolated.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/timer-handle-interpolated.ts), [`timer-handle-printed.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/timer-handle-printed.ts), [`timer-handle-stringified.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/timer-handle-stringified.ts)
+**Rejection tests:** [`net-brand-member.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/net-brand-member.ts), [`net-print-buffer.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/net-print-buffer.ts), [`net-print-server.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/net-print-server.ts) and 3 more
 
 ## CS1235: Property added at run time {#cs1235}
 
@@ -467,6 +469,22 @@ A built-in such as `String`, `Math.floor` or `console.log` passed as a value.
 **Rewrite:** Test the value first (`e instanceof Error`, `typeof e === "string"`), or convert it: `String(e) || "default"`.
 
 **Rejection tests:** [`caught-value-assign.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/caught-value-assign.ts), [`caught-value-coalesce.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/caught-value-coalesce.ts), [`caught-value-narrowed-array.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/caught-value-narrowed-array.ts) and 2 more
+
+## CS1249: Network API call in an unsupported form {#cs1249}
+
+A call into `node:net` (or another network API) that the compiler must see statically: connection options passed as a variable instead of an object literal, or a callback whose parameters cannot receive the values the runtime passes it (for example a parameter declared wider than the event's argument type).
+
+**Rewrite:** Write the options inline (`net.connect({ port, host }, onConnect)`) and declare each callback parameter with the type the API declares for that event.
+
+**Rejection tests:** [`net-connect-options-variable.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/net-connect-options-variable.ts), [`net-listener-param-type.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/net-listener-param-type.ts)
+
+## CS1250: Variable read by a function in its own initializer {#cs1250}
+
+`const x = f(() => x)`: the function is created before `x` has a value. When `f` might call it right away, Node throws a `ReferenceError`, and a compiled program would read an empty variable instead. Network listeners and timers only run later, so passing the function to one of those is allowed.
+
+**Rewrite:** Declare the variable first and assign the function afterwards, or pass the function to an API that calls it later.
+
+**Rejection tests:** [`net-self-init-sync.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/net-self-init-sync.ts)
 
 ## CS9000: Internal compiler error {#cs9000}
 

@@ -51,6 +51,7 @@ import {
 } from "./type-translation.js";
 import { lowerMethodCall } from "./method-call.js";
 import { lowerInterceptedCall } from "./globals.js";
+import { lowerHostProperty } from "./host-api.js";
 import { calleeIdentifier, namespaceMemberOf } from "./module-refs.js";
 import { lowerDefaultExport } from "./default-export.js";
 import { classIdOf, constructorClassOf } from "./class-ids.js";
@@ -550,6 +551,9 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
       // `m.x` through a module namespace is a static reference to the exported `x`.
       const member = namespaceMemberOf(pa, ctx.checker);
       if (member) return lowerIdentifier(member, ctx, type);
+      // A property of a host handle (`server.address().port`).
+      const hostProp = lowerHostProperty(pa, ctx);
+      if (hostProp) return hostProp;
       // `e.message` / `e.name` of an Error (a CsThrown pointer, not a shaped record).
       if (builtinErrorType(ctx.checker.getTypeAtLocation(pa.expression))) {
         return lowerErrorProperty(lowerExpr(pa.expression, ctx), pa.name.text);

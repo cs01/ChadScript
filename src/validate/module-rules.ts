@@ -24,6 +24,8 @@ const BUILTIN_MODULES: ReadonlySet<string> = new Set([
   NODE_FS_MODULE,
   NODE_PATH_MODULE,
   NODE_FS_PROMISES_MODULE,
+  // The network modules; lower/host-api.ts lowers their members.
+  "node:net",
 ]);
 
 function isOurAmbientDeclaration(decl: ts.Node): boolean {

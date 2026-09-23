@@ -7,6 +7,8 @@ import { checkBuiltinClassUse } from "./error-rules.js";
 import { checkPromiseNew } from "./promise-rules.js";
 import { checkThrowUse } from "./throw-rules.js";
 import { checkCallSpread } from "./spread-rules.js";
+import { checkHostCall, checkSelfInitCapture } from "./host-rules.js";
+import { unionWithObject } from "./json-target-rules.js";
 import { checkCollectionNew } from "./collection-rules.js";
 import ts from "typescript";
 import type { Diagnostic } from "../diagnostics.js";
@@ -16,7 +18,7 @@ import { spanOf } from "./validate.js";
 import { namespaceMemberOf } from "../lower/module-refs.js";
 import { UnrepresentableTypeError, valueTypeOfTsType } from "../lower/type-translation.js";
 import { isWordToWordAssertion } from "./generic-rules.js";
-import { updateValueProblem } from "./update-rules.js";
+import { assignmentValueProblem, updateValueProblem } from "./update-rules.js";
 import {
   checkDefaultClass,
   checkExportAssignment,
@@ -199,8 +201,11 @@ export function tailoredRejection(
       return checkRepresentableType(node, hit, checker);
     }
 
-    case ts.SyntaxKind.BinaryExpression:
+    case ts.SyntaxKind.BinaryExpression: {
+      const problem = assignmentValueProblem(node as ts.BinaryExpression);
+      if (problem) return hit(CODE.NOT_IN_SUBSET, problem, "make the assignment its own statement");
       return checkBinary(node as ts.BinaryExpression, hit, checker);
+    }
 
     // Strings are stored as UTF-8 bytes but JavaScript indexes them by UTF-16 code unit, so
     // `.length`, `.slice`, `.indexOf` and friends only agree with Node while every string is
@@ -324,6 +329,7 @@ export function tailoredRejection(
         checkNamespaceValue(node as ts.Identifier, hit, checker) ??
         checkFunctionValueRef(node as ts.Identifier, hit, checker) ??
         checkBuiltinValueRef(node as ts.Identifier, hit, checker) ??
+        checkSelfInitCapture(node as ts.Identifier, hit, checker) ??
         checkOpaqueHandleUse(node as ts.Identifier, hit, checker)
       );
 
@@ -548,6 +554,9 @@ function checkCall(node: ts.CallExpression, hit: Hit, checker: ts.TypeChecker): 
       'use a static import at the top of the module: `import * as m from "./m"`',
     );
   }
+  // A network API call: its members are declared, so only the call's form is checked.
+  const host = checkHostCall(node, hit, checker);
+  if (host !== undefined) return host;
   // `m.f(...)` through a module namespace is a static call, not a method call on an object; the
   // receiver-type rules below do not apply to it.
   if (namespaceMemberOf(node.expression, checker)) return null;
@@ -703,36 +712,6 @@ const GLOBAL_RECEIVERS: ReadonlySet<string> = new Set([
   "Array",
   "Promise",
 ]);
-
-// Whether a JSON.parse target contains a Value union with an object member: the union keeps no
-// object layout (hir/types.ts ANY_OBJECT), so the parser would have no template to lay it out with.
-function unionWithObject(t: ts.Type, node: ts.Node, checker: ts.TypeChecker): boolean {
-  let root: ValueType;
-  try {
-    root = valueTypeOfTsType(t, node, checker);
-  } catch (e) {
-    if (e instanceof UnrepresentableTypeError) return false; // reported where it is declared
-    throw e;
-  }
-  const seen = new Set<ValueType>();
-  const walk = (v: ValueType): boolean => {
-    if (seen.has(v)) return false;
-    seen.add(v);
-    switch (v.kind) {
-      case "value":
-        return v.members.some((m) => m.kind === "object" || walk(m));
-      case "array":
-        return walk(v.element);
-      case "optional":
-        return walk(v.inner);
-      case "object":
-        return v.shape.fields.some((f) => walk(f.type));
-      default:
-        return false;
-    }
-  };
-  return walk(root);
-}
 
 // Whether the value domain represents `t` as an object record (so a shape can answer a by-name
 // method lookup on it).

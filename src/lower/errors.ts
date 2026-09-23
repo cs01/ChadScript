@@ -8,6 +8,7 @@ import { ice } from "../diagnostics.js";
 import type { HExpr } from "../hir/nodes.js";
 import { VT } from "../hir/types.js";
 import { type LowerCtx, lowerExpr, nameOf } from "./lower.js";
+import { isSystemErrorType } from "./host-types.js";
 
 // The runtime's ERR_* kinds (runtime/errors.milo); 0 is a thrown string.
 export const ERROR_KINDS = {
@@ -38,6 +39,8 @@ function isLibSymbol(sym: ts.Symbol | undefined): boolean {
 
 // The error class an instance type names (the `Error` interface, a `TypeError`), or null.
 export function builtinErrorType(t: ts.Type): ErrorClass | null {
+  // A SystemError (a network failure) is an Error the runtime made, with a `code` besides.
+  if (isSystemErrorType(t)) return "Error";
   const sym = t.getSymbol();
   if (!sym || !isErrorClassName(sym.name) || !isLibSymbol(sym)) return null;
   return sym.name;
@@ -105,6 +108,9 @@ export function lowerErrorProperty(recv: HExpr, name: string): HExpr {
       return { kind: "runtimeCall", fn: "cs_thrown_message", args: [recv], type: VT.string };
     case "name":
       return { kind: "runtimeCall", fn: "cs_thrown_name", args: [recv], type: VT.string };
+    // Only a SystemError has one (validate/error-rules.ts admits it on that type alone).
+    case "code":
+      return { kind: "runtimeCall", fn: "cs_thrown_code", args: [recv], type: VT.string };
     default:
       return ice(`lower: error property .${name} is not in the subset`);
   }

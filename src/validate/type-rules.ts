@@ -10,6 +10,7 @@ import type { Diagnostic } from "../diagnostics.js";
 import { CODE, type Code } from "./codes.js";
 import { UnrepresentableTypeError, valueTypeOfTsType } from "../lower/type-translation.js";
 import { namespaceModuleOf } from "../lower/module-refs.js";
+import { hostTypeName, isBrandMember } from "../lower/host-types.js";
 
 export type Hit = (code: Code, message: string, suggestion: string) => Diagnostic;
 
@@ -160,6 +161,31 @@ export function checkOpaqueHandleUse(
   if (ts.isParameter(parent) && parent.name === node) return null;
   if (ts.isBindingElement(parent) && parent.name === node) return null;
   if (ts.isPropertyAccessExpression(parent) && parent.name === node) return null;
+  // A type name (`net.Socket[]`), not a value.
+  if (ts.isTypeReferenceNode(parent) || ts.isQualifiedName(parent)) return null;
+  if (name !== "Timeout") {
+    // Kept in an array literal, or compared by identity with another handle of the same type
+    // (`if (client !== sender)`): a handle is one runtime object for its whole life.
+    if (ts.isArrayLiteralExpression(parent)) return null;
+    if (
+      ts.isBinaryExpression(parent) &&
+      (parent.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken ||
+        parent.operatorToken.kind === ts.SyntaxKind.ExclamationEqualsEqualsToken) &&
+      opaqueTypeName(parent.left, checker) === name &&
+      opaqueTypeName(parent.right, checker) === name
+    ) {
+      return null;
+    }
+  }
+  // A host handle's declared members are its API (lower/host-api.ts); only the brand is not.
+  if (ts.isPropertyAccessExpression(parent) && parent.expression === node && name !== "Timeout") {
+    if (!isBrandMember(parent.name.text)) return null;
+    return hit(
+      CODE.OPAQUE_HANDLE_USE,
+      `\`${parent.name.text}\` is not part of the \`${name}\` API`,
+      "use the members its declaration lists (see stdlib/globals.d.ts)",
+    );
+  }
   // Minting it, storing it, discarding it, or passing it on are the supported uses. Discarding is
   // the COMMON case: `setTimeout(cb, 10);` as a statement never needs the handle.
   if (ts.isExpressionStatement(parent)) return null;
@@ -174,6 +200,16 @@ export function checkOpaqueHandleUse(
 }
 
 function renderRefusal(name: string, hit: Hit): Diagnostic {
+  if (name !== "Timeout") {
+    return hit(
+      CODE.OPAQUE_HANDLE_USE,
+      `a \`${name}\` can only be stored, passed along, and used through its own methods and properties`,
+      name === "Buffer"
+        ? "convert it first: `chunk.toString()`; Node prints a Buffer as its raw bytes"
+        : "print what you need from it (for example `server.address().port`); Node prints the " +
+            "object with internal fields, which a compiled program cannot reproduce",
+    );
+  }
   return hit(
     CODE.OPAQUE_HANDLE_USE,
     `a \`${name}\` handle can only be stored and passed back to the runtime`,
@@ -185,6 +221,8 @@ function renderRefusal(name: string, hit: Hit): Diagnostic {
 // The opaque type name of `node`, or null when its type is not an opaque handle. Mirrors
 // type-translation.ts's recognition: name plus declaring file.
 function opaqueTypeName(node: ts.Expression, checker: ts.TypeChecker): string | null {
+  const host = hostTypeName(checker.getTypeAtLocation(node));
+  if (host !== null) return host;
   const sym = checker.getTypeAtLocation(node).getSymbol();
   const name = sym?.getName();
   if (name !== "Timeout") return null;
@@ -194,13 +232,24 @@ function opaqueTypeName(node: ts.Expression, checker: ts.TypeChecker): string | 
 }
 
 // Calls that turn a value into text and therefore cannot accept an opaque handle.
+// The global conversions and namespace statics (`String(h)`, `Object.keys(h)`) read a value's
+// contents too, which a handle does not expose.
 function isRenderingCall(call: ts.CallExpression): boolean {
   const callee = call.expression;
+  if (ts.isIdentifier(callee)) return CONVERSIONS.has(callee.text);
   if (!ts.isPropertyAccessExpression(callee)) return false;
   const recv = callee.expression;
-  if (isNamedIdent(recv, "console")) return true;
-  return isNamedIdent(recv, "JSON") && callee.name.text === "stringify";
+  return ts.isIdentifier(recv) && READING_NAMESPACES.has(recv.text);
 }
+
+const CONVERSIONS: ReadonlySet<string> = new Set([
+  "String",
+  "Number",
+  "Boolean",
+  "parseInt",
+  "parseFloat",
+]);
+const READING_NAMESPACES: ReadonlySet<string> = new Set(["console", "JSON", "Object", "Array"]);
 
 // Optional chaining is admitted in one form: a single `x?.f` read of a field of a nullable plain
 // object or class instance, whose result is the whole expression. A longer chain (`x?.f.g`), a

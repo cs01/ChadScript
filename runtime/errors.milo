@@ -21,6 +21,8 @@ extern fn _longjmp(buf: *u8, v: i32)
 pub extern struct CsThrown {
     isError: i32,
     message: *CsString,
+    // Node's `err.code` for a system error ("ECONNREFUSED"); null for every other error.
+    code: *CsString,
 }
 
 // The builtin error classes (src/lower/errors.ts keeps the same numbering). Every one is an Error,
@@ -29,6 +31,8 @@ pub let ERR_ERROR: i32 = 1
 pub let ERR_TYPE: i32 = 2
 pub let ERR_RANGE: i32 = 3
 pub let ERR_SYNTAX: i32 = 4
+// Only the runtime makes one: several failed connection attempts (netsys.milo aggregateError).
+pub let ERR_AGGREGATE: i32 = 5
 
 // Both constructors COPY the message rather than retaining the caller's pointer. Retaining it made a
 // stack CsString in any C caller a dangling read at catch time, and that bug class is invisible to
@@ -36,9 +40,10 @@ pub let ERR_SYNTAX: i32 = 4
 // API must not permit it. Throws are exceptional, so the copy is free in practice.
 fn newThrown(isError: i32, message: *CsString): *CsThrown {
     unsafe {
-        let t = gcAllocStruct(16, 0b10) as *CsThrown
+        let t = gcAllocStruct(24, 0b110) as *CsThrown
         t.isError = isError
         t.message = cs_str_from(message.data, message.len)
+        t.code = 0 as *CsString
         return t
     }
 }
@@ -87,7 +92,28 @@ pub fn cs_thrown_message(t: *CsThrown): *CsString {
     }
 }
 
+pub fn thrownSetCode(t: *CsThrown, code: *CsString) {
+    unsafe {
+        t.code = code
+    }
+}
+
+// `err.code` of a system error. Only errors the network runtime makes are typed as having a code
+// (stdlib/globals.d.ts SystemError), and every one of those sets it.
+@externalLinkage
+pub fn cs_thrown_code(t: *CsThrown): *CsString {
+    unsafe {
+        if t.code as i64 == 0 {
+            return strLit("")
+        }
+        return t.code
+    }
+}
+
 fn kindName(kind: i32): *CsString {
+    if kind == ERR_AGGREGATE {
+        return strLit("AggregateError")
+    }
     if kind == ERR_TYPE {
         return strLit("TypeError")
     }

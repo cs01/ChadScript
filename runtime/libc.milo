@@ -40,3 +40,31 @@ pub extern fn abort()
 // Called only to spill callee-saved registers into a buffer the stack scan covers; never longjmp'd
 // to, so its returns-twice nature does not matter.
 pub extern fn _setjmp(buf: *u8): i32
+
+// errno lives behind a per-thread accessor whose name differs by platform (see errnoValue in
+// netsys.milo); declared here for both so either resolves at link time.
+pub extern fn __error(): *i32
+pub extern fn __errno_location(): *i32
+
+// Sockets and readiness polling (runtime/net*.milo). `nfds` is `nfds_t`, unsigned int on macOS and
+// unsigned long on Linux; passing an i64 is correct for both because the counts are small and the
+// callee only reads the width it declares.
+pub extern fn socket(domain: i32, kind: i32, protocol: i32): i32
+pub extern fn bind(fd: i32, addr: *u8, len: u32): i32
+pub extern fn listen(fd: i32, backlog: i32): i32
+pub extern fn accept(fd: i32, addr: *u8, len: *u32): i32
+pub extern fn connect(fd: i32, addr: *u8, len: u32): i32
+pub extern fn read(fd: i32, buf: *u8, n: i64): i64
+pub extern fn write(fd: i32, buf: *u8, n: i64): i64
+pub extern fn close(fd: i32): i32
+pub extern fn shutdown(fd: i32, how: i32): i32
+pub extern fn fcntl(fd: i32, cmd: i32, ...): i32
+pub extern fn setsockopt(fd: i32, level: i32, name: i32, value: *u8, len: u32): i32
+pub extern fn getsockopt(fd: i32, level: i32, name: i32, value: *u8, len: *u32): i32
+pub extern fn getsockname(fd: i32, addr: *u8, len: *u32): i32
+pub extern fn getpeername(fd: i32, addr: *u8, len: *u32): i32
+pub extern fn poll(fds: *u8, nfds: i64, timeout: i32): i32
+pub extern fn getaddrinfo(node: *u8, service: *u8, hints: *u8, res: **u8): i32
+pub extern fn freeaddrinfo(res: *u8)
+pub extern fn inet_ntop(af: i32, src: *u8, dst: *u8, size: u32): *u8
+pub extern fn signal(sig: i32, handler: *u8): *u8

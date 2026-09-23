@@ -41,6 +41,7 @@ import { evalOptionalPtr, unboxOptionalValue, unboxSlotValue } from "./optional.
 import { evalNumber } from "./numbers.js";
 import { inspect } from "./inspect.js";
 import { bindVar, bindCellPtr, renewCell } from "./cells.js";
+import { allocSlots, slotMayPoint } from "./alloc.js";
 
 export function generate(hmod: HModule): string {
   const mod = new ModuleBuilder();
@@ -117,6 +118,10 @@ function emitFunction(
   shapes: readonly ShapeDescriptor[],
 ): void {
   const isAsync = f.async ?? false;
+  if (isAsync && f.captures !== undefined) {
+    emitAsyncLambda(f, mod, globals, shapes);
+    return;
+  }
   const captures = f.captures ?? [];
   // An async function is emitted as a fiber body `void @name(ptr env)` — it resolves its result via
   // cs_fiber_return, so its LLVM return is void; its args are packed into `env`. Ordinary lambdas
@@ -178,6 +183,64 @@ function emitFunction(
     } else {
       fn.unreachable();
     }
+  }
+}
+
+// An async arrow. Its closure's code pointer is a wrapper `ptr @name(ptr env, args...)` that packs
+// {env, args...} into a slot record and spawns a fiber on `@name.fiber`, returning the fiber's
+// promise: calling the closure runs the body up to its first await, exactly like calling an async
+// function. The fiber body binds the captures from the env and the arguments from the record, then
+// runs like any async body (its `return` resolves the promise through cs_fiber_return).
+function emitAsyncLambda(
+  f: HFunc,
+  mod: ModuleBuilder,
+  globals: Map<string, { ptr: Value; vtype: ValueType }>,
+  shapes: readonly ShapeDescriptor[],
+): void {
+  const captures = f.captures ?? [];
+  const fiberName = `${f.name}.fiber`;
+
+  const wrapperParams: Value[] = [
+    { name: "%arg0", type: T.ptr },
+    ...f.params.map((p, i) => ({ name: `%arg${i + 1}`, type: irTypeOf(p.type) })),
+  ];
+  const w = mod.defineFunc(f.name, T.ptr, wrapperParams);
+  const wctx: Ctx = {
+    mod,
+    fn: w,
+    vars: new Map(),
+    globals,
+    breakTargets: [],
+    continueTargets: [],
+    finallyStack: [],
+    fnReturnType: null,
+    asyncFn: false,
+    shapes,
+  };
+  const rec = allocSlots([true, ...f.params.map((p) => slotMayPoint(p.type))], wctx);
+  w.store(w.ptrToI64(wrapperParams[0]!), w.gepSlot(rec, 0));
+  f.params.forEach((p, i) => {
+    w.store(boxSlot(wrapperParams[i + 1]!, p.type, wctx), w.gepSlot(rec, i + 1));
+  });
+  w.ret(w.call("@cs_fiber_spawn", T.ptr, [{ name: `@${fiberName}`, type: T.ptr }, rec]));
+
+  const recParam: Value = { name: "%arg0", type: T.ptr };
+  const fn = mod.defineFunc(fiberName, T.void, [recParam]);
+  const ctx: Ctx = { ...wctx, fn, vars: new Map(), fnReturnType: f.returnType, asyncFn: true };
+  const env = fn.i64ToPtr(fn.load(T.i64, fn.gepSlot(recParam, 0)));
+  captures.forEach((c, i) => {
+    const raw = fn.load(T.i64, fn.gepSlot(env, i));
+    if (c.byRef) bindCellPtr(c.name, c.type, fn.i64ToPtr(raw), ctx);
+    else bindVar(c.name, c.type, () => unboxSlotValue(raw, c.type, ctx), false, ctx);
+  });
+  f.params.forEach((p, i) => {
+    const raw = fn.load(T.i64, fn.gepSlot(recParam, i + 1));
+    bindVar(p.name, p.type, () => unboxSlotValue(raw, p.type, ctx), p.cell, ctx);
+  });
+  emitStatements(f.body, ctx);
+  if (!fn.currentBlock.isTerminated) {
+    fn.callVoid("@cs_fiber_return", [imm(T.i64, 0)]);
+    fn.retVoid();
   }
 }
 

@@ -29,3 +29,5 @@ from "./async" import { cs_run_event_loop }
 from "./fs-promises" import { cs_fsp_read_file }
 from "./shape" import { cs_ic_get }
 from "./value" import { cs_value_strict_eq }
+from "./net" import { cs_net_listen }
+from "./netsys" import { resolveHost }

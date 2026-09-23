@@ -114,3 +114,70 @@ declare module "node:fs" {
 declare const Date: {
   now(): number;
 };
+
+/**
+ * An error the operating system reported: a refused connection, an address already in use. It is
+ * an `Error` whose `code` names the condition the way Node does ("ECONNREFUSED", "EADDRINUSE"),
+ * and whose message is Node's ("connect ECONNREFUSED 127.0.0.1:8080").
+ */
+declare interface SystemError extends Error {
+  readonly code: string;
+}
+
+/**
+ * A chunk of bytes received from the network. Only its text (`toString()`, UTF-8) and its byte
+ * `length` are available: the rest of Node's Buffer API (indexing, slicing, `Buffer.from`) is not.
+ * Printing one is rejected, because Node prints the raw bytes as `<Buffer 68 69>`.
+ */
+declare interface Buffer {
+  readonly __opaqueBuffer: unique symbol;
+  toString(encoding?: "utf8"): string;
+  readonly length: number;
+}
+
+/**
+ * `node:net`: TCP servers and clients. Events are delivered exactly as Node delivers them
+ * (docs/guide/networking.md): listeners run in registration order, a socket reads only once it has
+ * a "data" listener, and the process exits once no server is listening and no socket is open. A
+ * socket ends its own side after the peer ends (Node's default `allowHalfOpen: false`).
+ *
+ * Every type here is an opaque handle: its members are the whole API, and printing one is rejected.
+ */
+declare module "node:net" {
+  export interface AddressInfo {
+    readonly __opaqueAddressInfo: unique symbol;
+    readonly address: string;
+    readonly family: string;
+    readonly port: number;
+  }
+  export interface Server {
+    readonly __opaqueServer: unique symbol;
+    listen(port: number, listener?: () => void): this;
+    listen(port: number, host: string, listener?: () => void): this;
+    address(): AddressInfo;
+    close(callback?: () => void): this;
+    on(event: "connection", listener: (socket: Socket) => void): this;
+    on(event: "listening", listener: () => void): this;
+    on(event: "close", listener: () => void): this;
+    on(event: "error", listener: (err: SystemError) => void): this;
+  }
+  export interface Socket {
+    readonly __opaqueSocket: unique symbol;
+    write(data: string): boolean;
+    end(data?: string): this;
+    setEncoding(encoding: "utf8"): this;
+    destroy(): this;
+    on(event: "connect", listener: () => void): this;
+    on(event: "data", listener: (data: Buffer) => void): this;
+    on(event: "end", listener: () => void): this;
+    on(event: "close", listener: (hadError: boolean) => void): this;
+    on(event: "error", listener: (err: SystemError) => void): this;
+  }
+  export interface ConnectOptions {
+    port: number;
+    host?: string;
+  }
+  export function createServer(connectionListener?: (socket: Socket) => void): Server;
+  export function connect(options: ConnectOptions, connectListener?: () => void): Socket;
+  export function createConnection(options: ConnectOptions, connectListener?: () => void): Socket;
+}

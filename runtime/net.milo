@@ -1,0 +1,1319 @@
+// `node:net`: TCP servers and sockets on non-blocking file descriptors, driven by a poll(2)
+// readiness loop that the event loop (async.milo) runs as its I/O phase.
+//
+// Node's observable contract, which the differential fixtures in tests/fixtures/run/net pin:
+//   - listener callbacks run in registration order, and after EVERY callback the process drains
+//     its tick queue and microtasks (each I/O callback is a separate macrotask);
+//   - events Node defers with process.nextTick ('listening', 'end', 'error', a server's 'close')
+//     go through this module's tick queue, which drains after microtasks when the main module has
+//     just finished and BEFORE them after a callback, exactly as processTicksAndRejections does;
+//   - a socket's 'close' runs in the close phase that follows a poll round, like a libuv close
+//     callback;
+//   - a socket reads only while it has a 'data' listener (flowing mode). Without one Node never
+//     emits 'end', so neither do we;
+//   - allowHalfOpen is false: after 'end' the socket ends its own side, and once both sides are
+//     done it is destroyed and emits 'close';
+//   - the process stays alive while a server listens or a socket is open.
+//
+// Why poll(2) and not kqueue/epoll: one code path for both platforms, and dispatch in handle
+// creation order is deterministic. The handle counts the subset targets are small, so the O(n)
+// scan per round costs nothing measurable.
+//
+// Memory: handles, listener lists, write queues and tick records are GC objects. Every live handle
+// is linked from gHandles (a Milo global, so the collector's data-segment scan keeps it alive)
+// until it is closed, so a handle the program dropped still delivers its events.
+
+from "./abi" import { CsString, byteAt, memcpy }
+from "./csstring" import { cs_str_from, strLit }
+from "./gc" import { gcAllocStruct, gcAllocValues, gcAllocAtomic }
+from "./errors" import { CsThrown, cs_throw, thrownSetCode, cs_new_error_kind, ERR_ERROR }
+from "./libc" import {
+    malloc,
+    free,
+    bind,
+    listen,
+    accept,
+    connect,
+    read,
+    write,
+    close,
+    shutdown,
+    getsockopt,
+    getsockname,
+    poll
+}
+from "./netsys" import {
+    AF_INET,
+    SHUT_WR,
+    EINTR,
+    POLLIN,
+    POLLOUT,
+    POLLERR,
+    POLLHUP,
+    SOCKADDR_BYTES,
+    afInet6,
+    solSocket,
+    soReuseaddr,
+    soError,
+    eAgain,
+    eInProgress,
+    errnoValue,
+    setNonblocking,
+    setIntOpt,
+    clearV6only,
+    newStreamSocket,
+    sockFamily,
+    sockLen,
+    sockPort,
+    anyAddr,
+    newSockaddr,
+    sockAddrText,
+    familyText,
+    resolveHost,
+    errnoName,
+    systemError,
+    aggregateError
+}
+from "./inspect" import { Sb, sbNew, sbLit, sbStr, sbInt, sbDone }
+from "./async" import { drainAll }
+
+pub let KIND_SERVER: i64 = 1
+pub let KIND_SOCKET: i64 = 2
+
+// Who consumes a socket's events: the program's listeners (node:net), or a protocol layer built
+// on the socket (http.milo), which reacts to the same events in runtime code.
+pub let PROTO_NET: i64 = 0
+
+pub let EV_CONNECT: i64 = 1
+pub let EV_DATA: i64 = 2
+pub let EV_END: i64 = 3
+pub let EV_CLOSE: i64 = 4
+pub let EV_ERROR: i64 = 5
+pub let EV_CONNECTION: i64 = 6
+pub let EV_LISTENING: i64 = 7
+// Internal ticks, never listened to: the allowHalfOpen=false end() after 'end', and the delivery
+// of data buffered in paused mode once a 'data' listener appears.
+let EV_AUTO_END: i64 = 100
+let EV_FLOW: i64 = 101
+
+// Node's writable highWaterMark: write() returns false once this many bytes are pending.
+let HIGH_WATER_MARK: i64 = 16384
+let READ_CHUNK: i64 = 65536
+
+// A registered listener; `cb` is a program closure record ({fnptr, env}).
+extern struct Listener {
+    cb: *u8,
+    next: *Listener,
+    event: i64,
+}
+
+// One pending write: `str` from byte `off`.
+extern struct WChunk {
+    str: *CsString,
+    next: *WChunk,
+    off: i64,
+}
+
+// A server or a socket. Pointer fields first so one bitmap names them all (NET_HANDLE_MAP).
+pub extern struct NetHandle {
+    next: *NetHandle,
+    listeners: *Listener,
+    wHead: *WChunk,
+    wTail: *WChunk,
+    // the server that accepted this socket (its connection count drops when the socket closes)
+    server: *NetHandle,
+    // a server's bound address; a connecting socket's candidate addresses (resolveHost buffer)
+    addrs: *u8,
+    // the first failed connection attempt's error
+    firstErr: *CsThrown,
+    // protocol-layer state (http.milo), null for a plain socket
+    ext: *u8,
+    closeNext: *NetHandle,
+    // data read while no 'data' listener existed (paused mode), delivered once one is added
+    rHead: *WChunk,
+    rTail: *WChunk,
+    kind: i64,
+    proto: i64,
+    fd: i64,
+    nAddrs: i64,
+    addrIdx: i64,
+    nErrs: i64,
+    connecting: i64,
+    connected: i64,
+    flowing: i64,
+    utf8: i64,
+    // bytes of an incomplete UTF-8 sequence held back from the previous chunk (setEncoding)
+    carry: i64,
+    carryLen: i64,
+    eof: i64,
+    endEmitted: i64,
+    ending: i64,
+    finSent: i64,
+    finished: i64,
+    destroyed: i64,
+    hadError: i64,
+    wLen: i64,
+    listening: i64,
+    closing: i64,
+    connections: i64,
+    closeQueued: i64,
+    finishPending: i64,
+    rLen: i64,
+    endQueued: i64,
+}
+
+// The 11 pointer words at the start of NetHandle.
+let NET_HANDLE_MAP: u64 = 0b11111111111
+
+// `server.address()`: a snapshot. A server that is not listening answers null in Node, and reading
+// a field of null throws; `isNull` carries that to the field reads.
+extern struct AddrInfo {
+    address: *CsString,
+    family: *CsString,
+    port: i64,
+    isNull: i64,
+}
+
+// Closure records as the runtime calls them: fnptr(env, args...). A closure declaring fewer
+// parameters than it is passed ignores the rest (the C calling convention allows it, and codegen's
+// array callbacks rely on the same).
+extern struct Closure0 {
+    fnptr: (*u8) => void,
+    env: *u8,
+}
+
+extern struct Closure1 {
+    fnptr: (*u8, *u8) => void,
+    env: *u8,
+}
+
+extern struct ClosureB {
+    fnptr: (*u8, bool) => void,
+    env: *u8,
+}
+
+// Deferred events (process.nextTick): FIFO.
+extern struct Tick {
+    handle: *NetHandle,
+    arg: *u8,
+    next: *Tick,
+    event: i64,
+}
+
+var gHandles: *NetHandle = 0 as *NetHandle
+var gTicks: *Tick = 0 as *Tick
+var gTicksTail: *Tick = 0 as *Tick
+var gCloseQ: *NetHandle = 0 as *NetHandle
+var gCloseTail: *NetHandle = 0 as *NetHandle
+
+fn isNullH(h: *NetHandle): bool {
+    return h as i64 == 0
+}
+
+fn newHandle(kind: i64): *NetHandle {
+    unsafe {
+        let h = gcAllocStruct(sizeOf<NetHandle>(), NET_HANDLE_MAP) as *NetHandle
+        h.kind = kind
+        h.fd = -1
+        // Append: dispatch follows creation order.
+        if isNullH(gHandles) {
+            gHandles = h
+        } else {
+            var t = gHandles
+            while !isNullH(t.next) {
+                t = t.next
+            }
+            t.next = h
+        }
+        return h
+    }
+}
+
+// @externalLinkage only for its exemption from Milo's pointer-parameter store rule (as
+// cs_fiber_enter in async.milo): handles are GC memory, not a buffer some caller owns.
+@externalLinkage
+pub fn cs_net_unlink(h: *NetHandle) {
+    unsafe {
+        if gHandles as i64 == h as i64 {
+            gHandles = h.next
+            h.next = 0 as *NetHandle
+            return
+        }
+        var t = gHandles
+        while !isNullH(t) {
+            if t.next as i64 == h as i64 {
+                t.next = h.next
+                h.next = 0 as *NetHandle
+                return
+            }
+            t = t.next
+        }
+    }
+}
+
+fn closeFd(h: *NetHandle) {
+    unsafe {
+        if h.fd >= 0 {
+            close(h.fd as i32)
+            h.fd = -1
+        }
+    }
+}
+
+// ---- listeners and emission ----
+
+pub fn addListener(h: *NetHandle, event: i64, cb: *u8) {
+    unsafe {
+        let l = gcAllocStruct(24, 0b11) as *Listener
+        l.cb = cb
+        l.next = 0 as *Listener
+        l.event = event
+        if l.cb as i64 == 0 {
+            return
+        }
+        if h.listeners as i64 == 0 {
+            h.listeners = l
+        } else {
+            var t = h.listeners
+            while t.next as i64 != 0 {
+                t = t.next
+            }
+            t.next = l
+        }
+        // A 'data' listener switches the socket to flowing mode. Node resumes it in a nextTick,
+        // which is when anything read in paused mode is delivered.
+        if event == EV_DATA && h.flowing == 0 {
+            h.flowing = 1
+            if h.rHead as i64 != 0 {
+                queueTick(h, EV_FLOW, 0 as *u8)
+            }
+        }
+    }
+}
+
+fn listenerCount(h: *NetHandle, event: i64): i64 {
+    var n: i64 = 0
+    unsafe {
+        var l = h.listeners
+        while l as i64 != 0 {
+            if l.event == event {
+                n = n + 1
+            }
+            l = l.next
+        }
+    }
+    return n
+}
+
+fn callListener(cb: *u8, event: i64, arg: *u8, flag: bool) {
+    unsafe {
+        if event == EV_CLOSE {
+            let c = cb as *ClosureB
+            c.fnptr(c.env, flag)
+            return
+        }
+        let c = cb as *Closure1
+        c.fnptr(c.env, arg)
+    }
+}
+
+// Call `event`'s listeners, in order. Only those registered before the emit started run (Node
+// clones the listener array), which is the first `n` matches because registration appends. An
+// 'error' nobody listens for is thrown, which ends the process with exit code 1 like Node's
+// unhandled 'error' event.
+pub fn emitNow(h: *NetHandle, event: i64, arg: *u8, flag: bool) {
+    let n = listenerCount(h, event)
+    if n == 0 && event == EV_ERROR {
+        unsafe {
+            cs_throw(arg as *CsThrown)
+        }
+    }
+    var i: i64 = 0
+    unsafe {
+        var l = h.listeners
+        while l as i64 != 0 && i < n {
+            if l.event == event {
+                i = i + 1
+                callListener(l.cb, event, arg, flag)
+            }
+            l = l.next
+        }
+    }
+}
+
+// ---- the tick queue (process.nextTick) ----
+
+fn queueTick(h: *NetHandle, event: i64, arg: *u8) {
+    unsafe {
+        let t = gcAllocStruct(32, 0b111) as *Tick
+        t.handle = h
+        t.arg = arg
+        t.next = 0 as *Tick
+        t.event = event
+        if gTicksTail as i64 != 0 {
+            gTicksTail.next = t
+        } else {
+            gTicks = t
+        }
+        gTicksTail = t
+    }
+}
+
+pub fn netTicksPending(): bool {
+    return gTicks as i64 != 0
+}
+
+// Run ticks until the queue is empty, including ticks queued by ticks (Node drains the whole
+// nextTick queue before it runs microtasks).
+pub fn netRunTicks() {
+    while gTicks as i64 != 0 {
+        let t = gTicks
+        unsafe {
+            gTicks = t.next
+            if gTicks as i64 == 0 {
+                gTicksTail = 0 as *Tick
+            }
+            runTick(t.handle, t.event, t.arg)
+        }
+    }
+}
+
+fn runTick(h: *NetHandle, event: i64, arg: *u8) {
+    unsafe {
+        if event == EV_END {
+            h.endEmitted = 1
+            // Duplex's own 'end' listener runs first and defers the allowHalfOpen=false end(), so
+            // that tick precedes any the program's listeners queue.
+            queueTick(h, EV_AUTO_END, 0 as *u8)
+            emitNow(h, EV_END, 0 as *u8, false)
+            maybeDestroy(h)
+            return
+        }
+        if event == EV_FLOW {
+            while h.rHead as i64 != 0 && h.destroyed == 0 {
+                let c = h.rHead
+                h.rHead = c.next
+                if h.rHead as i64 == 0 {
+                    h.rTail = 0 as *WChunk
+                }
+                h.rLen = h.rLen - c.str.len
+                deliverData(h, c.str)
+            }
+            if h.eof != 0 {
+                queueEnd(h)
+            }
+            return
+        }
+        if event == EV_AUTO_END {
+            if h.ending == 0 && h.destroyed == 0 {
+                endSocket(h)
+            }
+            return
+        }
+        if event == EV_CLOSE {
+            // A server's 'close' (sockets close in the close phase instead).
+            emitNow(h, EV_CLOSE, 0 as *u8, false)
+            return
+        }
+        emitNow(h, event, arg, false)
+    }
+}
+
+// ---- the close phase ----
+
+// @externalLinkage for the same store-rule exemption as cs_net_unlink.
+@externalLinkage
+pub fn cs_net_queue_close(h: *NetHandle) {
+    unsafe {
+        if h.closeQueued != 0 {
+            return
+        }
+        h.closeQueued = 1
+        h.closeNext = 0 as *NetHandle
+        if !isNullH(gCloseTail) {
+            gCloseTail.closeNext = h
+        } else {
+            gCloseQ = h
+        }
+        gCloseTail = h
+    }
+}
+
+fn runClosePhase() {
+    while !isNullH(gCloseQ) {
+        let h = gCloseQ
+        unsafe {
+            gCloseQ = h.closeNext
+            if isNullH(gCloseQ) {
+                gCloseTail = 0 as *NetHandle
+            }
+            emitNow(h, EV_CLOSE, 0 as *u8, h.hadError != 0)
+        }
+        drainAll()
+    }
+}
+
+// Close the socket now; 'error' (if any) follows as a tick and 'close' in the close phase.
+fn destroy(h: *NetHandle, err: *CsThrown) {
+    unsafe {
+        if h.destroyed != 0 {
+            return
+        }
+        h.destroyed = 1
+        h.connecting = 0
+        closeFd(h)
+        cs_net_unlink(h)
+        // Node's Socket._destroy drops the server's connection count right here (so a closing
+        // server's 'close' tick can precede this socket's own 'close' in the close phase).
+        let srv = h.server
+        if !isNullH(srv) {
+            srv.connections = srv.connections - 1
+            serverMaybeClosed(srv)
+        }
+        if err as i64 != 0 {
+            h.hadError = 1
+            queueTick(h, EV_ERROR, err as *u8)
+        }
+        cs_net_queue_close(h)
+    }
+}
+
+// Both directions done ('end' emitted, our FIN sent and acknowledged as finished): autoDestroy.
+fn maybeDestroy(h: *NetHandle) {
+    unsafe {
+        if h.endEmitted != 0 && h.finished != 0 {
+            destroy(h, 0 as *CsThrown)
+        }
+    }
+}
+
+// ---- writing ----
+
+fn flushWrites(h: *NetHandle) {
+    unsafe {
+        if h.connected == 0 || h.destroyed != 0 {
+            return
+        }
+        while h.wHead as i64 != 0 {
+            let c = h.wHead
+            let rest = c.str.len - c.off
+            if rest > 0 {
+                let n = write(h.fd as i32, byteAt(c.str.data, c.off), rest)
+                if n < 0 {
+                    let e = errnoValue()
+                    if e == eAgain() || e == EINTR {
+                        return
+                    }
+                    destroy(h, systemError("write", errnoName(e), 0 as *u8))
+                    return
+                }
+                c.off = c.off + n
+                h.wLen = h.wLen - n
+                if n < rest {
+                    return
+                }
+            }
+            h.wHead = c.next
+            if h.wHead as i64 == 0 {
+                h.wTail = 0 as *WChunk
+            }
+        }
+        if h.ending != 0 && h.finSent == 0 {
+            shutdown(h.fd as i32, SHUT_WR)
+            h.finSent = 1
+            // The shutdown request completes in the next poll round, where 'finish' happens.
+            h.finishPending = 1
+        }
+    }
+}
+
+fn queueWrite(h: *NetHandle, s: *CsString) {
+    unsafe {
+        if s.len == 0 {
+            return
+        }
+        let c = gcAllocStruct(24, 0b11) as *WChunk
+        c.str = s
+        c.next = 0 as *WChunk
+        c.off = 0
+        if h.wTail as i64 != 0 {
+            h.wTail.next = c
+        } else {
+            h.wHead = c
+        }
+        h.wTail = c
+        h.wLen = h.wLen + s.len
+    }
+}
+
+fn endSocket(h: *NetHandle) {
+    unsafe {
+        if h.ending != 0 {
+            return
+        }
+        h.ending = 1
+    }
+    flushWrites(h)
+}
+
+// ---- reading ----
+
+// The length of the longest prefix of `p[0..n]` that ends on a UTF-8 character boundary: a
+// multi-byte character split across two reads is held back, as Node's StringDecoder does.
+fn utf8CompletePrefix(p: *u8, n: i64): i64 {
+    var i = n - 1
+    var back: i64 = 0
+    unsafe {
+        while i >= 0 && back < 4 {
+            let b = p[i] as i64
+            if (b & 0xC0) != 0x80 {
+                var need: i64 = 1
+                if (b & 0xE0) == 0xC0 {
+                    need = 2
+                } else if (b & 0xF0) == 0xE0 {
+                    need = 3
+                } else if (b & 0xF8) == 0xF0 {
+                    need = 4
+                }
+                if n - i >= need {
+                    return n
+                }
+                return i
+            }
+            i = i - 1
+            back = back + 1
+        }
+    }
+    return n
+}
+
+fn onReadable(h: *NetHandle) {
+    unsafe {
+        let buf = malloc(READ_CHUNK + 4)
+        var pre: i64 = 0
+        if h.utf8 != 0 && h.carryLen > 0 {
+            var k: i64 = 0
+            while k < h.carryLen {
+                buf[k] = ((h.carry >> (k * 8)) & 255) as u8
+                k = k + 1
+            }
+            pre = h.carryLen
+            h.carryLen = 0
+            h.carry = 0
+        }
+        let n = read(h.fd as i32, byteAt(buf, pre), READ_CHUNK)
+        if n < 0 {
+            let e = errnoValue()
+            free(buf)
+            if e == eAgain() || e == EINTR {
+                return
+            }
+            destroy(h, systemError("read", errnoName(e), 0 as *u8))
+            return
+        }
+        if n == 0 {
+            free(buf)
+            h.eof = 1
+            // Paused with data still buffered: 'end' waits until that data is consumed (EV_FLOW).
+            if h.flowing != 0 || h.rHead as i64 == 0 {
+                queueEnd(h)
+            }
+            return
+        }
+        var total = pre + n
+        if h.utf8 != 0 {
+            let keep = utf8CompletePrefix(buf, total)
+            var k: i64 = keep
+            while k < total {
+                h.carry = h.carry | ((buf[k] as i64) << ((k - keep) * 8))
+                k = k + 1
+            }
+            h.carryLen = total - keep
+            total = keep
+        }
+        let chunk = cs_str_from(buf, total)
+        free(buf)
+        if total == 0 {
+            return
+        }
+        if h.flowing != 0 {
+            deliverData(h, chunk)
+            return
+        }
+        // Paused mode: Node reads anyway (up to the high-water mark) and keeps the data.
+        let c = gcAllocStruct(24, 0b11) as *WChunk
+        c.str = chunk
+        c.next = 0 as *WChunk
+        c.off = 0
+        if h.rTail as i64 != 0 {
+            h.rTail.next = c
+        } else {
+            h.rHead = c
+        }
+        h.rTail = c
+        h.rLen = h.rLen + total
+    }
+}
+
+fn queueEnd(h: *NetHandle) {
+    unsafe {
+        if h.endQueued == 0 {
+            h.endQueued = 1
+            queueTick(h, EV_END, 0 as *u8)
+        }
+    }
+}
+
+// Whether the socket is reading: Node starts reading as soon as a socket is connected, whether or
+// not anything listens, and stops at end of stream or when a paused socket has buffered a
+// high-water mark's worth.
+fn isReading(h: *NetHandle): bool {
+    unsafe {
+        return h.connected != 0 && h.eof == 0 && h.destroyed == 0 &&
+            (h.flowing != 0 || h.rLen < HIGH_WATER_MARK)
+    }
+}
+
+fn deliverData(h: *NetHandle, chunk: *CsString) {
+    unsafe {
+        let proto = h.proto
+        if proto == PROTO_NET {
+            emitNow(h, EV_DATA, chunk as *u8, false)
+            return
+        }
+    }
+    cs_throw(cs_new_error_kind(ERR_ERROR, strLit("internal: unknown socket protocol")))
+}
+
+// ---- connecting ----
+
+fn tryConnect(h: *NetHandle) {
+    unsafe {
+        while h.addrIdx < h.nAddrs {
+            let sa = byteAt(h.addrs, h.addrIdx * SOCKADDR_BYTES)
+            let fd = newStreamSocket(sockFamily(sa))
+            if fd < 0 {
+                recordConnectError(h, errnoValue(), sa)
+                h.addrIdx = h.addrIdx + 1
+                continue
+            }
+            setNonblocking(fd)
+            h.fd = fd as i64
+            let rc = connect(fd, sa, sockLen(sockFamily(sa)))
+            let e = if rc < 0 { errnoValue() } else { 0 }
+            if rc == 0 || e == eInProgress() || e == EINTR {
+                // Completion is reported by poll (POLLOUT), even when the kernel finished the
+                // handshake inside connect(): Node learns of it in the poll phase too.
+                h.connecting = 1
+                return
+            }
+            closeFd(h)
+            recordConnectError(h, e, sa)
+            h.addrIdx = h.addrIdx + 1
+        }
+        failConnect(h)
+    }
+}
+
+fn recordConnectError(h: *NetHandle, e: i32, sa: *u8) {
+    unsafe {
+        if h.nErrs == 0 {
+            h.firstErr = systemError("connect", errnoName(e), sa)
+        }
+        h.nErrs = h.nErrs + 1
+    }
+}
+
+fn failConnect(h: *NetHandle) {
+    unsafe {
+        let err = if h.nErrs > 1 {
+            aggregateError(h.firstErr.code)
+        } else {
+            h.firstErr
+        }
+        destroy(h, err)
+    }
+}
+
+fn onConnectReady(h: *NetHandle) {
+    var soerr: i32 = 0
+    var len: u32 = 4
+    unsafe {
+        getsockopt(h.fd as i32, solSocket(), soError(), soerr.addrOf() as *u8, len.addrOf())
+        if soerr != 0 {
+            let sa = byteAt(h.addrs, h.addrIdx * SOCKADDR_BYTES)
+            closeFd(h)
+            h.connecting = 0
+            recordConnectError(h, soerr, sa)
+            h.addrIdx = h.addrIdx + 1
+            tryConnect(h)
+            return
+        }
+        h.connecting = 0
+        h.connected = 1
+    }
+    emitNow(h, EV_CONNECT, 0 as *u8, false)
+    flushWrites(h)
+}
+
+// ---- servers ----
+
+fn onAcceptable(srv: *NetHandle) {
+    var sa: [u8; 128] = [0; 128]
+    var len: u32 = 128
+    unsafe {
+        while srv.listening != 0 && srv.closing == 0 {
+            len = 128
+            let fd = accept(srv.fd as i32, sa.addrOf() as *u8, len.addrOf())
+            if fd < 0 {
+                return
+            }
+            setNonblocking(fd)
+            let s = newHandle(KIND_SOCKET)
+            s.fd = fd as i64
+            s.connected = 1
+            s.server = srv
+            s.proto = srv.proto
+            srv.connections = srv.connections + 1
+            deliverConnection(srv, s)
+            drainAll()
+        }
+    }
+}
+
+fn deliverConnection(srv: *NetHandle, s: *NetHandle) {
+    unsafe {
+        if srv.proto == PROTO_NET {
+            emitNow(srv, EV_CONNECTION, s as *u8, false)
+            return
+        }
+    }
+    cs_throw(cs_new_error_kind(ERR_ERROR, strLit("internal: unknown server protocol")))
+}
+
+// A closing server emits 'close' once its last connection has closed.
+fn serverMaybeClosed(srv: *NetHandle) {
+    unsafe {
+        if srv.closing != 0 && srv.connections == 0 && srv.closeQueued == 0 {
+            srv.closeQueued = 1
+            queueTick(srv, EV_CLOSE, 0 as *u8)
+        }
+    }
+}
+
+fn listenError(srv: *NetHandle, e: i32, sa: *u8) {
+    let code = errnoName(e)
+    let b = sbNew()
+    sbLit(b, "listen ")
+    sbStr(b, code)
+    sbLit(b, ": ")
+    putUvDescription(b, e)
+    sbLit(b, " ")
+    sbStr(b, sockAddrText(sa))
+    sbLit(b, ":")
+    sbInt(b, sockPort(sa))
+    let err = cs_new_error_kind(ERR_ERROR, sbDone(b))
+    thrownSetCode(err, code)
+    closeFd(srv)
+    cs_net_unlink(srv)
+    unsafe {
+        queueTick(srv, EV_ERROR, err as *u8)
+    }
+}
+
+// libuv's uv_strerror text for the listen errors Node prints, by errno name length (the names
+// errnoName gives these are distinct in length).
+fn putUvDescription(b: *Sb, e: i32) {
+    let name = errnoName(e)
+    unsafe {
+        if name.len == 10 {
+            sbLit(b, "address already in use")
+            return
+        }
+        if name.len == 13 {
+            sbLit(b, "address not available")
+            return
+        }
+        if name.len == 6 {
+            sbLit(b, "permission denied")
+            return
+        }
+    }
+    sbLit(b, "unknown error")
+}
+
+// ---- the poll phase ----
+
+fn interest(h: *NetHandle): i32 {
+    unsafe {
+        if h.fd < 0 || h.destroyed != 0 {
+            return 0
+        }
+        if h.kind == KIND_SERVER {
+            return if h.listening != 0 && h.closing == 0 { POLLIN } else { 0 }
+        }
+        if h.connecting != 0 {
+            return POLLOUT
+        }
+        var ev: i32 = 0
+        if isReading(h) {
+            ev = POLLIN
+        }
+        if h.wHead as i64 != 0 {
+            ev = ev | POLLOUT
+        }
+        return ev
+    }
+}
+
+// Whether anything keeps the loop alive, by libuv's rule of active handles and requests: a
+// listening server, a socket that is connecting, reading or has writes (or its FIN) pending, a
+// queued close. A socket that has seen end of stream with nothing left to send is not active,
+// even when it is never destroyed (a paused socket whose data nobody consumed).
+pub fn netAlive(): bool {
+    if !isNullH(gCloseQ) {
+        return true
+    }
+    var h = gHandles
+    unsafe {
+        while !isNullH(h) {
+            if h.kind == KIND_SERVER && h.listening != 0 && h.closing == 0 {
+                return true
+            }
+            if h.kind == KIND_SOCKET && h.destroyed == 0 {
+                if h.connecting != 0 || isReading(h) || h.wHead as i64 != 0 || h.finishPending != 0 {
+                    return true
+                }
+                if h.ending != 0 && h.finSent == 0 {
+                    return true
+                }
+            }
+            h = h.next
+        }
+    }
+    return false
+}
+
+// Complete shutdown requests issued since the last round: 'finish', then autoDestroy.
+fn completeFinishes(): bool {
+    var any = false
+    var h = gHandles
+    unsafe {
+        while !isNullH(h) {
+            let next = h.next
+            if h.finishPending != 0 {
+                h.finishPending = 0
+                h.finished = 1
+                any = true
+                maybeDestroy(h)
+            }
+            h = next
+        }
+    }
+    return any
+}
+
+// One poll round: wait up to `timeoutMs` (-1 = no limit) for readiness, dispatch every ready
+// handle in creation order (draining ticks and microtasks after each callback), then run the
+// close phase.
+pub fn netPollOnce(timeoutMs0: i64) {
+    var timeoutMs = timeoutMs0
+    if completeFinishes() {
+        drainAll()
+        timeoutMs = 0
+    }
+    if !isNullH(gCloseQ) {
+        timeoutMs = 0
+    }
+    var n: i64 = 0
+    var h = gHandles
+    unsafe {
+        while !isNullH(h) {
+            if interest(h) != 0 {
+                n = n + 1
+            }
+            h = h.next
+        }
+    }
+    let tmo: i32 = if timeoutMs < 0 { -1 } else if timeoutMs > 2000000000 { 2000000000 } else { timeoutMs as i32 }
+    if n == 0 {
+        // Nothing to watch, but something keeps the loop alive (a socket that is not reading):
+        // sleep until the next timer, or forever, which is what Node does too.
+        unsafe {
+            poll(0 as *u8, 0, tmo)
+        }
+        runClosePhase()
+        return
+    }
+    unsafe {
+        let fds = malloc(n * 8)
+        // The handles polled this round, in GC memory: a callback can close (unlink) one, and it
+        // must stay alive until its turn in the dispatch below.
+        let ready = gcAllocValues(n * 8) as **NetHandle
+        var i: i64 = 0
+        h = gHandles
+        while !isNullH(h) && i < n {
+            let ev = interest(h)
+            if ev != 0 {
+                let pfd = byteAt(fds, i * 8)
+                *(pfd as *i32) = h.fd as i32
+                *((pfd as i64 + 4) as *i16) = ev as i16
+                *((pfd as i64 + 6) as *i16) = 0
+                *((ready as i64 + i * 8) as **NetHandle) = h
+                i = i + 1
+            }
+            h = h.next
+        }
+        let rc = poll(fds, i, tmo)
+        if rc > 0 {
+            let polled = i
+            i = 0
+            while i < polled {
+                let pfd = byteAt(fds, i * 8)
+                let rev = (*((pfd as i64 + 6) as *i16)) as i32
+                let pfdFd = (*(pfd as *i32)) as i64
+                let hh = *((ready as i64 + i * 8) as **NetHandle)
+                // An earlier callback in this round may have closed this handle (and the fd may
+                // even belong to a new handle now): only an fd it still owns is dispatched.
+                if rev != 0 && hh.fd == pfdFd && hh.destroyed == 0 {
+                    dispatch(hh, rev)
+                }
+                i = i + 1
+            }
+        }
+        free(fds)
+    }
+    runClosePhase()
+}
+
+fn dispatch(h: *NetHandle, rev: i32) {
+    unsafe {
+        if h.kind == KIND_SERVER {
+            onAcceptable(h)
+            return
+        }
+        if h.connecting != 0 {
+            onConnectReady(h)
+            drainAll()
+            return
+        }
+        if (rev & POLLOUT) != 0 {
+            flushWrites(h)
+        }
+        if isReading(h) && (rev & (POLLIN | POLLHUP | POLLERR)) != 0 {
+            onReadable(h)
+        }
+    }
+    drainAll()
+}
+
+// ---- entry points (src/lower/host-api.ts) ----
+
+@externalLinkage
+pub fn cs_net_create_server(): *NetHandle {
+    return newHandle(KIND_SERVER)
+}
+
+@externalLinkage
+pub fn cs_net_create_server_cb(cb: *u8): *NetHandle {
+    let s = newHandle(KIND_SERVER)
+    addListener(s, EV_CONNECTION, cb)
+    return s
+}
+
+@externalLinkage
+pub fn cs_net_on(h: *NetHandle, event: *CsString, cb: *u8): *NetHandle {
+    addListener(h, eventId(event), cb)
+    return h
+}
+
+// Event names as the ambient declarations spell them. An unknown one is a compiler bug (the
+// declarations admit only these), so it fails loudly.
+fn eventId(name: *CsString): i64 {
+    unsafe {
+        let n = name.len
+        let c0 = name.data[0]
+        if n == 7 && c0 == 99 && name.data[3] == 110 {
+            return EV_CONNECT
+        }
+        if n == 4 && c0 == 100 {
+            return EV_DATA
+        }
+        if n == 3 && c0 == 101 {
+            return EV_END
+        }
+        if n == 5 && c0 == 99 {
+            return EV_CLOSE
+        }
+        if n == 5 && c0 == 101 {
+            return EV_ERROR
+        }
+        if n == 10 && c0 == 99 {
+            return EV_CONNECTION
+        }
+        if n == 9 && c0 == 108 {
+            return EV_LISTENING
+        }
+    }
+    cs_throw(cs_new_error_kind(ERR_ERROR, strLit("internal: unknown event name")))
+    return 0
+}
+
+fn doListen(srv: *NetHandle, port: f64, host: *CsString) {
+    unsafe {
+        var sa = 0 as *u8
+        var family: i32 = 0
+        if host.len == 0 {
+            // Node's default: the IPv6 wildcard, dual-stack, falling back to IPv4 without IPv6.
+            family = afInet6()
+            var fd = newStreamSocket(family)
+            if fd < 0 {
+                family = AF_INET
+                fd = newStreamSocket(family)
+            } else {
+                clearV6only(fd)
+            }
+            srv.fd = fd as i64
+            sa = anyAddr(family, port as i64)
+        } else {
+            var count: i64 = 0
+            let addrs = resolveHost(host, port as i64, &mut count)
+            if addrs as i64 == 0 || count == 0 {
+                resolveError(srv, host)
+                return
+            }
+            sa = addrs
+            family = sockFamily(sa)
+            srv.fd = newStreamSocket(family) as i64
+        }
+        let fd = srv.fd as i32
+        setIntOpt(fd, solSocket(), soReuseaddr(), 1)
+        if bind(fd, sa, sockLen(family)) != 0 || listen(fd, 511) != 0 {
+            listenError(srv, errnoValue(), sa)
+            return
+        }
+        setNonblocking(fd)
+        // The bound address (the kernel picked the port when it was 0).
+        let bound = newSockaddr()
+        var blen: u32 = 128
+        getsockname(fd, bound, blen.addrOf())
+        srv.addrs = bound
+        srv.listening = 1
+        queueTick(srv, EV_LISTENING, 0 as *u8)
+    }
+}
+
+fn resolveError(h: *NetHandle, host: *CsString) {
+    let b = sbNew()
+    sbLit(b, "getaddrinfo ENOTFOUND ")
+    sbStr(b, host)
+    let err = cs_new_error_kind(ERR_ERROR, sbDone(b))
+    thrownSetCode(err, strLit("ENOTFOUND"))
+    unsafe {
+        if h.kind == KIND_SERVER {
+            cs_net_unlink(h)
+            queueTick(h, EV_ERROR, err as *u8)
+            return
+        }
+    }
+    destroy(h, err)
+}
+
+@externalLinkage
+pub fn cs_net_listen(srv: *NetHandle, port: f64, host: *CsString): *NetHandle {
+    doListen(srv, port, host)
+    return srv
+}
+
+@externalLinkage
+pub fn cs_net_listen_cb(srv: *NetHandle, port: f64, host: *CsString, cb: *u8): *NetHandle {
+    addListener(srv, EV_LISTENING, cb)
+    doListen(srv, port, host)
+    return srv
+}
+
+@externalLinkage
+pub fn cs_net_address(srv: *NetHandle): *AddrInfo {
+    unsafe {
+        let a = gcAllocStruct(32, 0b11) as *AddrInfo
+        if srv.listening == 0 || srv.closing != 0 || srv.addrs as i64 == 0 {
+            a.isNull = 1
+            return a
+        }
+        a.address = sockAddrText(srv.addrs)
+        a.family = familyText(srv.addrs)
+        a.port = sockPort(srv.addrs)
+        return a
+    }
+}
+
+fn nullRead(field: &string) {
+    let b = sbNew()
+    sbLit(b, "Cannot read properties of null (reading '")
+    sbLit(b, field)
+    sbLit(b, "')")
+    // TypeError, exactly what Node throws for `server.address().port` before listening.
+    cs_throw(cs_new_error_kind(2, sbDone(b)))
+}
+
+@externalLinkage
+pub fn cs_net_addr_port(a: *AddrInfo): f64 {
+    unsafe {
+        if a.isNull != 0 {
+            nullRead("port")
+        }
+        return a.port as f64
+    }
+}
+
+@externalLinkage
+pub fn cs_net_addr_address(a: *AddrInfo): *CsString {
+    unsafe {
+        if a.isNull != 0 {
+            nullRead("address")
+        }
+        return a.address
+    }
+}
+
+@externalLinkage
+pub fn cs_net_addr_family(a: *AddrInfo): *CsString {
+    unsafe {
+        if a.isNull != 0 {
+            nullRead("family")
+        }
+        return a.family
+    }
+}
+
+fn doServerClose(srv: *NetHandle) {
+    unsafe {
+        if srv.listening != 0 && srv.closing == 0 {
+            srv.closing = 1
+            srv.listening = 0
+            closeFd(srv)
+            cs_net_unlink(srv)
+            serverMaybeClosed(srv)
+        } else {
+            // Not running: Node still emits 'close' (the callback gets ERR_SERVER_NOT_RUNNING).
+            if srv.closeQueued == 0 {
+                srv.closeQueued = 1
+                queueTick(srv, EV_CLOSE, 0 as *u8)
+            }
+        }
+    }
+}
+
+@externalLinkage
+pub fn cs_net_server_close(srv: *NetHandle): *NetHandle {
+    doServerClose(srv)
+    return srv
+}
+
+@externalLinkage
+pub fn cs_net_server_close_cb(srv: *NetHandle, cb: *u8): *NetHandle {
+    addListener(srv, EV_CLOSE, cb)
+    doServerClose(srv)
+    return srv
+}
+
+fn doConnect(port: f64, host: *CsString, cb: *u8): *NetHandle {
+    let s = newHandle(KIND_SOCKET)
+    addListener(s, EV_CONNECT, cb)
+    var count: i64 = 0
+    unsafe {
+        // Node's default host is "localhost".
+        let name = if host.len == 0 { strLit("localhost") } else { host }
+        let addrs = resolveHost(name, port as i64, &mut count)
+        if addrs as i64 == 0 || count == 0 {
+            resolveError(s, name)
+            return s
+        }
+        s.addrs = addrs
+        s.nAddrs = count
+    }
+    tryConnect(s)
+    return s
+}
+
+@externalLinkage
+pub fn cs_net_connect(port: f64, host: *CsString): *NetHandle {
+    return doConnect(port, host, 0 as *u8)
+}
+
+@externalLinkage
+pub fn cs_net_connect_cb(port: f64, host: *CsString, cb: *u8): *NetHandle {
+    return doConnect(port, host, cb)
+}
+
+// socket.write(data): true while less than the high-water mark is pending (Node counts the new
+// chunk before trying to send it).
+@externalLinkage
+pub fn cs_net_write(h: *NetHandle, data: *CsString): i32 {
+    unsafe {
+        if h.ending != 0 || h.destroyed != 0 {
+            writeAfterEnd(h)
+            return 0
+        }
+        queueWrite(h, data)
+        let ok = h.wLen < HIGH_WATER_MARK
+        flushWrites(h)
+        return if ok { 1 } else { 0 }
+    }
+}
+
+fn writeAfterEnd(h: *NetHandle) {
+    unsafe {
+        if h.destroyed != 0 {
+            return
+        }
+    }
+    let err = cs_new_error_kind(ERR_ERROR, strLit("write after end"))
+    thrownSetCode(err, strLit("ERR_STREAM_WRITE_AFTER_END"))
+    destroy(h, err)
+}
+
+@externalLinkage
+pub fn cs_net_end(h: *NetHandle): *NetHandle {
+    endSocket(h)
+    return h
+}
+
+@externalLinkage
+pub fn cs_net_end_data(h: *NetHandle, data: *CsString): *NetHandle {
+    unsafe {
+        if h.ending == 0 && h.destroyed == 0 {
+            queueWrite(h, data)
+        }
+    }
+    endSocket(h)
+    return h
+}
+
+@externalLinkage
+pub fn cs_net_set_encoding(h: *NetHandle, _enc: *CsString): *NetHandle {
+    unsafe {
+        h.utf8 = 1
+    }
+    return h
+}
+
+@externalLinkage
+pub fn cs_net_destroy(h: *NetHandle): *NetHandle {
+    destroy(h, 0 as *CsThrown)
+    return h
+}
+
+// Buffer (a data chunk): its bytes are a CsString, so toString() is the identity and `length` is
+// the byte count, which is what Buffer.length means.
+@externalLinkage
+pub fn cs_buffer_to_string(b: *CsString): *CsString {
+    return b
+}
+
+@externalLinkage
+pub fn cs_buffer_length(b: *CsString): f64 {
+    unsafe {
+        return b.len as f64
+    }
+}

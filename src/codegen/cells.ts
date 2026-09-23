@@ -31,7 +31,12 @@ export function bindVar(
   ctx: Ctx,
 ): void {
   if (cell) {
-    bindCellPtr(name, vtype, newCell(init(), vtype, ctx), ctx);
+    // The cell exists (and is bound) BEFORE the initializer runs: a closure created inside the
+    // initializer (`const c = connect(o, () => c.end())`) captures this cell, and the store below
+    // fills it in. lower/cells.ts makes such a binding a cell for exactly this reason.
+    const cellPtr = allocSlotBox(vtype, ctx);
+    bindCellPtr(name, vtype, cellPtr, ctx);
+    ctx.fn.store(init(), cellPtr);
     return;
   }
   const ptr = ctx.fn.alloca(irTypeOf(vtype));

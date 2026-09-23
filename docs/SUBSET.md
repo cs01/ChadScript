@@ -271,3 +271,5 @@ diagnostic — there is no "compiles but behaves differently than Node" third ca
 | `CS1246` | BUILTIN_AS_VALUE |
 | `CS1247` | THROWN_VALUE |
 | `CS1248` | CAUGHT_VALUE_USE |
+| `CS1249` | HOST_CALL_FORM |
+| `CS1250` | SELF_INIT_CAPTURE |

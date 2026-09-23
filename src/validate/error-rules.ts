@@ -11,6 +11,7 @@ import type { Diagnostic } from "../diagnostics.js";
 import { CODE } from "./codes.js";
 import type { Hit } from "./type-rules.js";
 import { ERROR_PROPERTIES, builtinErrorType } from "../lower/errors.js";
+import { isSystemErrorType } from "../lower/host-types.js";
 
 const ERROR_CLASSES = new Set(["Error", "TypeError", "RangeError", "SyntaxError"]);
 
@@ -49,7 +50,9 @@ export function checkBuiltinClassUse(
         "create a new error with the text you want: `new Error(message)`",
       );
     }
-    if (!ERROR_PROPERTIES.has(name)) {
+    const systemCode =
+      name === "code" && isSystemErrorType(checker.getTypeAtLocation(node.expression));
+    if (!ERROR_PROPERTIES.has(name) && !systemCode) {
       return hit(
         CODE.NOT_IN_SUBSET,
         `\`.${name}\` of an error is not supported (only \`.message\` and \`.name\` are)`,

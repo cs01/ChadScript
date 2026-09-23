@@ -123,6 +123,28 @@ export function declareRuntimeExterns(mod: ModuleBuilder): void {
   mod.declareExtern("cs_path_is_absolute", T.i32, [T.ptr]);
   mod.declareExtern("cs_set_timeout", T.ptr, [T.ptr, T.double]); // setTimeout → Timeout handle
   mod.declareExtern("cs_clear_timeout", T.void, [T.ptr]);
+  // node:net (runtime/net.milo). Handles, callbacks and strings are pointers; numbers doubles.
+  mod.declareExtern("cs_net_create_server", T.ptr, []);
+  mod.declareExtern("cs_net_create_server_cb", T.ptr, [T.ptr]);
+  mod.declareExtern("cs_net_on", T.ptr, [T.ptr, T.ptr, T.ptr]);
+  mod.declareExtern("cs_net_listen", T.ptr, [T.ptr, T.double, T.ptr]);
+  mod.declareExtern("cs_net_listen_cb", T.ptr, [T.ptr, T.double, T.ptr, T.ptr]);
+  mod.declareExtern("cs_net_address", T.ptr, [T.ptr]);
+  mod.declareExtern("cs_net_addr_port", T.double, [T.ptr]);
+  mod.declareExtern("cs_net_addr_address", T.ptr, [T.ptr]);
+  mod.declareExtern("cs_net_addr_family", T.ptr, [T.ptr]);
+  mod.declareExtern("cs_net_server_close", T.ptr, [T.ptr]);
+  mod.declareExtern("cs_net_server_close_cb", T.ptr, [T.ptr, T.ptr]);
+  mod.declareExtern("cs_net_connect", T.ptr, [T.double, T.ptr]);
+  mod.declareExtern("cs_net_connect_cb", T.ptr, [T.double, T.ptr, T.ptr]);
+  mod.declareExtern("cs_net_write", T.i32, [T.ptr, T.ptr]);
+  mod.declareExtern("cs_net_end", T.ptr, [T.ptr]);
+  mod.declareExtern("cs_net_end_data", T.ptr, [T.ptr, T.ptr]);
+  mod.declareExtern("cs_net_set_encoding", T.ptr, [T.ptr, T.ptr]);
+  mod.declareExtern("cs_net_destroy", T.ptr, [T.ptr]);
+  mod.declareExtern("cs_buffer_to_string", T.ptr, [T.ptr]);
+  mod.declareExtern("cs_buffer_length", T.double, [T.ptr]);
+  mod.declareExtern("cs_thrown_code", T.ptr, [T.ptr]);
   // JSON.parse (runtime/json-parse.milo): text → tagged tree, walked by codegen against the target.
   mod.declareExtern("cs_json_parse", T.ptr, [T.ptr]);
   mod.declareExtern("cs_json_kind", T.i32, [T.ptr]);

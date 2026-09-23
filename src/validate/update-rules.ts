@@ -23,6 +23,31 @@ function isStatementPosition(
   return false;
 }
 
+// An assignment (`=`, `+=`, ...) whose VALUE is used. Statement position (and a for-clause) is the
+// normal form. As an arrow's expression body (`(d) => (text += d)`) its value is read back from the
+// target (lower/declarations.ts lowerUpdateBody), so the target must be a name or `name.field`,
+// which read back without re-running anything. Anywhere else (`f(x = 1)`) it is rejected.
+export function assignmentValueProblem(node: ts.BinaryExpression): string | null {
+  const k = node.operatorToken.kind;
+  if (k < ts.SyntaxKind.FirstAssignment || k > ts.SyntaxKind.LastAssignment) return null;
+  let at: ts.Node = node;
+  while (ts.isParenthesizedExpression(at.parent)) at = at.parent;
+  const p = at.parent;
+  if (ts.isExpressionStatement(p)) return null;
+  if (ts.isForStatement(p) && (p.incrementor === at || p.initializer === at)) return null;
+  if (ts.isArrowFunction(p) && p.body === at) {
+    const t = node.left;
+    const simple =
+      ts.isIdentifier(t) ||
+      (ts.isPropertyAccessExpression(t) &&
+        (ts.isIdentifier(t.expression) || t.expression.kind === ts.SyntaxKind.ThisKeyword));
+    return simple
+      ? null
+      : "an arrow body that assigns to an element is only supported as a statement";
+  }
+  return "an assignment used as a value is not supported";
+}
+
 // Why this update cannot be lowered, or null when it can.
 export function updateValueProblem(
   node: ts.PrefixUnaryExpression | ts.PostfixUnaryExpression,

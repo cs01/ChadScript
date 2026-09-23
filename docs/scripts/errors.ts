@@ -346,6 +346,28 @@ export const EXPLANATIONS: Record<keyof typeof CODE, Entry> = {
       'Test the value first (`e instanceof Error`, `typeof e === "string"`), or convert it: ' +
       '`String(e) || "default"`.',
   },
+  HOST_CALL_FORM: {
+    title: "Network API call in an unsupported form",
+    meaning:
+      "A call into `node:net` (or another network API) that the compiler must see statically: " +
+      "connection options passed as a variable instead of an object literal, or a callback whose " +
+      "parameters cannot receive the values the runtime passes it (for example a parameter " +
+      "declared wider than the event's argument type).",
+    rewrite:
+      "Write the options inline (`net.connect({ port, host }, onConnect)`) and declare each " +
+      "callback parameter with the type the API declares for that event.",
+  },
+  SELF_INIT_CAPTURE: {
+    title: "Variable read by a function in its own initializer",
+    meaning:
+      "`const x = f(() => x)`: the function is created before `x` has a value. When `f` might " +
+      "call it right away, Node throws a `ReferenceError`, and a compiled program would read an " +
+      "empty variable instead. Network listeners and timers only run later, so passing the " +
+      "function to one of those is allowed.",
+    rewrite:
+      "Declare the variable first and assign the function afterwards, or pass the function to an " +
+      "API that calls it later.",
+  },
 };
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), "..", "..");

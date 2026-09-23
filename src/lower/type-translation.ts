@@ -5,6 +5,7 @@
 import ts from "typescript";
 import { classIdOf } from "./class-ids.js";
 import { builtinErrorType } from "./errors.js";
+import { hostTypeName } from "./host-types.js";
 import { ice } from "../diagnostics.js";
 import { ANY_OBJECT, VALUE_ANY, VT, optionalOf } from "../hir/types.js";
 import type { ValueType } from "../hir/types.js";
@@ -151,7 +152,7 @@ export function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChe
   // Error, TypeError, ... are a CsThrown pointer, like a caught value (lower/errors.ts). Also
   // before the Object branch: the Error interface is not a shaped record.
   if (builtinErrorType(t)) return VT.unknown;
-  const opaque = opaqueHandleName(t);
+  const opaque = opaqueHandleName(t) ?? hostTypeName(t);
   if (opaque !== null) return VT.opaque(opaque);
   if (flags & ts.TypeFlags.TypeParameter) return typeParameterType(t, node, checker);
   // `T & number` is what tsc narrows a type parameter to (`typeof x === "number"`): the value is

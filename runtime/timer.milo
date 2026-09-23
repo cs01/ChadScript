@@ -13,10 +13,9 @@
 
 from "./gc" import { gcAllocStruct }
 from "./time" import { Timespec, clockMs, clockMonotonic }
+from "./libc" import { __error, __errno_location }
 
 extern fn nanosleep(req: *Timespec, rem: *Timespec): i32
-extern fn __error(): *i32
-extern fn __errno_location(): *i32
 
 let EINTR: i32 = 4
 
@@ -126,6 +125,19 @@ pub fn timersDue(): bool {
     }
     unsafe {
         return t.deadline <= nowMs()
+    }
+}
+
+// Milliseconds until the earliest live timer is due (0 when already due), or -1 with none. The
+// network poller sleeps at most this long, so a timer still fires on time while sockets are open.
+pub fn timersNextDelay(): f64 {
+    let t = firstLive()
+    if isNull(t) {
+        return -1.0
+    }
+    unsafe {
+        let d = t.deadline - nowMs()
+        return if d > 0.0 { d } else { 0.0 }
     }
 }
 

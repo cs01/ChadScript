@@ -19,7 +19,8 @@ from "./gc-stacks" import { gcStackNew, gcStackCurrent, gcStackSwitch, gcStackRe
 from "./libc" import { malloc, realloc }
 from "./errors" import { CsThrown, HandlerCtx, handlerCtxGet, handlerCtxSet, cs_throw }
 from "./array" import { cs_array_new, cs_array_push, cs_array_len, cs_array_get }
-from "./timer" import { timersPending, timersDue, timersRunEarliest }
+from "./timer" import { timersPending, timersDue, timersRunEarliest, timersNextDelay }
+from "./net" import { netTicksPending, netRunTicks, netAlive, netPollOnce }
 from "./fs-promises" import { ioPending, ioSettleOne }
 from "./stdio" import { writeErrLit }
 
@@ -447,28 +448,52 @@ fn drainMicrotasks() {
     }
 }
 
-// Microtasks first, then one timer or I/O completion at a time with a FULL microtask drain after
-// each: a callback that resolves a promise must let the awaiting fiber run before the next event,
-// which is the interleaving Node produces.
+// What Node does after every macrotask callback (processTicksAndRejections): the nextTick queue
+// first when it has work, then microtasks, repeated until both are empty; then a rejection nothing
+// has handled by now terminates the process, as Node's default unhandled-rejection mode does. The
+// check runs here rather than when the loop ends: a server keeps the loop alive indefinitely, and
+// Node would already have exited.
+pub fn drainAll() {
+    if !netTicksPending() {
+        drainMicrotasks()
+    }
+    while netTicksPending() {
+        netRunTicks()
+        drainMicrotasks()
+    }
+    if gUnhandled > 0 {
+        writeErrLit("Uncaught (in promise)\n")
+        exit(1)
+    }
+}
+
+// Microtasks first (the main module's promise jobs run before its nextTick queue), then one timer
+// or I/O completion at a time with a FULL drain after each: a callback that resolves a promise must
+// let the awaiting fiber run before the next event, which is the interleaving Node produces.
 @externalLinkage
 pub fn cs_run_event_loop() {
     drainMicrotasks()
-    while timersPending() || ioPending() {
+    drainAll()
+    while true {
         // Timers whose deadline has PASSED go first (Node runs its timers phase before poll). A
         // timer that is not due yet must not block a completed read, so it is only slept on once
         // no I/O is waiting.
         if timersDue() {
             timersRunEarliest()
+            drainAll()
         } else if ioPending() {
             ioSettleOne()
-        } else {
+            drainAll()
+        } else if netAlive() {
+            // The poll phase: sleep until a socket is ready or the next timer is due.
+            let delay = timersNextDelay()
+            let tmo: i64 = if delay < 0.0 { -1 } else { (delay + 0.999) as i64 }
+            netPollOnce(tmo)
+        } else if timersPending() {
             timersRunEarliest()
+            drainAll()
+        } else {
+            break
         }
-        drainMicrotasks()
-    }
-    // A rejection no await ever consumed: Node terminates with exit code 1 (stderr best-effort).
-    if gUnhandled > 0 {
-        writeErrLit("Uncaught (in promise)\n")
-        exit(1)
     }
 }

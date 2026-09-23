@@ -1,0 +1,336 @@
+// The platform layer under node:net: socket constants that differ between macOS and Linux, socket
+// address encoding and formatting, name resolution, Node-shaped system errors, and a GC byte
+// builder the network modules share. Nothing here knows about handles or events (net.milo).
+
+from "./abi" import { CsString, memcpy, byteAt }
+from "./csstring" import { cs_str_mk, cs_str_from, strLit }
+from "./gc" import { gcAllocAtomic, gcAllocStruct }
+from "./inspect" import { Sb, sbNew, sbLit, sbStr, sbInt, sbDone }
+from "./errors" import { CsThrown, cs_new_error_kind, ERR_ERROR, ERR_AGGREGATE, thrownSetCode }
+from "./libc" import {
+    __error,
+    __errno_location,
+    fcntl,
+    getaddrinfo,
+    freeaddrinfo,
+    inet_ntop,
+    signal,
+    socket,
+    setsockopt
+}
+
+pub let AF_INET: i32 = 2
+pub let SOCK_STREAM: i32 = 1
+pub let SHUT_WR: i32 = 1
+pub let EINTR: i32 = 4
+pub let EPIPE: i32 = 32
+pub let POLLIN: i32 = 1
+pub let POLLOUT: i32 = 4
+pub let POLLERR: i32 = 8
+pub let POLLHUP: i32 = 16
+
+// Addresses are handled as sockaddr_storage-sized buffers (128 bytes on both platforms).
+pub let SOCKADDR_BYTES: i64 = 128
+
+pub fn isDarwin(): bool {
+    return @targetOs() == "darwin"
+}
+
+pub fn afInet6(): i32 {
+    return if isDarwin() { 30 } else { 10 }
+}
+
+pub fn solSocket(): i32 {
+    return if isDarwin() { 0xffff } else { 1 }
+}
+
+pub fn soReuseaddr(): i32 {
+    return if isDarwin() { 4 } else { 2 }
+}
+
+pub fn soError(): i32 {
+    return if isDarwin() { 0x1007 } else { 4 }
+}
+
+fn ipv6V6only(): i32 {
+    return if isDarwin() { 27 } else { 26 }
+}
+
+fn oNonblock(): i32 {
+    return if isDarwin() { 4 } else { 2048 }
+}
+
+pub fn eAgain(): i32 {
+    return if isDarwin() { 35 } else { 11 }
+}
+
+pub fn eInProgress(): i32 {
+    return if isDarwin() { 36 } else { 115 }
+}
+
+pub fn errnoValue(): i32 {
+    unsafe {
+        if isDarwin() {
+            return *__error()
+        }
+        return *__errno_location()
+    }
+}
+
+// Node ignores SIGPIPE, so a write to a peer that has gone away is an EPIPE error on the socket
+// rather than the death of the process. Done once, before the first socket exists.
+var gSigpipeIgnored: bool = false
+
+pub fn ignoreSigpipe() {
+    if !gSigpipeIgnored {
+        gSigpipeIgnored = true
+        unsafe {
+            // SIGPIPE is 13 and SIG_IGN is (void (*)(int))1 on both platforms.
+            signal(13, 1 as *u8)
+        }
+    }
+}
+
+pub fn setNonblocking(fd: i32) {
+    unsafe {
+        let flags = fcntl(fd, 3)
+        fcntl(fd, 4, flags | oNonblock())
+    }
+}
+
+pub fn setIntOpt(fd: i32, level: i32, name: i32, value: i32) {
+    var v: i32 = value
+    unsafe {
+        setsockopt(fd, level, name, v.addrOf() as *u8, 4)
+    }
+}
+
+// A dual-stack IPv6 socket accepts IPv4 peers too, which is what Node's default `::` listen does.
+pub fn clearV6only(fd: i32) {
+    setIntOpt(fd, 41, ipv6V6only(), 0)
+}
+
+pub fn newStreamSocket(family: i32): i32 {
+    ignoreSigpipe()
+    unsafe {
+        return socket(family, SOCK_STREAM, 0)
+    }
+}
+
+// ---- socket addresses ----
+//
+// sockaddr_in / sockaddr_in6 differ in their first two bytes: BSD has {u8 len, u8 family}, Linux
+// {u16 family}. Everything after (port in network order, then the address) is shared.
+
+pub fn sockFamily(sa: *u8): i32 {
+    unsafe {
+        if isDarwin() {
+            return sa[1] as i32
+        }
+        return sa[0] as i32 | ((sa[1] as i32) << 8)
+    }
+}
+
+pub fn sockLen(family: i32): u32 {
+    return if family == AF_INET { 16 } else { 28 }
+}
+
+pub fn sockPort(sa: *u8): i64 {
+    unsafe {
+        return ((sa[2] as i64) << 8) | sa[3] as i64
+    }
+}
+
+pub fn setSockPort(sa: *u8, port: i64) {
+    unsafe {
+        sa[2] = ((port >> 8) & 255) as u8
+        sa[3] = (port & 255) as u8
+    }
+}
+
+fn setSockFamily(sa: *u8, family: i32) {
+    unsafe {
+        if isDarwin() {
+            sa[0] = sockLen(family) as u8
+            sa[1] = family as u8
+        } else {
+            sa[0] = (family & 255) as u8
+            sa[1] = ((family >> 8) & 255) as u8
+        }
+    }
+}
+
+pub fn newSockaddr(): *u8 {
+    unsafe {
+        return gcAllocAtomic(SOCKADDR_BYTES)
+    }
+}
+
+// The wildcard address of `family` (0.0.0.0 or ::) with `port`, in fresh zeroed GC memory.
+pub fn anyAddr(family: i32, port: i64): *u8 {
+    let sa = newSockaddr()
+    setSockFamily(sa, family)
+    setSockPort(sa, port)
+    return sa
+}
+
+// The textual address ("127.0.0.1", "::1"), as Node reports it in address() and error messages.
+pub fn sockAddrText(sa: *u8): *CsString {
+    var buf: [u8; 64] = [0; 64]
+    let family = sockFamily(sa)
+    unsafe {
+        let src = if family == AF_INET { byteAt(sa, 4) } else { byteAt(sa, 8) }
+        if inet_ntop(family, src, buf.addrOf() as *u8, 64) as i64 == 0 {
+            return strLit("")
+        }
+    }
+    var n: i64 = 0
+    while n < 64 && buf[n] != 0 {
+        n = n + 1
+    }
+    return cs_str_from(buf, n)
+}
+
+pub fn familyText(sa: *u8): *CsString {
+    return if sockFamily(sa) == AF_INET { strLit("IPv4") } else { strLit("IPv6") }
+}
+
+// ---- name resolution ----
+
+// The addresses `host` resolves to, in the resolver's order (Node's `verbatim` order), as one GC
+// buffer of SOCKADDR_BYTES entries; the count goes to `countOut`. On failure the buffer is null and
+// `countOut` holds the getaddrinfo error. Blocking, like every resolver call here: only ordering is
+// observable, and nothing else can run in between anyway.
+pub fn resolveHost(host: *CsString, port: i64, countOut: &mut i64): *u8 {
+    unsafe {
+        let name = gcAllocAtomic(host.len + 1)
+        memcpy(name, host.data, host.len)
+        name[host.len] = 0
+        // struct addrinfo hints: ai_flags (AI_ADDRCONFIG, as Node's lookup passes), ai_family
+        // AF_UNSPEC, ai_socktype SOCK_STREAM; the rest zero.
+        var hints: [u8; 64] = [0; 64]
+        let flags: i32 = if isDarwin() { 0x400 } else { 0x20 }
+        *(hints.addrOf() as *i32) = flags
+        *((hints.addrOf() as i64 + 8) as *i32) = SOCK_STREAM
+        var res: *u8 = 0 as *u8
+        let rc = getaddrinfo(name, 0 as *u8, hints.addrOf() as *u8, res.addrOf())
+        if rc != 0 {
+            countOut = rc as i64
+            return 0 as *u8
+        }
+        var n: i64 = 0
+        var ai = res
+        while ai as i64 != 0 {
+            n = n + 1
+            ai = *((ai as i64 + 40) as **u8)
+        }
+        let out = gcAllocAtomic(n * SOCKADDR_BYTES)
+        ai = res
+        var i: i64 = 0
+        while ai as i64 != 0 {
+            let addrLen = (*((ai as i64 + 16) as *u32)) as i64
+            // ai_addr and ai_canonname swap places between BSD and glibc.
+            let addrOff: i64 = if isDarwin() { 32 } else { 24 }
+            let addr = *((ai as i64 + addrOff) as **u8)
+            let slot = byteAt(out, i * SOCKADDR_BYTES)
+            let copyLen = if (addrLen < SOCKADDR_BYTES) { addrLen } else { SOCKADDR_BYTES }
+            memcpy(slot, addr, copyLen)
+            setSockPort(slot, port)
+            i = i + 1
+            ai = *((ai as i64 + 40) as **u8)
+        }
+        freeaddrinfo(res)
+        countOut = n
+        return out
+    }
+}
+
+// ---- errors ----
+
+// The errno names Node puts in `err.code` (and in its messages), by value on this platform.
+pub fn errnoName(e: i32): *CsString {
+    if e == EPIPE {
+        return strLit("EPIPE")
+    }
+    if isDarwin() {
+        if e == 61 {
+            return strLit("ECONNREFUSED")
+        }
+        if e == 48 {
+            return strLit("EADDRINUSE")
+        }
+        if e == 49 {
+            return strLit("EADDRNOTAVAIL")
+        }
+        if e == 54 {
+            return strLit("ECONNRESET")
+        }
+        if e == 60 {
+            return strLit("ETIMEDOUT")
+        }
+        if e == 65 {
+            return strLit("EHOSTUNREACH")
+        }
+        if e == 51 {
+            return strLit("ENETUNREACH")
+        }
+        if e == 13 {
+            return strLit("EACCES")
+        }
+    } else {
+        if e == 111 {
+            return strLit("ECONNREFUSED")
+        }
+        if e == 98 {
+            return strLit("EADDRINUSE")
+        }
+        if e == 99 {
+            return strLit("EADDRNOTAVAIL")
+        }
+        if e == 104 {
+            return strLit("ECONNRESET")
+        }
+        if e == 110 {
+            return strLit("ETIMEDOUT")
+        }
+        if e == 113 {
+            return strLit("EHOSTUNREACH")
+        }
+        if e == 101 {
+            return strLit("ENETUNREACH")
+        }
+        if e == 13 {
+            return strLit("EACCES")
+        }
+    }
+    let b = sbNew()
+    sbLit(b, "E")
+    sbInt(b, e as i64)
+    return sbDone(b)
+}
+
+// Node's system error: `<syscall> <CODE> <address>:<port>` (the address part only when given), an
+// Error with `code` set.
+pub fn systemError(syscall: &string, code: *CsString, sa: *u8): *CsThrown {
+    let b = sbNew()
+    sbLit(b, syscall)
+    sbLit(b, " ")
+    sbStr(b, code)
+    if sa as i64 != 0 {
+        sbLit(b, " ")
+        sbStr(b, sockAddrText(sa))
+        sbLit(b, ":")
+        sbInt(b, sockPort(sa))
+    }
+    let t = cs_new_error_kind(ERR_ERROR, sbDone(b))
+    thrownSetCode(t, code)
+    return t
+}
+
+// Several connection attempts that all failed (Node's autoSelectFamily): an AggregateError with an
+// empty message whose code is the first attempt's.
+pub fn aggregateError(code: *CsString): *CsThrown {
+    let t = cs_new_error_kind(ERR_AGGREGATE, strLit(""))
+    thrownSetCode(t, code)
+    return t
+}

@@ -32,6 +32,7 @@ export function emitStrictEq(a: Value, b: Value, type: ValueType, ctx: Ctx): Val
     case "map":
     case "set":
     case "unknown": // an Error or caught value: one CsThrown record
+    case "opaque": // a runtime handle (a socket): one runtime struct for its whole life
       return ctx.fn.icmp("eq", a, b);
     case "function":
       return functionIdentityEq(a, b, ctx);
@@ -102,7 +103,8 @@ export function evalComparison(expr: Extract<HExpr, { kind: "binary" }>, ctx: Ct
       operandType === "array" ||
       operandType === "map" ||
       operandType === "set" ||
-      operandType === "function"
+      operandType === "function" ||
+      operandType === "opaque"
     ) {
       const eq = emitStrictEq(
         evalValue(expr.left, ctx),

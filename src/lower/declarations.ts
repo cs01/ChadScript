@@ -7,7 +7,15 @@ import { ice } from "../diagnostics.js";
 import type { HExpr, HStmt, HFunc, HCapture } from "../hir/nodes.js";
 import { VT } from "../hir/types.js";
 import type { ValueType } from "../hir/types.js";
-import { type LowerCtx, lowerExpr, coerceToTarget, nameOf, nameForSymbol } from "./lower.js";
+import {
+  type LowerCtx,
+  lowerExpr,
+  coerceToTarget,
+  nameOf,
+  nameForSymbol,
+  unparen,
+  isAssignmentOp,
+} from "./lower.js";
 import {
   lowerStatements,
   lowerExprStatement,
@@ -316,10 +324,19 @@ export function lowerArrow(arrow: ts.ArrowFunction | ts.FunctionExpression, ctx:
   const sig = ctx.checker.getSignatureFromDeclaration(arrow);
   const retT = sig ? ctx.checker.getReturnTypeOfSignature(sig) : undefined;
   // An arrow whose body always throws returns `never`: no value, like void.
-  const returnType =
+  const closureRet =
     !retT || retT.flags & (ts.TypeFlags.Void | ts.TypeFlags.Undefined | ts.TypeFlags.Never)
       ? null
       : valueTypeOfTsType(retT, arrow, ctx.checker);
+  // An async arrow's closure returns Promise<T>, but its body runs on a fiber and returns T, as an
+  // async function declaration's does (codegen emits the spawning wrapper, codegen/async.ts).
+  const isAsync = arrow.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword) ?? false;
+  const returnType =
+    isAsync && closureRet?.kind === "promise"
+      ? closureRet.inner.kind === "undefined"
+        ? null
+        : closureRet.inner
+      : closureRet;
 
   const savedRet = ctx.currentReturnType;
   ctx.currentReturnType = returnType;
@@ -327,24 +344,51 @@ export function lowerArrow(arrow: ts.ArrowFunction | ts.FunctionExpression, ctx:
   // has one, is discarded, and a void call has none to return.
   const body: HStmt[] = ts.isBlock(arrow.body)
     ? lowerStatements(arrow.body.statements, ctx)
-    : returnType === null
-      ? [
-          ts.isCallExpression(arrow.body)
-            ? lowerCallStatement(arrow.body, ctx)
-            : lowerExprStatement(arrow.body, ctx),
-          { kind: "return", value: null },
-        ]
-      : [{ kind: "return", value: coerceToTarget(lowerExpr(arrow.body, ctx), returnType) }];
+    : isUpdateExpression(arrow.body)
+      ? lowerUpdateBody(unparen(arrow.body), returnType, ctx)
+      : returnType === null
+        ? [
+            ts.isCallExpression(arrow.body)
+              ? lowerCallStatement(arrow.body, ctx)
+              : lowerExprStatement(arrow.body, ctx),
+            { kind: "return", value: null },
+          ]
+        : [{ kind: "return", value: coerceToTarget(lowerExpr(arrow.body, ctx), returnType) }];
   ctx.currentReturnType = savedRet;
 
-  ctx.functions.push({ name: lambdaName, params, returnType, body, captures });
+  ctx.functions.push({
+    name: lambdaName,
+    params,
+    returnType,
+    body,
+    captures,
+    ...(isAsync ? { async: true } : {}),
+  });
   return {
     kind: "closure",
     lambdaName,
     captures,
     display: functionDisplay(arrow),
-    type: { kind: "function", params: params.map((p) => p.type), ret: returnType },
+    type: { kind: "function", params: params.map((p) => p.type), ret: closureRet },
   };
+}
+
+// An arrow whose expression body is an assignment: `(d) => (text += d)`. The assignment is a
+// statement, and the arrow's value (when its type has one) is the assigned value, read back from
+// the target. Only targets that read back without re-running side effects (a name, `name.field`)
+// are admitted (validate/update-rules.ts). `++`/`--` bodies already have a value form (HIR update).
+export function isUpdateExpression(e: ts.Expression): boolean {
+  const x = unparen(e);
+  return ts.isBinaryExpression(x) && isAssignmentOp(x.operatorToken.kind);
+}
+
+function lowerUpdateBody(e: ts.Expression, returnType: ValueType | null, ctx: LowerCtx): HStmt[] {
+  const target = (e as ts.BinaryExpression).left;
+  if (returnType === null) return [lowerExprStatement(e, ctx), { kind: "return", value: null }];
+  return [
+    lowerExprStatement(e, ctx),
+    { kind: "return", value: coerceToTarget(lowerExpr(target, ctx), returnType) },
+  ];
 }
 
 // How util.inspect shows a function: `[Function: name]` with the name JS gives an anonymous
@@ -397,7 +441,11 @@ export function findCaptures(
         // A cell binding is captured by reference (the env holds its cell pointer); every other
         // binding never changes after capture, so copying its value is exact.
         if (kind === "value" || kind === "cell") {
-          const name = ctx.names.get(sym);
+          // A cell captured inside its own initializer is not named yet (its declaration is
+          // lowered after the initializer); naming it here gives the declaration the same name.
+          const name =
+            ctx.names.get(sym) ??
+            (kind === "cell" ? nameForSymbol(sym, sym.getName(), ctx) : undefined);
           if (name) {
             const type = captureType(sym, node, ctx);
             caps.set(sym, kind === "cell" ? { name, type, byRef: true } : { name, type });
