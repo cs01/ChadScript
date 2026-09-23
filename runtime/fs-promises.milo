@@ -44,16 +44,13 @@ fn enqueue(p: *Promise, rejected: bool, value: i64, reason: *u8) {
     }
 }
 
-// Exported for the event loop (async).
-@externalLinkage
-pub fn cs_io_pending(): i32 {
-    return if gIoHead as i64 != 0 { 1 } else { 0 }
+pub fn ioPending(): bool {
+    return gIoHead as i64 != 0
 }
 
 // Settle exactly one completion. The caller drains microtasks afterwards, so an awaiting fiber
 // resumes before the next completion is delivered.
-@externalLinkage
-pub fn cs_io_settle_one() {
+pub fn ioSettleOne() {
     let c = gIoHead
     if c as i64 == 0 {
         return

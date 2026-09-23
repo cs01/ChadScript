@@ -165,19 +165,3 @@ pub fn timersRunEarliest() {
         cb.fnptr(cb.env)
     }
 }
-
-// C-facing entry points for the event loop in async.c.
-@externalLinkage
-pub fn cs_timers_pending(): i32 {
-    return if timersPending() { 1 } else { 0 }
-}
-
-@externalLinkage
-pub fn cs_timers_due(): i32 {
-    return if timersDue() { 1 } else { 0 }
-}
-
-@externalLinkage
-pub fn cs_timers_run_earliest() {
-    timersRunEarliest()
-}

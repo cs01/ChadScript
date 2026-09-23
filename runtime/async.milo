@@ -22,7 +22,7 @@ from "./abi" import { CsArray, GC_malloc }
 from "./errors" import { CsThrown, HandlerCtx, handlerCtxGet, handlerCtxSet, cs_throw }
 from "./array" import { cs_array_new, cs_array_push, cs_array_len, cs_array_get }
 from "./timer" import { timersPending, timersDue, timersRunEarliest }
-from "./fs-promises" import { cs_io_pending, cs_io_settle_one }
+from "./fs-promises" import { ioPending, ioSettleOne }
 from "./stdio" import { writeErrLit }
 
 extern fn malloc(n: i64): *u8
@@ -421,14 +421,14 @@ fn drainMicrotasks() {
 @externalLinkage
 pub fn cs_run_event_loop() {
     drainMicrotasks()
-    while timersPending() || cs_io_pending() != 0 {
+    while timersPending() || ioPending() {
         // Timers whose deadline has PASSED go first (Node runs its timers phase before poll). A
         // timer that is not due yet must not block a completed read, so it is only slept on once
         // no I/O is waiting.
         if timersDue() {
             timersRunEarliest()
-        } else if cs_io_pending() != 0 {
-            cs_io_settle_one()
+        } else if ioPending() {
+            ioSettleOne()
         } else {
             timersRunEarliest()
         }
