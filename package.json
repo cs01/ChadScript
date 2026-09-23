@@ -1,6 +1,6 @@
 {
   "name": "chadscript",
-  "version": "0.1.0",
+  "version": "2.0.0-alpha.1",
   "description": "AOT compiler for a principled, statically analyzable subset of TypeScript",
   "type": "module",
   "license": "MIT",

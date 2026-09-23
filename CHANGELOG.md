@@ -1,14 +1,15 @@
 # Changelog
 
-## 0.1.0 (2026-09-23)
+## 2.0.0-alpha.1 (2026-09-23)
 
-The first release. ChadScript compiles a statically analyzable subset of TypeScript ahead of time
+The first release of ChadScript 2: a from-scratch compiler that replaces the v1 compiler (whose
+releases went up to 0.3.0-beta; its code lives on the `v1` branch). This is an alpha. ChadScript
+compiles a statically analyzable subset of TypeScript ahead of time
 to native binaries. A program the compiler accepts behaves like it does under Node (same stdout,
 same exit code); every other program is rejected at compile time with a `CS####` code, the
 source location and a suggested rewrite. `docs/SUBSET.md` is the generated list of what compiles.
 
-This is a pre-release: the compiler runs from a source checkout under bun, and no prebuilt
-binaries are published.
+The compiler runs from a source checkout under bun; no prebuilt binaries are published.
 
 ### Install
 
