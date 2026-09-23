@@ -1,0 +1,57 @@
+// Byte output through C stdio. stdout stays the libc FILE (buffered, flushed by exit()), so
+// ordering and buffering match what the C runtime did. The FILE handles come from accessors in
+// runtime/residue.c: `stdout`/`stderr` are data symbols (spelled `__stdoutp` on macOS) and Milo has
+// no way to name one.
+
+from "./libc" import { fwrite }
+
+extern fn cs_stdout(): *u8
+extern fn cs_stderr(): *u8
+
+// fwrite by length, never fputs: a string may carry embedded NUL bytes.
+pub fn writeOut(p: *u8, n: i64) {
+    unsafe {
+        fwrite(p, 1, n, cs_stdout())
+    }
+}
+
+pub fn writeOutLit(s: &string) {
+    writeOut(s.cstr(), s.len)
+}
+
+pub fn writeErr(p: *u8, n: i64) {
+    unsafe {
+        fwrite(p, 1, n, cs_stderr())
+    }
+}
+
+pub fn writeErrLit(s: &string) {
+    writeErr(s.cstr(), s.len)
+}
+
+// A decimal integer to stderr (diagnostic text only; stdout numbers go through number.milo).
+pub fn writeErrInt(v: i64) {
+    var buf: [u8; 24] = [0; 24]
+    var n = v
+    var neg = false
+    if n < 0 {
+        neg = true
+        n = 0 - n
+    }
+    var i: i64 = 24
+    while true {
+        i = i - 1
+        buf[i] = (48 + n % 10) as u8
+        n = n / 10
+        if n == 0 {
+            break
+        }
+    }
+    if neg {
+        i = i - 1
+        buf[i] = 45
+    }
+    unsafe {
+        writeErr((buf.addrOf() as i64 + i) as *u8, 24 - i)
+    }
+}

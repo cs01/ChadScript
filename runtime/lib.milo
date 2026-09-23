@@ -9,3 +9,4 @@ from "./math" import { cs_math_round }
 from "./time" import { cs_date_now }
 from "./gc" import { cs_gc_alloc }
 from "./array" import { cs_array_new }
+from "./argv" import { cs_argv_slice2 }

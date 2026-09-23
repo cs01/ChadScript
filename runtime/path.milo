@@ -11,9 +11,7 @@
 from "./abi" import { CsString, CsArray, GC_malloc_atomic, memcpy, byteAt }
 from "./csstring" import { cs_str_mk, cs_str_from, strLit }
 from "./errors" import { throwErrorLit }
-
-extern fn getcwd(buf: *u8, size: i64): *u8
-extern fn strlen(s: *u8): i64
+from "./libc" import { getcwd, strlen }
 
 // A growable GC byte buffer. `data` is GC memory, so wrapping it with cs_str_mk (which does not
 // copy) is safe: the returned header keeps the buffer reachable. Lives on the stack, where Boehm
