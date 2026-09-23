@@ -1,4 +1,3 @@
-// @known-bug: phase 3 (shaped objects): two interfaces with reordered fields alias one object
 interface P {
   x: number;
   y: number;

@@ -1,0 +1,205 @@
+// Object shapes at run time: the inline-cache miss path, by-name method lookup, and the helpers
+// that read an object through its own shape (Object.keys, spread snapshots, printing indents).
+// Records are `[*CsShape, field Values...]`; see CsShape and the Value encoding in abi.milo.
+
+from "./abi" import { CsShape, CsString, CsArray, GC_malloc, memcpy, VALUE_UNDEFINED }
+from "./strings" import { cs_str_eq, cs_str_concat }
+from "./csstring" import { strLit }
+from "./array" import { cs_array_new, cs_array_push }
+from "./stdio" import { writeErrLit, writeErr }
+
+// A field inline-cache site (a zeroed global per access site in generated code). `slot` is the
+// RECORD slot (field index + 1), so a hit is one indexed load.
+extern struct IcSite {
+    shape: *CsShape,
+    slot: i64,
+}
+
+// A method-call inline-cache site. `kind` 0: `index` is a method-table index (call it with the
+// object as `this`); 1: `index` is a record slot holding a closure (call it with its env).
+extern struct MethodSite {
+    shape: *CsShape,
+    kind: i64,
+    index: i64,
+}
+
+fn sameName(a: *CsString, b: *CsString): bool {
+    // Codegen interns names, so equal names are almost always the same pointer.
+    if a as i64 == b as i64 {
+        return true
+    }
+    return cs_str_eq(a, b) != 0
+}
+
+fn fieldIndex(shape: *CsShape, name: *CsString): i64 {
+    var i: i64 = 0
+    unsafe {
+        while i < shape.fieldCount {
+            if sameName(shape.names[i], name) {
+                return i
+            }
+            i = i + 1
+        }
+    }
+    return -1
+}
+
+fn methodIndex(shape: *CsShape, name: *CsString): i64 {
+    var i: i64 = 0
+    unsafe {
+        while i < shape.methodCount {
+            if sameName(shape.methodNames[i], name) {
+                return i
+            }
+            i = i + 1
+        }
+    }
+    return -1
+}
+
+fn shapeOf(obj: *u64): *CsShape {
+    unsafe {
+        return obj[0] as *CsShape
+    }
+}
+
+// A runtime invariant broke: generated code met a shape the compiler proved could not reach it.
+// Only an unsoundness in the layout analysis (or a TypeScript soundness hole the validator missed)
+// gets here, so it stops loudly instead of reading the wrong slot.
+fn shapeFault(what: &string, name: *CsString) {
+    writeErrLit("chadscript: internal error: ")
+    writeErrLit(what)
+    unsafe {
+        if name as i64 != 0 {
+            writeErrLit(" '")
+            writeErr(name.data, name.len)
+            writeErrLit("'")
+        }
+    }
+    writeErrLit("\n")
+    exit(70)
+}
+
+// Field read on a cache miss: find the field by name in the object's shape, remember where it was
+// for this shape, and return its Value. A field the shape does not have reads as `undefined`
+// (only an optional property can be missing) and is not cached.
+@externalLinkage
+pub fn cs_ic_get(obj: *u64, site: *IcSite, name: *CsString): u64 {
+    let shape = shapeOf(obj)
+    let i = fieldIndex(shape, name)
+    if i < 0 {
+        return VALUE_UNDEFINED
+    }
+    unsafe {
+        site.shape = shape
+        site.slot = i + 1
+        return obj[i + 1]
+    }
+}
+
+// Field write on a cache miss. The compiler rejects any write that could add a property, so a
+// missing field here is an internal error.
+@externalLinkage
+pub fn cs_ic_set(obj: *u64, site: *IcSite, name: *CsString, v: u64) {
+    let shape = shapeOf(obj)
+    let i = fieldIndex(shape, name)
+    if i < 0 {
+        shapeFault("write to a property the object does not have:", name)
+    }
+    unsafe {
+        site.shape = shape
+        site.slot = i + 1
+        obj[i + 1] = v
+    }
+}
+
+// Method-call cache miss: a class method in the shape's method table wins (that is where JS finds
+// it, on the prototype); otherwise an own field holding a function. Fills the site; the caller
+// then dispatches from it.
+@externalLinkage
+pub fn cs_ic_method(obj: *u64, site: *MethodSite, name: *CsString) {
+    let shape = shapeOf(obj)
+    let m = methodIndex(shape, name)
+    unsafe {
+        if m >= 0 {
+            site.shape = shape
+            site.kind = 0
+            site.index = m
+            return
+        }
+    }
+    let f = fieldIndex(shape, name)
+    if f < 0 {
+        shapeFault("call of a method the object does not have:", name)
+    }
+    unsafe {
+        site.shape = shape
+        site.kind = 1
+        site.index = f + 1
+    }
+}
+
+// `Object.keys(o)`: the object's own field names in record (insertion) order, as a string[]
+// (array slots hold string pointers).
+@externalLinkage
+pub fn cs_obj_keys(obj: *u64): *CsArray {
+    let shape = shapeOf(obj)
+    let out = cs_array_new()
+    var i: i64 = 0
+    unsafe {
+        while i < shape.fieldCount {
+            cs_array_push(out, shape.names[i] as i64)
+            i = i + 1
+        }
+    }
+    return out
+}
+
+// A shallow copy of a record: what a `...spread` item reads when a later initializer could change
+// the source before the literal is built.
+@externalLinkage
+pub fn cs_obj_clone(obj: *u64): *u64 {
+    let shape = shapeOf(obj)
+    unsafe {
+        let n = (shape.fieldCount + 1) * 8
+        let copy = GC_malloc(n)
+        memcpy(copy, obj as *u8, n)
+        return copy as *u64
+    }
+}
+
+// A spread literal met a source shape outside the cases the compiler enumerated.
+@externalLinkage
+pub fn cs_shape_mismatch() {
+    shapeFault("object spread of an unexpected shape", 0 as *CsString)
+}
+
+// A shape's print or JSON function for a layout holding a field kind the formatters do not
+// support (a Promise, a caught error). Stops instead of printing something Node would not.
+@externalLinkage
+pub fn cs_shape_unsupported(what: *CsString) {
+    writeErrLit("chadscript: unsupported: ")
+    unsafe {
+        writeErr(what.data, what.len)
+    }
+    writeErrLit("\n")
+    exit(70)
+}
+
+// JSON.stringify's line prefix at nesting `depth`: a newline plus the indent unit repeated `depth`
+// times, or the empty string for compact output (a null `indent`).
+@externalLinkage
+pub fn cs_json_indent(indent: *CsString, depth: i32): *CsString {
+    unsafe {
+        if indent as i64 == 0 {
+            return strLit("")
+        }
+    }
+    var acc = strLit("\n")
+    var d: i32 = 0
+    while d < depth {
+        acc = cs_str_concat(acc, indent)
+        d = d + 1
+    }
+    return acc
+}

@@ -31,12 +31,16 @@ import { classIdOf, constructorClassOf } from "./class-ids.js";
 import { resolveType } from "./resolve-type.js";
 export { resolveType };
 import { lowerStatement, lowerStatements, thisRef } from "./statements.js";
+import { ShapeRegistry } from "./shapes.js";
+import { fieldAccessAt } from "./member-access.js";
+import { type LayoutAnalysis, layoutsOf } from "./layouts.js";
+import { lowerObjectLit, resolveSpreads } from "./object-literal.js";
 import {
   buildClassTable,
+  registerClassShape,
   lowerClass,
   lowerFunction,
   lowerArrow,
-  lowerObjectLit,
   lowerArrayElement,
   keyKindOf,
   isMathNamespace,
@@ -71,6 +75,13 @@ export interface LowerCtx {
   classDecls: Map<string, ts.ClassDeclaration>;
   // Output list of all functions, incl. lambdas lifted from arrow/function expressions.
   functions: HFunc[];
+  // Every allocation layout (runtime shape) in the program.
+  shapes: ShapeRegistry;
+  // The whole-program layout analysis (which layouts reach which static types), the shape each
+  // layout was lowered to, and the spread literals whose cases are attached at the end.
+  layouts: LayoutAnalysis;
+  layoutShapes: Map<number, Set<number>>;
+  pendingSpreads: Map<ts.ObjectLiteralExpression, Extract<HExpr, { kind: "objectSpread" }>[]>;
 }
 
 // The `undefined` literal (a global identifier in TS).
@@ -96,14 +107,23 @@ export function lower(loaded: LoadedProgram): HModule {
     classAncestors: new Map(),
     classDecls: new Map(),
     functions: [],
+    shapes: new ShapeRegistry(),
+    layouts: layoutsOf(loaded),
+    layoutShapes: new Map(),
+    pendingSpreads: new Map(),
   };
-  // Precompute every class's method table BEFORE lowering, so a call site (which may precede the
-  // class in source) can resolve a method's vtable index.
+  // Precompute every class's method table and shape BEFORE lowering, so a call site (which may
+  // precede the class in source) can resolve a method's vtable index and a `new` its shape.
+  const classDecls: ts.ClassDeclaration[] = [];
   for (const sf of loaded.initOrder) {
     for (const stmt of sf.statements) {
-      if (ts.isClassDeclaration(stmt) && stmt.name) buildClassTable(stmt, ctx);
+      if (ts.isClassDeclaration(stmt) && stmt.name) {
+        buildClassTable(stmt, ctx);
+        classDecls.push(stmt);
+      }
     }
   }
+  for (const decl of classDecls) registerClassShape(decl, ctx);
   const topLevel: HStmt[] = [];
   for (const sf of loaded.initOrder) {
     for (const stmt of sf.statements) {
@@ -127,12 +147,8 @@ export function lower(loaded: LoadedProgram): HModule {
       }
     }
   }
-  // Class descriptors: the vtable is the implementing fn for each method slot.
-  const classes = [...ctx.classTables].map(([name, tbl]) => ({
-    name,
-    vtable: tbl.order.map((m) => `${tbl.impls.get(m)}.${m}`),
-  }));
-  return { functions: ctx.functions, topLevel, classes };
+  resolveSpreads(ctx);
+  return { functions: ctx.functions, topLevel, shapes: ctx.shapes.shapes };
 }
 
 // A bare identifier in expression position is a variable reference. If the variable's DECLARED
@@ -239,41 +255,6 @@ function lowerCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
     args: lowerCallArgs(call, ctx),
     type: valueTypeOf(call, ctx),
   };
-}
-
-// `Object.keys(o)` / `Object.values(o)` over a closed object shape. keys → the field names as a
-// string[] (statically known); values → the field values as an array (only when the fields share
-// one representation, since a homogeneous array can't hold a mixed union). entries needs tuples.
-export function lowerObjectNamespace(method: string, argExpr: ts.Expression, ctx: LowerCtx): HExpr {
-  const objType = resolveType(argExpr, ctx);
-  if (objType.kind !== "object") ice(`lower: Object.${method} on non-object ${objType.kind}`);
-  const fields = objType.shape.fields;
-  if (method === "keys") {
-    return {
-      kind: "arrayLit",
-      elements: fields.map((f) => ({
-        spread: false,
-        value: { kind: "stringLit", value: f.name, type: VT.string } as HExpr,
-      })),
-      type: VT.array(VT.string),
-    };
-  }
-  if (method === "values") {
-    const first = fields[0]?.type;
-    if (first && !fields.every((f) => f.type.kind === first.kind)) {
-      ice("lower: Object.values on a mixed-type object is not supported (homogeneous only)");
-    }
-    const obj = lowerExpr(argExpr, ctx);
-    return {
-      kind: "arrayLit",
-      elements: fields.map((f, i) => ({
-        spread: false,
-        value: { kind: "memberGet", object: obj, slot: i, type: f.type } as HExpr,
-      })),
-      type: VT.array(first ?? VT.number),
-    };
-  }
-  return ice(`lower: Object.${method} not supported yet`);
 }
 
 // The class that implements `method` for a `super.method(...)` call from a subclass of `baseClass`
@@ -469,9 +450,8 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
       }
       return {
         kind: "new",
-        className: type.className,
+        shape: ctx.shapes.classShape(type.className),
         ctorClass: constructorClassOf(type.className, ctx),
-        fieldCount: type.shape.fields.length,
         args: (ne.arguments ?? []).map((a) => lowerExpr(a, ctx)),
         type,
       };
@@ -503,6 +483,16 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
         return { kind: "numberLit", value: NUMBER_CONSTS[pa.name.text]!, type: VT.number };
       }
       const objType = resolveType(pa.expression, ctx);
+      // `x?.f` on a nullable object (validate admits only a chain of one link).
+      if (pa.questionDotToken && objType.kind === "optional" && objType.inner.kind === "object") {
+        if (type.kind !== "optional") ice("lower: `?.` read without an optional result type");
+        return {
+          kind: "optionalMember",
+          object: lowerExpr(pa.expression, ctx),
+          access: fieldAccessAt(pa.expression, pa.name.text, ctx),
+          type,
+        };
+      }
       if (pa.name.text === "length" && objType.kind === "array") {
         return { kind: "arrayLen", array: lowerExpr(pa.expression, ctx), type };
       }
@@ -518,22 +508,17 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
       if (objType.kind === "object") {
         const slot = objType.shape.fields.findIndex((f) => f.name === pa.name.text);
         if (slot < 0) ice(`lower: object has no field ${pa.name.text}`);
-        // The slot is read at the FIELD's declared representation, which is what is actually
-        // stored there. tsc may have narrowed the use to the inner type (`if (n.next !== null)`),
-        // but the slot still holds a box or a sentinel — so narrowing becomes an explicit unwrap,
-        // exactly as lowerIdentifier does for a narrowed variable. Reading the box as the value
-        // itself yields garbage (a box pointer printed as a float).
+        // A field slot holds a self-describing Value, so a read unboxes straight to the type the
+        // site uses: an optional field narrowed by tsc (`if (n.next !== null) n.next.v`) reads as
+        // its inner type with no optional box in between.
         const fieldType = objType.shape.fields[slot]!.type;
-        const get: HExpr = {
+        const narrowed = fieldType.kind === "optional" && type.kind !== "optional";
+        return {
           kind: "memberGet",
           object: lowerExpr(pa.expression, ctx),
-          slot,
-          type: fieldType,
+          access: fieldAccessAt(pa.expression, pa.name.text, ctx),
+          type: narrowed && type.kind !== "undefined" && type.kind !== "null" ? type : fieldType,
         };
-        if (fieldType.kind === "optional" && type.kind !== "optional") {
-          return { kind: "unwrap", value: get, type };
-        }
-        return get;
       }
       return ice(`lower: unsupported property access .${pa.name.text}`);
     }
@@ -593,7 +578,8 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
           .filter(([, anc]) => anc.has(target))
           .map(([name]) => name);
         if (matches.length === 0) ice(`lower: instanceof unknown class ${target}`);
-        return { kind: "instanceofCheck", value: left, vtableClasses: matches, type };
+        const shapes = matches.map((c) => ctx.shapes.classShape(c));
+        return { kind: "instanceofCheck", value: left, shapes, type };
       }
       // `&&` / `||` are short-circuiting with value semantics — a distinct HIR node, not a
       // plain binary (their result is an operand, not a computed value).
@@ -783,6 +769,7 @@ function lowerFunctionRef(
     kind: "closure",
     lambdaName: wrapperName,
     captures: [],
+    display: `[Function: ${decl.name?.text ?? "default"}]`,
     type: { kind: "function", params: paramTypes, ret: returnType },
   };
 }

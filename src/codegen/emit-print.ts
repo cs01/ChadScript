@@ -6,7 +6,8 @@
 import { ice } from "../diagnostics.js";
 import type { HExpr } from "../hir/nodes.js";
 import type { ValueType } from "../hir/types.js";
-import type { Value } from "../ir/builder.js";
+import { imm, type Value } from "../ir/builder.js";
+import { T } from "../ir/types.js";
 import { type Ctx, evalValue } from "./expr.js";
 import { evalOptionalPtr, unboxOptionalValue } from "./optional.js";
 import { inspect } from "./inspect.js";
@@ -43,7 +44,7 @@ export function emitPrintComputed(val: Value, type: ValueType, ctx: Ctx): void {
     case "map":
     case "set":
       // Containers print in util.inspect form; strings inside get quoted.
-      ctx.fn.callVoid("@cs_print_cstr", [inspect(val, type, ctx)]);
+      ctx.fn.callVoid("@cs_print_cstr", [inspect(val, type, ctx, imm(T.i32, 0))]);
       return;
     default:
       ice(`codegen: console.log of ${type.kind} not supported yet`);

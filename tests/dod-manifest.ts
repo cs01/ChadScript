@@ -338,16 +338,33 @@ export const DOD: DodItem[] = [
   {
     id: "shaped-objects",
     title: "phase 3: shaped objects, static field ordering, inline caches",
-    status: "todo",
-    evidence: [],
-    note: "structural subtyping miscompiles; see run/value-model/subtype-*.ts and slow/subtype-fuzz",
+    status: "done",
+    // Every record points at its runtime shape and stores NaN-boxed Values; access sites are
+    // static slots when every reaching layout agrees, inline caches otherwise. The structural
+    // subtyping fuzzer (tests/slow/subtype-fuzz.test.ts, KNOWN_BUG = false) is the other gate.
+    evidence: [
+      "run/value-model/subtype-extra-field.ts",
+      "run/value-model/subtype-class-and-literal.ts",
+      "run/value-model/subtype-reordered-alias.ts",
+      "run/value-model/optional-field-through-map.ts",
+      "run/value-model/interface-method-call.ts",
+      "run/value-model/interface-dispatch-mixed.ts",
+      "run/value-model/shape-print-through-interface.ts",
+      "run/value-model/spread-subtype-source.ts",
+      "run/value-model/discriminated-union.ts",
+      "run/value-model/object-union-members.ts",
+      "run/object-method-call.ts",
+      "reject/property-add.ts",
+      "reject/spread-layout-limit.ts",
+      "reject/method-representation-mismatch.ts",
+    ],
   },
   {
     id: "value-unions",
     title: "phase 4: NaN-boxed Value, mixed unions, narrowing",
     status: "todo",
     evidence: [],
-    note: "run/value-model/discriminated-union.ts, mixed-union.ts",
+    note: "the Value encoding exists (object fields, src/codegen/value.ts); run/value-model/mixed-union.ts",
   },
   {
     id: "captures-generics",

@@ -2,40 +2,27 @@
 // nested contents. Node prints containers with a specific layout — `[ 1, 2 ]`, `{ x: 1 }`,
 // `Map(1) { 'k' => 2 }` — and quotes strings only when they are NESTED inside a container (a
 // top-level string prints raw). This module builds that string at runtime from the value + its
-// resolved ValueType (the type tells us how to format, recursively).
+// resolved ValueType (the type tells us how to format, recursively). An OBJECT is formatted by its
+// own shape's inspect function (codegen/shape-functions.ts), never by the static type it is read
+// through, so a value typed as an interface prints the fields it really has, as Node does.
 
 import { ice } from "../diagnostics.js";
 import { imm, type Value } from "../ir/builder.js";
 import { T } from "../ir/types.js";
-import { classDisplayName, type ValueType } from "../hir/types.js";
+import type { ValueType } from "../hir/types.js";
 import { unboxSlot, type Ctx } from "./expr.js";
-import { headerOffset } from "./objects.js";
+import { loadShape, loadShapeWord } from "./shapes.js";
+import { V_NULL, V_UNDEFINED, unboxValue } from "./value.js";
 
 // Node's util.inspect stops descending at depth 2 and prints a placeholder for anything deeper.
-// Matching that is not just cosmetic here: a RECURSIVE type has a cyclic ValueType (see
-// type-translation's objectShapeCache), and this emitter unrolls object fields statically, so an
-// unbounded descent would never terminate. The cap makes recursive shapes printable AND matches
-// Node byte for byte.
-const MAX_DEPTH = 2;
+// The depth is a run-time value because objects dispatch through their shapes, and it is what
+// makes a recursive structure printable at all.
+export const MAX_DEPTH = 2;
 
-// A string Value for the inspect form of `value` (of type `type`). Strings are quoted here (the
-// nested context); the top-level raw-string case is handled by the caller.
-export function inspect(value: Value, type: ValueType, ctx: Ctx, depth = 0): Value {
-  if (depth > MAX_DEPTH) {
-    // What Node prints once it stops descending, chosen by the container kind.
-    switch (type.kind) {
-      case "array":
-        return ctx.mod.cstring("[Array]");
-      case "object":
-        return ctx.mod.cstring("[Object]");
-      case "map":
-        return ctx.mod.cstring("[Map]");
-      case "set":
-        return ctx.mod.cstring("[Set]");
-      default:
-        break; // scalars still print normally at any depth
-    }
-  }
+// A string Value for the inspect form of `value` (of type `type`) at nesting `depth` (an i32
+// Value). Strings are quoted here (the nested context); the top-level raw-string case is handled
+// by the caller.
+export function inspect(value: Value, type: ValueType, ctx: Ctx, depth: Value): Value {
   switch (type.kind) {
     case "number":
       return ctx.fn.call("@cs_inspect_num", T.ptr, [value]);
@@ -50,23 +37,87 @@ export function inspect(value: Value, type: ValueType, ctx: Ctx, depth = 0): Val
     case "optional":
       return inspectOptional(value, type.inner, ctx, depth);
     case "array":
-      return inspectArray(value, type.element, ctx, depth);
-    case "object":
-      return inspectObject(value, type, ctx, depth);
+      return beyondDepth(ctx, depth, "[Array]", () =>
+        inspectArray(value, type.element, ctx, depth),
+      );
+    case "object": {
+      // The shape's inspect function handles its own depth cutoff (it knows the class name).
+      const fn = loadShapeWord(loadShape(value, ctx), "inspect", ctx);
+      return ctx.fn.callIndirect(fn, T.ptr, [value, depth]);
+    }
     case "map":
-      return inspectMap(value, type.key, type.value, ctx, depth);
+      return beyondDepth(ctx, depth, "[Map]", () =>
+        inspectMap(value, type.key, type.value, ctx, depth),
+      );
     case "set":
-      return inspectSet(value, type.element, ctx, depth);
+      return beyondDepth(ctx, depth, "[Set]", () => inspectSet(value, type.element, ctx, depth));
+    case "function":
+      // Word 2 of a closure record is its display text (see evalClosure).
+      return ctx.fn.load(T.ptr, ctx.fn.gepSlot(value, 2));
     default:
       return ice(`inspect: cannot format ${type.kind}`);
+  }
+}
+
+// The inspect form of a field Value stored with static type `type` (an allocation's field type).
+// A nullish Value prints its word directly, so an optional field needs no box.
+export function inspectStored(raw: Value, type: ValueType, ctx: Ctx, depth: Value): Value {
+  switch (type.kind) {
+    case "null":
+      return ctx.mod.cstring("null");
+    case "undefined":
+      return ctx.mod.cstring("undefined");
+    case "optional": {
+      const result = ctx.fn.alloca(T.ptr);
+      const undefB = ctx.fn.newBlock("insp.undef");
+      const notUndefB = ctx.fn.newBlock("insp.notundef");
+      const nullB = ctx.fn.newBlock("insp.null");
+      const valB = ctx.fn.newBlock("insp.val");
+      const endB = ctx.fn.newBlock("insp.end");
+      ctx.fn.brCond(ctx.fn.icmp("eq", raw, imm(T.i64, V_UNDEFINED)), undefB, notUndefB);
+      ctx.fn.switchTo(undefB);
+      ctx.fn.store(ctx.mod.cstring("undefined"), result);
+      ctx.fn.br(endB);
+      ctx.fn.switchTo(notUndefB);
+      ctx.fn.brCond(ctx.fn.icmp("eq", raw, imm(T.i64, V_NULL)), nullB, valB);
+      ctx.fn.switchTo(nullB);
+      ctx.fn.store(ctx.mod.cstring("null"), result);
+      ctx.fn.br(endB);
+      ctx.fn.switchTo(valB);
+      ctx.fn.store(inspect(unboxValue(raw, type.inner, ctx), type.inner, ctx, depth), result);
+      ctx.fn.br(endB);
+      ctx.fn.switchTo(endB);
+      return ctx.fn.load(T.ptr, result);
+    }
+    default:
+      return inspect(unboxValue(raw, type, ctx), type, ctx, depth);
   }
 }
 
 const concat = (ctx: Ctx, a: Value, b: Value): Value =>
   ctx.fn.call("@cs_str_concat", T.ptr, [a, b]);
 
+const nextDepth = (ctx: Ctx, depth: Value): Value => ctx.fn.iadd(depth, imm(T.i32, 1));
+
+// `placeholder` when `depth` is past Node's cutoff, else `body()`.
+export function beyondDepth(ctx: Ctx, depth: Value, placeholder: string, body: () => Value): Value {
+  const result = ctx.fn.alloca(T.ptr);
+  const deepB = ctx.fn.newBlock("insp.deep");
+  const bodyB = ctx.fn.newBlock("insp.body");
+  const endB = ctx.fn.newBlock("insp.depthend");
+  ctx.fn.brCond(ctx.fn.icmp("sgt", depth, imm(T.i32, MAX_DEPTH)), deepB, bodyB);
+  ctx.fn.switchTo(deepB);
+  ctx.fn.store(ctx.mod.cstring(placeholder), result);
+  ctx.fn.br(endB);
+  ctx.fn.switchTo(bodyB);
+  ctx.fn.store(body(), result);
+  ctx.fn.br(endB);
+  ctx.fn.switchTo(endB);
+  return ctx.fn.load(T.ptr, result);
+}
+
 // An optional prints as its inner value, or the bare word for the nullish sentinels.
-function inspectOptional(value: Value, inner: ValueType, ctx: Ctx, depth: number): Value {
+function inspectOptional(value: Value, inner: ValueType, ctx: Ctx, depth: Value): Value {
   const isUndef = ctx.fn.icmp("eq", value, ctx.mod.externGlobal("cs_undefined_marker"));
   const isNull = ctx.fn.icmp("eq", value, ctx.mod.externGlobal("cs_null_marker"));
   const result = ctx.fn.alloca(T.ptr);
@@ -95,43 +146,21 @@ function inspectOptional(value: Value, inner: ValueType, ctx: Ctx, depth: number
 }
 
 // `[]` when empty, else `[ e0, e1, ... ]`. Shared loop shape with map/set below.
-function inspectArray(arr: Value, elementType: ValueType, ctx: Ctx, depth: number): Value {
+function inspectArray(arr: Value, elementType: ValueType, ctx: Ctx, depth: Value): Value {
   const len = ctx.fn.call("@cs_array_len", T.i32, [arr]);
   return joinBracketed(len, "[", "]", ctx, (i) => {
     const elem = unboxSlot(ctx.fn.call("@cs_array_get", T.i64, [arr, i]), elementType, ctx);
-    return inspect(elem, elementType, ctx, depth + 1);
+    return inspect(elem, elementType, ctx, nextDepth(ctx, depth));
   });
-}
-
-// `{}` when no fields, else `{ k0: v0, k1: v1 }` (class instances are prefixed with the class
-// name, matching Node). Fields are static, so this unrolls rather than loops.
-function inspectObject(
-  obj: Value,
-  type: Extract<ValueType, { kind: "object" }>,
-  ctx: Ctx,
-  depth: number,
-): Value {
-  const fields = type.shape.fields;
-  const prefix = type.className !== undefined ? `${classDisplayName(type.className)} ` : "";
-  if (fields.length === 0) return ctx.mod.cstring(`${prefix}{}`);
-  const off = headerOffset(type);
-  let acc = ctx.mod.cstring(`${prefix}{ `);
-  fields.forEach((f, i) => {
-    if (i > 0) acc = concat(ctx, acc, ctx.mod.cstring(", "));
-    acc = concat(ctx, acc, ctx.mod.cstring(`${f.name}: `));
-    const fieldVal = unboxSlot(ctx.fn.load(T.i64, ctx.fn.gepSlot(obj, i + off)), f.type, ctx);
-    acc = concat(ctx, acc, inspect(fieldVal, f.type, ctx, depth + 1));
-  });
-  return concat(ctx, acc, ctx.mod.cstring(" }"));
 }
 
 // `Set(N) {}` / `Set(N) { e0, e1 }`.
-function inspectSet(set: Value, element: ValueType, ctx: Ctx, depth: number): Value {
+function inspectSet(set: Value, element: ValueType, ctx: Ctx, depth: Value): Value {
   const arr = ctx.fn.call("@cs_set_values", T.ptr, [set]);
   const len = ctx.fn.call("@cs_array_len", T.i32, [arr]);
   const body = joinBracketed(len, "{", "}", ctx, (i) => {
     const elem = unboxSlot(ctx.fn.call("@cs_array_get", T.i64, [arr, i]), element, ctx);
-    return inspect(elem, element, ctx, depth + 1);
+    return inspect(elem, element, ctx, nextDepth(ctx, depth));
   });
   return concat(ctx, sizePrefix("Set", len, ctx), body);
 }
@@ -142,7 +171,7 @@ function inspectMap(
   keyType: ValueType,
   valueType: ValueType,
   ctx: Ctx,
-  depth: number,
+  depth: Value,
 ): Value {
   const keys = ctx.fn.call("@cs_map_keys", T.ptr, [map]);
   const vals = ctx.fn.call("@cs_map_values", T.ptr, [map]);
@@ -152,8 +181,8 @@ function inspectMap(
     const v = unboxSlot(ctx.fn.call("@cs_array_get", T.i64, [vals, i]), valueType, ctx);
     return concat(
       ctx,
-      concat(ctx, inspect(k, keyType, ctx, depth + 1), ctx.mod.cstring(" => ")),
-      inspect(v, valueType, ctx, depth + 1),
+      concat(ctx, inspect(k, keyType, ctx, nextDepth(ctx, depth)), ctx.mod.cstring(" => ")),
+      inspect(v, valueType, ctx, nextDepth(ctx, depth)),
     );
   });
   return concat(ctx, sizePrefix("Map", len, ctx), body);

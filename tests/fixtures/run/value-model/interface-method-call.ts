@@ -1,4 +1,3 @@
-// @known-bug: phase 3 (shaped objects): method call through an interface type is rejected (CS1225)
 interface Animal {
   name: string;
   speak(): string;

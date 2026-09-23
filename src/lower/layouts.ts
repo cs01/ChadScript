@@ -1,0 +1,292 @@
+// Whole-program allocation-layout analysis: the fact that makes field access sound under
+// structural typing. Every place the program creates an object (a class, an object literal, a
+// spread literal, a JSON.parse target) is a LAYOUT: its field names in record order plus the tsc
+// type of the allocating expression. A value allocated with layout L can only reach code whose
+// static type T satisfies `checker.isTypeAssignableTo(L.type, T)`, because every assignment on
+// its way there was checked by tsc. So the layouts REACHING a receiver of static type T are
+// exactly those, and a field access on T is static (one load) iff they all agree on the field's
+// slot. The test is flow-insensitive and therefore conservative (it may include a layout that never
+// actually arrives), which is what keeps it sound under array covariance and aliasing.
+//
+// Used by validate (property-add and spread rejections) and by lower (static slot vs inline cache,
+// spread-literal dispatch). tsc is the only type oracle here: assignability is the checker's.
+
+import ts from "typescript";
+import { ice } from "../diagnostics.js";
+import type { LoadedProgram } from "../frontend/program.js";
+import { classIdOf } from "./class-ids.js";
+import { arrayElementType, valueTypeOfTsType } from "./type-translation.js";
+
+export type LayoutSite =
+  | { kind: "class"; classId: string; decl: ts.ClassDeclaration }
+  | { kind: "literal"; node: ts.ObjectLiteralExpression }
+  // One result layout (field-name list) of a spread literal, with every combination of source
+  // layouts that produces it: `combos[k][j]` is the layout id of the j-th spread item's value.
+  | { kind: "spread"; node: ts.ObjectLiteralExpression; combos: number[][] }
+  | { kind: "json"; call: ts.CallExpression };
+
+export interface Layout {
+  id: number;
+  names: readonly string[];
+  // The allocating expression's type. For a literal, the WIDENED type: the expression's own type
+  // is a "fresh" literal type, and tsc's assignability applies excess-property checks to fresh
+  // types, which would wrongly say `{ y, x }` never reaches `{ x }` after being bound to a const.
+  // Widening drops the freshness while keeping contextual literal types (a `kind: "c"` stays "c").
+  type: ts.Type;
+  site: LayoutSite;
+}
+
+// One item of a literal's property list, in source order.
+export type LiteralItem = { kind: "prop"; name: string } | { kind: "spread"; expr: ts.Expression };
+
+// A spread literal whose result layouts are the product of its sources' reaching sets. Past this
+// many combinations for one literal it is rejected rather than compiled into a huge dispatch.
+export const MAX_SPREAD_CASES = 64;
+
+export class LayoutAnalysis {
+  readonly layouts: Layout[] = [];
+  private readonly reachCache = new Map<ts.Type, Layout[]>();
+  private readonly literalLayouts = new Map<ts.ObjectLiteralExpression, Layout>();
+  private readonly spreadResults = new Map<ts.ObjectLiteralExpression, Layout[]>();
+  private readonly classLayouts = new Map<string, Layout>();
+  private readonly jsonLayouts = new Map<ts.CallExpression, Layout[]>();
+  // Spread literals that would need more than MAX_SPREAD_CASES result layouts.
+  readonly explodedSpreads: ts.ObjectLiteralExpression[] = [];
+
+  constructor(readonly checker: ts.TypeChecker) {}
+
+  private add(names: readonly string[], type: ts.Type, site: LayoutSite): Layout {
+    const l: Layout = { id: this.layouts.length, names, type, site };
+    this.layouts.push(l);
+    return l;
+  }
+
+  addClass(decl: ts.ClassDeclaration): void {
+    const classId = classIdOf(decl);
+    const type = this.checker.getDeclaredTypeOfSymbol(
+      this.checker.getSymbolAtLocation(decl.name!)!,
+    );
+    const vt = valueTypeOfTsType(type, decl.name!, this.checker);
+    if (vt.kind !== "object") return ice(`layouts: class ${classId} is not an object type`);
+    const l = this.add(
+      vt.shape.fields.map((f) => f.name),
+      type,
+      { kind: "class", classId, decl },
+    );
+    this.classLayouts.set(classId, l);
+  }
+
+  addLiteral(node: ts.ObjectLiteralExpression): void {
+    const items = literalItems(node);
+    if (items.some((i) => i.kind === "spread")) {
+      this.spreadResults.set(node, []);
+      return; // resolved by the fixpoint in finish()
+    }
+    const names: string[] = [];
+    for (const it of items) if (it.kind === "prop" && !names.includes(it.name)) names.push(it.name);
+    const type = this.checker.getWidenedType(this.checker.getTypeAtLocation(node));
+    this.literalLayouts.set(node, this.add(names, type, { kind: "literal", node }));
+  }
+
+  // Every object type a JSON.parse target contains is built with its static field order.
+  addJsonParse(call: ts.CallExpression, target: ts.Type): void {
+    const out: Layout[] = [];
+    const seen = new Set<ts.Type>();
+    const walk = (t: ts.Type): void => {
+      if (seen.has(t)) return;
+      seen.add(t);
+      if (t.isUnion()) {
+        for (const m of t.types) walk(m);
+        return;
+      }
+      if (!(t.flags & ts.TypeFlags.Object)) return;
+      const elem = arrayElementType(t, this.checker);
+      if (elem) {
+        walk(elem);
+        return;
+      }
+      const vt = valueTypeOfTsType(t, call, this.checker);
+      if (vt.kind !== "object") return;
+      out.push(
+        this.add(
+          vt.shape.fields.map((f) => f.name),
+          t,
+          { kind: "json", call },
+        ),
+      );
+      for (const p of this.checker.getPropertiesOfType(t)) {
+        walk(this.checker.getTypeOfSymbolAtLocation(p, call));
+      }
+    };
+    walk(target);
+    this.jsonLayouts.set(call, out);
+  }
+
+  // Resolve spread literals: each result layout depends on the layouts reaching its sources, and
+  // results are themselves layouts that can reach other spreads, so iterate to a fixpoint. It
+  // terminates because a result only reorders names that already exist in the program.
+  finish(): void {
+    // Results of one site are deduplicated by field names: a spread whose result can reach its own
+    // source (`clone(n: Named) { return { ...n } }`) would otherwise mint a new layout per round.
+    const done = new Map<ts.ObjectLiteralExpression, Set<string>>();
+    for (let round = 0; ; round++) {
+      if (round > 64) ice("layouts: spread fixpoint did not converge");
+      let changed = false;
+      this.reachCache.clear();
+      for (const [node, results] of this.spreadResults) {
+        if (this.explodedSpreads.includes(node)) continue;
+        const items = literalItems(node);
+        const sourceSets = items
+          .filter((i): i is Extract<LiteralItem, { kind: "spread" }> => i.kind === "spread")
+          .map((i) => this.reachingType(this.checker.getTypeAtLocation(i.expr)));
+        const count = sourceSets.reduce((n, s) => n * s.length, 1);
+        if (count > MAX_SPREAD_CASES) {
+          this.explodedSpreads.push(node);
+          continue;
+        }
+        const seen = done.get(node) ?? new Set<string>();
+        done.set(node, seen);
+        const type = this.checker.getWidenedType(this.checker.getTypeAtLocation(node));
+        for (const combo of product(sourceSets)) {
+          const key = combo.map((l) => l.id).join(",");
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const names: string[] = [];
+          let j = 0;
+          for (const it of items) {
+            const add = it.kind === "prop" ? [it.name] : combo[j++]!.names;
+            for (const n of add) if (!names.includes(n)) names.push(n);
+          }
+          const sources = combo.map((l) => l.id);
+          const same = results.find((r) => sameNames(r.names, names));
+          if (same && same.site.kind === "spread") same.site.combos.push(sources);
+          else results.push(this.add(names, type, { kind: "spread", node, combos: [sources] }));
+          changed = true;
+        }
+      }
+      if (!changed) break;
+    }
+    this.reachCache.clear();
+  }
+
+  // Layouts that can reach a value of static type `t` (null/undefined stripped).
+  reachingType(t: ts.Type): Layout[] {
+    const target = this.checker.getNonNullableType(t);
+    const hit = this.reachCache.get(target);
+    if (hit) return hit;
+    const out = this.layouts.filter((l) => this.checker.isTypeAssignableTo(l.type, target));
+    this.reachCache.set(target, out);
+    return out;
+  }
+
+  // Layouts that can reach the value of `expr`. `this` inside a class is an instance of that class
+  // or a subclass (class methods are only ever called on instances), which is tighter than its
+  // polymorphic `this` type and never includes a structurally compatible literal.
+  reaching(expr: ts.Expression): Layout[] {
+    if (expr.kind === ts.SyntaxKind.ThisKeyword) {
+      const cls = enclosingClass(expr) ?? ice("layouts: `this` outside a class");
+      return this.reachingThis(cls);
+    }
+    return this.reachingType(this.checker.getTypeAtLocation(expr));
+  }
+
+  reachingThis(cls: ts.ClassDeclaration): Layout[] {
+    const self = this.classLayouts.get(classIdOf(cls)) ?? ice("layouts: class without a layout");
+    return this.layouts.filter(
+      (l) => l.site.kind === "class" && this.checker.isTypeAssignableTo(l.type, self.type),
+    );
+  }
+
+  literalLayout(node: ts.ObjectLiteralExpression): Layout {
+    return this.literalLayouts.get(node) ?? ice("layouts: literal was not collected");
+  }
+
+  spreadLayouts(node: ts.ObjectLiteralExpression): Layout[] {
+    return this.spreadResults.get(node) ?? ice("layouts: spread literal was not collected");
+  }
+
+  classLayout(classId: string): Layout {
+    return this.classLayouts.get(classId) ?? ice(`layouts: class ${classId} was not collected`);
+  }
+
+  jsonParseLayouts(call: ts.CallExpression): Layout[] {
+    return this.jsonLayouts.get(call) ?? ice("layouts: JSON.parse site was not collected");
+  }
+}
+
+// Where `name` lives in every one of `layouts`: its field index when they all agree, otherwise null
+// (the access needs an inline cache). An empty reaching set also yields null: the site is dead as
+// far as the analysis can see, and a by-name lookup is correct whatever arrives.
+export function agreedIndex(layouts: readonly Layout[], name: string): number | null {
+  if (layouts.length === 0) return null;
+  const idx = layouts[0]!.names.indexOf(name);
+  if (idx < 0) return null;
+  return layouts.every((l) => l.names[idx] === name) ? idx : null;
+}
+
+// The property items of an object literal in source order.
+export function literalItems(node: ts.ObjectLiteralExpression): LiteralItem[] {
+  return node.properties.map((p): LiteralItem => {
+    if (ts.isSpreadAssignment(p)) return { kind: "spread", expr: p.expression };
+    if (
+      (ts.isPropertyAssignment(p) || ts.isShorthandPropertyAssignment(p)) &&
+      ts.isIdentifier(p.name)
+    ) {
+      return { kind: "prop", name: p.name.text };
+    }
+    return ice(`layouts: unsupported object literal member ${ts.SyntaxKind[p.kind]}`);
+  });
+}
+
+function sameNames(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((n, i) => n === b[i]);
+}
+
+function enclosingClass(node: ts.Node): ts.ClassDeclaration | null {
+  for (let p: ts.Node | undefined = node.parent; p; p = p.parent) {
+    if (ts.isClassDeclaration(p)) return p;
+  }
+  return null;
+}
+
+function product<T>(sets: readonly (readonly T[])[]): T[][] {
+  let acc: T[][] = [[]];
+  for (const s of sets) acc = acc.flatMap((prefix) => s.map((x) => [...prefix, x]));
+  return acc;
+}
+
+// The analysis for a program, computed once per checker and shared by validate and lower.
+const cache = new WeakMap<ts.TypeChecker, LayoutAnalysis>();
+
+export function layoutsOf(loaded: LoadedProgram): LayoutAnalysis {
+  const hit = cache.get(loaded.checker);
+  if (hit) return hit;
+  const a = new LayoutAnalysis(loaded.checker);
+  const visit = (node: ts.Node): void => {
+    // Only top-level classes exist at run time (lower builds method tables for exactly these).
+    if (ts.isClassDeclaration(node) && node.name && ts.isSourceFile(node.parent)) a.addClass(node);
+    else if (ts.isObjectLiteralExpression(node)) a.addLiteral(node);
+    else if (isAnnotatedJsonParse(node)) {
+      const decl = node.parent as ts.VariableDeclaration;
+      a.addJsonParse(node, loaded.checker.getTypeFromTypeNode(decl.type!));
+    }
+    ts.forEachChild(node, visit);
+  };
+  for (const sf of loaded.initOrder) visit(sf);
+  a.finish();
+  cache.set(loaded.checker, a);
+  return a;
+}
+
+// `JSON.parse(...)` as the initializer of an annotated declaration: the one admitted form.
+function isAnnotatedJsonParse(node: ts.Node): node is ts.CallExpression {
+  return (
+    ts.isCallExpression(node) &&
+    ts.isPropertyAccessExpression(node.expression) &&
+    ts.isIdentifier(node.expression.expression) &&
+    node.expression.expression.text === "JSON" &&
+    node.expression.name.text === "parse" &&
+    ts.isVariableDeclaration(node.parent) &&
+    node.parent.type !== undefined
+  );
+}

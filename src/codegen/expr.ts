@@ -13,13 +13,17 @@ import {
   type BasicBlock,
 } from "../ir/builder.js";
 import { T, type IrType } from "../ir/types.js";
-import type { HExpr, BinaryOp } from "../hir/nodes.js";
+import type { HExpr, BinaryOp, ShapeDescriptor } from "../hir/nodes.js";
 import type { ValueType } from "../hir/types.js";
 import { evalMathCall } from "./math.js";
 import { evalMapPtr, evalMapGet, evalSetPtr, evalSetPredicate } from "./collections.js";
 import { evalStrMethod } from "./strings.js";
 import { evalArrayHof, evalArraySort, evalArraySearch, evalArrayJoin } from "./array.js";
-import { evalObjectPtr, evalMemberGet, headerOffset } from "./objects.js";
+import { evalObjectPtr, evalMemberGet, evalObjectValues } from "./objects.js";
+import { loadShape, shapeRef } from "./shapes.js";
+// Method calls live in methods.ts; re-exported for the evaluators that dispatch to them.
+import { evalVirtualCall, evalVirtualCallStmt } from "./methods.js";
+export { evalVirtualCall, evalVirtualCallStmt };
 import { evalAsyncCall, evalAwait, evalPromiseResolve, evalPromiseAll } from "./async.js";
 import { jsonStringify } from "./json.js";
 import { jsonParse } from "./json-parse.js";
@@ -65,6 +69,8 @@ export interface Ctx {
   // Set while emitting an `async function` body: `return v` resolves the fiber's promise via
   // cs_fiber_return(boxSlot(v)) instead of an ordinary `ret`, and the LLVM function returns void.
   asyncFn?: boolean;
+  // The program's allocation layouts (HModule.shapes), indexed by shape id.
+  shapes: readonly ShapeDescriptor[];
 }
 
 // A break/continue target block plus the finally-nesting depth at the enclosing loop/switch entry.
@@ -225,6 +231,8 @@ export function evalArrayPtr(expr: HExpr, ctx: Ctx): Value {
       return evalArrayHof(expr, ctx); // .map()/.filter() (also when chained as a receiver)
     case "arraySort":
       return evalArraySort(expr, ctx);
+    case "objectValues":
+      return evalObjectValues(expr, ctx);
     case "collectionToArray":
       // map.keys()/values() / set.values() → a materialized array of boxed slots.
       return ctx.fn.call(`@${expr.fn}`, T.ptr, [evalValue(expr.receiver, ctx)]);
@@ -283,8 +291,9 @@ export function evalCall(expr: Extract<HExpr, { kind: "call" }>, ctx: Ctx): Valu
   return ctx.fn.call(`@${expr.name}`, irTypeOf(expr.type), args);
 }
 
-// Create a closure: a GC record {fnptr, env}. `env` holds the captured values (or null when
-// there are no captures). Captures are read from the enclosing scope at creation time.
+// Create a closure: a GC record {fnptr, env, display}. `env` holds the captured values (or null
+// when there are no captures); captures are read from the enclosing scope at creation time.
+// `display` is the function's util.inspect text, read when an object holding it is printed.
 export function evalClosure(expr: Extract<HExpr, { kind: "closure" }>, ctx: Ctx): Value {
   let env: Value;
   if (expr.captures.length > 0) {
@@ -297,9 +306,10 @@ export function evalClosure(expr: Extract<HExpr, { kind: "closure" }>, ctx: Ctx)
   } else {
     env = ctx.fn.nullPtr();
   }
-  const rec = ctx.fn.call("@cs_gc_alloc", T.ptr, [imm(T.i64, 16)]); // {fnptr, env}
+  const rec = ctx.fn.call("@cs_gc_alloc", T.ptr, [imm(T.i64, 24)]);
   ctx.fn.store(ctx.fn.ptrToI64(ctx.fn.funcRef(expr.lambdaName)), ctx.fn.gepSlot(rec, 0));
   ctx.fn.store(ctx.fn.ptrToI64(env), ctx.fn.gepSlot(rec, 1));
+  ctx.fn.store(ctx.mod.internedString(expr.display), ctx.fn.gepSlot(rec, 2));
   return rec;
 }
 
@@ -312,41 +322,6 @@ export function evalFunctionPtr(expr: HExpr, ctx: Ctx): Value {
   if (expr.kind === "virtualCall") return evalVirtualCall(expr, ctx);
   if (expr.kind === "conditional") return evalConditional(expr, ctx);
   return ice(`evalFunctionPtr: unhandled function expression ${expr.kind}`);
-}
-
-// Virtual method call: load the receiver's vtable pointer (record slot 0), index it for the
-// method's fn pointer, and call it with the receiver prepended. `retType` void → the caller uses
-// the statement form (evalVirtualCallStmt); here a value is always produced.
-export function evalVirtualCall(expr: Extract<HExpr, { kind: "virtualCall" }>, ctx: Ctx): Value {
-  const { obj, fnptr } = loadVirtualTarget(expr.receiver, expr.vtableIndex, ctx);
-  const args = [obj, ...expr.args.map((a) => evalValue(a, ctx))];
-  return ctx.fn.callIndirect(fnptr, irTypeOf(expr.type), args);
-}
-
-// Shared receiver+fnptr resolution for the value and statement forms of a virtual call.
-function loadVirtualTarget(
-  receiver: HExpr,
-  vtableIndex: number,
-  ctx: Ctx,
-): { obj: Value; fnptr: Value } {
-  const obj = evalObjectPtr(receiver, ctx);
-  const vtbl = ctx.fn.i64ToPtr(ctx.fn.load(T.i64, ctx.fn.gepSlot(obj, 0)));
-  const fnptr = ctx.fn.load(T.ptr, ctx.fn.gepPtr(vtbl, vtableIndex));
-  return { obj, fnptr };
-}
-
-// Statement-position virtual call (void methods, or a discarded value). `returnType` null → void.
-export function evalVirtualCallStmt(
-  receiver: HExpr,
-  vtableIndex: number,
-  args: HExpr[],
-  returnType: ValueType | null,
-  ctx: Ctx,
-): void {
-  const { obj, fnptr } = loadVirtualTarget(receiver, vtableIndex, ctx);
-  const argVals = [obj, ...args.map((a) => evalValue(a, ctx))];
-  if (returnType === null) ctx.fn.callIndirectVoid(fnptr, argVals);
-  else ctx.fn.callIndirect(fnptr, irTypeOf(returnType), argVals);
 }
 
 // Call a closure value: load its fnptr + env and invoke fnptr(env, args...).
@@ -387,7 +362,9 @@ export function evalConditional(expr: Extract<HExpr, { kind: "conditional" }>, c
 export function evalValue(expr: HExpr, ctx: Ctx): Value {
   // arrayHof spans result types (map/filter→array, reduce→any, forEach→undefined); handle it
   // before the type switch so forEach's `undefined` result type doesn't hit the default ICE.
-  if (expr.kind === "jsonParse") return jsonParse(evalString(expr.text, ctx), expr.type, ctx);
+  if (expr.kind === "jsonParse") {
+    return jsonParse(evalString(expr.text, ctx), expr.type, expr.objectShapes, ctx);
+  }
   if (expr.kind === "arrayHof") return evalArrayHof(expr, ctx);
   if (expr.kind === "conditional") return evalConditional(expr, ctx);
   // `await` yields its inner-typed value; handle before the type switch so it dispatches by result
@@ -452,8 +429,11 @@ export function evalValue(expr: HExpr, ctx: Ctx): Value {
 // Evaluate a string-typed HExpr to a ptr Value (cstring for a literal; a load for a varRef).
 export function evalString(expr: HExpr, ctx: Ctx): Value {
   if (expr.kind === "await") return evalAwait(expr, ctx);
-  if (expr.kind === "jsonStringify")
-    return jsonStringify(evalValue(expr.value, ctx), expr.value.type, ctx, expr.indent, 0);
+  if (expr.kind === "jsonStringify") {
+    const indent = expr.indent === null ? ctx.fn.nullPtr() : ctx.mod.cstring(expr.indent);
+    const v = evalValue(expr.value, ctx);
+    return jsonStringify(v, expr.value.type, ctx, indent, imm(T.i32, 0));
+  }
   switch (expr.kind) {
     case "stringLit":
       return ctx.mod.cstring(expr.value);
@@ -707,15 +687,14 @@ export function evalBool(expr: HExpr, ctx: Ctx): Value {
       );
 
     case "instanceofCheck": {
-      // The receiver's vtable pointer (record slot 0) equals the target class's or any subclass's.
+      // The receiver's shape pointer equals the target class's or any subclass's.
       if (expr.value.type.kind !== "object") {
         return ice(`instanceof on ${expr.value.type.kind} not supported yet`);
       }
-      const obj = evalObjectPtr(expr.value, ctx);
-      const vtbl = ctx.fn.load(T.i64, ctx.fn.gepSlot(obj, 0));
+      const shape = loadShape(evalObjectPtr(expr.value, ctx), ctx);
       let acc: Value | null = null;
-      for (const name of expr.vtableClasses) {
-        const eq = ctx.fn.icmp("eq", vtbl, ctx.fn.ptrToI64(ctx.mod.vtableAddr(name)));
+      for (const id of expr.shapes) {
+        const eq = ctx.fn.icmp("eq", shape, shapeRef(ctx, id));
         acc = acc === null ? eq : ctx.fn.logicalOr(acc, eq);
       }
       return acc ?? imm(T.i1, 0);

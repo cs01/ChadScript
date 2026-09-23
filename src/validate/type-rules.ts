@@ -194,3 +194,37 @@ function isRenderingCall(call: ts.CallExpression): boolean {
   if (isNamedIdent(recv, "console")) return true;
   return isNamedIdent(recv, "JSON") && callee.name.text === "stringify";
 }
+
+// Optional chaining is admitted in one form: a single `x?.f` read of a field of a nullable plain
+// object or class instance, whose result is the whole expression. A longer chain (`x?.f.g`), a
+// call through `?.` (`x?.m()`), or `?.` on anything else is rejected. Returns the reason, or null
+// when the access is fine (including an access with no `?.` at all).
+export function checkOptionalChain(
+  pa: ts.PropertyAccessExpression,
+  checker: ts.TypeChecker,
+): string | null {
+  const parent = pa.parent;
+  if (!pa.questionDotToken) {
+    // A link after the first one carries the chain flag but no `?.` token.
+    return pa.flags & ts.NodeFlags.OptionalChain
+      ? "an optional chain longer than one `?.` link is not in the subset yet"
+      : null;
+  }
+  const continues =
+    ((ts.isPropertyAccessExpression(parent) || ts.isElementAccessExpression(parent)) &&
+      parent.expression === pa) ||
+    (ts.isCallExpression(parent) && parent.expression === pa);
+  if (continues) {
+    return "an optional chain longer than one `?.` link, or `?.` on a method call, is not in the subset yet";
+  }
+  const recv = checker.getNonNullableType(checker.getTypeAtLocation(pa.expression));
+  try {
+    if (valueTypeOfTsType(recv, pa, checker).kind !== "object") {
+      return "`?.` is only supported on a plain object or class instance";
+    }
+  } catch (e) {
+    if (!(e instanceof UnrepresentableTypeError)) throw e;
+    return null; // an unrepresentable type is reported where it is declared
+  }
+  return null;
+}

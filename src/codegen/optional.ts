@@ -23,7 +23,7 @@ import {
   evalArrayPtr,
   emitStrictEq,
 } from "./expr.js";
-import { evalMemberGet } from "./objects.js";
+import { evalMemberGet, evalOptionalMember } from "./objects.js";
 import { evalNumber } from "./numbers.js";
 import { evalArrayHof } from "./array.js";
 import { evalMapGet } from "./collections.js";
@@ -45,6 +45,7 @@ export function evalOptionalPtr(expr: HExpr, ctx: Ctx): Value {
       evalNumber(expr.index, ctx),
     ]);
   if (expr.kind === "memberGet") return evalMemberGet(expr, ctx); // an optional field
+  if (expr.kind === "optionalMember") return evalOptionalMember(expr, ctx);
   if (expr.kind === "wrap") return evalWrap(expr, ctx);
   if (expr.kind === "undefinedOpt") return ctx.mod.externGlobal("cs_undefined_marker");
   if (expr.kind === "nullOpt") return ctx.mod.externGlobal("cs_null_marker");

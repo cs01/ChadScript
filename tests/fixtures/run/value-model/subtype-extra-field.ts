@@ -1,4 +1,3 @@
-// @known-bug: phase 3 (shaped objects): layout comes from the static type, so p.x reads slot 0 (y)
 interface P {
   x: number;
 }

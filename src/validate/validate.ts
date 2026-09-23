@@ -16,6 +16,7 @@ import type { LoadedProgram } from "../frontend/program.js";
 import { CODE } from "./codes.js";
 import { tailoredRejection } from "./rules.js";
 import { tdzDiagnostics } from "./tdz.js";
+import { layoutDiagnostics } from "./layout-rules.js";
 
 // SyntaxKinds the walker is allowed to descend through. PHASE 0 surface only — extend with
 // each phase, never silently. Anything absent here is rejected by default-deny.
@@ -68,6 +69,9 @@ export const ALLOWED_KINDS: ReadonlySet<ts.SyntaxKind> = new Set([
   ts.SyntaxKind.InterfaceDeclaration,
   ts.SyntaxKind.TypeAliasDeclaration,
   ts.SyntaxKind.PropertySignature,
+  // `speak(): string` in an interface (type position): a call through the interface dispatches by
+  // name through the receiver's shape, to a class method or a function-valued field.
+  ts.SyntaxKind.MethodSignature,
   ts.SyntaxKind.TypeLiteral,
   ts.SyntaxKind.TypeReference,
   // Classes (Phase 2): declaration, members, `new`, `this`.
@@ -203,6 +207,9 @@ export function validate(loaded: LoadedProgram): void {
     defaultDeny(sf, sf, diagnostics);
     diagnostics.push(...tdzDiagnostics(sf, loaded.checker));
   }
+  // Whole-program layout rules need every allocation site, and only make sense once each file is
+  // otherwise in the subset (the analysis assumes admitted constructs).
+  if (diagnostics.length === 0) diagnostics.push(...layoutDiagnostics(loaded));
   if (diagnostics.length > 0) throw new DiagnosticError(diagnostics);
 }
 

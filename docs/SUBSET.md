@@ -55,6 +55,7 @@ diagnostic — there is no "compiles but behaves differently than Node" third ca
 - `InterfaceDeclaration`
 - `LiteralType`
 - `MethodDeclaration`
+- `MethodSignature`
 - `NamedExports`
 - `NamedImports`
 - `NamespaceImport`
@@ -251,3 +252,6 @@ diagnostic — there is no "compiles but behaves differently than Node" third ca
 | `CS1232` | FN_DECL_AS_VALUE |
 | `CS1233` | UNREPRESENTABLE_TYPE |
 | `CS1234` | OPAQUE_HANDLE_USE |
+| `CS1235` | PROPERTY_ADD |
+| `CS1236` | LAYOUT_LIMIT |
+| `CS1237` | METHOD_REPRESENTATION |

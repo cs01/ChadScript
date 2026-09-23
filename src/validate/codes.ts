@@ -42,6 +42,9 @@ export const CODE = {
   FN_DECL_AS_VALUE: "CS1232", // an ASYNC `function` declaration referenced as a VALUE (not called)
   UNREPRESENTABLE_TYPE: "CS1233", // a value whose TYPE the value domain cannot represent
   OPAQUE_HANDLE_USE: "CS1234", // an opaque runtime handle used as anything but a stored/passed value
+  PROPERTY_ADD: "CS1235", // a write that can add a property to an object created without it
+  LAYOUT_LIMIT: "CS1236", // too many possible runtime layouts at one site (spread, Object.values)
+  METHOD_REPRESENTATION: "CS1237", // a method call whose implementations disagree on machine types
 } as const;
 
 export type Code = (typeof CODE)[keyof typeof CODE];

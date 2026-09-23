@@ -210,8 +210,11 @@ export function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChe
       for (const [name, type] of ordered) result.shape.fields.push({ name, type });
       return result;
     }
-    const props = checker.getPropertiesOfType(t).filter((sym) => !isMethodSymbol(sym));
-    if (props.length > 0) {
+    // An interface with only methods (`{ area(): number }`) is still an object: its values are
+    // records whose methods are found by name through their shapes.
+    const all = checker.getPropertiesOfType(t);
+    const props = all.filter((sym) => !isMethodSymbol(sym));
+    if (all.length > 0) {
       const hit = objectShapeCache.get(t);
       if (hit) return hit;
       const result: ValueType = { kind: "object", shape: { fields: [] } };
@@ -238,8 +241,16 @@ export function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChe
     const rest = members.filter((m) => m.kind !== "undefined" && m.kind !== "null");
     const restFirst = rest[0];
     if (restFirst && rest.every((m) => m.kind === restFirst.kind)) {
+      // A union of object types (`{ kind: "c"; r } | { kind: "s"; w }`) is one object type whose
+      // fields are the members' COMMON properties, each typed as the union of the members' types
+      // (so a common field with different representations is rejected here). Access through it
+      // is layout-driven like any object; narrowing (`s.kind === "c"`) gives tsc a member type.
+      const inner =
+        restFirst.kind === "object" && rest.some((m) => m !== restFirst)
+          ? objectUnion(checker.getNonNullableType(t), node, checker)
+          : restFirst;
       // `inner | undefined | null` → optional<inner>; pure `inner | inner` → inner.
-      return nullish.length > 0 ? { kind: "optional", inner: restFirst } : restFirst;
+      return nullish.length > 0 ? { kind: "optional", inner } : inner;
     }
     throw new UnrepresentableTypeError(
       `a union whose members have different runtime representations (${members
@@ -252,6 +263,22 @@ export function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChe
     `a type the value domain has no representation for (type flags ${flags})`,
     "use a supported type: number, string, boolean, arrays, closed objects, Map/Set, or `T | undefined`",
   );
+}
+
+function objectUnion(t: ts.Type, node: ts.Node, checker: ts.TypeChecker): ValueType {
+  const hit = objectShapeCache.get(t);
+  if (hit) return hit;
+  const result: ValueType = { kind: "object", shape: { fields: [] } };
+  objectShapeCache.set(t, result);
+  for (const sym of checker.getPropertiesOfType(t)) {
+    if (isMethodSymbol(sym)) continue;
+    let ft = valueTypeOfTsType(checker.getTypeOfSymbolAtLocation(sym, node), node, checker);
+    if (sym.flags & ts.SymbolFlags.Optional && ft.kind !== "optional") {
+      ft = { kind: "optional", inner: ft };
+    }
+    result.shape.fields.push({ name: sym.name, type: ft });
+  }
+  return result;
 }
 
 // A function's return type as a ValueType, or null for void.

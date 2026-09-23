@@ -258,6 +258,50 @@ export class FuncBuilder {
     return this.ibin("lshr", a, b);
   }
 
+  // i64 integer op (add/sub/and/or). The Value encoding (codegen/value.ts) is i64 bit arithmetic:
+  // offsetting a double's bits, masking a pointer's low tag bits.
+  private lbin(op: string, a: Value, b: Value): Value {
+    if (a.type.kind !== "i64" || b.type.kind !== "i64") {
+      ice(`${op} requires i64 operands, got ${a.type.kind}/${b.type.kind}`);
+    }
+    const result = this.nextTemp(T.i64);
+    this.current.add(`${result.name} = ${op} i64 ${a.name}, ${b.name}`);
+    return result;
+  }
+
+  ladd(a: Value, b: Value): Value {
+    return this.lbin("add", a, b);
+  }
+  lsub(a: Value, b: Value): Value {
+    return this.lbin("sub", a, b);
+  }
+  land(a: Value, b: Value): Value {
+    return this.lbin("and", a, b);
+  }
+  lor(a: Value, b: Value): Value {
+    return this.lbin("or", a, b);
+  }
+
+  // Pointer to slot `index` (an i64 Value, not a constant) of an i64 record: a field slot whose
+  // position is only known at run time (an inline-cache hit).
+  gepSlotDyn(base: Value, index: Value): Value {
+    if (base.type.kind !== "ptr") ice(`gepSlotDyn base must be ptr, got ${base.type.kind}`);
+    if (index.type.kind !== "i64") ice(`gepSlotDyn index must be i64, got ${index.type.kind}`);
+    const result = this.nextTemp(T.ptr);
+    this.current.add(`${result.name} = getelementptr i64, ptr ${base.name}, i64 ${index.name}`);
+    return result;
+  }
+
+  // Address of element `index` (an i64 Value) of a pointer array: a method-table entry whose index
+  // is only known at run time.
+  gepPtrDyn(base: Value, index: Value): Value {
+    if (base.type.kind !== "ptr") ice(`gepPtrDyn base must be ptr, got ${base.type.kind}`);
+    if (index.type.kind !== "i64") ice(`gepPtrDyn index must be i64, got ${index.type.kind}`);
+    const result = this.nextTemp(T.ptr);
+    this.current.add(`${result.name} = getelementptr ptr, ptr ${base.name}, i64 ${index.name}`);
+    return result;
+  }
+
   // i32 → double. sitofp treats the source as signed; uitofp as unsigned (for `>>>`).
   sitofp(a: Value): Value {
     if (a.type.kind !== "i32") ice(`sitofp requires an i32 operand, got ${a.type.kind}`);
@@ -336,6 +380,15 @@ export class FuncBuilder {
       ice(`logicalOr requires i1 operands, got ${a.type.kind}/${b.type.kind}`);
     const result = this.nextTemp(T.i1);
     this.current.add(`${result.name} = or i1 ${a.name}, ${b.name}`);
+    return result;
+  }
+
+  // Non-short-circuiting i1 AND (both operands already evaluated, e.g. two shape checks).
+  logicalAnd(a: Value, b: Value): Value {
+    if (a.type.kind !== "i1" || b.type.kind !== "i1")
+      ice(`logicalAnd requires i1 operands, got ${a.type.kind}/${b.type.kind}`);
+    const result = this.nextTemp(T.i1);
+    this.current.add(`${result.name} = and i1 ${a.name}, ${b.name}`);
     return result;
   }
 
@@ -424,23 +477,65 @@ export class ModuleBuilder {
     return { name, type: T.ptr };
   }
 
-  // Emit a class's vtable as a private constant array of function pointers, and return a ptr to
-  // it. `@Class.vtable` mirrors the `@Class.method` naming (dots are valid in LLVM global names).
-  defineVtable(className: string, fnNames: readonly string[]): Value {
-    const name = `@${className}.vtable`;
-    const n = fnNames.length;
-    // A vtable's ADDRESS is the class's runtime identity (instanceof compares vtable pointers), so
-    // two classes must never share one. Two hazards, both linker-dependent:
-    //   - a method-less class would emit `[0 x ptr]`, and zero-sized objects legitimately share an
-    //     address, so `x instanceof SiblingClass` came out true for a base instance on GNU ld;
-    //   - identical `constant` contents are foldable, which two classes with the same method list
-    //     would hit.
-    // Emitting at least one element and using a mutable `global` (never merged) makes each address
-    // distinct by construction. The padding slot is never indexed — an empty table has no methods.
-    const elems = n === 0 ? "ptr null" : fnNames.map((f) => `ptr @${f}`).join(", ");
-    const len = n === 0 ? 1 : n;
-    this.globals.push(`${name} = private global [${len} x ptr] [${elems}]`);
-    return { name, type: T.ptr };
+  // A string constant shared by every use of the same text. Field and method names are compared by
+  // pointer first at run time (runtime/shape.milo), so one program-wide copy per name keeps that
+  // fast path hitting. Content is identical to `cstring`.
+  private readonly interned = new Map<string, Value>();
+  internedString(text: string): Value {
+    const hit = this.interned.get(text);
+    if (hit) return hit;
+    const v = this.cstring(text);
+    this.interned.set(text, v);
+    return v;
+  }
+
+  // A private constant array of pointers (`[N x ptr]`): a shape's field-name or method table. An
+  // empty table still gets one null element so its address is a real object; nothing indexes it.
+  definePtrArray(name: string, elems: readonly Value[]): Value {
+    for (const e of elems) if (e.type.kind !== "ptr") ice(`definePtrArray: ${e.type.kind} element`);
+    const n = elems.length;
+    const body = n === 0 ? "ptr null" : elems.map((e) => `ptr ${e.name}`).join(", ");
+    this.globals.push(`@${name} = private constant [${n === 0 ? 1 : n} x ptr] [${body}]`);
+    return { name: `@${name}`, type: T.ptr };
+  }
+
+  // A private constant byte array (`[N x i8]`): a shape's per-slot kind codes.
+  defineByteArray(name: string, bytes: readonly number[]): Value {
+    const n = bytes.length;
+    const body = n === 0 ? "i8 0" : bytes.map((b) => `i8 ${b}`).join(", ");
+    this.globals.push(`@${name} = private constant [${n === 0 ? 1 : n} x i8] [${body}]`);
+    return { name: `@${name}`, type: T.ptr };
+  }
+
+  // A runtime object shape: an `{ i64 | ptr, ... }` record whose field order is CsShape in
+  // runtime/abi.milo (tests/unit/shape-abi.test.ts pins the two together). A shape's ADDRESS is its
+  // identity (inline caches and instanceof compare shape pointers), so it is a mutable `global`:
+  // identical constants may be merged by LLVM or the linker, globals never are.
+  defineShape(name: string, fields: readonly Value[]): Value {
+    for (const f of fields) {
+      if (f.type.kind !== "i64" && f.type.kind !== "ptr") ice(`defineShape: ${f.type.kind} field`);
+    }
+    const ty = fields.map((f) => llvmType(f.type)).join(", ");
+    const body = fields.map((f) => `${llvmType(f.type)} ${f.name}`).join(", ");
+    this.globals.push(`@${name} = private global { ${ty} } { ${body} }`);
+    return { name: `@${name}`, type: T.ptr };
+  }
+
+  // A zero-initialized private global of `words` 8-byte words: an inline-cache site's mutable state
+  // (cached shape pointer + slot or method index), filled in by the runtime on a miss.
+  // Idempotent per name: a site referenced twice (the read and write of `o.x += 1`) shares one.
+  private readonly zeroWords = new Set<string>();
+  defineZeroWords(name: string, words: number): Value {
+    if (!this.zeroWords.has(name)) {
+      this.zeroWords.add(name);
+      this.globals.push(`@${name} = private global [${words} x i64] zeroinitializer`);
+    }
+    return { name: `@${name}`, type: T.ptr };
+  }
+
+  // A reference to a global or function this module defines under `name` (a shape, a method).
+  globalRef(name: string): Value {
+    return { name: `@${name}`, type: T.ptr };
   }
 
   // A module-scope variable. Top-level `let`/`const` cannot live in `main`'s stack frame: a
@@ -451,11 +546,6 @@ export class ModuleBuilder {
     const g = `@g.${name}`;
     this.globals.push(`${g} = internal global ${llvmType(type)} zeroinitializer`);
     return { name: g, type: T.ptr };
-  }
-
-  // A ptr Value referencing an already-defined vtable global (for storing into a new instance).
-  vtableAddr(className: string): Value {
-    return { name: `@${className}.vtable`, type: T.ptr };
   }
 
   // `attrs` is an optional function-attribute string (e.g. "returns_twice" for setjmp, which the

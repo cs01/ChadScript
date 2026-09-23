@@ -8,9 +8,16 @@ import type { HExpr, HStmt, HFunc, HCapture } from "../hir/nodes.js";
 import { VT } from "../hir/types.js";
 import type { ValueType } from "../hir/types.js";
 import { type LowerCtx, lowerExpr, coerceToTarget, nameOf, nameForSymbol } from "./lower.js";
-import { lowerStatements, thisRef, bindObjectPattern } from "./statements.js";
+import {
+  lowerStatements,
+  lowerExprStatement,
+  lowerCallStatement,
+  thisRef,
+  bindObjectPattern,
+} from "./statements.js";
 import { functionDeclSymbol } from "./default-export.js";
 import { classDeclOfType, classIdOf, constructorClassOf } from "./class-ids.js";
+import { accessIn } from "./member-access.js";
 import {
   valueTypeOf,
   valueTypeOfTsType,
@@ -59,6 +66,21 @@ export function buildClassTable(decl: ts.ClassDeclaration, ctx: LowerCtx): void 
   };
   collectAncestors(classType);
   ctx.classAncestors.set(className, ancestors);
+}
+
+// A class's runtime shape: its data fields base-first (the instance ValueType's order) and its
+// method table in vtable-slot order. Needs buildClassTable to have run for the class.
+export function registerClassShape(decl: ts.ClassDeclaration, ctx: LowerCtx): void {
+  const className = classIdOf(decl);
+  const instanceType = ctx.checker.getDeclaredTypeOfSymbol(
+    ctx.checker.getSymbolAtLocation(decl.name!)!,
+  );
+  const vt = valueTypeOfTsType(instanceType, decl.name!, ctx.checker);
+  if (vt.kind !== "object") return ice(`lower: class ${className} is not an object type`);
+  const table = ctx.classTables.get(className) ?? ice(`lower: class ${className} has no table`);
+  const methods = table.order.map((m) => ({ name: m, fn: `${table.impls.get(m)}.${m}` }));
+  const shape = ctx.shapes.defineClass(className, vt.shape.fields, methods);
+  ctx.layoutShapes.set(ctx.layouts.classLayout(className).id, new Set([shape]));
 }
 
 // A class lowers to a set of free functions: each method and the constructor become an HFunc
@@ -122,13 +144,11 @@ export function fieldInitStmts(
   if (thisType.kind !== "object") ice("lower: field initializer on non-object class type");
   return fieldInits.map((pd) => {
     if (!ts.isIdentifier(pd.name)) return ice("lower: computed field name not supported");
-    const fname = pd.name.text;
-    const slot = thisType.shape.fields.findIndex((f) => f.name === fname);
-    if (slot < 0) ice(`lower: class field ${fname} has no record slot`);
+    if (!ts.isClassDeclaration(pd.parent)) return ice("lower: field initializer outside a class");
     return {
       kind: "memberSet",
       object: thisRef(ctx),
-      slot,
+      access: accessIn(ctx.layouts.reachingThis(pd.parent), pd.name.text, ctx),
       value: lowerExpr(pd.initializer!, ctx),
     };
   });
@@ -292,14 +312,18 @@ export function lowerArrow(arrow: ts.ArrowFunction | ts.FunctionExpression, ctx:
 
   const savedRet = ctx.currentReturnType;
   ctx.currentReturnType = returnType;
+  // A void arrow's expression body (`(m) => console.log(m)`) is a statement: its value, if it
+  // has one, is discarded, and a void call has none to return.
   const body: HStmt[] = ts.isBlock(arrow.body)
     ? lowerStatements(arrow.body.statements, ctx)
-    : [
-        {
-          kind: "return",
-          value: coerceToTarget(lowerExpr(arrow.body, ctx), returnType ?? VT.undefined),
-        },
-      ];
+    : returnType === null
+      ? [
+          ts.isCallExpression(arrow.body)
+            ? lowerCallStatement(arrow.body, ctx)
+            : lowerExprStatement(arrow.body, ctx),
+          { kind: "return", value: null },
+        ]
+      : [{ kind: "return", value: coerceToTarget(lowerExpr(arrow.body, ctx), returnType) }];
   ctx.currentReturnType = savedRet;
 
   ctx.functions.push({ name: lambdaName, params, returnType, body, captures });
@@ -307,8 +331,43 @@ export function lowerArrow(arrow: ts.ArrowFunction | ts.FunctionExpression, ctx:
     kind: "closure",
     lambdaName,
     captures,
+    display: functionDisplay(arrow),
     type: { kind: "function", params: params.map((p) => p.type), ret: returnType },
   };
+}
+
+// How util.inspect shows a function: `[Function: name]` with the name JS gives an anonymous
+// function from where it is defined (NamedEvaluation: a variable, property, or class field it
+// initializes), or `[Function (anonymous)]`.
+function functionDisplay(fn: ts.ArrowFunction | ts.FunctionExpression): string {
+  const isAsync = fn.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword) ?? false;
+  const kind = isAsync ? "AsyncFunction" : "Function";
+  const name = inferredFunctionName(fn);
+  return name === "" ? `[${kind} (anonymous)]` : `[${kind}: ${name}]`;
+}
+
+function inferredFunctionName(fn: ts.ArrowFunction | ts.FunctionExpression): string {
+  if (ts.isFunctionExpression(fn) && fn.name) return fn.name.text;
+  let node: ts.Node = fn;
+  while (ts.isParenthesizedExpression(node.parent)) node = node.parent;
+  const p = node.parent;
+  if (
+    (ts.isVariableDeclaration(p) || ts.isPropertyAssignment(p) || ts.isPropertyDeclaration(p)) &&
+    p.initializer === node &&
+    ts.isIdentifier(p.name)
+  ) {
+    return p.name.text;
+  }
+  if (
+    ts.isBinaryExpression(p) &&
+    p.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+    p.right === node &&
+    ts.isIdentifier(p.left)
+  ) {
+    return p.left.text;
+  }
+  if (ts.isExportAssignment(p)) return "default";
+  return "";
 }
 
 // Free variables of an arrow: identifiers referring to a local variable/parameter declared
@@ -406,50 +465,6 @@ export function lowerFunction(decl: ts.FunctionDeclaration, ctx: LowerCtx): HFun
   ctx.currentReturnType = saved;
   const name = nameForSymbol(functionDeclSymbol(decl, ctx), decl.name?.text ?? "default", ctx);
   return { name, params, returnType, body, async: isAsync };
-}
-
-// Object literal → fields in SHAPE (record-slot) order, regardless of source property order.
-// Properties are processed LEFT-TO-RIGHT into a name→value map so a later property or `...spread`
-// overrides an earlier one (JS object-spread precedence). Supports `{ x: v }`, shorthand `{ x }`,
-// and `{ ...src }`. A spread source's field is read with a `memberGet` (source re-evaluated per
-// field — fine for the common `...variable` case).
-export function lowerObjectLit(
-  ole: ts.ObjectLiteralExpression,
-  ctx: LowerCtx,
-  type: ValueType,
-): HExpr {
-  if (type.kind !== "object") ice("lower: object literal without a resolved object shape");
-  const byName = new Map<string, HExpr>();
-  for (const p of ole.properties) {
-    if (ts.isSpreadAssignment(p)) {
-      const src = lowerExpr(p.expression, ctx);
-      if (src.type.kind !== "object") ice(`lower: spread of ${src.type.kind} in object literal`);
-      src.type.shape.fields.forEach((sf, i) => {
-        byName.set(sf.name, { kind: "memberGet", object: src, slot: i, type: sf.type });
-      });
-    } else if (ts.isPropertyAssignment(p) && ts.isIdentifier(p.name)) {
-      byName.set(p.name.text, lowerExpr(p.initializer, ctx));
-    } else if (ts.isShorthandPropertyAssignment(p)) {
-      // `{ a }` = field `a` from the variable `a`. Resolve the VALUE symbol (the variable).
-      const valueSym = ctx.checker.getShorthandAssignmentValueSymbol(p);
-      if (!valueSym) return ice(`lower: cannot resolve shorthand property ${p.name.text}`);
-      byName.set(p.name.text, {
-        kind: "varRef",
-        name: nameForSymbol(valueSym, p.name.text, ctx),
-        type: valueTypeOf(p.name, ctx),
-      });
-    } else return ice(`lower: unsupported object member ${ts.SyntaxKind[p.kind]}`);
-  }
-  const fields = type.shape.fields.map((f): HExpr => {
-    const value = byName.get(f.name);
-    if (!value) {
-      // An omitted field must be optional (tsc enforces); store the undefined sentinel.
-      if (f.type.kind !== "optional") return ice(`lower: object literal missing field ${f.name}`);
-      return { kind: "undefinedOpt", type: f.type };
-    }
-    return coerceToTarget(value, f.type); // optional-wrap / null-sentinel a present value
-  });
-  return { kind: "objectLit", fields, type };
 }
 
 // The JS Math namespace constants, exact (evaluated in the compiler's own JS).

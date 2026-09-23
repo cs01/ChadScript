@@ -22,6 +22,60 @@ pub extern struct CsArray {
     cap: i32,
 }
 
+// An object's runtime shape: one immutable global per allocation layout, emitted by codegen
+// (src/codegen/shapes.ts SHAPE_FIELDS, pinned to this struct by tests/unit/shape-abi.test.ts).
+// Every object record is `[*CsShape, field 0 Value, field 1 Value, ...]`, class instances and
+// literals alike. `names` holds `fieldCount` *CsString (codegen interns them, so equal names are
+// usually the same pointer); `kinds` one KIND_* byte per field (the allocation's static kind);
+// `className` is null for a literal. `methods` is the class's method table (vtable order) and
+// `methodNames` the matching names, `methodCount` entries each. `inspect` (obj, depth) and `json`
+// (obj, indent, depth) are the codegen-emitted functions that print / serialize this layout.
+pub extern struct CsShape {
+    fieldCount: i64,
+    names: **CsString,
+    kinds: *u8,
+    className: *CsString,
+    methodCount: i64,
+    methods: **u8,
+    methodNames: **CsString,
+    inspect: *u8,
+    json: *u8,
+}
+
+// The Value encoding (src/codegen/value.ts has the full rationale). One 64-bit word:
+//   v >= VALUE_DOUBLE_OFFSET   a number, IEEE bits + 2^49 (NaN canonicalized first)
+//   0 / 1 / 2 / 3              undefined / null / false / true
+//   otherwise                  a pointer OR'ed with a 3-bit TAG_* in its low bits
+pub let VALUE_UNDEFINED: u64 = 0
+pub let VALUE_NULL: u64 = 1
+pub let VALUE_FALSE: u64 = 2
+pub let VALUE_TRUE: u64 = 3
+pub let VALUE_DOUBLE_OFFSET: u64 = 0x0002000000000000
+pub let TAG_OBJECT: u64 = 0
+pub let TAG_STRING: u64 = 1
+pub let TAG_ARRAY: u64 = 2
+pub let TAG_FUNCTION: u64 = 3
+pub let TAG_MAP: u64 = 4
+pub let TAG_SET: u64 = 5
+pub let TAG_PROMISE: u64 = 6
+pub let TAG_OTHER: u64 = 7
+
+// CsShape.kinds codes (src/codegen/shapes.ts KIND_CODE).
+pub let KIND_NUMBER: u8 = 1
+pub let KIND_STRING: u8 = 2
+pub let KIND_BOOLEAN: u8 = 3
+pub let KIND_NULL: u8 = 4
+pub let KIND_UNDEFINED: u8 = 5
+pub let KIND_ARRAY: u8 = 6
+pub let KIND_OBJECT: u8 = 7
+pub let KIND_OPTIONAL: u8 = 8
+pub let KIND_FUNCTION: u8 = 9
+pub let KIND_MAP: u8 = 10
+pub let KIND_SET: u8 = 11
+pub let KIND_UNKNOWN: u8 = 12
+pub let KIND_PROMISE: u8 = 13
+pub let KIND_OPAQUE: u8 = 14
+
 pub extern fn GC_malloc(n: i64): *u8
 // Pointer-free memory: Boehm never scans it, so it is only for byte buffers.
 pub extern fn GC_malloc_atomic(n: i64): *u8

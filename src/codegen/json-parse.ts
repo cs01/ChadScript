@@ -12,13 +12,18 @@ import { imm, type Value } from "../ir/builder.js";
 import { T } from "../ir/types.js";
 import type { ValueType } from "../hir/types.js";
 import { boxSlot, type Ctx } from "./expr.js";
+import { allocRecord, RECORD_HEADER_SLOTS } from "./shapes.js";
+import { boxValue } from "./value.js";
 
 // Mirrors the enum in runtime/json-parse.milo.
 const KIND = { null: 0, bool: 1, number: 2, string: 3, array: 4, object: 5 } as const;
 
-export function jsonParse(text: Value, target: ValueType, ctx: Ctx): Value {
+// The layout each object type in the target is allocated with (from lower).
+type ObjectShapes = readonly { type: ValueType; shape: number }[];
+
+export function jsonParse(text: Value, target: ValueType, shapes: ObjectShapes, ctx: Ctx): Value {
   const root = ctx.fn.call("@cs_json_parse", T.ptr, [text]);
-  return extract(root, target, "value", ctx);
+  return extract(root, target, "value", shapes, ctx);
 }
 
 // Emit `if (kind(node) !== want) throw`. The failure branch is terminated `unreachable` because
@@ -36,7 +41,13 @@ function requireKind(node: Value, want: number, path: string, expected: string, 
   ctx.fn.switchTo(okB);
 }
 
-function extract(node: Value, type: ValueType, path: string, ctx: Ctx): Value {
+function extract(
+  node: Value,
+  type: ValueType,
+  path: string,
+  shapes: ObjectShapes,
+  ctx: Ctx,
+): Value {
   switch (type.kind) {
     case "number":
       requireKind(node, KIND.number, path, "a number", ctx);
@@ -74,7 +85,7 @@ function extract(node: Value, type: ValueType, path: string, ctx: Ctx): Value {
       const elemNode = ctx.fn.call("@cs_json_array_get", T.ptr, [node, iNow]);
       // Every element shares one compile-time path suffix: the index is a runtime value, so the
       // message names the position in the TYPE ("items[]"), not the failing index.
-      const elem = extract(elemNode, elementType, `${path}[]`, ctx);
+      const elem = extract(elemNode, elementType, `${path}[]`, shapes, ctx);
       ctx.fn.callVoid("@cs_array_push", [arr, boxSlot(elem, elementType, ctx)]);
       ctx.fn.store(ctx.fn.iadd(ctx.fn.load(T.i32, iPtr), imm(T.i32, 1)), iPtr);
       ctx.fn.br(head);
@@ -89,12 +100,17 @@ function extract(node: Value, type: ValueType, path: string, ctx: Ctx): Value {
       }
       requireKind(node, KIND.object, path, "an object", ctx);
       const fields = type.shape.fields;
-      const rec = ctx.fn.call("@cs_gc_alloc", T.ptr, [imm(T.i64, fields.length * 8)]);
-      fields.forEach((f, idx) => {
+      const shape =
+        shapes.find((s) => s.type === type)?.shape ??
+        ice("jsonParse: an object type in the target has no registered shape");
+      // Field values are extracted first so a mismatch throws before anything is allocated.
+      const vals = fields.map((f) => {
         const fieldNode = ctx.fn.call("@cs_json_field", T.ptr, [node, ctx.mod.cstring(f.name)]);
-        const value = extractField(fieldNode, f.type, `${path}.${f.name}`, ctx);
-        ctx.fn.store(boxSlot(value, f.type, ctx), ctx.fn.gepSlot(rec, idx));
+        const value = extractField(fieldNode, f.type, `${path}.${f.name}`, shapes, ctx);
+        return boxValue(value, f.type, ctx);
       });
+      const rec = allocRecord(shape, fields.length, ctx);
+      vals.forEach((v, i) => ctx.fn.store(v, ctx.fn.gepSlot(rec, i + RECORD_HEADER_SLOTS)));
       return rec;
     }
 
@@ -105,7 +121,13 @@ function extract(node: Value, type: ValueType, path: string, ctx: Ctx): Value {
 
 // A field lookup returns null when the key is ABSENT, which is a different condition from the key
 // being present with a wrong type. An optional field tolerates absence; a required one does not.
-function extractField(fieldNode: Value, type: ValueType, path: string, ctx: Ctx): Value {
+function extractField(
+  fieldNode: Value,
+  type: ValueType,
+  path: string,
+  shapes: ObjectShapes,
+  ctx: Ctx,
+): Value {
   if (type.kind !== "optional") {
     const present = ctx.fn.icmp("ne", ctx.fn.ptrToI64(fieldNode), imm(T.i64, 0));
     const okB = ctx.fn.newBlock("json.field.present");
@@ -118,7 +140,7 @@ function extractField(fieldNode: Value, type: ValueType, path: string, ctx: Ctx)
     ]);
     ctx.fn.unreachable();
     ctx.fn.switchTo(okB);
-    return extract(fieldNode, type, path, ctx);
+    return extract(fieldNode, type, path, shapes, ctx);
   }
 
   // `T | undefined`: absent OR JSON null both produce the undefined sentinel, matching how the
@@ -141,7 +163,7 @@ function extractField(fieldNode: Value, type: ValueType, path: string, ctx: Ctx)
   ctx.fn.brCond(ctx.fn.icmp("eq", kind, imm(T.i32, KIND.null)), absentB, presentB);
 
   ctx.fn.switchTo(presentB);
-  const inner = extract(fieldNode, type.inner, path, ctx);
+  const inner = extract(fieldNode, type.inner, path, shapes, ctx);
   const box = ctx.fn.call("@cs_gc_alloc", T.ptr, [imm(T.i64, 8)]);
   ctx.fn.store(boxSlot(inner, type.inner, ctx), box);
   ctx.fn.store(box, result);

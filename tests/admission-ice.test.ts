@@ -101,9 +101,9 @@ const CORPUS: Case[] = [
     src: `const a = [1, 2, 3];\nconsole.log(a.splice(1, 1));\n`,
   },
   {
-    name: "object method call",
-    code: "CS1225",
-    src: `type T = { f: () => number };\nconst o: T = { f: () => 1 };\nconsole.log(o.f());\n`,
+    name: "method implementation with another return representation",
+    code: "CS1237",
+    src: `interface I {\n  f(x: number): number | undefined;\n}\nconst o: I = { f: (x: number): number => x };\nconsole.log(o.f(1));\n`,
   },
 
   // Combinations — an out-of-subset construct nested inside otherwise-valid code must still reject.

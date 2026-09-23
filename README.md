@@ -65,8 +65,8 @@ runtime, CommonJS, packages that ship only JavaScript. Programs that need those 
 [milojs](https://github.com/milo-language/milojs)); since every accepted program is valid
 TypeScript, the same file runs there unchanged.
 
-Not supported yet, planned: unions with mixed representations; generics; interface method calls;
-closures that mutate captured variables. See the phases in [`PLAN.md`](PLAN.md).
+Not supported yet, planned: unions with mixed representations (`number | string`); generics;
+closures that mutate captured variables; optional chains longer than one `?.`. See the phases in [`PLAN.md`](PLAN.md).
 
 ## How it works
 

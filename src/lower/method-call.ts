@@ -12,14 +12,15 @@ import {
   callReturnType,
   coerceToTarget,
   lowerExpr,
-  lowerObjectNamespace,
+  lowerCallArgs,
   resolveType,
   superMethodClassOf,
-  vtableIndexOf,
 } from "./lower.js";
+import { methodDispatchAt } from "./member-access.js";
 import { isMathNamespace, keyKindOf } from "./declarations.js";
 import { valueTypeOfTsType } from "./type-translation.js";
 import { thisRef } from "./statements.js";
+import { lowerObjectNamespace } from "./object-literal.js";
 
 // The pretty-print indent unit for a JSON.stringify `space` argument: a literal number N → N spaces
 // (JSON caps at 10), a literal string → up to its first 10 chars, anything falsy/absent → null
@@ -78,10 +79,20 @@ export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
     // `JSON.parse` is admitted only where an explicit annotation supplies the target type (the
     // validator enforces that), so the target SHAPE is available here and `any` never enters HIR.
     if (pa.name.text === "parse") {
+      const target = jsonParseTarget(call, ctx);
+      // Each object type in the target is allocated with its static field order.
+      const objectShapes = ctx.layouts.jsonParseLayouts(call).map((l) => {
+        const type = valueTypeOfTsType(l.type, call, ctx.checker);
+        if (type.kind !== "object") return ice("lower: JSON.parse layout is not an object type");
+        const shape = ctx.shapes.literal(type.shape.fields);
+        ctx.layoutShapes.set(l.id, new Set([shape]));
+        return { type, shape };
+      });
       return {
         kind: "jsonParse",
         text: lowerExpr(call.arguments[0]!, ctx),
-        type: jsonParseTarget(call, ctx),
+        objectShapes,
+        type: target,
       };
     }
     if (pa.name.text !== "stringify") ice(`lower: unsupported JSON.${pa.name.text}`);
@@ -393,15 +404,15 @@ export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
       type: callReturnType(call, ctx) ?? VT.string,
     };
   }
-  // Class method: `obj.m(args)` → VIRTUAL dispatch through the receiver's vtable (value position).
-  if (recvType.kind === "object" && recvType.className !== undefined) {
+  // A method (or function-valued field) of an object, found through its shape (value position).
+  if (recvType.kind === "object") {
     const rt = callReturnType(call, ctx);
     if (rt === null) ice(`lower: void method .${method} used as a value`);
     return {
       kind: "virtualCall",
       receiver,
-      vtableIndex: vtableIndexOf(recvType.className, method, ctx),
-      args: call.arguments.map((a) => lowerExpr(a, ctx)),
+      dispatch: methodDispatchAt(pa.expression, recvType, method, ctx),
+      args: lowerCallArgs(call, ctx),
       type: rt,
     };
   }

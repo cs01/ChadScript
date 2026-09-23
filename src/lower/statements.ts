@@ -14,7 +14,6 @@ import {
   coerceToTarget,
   callReturnType,
   superMethodClassOf,
-  vtableIndexOf,
   calleeName,
   compoundOp,
   declaredTypeOfIdent,
@@ -28,6 +27,7 @@ import { valueTypeOf } from "./type-translation.js";
 import { lowerMethodCall } from "./method-call.js";
 import { lowerInterceptedCall } from "./globals.js";
 import { namespaceMemberOf } from "./module-refs.js";
+import { accessIn, fieldAccessAt, methodDispatchAt } from "./member-access.js";
 import { classIdOf, constructorClassOf } from "./class-ids.js";
 
 // Returns an array because one `let a = 1, b = 2;` lowers to several varDecls.
@@ -256,17 +256,16 @@ export function lowerIncDec(
     const pa = expr.operand;
     const objType = resolveType(pa.expression, ctx);
     if (objType.kind !== "object") ice(`lower: ++/-- on non-object property .${pa.name.text}`);
-    const slot = objType.shape.fields.findIndex((f) => f.name === pa.name.text);
-    if (slot < 0) ice(`lower: object has no field ${pa.name.text}`);
+    const access = fieldAccessAt(pa.expression, pa.name.text, ctx);
     const object = lowerExpr(pa.expression, ctx);
     return {
       kind: "memberSet",
       object,
-      slot,
+      access,
       value: {
         kind: "binary",
         op: binOp,
-        left: { kind: "memberGet", object, slot, type: VT.number },
+        left: { kind: "memberGet", object, access, type: VT.number },
         right: one,
         type: VT.number,
       },
@@ -366,30 +365,22 @@ export function lowerMemberAssignment(
 ): HStmt {
   const objType = resolveType(lhs.expression, ctx);
   if (objType.kind !== "object") ice(`lower: assignment to .${lhs.name.text} on non-object`);
-  const slot = objType.shape.fields.findIndex((f) => f.name === lhs.name.text);
-  if (slot < 0) ice(`lower: object has no field ${lhs.name.text}`);
-  const fieldType = objType.shape.fields[slot]!.type;
+  const access = fieldAccessAt(lhs.expression, lhs.name.text, ctx);
+  const fieldType = objType.shape.fields.find((f) => f.name === lhs.name.text)!.type;
   const object = lowerExpr(lhs.expression, ctx);
   if (op === ts.SyntaxKind.EqualsToken) {
-    // Coerce into the FIELD's representation. Assigning a present `T` into a `T | null` slot has
-    // to box it — storing the bare pointer leaves the slot holding an object where every reader
-    // expects a box or a sentinel, which reads back as garbage (a segfault once the structure is
-    // deep enough for the slot to be read at a different level than it was written).
-    return {
-      kind: "memberSet",
-      object,
-      slot,
-      value: coerceToTarget(lowerExpr(rhs, ctx), fieldType),
-    };
+    // The slot stores a self-describing Value boxed from the value's own type, so no coercion to
+    // the field's static representation is needed.
+    return { kind: "memberSet", object, access, value: lowerExpr(rhs, ctx) };
   }
   const value: HExpr = {
     kind: "binary",
     op: compoundOp(op),
-    left: { kind: "memberGet", object, slot, type: fieldType },
+    left: { kind: "memberGet", object, access, type: fieldType },
     right: lowerExpr(rhs, ctx),
     type: fieldType,
   };
-  return { kind: "memberSet", object, slot, value: coerceToTarget(value, fieldType) };
+  return { kind: "memberSet", object, access, value };
 }
 
 export function lowerVarDecl(decl: ts.VariableDeclaration, ctx: LowerCtx): HStmt[] {
@@ -432,6 +423,9 @@ export function bindObjectPattern(
 ): HStmt[] {
   if (source.type.kind !== "object") ice("lower: object destructuring of a non-object value");
   const shape = source.type.shape;
+  // The destructured value's layouts, from the declaration the pattern belongs to (a variable,
+  // parameter, or for-of binding), whose type is the value's static type.
+  const layouts = ctx.layouts.reachingType(ctx.checker.getTypeAtLocation(pattern.parent));
   const stmts: HStmt[] = [];
   for (const el of pattern.elements) {
     if (el.dotDotDotToken) ice("lower: rest in object destructuring not supported yet");
@@ -446,7 +440,12 @@ export function bindObjectPattern(
     stmts.push({
       kind: "varDecl",
       name: nameOf(el.name, ctx),
-      init: { kind: "memberGet", object: source, slot, type: fieldType },
+      init: {
+        kind: "memberGet",
+        object: source,
+        access: accessIn(layouts, srcProp, ctx),
+        type: fieldType,
+      },
       type: fieldType,
     });
   }
@@ -517,15 +516,14 @@ export function lowerCallStatement(call: ts.CallExpression, ctx: LowerCtx): HStm
           };
         }
         const recvType = resolveType(pa.expression, ctx);
-        // A class method (possibly void) → callStmt with `this` prepended, so void methods work.
-        // Dispatch to the class that DEFINES the method (an inherited method lives on the base).
-        if (recvType.kind === "object" && recvType.className !== undefined) {
-          // VIRTUAL dispatch (statement position; handles void methods too).
+        // A method or function-valued field of an object (statement position, so void works too),
+        // found through the receiver's shape.
+        if (recvType.kind === "object") {
           return {
             kind: "virtualCallStmt",
             receiver: lowerExpr(pa.expression, ctx),
-            vtableIndex: vtableIndexOf(recvType.className, pa.name.text, ctx),
-            args: call.arguments.map((a) => lowerExpr(a, ctx)),
+            dispatch: methodDispatchAt(pa.expression, recvType, pa.name.text, ctx),
+            args: lowerCallArgs(call, ctx),
             returnType: callReturnType(call, ctx),
           };
         }

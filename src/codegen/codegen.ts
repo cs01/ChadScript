@@ -30,7 +30,10 @@ import {
   type TryFrame,
   type LoopTarget,
 } from "./expr.js";
-import { evalObjectPtr, headerOffset } from "./objects.js";
+import { emitMemberSet } from "./objects.js";
+import { emitShapes } from "./shapes.js";
+import { emitShapeFunctions } from "./shape-functions.js";
+import type { ShapeDescriptor } from "../hir/nodes.js";
 import { evalOptionalPtr, unboxOptionalValue, unboxSlotValue } from "./optional.js";
 import { evalNumber } from "./numbers.js";
 import { inspect } from "./inspect.js";
@@ -39,9 +42,9 @@ export function generate(hmod: HModule): string {
   const mod = new ModuleBuilder();
   declareRuntimeExterns(mod);
 
-  // Class vtables (constant arrays of method fn pointers); an instance stores a pointer to its
-  // class's vtable in record slot 0 for virtual dispatch.
-  for (const c of hmod.classes) mod.defineVtable(c.name, c.vtable);
+  // One shape global per allocation layout; every record points at its shape from slot 0.
+  emitShapes(mod, hmod.shapes);
+  emitShapeFunctions(mod, hmod.shapes);
 
   // Module-scope bindings are materialized BEFORE any function is emitted: a function body may
   // read one, and it has no access to main's stack frame. main assigns them, in declaration
@@ -58,7 +61,7 @@ export function generate(hmod: HModule): string {
 
   // User functions first (order doesn't matter — LLVM resolves calls by name, so recursion and
   // mutual recursion just work).
-  for (const f of hmod.functions) emitFunction(f, mod, globals);
+  for (const f of hmod.functions) emitFunction(f, mod, globals, hmod.shapes);
 
   // The synthesized entry function holds the top-level statements. It takes the real C `main`
   // signature so the command line can be handed to the runtime (process.argv.slice(2)).
@@ -75,6 +78,7 @@ export function generate(hmod: HModule): string {
     continueTargets: [],
     finallyStack: [],
     fnReturnType: null,
+    shapes: hmod.shapes,
   };
   ctx.fn.callVoid("@cs_gc_init", []); // start Boehm GC before any allocation
   // Record the command line before user code runs; the argv array itself is built lazily, so a
@@ -106,6 +110,7 @@ function emitFunction(
   f: HFunc,
   mod: ModuleBuilder,
   globals: Map<string, { ptr: Value; vtype: ValueType }>,
+  shapes: readonly ShapeDescriptor[],
 ): void {
   const isAsync = f.async ?? false;
   const captures = f.captures ?? [];
@@ -132,6 +137,7 @@ function emitFunction(
     finallyStack: [],
     fnReturnType: f.returnType,
     asyncFn: isAsync,
+    shapes,
   };
 
   if (isAsync) {
@@ -431,7 +437,7 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
     }
 
     case "virtualCallStmt":
-      evalVirtualCallStmt(stmt.receiver, stmt.vtableIndex, stmt.args, stmt.returnType, ctx);
+      evalVirtualCallStmt(stmt.receiver, stmt.dispatch, stmt.args, stmt.returnType, ctx);
       return;
 
     case "throwError": {
@@ -491,14 +497,9 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
       return;
     }
 
-    case "memberSet": {
-      // Evaluate the object record, box the new value, store it into the field's slot (offset by
-      // the vtable header for class instances).
-      const obj = evalObjectPtr(stmt.object, ctx);
-      const slot = boxSlot(evalValue(stmt.value, ctx), stmt.value.type, ctx);
-      ctx.fn.store(slot, ctx.fn.gepSlot(obj, stmt.slot + headerOffset(stmt.object.type)));
+    case "memberSet":
+      emitMemberSet(stmt, ctx);
       return;
-    }
 
     case "indexSet": {
       // `arr[i] = v`. The index is a JS number; truncate to i32 like every other array op, and

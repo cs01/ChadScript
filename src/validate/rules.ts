@@ -8,6 +8,7 @@ import type { Diagnostic } from "../diagnostics.js";
 import { CODE, type Code } from "./codes.js";
 import { spanOf } from "./validate.js";
 import { namespaceMemberOf } from "../lower/module-refs.js";
+import { UnrepresentableTypeError, valueTypeOfTsType } from "../lower/type-translation.js";
 import {
   checkDefaultClass,
   checkExportAssignment,
@@ -17,6 +18,7 @@ import {
 } from "./module-rules.js";
 import {
   checkFunctionValueRef,
+  checkOptionalChain,
   checkRepresentableType,
   checkRepresentableTypeNode,
   checkOpaqueHandleUse,
@@ -184,6 +186,9 @@ export function tailoredRejection(
 
     case ts.SyntaxKind.PropertyAccessExpression: {
       const pa = node as ts.PropertyAccessExpression;
+      const chain = checkOptionalChain(pa, checker);
+      if (chain)
+        return hit(CODE.NOT_IN_SUBSET, chain, "test the value first: `x === undefined ? d : x.f`");
       // `process.argv` is admitted ONLY as the exact expression `process.argv.slice(2)`. Node's
       // argv[0] is the node binary and argv[1] the script path; a compiled binary has neither, so
       // any use that can observe those two entries could not agree with the oracle. The slice IS
@@ -223,6 +228,13 @@ export function tailoredRejection(
     }
 
     case ts.SyntaxKind.ElementAccessExpression:
+      if ((node as ts.ElementAccessExpression).questionDotToken) {
+        return hit(
+          CODE.NOT_IN_SUBSET,
+          "optional element access `?.[i]` is not in the subset yet",
+          "test the array first: `xs === undefined ? d : xs[i]`",
+        );
+      }
       // `s[i]` on a string yields a byte, not Node's UTF-16 code-unit character, for non-ASCII.
       // Gated (CS1216). Array element access (the common case) is unaffected.
       if (isStringTyped((node as ts.ElementAccessExpression).expression, checker)) {
@@ -292,6 +304,34 @@ export function tailoredRejection(
 
     case ts.SyntaxKind.NewExpression:
       return checkNew(node as ts.NewExpression, hit);
+
+    // Object literals hold data and closures, not methods: a method has a receiver-bound `this`,
+    // and the subset's objects have no prototype to put one on.
+    case ts.SyntaxKind.MethodDeclaration:
+      if (ts.isObjectLiteralExpression(node.parent)) {
+        return hit(
+          CODE.NOT_IN_SUBSET,
+          "a method in an object literal is not in the subset",
+          "use an arrow function field (`speak: () => ...`), or a class for methods that use `this`",
+        );
+      }
+      return null;
+
+    // `this` means the class instance in a method or constructor (and in an arrow inside one). In a
+    // `function` expression it would be whatever the call site supplies, which the subset does not
+    // model.
+    case ts.SyntaxKind.ThisKeyword:
+      for (let p: ts.Node = node.parent; !ts.isSourceFile(p); p = p.parent) {
+        if (ts.isFunctionExpression(p) || ts.isFunctionDeclaration(p)) {
+          return hit(
+            CODE.NOT_IN_SUBSET,
+            "`this` inside a `function` is not in the subset",
+            "use an arrow function (which keeps the enclosing method's `this`), or a class method",
+          );
+        }
+        if (ts.isClassDeclaration(p)) return null;
+      }
+      return null;
 
     default:
       return null;
@@ -595,10 +635,10 @@ function checkCall(node: ts.CallExpression, hit: Hit, checker: ts.TypeChecker): 
       }
     }
 
-    // Method call on a PLAIN object (a function-valued field, or an interface method): only class
-    // instances have callable methods in the subset, so these reach a lowering ICE. Guarded to
-    // exclude class instances, arrays/Map/Set (handled above), and the global namespace receivers
-    // whose calls are supported (console.log/process.exit/Math.floor/Object.keys/…).
+    // Method call on a plain object (a function-valued field, or an interface method): dispatched
+    // by name through the receiver's shape (lower/member-access.ts), so the receiver must BE an
+    // object in the value domain. Guarded to exclude class instances, arrays/Map/Set (handled
+    // above), and the global namespace receivers (console.log/Math.floor/Object.keys/…).
     const rt = checker.getTypeAtLocation(recv);
     const isGlobalRecv = ts.isIdentifier(recv) && GLOBAL_RECEIVERS.has(recv.text);
     if (
@@ -606,12 +646,13 @@ function checkCall(node: ts.CallExpression, hit: Hit, checker: ts.TypeChecker): 
       (rt.flags & ts.TypeFlags.Object) !== 0 &&
       !isClassInstanceType(rt) &&
       !isArrayTyped(recv, checker) &&
-      collectionKind(recv, checker) === null
+      collectionKind(recv, checker) === null &&
+      !isObjectValue(rt, recv, checker)
     ) {
       return hit(
         CODE.OBJECT_METHOD,
-        `calling \`.${m}()\` on a plain object is not supported yet`,
-        "only class-instance methods are callable; use a class instead of a function-valued field",
+        `calling \`.${m}()\` on this value is not supported yet`,
+        "call methods on class instances or on objects whose type is an interface or object type",
       );
     }
   }
@@ -632,6 +673,17 @@ const GLOBAL_RECEIVERS: ReadonlySet<string> = new Set([
   "Array",
   "Promise",
 ]);
+
+// Whether the value domain represents `t` as an object record (so a shape can answer a by-name
+// method lookup on it).
+function isObjectValue(t: ts.Type, node: ts.Node, checker: ts.TypeChecker): boolean {
+  try {
+    return valueTypeOfTsType(t, node, checker).kind === "object";
+  } catch (e) {
+    if (e instanceof UnrepresentableTypeError) return false;
+    throw e;
+  }
+}
 
 // A class-instance type (its symbol is declared by a `class`), vs a plain object/interface type.
 function isClassInstanceType(t: ts.Type): boolean {

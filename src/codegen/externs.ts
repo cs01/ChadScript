@@ -152,4 +152,13 @@ export function declareRuntimeExterns(mod: ModuleBuilder): void {
   mod.declareExtern("cs_new_thrown_str", T.ptr, [T.ptr]);
   mod.declareExtern("cs_thrown_is_error", T.i32, [T.ptr]);
   mod.declareExtern("cs_thrown_to_string", T.ptr, [T.ptr]);
+  // Object shapes (runtime/shape.milo): inline-cache misses and shape-driven helpers.
+  mod.declareExtern("cs_ic_get", T.i64, [T.ptr, T.ptr, T.ptr]);
+  mod.declareExtern("cs_ic_set", T.void, [T.ptr, T.ptr, T.ptr, T.i64]);
+  mod.declareExtern("cs_ic_method", T.void, [T.ptr, T.ptr, T.ptr]);
+  mod.declareExtern("cs_obj_keys", T.ptr, [T.ptr]);
+  mod.declareExtern("cs_obj_clone", T.ptr, [T.ptr]);
+  mod.declareExtern("cs_shape_mismatch", T.void, []);
+  mod.declareExtern("cs_shape_unsupported", T.void, [T.ptr]);
+  mod.declareExtern("cs_json_indent", T.ptr, [T.ptr, T.i32]);
 }

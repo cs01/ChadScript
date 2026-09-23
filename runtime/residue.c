@@ -14,7 +14,14 @@
 
 // GC_INIT is a macro (on some platforms it expands to more than a call, e.g. registering the data
 // segment), so a C compiler has to expand it. Emitted first in `main`.
-void cs_gc_init(void) { GC_INIT(); }
+// Interior pointers must be recognized: an object field holds a Value, which is a pointer with a
+// 3-bit kind tag in its low bits (src/codegen/value.ts), so it points INTO its target rather than
+// at its start. This is Boehm's usual default, but a build can turn it off, and it must be set
+// before GC_INIT.
+void cs_gc_init(void) {
+  GC_set_all_interior_pointers(1);
+  GC_INIT();
+}
 
 // Nullable `T | undefined` / `T | null`: generated IR compares an optional pointer against the
 // ADDRESSES of these globals. Milo can neither define a data symbol with a fixed C name nor take

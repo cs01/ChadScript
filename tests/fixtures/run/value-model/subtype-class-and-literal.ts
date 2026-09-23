@@ -1,4 +1,3 @@
-// @known-bug: phase 3 (shaped objects): a class instance and a literal share one interface array
 class A {
   a = 1;
   b = "x";

@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { genSubtypeProgram } from "../harness/subtype-gen.js";
 import { differentialSource, type Divergence } from "../harness/differential.js";
 
-const KNOWN_BUG = true;
+const KNOWN_BUG = false;
 const SEED_COUNT = 20;
 
 test("structural-subtyping fuzz vs Node", { timeout: 600_000 }, async () => {

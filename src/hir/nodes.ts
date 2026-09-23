@@ -3,22 +3,63 @@
 // the frontend. Every expression node carries its resolved `ValueType`; the backend reads that
 // field and never re-derives a type.
 
-import type { ValueType } from "./types.js";
+import type { ObjectField, ValueType } from "./types.js";
 
 export interface HModule {
   functions: HFunc[];
   // Top-level statements — lowered into the synthesized `main` entry function.
   topLevel: HStmt[];
-  // One per class. `vtable` lists the implementing function names in method-slot order (base
-  // methods first, an override reusing its base slot). Codegen emits a constant vtable global per
-  // class; a class instance stores a pointer to its class's vtable in record slot 0.
-  classes: ClassDescriptor[];
+  // Every runtime object layout the program allocates, indexed by `id`. Codegen emits one
+  // immutable shape global per entry; every object record stores a pointer to its shape in slot 0
+  // (see runtime/abi.milo CsShape), so a record describes itself whatever static type reads it.
+  shapes: ShapeDescriptor[];
 }
 
-export interface ClassDescriptor {
-  name: string;
-  vtable: string[]; // fn name (e.g. "Dog.speak") at each method slot
+// One allocation layout. `fields` are in record order (field i lives at record slot i + 1, after
+// the shape pointer) with the static type the allocation stores there; every slot holds a Value
+// (codegen/value.ts), so readers never depend on that type for correctness, only for printing.
+// A class's shape also carries its identity (`className`, for instanceof and printing) and its
+// method table in vtable-slot order (base methods first, an override reusing its base slot).
+export interface ShapeDescriptor {
+  id: number;
+  fields: ObjectField[];
+  className?: string;
+  methods: { name: string; fn: string }[];
 }
+
+// An item of a spread literal, in source order. A spread's `snapshot` says its source must be
+// copied when the item is evaluated, because a later item's initializer could otherwise change a
+// field before it is read (JS copies the source's fields at the spread's position).
+export type SpreadItem =
+  | { kind: "prop"; value: HExpr }
+  | { kind: "spread"; value: HExpr; snapshot: boolean };
+
+// One combination of spread-source shapes: `sources[j]` is the shape id the j-th SPREAD item must
+// have. The result has layout `shape`; its field k comes from `fields[k]`: item `item`'s value for
+// a prop, or field `index` of the (snapshotted) source record for a spread.
+export interface SpreadCase {
+  sources: number[];
+  shape: number;
+  fields: { item: number; index: number | null }[];
+}
+
+// How a member access finds its field. `slot`: every layout that can reach the site stores the
+// field at record field index `index` (static, one load). `ic`: the layouts disagree, so the site
+// gets inline-cache state (`site` is its program-unique id) and falls back to a by-name lookup in
+// the receiver's shape; a field absent from the receiver's shape reads as `undefined`.
+export type FieldAccess =
+  | { kind: "slot"; index: number }
+  | { kind: "ic"; site: number; name: string };
+
+// How a method call finds its function. `vtable`: every layout reaching the receiver is the static
+// class or a subclass, so method-table slot `index` (base slots are shared down the hierarchy)
+// holds the implementation. `byName`: anything else (an interface-typed receiver that may hold a
+// class instance or a literal with a function field); the site's inline cache resolves `name` in
+// the receiver's shape to a method-table entry (called with the object as `this`) or a field
+// holding a closure (called with its env).
+export type MethodDispatch =
+  | { kind: "vtable"; index: number }
+  | { kind: "byName"; site: number; name: string };
 
 export interface HParam {
   name: string;
@@ -53,8 +94,8 @@ export type HStmt =
   // Reassignment to an existing `let` binding (const reassignment is blocked by the tsc gate).
   // Compound assignment (`+=` etc.) is lowered to `value = <var> <op> rhs`.
   | { kind: "assign"; name: string; value: HExpr }
-  // `obj.field = value` write. `slot` is the field's record index.
-  | { kind: "memberSet"; object: HExpr; slot: number; value: HExpr }
+  // `obj.field = value` write. `value` is boxed to a Value from its own type.
+  | { kind: "memberSet"; object: HExpr; access: FieldAccess; value: HExpr }
   // `arr[i] = value` write. Out-of-range indices are a no-op, matching JS for a negative or
   // fractional index; a past-the-end write would grow a JS array, which the subset rejects
   // (there is no sparse-array representation), so the validator gates that shape.
@@ -102,7 +143,7 @@ export type HStmt =
   | {
       kind: "virtualCallStmt";
       receiver: HExpr;
-      vtableIndex: number;
+      dispatch: MethodDispatch;
       args: HExpr[];
       returnType: ValueType | null;
     }
@@ -158,13 +199,19 @@ export type HExpr =
   // args are evaluated left-to-right and passed as-is. `type` is the return type.
   | { kind: "runtimeCall"; fn: string; args: HExpr[]; type: ValueType }
   // Create a closure: the lifted lambda `lambdaName` plus a captured-variable environment.
-  | { kind: "closure"; lambdaName: string; captures: HCapture[]; type: ValueType }
+  // `display` is how util.inspect shows the function (`[Function: name]`, with JS's inferred name).
+  | { kind: "closure"; lambdaName: string; captures: HCapture[]; display: string; type: ValueType }
   // Call a function VALUE (closure): load its fnptr + env and invoke. `type` is the return type.
   | { kind: "callClosure"; callee: HExpr; args: HExpr[]; type: ValueType }
-  // Virtual method call: load the receiver's vtable (record slot 0), index it, and call the
-  // resulting fn with the receiver prepended. `vtableIndex` comes from the STATIC receiver class
-  // (consistent across the hierarchy). Non-void value position; the statement form is below.
-  | { kind: "virtualCall"; receiver: HExpr; vtableIndex: number; args: HExpr[]; type: ValueType }
+  // Method call on an object, `receiver.m(args)`, found through the receiver's shape (see
+  // MethodDispatch). Non-void value position; the statement form is virtualCallStmt.
+  | {
+      kind: "virtualCall";
+      receiver: HExpr;
+      dispatch: MethodDispatch;
+      args: HExpr[];
+      type: ValueType;
+    }
   // Ternary `cond ? whenTrue : whenFalse`. Both arms share the result `type` (tsc's common type).
   | { kind: "conditional"; cond: HExpr; whenTrue: HExpr; whenFalse: HExpr; type: ValueType }
   // `n.toString(radix?)` → string. `radix` null means base 10 (shortest round-trip).
@@ -189,9 +236,9 @@ export type HExpr =
   // Unwrap a narrowed optional to its inner value. Emitted by lower when a var whose DECLARED
   // type is optional is used at a narrowed (non-optional) type (after `x !== undefined`).
   | { kind: "unwrap"; value: HExpr; type: ValueType }
-  // `x instanceof C` → boolean. `vtableClasses` are the class names whose vtable pointer counts
-  // as a match (C plus every subclass); codegen compares the receiver's vtable to each.
-  | { kind: "instanceofCheck"; value: HExpr; vtableClasses: string[]; type: ValueType }
+  // `x instanceof C` → boolean. `shapes` are the shape ids of C and every subclass; codegen
+  // compares the receiver's shape pointer to each.
+  | { kind: "instanceofCheck"; value: HExpr; shapes: number[]; type: ValueType }
   // `e instanceof Error` for a caught (unknown) value → the CsThrown's `isError` tag.
   | { kind: "thrownIsError"; value: HExpr; type: ValueType }
   // `x === undefined` / `x !== undefined` → boolean (compares against the sentinel).
@@ -300,21 +347,29 @@ export type HExpr =
       elementType: ValueType;
       type: ValueType;
     }
-  // Object literal `{ f: v, ... }`. `fields` are in SHAPE (record-slot) order — lower reorders
-  // the source properties to match the declared shape.
-  | { kind: "objectLit"; fields: HExpr[]; type: ValueType }
-  // `obj.field` read. `slot` is the field's record index; `type` is the field's type.
-  | { kind: "memberGet"; object: HExpr; slot: number; type: ValueType }
-  // `new Class(args)`: allocate the record, run `Class.constructor(record, args)`, yield the
-  // record. `fieldCount` sizes the allocation.
-  // `new C(args)`. `className` names the vtable to install; `ctorClass` is the class whose
-  // constructor runs (the nearest ancestor that declares one — constructors are not virtual), or
-  // null when no class in the chain declares a constructor.
+  // Object literal `{ f: v, ... }` allocating layout `shape`. `fields` are in the shape's record
+  // order, each boxed to a Value from its own type.
+  | { kind: "objectLit"; shape: number; fields: HExpr[]; type: ValueType }
+  // Object literal with `...spread` items. The result layout depends on each spread source's
+  // RUNTIME shape (a subtype value copies its extra fields too), so `cases` enumerates every
+  // combination of source shapes the program can produce; codegen evaluates `items` left to right,
+  // then dispatches on the sources' shape pointers. See SpreadCase.
+  | { kind: "objectSpread"; items: SpreadItem[]; cases: SpreadCase[]; type: ValueType }
+  // `Object.values(o)`: the fields of o's runtime shape in record order, each unboxed to
+  // `elementType` (lower checked every reaching layout's fields share that representation).
+  | { kind: "objectValues"; object: HExpr; elementType: ValueType; type: ValueType }
+  // `obj?.field` where `object` is an optional object: undefined when the object is nullish, else
+  // the field's Value unboxed to `type` (optional: an absent or undefined field is undefined too).
+  | { kind: "optionalMember"; object: HExpr; access: FieldAccess; type: ValueType }
+  // `obj.field` read, unboxed from the stored Value to `type` (the static type the site reads at).
+  | { kind: "memberGet"; object: HExpr; access: FieldAccess; type: ValueType }
+  // `new C(args)`: allocate a record of layout `shape` (C's), run `ctorClass.constructor(record,
+  // args)`, yield the record. `ctorClass` is the nearest ancestor that declares a constructor
+  // (constructors are not virtual), or null when no class in the chain declares one.
   | {
       kind: "new";
-      className: string;
+      shape: number;
       ctorClass: string | null;
-      fieldCount: number;
       args: HExpr[];
       type: ValueType;
     }
@@ -336,7 +391,13 @@ export type HExpr =
   // `JSON.parse` at a site with an explicit target annotation. `type` IS the target shape, so no
   // `any` ever enters the type domain: codegen walks the parsed tree against it and throws on any
   // disagreement, which is what makes the result trustworthy without a checker at runtime.
-  | { kind: "jsonParse"; text: HExpr; type: ValueType }
+  // `objectShapes` gives the layout each object type inside the target is allocated with.
+  | {
+      kind: "jsonParse";
+      text: HExpr;
+      objectShapes: { type: ValueType; shape: number }[];
+      type: ValueType;
+    }
   // `Number.isInteger/isFinite/isNaN(x)` — no argument coercion (x is already number). Result bool.
   | { kind: "numberPredicate"; fn: "isInteger" | "isFinite" | "isNaN"; arg: HExpr; type: ValueType }
   | { kind: "unary"; op: UnaryOp; operand: HExpr; type: ValueType }

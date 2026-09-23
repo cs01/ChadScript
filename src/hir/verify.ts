@@ -7,12 +7,40 @@
 // added without teaching the verifier to traverse it (a compile error otherwise).
 
 import { ice } from "../diagnostics.js";
-import type { HModule, HFunc, HStmt, HExpr, HCase } from "./nodes.js";
+import type { HModule, HFunc, HStmt, HExpr, HCase, FieldAccess, ShapeDescriptor } from "./nodes.js";
+
+// The module being verified: allocation and access nodes are checked against its shape table.
+// Module-level because the walk is a set of free functions; reset on every verifyHir call.
+let shapes: readonly ShapeDescriptor[] = [];
 
 export function verifyHir(mod: HModule): HModule {
+  shapes = mod.shapes;
+  mod.shapes.forEach((s, i) => {
+    if (s.id !== i) ice(`verifyHir: shape ${s.id} stored at index ${i}`);
+  });
   for (const f of mod.functions) verifyFunc(f);
   verifyStmts(mod.topLevel);
   return mod;
+}
+
+function verifyShapeId(id: number, what: string): ShapeDescriptor {
+  return shapes[id] ?? ice(`verifyHir: ${what} names unknown shape ${id}`);
+}
+
+// A member access carries either a static field index or an inline-cache site, never neither.
+function verifyAccess(a: FieldAccess): void {
+  switch (a.kind) {
+    case "slot":
+      if (!Number.isInteger(a.index) || a.index < 0) ice(`verifyHir: bad field index ${a.index}`);
+      return;
+    case "ic":
+      if (!Number.isInteger(a.site) || a.site < 0 || a.name === "") {
+        ice(`verifyHir: bad inline-cache site ${a.site} for .${a.name}`);
+      }
+      return;
+    default:
+      return assertNever(a, "field access");
+  }
 }
 
 function verifyFunc(f: HFunc): void {
@@ -45,6 +73,7 @@ function verifyStmt(s: HStmt): void {
       verifyExpr(s.value);
       return;
     case "memberSet":
+      verifyAccess(s.access);
       verifyExpr(s.object);
       verifyExpr(s.value);
       return;
@@ -246,13 +275,52 @@ function verifyExpr(e: HExpr): void {
       verifyExpr(e.callback);
       if (e.init) verifyExpr(e.init);
       return;
-    case "objectLit":
+    case "objectLit": {
+      const shape = verifyShapeId(e.shape, "object literal");
+      if (shape.fields.length !== e.fields.length) {
+        ice(
+          `verifyHir: literal has ${e.fields.length} fields, shape ${e.shape} has ${shape.fields.length}`,
+        );
+      }
       e.fields.forEach(verifyExpr);
       return;
+    }
+    case "objectSpread": {
+      const spreads = e.items.filter((it) => it.kind === "spread").length;
+      for (const c of e.cases) {
+        const shape = verifyShapeId(c.shape, "spread literal");
+        if (c.sources.length !== spreads || shape.fields.length !== c.fields.length) {
+          ice(`verifyHir: spread case disagrees with its items or shape ${c.shape}`);
+        }
+        c.sources.forEach((s) => verifyShapeId(s, "spread source"));
+        for (const f of c.fields) {
+          const it = e.items[f.item] ?? ice(`verifyHir: spread field from missing item ${f.item}`);
+          if ((it.kind === "spread") !== (f.index !== null)) {
+            ice("verifyHir: spread field source kind disagrees with its item");
+          }
+        }
+      }
+      e.items.forEach((it) => verifyExpr(it.value));
+      return;
+    }
+    case "objectValues":
+      verifyExpr(e.object);
+      return;
+    case "optionalMember":
+      if (e.object.type.kind !== "optional" || e.type.kind !== "optional") {
+        ice("verifyHir: optional member access on a non-optional receiver or result");
+      }
+      verifyAccess(e.access);
+      verifyExpr(e.object);
+      return;
     case "memberGet":
+      verifyAccess(e.access);
       verifyExpr(e.object);
       return;
     case "new":
+      if (verifyShapeId(e.shape, "new").className === undefined) {
+        ice(`verifyHir: new allocates non-class shape ${e.shape}`);
+      }
       e.args.forEach(verifyExpr);
       return;
     case "await":
@@ -271,6 +339,7 @@ function verifyExpr(e: HExpr): void {
       verifyExpr(e.value);
       return;
     case "jsonParse":
+      e.objectShapes.forEach((s) => verifyShapeId(s.shape, "JSON.parse"));
       verifyExpr(e.text);
       return;
     case "numberPredicate":

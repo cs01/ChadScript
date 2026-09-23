@@ -6,10 +6,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { verifyHir } from "../../src/hir/verify.js";
 import type { HModule, HExpr, HStmt } from "../../src/hir/nodes.js";
+import type { ValueType } from "../../src/hir/types.js";
 
 const numType = { kind: "number" } as const;
 const num = (v: number): HExpr => ({ kind: "numberLit", value: v, type: numType });
-const mod = (topLevel: HStmt[]): HModule => ({ functions: [], topLevel, classes: [] });
+const mod = (topLevel: HStmt[]): HModule => ({ functions: [], topLevel, shapes: [] });
 
 test("accepts a well-formed module", () => {
   const m = mod([{ kind: "consoleLog", values: [num(1), num(2)] }]);
@@ -42,7 +43,31 @@ test("traverses function bodies, not just top-level", () => {
       { name: "f", params: [], returnType: null, body: [{ kind: "exprStmt", expr: typeless }] },
     ],
     topLevel: [],
-    classes: [],
+    shapes: [],
   };
   assert.throws(() => verifyHir(m), /no resolved type/);
+});
+
+const objType: ValueType = { kind: "object", shape: { fields: [{ name: "x", type: numType }] } };
+const shapeX = { id: 0, fields: [{ name: "x", type: numType }], methods: [] };
+const withShape = (e: HExpr): HModule => ({
+  functions: [],
+  topLevel: [{ kind: "exprStmt", expr: e }],
+  shapes: [shapeX],
+});
+
+test("rejects an object literal whose field count disagrees with its shape", () => {
+  const lit: HExpr = { kind: "objectLit", shape: 0, fields: [num(1), num(2)], type: objType };
+  assert.throws(() => verifyHir(withShape(lit)), /shape 0 has 1/);
+});
+
+test("rejects a member access with neither a valid slot nor an inline-cache site", () => {
+  const lit: HExpr = { kind: "objectLit", shape: 0, fields: [num(1)], type: objType };
+  const get: HExpr = {
+    kind: "memberGet",
+    object: lit,
+    access: { kind: "slot", index: -1 },
+    type: numType,
+  };
+  assert.throws(() => verifyHir(withShape(get)), /bad field index/);
 });

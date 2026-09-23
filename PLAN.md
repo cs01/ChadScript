@@ -217,8 +217,21 @@ manifest. Estimates in LOC.
    refactor under an unchanged differential suite, done before new runtime code exists so
    shapes and `Value` are born in Milo. Exit: C residue under 100 lines, all lanes green,
    benchmarks no worse. (~3k Milo)
-3. **Shaped objects + static field ordering + inline caches.** Delete positional shape
-   identity. Exit: all probes pass, subtyping fuzzer clean, benchmarks recorded. (~1.5k)
+3. **Shaped objects + static field ordering + inline caches.** DONE (dod `shaped-objects`).
+   Every record is `[*CsShape, field Values...]` (runtime/abi.milo); one shape per allocation
+   layout (class, literal field list, spread result, JSON.parse target) carrying field names and
+   kinds, class name, method table, and the per-shape print/JSON functions. Field slots hold
+   `Value`s (src/codegen/value.ts: numbers offset by 2^49, pointers raw with a 3-bit tag so Boehm
+   still sees them, `undefined` = 0). `lower/layouts.ts` computes, per static type, the layouts
+   whose allocating type is assignable to it; a site whose reaching layouts agree is one static
+   load, otherwise a per-site inline cache with a by-name miss path (runtime/shape.milo). Literals
+   allocate exactly their own properties in JS order; spreads dispatch on source shapes; method
+   calls through interfaces dispatch by name to class methods or function fields; console.log,
+   JSON.stringify and Object.keys/values read the runtime shape. Unions of object types are one
+   object type over their common fields. New rejections: CS1235 (property add), CS1236 (spread or
+   Object.values over too many or mixed layouts), CS1237 (method implementations with other
+   machine types than the call). Not yet: optional chains longer than one link, JSON.parse key
+   order and absent optional keys (both still follow the target type). (~1.5k)
 4. **`Value`, unions, narrowing.** Exit: discriminated unions, `number | string`; CS1233
    retired. (~1.5k)
 5. **Mutable captures** (CS1219 retired, ~200) and **erased generics** (~600).
@@ -234,7 +247,9 @@ manifest. Estimates in LOC.
 - `JSON.parse` validates against the declared type and throws on mismatch; no `any` exists.
 - Numbers cross the C ABI as `double`, never `int`/`long`.
 - Whole-program compilation from one entry file.
-- `Value` is NaN-boxed (slots are already 64-bit).
+- `Value` is NaN-boxed (slots are already 64-bit), in the pointer-favoring variant: doubles are
+  offset by 2^49 and pointers stay raw with a low 3-bit tag, because Boehm cannot see a pointer
+  hidden under NaN tag bits (src/codegen/value.ts).
 
 ## History
 
