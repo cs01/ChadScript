@@ -1,0 +1,10 @@
+Dear {{name}},
+
+Your order #{{order.id}} of {{order.count}} item(s) has shipped.
+{{#if premium}}As a premium member, shipping was free.{{/if}}
+Items:
+{{#each items}}  - {{this}}
+{{/each}}
+Missing value renders empty: [{{nope}}]
+Regards,
+{{company}}

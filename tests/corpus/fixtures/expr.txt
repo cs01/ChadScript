@@ -1,0 +1,11 @@
+# a tiny calculator program
+x = 3 + 4 * 2
+y = (x - 1) / 2
+z = x ^ 2 - y
+print x
+print y
+print z
+print -(z % 7) + 10
+w = max(x, y, z) + min(1, 2)
+print w
+print sqrt(16) * abs(-2)

@@ -1,0 +1,11 @@
+{
+  "warehouse": "Central",
+  "updated": "2024-03-01",
+  "items": [
+    { "sku": "A-100", "name": "Hammer", "qty": 14, "price": 12.99, "tags": ["tools", "hand"] },
+    { "sku": "A-101", "name": "Screwdriver Set", "qty": 0, "price": 24.5, "tags": ["tools"] },
+    { "sku": "B-200", "name": "Paint (1L)", "qty": 32, "price": 8.75, "tags": ["paint"] },
+    { "sku": "B-201", "name": "Brush", "qty": 3, "price": 3.2, "tags": ["paint", "hand"] },
+    { "sku": "C-300", "name": "Ladder", "qty": 2, "price": 89, "tags": [] }
+  ]
+}

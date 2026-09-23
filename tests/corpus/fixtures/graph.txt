@@ -1,0 +1,10 @@
+# from to weight
+A B 4
+A C 2
+B C 5
+B D 10
+C E 3
+E D 4
+D F 11
+E F 20
+G H 1

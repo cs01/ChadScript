@@ -70,6 +70,7 @@ export default defineConfig({
           { text: "Accepted subset", link: "/reference/subset" },
           { text: "Error codes", link: "/reference/errors" },
           { text: "CLI", link: "/reference/cli" },
+          { text: "Scoreboard", link: "/reference/scoreboard" },
         ],
       },
       {

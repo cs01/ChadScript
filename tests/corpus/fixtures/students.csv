@@ -1,0 +1,8 @@
+id,name,grade,math,science,english,active
+1,Alice Johnson,10,92,88,79,true
+2,Bob Smith,11,67,72,85,true
+3,Carla Gómez,10,78,95,91,false
+4,Dan O'Brien,12,55,61,70,true
+5,Eve Chen,11,99,97,94,true
+6,Frank Müller,12,82,,88,true
+7,Grace Lee,10,74,80,86,false

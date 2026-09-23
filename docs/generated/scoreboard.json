@@ -1,0 +1,2020 @@
+{
+  "total": 100,
+  "match": 0,
+  "rejected": 95,
+  "divergent": 0,
+  "crash": 5,
+  "categories": [
+    {
+      "name": "algorithms",
+      "total": 13,
+      "match": 0,
+      "rejected": 13,
+      "divergent": 0,
+      "crash": 0
+    },
+    {
+      "name": "async-io",
+      "total": 5,
+      "match": 0,
+      "rejected": 5,
+      "divergent": 0,
+      "crash": 0
+    },
+    {
+      "name": "cli",
+      "total": 9,
+      "match": 0,
+      "rejected": 9,
+      "divergent": 0,
+      "crash": 0
+    },
+    {
+      "name": "data-structures",
+      "total": 9,
+      "match": 0,
+      "rejected": 8,
+      "divergent": 0,
+      "crash": 1
+    },
+    {
+      "name": "errors",
+      "total": 5,
+      "match": 0,
+      "rejected": 5,
+      "divergent": 0,
+      "crash": 0
+    },
+    {
+      "name": "generics",
+      "total": 8,
+      "match": 0,
+      "rejected": 7,
+      "divergent": 0,
+      "crash": 1
+    },
+    {
+      "name": "interpreters",
+      "total": 5,
+      "match": 0,
+      "rejected": 3,
+      "divergent": 0,
+      "crash": 2
+    },
+    {
+      "name": "oop",
+      "total": 9,
+      "match": 0,
+      "rejected": 9,
+      "divergent": 0,
+      "crash": 0
+    },
+    {
+      "name": "parsing",
+      "total": 11,
+      "match": 0,
+      "rejected": 11,
+      "divergent": 0,
+      "crash": 0
+    },
+    {
+      "name": "scripts",
+      "total": 7,
+      "match": 0,
+      "rejected": 6,
+      "divergent": 0,
+      "crash": 1
+    },
+    {
+      "name": "simulation",
+      "total": 7,
+      "match": 0,
+      "rejected": 7,
+      "divergent": 0,
+      "crash": 0
+    },
+    {
+      "name": "text",
+      "total": 12,
+      "match": 0,
+      "rejected": 12,
+      "divergent": 0,
+      "crash": 0
+    }
+  ],
+  "reasons": [
+    {
+      "code": "CS1204",
+      "message": "the non-null assertion `!` is not allowed",
+      "programs": 50,
+      "examples": [
+        "tests/corpus/async-line-processor.ts",
+        "tests/corpus/backtracking.ts",
+        "tests/corpus/bank-ledger.ts"
+      ]
+    },
+    {
+      "code": "CS1213",
+      "message": "regular expression literals are not supported yet",
+      "programs": 27,
+      "examples": [
+        "tests/corpus/calc-interpreter.ts",
+        "tests/corpus/case-convert.ts",
+        "tests/corpus/ciphers.ts"
+      ]
+    },
+    {
+      "code": "CS1221",
+      "message": "`toFixed` on a number is not supported yet",
+      "programs": 26,
+      "examples": [
+        "tests/corpus/bank-ledger.ts",
+        "tests/corpus/bank-queue-sim.ts",
+        "tests/corpus/ciphers.ts"
+      ]
+    },
+    {
+      "code": "CS1217",
+      "message": "default parameter values are not supported yet",
+      "programs": 21,
+      "examples": [
+        "tests/corpus/animals.ts",
+        "tests/corpus/bank-ledger.ts",
+        "tests/corpus/brainfuck.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a tuple type with different element types (`[string, number]`)",
+      "programs": 16,
+      "examples": [
+        "tests/corpus/bank-ledger.ts",
+        "tests/corpus/calc-interpreter.ts",
+        "tests/corpus/case-convert.ts"
+      ]
+    },
+    {
+      "code": "CS1000",
+      "message": "indexing an object with a computed key is not supported",
+      "programs": 14,
+      "examples": [
+        "tests/corpus/binary-search.ts",
+        "tests/corpus/bitset.ts",
+        "tests/corpus/brainfuck.ts"
+      ]
+    },
+    {
+      "code": "CS1000",
+      "message": "`new Array` is not supported",
+      "programs": 11,
+      "examples": [
+        "tests/corpus/bank-queue-sim.ts",
+        "tests/corpus/brainfuck.ts",
+        "tests/corpus/ciphers.ts"
+      ]
+    },
+    {
+      "code": "CS1216",
+      "message": "indexing a string with `[i]` is not supported yet",
+      "programs": 11,
+      "examples": [
+        "tests/corpus/calc-interpreter.ts",
+        "tests/corpus/cli-options.ts",
+        "tests/corpus/cli-replace.ts"
+      ]
+    },
+    {
+      "code": "CS1224",
+      "message": "`Array.prototype.fill` is not supported yet",
+      "programs": 11,
+      "examples": [
+        "tests/corpus/bank-queue-sim.ts",
+        "tests/corpus/brainfuck.ts",
+        "tests/corpus/ciphers.ts"
+      ]
+    },
+    {
+      "code": "CS1222",
+      "message": "`Map.entries` is not supported yet",
+      "programs": 10,
+      "examples": [
+        "tests/corpus/calc-interpreter.ts",
+        "tests/corpus/cli-stats.ts",
+        "tests/corpus/csv-sales-report.ts"
+      ]
+    },
+    {
+      "code": "CS1000",
+      "message": "a class that extends the built-in `Error` is not supported",
+      "programs": 9,
+      "examples": [
+        "tests/corpus/bank-ledger.ts",
+        "tests/corpus/calc-interpreter.ts",
+        "tests/corpus/cli-options.ts"
+      ]
+    },
+    {
+      "code": "CS1216",
+      "message": "relational comparison (`<` `>` `<=` `>=`) on strings is not supported yet",
+      "programs": 9,
+      "examples": [
+        "tests/corpus/hash-map.ts",
+        "tests/corpus/huffman.ts",
+        "tests/corpus/markov-text.ts"
+      ]
+    },
+    {
+      "code": "CS1222",
+      "message": "iterating a Map directly with `for...of` is not supported yet",
+      "programs": 9,
+      "examples": [
+        "tests/corpus/build-order.ts",
+        "tests/corpus/dice-probability.ts",
+        "tests/corpus/dotenv-parser.ts"
+      ]
+    },
+    {
+      "code": "CS1000",
+      "message": "spreading an array into the arguments of `Math.max` is not supported",
+      "programs": 8,
+      "examples": [
+        "tests/corpus/bank-queue-sim.ts",
+        "tests/corpus/binary-search.ts",
+        "tests/corpus/cli-stats.ts"
+      ]
+    },
+    {
+      "code": "CS1220",
+      "message": "`Object.entries` is not supported yet",
+      "programs": 8,
+      "examples": [
+        "tests/corpus/build-order.ts",
+        "tests/corpus/case-convert.ts",
+        "tests/corpus/cli-config-merge.ts"
+      ]
+    },
+    {
+      "code": "CS1216",
+      "message": "iterating a string with `for...of` is not supported yet",
+      "programs": 7,
+      "examples": [
+        "tests/corpus/brainfuck.ts",
+        "tests/corpus/ciphers.ts",
+        "tests/corpus/cli-wc.ts"
+      ]
+    },
+    {
+      "code": "CS1223",
+      "message": "`String.prototype.localeCompare` is not supported yet",
+      "programs": 6,
+      "examples": [
+        "tests/corpus/cli-options.ts",
+        "tests/corpus/csv-sales-report.ts",
+        "tests/corpus/log-analyzer.ts"
+      ]
+    },
+    {
+      "code": "CS1224",
+      "message": "`Array.prototype.splice` is not supported yet",
+      "programs": 6,
+      "examples": [
+        "tests/corpus/async-queue.ts",
+        "tests/corpus/bank-queue-sim.ts",
+        "tests/corpus/cli-rpn.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a type ChadScript does not support here (`Record<string, number>`)",
+      "programs": 6,
+      "examples": [
+        "tests/corpus/expense-tracker.ts",
+        "tests/corpus/json-inventory.ts",
+        "tests/corpus/number-words.ts"
+      ]
+    },
+    {
+      "code": "CS1243",
+      "message": "`keyof` types are not supported",
+      "programs": 6,
+      "examples": [
+        "tests/corpus/cron-parser.ts",
+        "tests/corpus/csv-to-json.ts",
+        "tests/corpus/event-emitter.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a type ChadScript does not support here (`{ [key: string]: string; }`)",
+      "programs": 5,
+      "examples": [
+        "tests/corpus/log-analyzer.ts",
+        "tests/corpus/markdown-to-html.ts",
+        "tests/corpus/semver.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a type ChadScript does not support here (`Record<string, string>`)",
+      "programs": 5,
+      "examples": [
+        "tests/corpus/case-convert.ts",
+        "tests/corpus/error-hierarchy.ts",
+        "tests/corpus/plugin-system.ts"
+      ]
+    },
+    {
+      "code": "CS1243",
+      "message": "conditional, mapped and indexed-access types are not supported",
+      "programs": 5,
+      "examples": [
+        "tests/corpus/csv-to-json.ts",
+        "tests/corpus/event-emitter.ts",
+        "tests/corpus/redux-store.ts"
+      ]
+    },
+    {
+      "code": "CS1000",
+      "message": "`++`/`--` on a field or element is only supported as a statement",
+      "programs": 4,
+      "examples": [
+        "tests/corpus/calc-interpreter.ts",
+        "tests/corpus/cli-todo.ts",
+        "tests/corpus/event-emitter.ts"
+      ]
+    },
+    {
+      "code": "CS1000",
+      "message": "an optional chain longer than one `?.` link, or `?.` on a method call, is not supported yet",
+      "programs": 4,
+      "examples": [
+        "tests/corpus/build-order.ts",
+        "tests/corpus/csv-to-json.ts",
+        "tests/corpus/ini-parser.ts"
+      ]
+    },
+    {
+      "code": "CS1000",
+      "message": "writing or calling through `obj[\"name\"]` is not supported yet",
+      "programs": 4,
+      "examples": [
+        "tests/corpus/bitset.ts",
+        "tests/corpus/brainfuck.ts",
+        "tests/corpus/cron-parser.ts"
+      ]
+    },
+    {
+      "code": "CS1214",
+      "message": "`JSON.parse` requires an explicit target type annotation",
+      "programs": 4,
+      "examples": [
+        "tests/corpus/cli-config-merge.ts",
+        "tests/corpus/cli-todo.ts",
+        "tests/corpus/config-validator.ts"
+      ]
+    },
+    {
+      "code": "CS1216",
+      "message": "`charCodeAt` is not supported yet",
+      "programs": 4,
+      "examples": [
+        "tests/corpus/brainfuck.ts",
+        "tests/corpus/ciphers.ts",
+        "tests/corpus/hash-map.ts"
+      ]
+    },
+    {
+      "code": "CS1220",
+      "message": "`Array.from` is not supported yet",
+      "programs": 4,
+      "examples": [
+        "tests/corpus/bank-queue-sim.ts",
+        "tests/corpus/dp-classics.ts",
+        "tests/corpus/matrix-ops.ts"
+      ]
+    },
+    {
+      "code": "CS1224",
+      "message": "`Array.prototype.unshift` is not supported yet",
+      "programs": 4,
+      "examples": [
+        "tests/corpus/dp-classics.ts",
+        "tests/corpus/graph-dijkstra.ts",
+        "tests/corpus/maze-solver.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a Map key or Set element that is a union of different kinds",
+      "programs": 4,
+      "examples": [
+        "tests/corpus/generic-utils.ts",
+        "tests/corpus/log-analyzer.ts",
+        "tests/corpus/lru-cache.ts"
+      ]
+    },
+    {
+      "code": "CS1000",
+      "message": "`private` is not supported by ChadScript yet",
+      "programs": 3,
+      "examples": [
+        "tests/corpus/undo-redo.ts",
+        "tests/corpus/union-find-mst.ts",
+        "tests/corpus/vending-machine.ts"
+      ]
+    },
+    {
+      "code": "CS1000",
+      "message": "an array binding pattern is not supported by ChadScript yet",
+      "programs": 3,
+      "examples": [
+        "tests/corpus/csv-join.ts",
+        "tests/corpus/intervals.ts",
+        "tests/corpus/union-find-mst.ts"
+      ]
+    },
+    {
+      "code": "CS1207",
+      "message": "index signatures (`[k: string]: T`) are not supported",
+      "programs": 3,
+      "examples": [
+        "tests/corpus/cli-config-merge.ts",
+        "tests/corpus/fizzbuzz-variants.ts",
+        "tests/corpus/template-engine.ts"
+      ]
+    },
+    {
+      "code": "CS1216",
+      "message": "`String.fromCharCode` is not supported yet",
+      "programs": 3,
+      "examples": [
+        "tests/corpus/brainfuck.ts",
+        "tests/corpus/ciphers.ts",
+        "tests/corpus/rle-codec.ts"
+      ]
+    },
+    {
+      "code": "CS0001",
+      "message": "does not typecheck under ChadScript strict mode: Property 'error' does not exist on type '...'. (TS2339)",
+      "programs": 2,
+      "examples": [
+        "tests/corpus/cli-grep.ts",
+        "tests/corpus/exit-codes.ts"
+      ]
+    },
+    {
+      "code": "CS0001",
+      "message": "does not typecheck under ChadScript strict mode: Property 'exitCode' does not exist on type '...'. (TS2339)",
+      "programs": 2,
+      "examples": [
+        "tests/corpus/async-generators.ts",
+        "tests/corpus/exit-codes.ts"
+      ]
+    },
+    {
+      "code": "CS1000",
+      "message": "`readonly` is not supported by ChadScript yet",
+      "programs": 2,
+      "examples": [
+        "tests/corpus/undo-redo.ts",
+        "tests/corpus/vending-machine.ts"
+      ]
+    },
+    {
+      "code": "CS1000",
+      "message": "optional element access `?.[i]` is not supported yet",
+      "programs": 2,
+      "examples": [
+        "tests/corpus/csv-sales-report.ts",
+        "tests/corpus/error-hierarchy.ts"
+      ]
+    },
+    {
+      "code": "CS1220",
+      "message": "`Math.hypot` is not supported yet",
+      "programs": 2,
+      "examples": [
+        "tests/corpus/predator-prey.ts",
+        "tests/corpus/vector-geometry.ts"
+      ]
+    },
+    {
+      "code": "CS1220",
+      "message": "`Math.imul` is not supported yet",
+      "programs": 2,
+      "examples": [
+        "tests/corpus/hash-map.ts",
+        "tests/corpus/sorting-suite.ts"
+      ]
+    },
+    {
+      "code": "CS1220",
+      "message": "`Math.log` is not supported yet",
+      "programs": 2,
+      "examples": [
+        "tests/corpus/bank-queue-sim.ts",
+        "tests/corpus/predator-prey.ts"
+      ]
+    },
+    {
+      "code": "CS1220",
+      "message": "`Object.fromEntries` is not supported yet",
+      "programs": 2,
+      "examples": [
+        "tests/corpus/dotenv-parser.ts",
+        "tests/corpus/plugin-system.ts"
+      ]
+    },
+    {
+      "code": "CS1223",
+      "message": "`String.prototype.match` is not supported yet",
+      "programs": 2,
+      "examples": [
+        "tests/corpus/markdown-to-html.ts",
+        "tests/corpus/stack-queue-generic.ts"
+      ]
+    },
+    {
+      "code": "CS1224",
+      "message": "`Array.prototype.keys` is not supported yet",
+      "programs": 2,
+      "examples": [
+        "tests/corpus/fizzbuzz-variants.ts",
+        "tests/corpus/number-theory.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a type ChadScript does not support here (`Record<string, unknown>`)",
+      "programs": 2,
+      "examples": [
+        "tests/corpus/config-validator.ts",
+        "tests/corpus/schema-builder.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a type ChadScript does not support here (`symbol`)",
+      "programs": 2,
+      "examples": [
+        "tests/corpus/event-emitter.ts",
+        "tests/corpus/repository.ts"
+      ]
+    },
+    {
+      "code": "CS1248",
+      "message": "`value` is read here as a `any[]`, which a caught value never is: only a string or an Error can be thrown",
+      "programs": 2,
+      "examples": [
+        "tests/corpus/config-validator.ts",
+        "tests/corpus/template-engine.ts"
+      ]
+    },
+    {
+      "code": "CS0001",
+      "message": "does not typecheck under ChadScript strict mode: Argument of type 'Timeout | undefined'...'Timeout'.",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/async-retry.ts"
+      ]
+    },
+    {
+      "code": "CS0001",
+      "message": "does not typecheck under ChadScript strict mode: Cannot find namespace 'NodeJS'. (TS2503)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/async-file-pipeline.ts"
+      ]
+    },
+    {
+      "code": "CS1000",
+      "message": "`?.` is only supported on a plain object or class instance",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/matrix-ops.ts"
+      ]
+    },
+    {
+      "code": "CS1000",
+      "message": "`await` at the top level of a module is not supported yet",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/async-line-processor.ts"
+      ]
+    },
+    {
+      "code": "CS1000",
+      "message": "`instanceof Error` is only supported for testing a caught value or an error against Error, TypeError, RangeError or SyntaxError",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/error-hierarchy.ts"
+      ]
+    },
+    {
+      "code": "CS1000",
+      "message": "`new Map(...)` is only supported with an array literal of `[key, value]` pairs",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/plugin-system.ts"
+      ]
+    },
+    {
+      "code": "CS1000",
+      "message": "`new Promise` needs its executor written inline with typed parameters: `resolve` has no function type annotation",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/async-queue.ts"
+      ]
+    },
+    {
+      "code": "CS1000",
+      "message": "`new ReferenceError` is not supported",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/calc-interpreter.ts"
+      ]
+    },
+    {
+      "code": "CS1000",
+      "message": "`new Uint32Array` is not supported",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/bitset.ts"
+      ]
+    },
+    {
+      "code": "CS1000",
+      "message": "`new Uint8Array` is not supported",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/brainfuck.ts"
+      ]
+    },
+    {
+      "code": "CS1000",
+      "message": "a `function` declaration inside a function or block is not supported yet",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/backtracking.ts"
+      ]
+    },
+    {
+      "code": "CS1000",
+      "message": "a this type is not supported by ChadScript yet",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/vending-machine.ts"
+      ]
+    },
+    {
+      "code": "CS1000",
+      "message": "a tuple type is not supported by ChadScript yet",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/intervals.ts"
+      ]
+    },
+    {
+      "code": "CS1000",
+      "message": "an as expression is not supported by ChadScript yet",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/union-find-mst.ts"
+      ]
+    },
+    {
+      "code": "CS1000",
+      "message": "spreading an array into the arguments of `lines.push` is not supported",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/employee-hierarchy.ts"
+      ]
+    },
+    {
+      "code": "CS1000",
+      "message": "spreading an array into the arguments of `Math.min` is not supported",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/cli-stats.ts"
+      ]
+    },
+    {
+      "code": "CS1000",
+      "message": "spreading an array into the arguments of `out.push` is not supported",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/xml-lite.ts"
+      ]
+    },
+    {
+      "code": "CS1000",
+      "message": "spreading an array into the arguments of `positional.push` is not supported",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/cli-options.ts"
+      ]
+    },
+    {
+      "code": "CS1000",
+      "message": "spreading an array into the arguments of `this.reports.push` is not supported",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/employee-hierarchy.ts"
+      ]
+    },
+    {
+      "code": "CS1201",
+      "message": "`any` is not allowed",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/schema-builder.ts"
+      ]
+    },
+    {
+      "code": "CS1202",
+      "message": "`enum` is not supported",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/stack-vm.ts"
+      ]
+    },
+    {
+      "code": "CS1216",
+      "message": "non-ASCII character `…` (U+N) in a string literal is not supported yet",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/case-convert.ts"
+      ]
+    },
+    {
+      "code": "CS1216",
+      "message": "non-ASCII character `É` (U+00C9) in a string literal is not supported yet",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/xml-lite.ts"
+      ]
+    },
+    {
+      "code": "CS1217",
+      "message": "optional parameters (`x?`) are not supported yet",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/cron-parser.ts"
+      ]
+    },
+    {
+      "code": "CS1218",
+      "message": "a variable declaration without an initializer is not supported yet",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/dotenv-parser.ts"
+      ]
+    },
+    {
+      "code": "CS1220",
+      "message": "`Math.cos` is not supported yet",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/vector-geometry.ts"
+      ]
+    },
+    {
+      "code": "CS1220",
+      "message": "`Math.sin` is not supported yet",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/vector-geometry.ts"
+      ]
+    },
+    {
+      "code": "CS1220",
+      "message": "`Number.parseInt` is not supported yet",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/generic-utils.ts"
+      ]
+    },
+    {
+      "code": "CS1222",
+      "message": "a Map iterator from `keys()` is only supported as a for...of iterable or a spread",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/lru-cache.ts"
+      ]
+    },
+    {
+      "code": "CS1223",
+      "message": "`String.prototype.matchAll` is not supported yet",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/xml-lite.ts"
+      ]
+    },
+    {
+      "code": "CS1224",
+      "message": "`Array.prototype.entries` is not supported yet",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/config-validator.ts"
+      ]
+    },
+    {
+      "code": "CS1224",
+      "message": "`Array.prototype.reduceRight` is not supported yet",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/redux-store.ts"
+      ]
+    },
+    {
+      "code": "CS1225",
+      "message": "calling `.catch()` on this value is not supported yet",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/async-queue.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "an empty array literal with no element type (`never[]`) is not supported here",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/cli-options.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this type is a tuple type with different element types (`[string, number]`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/graph-dijkstra.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this type is a type ChadScript does not support here (`{ [K in keyof Shape]: Infer<Shape[K]>; }`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/schema-builder.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this type is a type ChadScript does not support here (`ConfigObject`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/cli-config-merge.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this type is a type ChadScript does not support here (`keyof T`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/repository.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this type is a type ChadScript does not support here (`Record<string, Schema>`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/config-validator.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this type is a type ChadScript does not support here (`Record<string, string>`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/xml-lite.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a type ChadScript does not support here (`{ [K in keyof Events]?: Listener<Events[K]>[]; }[K]`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/event-emitter.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a type ChadScript does not support here (`{ [K in keyof Events]?: Listener<Events[K]>[]; }`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/event-emitter.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a type ChadScript does not support here (`{ [word: string]: number; }`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/fizzbuzz-variants.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a type ChadScript does not support here (`ConfigObject`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/cli-config-merge.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a type ChadScript does not support here (`Context`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/template-engine.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a type ChadScript does not support here (`Events[K]`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/event-emitter.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a type ChadScript does not support here (`keyof Events`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/event-emitter.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a type ChadScript does not support here (`keyof T`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/repository.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a type ChadScript does not support here (`NonNullable<{ [K in keyof Events]?: Listener<Events[K]>[]; }[K]>[number]`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/event-emitter.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a type ChadScript does not support here (`Omit<T, \"id\">`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/repository.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a type ChadScript does not support here (`Partial<Omit<T, \"id\">>`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/repository.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a type ChadScript does not support here (`Record<string, (...xs: number[]) => number>`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/calc-interpreter.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a type ChadScript does not support here (`Record<string, (s: string) => string>`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/case-convert.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a type ChadScript does not support here (`Record<string, IniValue>`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/ini-parser.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a type ChadScript does not support here (`Record<string, Op>`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/cli-rpn.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a type ChadScript does not support here (`Record<string, Record<string, IniValue>>`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/ini-parser.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a type ChadScript does not support here (`Record<string, Schema<any>>`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/schema-builder.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a type ChadScript does not support here (`Record<string, Sorter>`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/sorting-suite.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a type ChadScript does not support here (`Record<string, string[]>`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/build-order.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a type ChadScript does not support here (`Row`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/csv-sales-report.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a type ChadScript does not support here (`T[K]`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/repository.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a type ChadScript does not support here (`void`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/async-queue.ts"
+      ]
+    },
+    {
+      "code": "CS1234",
+      "message": "a `Timeout` handle can only be stored and passed back to the runtime",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/async-queue.ts"
+      ]
+    },
+    {
+      "code": "CS1246",
+      "message": "`Math.abs` is a built-in function and cannot be used as a value here: its argument here is not a number",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/calc-interpreter.ts"
+      ]
+    },
+    {
+      "code": "CS1246",
+      "message": "`Math.max` is a built-in function and cannot be used as a value here: its arguments here are not all numbers",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/calc-interpreter.ts"
+      ]
+    },
+    {
+      "code": "CS1246",
+      "message": "`Math.min` is a built-in function and cannot be used as a value here: its arguments here are not all numbers",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/calc-interpreter.ts"
+      ]
+    },
+    {
+      "code": "CS1246",
+      "message": "`Math.sqrt` is a built-in function and cannot be used as a value here: its argument here is not a number",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/calc-interpreter.ts"
+      ]
+    },
+    {
+      "code": "CS1246",
+      "message": "`Number.isInteger` is a built-in function and cannot be used as a value here: it is not one of the built-ins admitted as values",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/schema-builder.ts"
+      ]
+    },
+    {
+      "code": "CS1247",
+      "message": "throwing a `BankError` is not supported: only a string, an Error (Error, TypeError, RangeError, SyntaxError) or a caught value can be thrown",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/bank-ledger.ts"
+      ]
+    },
+    {
+      "code": "CS1247",
+      "message": "throwing a `IniError` is not supported: only a string, an Error (Error, TypeError, RangeError, SyntaxError) or a caught value can be thrown",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/ini-parser.ts"
+      ]
+    },
+    {
+      "code": "CS1247",
+      "message": "throwing a `InsufficientFunds` is not supported: only a string, an Error (Error, TypeError, RangeError, SyntaxError) or a caught value can be thrown",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/bank-ledger.ts"
+      ]
+    },
+    {
+      "code": "CS1247",
+      "message": "throwing a `NotFound` is not supported: only a string, an Error (Error, TypeError, RangeError, SyntaxError) or a caught value can be thrown",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/error-hierarchy.ts"
+      ]
+    },
+    {
+      "code": "CS1247",
+      "message": "throwing a `ParseError` is not supported: only a string, an Error (Error, TypeError, RangeError, SyntaxError) or a caught value can be thrown",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/finally-semantics.ts"
+      ]
+    },
+    {
+      "code": "CS1247",
+      "message": "throwing a `RateLimited` is not supported: only a string, an Error (Error, TypeError, RangeError, SyntaxError) or a caught value can be thrown",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/error-hierarchy.ts"
+      ]
+    },
+    {
+      "code": "CS1247",
+      "message": "throwing a `ReferenceError` is not supported: only a string, an Error (Error, TypeError, RangeError, SyntaxError) or a caught value can be thrown",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/calc-interpreter.ts"
+      ]
+    },
+    {
+      "code": "CS1247",
+      "message": "throwing a `SemVerError` is not supported: only a string, an Error (Error, TypeError, RangeError, SyntaxError) or a caught value can be thrown",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/semver.ts"
+      ]
+    },
+    {
+      "code": "CS1247",
+      "message": "throwing a `StackUnderflow` is not supported: only a string, an Error (Error, TypeError, RangeError, SyntaxError) or a caught value can be thrown",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/cli-rpn.ts"
+      ]
+    },
+    {
+      "code": "CS1247",
+      "message": "throwing a `SyntaxError2` is not supported: only a string, an Error (Error, TypeError, RangeError, SyntaxError) or a caught value can be thrown",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/calc-interpreter.ts"
+      ]
+    },
+    {
+      "code": "CS1247",
+      "message": "throwing a `Unauthorized` is not supported: only a string, an Error (Error, TypeError, RangeError, SyntaxError) or a caught value can be thrown",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/error-hierarchy.ts"
+      ]
+    },
+    {
+      "code": "CS1247",
+      "message": "throwing a `UnknownAccount` is not supported: only a string, an Error (Error, TypeError, RangeError, SyntaxError) or a caught value can be thrown",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/bank-ledger.ts"
+      ]
+    },
+    {
+      "code": "CS1247",
+      "message": "throwing a `UsageError` is not supported: only a string, an Error (Error, TypeError, RangeError, SyntaxError) or a caught value can be thrown",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/cli-options.ts"
+      ]
+    },
+    {
+      "code": "CS1247",
+      "message": "throwing a `ValidationError` is not supported: only a string, an Error (Error, TypeError, RangeError, SyntaxError) or a caught value can be thrown",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/config-validator.ts"
+      ]
+    },
+    {
+      "code": "CS1247",
+      "message": "throwing a `ValidationFailed` is not supported: only a string, an Error (Error, TypeError, RangeError, SyntaxError) or a caught value can be thrown",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/error-hierarchy.ts"
+      ]
+    },
+    {
+      "code": "CS1248",
+      "message": "`e` is read here as a `AppError`, which a caught value never is: only a string or an Error can be thrown",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/error-hierarchy.ts"
+      ]
+    },
+    {
+      "code": "CS1248",
+      "message": "`e` is read here as a `IniError`, which a caught value never is: only a string or an Error can be thrown",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/ini-parser.ts"
+      ]
+    },
+    {
+      "code": "CS1248",
+      "message": "`e` is read here as a `SemVerError`, which a caught value never is: only a string or an Error can be thrown",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/semver.ts"
+      ]
+    },
+    {
+      "code": "CS1248",
+      "message": "`e` is read here as a `UsageError`, which a caught value never is: only a string or an Error can be thrown",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/cli-options.ts"
+      ]
+    },
+    {
+      "code": "CS1248",
+      "message": "`e` is read here as a `ValidationError`, which a caught value never is: only a string or an Error can be thrown",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/config-validator.ts"
+      ]
+    },
+    {
+      "code": "CS1248",
+      "message": "`input` is read here as a `any[]`, which a caught value never is: only a string or an Error can be thrown",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/schema-builder.ts"
+      ]
+    },
+    {
+      "code": "CS1248",
+      "message": "`input` is read here as a `number`, which a caught value never is: only a string or an Error can be thrown",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/schema-builder.ts"
+      ]
+    },
+    {
+      "code": "CS1248",
+      "message": "`v` is read here as a `any[]`, which a caught value never is: only a string or an Error can be thrown",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/template-engine.ts"
+      ]
+    },
+    {
+      "code": "CS1248",
+      "message": "`value` is read here as a `number`, which a caught value never is: only a string or an Error can be thrown",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/config-validator.ts"
+      ]
+    },
+    {
+      "code": "CS1248",
+      "message": "assigning to the caught value `cur` is not supported",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/template-engine.ts"
+      ]
+    }
+  ],
+  "programs": [
+    {
+      "path": "tests/corpus/animals.ts",
+      "category": "oop",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1217 default parameter values are not supported yet"
+    },
+    {
+      "path": "tests/corpus/async-file-pipeline.ts",
+      "category": "async-io",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS0001 does not typecheck under ChadScript strict mode: Cannot find namespace 'NodeJS'. (TS2503)"
+    },
+    {
+      "path": "tests/corpus/async-generators.ts",
+      "category": "async-io",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS0001 does not typecheck under ChadScript strict mode: Property 'exitCode' does not exist on type '...'. (TS2339)"
+    },
+    {
+      "path": "tests/corpus/async-line-processor.ts",
+      "category": "async-io",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1204 the non-null assertion `!` is not allowed"
+    },
+    {
+      "path": "tests/corpus/async-queue.ts",
+      "category": "async-io",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1000 `new Promise` needs its executor written inline with typed parameters: `resolve` has no function type annotation"
+    },
+    {
+      "path": "tests/corpus/async-retry.ts",
+      "category": "async-io",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS0001 does not typecheck under ChadScript strict mode: Argument of type 'Timeout | undefined'...'Timeout'."
+    },
+    {
+      "path": "tests/corpus/backtracking.ts",
+      "category": "algorithms",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1000 a `function` declaration inside a function or block is not supported yet"
+    },
+    {
+      "path": "tests/corpus/bank-ledger.ts",
+      "category": "errors",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1000 a class that extends the built-in `Error` is not supported"
+    },
+    {
+      "path": "tests/corpus/bank-queue-sim.ts",
+      "category": "simulation",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1220 `Math.log` is not supported yet"
+    },
+    {
+      "path": "tests/corpus/binary-search.ts",
+      "category": "algorithms",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1204 the non-null assertion `!` is not allowed"
+    },
+    {
+      "path": "tests/corpus/bitset.ts",
+      "category": "data-structures",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1000 `new Uint32Array` is not supported"
+    },
+    {
+      "path": "tests/corpus/brainfuck.ts",
+      "category": "interpreters",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1216 iterating a string with `for...of` is not supported yet"
+    },
+    {
+      "path": "tests/corpus/bst.ts",
+      "category": "data-structures",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1217 default parameter values are not supported yet"
+    },
+    {
+      "path": "tests/corpus/build-order.ts",
+      "category": "algorithms",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1233 this value has a type ChadScript does not support here (`Record<string, string[]>`)"
+    },
+    {
+      "path": "tests/corpus/calc-interpreter.ts",
+      "category": "interpreters",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1000 a class that extends the built-in `Error` is not supported"
+    },
+    {
+      "path": "tests/corpus/calendar.ts",
+      "category": "scripts",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1204 the non-null assertion `!` is not allowed"
+    },
+    {
+      "path": "tests/corpus/case-convert.ts",
+      "category": "text",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1213 regular expression literals are not supported yet"
+    },
+    {
+      "path": "tests/corpus/ciphers.ts",
+      "category": "text",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1216 `charCodeAt` is not supported yet"
+    },
+    {
+      "path": "tests/corpus/cli-config-merge.ts",
+      "category": "cli",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1233 this type is a type ChadScript does not support here (`ConfigObject`)"
+    },
+    {
+      "path": "tests/corpus/cli-grep.ts",
+      "category": "cli",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS0001 does not typecheck under ChadScript strict mode: Property 'error' does not exist on type '...'. (TS2339)"
+    },
+    {
+      "path": "tests/corpus/cli-head-tail.ts",
+      "category": "cli",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1213 regular expression literals are not supported yet"
+    },
+    {
+      "path": "tests/corpus/cli-options.ts",
+      "category": "cli",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1000 a class that extends the built-in `Error` is not supported"
+    },
+    {
+      "path": "tests/corpus/cli-replace.ts",
+      "category": "cli",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1204 the non-null assertion `!` is not allowed"
+    },
+    {
+      "path": "tests/corpus/cli-rpn.ts",
+      "category": "cli",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1000 a class that extends the built-in `Error` is not supported"
+    },
+    {
+      "path": "tests/corpus/cli-stats.ts",
+      "category": "cli",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1000 spreading an array into the arguments of `Math.max` is not supported"
+    },
+    {
+      "path": "tests/corpus/cli-todo.ts",
+      "category": "cli",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1214 `JSON.parse` requires an explicit target type annotation"
+    },
+    {
+      "path": "tests/corpus/cli-wc.ts",
+      "category": "cli",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1216 iterating a string with `for...of` is not supported yet"
+    },
+    {
+      "path": "tests/corpus/config-validator.ts",
+      "category": "errors",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1233 this type is a type ChadScript does not support here (`Record<string, Schema>`)"
+    },
+    {
+      "path": "tests/corpus/cron-parser.ts",
+      "category": "parsing",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1243 `keyof` types are not supported"
+    },
+    {
+      "path": "tests/corpus/csv-join.ts",
+      "category": "parsing",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1000 an array binding pattern is not supported by ChadScript yet"
+    },
+    {
+      "path": "tests/corpus/csv-sales-report.ts",
+      "category": "parsing",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1204 the non-null assertion `!` is not allowed"
+    },
+    {
+      "path": "tests/corpus/csv-to-json.ts",
+      "category": "parsing",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1204 the non-null assertion `!` is not allowed"
+    },
+    {
+      "path": "tests/corpus/dice-probability.ts",
+      "category": "simulation",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1222 iterating a Map directly with `for...of` is not supported yet"
+    },
+    {
+      "path": "tests/corpus/dotenv-parser.ts",
+      "category": "parsing",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1216 indexing a string with `[i]` is not supported yet"
+    },
+    {
+      "path": "tests/corpus/dp-classics.ts",
+      "category": "algorithms",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1220 `Array.from` is not supported yet"
+    },
+    {
+      "path": "tests/corpus/elevator-sim.ts",
+      "category": "simulation",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1224 `Array.prototype.splice` is not supported yet"
+    },
+    {
+      "path": "tests/corpus/employee-hierarchy.ts",
+      "category": "oop",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1000 spreading an array into the arguments of `this.reports.push` is not supported"
+    },
+    {
+      "path": "tests/corpus/error-hierarchy.ts",
+      "category": "errors",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1000 a class that extends the built-in `Error` is not supported"
+    },
+    {
+      "path": "tests/corpus/event-emitter.ts",
+      "category": "oop",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1243 conditional, mapped and indexed-access types are not supported"
+    },
+    {
+      "path": "tests/corpus/exit-codes.ts",
+      "category": "errors",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS0001 does not typecheck under ChadScript strict mode: Property 'error' does not exist on type '...'. (TS2339)"
+    },
+    {
+      "path": "tests/corpus/expense-tracker.ts",
+      "category": "scripts",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1233 this value has a type ChadScript does not support here (`Record<string, number>`)"
+    },
+    {
+      "path": "tests/corpus/finally-semantics.ts",
+      "category": "errors",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1000 a class that extends the built-in `Error` is not supported"
+    },
+    {
+      "path": "tests/corpus/fizzbuzz-variants.ts",
+      "category": "scripts",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1224 `Array.prototype.keys` is not supported yet"
+    },
+    {
+      "path": "tests/corpus/game-of-life.ts",
+      "category": "simulation",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1217 default parameter values are not supported yet"
+    },
+    {
+      "path": "tests/corpus/generic-utils.ts",
+      "category": "generics",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1233 this value has a Map key or Set element that is a union of different kinds"
+    },
+    {
+      "path": "tests/corpus/grade-book.ts",
+      "category": "scripts",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1204 the non-null assertion `!` is not allowed"
+    },
+    {
+      "path": "tests/corpus/graph-dijkstra.ts",
+      "category": "algorithms",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1204 the non-null assertion `!` is not allowed"
+    },
+    {
+      "path": "tests/corpus/hash-map.ts",
+      "category": "data-structures",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1217 default parameter values are not supported yet"
+    },
+    {
+      "path": "tests/corpus/huffman.ts",
+      "category": "algorithms",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1216 iterating a string with `for...of` is not supported yet"
+    },
+    {
+      "path": "tests/corpus/ini-parser.ts",
+      "category": "parsing",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1000 a class that extends the built-in `Error` is not supported"
+    },
+    {
+      "path": "tests/corpus/intervals.ts",
+      "category": "algorithms",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1000 an array binding pattern is not supported by ChadScript yet"
+    },
+    {
+      "path": "tests/corpus/json-inventory.ts",
+      "category": "parsing",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1214 `JSON.parse` requires an explicit target type annotation"
+    },
+    {
+      "path": "tests/corpus/json-parser.ts",
+      "category": "interpreters",
+      "outcome": "crash",
+      "knownBug": "compiler stack overflow in valueTypeOfTsType (src/lower/type-translation.ts) on a recursive type alias (`type Json = ... | Json[]`)",
+      "detail": "Maximum call stack size exceeded."
+    },
+    {
+      "path": "tests/corpus/langtons-ant.ts",
+      "category": "simulation",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1204 the non-null assertion `!` is not allowed"
+    },
+    {
+      "path": "tests/corpus/lazy-sequence.ts",
+      "category": "generics",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1000 writing or calling through `obj[\"name\"]` is not supported yet"
+    },
+    {
+      "path": "tests/corpus/linked-list.ts",
+      "category": "data-structures",
+      "outcome": "crash",
+      "knownBug": "compiler stack overflow in involvesAny (src/validate/type-rules.ts) on a generic class whose method returns the class at another type argument (`map<U>(): LinkedList<U>`)",
+      "detail": "Maximum call stack size exceeded."
+    },
+    {
+      "path": "tests/corpus/lisp-interpreter.ts",
+      "category": "interpreters",
+      "outcome": "crash",
+      "knownBug": "compiler stack overflow in valueTypeOfTsType (src/lower/type-translation.ts) on a recursive type alias (`type Value = ... | Value[]`)",
+      "detail": "Maximum call stack size exceeded."
+    },
+    {
+      "path": "tests/corpus/loan-amortization.ts",
+      "category": "scripts",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1221 `toFixed` on a number is not supported yet"
+    },
+    {
+      "path": "tests/corpus/log-analyzer.ts",
+      "category": "parsing",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1213 regular expression literals are not supported yet"
+    },
+    {
+      "path": "tests/corpus/lru-cache.ts",
+      "category": "data-structures",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1222 a Map iterator from `keys()` is only supported as a for...of iterable or a spread"
+    },
+    {
+      "path": "tests/corpus/markdown-to-html.ts",
+      "category": "text",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1213 regular expression literals are not supported yet"
+    },
+    {
+      "path": "tests/corpus/markov-text.ts",
+      "category": "text",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1204 the non-null assertion `!` is not allowed"
+    },
+    {
+      "path": "tests/corpus/matrix-ops.ts",
+      "category": "algorithms",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1000 `?.` is only supported on a plain object or class instance"
+    },
+    {
+      "path": "tests/corpus/maze-solver.ts",
+      "category": "algorithms",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1204 the non-null assertion `!` is not allowed"
+    },
+    {
+      "path": "tests/corpus/number-theory.ts",
+      "category": "algorithms",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1224 `Array.prototype.keys` is not supported yet"
+    },
+    {
+      "path": "tests/corpus/number-words.ts",
+      "category": "text",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1233 this value has a tuple type with different element types (`[string, number]`)"
+    },
+    {
+      "path": "tests/corpus/option-type.ts",
+      "category": "generics",
+      "outcome": "crash",
+      "knownBug": "compiler stack overflow in involvesAny (src/validate/type-rules.ts) on a generic class whose method returns the class at another type argument (`map<U>(): Option<U>`)",
+      "detail": "Maximum call stack size exceeded."
+    },
+    {
+      "path": "tests/corpus/plugin-system.ts",
+      "category": "oop",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1000 `new Map(...)` is only supported with an array literal of `[key, value]` pairs"
+    },
+    {
+      "path": "tests/corpus/predator-prey.ts",
+      "category": "simulation",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1204 the non-null assertion `!` is not allowed"
+    },
+    {
+      "path": "tests/corpus/redux-store.ts",
+      "category": "generics",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1217 default parameter values are not supported yet"
+    },
+    {
+      "path": "tests/corpus/repository.ts",
+      "category": "generics",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1233 this type is a type ChadScript does not support here (`keyof T`)"
+    },
+    {
+      "path": "tests/corpus/ring-buffer.ts",
+      "category": "data-structures",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1221 `toFixed` on a number is not supported yet"
+    },
+    {
+      "path": "tests/corpus/rle-codec.ts",
+      "category": "text",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1216 indexing a string with `[i]` is not supported yet"
+    },
+    {
+      "path": "tests/corpus/schema-builder.ts",
+      "category": "generics",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1243 conditional, mapped and indexed-access types are not supported"
+    },
+    {
+      "path": "tests/corpus/semver.ts",
+      "category": "parsing",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1000 a class that extends the built-in `Error` is not supported"
+    },
+    {
+      "path": "tests/corpus/shapes-hierarchy.ts",
+      "category": "oop",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1221 `toFixed` on a number is not supported yet"
+    },
+    {
+      "path": "tests/corpus/shopping-cart.ts",
+      "category": "scripts",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1221 `toFixed` on a number is not supported yet"
+    },
+    {
+      "path": "tests/corpus/sorting-suite.ts",
+      "category": "algorithms",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1220 `Math.imul` is not supported yet"
+    },
+    {
+      "path": "tests/corpus/stack-queue-generic.ts",
+      "category": "generics",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1233 this value has a type ChadScript does not support here (`Record<string, string>`)"
+    },
+    {
+      "path": "tests/corpus/stack-vm.ts",
+      "category": "interpreters",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1202 `enum` is not supported"
+    },
+    {
+      "path": "tests/corpus/stock-observer.ts",
+      "category": "oop",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1233 this value has a type ChadScript does not support here (`Record<string, number>`)"
+    },
+    {
+      "path": "tests/corpus/string-puzzles.ts",
+      "category": "text",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1216 relational comparison (`<` `>` `<=` `>=`) on strings is not supported yet"
+    },
+    {
+      "path": "tests/corpus/table-format.ts",
+      "category": "text",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1221 `toFixed` on a number is not supported yet"
+    },
+    {
+      "path": "tests/corpus/task-scheduler.ts",
+      "category": "data-structures",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1204 the non-null assertion `!` is not allowed"
+    },
+    {
+      "path": "tests/corpus/temperature-table.ts",
+      "category": "scripts",
+      "outcome": "crash",
+      "knownBug": "the global `isNaN(x)` is accepted but lowers to a call of an undefined `@isNaN` function, so clang rejects the IR",
+      "detail": "invalid IR: use of undefined value '@isNaN.14'"
+    },
+    {
+      "path": "tests/corpus/template-engine.ts",
+      "category": "text",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1207 index signatures (`[k: string]: T`) are not supported"
+    },
+    {
+      "path": "tests/corpus/text-diff.ts",
+      "category": "text",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1224 `Array.prototype.fill` is not supported yet"
+    },
+    {
+      "path": "tests/corpus/text-wrap.ts",
+      "category": "text",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1213 regular expression literals are not supported yet"
+    },
+    {
+      "path": "tests/corpus/tic-tac-toe.ts",
+      "category": "algorithms",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1204 the non-null assertion `!` is not allowed"
+    },
+    {
+      "path": "tests/corpus/traffic-sim.ts",
+      "category": "simulation",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1204 the non-null assertion `!` is not allowed"
+    },
+    {
+      "path": "tests/corpus/trie-autocomplete.ts",
+      "category": "data-structures",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1216 iterating a string with `for...of` is not supported yet"
+    },
+    {
+      "path": "tests/corpus/ttl-cache.ts",
+      "category": "generics",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1217 default parameter values are not supported yet"
+    },
+    {
+      "path": "tests/corpus/undo-redo.ts",
+      "category": "oop",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1000 `readonly` is not supported by ChadScript yet"
+    },
+    {
+      "path": "tests/corpus/union-find-mst.ts",
+      "category": "data-structures",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1000 `private` is not supported by ChadScript yet"
+    },
+    {
+      "path": "tests/corpus/url-parser.ts",
+      "category": "parsing",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1233 this value has a type ChadScript does not support here (`Record<string, number>`)"
+    },
+    {
+      "path": "tests/corpus/vector-geometry.ts",
+      "category": "oop",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1217 default parameter values are not supported yet"
+    },
+    {
+      "path": "tests/corpus/vending-machine.ts",
+      "category": "oop",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1000 `readonly` is not supported by ChadScript yet"
+    },
+    {
+      "path": "tests/corpus/word-frequency.ts",
+      "category": "text",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1213 regular expression literals are not supported yet"
+    },
+    {
+      "path": "tests/corpus/word-ladder.ts",
+      "category": "algorithms",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1204 the non-null assertion `!` is not allowed"
+    },
+    {
+      "path": "tests/corpus/xml-lite.ts",
+      "category": "parsing",
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1233 this type is a type ChadScript does not support here (`Record<string, string>`)"
+    }
+  ]
+}
