@@ -25,16 +25,31 @@ export function emitStrictEq(a: Value, b: Value, type: ValueType, ctx: Ctx): Val
     case "value":
       return valueStrictEq(a, b, ctx);
     // Identity. Every object, array, Map and Set is one heap record for its whole life, so its
-    // pointer is its identity. Functions are excluded: each reference to a `function` declaration
-    // builds a fresh wrapper closure, so validate rejects comparing them (CS1245).
+    // pointer is its identity.
     case "object":
     case "array":
     case "map":
     case "set":
       return ctx.fn.icmp("eq", a, b);
+    case "function":
+      return functionIdentityEq(a, b, ctx);
     default:
       return ice(`emitStrictEq: ${type.kind} not supported`);
   }
+}
+
+// Two closure records are the same JS function when they are one record, or when both carry the
+// same identity token in their env word (two wrappers of one named function or builtin at
+// different signatures, codegen/cells.ts). An ordinary closure's env is null or its own fresh
+// capture block, so the token test can only match records that stand for one function.
+export function functionIdentityEq(a: Value, b: Value, ctx: Ctx): Value {
+  const envA = ctx.fn.load(T.i64, ctx.fn.gepSlot(a, 1));
+  const envB = ctx.fn.load(T.i64, ctx.fn.gepSlot(b, 1));
+  const sameToken = ctx.fn.logicalAnd(
+    ctx.fn.icmp("eq", envA, envB),
+    ctx.fn.icmp("ne", envA, imm(T.i64, 0)),
+  );
+  return ctx.fn.logicalOr(ctx.fn.icmp("eq", a, b), sameToken);
 }
 
 const RELATIONAL: Partial<Record<BinaryOp, string>> = {
@@ -73,7 +88,8 @@ export function evalComparison(expr: Extract<HExpr, { kind: "binary" }>, ctx: Ct
       operandType === "object" ||
       operandType === "array" ||
       operandType === "map" ||
-      operandType === "set"
+      operandType === "set" ||
+      operandType === "function"
     ) {
       const eq = emitStrictEq(
         evalValue(expr.left, ctx),

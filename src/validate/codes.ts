@@ -53,7 +53,6 @@ export const CODE = {
   GENERIC_TYPE_ARGUMENT: "CS1242", // T instantiated with a value its erased word cannot describe
   TYPE_COMPUTATION: "CS1243", // conditional / mapped / indexed-access / keyof types
   CONSTRUCTOR_TYPE: "CS1244", // `new () => T` (constructing through a type parameter)
-  FUNCTION_IDENTITY: "CS1245", // `===` between two function values, or searching an array for one
   BUILTIN_AS_VALUE: "CS1246", // a built-in function (String, Math.floor, console.log) used as a value
 } as const;
 

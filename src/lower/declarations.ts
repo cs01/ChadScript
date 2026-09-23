@@ -589,6 +589,13 @@ export function lowerArrayElement(
 // Async function declarations are NOT admitted here: a call to one must SPAWN a fiber and yield a
 // promise, and a forwarding wrapper would instead run the body synchronously. The validator rejects
 // those as CS1232.
+//
+// Identity: in JS every reference to `f` is the same object, so one wrapper per (function, use
+// signature) is made and referenced as a static record; a second signature (a generic function
+// used at two instantiations) gets its own wrapper, and the shared `identity` token makes the two
+// records compare equal anyway.
+const fnRefWrappers = new WeakMap<LowerCtx["functions"], Map<string, HExpr>>();
+
 export function lowerFunctionRef(
   ident: ts.Identifier,
   decl: ts.FunctionDeclaration,
@@ -596,6 +603,11 @@ export function lowerFunctionRef(
   ctx: LowerCtx,
 ): HExpr {
   const target = nameOf(ident, ctx);
+  const memo = fnRefWrappers.get(ctx.functions) ?? new Map<string, HExpr>();
+  fnRefWrappers.set(ctx.functions, memo);
+  const key = `${target}|${signatureKey(useType)}`;
+  const hit = memo.get(key);
+  if (hit) return hit;
   const wrapperName = `fnref.${ctx.counter.n++}`;
   const paramTypes = useType.kind === "function" ? useType.params : [];
   const returnType = useType.kind === "function" ? useType.ret : null;
@@ -621,11 +633,26 @@ export function lowerFunctionRef(
         ];
 
   ctx.functions.push({ name: wrapperName, params, returnType, body, captures: [] });
-  return {
+  const ref: HExpr = {
     kind: "closure",
     lambdaName: wrapperName,
     captures: [],
     display: `[Function: ${decl.name?.text ?? "default"}]`,
     type: { kind: "function", params: paramTypes, ret: returnType },
+    identity: target,
   };
+  memo.set(key, ref);
+  return ref;
+}
+
+// A structural key for a ValueType, for memoizing wrappers per signature.
+export function signatureKey(t: ValueType): string {
+  const seen = new WeakSet<object>();
+  return JSON.stringify(t, (_k, v: unknown) => {
+    if (typeof v === "object" && v !== null) {
+      if (seen.has(v)) return "<cycle>";
+      seen.add(v);
+    }
+    return v;
+  });
 }

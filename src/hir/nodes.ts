@@ -263,7 +263,17 @@ export type HExpr =
   | { kind: "runtimeCall"; fn: string; args: HExpr[]; type: ValueType }
   // Create a closure: the lifted lambda `lambdaName` plus a captured-variable environment.
   // `display` is how util.inspect shows the function (`[Function: name]`, with JS's inferred name).
-  | { kind: "closure"; lambdaName: string; captures: HCapture[]; display: string; type: ValueType }
+  // `identity` marks a closure that stands for ONE JS function object (a named function or a
+  // builtin used as a value): it is a single static record, never allocated, whose env word is a
+  // per-`identity` token, so every wrapper of the same function compares equal (codegen/cells.ts).
+  | {
+      kind: "closure";
+      lambdaName: string;
+      captures: HCapture[];
+      display: string;
+      type: ValueType;
+      identity?: string;
+    }
   // Call a function VALUE (closure): load its fnptr + env and invoke. `type` is the return type.
   | { kind: "callClosure"; callee: HExpr; args: HExpr[]; type: ValueType }
   // Method call on an object, `receiver.m(args)`, found through the receiver's shape (see

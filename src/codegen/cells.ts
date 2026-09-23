@@ -65,6 +65,18 @@ export function renewCell(name: string, ctx: Ctx): void {
 // when there are no captures); captures are read from the enclosing scope at creation time.
 // `display` is the function's util.inspect text, read when an object holding it is printed.
 export function evalClosure(expr: Extract<HExpr, { kind: "closure" }>, ctx: Ctx): Value {
+  if (expr.identity !== undefined) {
+    // One JS function object: a static record, the same address on every evaluation. Its env
+    // word (unused by the wrapper, which captures nothing) is the function's identity token,
+    // shared by every wrapper of it, which is what functionIdentityEq compares.
+    if (expr.captures.length > 0) return ice("codegen: an identity closure cannot capture");
+    const token = ctx.mod.defineZeroWords(`fnid.${expr.identity}`, 1);
+    return ctx.mod.defineWordRecord(`closure.${expr.lambdaName}`, [
+      ctx.fn.funcRef(expr.lambdaName),
+      token,
+      ctx.mod.internedString(expr.display),
+    ]);
+  }
   let env: Value;
   if (expr.captures.length > 0) {
     env = ctx.fn.call("@cs_gc_alloc", T.ptr, [imm(T.i64, expr.captures.length * 8)]);

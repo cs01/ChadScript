@@ -540,6 +540,22 @@ export class ModuleBuilder {
     return { name: `@${name}`, type: T.ptr };
   }
 
+  // A static record of pointer words, defined once per name (a named function's closure record,
+  // see codegen/cells.ts). Its ADDRESS is an identity, so like a shape it is a mutable `global`
+  // that LLVM and the linker never merge.
+  private readonly records = new Set<string>();
+  defineWordRecord(name: string, words: readonly Value[]): Value {
+    if (!this.records.has(name)) {
+      for (const w of words)
+        if (w.type.kind !== "ptr") ice(`defineWordRecord: ${w.type.kind} word`);
+      this.records.add(name);
+      const ty = words.map(() => "ptr").join(", ");
+      const body = words.map((w) => `ptr ${w.name}`).join(", ");
+      this.globals.push(`@${name} = private global { ${ty} } { ${body} }`);
+    }
+    return { name: `@${name}`, type: T.ptr };
+  }
+
   // A reference to a global or function this module defines under `name` (a shape, a method).
   globalRef(name: string): Value {
     return { name: `@${name}`, type: T.ptr };

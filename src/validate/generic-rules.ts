@@ -133,40 +133,30 @@ function checkGenericField(
   }
 }
 
-// Function values have no stable identity here. Each reference to a `function` declaration builds
-// a fresh wrapper closure (lower/declarations.ts lowerFunctionRef), and a callback crossing into
-// generic code is wrapped in an adapter (adaptClosure), one per crossing. So `f === f` could be
-// false where Node says true: comparing or searching for functions is rejected, as CS1240 inside
-// generic code (where the adapter is the reason) and CS1245 elsewhere.
+// Inside generic code a callback passed in is wrapped in an adapter (adaptClosure), one per
+// crossing, so the function the generic code holds is not the caller's object: comparing or
+// searching for functions there is CS1240. (Everywhere else a function value is one record, and
+// every reference to a named function is the same static record: codegen/cells.ts.)
 function functionIdentityProblem(
   node: ts.Node,
   checker: ts.TypeChecker,
 ): { code: Code; message: string; suggestion: string } | null {
-  const kindOf = (e: ts.Expression): ValueType | null =>
-    translate(checker.getTypeAtLocation(e), e, checker);
-  const isFn = (e: ts.Expression): boolean => kindOf(e)?.kind === "function";
-  // A function, or an optional one: comparing it with `undefined` / `null` stays admitted.
-  const fnLike = (e: ts.Expression): boolean => {
-    const t = kindOf(e);
-    return t?.kind === "function" || (t?.kind === "optional" && t.inner.kind === "function");
-  };
-  const generic = isGenericDeclaration(node);
-  const code = generic ? CODE.REPRESENTATION_MISMATCH : CODE.FUNCTION_IDENTITY;
-  const why = generic ? " inside generic code" : "";
-  const wrapped = generic ? "a callback passed in is wrapped" : "each reference is its own closure";
-  const suggestion = generic
-    ? "compare something the functions compute, or keep the comparison outside the generic code"
-    : "compare something the functions compute, or keep a name or id next to each function and compare that";
+  if (!isGenericDeclaration(node)) return null;
+  const isFn = (e: ts.Expression): boolean =>
+    translate(checker.getTypeAtLocation(e), e, checker)?.kind === "function";
+  const suggestion =
+    "compare something the functions compute, or keep the comparison outside the generic code";
   if (
     ts.isBinaryExpression(node) &&
     (node.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken ||
       node.operatorToken.kind === ts.SyntaxKind.ExclamationEqualsEqualsToken) &&
-    (generic ? isFn(node.left) || isFn(node.right) : fnLike(node.left) && fnLike(node.right))
+    (isFn(node.left) || isFn(node.right))
   ) {
     return {
-      code,
+      code: CODE.REPRESENTATION_MISMATCH,
       suggestion,
-      message: `comparing functions with \`===\`${why} is not supported (${wrapped})`,
+      message:
+        "comparing functions with `===` inside generic code is not supported (a callback passed in is wrapped)",
     };
   }
   if (
@@ -177,9 +167,10 @@ function functionIdentityProblem(
     isFn(node.arguments[0])
   ) {
     return {
-      code,
+      code: CODE.REPRESENTATION_MISMATCH,
       suggestion,
-      message: `searching for a function${why} is not supported (${wrapped})`,
+      message:
+        "searching for a function inside generic code is not supported (a callback passed in is wrapped)",
     };
   }
   return null;
