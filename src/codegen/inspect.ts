@@ -5,6 +5,10 @@
 // resolved ValueType (the type tells us how to format, recursively). An OBJECT is formatted by its
 // own shape's inspect function (codegen/shape-functions.ts), never by the static type it is read
 // through, so a value typed as an interface prints the fields it really has, as Node does.
+//
+// Codegen only formats the ENTRIES of a container (it knows the types); how they are laid out
+// (line breaking, column grouping, indentation, cycles) is runtime/inspect.milo's job, reached
+// through formatContainer.
 
 import { ice } from "../diagnostics.js";
 import { imm, type Value } from "../ir/builder.js";
@@ -12,13 +16,16 @@ import { T } from "../ir/types.js";
 import type { ValueType } from "../hir/types.js";
 import { unboxSlot, type Ctx } from "./expr.js";
 import { loadShape, loadShapeWord } from "./shapes.js";
-import { V_NULL, V_UNDEFINED, unboxValue } from "./value.js";
+import { V_NULL, V_UNDEFINED, isNumberWord, unboxValue } from "./value.js";
 import { inspectValue } from "./value-ops.js";
 
 // Node's util.inspect stops descending at depth 2 and prints a placeholder for anything deeper.
 // The depth is a run-time value because objects dispatch through their shapes, and it is what
 // makes a recursive structure printable at all.
 export const MAX_DEPTH = 2;
+
+// Node's maxArrayLength: an array, Map or Set shows this many entries, then `... N more items`.
+const MAX_SHOWN = 100;
 
 // A string Value for the inspect form of `value` (of type `type`) at nesting `depth` (an i32
 // Value). Strings are quoted here (the nested context); the top-level raw-string case is handled
@@ -28,7 +35,7 @@ export function inspect(value: Value, type: ValueType, ctx: Ctx, depth: Value): 
     case "number":
       return ctx.fn.call("@cs_inspect_num", T.ptr, [value]);
     case "string":
-      return ctx.fn.call("@cs_inspect_str", T.ptr, [value]);
+      return ctx.fn.call("@cs_inspect_str", T.ptr, [value, depth]);
     case "boolean":
       return ctx.fn.call("@cs_bool_to_string", T.ptr, [ctx.fn.zextI1ToI32(value)]);
     case "null":
@@ -38,20 +45,16 @@ export function inspect(value: Value, type: ValueType, ctx: Ctx, depth: Value): 
     case "optional":
       return inspectOptional(value, type.inner, ctx, depth);
     case "array":
-      return beyondDepth(ctx, depth, "[Array]", () =>
-        inspectArray(value, type.element, ctx, depth),
-      );
+      return inspectArray(value, type.element, ctx, depth);
     case "object": {
       // The shape's inspect function handles its own depth cutoff (it knows the class name).
       const fn = loadShapeWord(loadShape(value, ctx), "inspect", ctx);
       return ctx.fn.callIndirect(fn, T.ptr, [value, depth]);
     }
     case "map":
-      return beyondDepth(ctx, depth, "[Map]", () =>
-        inspectMap(value, type.key, type.value, ctx, depth),
-      );
+      return inspectMap(value, type.key, type.value, ctx, depth);
     case "set":
-      return beyondDepth(ctx, depth, "[Set]", () => inspectSet(value, type.element, ctx, depth));
+      return inspectSet(value, type.element, ctx, depth);
     case "function":
       // Word 2 of a closure record is its display text (see evalClosure).
       return ctx.fn.load(T.ptr, ctx.fn.gepSlot(value, 2));
@@ -97,26 +100,106 @@ export function inspectStored(raw: Value, type: ValueType, ctx: Ctx, depth: Valu
   }
 }
 
-const concat = (ctx: Ctx, a: Value, b: Value): Value =>
+export const concat = (ctx: Ctx, a: Value, b: Value): Value =>
   ctx.fn.call("@cs_str_concat", T.ptr, [a, b]);
 
-const nextDepth = (ctx: Ctx, depth: Value): Value => ctx.fn.iadd(depth, imm(T.i32, 1));
+// A container ready to be formatted. `open` and `arrayMode` are only evaluated when the entries
+// are, i.e. past the cycle, empty and depth checks.
+export interface ContainerForm {
+  // The container's identity, for `[Circular *N]` / `<ref *N>`.
+  self: Value;
+  // i32: its true entry count.
+  count: Value;
+  // The whole text of an empty container (`[]`, `{}`, `Point {}`, `Map(0) {}`). Node prints it
+  // even past the depth cutoff.
+  empty: Value;
+  // The placeholder past the depth cutoff (`[Array]`, `[Object]`, `[Point]`).
+  deep: string;
+  // The opening brace with its prefix (`[`, `{`, `Point {`, `Map(2) {`).
+  open: () => Value;
+  close: string;
+  // i32: -1 unless an array; for an array 1 when its elements are all numbers, else 0.
+  arrayMode: () => Value;
+}
 
-// `placeholder` when `depth` is past Node's cutoff, else `body()`.
-export function beyondDepth(ctx: Ctx, depth: Value, placeholder: string, body: () => Value): Value {
-  const result = ctx.fn.alloca(T.ptr);
-  const deepB = ctx.fn.newBlock("insp.deep");
-  const bodyB = ctx.fn.newBlock("insp.body");
-  const endB = ctx.fn.newBlock("insp.depthend");
-  ctx.fn.brCond(ctx.fn.icmp("sgt", depth, imm(T.i32, MAX_DEPTH)), deepB, bodyB);
-  ctx.fn.switchTo(deepB);
-  ctx.fn.store(ctx.mod.cstring(placeholder), result);
-  ctx.fn.br(endB);
-  ctx.fn.switchTo(bodyB);
-  ctx.fn.store(body(), result);
-  ctx.fn.br(endB);
-  ctx.fn.switchTo(endB);
-  return ctx.fn.load(T.ptr, result);
+// Node's formatValue/formatRaw order for a container: one already being formatted is
+// `[Circular *N]`, an empty one prints its empty form, one past the depth cutoff its placeholder;
+// otherwise `fill(entries, inner)` pushes each entry's text (formatted at depth `inner`) onto the
+// runtime array `entries`, and the runtime lays them out.
+export function formatContainer(
+  ctx: Ctx,
+  depth: Value,
+  form: ContainerForm,
+  fill: (entries: Value, inner: Value) => void,
+): Value {
+  const fn = ctx.fn;
+  const result = fn.alloca(T.ptr);
+  const circB = fn.newBlock("insp.circ");
+  const notCircB = fn.newBlock("insp.notcirc");
+  const emptyB = fn.newBlock("insp.empty");
+  const someB = fn.newBlock("insp.some");
+  const deepB = fn.newBlock("insp.deep");
+  const bodyB = fn.newBlock("insp.body");
+  const endB = fn.newBlock("insp.end");
+  const circ = fn.call("@cs_insp_circular", T.ptr, [form.self]);
+  fn.brCond(fn.icmp("ne", fn.ptrToI64(circ), imm(T.i64, 0)), circB, notCircB);
+  fn.switchTo(circB);
+  fn.store(circ, result);
+  fn.br(endB);
+  fn.switchTo(notCircB);
+  fn.brCond(fn.icmp("eq", form.count, imm(T.i32, 0)), emptyB, someB);
+  fn.switchTo(emptyB);
+  fn.store(form.empty, result);
+  fn.br(endB);
+  fn.switchTo(someB);
+  fn.brCond(fn.icmp("sgt", depth, imm(T.i32, MAX_DEPTH)), deepB, bodyB);
+  fn.switchTo(deepB);
+  fn.store(ctx.mod.cstring(form.deep), result);
+  fn.br(endB);
+  fn.switchTo(bodyB);
+  const open = form.open();
+  const arrayMode = form.arrayMode();
+  fn.callVoid("@cs_insp_push", [form.self]);
+  const entries = fn.call("@cs_array_new", T.ptr, []);
+  fill(entries, fn.iadd(depth, imm(T.i32, 1)));
+  const text = fn.call("@cs_insp_finish", T.ptr, [
+    form.self,
+    entries,
+    form.count,
+    open,
+    ctx.mod.cstring(form.close),
+    arrayMode,
+    depth,
+  ]);
+  fn.store(text, result);
+  fn.br(endB);
+  fn.switchTo(endB);
+  return fn.load(T.ptr, result);
+}
+
+// Push one entry's text onto a formatContainer entry list.
+export function pushEntry(ctx: Ctx, entries: Value, text: Value): void {
+  ctx.fn.call("@cs_array_push", T.i32, [entries, ctx.fn.ptrToI64(text)]);
+}
+
+// `body(i)` for i in [0, min(count, limit)).
+export function forIndex(ctx: Ctx, count: Value, limit: number, body: (i: Value) => void): void {
+  const fn = ctx.fn;
+  const n = fn.select(fn.icmp("slt", count, imm(T.i32, limit)), count, imm(T.i32, limit));
+  const idxPtr = fn.alloca(T.i32);
+  fn.store(imm(T.i32, 0), idxPtr);
+  const headB = fn.newBlock("insp.head");
+  const iterB = fn.newBlock("insp.iter");
+  const doneB = fn.newBlock("insp.done");
+  fn.br(headB);
+  fn.switchTo(headB);
+  fn.brCond(fn.icmp("slt", fn.load(T.i32, idxPtr), n), iterB, doneB);
+  fn.switchTo(iterB);
+  const i = fn.load(T.i32, idxPtr);
+  body(i);
+  fn.store(fn.iadd(i, imm(T.i32, 1)), idxPtr);
+  fn.br(headB);
+  fn.switchTo(doneB);
 }
 
 // An optional prints as its inner value, or the bare word for the nullish sentinels.
@@ -148,27 +231,112 @@ function inspectOptional(value: Value, inner: ValueType, ctx: Ctx, depth: Value)
   return ctx.fn.load(T.ptr, result);
 }
 
-// `[]` when empty, else `[ e0, e1, ... ]`. Shared loop shape with map/set below.
+// `[ e0, e1 ]`.
 function inspectArray(arr: Value, elementType: ValueType, ctx: Ctx, depth: Value): Value {
-  const len = ctx.fn.call("@cs_array_len", T.i32, [arr]);
-  return joinBracketed(len, "[", "]", ctx, (i) => {
-    const elem = unboxSlot(ctx.fn.call("@cs_array_get", T.i64, [arr, i]), elementType, ctx);
-    return inspect(elem, elementType, ctx, nextDepth(ctx, depth));
-  });
+  return inspectSlots(arr, ctx, depth, elementType, (slot, inner) =>
+    inspect(unboxSlot(slot, elementType, ctx), elementType, ctx, inner),
+  );
 }
 
-// `Set(N) {}` / `Set(N) { e0, e1 }`.
+// An array whose slots `format` turns into entry text. `slotType` decides whether the elements
+// are all numbers (Node right-aligns grouped numeric columns); null means every slot is a Value
+// word (an any-JSON array).
+export function inspectSlots(
+  arr: Value,
+  ctx: Ctx,
+  depth: Value,
+  slotType: ValueType | null,
+  format: (slot: Value, inner: Value) => Value,
+): Value {
+  const len = ctx.fn.call("@cs_array_len", T.i32, [arr]);
+  return formatContainer(
+    ctx,
+    depth,
+    {
+      self: arr,
+      count: len,
+      empty: ctx.mod.cstring("[]"),
+      deep: "[Array]",
+      open: () => ctx.mod.cstring("["),
+      close: "]",
+      arrayMode: () => allNumbers(arr, len, slotType, ctx),
+    },
+    (entries, inner) =>
+      forIndex(ctx, len, MAX_SHOWN, (i) =>
+        pushEntry(ctx, entries, format(ctx.fn.call("@cs_array_get", T.i64, [arr, i]), inner)),
+      ),
+  );
+}
+
+// i32 1 when every element Node checks for grouping is a number, else 0. Node walks
+// output.length entries, which with a `... more items` entry includes the first hidden element.
+function allNumbers(arr: Value, len: Value, slotType: ValueType | null, ctx: Ctx): Value {
+  const fn = ctx.fn;
+  const isNum = numberTest(slotType, ctx);
+  if (typeof isNum === "boolean") return imm(T.i32, isNum ? 1 : 0);
+  const acc = fn.alloca(T.i1);
+  fn.store(imm(T.i1, 1), acc);
+  forIndex(ctx, len, MAX_SHOWN + 1, (i) => {
+    const slot = fn.call("@cs_array_get", T.i64, [arr, i]);
+    fn.store(fn.logicalAnd(fn.load(T.i1, acc), isNum(slot)), acc);
+  });
+  return fn.zextI1ToI32(fn.load(T.i1, acc));
+}
+
+// Whether an element slot of type `t` holds a number: known statically, or a test on the slot.
+function numberTest(t: ValueType | null, ctx: Ctx): boolean | ((slot: Value) => Value) {
+  const fn = ctx.fn;
+  if (t === null || t.kind === "value") return (slot) => isNumberWord(slot, ctx);
+  if (t.kind === "number") return true;
+  if (t.kind !== "optional") return false;
+  const inner = t.inner;
+  if (inner.kind !== "number" && inner.kind !== "value") return false;
+  // An optional slot is a sentinel address or a pointer to its boxed inner slot.
+  return (slot) => {
+    const p = fn.i64ToPtr(slot);
+    const present = fn.logicalAnd(
+      fn.icmp("ne", p, ctx.mod.externGlobal("cs_undefined_marker")),
+      fn.icmp("ne", p, ctx.mod.externGlobal("cs_null_marker")),
+    );
+    if (inner.kind === "number") return present;
+    const r = fn.alloca(T.i1);
+    const loadB = fn.newBlock("insp.optnum");
+    const endB = fn.newBlock("insp.optnumend");
+    fn.store(imm(T.i1, 0), r);
+    fn.brCond(present, loadB, endB);
+    fn.switchTo(loadB);
+    fn.store(isNumberWord(fn.load(T.i64, p), ctx), r);
+    fn.br(endB);
+    fn.switchTo(endB);
+    return fn.load(T.i1, r);
+  };
+}
+
+// `Set(N) { e0, e1 }`.
 function inspectSet(set: Value, element: ValueType, ctx: Ctx, depth: Value): Value {
   const arr = ctx.fn.call("@cs_set_values", T.ptr, [set]);
   const len = ctx.fn.call("@cs_array_len", T.i32, [arr]);
-  const body = joinBracketed(len, "{", "}", ctx, (i) => {
-    const elem = unboxSlot(ctx.fn.call("@cs_array_get", T.i64, [arr, i]), element, ctx);
-    return inspect(elem, element, ctx, nextDepth(ctx, depth));
-  });
-  return concat(ctx, sizePrefix("Set", len, ctx), body);
+  return formatContainer(
+    ctx,
+    depth,
+    {
+      self: set,
+      count: len,
+      empty: ctx.mod.cstring("Set(0) {}"),
+      deep: "[Set]",
+      open: () => sizePrefix("Set", len, ctx),
+      close: "}",
+      arrayMode: () => imm(T.i32, -1),
+    },
+    (entries, inner) =>
+      forIndex(ctx, len, MAX_SHOWN, (i) => {
+        const elem = unboxSlot(ctx.fn.call("@cs_array_get", T.i64, [arr, i]), element, ctx);
+        pushEntry(ctx, entries, inspect(elem, element, ctx, inner));
+      }),
+  );
 }
 
-// `Map(N) {}` / `Map(N) { k0 => v0 }`.
+// `Map(N) { k0 => v0 }`.
 function inspectMap(
   map: Value,
   keyType: ValueType,
@@ -179,75 +347,30 @@ function inspectMap(
   const keys = ctx.fn.call("@cs_map_keys", T.ptr, [map]);
   const vals = ctx.fn.call("@cs_map_values", T.ptr, [map]);
   const len = ctx.fn.call("@cs_array_len", T.i32, [keys]);
-  const body = joinBracketed(len, "{", "}", ctx, (i) => {
-    const k = unboxSlot(ctx.fn.call("@cs_array_get", T.i64, [keys, i]), keyType, ctx);
-    const v = unboxSlot(ctx.fn.call("@cs_array_get", T.i64, [vals, i]), valueType, ctx);
-    return concat(
-      ctx,
-      concat(ctx, inspect(k, keyType, ctx, nextDepth(ctx, depth)), ctx.mod.cstring(" => ")),
-      inspect(v, valueType, ctx, nextDepth(ctx, depth)),
-    );
-  });
-  return concat(ctx, sizePrefix("Map", len, ctx), body);
+  return formatContainer(
+    ctx,
+    depth,
+    {
+      self: map,
+      count: len,
+      empty: ctx.mod.cstring("Map(0) {}"),
+      deep: "[Map]",
+      open: () => sizePrefix("Map", len, ctx),
+      close: "}",
+      arrayMode: () => imm(T.i32, -1),
+    },
+    (entries, inner) =>
+      forIndex(ctx, len, MAX_SHOWN, (i) => {
+        const k = unboxSlot(ctx.fn.call("@cs_array_get", T.i64, [keys, i]), keyType, ctx);
+        const v = unboxSlot(ctx.fn.call("@cs_array_get", T.i64, [vals, i]), valueType, ctx);
+        const key = concat(ctx, inspect(k, keyType, ctx, inner), ctx.mod.cstring(" => "));
+        pushEntry(ctx, entries, concat(ctx, key, inspect(v, valueType, ctx, inner)));
+      }),
+  );
 }
 
-// `Kind(N) ` prefix for Map/Set (the count then a space).
+// `Kind(N) {`, the prefix Node puts before a Map's or Set's brace.
 function sizePrefix(kind: string, len: Value, ctx: Ctx): Value {
   const n = ctx.fn.call("@cs_num_to_string", T.ptr, [ctx.fn.sitofp(len)]);
-  return concat(ctx, concat(ctx, ctx.mod.cstring(`${kind}(`), n), ctx.mod.cstring(") "));
-}
-
-// Build `open` + (empty ? "" : " e0, e1 " ) + `close` over `count` elements, calling `elemStr(i)`
-// for each. Empty → `openclose` with no interior spaces (Node: `[]`, `{}`).
-export function joinBracketed(
-  count: Value,
-  open: string,
-  close: string,
-  ctx: Ctx,
-  elemStr: (i: Value) => Value,
-): Value {
-  const result = ctx.fn.alloca(T.ptr);
-  const emptyB = ctx.fn.newBlock("join.empty");
-  const bodyB = ctx.fn.newBlock("join.body");
-  const endB = ctx.fn.newBlock("join.end");
-  ctx.fn.brCond(ctx.fn.icmp("eq", count, imm(T.i32, 0)), emptyB, bodyB);
-
-  ctx.fn.switchTo(emptyB);
-  ctx.fn.store(ctx.mod.cstring(open + close), result);
-  ctx.fn.br(endB);
-
-  ctx.fn.switchTo(bodyB);
-  const accPtr = ctx.fn.alloca(T.ptr);
-  ctx.fn.store(ctx.mod.cstring(open + " "), accPtr);
-  const idxPtr = ctx.fn.alloca(T.i32);
-  ctx.fn.store(imm(T.i32, 0), idxPtr);
-  const headerB = ctx.fn.newBlock("join.header");
-  const iterB = ctx.fn.newBlock("join.iter");
-  const doneB = ctx.fn.newBlock("join.done");
-  ctx.fn.br(headerB);
-
-  ctx.fn.switchTo(headerB);
-  const i = ctx.fn.load(T.i32, idxPtr);
-  ctx.fn.brCond(ctx.fn.icmp("slt", i, count), iterB, doneB);
-
-  ctx.fn.switchTo(iterB);
-  const idx = ctx.fn.load(T.i32, idxPtr);
-  // Separator ", " before every element after the first.
-  const sepB = ctx.fn.newBlock("join.sep");
-  const afterSepB = ctx.fn.newBlock("join.aftersep");
-  ctx.fn.brCond(ctx.fn.icmp("sgt", idx, imm(T.i32, 0)), sepB, afterSepB);
-  ctx.fn.switchTo(sepB);
-  ctx.fn.store(concat(ctx, ctx.fn.load(T.ptr, accPtr), ctx.mod.cstring(", ")), accPtr);
-  ctx.fn.br(afterSepB);
-  ctx.fn.switchTo(afterSepB);
-  ctx.fn.store(concat(ctx, ctx.fn.load(T.ptr, accPtr), elemStr(idx)), accPtr);
-  ctx.fn.store(ctx.fn.iadd(ctx.fn.load(T.i32, idxPtr), imm(T.i32, 1)), idxPtr);
-  ctx.fn.br(headerB);
-
-  ctx.fn.switchTo(doneB);
-  ctx.fn.store(concat(ctx, ctx.fn.load(T.ptr, accPtr), ctx.mod.cstring(" " + close)), result);
-  ctx.fn.br(endB);
-
-  ctx.fn.switchTo(endB);
-  return ctx.fn.load(T.ptr, result);
+  return concat(ctx, concat(ctx, ctx.mod.cstring(`${kind}(`), n), ctx.mod.cstring(") {"));
 }

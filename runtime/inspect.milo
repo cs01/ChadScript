@@ -1,0 +1,584 @@
+// util.inspect's layout, ported from Node's lib/internal/util/inspect.js (v25.3.0) with the options
+// console.log uses: compact 3, breakLength 80, depth 2, maxArrayLength 100, maxStringLength 10000,
+// no colors. Codegen formats each ENTRY of a container (it knows the element types and the object
+// shapes) and hands the entry list here; everything about how entries are laid out (one line or
+// many, column grouping, indentation, `... N more items`, `<ref *N>` / `[Circular *N]`) lives in
+// this one file, so every printed container goes through the same implementation.
+//
+// Nesting: codegen passes `depth` (Node's recurseTimes). Every nesting step in Node (a property,
+// an array element, a Map/Set entry) adds 2 to ctx.indentationLvl, so the indentation is always
+// 2 * depth.
+//
+// Strings are ASCII here (PLAN.md "Decisions locked"), so a string's JS length is its byte count
+// and Node's getStringWidth is "bytes >= 0x20".
+
+from "./abi" import { CsString, CsArray, GC_malloc, GC_malloc_atomic, memcpy, byteAt }
+from "./csstring" import { cs_str_mk }
+from "./array" import { cs_array_new, cs_array_push, cs_array_len, cs_array_get }
+from "./number" import { numToStr }
+from "./math" import { cs_math_round }
+from "./libc" import { floor, sqrt }
+
+let BREAK_LENGTH: i64 = 80
+// ctx.compact; also caps grouped columns at compact * 4.
+let COMPACT: i64 = 3
+let MAX_ARRAY_LENGTH: i64 = 100
+let MAX_STRING_LENGTH: i64 = 10000
+// kMinLineLength: strings no longer than this are never split at their newlines.
+let MIN_LINE_LENGTH: i64 = 16
+
+// ---------------------------------------------------------------------------------------------
+// A growable byte buffer in GC memory. The header is scanned (it points at the bytes); the bytes
+// are atomic.
+
+extern struct Sb {
+    p: *u8,
+    n: i64,
+    cap: i64,
+}
+
+fn sbNew(): *Sb {
+    unsafe {
+        let b = GC_malloc(24) as *Sb
+        b.p = GC_malloc_atomic(64)
+        b.n = 0
+        b.cap = 64
+        return b
+    }
+}
+
+fn sbBytes(b: *Sb, p: *u8, n: i64) {
+    unsafe {
+        if b.n + n > b.cap {
+            var nc = b.cap * 2
+            while nc < b.n + n {
+                nc = nc * 2
+            }
+            let np = GC_malloc_atomic(nc)
+            memcpy(np, b.p, b.n)
+            b.p = np
+            b.cap = nc
+        }
+        if n > 0 {
+            memcpy(byteAt(b.p, b.n), p, n)
+        }
+        b.n = b.n + n
+    }
+}
+
+fn sbByte(b: *Sb, c: u8) {
+    var one: [u8; 1] = [0; 1]
+    one[0] = c
+    unsafe {
+        sbBytes(b, one.addrOf() as *u8, 1)
+    }
+}
+
+fn sbStr(b: *Sb, s: *CsString) {
+    unsafe {
+        sbBytes(b, s.data, s.len)
+    }
+}
+
+fn sbLit(b: *Sb, s: &string) {
+    sbBytes(b, s.cstr(), s.len)
+}
+
+fn sbSpaces(b: *Sb, n: i64) {
+    var i: i64 = 0
+    while i < n {
+        sbByte(b, ' ')
+        i = i + 1
+    }
+}
+
+fn sbInt(b: *Sb, v: i64) {
+    var buf: [u8; 40] = [0; 40]
+    unsafe {
+        let p = buf.addrOf() as *u8
+        sbBytes(b, p, numToStr(v as f64, p))
+    }
+}
+
+fn sbLen(b: *Sb): i64 {
+    unsafe {
+        return b.n
+    }
+}
+
+fn sbDone(b: *Sb): *CsString {
+    unsafe {
+        return cs_str_mk(b.p, b.n)
+    }
+}
+
+fn slen(s: *CsString): i64 {
+    unsafe {
+        return s.len
+    }
+}
+
+fn sbyte(s: *CsString, i: i64): u8 {
+    unsafe {
+        return s.data[i]
+    }
+}
+
+fn hasByte(s: *CsString, c: u8): bool {
+    var i: i64 = 0
+    while i < slen(s) {
+        if sbyte(s, i) == c {
+            return true
+        }
+        i = i + 1
+    }
+    return false
+}
+
+fn entryAt(a: *CsArray, i: i64): *CsString {
+    unsafe {
+        return cs_array_get(a, i as i32) as *CsString
+    }
+}
+
+fn pushEntry(a: *CsArray, s: *CsString) {
+    unsafe {
+        cs_array_push(a, s as i64)
+    }
+}
+
+fn alen(a: *CsArray): i64 {
+    return cs_array_len(a) as i64
+}
+
+// ---------------------------------------------------------------------------------------------
+// Strings: strEscape + formatPrimitive's string case.
+
+// Function-local literal: see radixChar in number.milo for why this is not a global.
+fn hexUpper(d: i64): u8 {
+    let chars = "0123456789ABCDEF"
+    return chars[d]
+}
+
+// strEscape's quote choice for bytes [a, b) of s: single quotes unless the text has one; then
+// double quotes unless it has one too; then a backtick unless it has a backtick or `${`; else
+// single quotes with `'` escaped.
+fn quoteFor(s: *CsString, a: i64, b: i64): u8 {
+    var single = false
+    var double = false
+    var tick = false
+    var i = a
+    while i < b {
+        let c = sbyte(s, i)
+        if c == '\'' {
+            single = true
+        } else if c == '"' {
+            double = true
+        } else if c == '`' || (c == '$' && i + 1 < b && sbyte(s, i + 1) == '{') {
+            tick = true
+        }
+        i = i + 1
+    }
+    if !single {
+        return '\''
+    }
+    if !double {
+        return '"'
+    }
+    if !tick {
+        return '`'
+    }
+    return '\''
+}
+
+// strEscape of bytes [a, b): quoted, with the backslash, control characters and DEL escaped as in
+// Node's `meta` table, and `'` escaped only when single quotes are the delimiter.
+fn escapeInto(out: *Sb, s: *CsString, a: i64, b: i64) {
+    let quote = quoteFor(s, a, b)
+    sbByte(out, quote)
+    var i = a
+    while i < b {
+        let c = sbyte(s, i)
+        i = i + 1
+        if (c == '\'' && quote == '\'') || c == '\\' {
+            sbByte(out, '\\')
+            sbByte(out, c)
+        } else if c < 32 || c == 127 {
+            var named: u8 = 0
+            if c == 8 {
+                named = 'b'
+            } else if c == '\t' {
+                named = 't'
+            } else if c == '\n' {
+                named = 'n'
+            } else if c == 12 {
+                named = 'f'
+            } else if c == '\r' {
+                named = 'r'
+            }
+            sbByte(out, '\\')
+            if named != 0 {
+                sbByte(out, named)
+            } else {
+                sbByte(out, 'x')
+                sbByte(out, hexUpper((c >> 4) as i64))
+                sbByte(out, hexUpper((c & 15) as i64))
+            }
+        } else {
+            sbByte(out, c)
+        }
+    }
+    sbByte(out, quote)
+}
+
+// A string nested in a container, at nesting `depth`. Past maxStringLength it is cut with a
+// `... N more characters` trailer; a long one (over kMinLineLength and over the room left on the
+// line) is split after each newline into quoted pieces joined by ` +` line breaks.
+@externalLinkage
+pub fn cs_inspect_str(s: *CsString, depth: i32): *CsString {
+    let out = sbNew()
+    var n = slen(s)
+    var remaining: i64 = 0
+    if n > MAX_STRING_LENGTH {
+        remaining = n - MAX_STRING_LENGTH
+        n = MAX_STRING_LENGTH
+    }
+    let indent = depth as i64 * 2
+    if n > MIN_LINE_LENGTH && n > BREAK_LENGTH - indent - 4 {
+        var start: i64 = 0
+        var i: i64 = 0
+        while i < n {
+            // A piece ends after each newline, except one that ends the string (JS split on
+            // /(?<=\n)/ never yields a trailing empty piece).
+            if sbyte(s, i) == '\n' && i + 1 < n {
+                escapeInto(out, s, start, i + 1)
+                sbLit(out, " +\n")
+                sbSpaces(out, indent + 2)
+                start = i + 1
+            }
+            i = i + 1
+        }
+        escapeInto(out, s, start, n)
+    } else {
+        escapeInto(out, s, 0, n)
+    }
+    if remaining > 0 {
+        sbLit(out, "... ")
+        sbInt(out, remaining)
+        sbLit(out, " more character")
+        if remaining > 1 {
+            sbByte(out, 's')
+        }
+    }
+    return sbDone(out)
+}
+
+// A property key: bare when it matches /^[a-zA-Z_][a-zA-Z_0-9]*$/ (note: no `$`), `['__proto__']`
+// for that one name, else quoted like a string (never split).
+@externalLinkage
+pub fn cs_inspect_key(s: *CsString): *CsString {
+    let n = slen(s)
+    var ok = n > 0
+    var i: i64 = 0
+    while ok && i < n {
+        let c = sbyte(s, i)
+        let alpha = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'
+        let digit = c >= '0' && c <= '9'
+        if !(alpha || (digit && i > 0)) {
+            ok = false
+        }
+        i = i + 1
+    }
+    let out = sbNew()
+    if ok {
+        let proto = "__proto__"
+        var same = n == proto.len
+        var j: i64 = 0
+        while same && j < n {
+            if sbyte(s, j) != proto[j] {
+                same = false
+            }
+            j = j + 1
+        }
+        if !same {
+            return s
+        }
+        sbLit(out, "['__proto__']")
+        return sbDone(out)
+    }
+    escapeInto(out, s, 0, n)
+    return sbDone(out)
+}
+
+// ---------------------------------------------------------------------------------------------
+// Circular references. `gSeen` is Node's ctx.seen (the containers being formatted, outermost
+// first); `gCircular` is ctx.circular (a container's position + 1 is its `*N` index). console.log
+// runs no user code while formatting, so one global pair serves every call; the index table is
+// cleared whenever the outermost container finishes, which is where Node drops its ctx.
+
+var gSeen: *CsArray = 0 as *CsArray
+var gCircular: *CsArray = 0 as *CsArray
+
+fn indexIn(a: *CsArray, p: i64): i64 {
+    if a as i64 == 0 {
+        return -1
+    }
+    var i: i64 = 0
+    while i < alen(a) {
+        if cs_array_get(a, i as i32) == p {
+            return i
+        }
+        i = i + 1
+    }
+    return -1
+}
+
+// `[Circular *N]` when container `p` is already being formatted (an ancestor), else null.
+@externalLinkage
+pub fn cs_insp_circular(p: *u8): *CsString {
+    let key = p as i64
+    if indexIn(gSeen, key) < 0 {
+        return 0 as *CsString
+    }
+    if gCircular as i64 == 0 {
+        gCircular = cs_array_new()
+    }
+    var idx = indexIn(gCircular, key)
+    if idx < 0 {
+        cs_array_push(gCircular, key)
+        idx = alen(gCircular) - 1
+    }
+    let out = sbNew()
+    sbLit(out, "[Circular *")
+    sbInt(out, idx + 1)
+    sbByte(out, ']')
+    return sbDone(out)
+}
+
+// Container `p` is about to format its entries.
+@externalLinkage
+pub fn cs_insp_push(p: *u8) {
+    if gSeen as i64 == 0 {
+        gSeen = cs_array_new()
+    }
+    cs_array_push(gSeen, p as i64)
+}
+
+// ---------------------------------------------------------------------------------------------
+// Layout: groupArrayElements, isBelowBreakLength, reduceToSingleString.
+
+// getStringWidth for ASCII: control characters (an entry's own line breaks) take no column.
+fn width(s: *CsString): i64 {
+    var w: i64 = 0
+    var i: i64 = 0
+    while i < slen(s) {
+        if sbyte(s, i) >= 32 {
+            w = w + 1
+        }
+        i = i + 1
+    }
+    return w
+}
+
+fn minI(a: i64, b: i64): i64 {
+    return if a < b { a } else { b }
+}
+
+// Lines up the entries of an array with more than 6 of them into columns when they are short and
+// similar in length. `numeric` selects padStart (every element a number) over padEnd.
+fn groupArrayElements(output: *CsArray, indent: i64, numeric: bool): *CsArray {
+    let outLen = alen(output)
+    var outputLength = outLen
+    if MAX_ARRAY_LENGTH < outLen {
+        // The trailing `... N more items` entry takes no part in the grouping.
+        outputLength = outputLength - 1
+    }
+    let separatorSpace: i64 = 2
+    let dataLen = cs_array_new()
+    var totalLength: i64 = 0
+    var maxLength: i64 = 0
+    var i: i64 = 0
+    while i < outputLength {
+        let len = width(entryAt(output, i))
+        cs_array_push(dataLen, len)
+        totalLength = totalLength + len + separatorSpace
+        if maxLength < len {
+            maxLength = len
+        }
+        i = i + 1
+    }
+    let actualMax = maxLength + separatorSpace
+    if !(actualMax * 3 + indent < BREAK_LENGTH &&
+        ((totalLength as f64) / (actualMax as f64) > 5.0 || maxLength <= 6)) {
+        return output
+    }
+    let approxCharHeights = 2.5
+    let averageBias = sqrt((actualMax as f64) - (totalLength as f64) / (outLen as f64))
+    var biasedMax = (actualMax as f64) - 3.0 - averageBias
+    if biasedMax < 1.0 {
+        biasedMax = 1.0
+    }
+    var columns = cs_math_round(sqrt(approxCharHeights * biasedMax * (outputLength as f64)) / biasedMax) as i64
+    columns = minI(columns, floor(((BREAK_LENGTH - indent) as f64) / (actualMax as f64)) as i64)
+    columns = minI(columns, COMPACT * 4)
+    columns = minI(columns, 15)
+    if columns <= 1 {
+        return output
+    }
+    let maxLineLength = cs_array_new()
+    i = 0
+    while i < columns {
+        var lineMax: i64 = 0
+        var j = i
+        while j < outputLength {
+            let d = cs_array_get(dataLen, j as i32)
+            if d > lineMax {
+                lineMax = d
+            }
+            j = j + columns
+        }
+        cs_array_push(maxLineLength, lineMax + separatorSpace)
+        i = i + 1
+    }
+    let tmp = cs_array_new()
+    i = 0
+    while i < outputLength {
+        let max = minI(i + columns, outputLength)
+        let row = sbNew()
+        var j = i
+        while j < max - 1 {
+            let e = entryAt(output, j)
+            // padStart/padEnd of `${entry}, ` to the column width (plus the zero-width bytes).
+            let padding = cs_array_get(maxLineLength, (j - i) as i32) + slen(e) - cs_array_get(dataLen, j as i32)
+            let fill = padding - slen(e) - 2
+            if numeric {
+                sbSpaces(row, fill)
+            }
+            sbStr(row, e)
+            sbLit(row, ", ")
+            if !numeric {
+                sbSpaces(row, fill)
+            }
+            j = j + 1
+        }
+        let last = entryAt(output, j)
+        if numeric {
+            let padding = cs_array_get(maxLineLength, (j - i) as i32) + slen(last) - cs_array_get(dataLen, j as i32) - separatorSpace
+            sbSpaces(row, padding - slen(last))
+        }
+        sbStr(row, last)
+        pushEntry(tmp, sbDone(row))
+        i = i + columns
+    }
+    if MAX_ARRAY_LENGTH < outLen {
+        pushEntry(tmp, entryAt(output, outputLength))
+    }
+    return tmp
+}
+
+// Whether the entries fit on one line after `start` columns of overhead: each entry costs its
+// length plus one separator column. (`base` never holds a line break here: it is empty or a
+// `<ref *N>` marker.)
+fn isBelowBreakLength(output: *CsArray, start: i64): bool {
+    var totalLength = alen(output) + start
+    if totalLength + alen(output) > BREAK_LENGTH {
+        return false
+    }
+    var i: i64 = 0
+    while i < alen(output) {
+        totalLength = totalLength + slen(entryAt(output, i))
+        if totalLength > BREAK_LENGTH {
+            return false
+        }
+        i = i + 1
+    }
+    return true
+}
+
+fn joinEntries(out: *Sb, output: *CsArray, sep: *CsString) {
+    var i: i64 = 0
+    while i < alen(output) {
+        if i > 0 {
+            sbStr(out, sep)
+        }
+        sbStr(out, entryAt(output, i))
+        i = i + 1
+    }
+}
+
+// Container `p` finished formatting: `entries` are its formatted entries (at most 100 for an
+// array, Map or Set whose true size is `total`), `open` its opening brace with any prefix
+// (`[`, `{`, `Point {`, `Map(2) {`), `close` its closing one. `arrayMode` is -1 for anything but
+// an array; for an array it is 1 when every element (up to the 101st, as Node checks) is a number,
+// else 0. Returns the laid-out text.
+@externalLinkage
+pub fn cs_insp_finish(p: *u8, entries: *CsArray, total: i32, open: *CsString, close: *CsString, arrayMode: i32, depth: i32): *CsString {
+    unsafe {
+        gSeen.len = gSeen.len - 1
+    }
+    var output = entries
+    let shown = alen(entries)
+    if total as i64 > shown {
+        let remaining = total as i64 - shown
+        let more = sbNew()
+        sbLit(more, "... ")
+        sbInt(more, remaining)
+        sbLit(more, " more item")
+        if remaining > 1 {
+            sbByte(more, 's')
+        }
+        pushEntry(output, sbDone(more))
+    }
+    let base = sbNew()
+    let refIdx = indexIn(gCircular, p as i64)
+    if refIdx >= 0 {
+        sbLit(base, "<ref *")
+        sbInt(base, refIdx + 1)
+        sbByte(base, '>')
+    }
+    if cs_array_len(gSeen) == 0 && gCircular as i64 != 0 {
+        unsafe {
+            gCircular.len = 0
+        }
+    }
+    let indent = depth as i64 * 2
+    let entryCount = alen(output)
+    if arrayMode >= 0 && entryCount > 6 {
+        output = groupArrayElements(output, indent, arrayMode == 1)
+    }
+    let out = sbNew()
+    if sbLen(base) > 0 {
+        sbStr(out, sbDone(base))
+        sbByte(out, ' ')
+    }
+    sbStr(out, open)
+    // Node also requires ctx.currentDepth - recurseTimes < compact here. With depth 2 the deepest
+    // container formatted is 2 levels below any other, so that test always passes.
+    if entryCount == alen(output) {
+        let start = alen(output) + indent + slen(open) + sbLen(base) + 10
+        if isBelowBreakLength(output, start) {
+            let line = sbNew()
+            let sep = sbNew()
+            sbLit(sep, ", ")
+            joinEntries(line, output, sbDone(sep))
+            let joined = sbDone(line)
+            if !hasByte(joined, '\n') {
+                sbByte(out, ' ')
+                sbStr(out, joined)
+                sbByte(out, ' ')
+                sbStr(out, close)
+                return sbDone(out)
+            }
+        }
+    }
+    let sep = sbNew()
+    sbLit(sep, ",\n")
+    sbSpaces(sep, indent + 2)
+    sbByte(out, '\n')
+    sbSpaces(out, indent + 2)
+    joinEntries(out, output, sbDone(sep))
+    sbByte(out, '\n')
+    sbSpaces(out, indent)
+    sbStr(out, close)
+    return sbDone(out)
+}

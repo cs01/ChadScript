@@ -130,6 +130,11 @@ export function unboxValue(raw: Value, type: ValueType, ctx: Ctx): Value {
 }
 
 // True when a Value is `undefined`.
+// Whether a Value word holds a number (every double sits at or above the offset).
+export function isNumberWord(raw: Value, ctx: Ctx): Value {
+  return ctx.fn.icmp("uge", raw, imm(T.i64, DOUBLE_OFFSET));
+}
+
 export function isUndefinedValue(raw: Value, ctx: Ctx): Value {
   return ctx.fn.icmp("eq", raw, imm(T.i64, V_UNDEFINED));
 }

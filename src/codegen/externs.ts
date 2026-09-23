@@ -23,7 +23,11 @@ export function declareRuntimeExterns(mod: ModuleBuilder): void {
   mod.declareExtern("cs_num_to_string_radix", T.ptr, [T.double, T.double]);
   mod.declareExtern("cs_string_to_number", T.double, [T.ptr]);
   mod.declareExtern("cs_inspect_num", T.ptr, [T.double]);
-  mod.declareExtern("cs_inspect_str", T.ptr, [T.ptr]);
+  mod.declareExtern("cs_inspect_str", T.ptr, [T.ptr, T.i32]);
+  // util.inspect layout (runtime/inspect.milo).
+  mod.declareExtern("cs_insp_circular", T.ptr, [T.ptr]);
+  mod.declareExtern("cs_insp_push", T.void, [T.ptr]);
+  mod.declareExtern("cs_insp_finish", T.ptr, [T.ptr, T.ptr, T.i32, T.ptr, T.ptr, T.i32, T.i32]);
   mod.declareExtern("cs_bool_to_string", T.ptr, [T.i32]);
   mod.declareExtern("cs_str_eq", T.i32, [T.ptr, T.ptr]);
   // Value words (runtime/value.milo).

@@ -349,6 +349,13 @@ export class FuncBuilder {
     this.current.add(`${result.name} = zext i1 ${a.name} to i64`);
     return result;
   }
+  truncI64ToI32(a: Value): Value {
+    if (a.type.kind !== "i64") ice(`trunc i64→i32 needs i64, got ${a.type.kind}`);
+    const result = this.nextTemp(T.i32);
+    this.current.add(`${result.name} = trunc i64 ${a.name} to i32`);
+    return result;
+  }
+
   truncI64ToI1(a: Value): Value {
     if (a.type.kind !== "i64") ice(`trunc i64→i1 needs i64, got ${a.type.kind}`);
     const result = this.nextTemp(T.i1);

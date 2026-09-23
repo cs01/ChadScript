@@ -11,7 +11,7 @@ import type { ValueType } from "../hir/types.js";
 import { classDisplayName } from "../hir/types.js";
 import type { Ctx } from "./expr.js";
 import { RECORD_HEADER_SLOTS, loadShape, loadShapeWord, shapeGlobalName } from "./shapes.js";
-import { MAX_DEPTH, inspectStored } from "./inspect.js";
+import { concat, formatContainer, inspectStored, pushEntry } from "./inspect.js";
 import { jsonStored, linePrefix, nextDepth } from "./json.js";
 import { V_UNDEFINED } from "./value.js";
 import { emitJsonAnyFunctions, inspectAny, jsonAny } from "./json-any.js";
@@ -37,9 +37,6 @@ function fnCtx(mod: ModuleBuilder, fn: Ctx["fn"], shapes: readonly ShapeDescript
     shapes,
   };
 }
-
-const concat = (ctx: Ctx, a: Value, b: Value): Value =>
-  ctx.fn.call("@cs_str_concat", T.ptr, [a, b]);
 
 // Field types the formatters support. Every shape gets both functions whether or not it is ever
 // printed, so a layout holding something else (a Promise, a caught error) gets a function that
@@ -77,7 +74,9 @@ function inspectable(t: ValueType): boolean {
   }
 }
 
-function jsonable(t: ValueType): boolean {
+// `field`: t is an object field's type. Only a field may be optional (an absent field is skipped);
+// json.ts has no text for an optional anywhere else (validate/render-rules.ts rejects those sites).
+function jsonable(t: ValueType, field: boolean): boolean {
   switch (t.kind) {
     case "number":
     case "string":
@@ -86,13 +85,13 @@ function jsonable(t: ValueType): boolean {
     case "object":
       return true;
     case "optional":
-      return jsonable(t.inner);
+      return field && jsonable(t.inner, false);
     case "array":
-      return jsonable(t.element);
+      return jsonable(t.element, false);
     case "value":
       // A field holding `undefined` is skipped by the field loop (it checks the word first), so
       // an undefined member is fine here; every other member must have JSON text.
-      return t.members.every((m) => m.kind === "undefined" || jsonable(m));
+      return t.members.every((m) => m.kind === "undefined" || jsonable(m, false));
     case "undefined":
     case "function":
     case "set":
@@ -130,27 +129,37 @@ function emitInspect(mod: ModuleBuilder, s: ShapeDescriptor, shapes: readonly Sh
     return;
   }
 
-  const deepB = fn.newBlock("deep");
-  const bodyB = fn.newBlock("body");
-  fn.brCond(fn.icmp("sgt", depth, imm(T.i32, MAX_DEPTH)), deepB, bodyB);
-  fn.switchTo(deepB);
-  fn.ret(mod.cstring(name !== null ? `[${name}]` : "[Object]"));
-
-  fn.switchTo(bodyB);
   const prefix = name !== null ? `${name} ` : "";
-  if (s.fields.length === 0) {
-    fn.ret(mod.cstring(`${prefix}{}`));
-    return;
-  }
-  const inner = fn.iadd(depth, imm(T.i32, 1));
-  let acc = mod.cstring(`${prefix}{ `);
-  s.fields.forEach((f, i) => {
-    if (i > 0) acc = concat(ctx, acc, mod.cstring(", "));
-    acc = concat(ctx, acc, mod.cstring(`${f.name}: `));
-    const raw = fn.load(T.i64, fn.gepSlot(obj, i + RECORD_HEADER_SLOTS));
-    acc = concat(ctx, acc, inspectStored(raw, f.type, ctx, inner));
-  });
-  fn.ret(concat(ctx, acc, mod.cstring(" }")));
+  const text = formatContainer(
+    ctx,
+    depth,
+    {
+      self: obj,
+      count: imm(T.i32, s.fields.length),
+      empty: mod.cstring(`${prefix}{}`),
+      deep: name !== null ? `[${name}]` : "[Object]",
+      open: () => mod.cstring(`${prefix}{`),
+      close: "}",
+      arrayMode: () => imm(T.i32, -1),
+    },
+    (entries, inner) =>
+      s.fields.forEach((f, i) => {
+        const raw = fn.load(T.i64, fn.gepSlot(obj, i + RECORD_HEADER_SLOTS));
+        const key = keyPrefix(ctx, f.name);
+        pushEntry(ctx, entries, concat(ctx, key, inspectStored(raw, f.type, ctx, inner)));
+      }),
+  );
+  fn.ret(text);
+}
+
+// Node's key spelling (formatProperty): an identifier-like name prints bare; anything else is
+// quoted by the runtime's one implementation (cs_inspect_key).
+const PLAIN_KEY = /^[a-zA-Z_][a-zA-Z_0-9]*$/;
+
+function keyPrefix(ctx: Ctx, name: string): Value {
+  if (PLAIN_KEY.test(name) && name !== "__proto__") return ctx.mod.cstring(`${name}: `);
+  const quoted = ctx.fn.call("@cs_inspect_key", T.ptr, [ctx.mod.internedString(name)]);
+  return concat(ctx, quoted, ctx.mod.cstring(": "));
 }
 
 // `{"a":1}` / pretty `{\n  "a": 1\n}`. A field holding undefined is omitted and a function-valued
@@ -164,7 +173,7 @@ function emitJson(mod: ModuleBuilder, s: ShapeDescriptor, shapes: readonly Shape
   const fields = s.fields
     .map((f, i) => ({ f, i }))
     .filter(({ f }) => f.type.kind !== "function" && f.type.kind !== "undefined");
-  const bad = fields.find(({ f }) => !jsonable(f.type));
+  const bad = fields.find(({ f }) => !jsonable(f.type, true));
   if (bad) {
     unsupported(
       ctx,
@@ -270,41 +279,31 @@ function forEachRuntimeField(
 
 function emitTemplateInspect(s: ShapeDescriptor, ctx: Ctx, obj: Value, depth: Value): void {
   const fn = ctx.fn;
-  const deepB = fn.newBlock("deep");
-  const bodyB = fn.newBlock("body");
-  fn.brCond(fn.icmp("sgt", depth, imm(T.i32, MAX_DEPTH)), deepB, bodyB);
-  fn.switchTo(deepB);
-  fn.ret(ctx.mod.cstring("[Object]"));
-  fn.switchTo(bodyB);
   const count = loadShapeWord(loadShape(obj, ctx), "fieldCount", ctx);
-  const emptyB = fn.newBlock("empty");
-  const fieldsB = fn.newBlock("fields");
-  fn.brCond(fn.icmp("eq", count, imm(T.i64, 0)), emptyB, fieldsB);
-  fn.switchTo(emptyB);
-  fn.ret(ctx.mod.cstring("{}"));
-  fn.switchTo(fieldsB);
-  const inner = fn.iadd(depth, imm(T.i32, 1));
-  const accPtr = fn.alloca(T.ptr);
-  fn.store(ctx.mod.cstring("{ "), accPtr);
-  const append = (v: Value): void => fn.store(concat(ctx, fn.load(T.ptr, accPtr), v), accPtr);
-  forEachRuntimeField(s, ctx, obj, (k, f, raw, name) => {
-    const sepB = fn.newBlock("insp.sep");
-    const keyB = fn.newBlock("insp.key");
-    fn.brCond(fn.icmp("sgt", k, imm(T.i64, 0)), sepB, keyB);
-    fn.switchTo(sepB);
-    append(ctx.mod.cstring(", "));
-    fn.br(keyB);
-    fn.switchTo(keyB);
-    if (f === null) {
-      append(fn.call("@cs_inspect_key", T.ptr, [name]));
-      append(ctx.mod.cstring(": "));
-      append(inspectAny(raw, ctx, inner));
-      return;
-    }
-    append(ctx.mod.cstring(`${f.name}: `));
-    append(inspectStored(raw, f.type, ctx, inner));
-  });
-  fn.ret(concat(ctx, fn.load(T.ptr, accPtr), ctx.mod.cstring(" }")));
+  const text = formatContainer(
+    ctx,
+    depth,
+    {
+      self: obj,
+      count: fn.truncI64ToI32(count),
+      empty: ctx.mod.cstring("{}"),
+      deep: "[Object]",
+      open: () => ctx.mod.cstring("{"),
+      close: "}",
+      arrayMode: () => imm(T.i32, -1),
+    },
+    (entries, inner) =>
+      forEachRuntimeField(s, ctx, obj, (_k, f, raw, name) => {
+        if (f === null) {
+          const key = concat(ctx, fn.call("@cs_inspect_key", T.ptr, [name]), ctx.mod.cstring(": "));
+          pushEntry(ctx, entries, concat(ctx, key, inspectAny(raw, ctx, inner)));
+          return;
+        }
+        const key = keyPrefix(ctx, f.name);
+        pushEntry(ctx, entries, concat(ctx, key, inspectStored(raw, f.type, ctx, inner)));
+      }),
+  );
+  fn.ret(text);
 }
 
 function emitTemplateJson(

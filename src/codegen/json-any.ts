@@ -10,7 +10,7 @@ import { T } from "../ir/types.js";
 import { ANY_OBJECT, VT, type ValueType } from "../hir/types.js";
 import type { ShapeDescriptor } from "../hir/nodes.js";
 import type { Ctx } from "./expr.js";
-import { beyondDepth, inspect, joinBracketed } from "./inspect.js";
+import { inspect, inspectSlots } from "./inspect.js";
 import { jsonJoin, jsonStringify, linePrefix, nextDepth } from "./json.js";
 import { switchOnValue } from "./value-ops.js";
 import { unboxValue } from "./value.js";
@@ -56,16 +56,7 @@ export function emitJsonAnyFunctions(
         if (m.kind === "null") return mod.cstring("null");
         if (m.kind !== "array") return inspect(unboxValue(raw, m, ctx), m, ctx, depth);
         const arr = unboxValue(raw, m, ctx);
-        return beyondDepth(ctx, depth, "[Array]", () => {
-          const len = fn.call("@cs_array_len", T.i32, [arr]);
-          return joinBracketed(len, "[", "]", ctx, (i) =>
-            inspectAny(
-              fn.call("@cs_array_get", T.i64, [arr, i]),
-              ctx,
-              fn.iadd(depth, imm(T.i32, 1)),
-            ),
-          );
-        });
+        return inspectSlots(arr, ctx, depth, null, (slot, inner) => inspectAny(slot, ctx, inner));
       }),
     );
   }

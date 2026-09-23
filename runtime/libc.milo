@@ -8,6 +8,7 @@ pub extern fn snprintf(buf: *u8, n: i64, fmt: *u8, ...): i32
 pub extern fn strlen(s: *u8): i64
 
 pub extern fn floor(x: f64): f64
+pub extern fn sqrt(x: f64): f64
 pub extern fn trunc(x: f64): f64
 pub extern fn fmod(x: f64, y: f64): f64
 pub extern fn nextafter(x: f64, y: f64): f64
