@@ -194,7 +194,25 @@ function verifyStmt(s: HStmt): void {
       verifyStmts(s.body);
       return;
     case "forOf":
-      verifyExpr(s.array);
+      switch (s.source.kind) {
+        case "array":
+          if (s.source.array.type.kind !== "array") ice("verifyHir: for...of over a non-array");
+          verifyExpr(s.source.array);
+          break;
+        case "collection": {
+          const c = s.source.collection.type;
+          if (c.kind !== "map" && c.kind !== "set")
+            ice("verifyHir: for...of over a non-collection");
+          if (c.kind === "set" && s.source.slot !== "key")
+            ice("verifyHir: a Set has no value slot");
+          verifyExpr(s.source.collection);
+          break;
+        }
+        default: {
+          const never: never = s.source;
+          ice(`verifyHir: for...of source ${(never as { kind: string }).kind}`);
+        }
+      }
       verifyStmts(s.body);
       return;
     case "return":
@@ -465,6 +483,20 @@ function verifyExpr(e: HExpr): void {
       verifyExpr(e.array);
       if (e.comparator) verifyExpr(e.comparator);
       return;
+    case "collectionForEach": {
+      const c = e.collection.type;
+      const cb = e.callback.type;
+      if (
+        (c.kind !== "map" && c.kind !== "set") ||
+        cb.kind !== "function" ||
+        cb.params.length > 3
+      ) {
+        ice("verifyHir: collectionForEach over a non-collection or with a non-function callback");
+      }
+      verifyExpr(e.collection);
+      verifyExpr(e.callback);
+      return;
+    }
     case "arrayHof":
       verifyExpr(e.array);
       verifyExpr(e.callback);

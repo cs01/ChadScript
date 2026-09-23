@@ -4,9 +4,9 @@
 // land in different buckets and a lookup misses. JS Map/Set compare with SameValueZero, so -0 and
 // +0 are one key and NaN equals itself; both are normalized before hashing.
 //
-// The index maps a bucket to a POSITION in the owner's densely packed, insertion-ordered entry
-// array. Keeping entries separate from buckets is what lets keys()/values() stay a straight walk in
-// JS iteration order while lookup is O(1).
+// The index maps a bucket to a POSITION in the owner's insertion-ordered entry array (ordered.milo).
+// Keeping entries separate from buckets is what lets iteration stay a straight walk in JS order
+// while lookup is O(1).
 
 from "./abi" import { CsString, GC_malloc_atomic, f64Bits, f64FromBits, isNan, NEG_ZERO_BITS }
 from "./strings" import { cs_str_eq }
@@ -21,11 +21,23 @@ pub extern struct CsIndex {
     cap: i32,
 }
 
+// The key slot of a deleted entry (ordered.milo). No stored key can equal it: storedKey gives every
+// NaN one canonical bit pattern, and string keys are pointers (far below this value).
+pub let TOMBSTONE: i64 = 0x7FF400000000DEAD
+
+// Bucket states besides an entry position: never used (ends a probe) and deleted (probes pass it).
+let BUCKET_EMPTY: i32 = -1
+let BUCKET_DELETED: i32 = -2
+
 // The key a Map or Set stores for `k`: Map.prototype.set and Set.prototype.add turn -0 into +0, so
-// the stored key (what keys(), values() and printing see) is never -0.
+// the stored key (what keys(), values() and printing see) is never -0. NaN is canonicalized so a
+// NaN payload can never collide with TOMBSTONE.
 pub fn storedKey(k: i64, kind: i32): i64 {
     if kind == KEY_NUMBER && k as u64 == NEG_ZERO_BITS {
         return 0
+    }
+    if kind == KEY_NUMBER && isNan(f64FromBits(k as u64)) {
+        return f64Bits(f64.NAN) as i64
     }
     return k
 }
@@ -99,8 +111,8 @@ fn bucketIndex(k: i64, kind: i32, mask: u32): i64 {
     return ((keyHash(k, kind) as u32) & mask) as i64
 }
 
-// Rebuild the index at `newCap` buckets from the first `len` entries. Required after any operation
-// that shifts entry positions (a delete), and on growth.
+// Rebuild the index at `newCap` buckets from the live entries among the first `len` (tombstones are
+// skipped). Required after any operation that moves entry positions (compaction), and on growth.
 pub fn indexRebuild(ix: *CsIndex, entries: *i64, len: i32, newCap: i32, kind: i32) {
     unsafe {
         ix.cap = newCap
@@ -108,24 +120,27 @@ pub fn indexRebuild(ix: *CsIndex, entries: *i64, len: i32, newCap: i32, kind: i3
         ix.buckets = buckets
         var i: i64 = 0
         while i < newCap as i64 {
-            buckets[i] = -1
+            buckets[i] = BUCKET_EMPTY
             i = i + 1
         }
         let mask = (newCap - 1) as u32
         var e: i32 = 0
         while e < len {
-            var b = bucketIndex(entries[e as i64], kind, mask)
-            while buckets[b] != -1 {
-                b = ((b + 1) as u32 & mask) as i64
+            let k = entries[e as i64]
+            if k != TOMBSTONE {
+                var b = bucketIndex(k, kind, mask)
+                while buckets[b] != BUCKET_EMPTY {
+                    b = ((b + 1) as u32 & mask) as i64
+                }
+                buckets[b] = e
             }
-            buckets[b] = e
             e = e + 1
         }
     }
 }
 
-// Entry position of `k`, or -1.
-pub fn indexFind(ix: *CsIndex, entries: *i64, k: i64, kind: i32): i32 {
+// The bucket holding `k`, or -1.
+fn findBucket(ix: *CsIndex, entries: *i64, k: i64, kind: i32): i64 {
     unsafe {
         if ix.cap == 0 {
             return -1
@@ -133,12 +148,12 @@ pub fn indexFind(ix: *CsIndex, entries: *i64, k: i64, kind: i32): i32 {
         let buckets = ix.buckets
         let mask = (ix.cap - 1) as u32
         var b = bucketIndex(k, kind, mask)
-        // Terminates because the load factor keeps the table below full, so an empty bucket always
-        // exists to end the probe.
-        while buckets[b] != -1 {
+        // Terminates because the load factor (counting deleted buckets, see indexShouldGrow) keeps
+        // the table below full, so an empty bucket always exists to end the probe.
+        while buckets[b] != BUCKET_EMPTY {
             let pos = buckets[b]
-            if keyEq(entries[pos as i64], k, kind) {
-                return pos
+            if pos >= 0 && keyEq(entries[pos as i64], k, kind) {
+                return b
             }
             b = ((b + 1) as u32 & mask) as i64
         }
@@ -146,21 +161,48 @@ pub fn indexFind(ix: *CsIndex, entries: *i64, k: i64, kind: i32): i32 {
     }
 }
 
-// Record that the key at entry position `pos` exists. The caller has already ensured headroom via
+// Entry position of `k`, or -1.
+pub fn indexFind(ix: *CsIndex, entries: *i64, k: i64, kind: i32): i32 {
+    let b = findBucket(ix, entries, k, kind)
+    if b < 0 {
+        return -1
+    }
+    unsafe {
+        return ix.buckets[b]
+    }
+}
+
+// Forget `k`, returning the entry position it had (or -1). The bucket becomes DELETED rather than
+// EMPTY so probes for keys that collided past it still continue.
+pub fn indexRemove(ix: *CsIndex, entries: *i64, k: i64, kind: i32): i32 {
+    let b = findBucket(ix, entries, k, kind)
+    if b < 0 {
+        return -1
+    }
+    unsafe {
+        let pos = ix.buckets[b]
+        ix.buckets[b] = BUCKET_DELETED
+        return pos
+    }
+}
+
+// Record that the key at entry position `pos` exists (the caller has checked it is absent, so a
+// DELETED bucket on the probe path can be reused). The caller has already ensured headroom via
 // indexShouldGrow.
 pub fn indexInsert(ix: *CsIndex, k: i64, pos: i32, kind: i32) {
     unsafe {
         let buckets = ix.buckets
         let mask = (ix.cap - 1) as u32
         var b = bucketIndex(k, kind, mask)
-        while buckets[b] != -1 {
+        while buckets[b] >= 0 {
             b = ((b + 1) as u32 & mask) as i64
         }
         buckets[b] = pos
     }
 }
 
-// True when `len` entries would push the table past its load factor.
+// True when `len` entries would push the table past its load factor. `len` counts tombstoned
+// entries too, which bounds the DELETED buckets, so probes always find an EMPTY one.
 pub fn indexShouldGrow(ix: *CsIndex, len: i32): bool {
     unsafe {
         return ix.cap == 0 || len as i64 * 10 > ix.cap as i64 * 7

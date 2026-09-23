@@ -1,0 +1,288 @@
+// The ordered hash table behind both Map and Set (a Set is the same table without a value buffer).
+// Entries live in insertion order in parallel key/value slot buffers, plus the shared
+// open-addressed index (hashkey.milo) for O(1) lookup.
+//
+// Iteration is LIVE, as in JS: an iterator is just a position in the entry buffers, so entries
+// added during a loop are visited and deleted ones are skipped. That forces V8's OrderedHashTable
+// design:
+//   - delete leaves a TOMBSTONE key in place (no shifting), so positions stay valid;
+//   - compaction (dropping tombstones) happens only when the buffers are full, and clear() empties
+//     the table outright. Both would move entries under a parked iterator, so each one closes the
+//     table's current CsIterRec, recording what moved (the removed positions, or "cleared"), and
+//     opens a new one. An iterator holds the record that was current when it last looked and, on
+//     its next step, replays every closed record after it to translate its position. No iterator
+//     count is needed: a record is only reachable from iterators that still hold it, so Boehm
+//     frees the chain once no loop can observe it (a `break` or a throw out of a loop needs no
+//     cleanup).
+
+from "./abi" import { CsArray, GC_malloc, GC_malloc_atomic }
+from "./array" import { cs_array_new, cs_array_push }
+from "./hashkey" import {
+    CsIndex, indexFind, indexInsert, indexRebuild, indexRemove, indexShouldGrow, storedKey,
+    TOMBSTONE,
+}
+
+pub extern struct CsIterRec {
+    next: *CsIterRec,
+    // Old positions of the tombstones a compaction dropped, ascending (pointer-free GC memory).
+    removed: *i32,
+    nremoved: i32,
+    cleared: i32,
+}
+
+// GC memory: keys/vals may hold pointer slots, so they come from GC_malloc (scanned).
+pub extern struct CsOrdered {
+    keys: *i64,
+    vals: *i64,
+    len: i32,
+    cap: i32,
+    live: i32,
+    hasVals: i32,
+    idx: CsIndex,
+    rec: *CsIterRec,
+}
+
+pub fn ordNew(hasVals: bool): *CsOrdered {
+    unsafe {
+        let o = GC_malloc(56) as *CsOrdered
+        o.keys = 0 as *i64
+        o.vals = 0 as *i64
+        o.len = 0
+        o.cap = 0
+        o.live = 0
+        o.hasVals = if hasVals { 1 } else { 0 }
+        o.idx = CsIndex { buckets: 0 as *i32, cap: 0 }
+        o.rec = 0 as *CsIterRec
+        return o
+    }
+}
+
+// Entry position of `k`, or -1.
+pub fn ordFind(o: *CsOrdered, k: i64, kind: i32): i32 {
+    unsafe {
+        return indexFind(o.idx.addrOf(), o.keys, k, kind)
+    }
+}
+
+fn newRec(): *CsIterRec {
+    unsafe {
+        let r = GC_malloc(24) as *CsIterRec
+        r.next = 0 as *CsIterRec
+        r.removed = 0 as *i32
+        r.nremoved = 0
+        r.cleared = 0
+        return r
+    }
+}
+
+// Close the current iteration record (if any iterator was ever started) so parked iterators can
+// translate their positions across the change about to happen.
+fn closeRec(o: *CsOrdered, removed: *i32, nremoved: i32, cleared: bool) {
+    unsafe {
+        let r = o.rec
+        if r as i64 == 0 {
+            return
+        }
+        r.removed = removed
+        r.nremoved = nremoved
+        r.cleared = if cleared { 1 } else { 0 }
+        let n = newRec()
+        r.next = n
+        o.rec = n
+    }
+}
+
+// The entry buffers are full: drop tombstones and grow (or shrink) to twice the live count.
+fn rehash(o: *CsOrdered, kind: i32) {
+    unsafe {
+        let live = o.live
+        let nc: i32 = if live < 2 { 4 } else { live * 2 }
+        let nk = GC_malloc(nc as i64 * 8) as *i64
+        let nv = if o.hasVals != 0 { GC_malloc(nc as i64 * 8) as *i64 } else { 0 as *i64 }
+        let dead = o.len - live
+        // Only needed when a parked iterator could be holding a position past a dropped tombstone.
+        let track = dead > 0 && o.rec as i64 != 0
+        let removed = if track { GC_malloc_atomic(dead as i64 * 4) as *i32 } else { 0 as *i32 }
+        var r: i64 = 0
+        var w: i64 = 0
+        var i: i64 = 0
+        while i < o.len as i64 {
+            let k = o.keys[i]
+            if k == TOMBSTONE {
+                if track {
+                    removed[r] = i as i32
+                }
+                r = r + 1
+            } else {
+                nk[w] = k
+                if o.hasVals != 0 {
+                    nv[w] = o.vals[i]
+                }
+                w = w + 1
+            }
+            i = i + 1
+        }
+        if track {
+            closeRec(o, removed, dead, false)
+        }
+        o.keys = nk
+        o.vals = nv
+        o.cap = nc
+        o.len = live
+        if dead > 0 {
+            // Positions moved: rebuild the index (which also drops its deleted-bucket markers).
+            let nb: i32 = if o.idx.cap == 0 { 16 } else { o.idx.cap }
+            indexRebuild(o.idx.addrOf(), o.keys, o.len, nb, kind)
+        }
+    }
+}
+
+// Insert or overwrite. An existing key updates its value in place (keeping its insertion
+// position, JS semantics); a new key appends.
+pub fn ordPut(o: *CsOrdered, k: i64, v: i64, kind: i32) {
+    let i = ordFind(o, k, kind)
+    unsafe {
+        if i >= 0 {
+            if o.hasVals != 0 {
+                o.vals[i as i64] = v
+            }
+            return
+        }
+        if o.len == o.cap {
+            rehash(o, kind)
+        }
+        o.keys[o.len as i64] = storedKey(k, kind)
+        if o.hasVals != 0 {
+            o.vals[o.len as i64] = v
+        }
+        o.len = o.len + 1
+        o.live = o.live + 1
+        if indexShouldGrow(o.idx.addrOf(), o.len) {
+            let nb: i32 = if o.idx.cap == 0 { 16 } else { o.idx.cap * 2 }
+            indexRebuild(o.idx.addrOf(), o.keys, o.len, nb, kind)
+        } else {
+            indexInsert(o.idx.addrOf(), k, o.len - 1, kind)
+        }
+    }
+}
+
+// Tombstone the entry in place: O(1), and no live iterator's position moves.
+pub fn ordDelete(o: *CsOrdered, k: i64, kind: i32): i32 {
+    unsafe {
+        let i = indexRemove(o.idx.addrOf(), o.keys, k, kind)
+        if i < 0 {
+            return 0
+        }
+        o.keys[i as i64] = TOMBSTONE
+        if o.hasVals != 0 {
+            o.vals[i as i64] = 0 // drop the reference so the GC can reclaim the value
+        }
+        o.live = o.live - 1
+        return 1
+    }
+}
+
+pub fn ordClear(o: *CsOrdered) {
+    closeRec(o, 0 as *i32, 0, true)
+    unsafe {
+        o.keys = 0 as *i64
+        o.vals = 0 as *i64
+        o.len = 0
+        o.cap = 0
+        o.live = 0
+        o.idx = CsIndex { buckets: 0 as *i32, cap: 0 }
+    }
+}
+
+pub fn ordSize(o: *CsOrdered): i32 {
+    unsafe {
+        return o.live
+    }
+}
+
+// How many of the ascending `removed` positions are below `pos` (binary search).
+fn countBelow(removed: *i32, n: i32, pos: i32): i32 {
+    var lo: i32 = 0
+    var hi: i32 = n
+    unsafe {
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2
+            if removed[mid as i64] < pos {
+                lo = mid + 1
+            } else {
+                hi = mid
+            }
+        }
+    }
+    return lo
+}
+
+// Begin a live iteration: the caller keeps the returned record and a position (starting at 0) in
+// two stack slots and passes both to cs_ord_iter_next.
+@externalLinkage
+pub fn cs_ord_iter_start(o: *CsOrdered): *CsIterRec {
+    unsafe {
+        if o.rec as i64 == 0 {
+            o.rec = newRec()
+        }
+        return o.rec
+    }
+}
+
+// The position of the next live entry (then read with cs_ord_key_at / cs_ord_val_at before
+// anything can mutate the table), or -1 when the iteration is done.
+@externalLinkage
+pub fn cs_ord_iter_next(o: *CsOrdered, recSlot: **CsIterRec, posSlot: *i32): i32 {
+    unsafe {
+        var rec = *recSlot
+        var pos = *posSlot
+        while rec.next as i64 != 0 {
+            if rec.cleared != 0 {
+                pos = 0
+            } else {
+                pos = pos - countBelow(rec.removed, rec.nremoved, pos)
+            }
+            rec = rec.next
+        }
+        *recSlot = rec
+        while pos < o.len {
+            if o.keys[pos as i64] != TOMBSTONE {
+                *posSlot = pos + 1
+                return pos
+            }
+            pos = pos + 1
+        }
+        *posSlot = pos
+        return -1
+    }
+}
+
+@externalLinkage
+pub fn cs_ord_key_at(o: *CsOrdered, pos: i32): i64 {
+    unsafe {
+        return o.keys[pos as i64]
+    }
+}
+
+@externalLinkage
+pub fn cs_ord_val_at(o: *CsOrdered, pos: i32): i64 {
+    unsafe {
+        return o.vals[pos as i64]
+    }
+}
+
+// keys()/values() for an eager consumer (spread, printing): a fresh array of the live slots.
+pub fn ordSnapshot(o: *CsOrdered, wantVals: bool): *CsArray {
+    let a = cs_array_new()
+    unsafe {
+        var i: i64 = 0
+        while i < o.len as i64 {
+            let k = o.keys[i]
+            if k != TOMBSTONE {
+                cs_array_push(a, if wantVals { o.vals[i] } else { k })
+            }
+            i = i + 1
+        }
+    }
+    return a
+}

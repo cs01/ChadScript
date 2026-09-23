@@ -429,8 +429,8 @@ const UNSUPPORTED_NUMBER_METHODS: ReadonlySet<string> = new Set([
 
 // Map/Set instance methods lowering supports. `.size` is a property read, not a call — unaffected.
 export const COLLECTION_METHODS: Record<"map" | "set", ReadonlySet<string>> = {
-  map: new Set(["set", "get", "has", "delete", "keys", "values"]),
-  set: new Set(["add", "has", "delete", "keys", "values"]),
+  map: new Set(["set", "get", "has", "delete", "clear", "keys", "values", "forEach"]),
+  set: new Set(["add", "has", "delete", "clear", "keys", "values", "forEach"]),
 };
 
 // The instance methods codegen/lowering actually dispatch. Mirrors STR_METHODS + the special-cased

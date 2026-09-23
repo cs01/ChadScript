@@ -8,10 +8,10 @@
 
 import { ice } from "../diagnostics.js";
 import { emitPrintValue, emitPrintComputed } from "./emit-print.js";
-import { ModuleBuilder, imm, type Value } from "../ir/builder.js";
+import { ModuleBuilder, imm, type BasicBlock, type Value } from "../ir/builder.js";
 import { T } from "../ir/types.js";
 import { declareRuntimeExterns } from "./externs.js";
-import type { HModule, HStmt, HExpr, HFunc } from "../hir/nodes.js";
+import type { HModule, HStmt, HExpr, HFunc, ForOfSource } from "../hir/nodes.js";
 import type { ValueType } from "../hir/types.js";
 import {
   evalBool,
@@ -20,6 +20,7 @@ import {
   evalArrayPtr,
   arrayElementAt,
   boxSlot,
+  unboxSlot,
   emitStrictEq,
   irTypeOf,
   lookupVar,
@@ -31,6 +32,7 @@ import {
   type LoopTarget,
 } from "./expr.js";
 import { emitMemberSet } from "./objects.js";
+import { evalCollectionPtr } from "./collections.js";
 import { emitShapes } from "./shapes.js";
 import { emitShapeFunctions } from "./shape-functions.js";
 import type { ShapeDescriptor } from "../hir/nodes.js";
@@ -612,15 +614,11 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
     }
 
     case "forOf": {
-      // Iterate 0..len-1, re-reading the (once-evaluated) array's length each step. Binds the
-      // loop variable to each element. break → end, continue → the index bump (latch).
-      const arrPtr = ctx.fn.alloca(T.ptr);
-      ctx.fn.store(evalArrayPtr(stmt.array, ctx), arrPtr);
-      const idxPtr = ctx.fn.alloca(T.i32);
-      ctx.fn.store(imm(T.i32, 0), idxPtr);
-      // A cell binding gets a new cell each iteration (bound below); a plain one reuses one slot.
+      // break → end, continue → the latch. A cell binding gets a new cell each iteration (bound
+      // below); a plain one reuses one slot.
       const elemPtr = stmt.cell ? null : ctx.fn.alloca(irTypeOf(stmt.elementType));
       if (elemPtr) ctx.vars.set(stmt.name, { ptr: elemPtr, vtype: stmt.elementType });
+      const step = forOfStepper(stmt.source, stmt.elementType, ctx);
 
       const headerB = ctx.fn.newBlock("forof.header");
       const bodyB = ctx.fn.newBlock("forof.body");
@@ -629,17 +627,7 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
 
       ctx.fn.br(headerB);
       ctx.fn.switchTo(headerB);
-      const i = ctx.fn.load(T.i32, idxPtr);
-      const len = ctx.fn.call("@cs_array_len", T.i32, [ctx.fn.load(T.ptr, arrPtr)]);
-      ctx.fn.brCond(ctx.fn.icmp("slt", i, len), bodyB, endB);
-
-      ctx.fn.switchTo(bodyB);
-      const elem = arrayElementAt(
-        ctx.fn.load(T.ptr, arrPtr),
-        ctx.fn.load(T.i32, idxPtr),
-        stmt.elementType,
-        ctx,
-      );
+      const elem = step.next(bodyB, endB);
       if (elemPtr) ctx.fn.store(elem, elemPtr);
       else bindVar(stmt.name, stmt.elementType, () => elem, true, ctx);
       ctx.breakTargets.push({ block: endB, finallyDepth: ctx.finallyStack.length });
@@ -650,7 +638,7 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
       if (!ctx.fn.currentBlock.isTerminated) ctx.fn.br(latchB);
 
       ctx.fn.switchTo(latchB);
-      ctx.fn.store(ctx.fn.iadd(ctx.fn.load(T.i32, idxPtr), imm(T.i32, 1)), idxPtr);
+      step.advance();
       ctx.fn.br(headerB);
 
       ctx.fn.switchTo(endB);
@@ -677,5 +665,65 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
 
     default:
       ice(`codegen: unhandled statement ${(stmt as { kind: string }).kind}`);
+  }
+}
+
+// The per-source half of a for...of. `next` runs in the loop header: it branches to `bodyB` with
+// the element (computed in bodyB) or to `endB` when done. `advance` runs in the latch.
+interface ForOfStepper {
+  next(bodyB: BasicBlock, endB: BasicBlock): Value;
+  advance(): void;
+}
+
+function forOfStepper(source: ForOfSource, elementType: ValueType, ctx: Ctx): ForOfStepper {
+  switch (source.kind) {
+    case "array": {
+      // Index 0..len-1 over the once-evaluated array, re-reading its length each step.
+      const arrPtr = ctx.fn.alloca(T.ptr);
+      ctx.fn.store(evalArrayPtr(source.array, ctx), arrPtr);
+      const idxPtr = ctx.fn.alloca(T.i32);
+      ctx.fn.store(imm(T.i32, 0), idxPtr);
+      return {
+        next(bodyB, endB) {
+          const i = ctx.fn.load(T.i32, idxPtr);
+          const len = ctx.fn.call("@cs_array_len", T.i32, [ctx.fn.load(T.ptr, arrPtr)]);
+          ctx.fn.brCond(ctx.fn.icmp("slt", i, len), bodyB, endB);
+          ctx.fn.switchTo(bodyB);
+          return arrayElementAt(
+            ctx.fn.load(T.ptr, arrPtr),
+            ctx.fn.load(T.i32, idxPtr),
+            elementType,
+            ctx,
+          );
+        },
+        advance() {
+          ctx.fn.store(ctx.fn.iadd(ctx.fn.load(T.i32, idxPtr), imm(T.i32, 1)), idxPtr);
+        },
+      };
+    }
+    case "collection": {
+      // A live walk (runtime/ordered.milo): the iterator is a record pointer plus a position,
+      // both in stack slots the runtime updates (the stack keeps the record alive for Boehm).
+      const coll = evalCollectionPtr(source.collection, ctx);
+      const recPtr = ctx.fn.alloca(T.ptr);
+      ctx.fn.store(ctx.fn.call("@cs_ord_iter_start", T.ptr, [coll]), recPtr);
+      const posPtr = ctx.fn.alloca(T.i32);
+      ctx.fn.store(imm(T.i32, 0), posPtr);
+      const read = source.slot === "key" ? "@cs_ord_key_at" : "@cs_ord_val_at";
+      return {
+        next(bodyB, endB) {
+          const pos = ctx.fn.call("@cs_ord_iter_next", T.i32, [coll, recPtr, posPtr]);
+          ctx.fn.brCond(ctx.fn.icmp("sge", pos, imm(T.i32, 0)), bodyB, endB);
+          ctx.fn.switchTo(bodyB);
+          // Read the slot before the body runs: the body may compact the table.
+          return unboxSlot(ctx.fn.call(read, T.i64, [coll, pos]), elementType, ctx);
+        },
+        advance() {},
+      };
+    }
+    default: {
+      const never: never = source;
+      return ice(`codegen: for...of source ${(never as { kind: string }).kind}`);
+    }
   }
 }

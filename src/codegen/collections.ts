@@ -19,6 +19,9 @@ import {
   evalVirtualCall,
   evalConditional,
   evalArrayPtr,
+  evalFunctionPtr,
+  irTypeOf,
+  unboxSlot,
 } from "./expr.js";
 import { evalMemberGet } from "./objects.js";
 import { evalCoalesce } from "./optional.js";
@@ -51,6 +54,19 @@ export function evalMapPtr(expr: HExpr, ctx: Ctx): Value {
       return evalCoalesce(expr, ctx);
     default:
       return ice(`evalMapPtr: unhandled map expression ${expr.kind}`);
+  }
+}
+
+// A Map or Set as a ptr to its runtime table (both are the ordered table of runtime/ordered.milo,
+// which is what live iteration walks).
+export function evalCollectionPtr(expr: HExpr, ctx: Ctx): Value {
+  switch (expr.type.kind) {
+    case "map":
+      return evalMapPtr(expr, ctx);
+    case "set":
+      return evalSetPtr(expr, ctx);
+    default:
+      return ice(`evalCollectionPtr: ${expr.type.kind} is not a Map or Set`);
   }
 }
 
@@ -136,4 +152,51 @@ export function evalSetPredicate(
     ]),
     imm(T.i32, 0),
   );
+}
+
+// `forEach` over a Map or Set: the same live walk as for...of (runtime/ordered.milo), calling the
+// closure with the typed ABI `fnptr(env, value, key, collection)`, truncated to the arity the
+// callback declares (JS passes all three; the extra ones are unobservable).
+export function evalCollectionForEach(
+  expr: Extract<HExpr, { kind: "collectionForEach" }>,
+  ctx: Ctx,
+): Value {
+  const collType = expr.collection.type;
+  const cbType = expr.callback.type;
+  if (cbType.kind !== "function") return ice("collectionForEach callback is not function-typed");
+  const [keyType, valueType] =
+    collType.kind === "map"
+      ? [collType.key, collType.value]
+      : collType.kind === "set"
+        ? [collType.element, collType.element]
+        : ice(`collectionForEach over ${collType.kind}`);
+  const coll = evalCollectionPtr(expr.collection, ctx);
+  const cb = evalFunctionPtr(expr.callback, ctx);
+  const fnptr = ctx.fn.i64ToPtr(ctx.fn.load(T.i64, ctx.fn.gepSlot(cb, 0)));
+  const env = ctx.fn.i64ToPtr(ctx.fn.load(T.i64, ctx.fn.gepSlot(cb, 1)));
+  const recPtr = ctx.fn.alloca(T.ptr);
+  ctx.fn.store(ctx.fn.call("@cs_ord_iter_start", T.ptr, [coll]), recPtr);
+  const posPtr = ctx.fn.alloca(T.i32);
+  ctx.fn.store(imm(T.i32, 0), posPtr);
+
+  const headerB = ctx.fn.newBlock("cforeach.header");
+  const bodyB = ctx.fn.newBlock("cforeach.body");
+  const endB = ctx.fn.newBlock("cforeach.end");
+  ctx.fn.br(headerB);
+  ctx.fn.switchTo(headerB);
+  const pos = ctx.fn.call("@cs_ord_iter_next", T.i32, [coll, recPtr, posPtr]);
+  ctx.fn.brCond(ctx.fn.icmp("sge", pos, imm(T.i32, 0)), bodyB, endB);
+  ctx.fn.switchTo(bodyB);
+  // Read both slots before the call: the callback may compact the table.
+  const key = unboxSlot(ctx.fn.call("@cs_ord_key_at", T.i64, [coll, pos]), keyType, ctx);
+  const value =
+    collType.kind === "map"
+      ? unboxSlot(ctx.fn.call("@cs_ord_val_at", T.i64, [coll, pos]), valueType, ctx)
+      : key;
+  const args = [env, value, key, coll].slice(0, 1 + cbType.params.length);
+  if (cbType.ret) ctx.fn.callIndirect(fnptr, irTypeOf(cbType.ret), args);
+  else ctx.fn.callIndirectVoid(fnptr, args);
+  ctx.fn.br(headerB);
+  ctx.fn.switchTo(endB);
+  return ctx.fn.nullPtr(); // undefined (discarded by the caller)
 }

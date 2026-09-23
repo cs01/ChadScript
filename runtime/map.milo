@@ -1,79 +1,25 @@
-// Map runtime. Insertion-ordered entries (matching JS iteration order exactly) plus an
-// open-addressed hash index over them, so lookup is O(1) while keys()/values() stay a straight walk
-// of the entry arrays. Keys compare with SameValueZero (see hashkey.milo). Keys and values are
-// uniform i64 slots (the same boxing as arrays).
+// Map runtime: the C-ABI entry points over the shared ordered table (ordered.milo), which holds
+// the insertion order, the hash index and live iteration. Keys compare with SameValueZero (see
+// hashkey.milo). Keys and values are uniform i64 slots (the same boxing as arrays).
 
-from "./abi" import { CsArray, GC_malloc, memcpy, memmove, byteAt }
-from "./hashkey" import { CsIndex, indexFind, indexInsert, indexRebuild, indexShouldGrow, storedKey }
+from "./abi" import { CsArray }
+from "./ordered" import { CsOrdered, ordNew, ordFind, ordPut, ordDelete, ordClear, ordSize, ordSnapshot }
 from "./nullable" import { undefinedMarker, boxSlot }
-from "./array" import { cs_array_new, cs_array_push }
 
-// GC memory: keys/vals buffers may hold pointer slots, so they come from GC_malloc (scanned).
-extern struct CsMap {
-    keys: *i64,
-    vals: *i64,
-    len: i32,
-    cap: i32,
-    idx: CsIndex,
+@externalLinkage
+pub fn cs_map_new(): *CsOrdered {
+    return ordNew(true)
 }
 
 @externalLinkage
-pub fn cs_map_new(): *CsMap {
-    unsafe {
-        let m = GC_malloc(40) as *CsMap
-        m.keys = 0 as *i64
-        m.vals = 0 as *i64
-        m.len = 0
-        m.cap = 0
-        m.idx = CsIndex { buckets: 0 as *i32, cap: 0 }
-        return m
-    }
-}
-
-fn find(m: *CsMap, k: i64, kind: i32): i32 {
-    unsafe {
-        return indexFind(m.idx.addrOf(), m.keys, k, kind)
-    }
-}
-
-// Insert or overwrite. An existing key updates its value in place (keeping its insertion
-// position, JS semantics); a new key appends (geometric growth of the parallel buffers).
-@externalLinkage
-pub fn cs_map_set(m: *CsMap, k: i64, v: i64, kind: i32) {
-    let i = find(m, k, kind)
-    unsafe {
-        if i >= 0 {
-            m.vals[i as i64] = v
-            return
-        }
-        if m.len == m.cap {
-            let nc: i32 = if m.cap == 0 { 4 } else { m.cap * 2 }
-            let nk = GC_malloc(nc as i64 * 8) as *i64
-            let nv = GC_malloc(nc as i64 * 8) as *i64
-            if m.len > 0 {
-                memcpy(nk as *u8, m.keys as *u8, m.len as i64 * 8)
-                memcpy(nv as *u8, m.vals as *u8, m.len as i64 * 8)
-            }
-            m.keys = nk
-            m.vals = nv
-            m.cap = nc
-        }
-        m.keys[m.len as i64] = storedKey(k, kind)
-        m.vals[m.len as i64] = v
-        m.len = m.len + 1
-        if indexShouldGrow(m.idx.addrOf(), m.len) {
-            let nb: i32 = if m.idx.cap == 0 { 16 } else { m.idx.cap * 2 }
-            indexRebuild(m.idx.addrOf(), m.keys, m.len, nb, kind)
-        } else {
-            indexInsert(m.idx.addrOf(), k, m.len - 1, kind)
-        }
-    }
+pub fn cs_map_set(m: *CsOrdered, k: i64, v: i64, kind: i32) {
+    ordPut(m, k, v, kind)
 }
 
 // get -> `value | undefined`: found gives a GC box holding the value slot; missing, the marker.
 @externalLinkage
-pub fn cs_map_get(m: *CsMap, k: i64, kind: i32): *u8 {
-    let i = find(m, k, kind)
+pub fn cs_map_get(m: *CsOrdered, k: i64, kind: i32): *u8 {
+    let i = ordFind(m, k, kind)
     if i < 0 {
         return undefinedMarker()
     }
@@ -83,58 +29,33 @@ pub fn cs_map_get(m: *CsMap, k: i64, kind: i32): *u8 {
 }
 
 @externalLinkage
-pub fn cs_map_has(m: *CsMap, k: i64, kind: i32): i32 {
-    return if find(m, k, kind) >= 0 { 1 } else { 0 }
+pub fn cs_map_has(m: *CsOrdered, k: i64, kind: i32): i32 {
+    return if ordFind(m, k, kind) >= 0 { 1 } else { 0 }
 }
 
 @externalLinkage
-pub fn cs_map_delete(m: *CsMap, k: i64, kind: i32): i32 {
-    let i = find(m, k, kind)
-    if i < 0 {
-        return 0
-    }
-    unsafe {
-        // Entries stay densely packed in insertion order, so removal shifts everything after `i`
-        // and every stored bucket position goes stale: rebuild. Deletes are rare; lookups are not.
-        let tail = (m.len - i - 1) as i64 * 8
-        memmove(byteAt(m.keys as *u8, i as i64 * 8), byteAt(m.keys as *u8, (i as i64 + 1) * 8), tail)
-        memmove(byteAt(m.vals as *u8, i as i64 * 8), byteAt(m.vals as *u8, (i as i64 + 1) * 8), tail)
-        m.len = m.len - 1
-        indexRebuild(m.idx.addrOf(), m.keys, m.len, m.idx.cap, kind)
-    }
-    return 1
+pub fn cs_map_delete(m: *CsOrdered, k: i64, kind: i32): i32 {
+    return ordDelete(m, k, kind)
 }
 
 @externalLinkage
-pub fn cs_map_size(m: *CsMap): i32 {
-    unsafe {
-        return m.len
-    }
-}
-
-// keys()/values() -> a fresh array of the boxed slots, in insertion order (JS iteration order).
-fn slotsToArray(slots: *i64, n: i32): *CsArray {
-    let a = cs_array_new()
-    var i: i64 = 0
-    while i < n as i64 {
-        unsafe {
-            cs_array_push(a, slots[i])
-        }
-        i = i + 1
-    }
-    return a
+pub fn cs_map_clear(m: *CsOrdered) {
+    ordClear(m)
 }
 
 @externalLinkage
-pub fn cs_map_keys(m: *CsMap): *CsArray {
-    unsafe {
-        return slotsToArray(m.keys, m.len)
-    }
+pub fn cs_map_size(m: *CsOrdered): i32 {
+    return ordSize(m)
+}
+
+// keys()/values() for eager consumers: a fresh array of the slots in insertion order. (A for...of
+// loop iterates the table live instead, through cs_ord_iter_next.)
+@externalLinkage
+pub fn cs_map_keys(m: *CsOrdered): *CsArray {
+    return ordSnapshot(m, false)
 }
 
 @externalLinkage
-pub fn cs_map_values(m: *CsMap): *CsArray {
-    unsafe {
-        return slotsToArray(m.vals, m.len)
-    }
+pub fn cs_map_values(m: *CsOrdered): *CsArray {
+    return ordSnapshot(m, true)
 }

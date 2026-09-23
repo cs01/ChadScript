@@ -103,6 +103,14 @@ export interface HFunc {
   async?: boolean;
 }
 
+// What a for...of walks. An array by index (re-reading its length each step, as JS does). A Map or
+// Set LIVE, through the runtime's ordered-table iterator (runtime/ordered.milo), so entries the
+// body adds are visited and ones it deletes are skipped; `slot` picks the keys (a Set's elements)
+// or the values.
+export type ForOfSource =
+  | { kind: "array"; array: HExpr }
+  | { kind: "collection"; collection: HExpr; slot: "key" | "value" };
+
 export type HStmt =
   // console.log of zero or more values, printed space-separated with a trailing newline.
   | { kind: "consoleLog"; values: HExpr[] }
@@ -139,13 +147,13 @@ export type HStmt =
       body: HStmt[];
       perIteration?: string[];
     }
-  // `for (const name of array) { body }`. Binds `name` (type `elementType`) to each element; a
+  // `for (const name of source) { body }`. Binds `name` (type `elementType`) to each element; a
   // `cell` binding gets a fresh cell per iteration (each iteration is its own binding in JS).
   | {
       kind: "forOf";
       name: string;
       elementType: ValueType;
-      array: HExpr;
+      source: ForOfSource;
       body: HStmt[];
       cell?: true;
     }
@@ -395,6 +403,10 @@ export type HExpr =
   // array methods work over it. `fn` is the runtime entry (cs_map_keys / cs_map_values /
   // cs_set_values); `receiver` is the map/set; `type` is the resulting array type.
   | { kind: "collectionToArray"; fn: string; receiver: HExpr; type: ValueType }
+  // `m.forEach(cb)` / `s.forEach(cb)`: a live walk (as for...of) calling cb(value, key, collection)
+  // (a Set passes its element as both value and key) with as many arguments as cb declares.
+  // `type` is undefined.
+  | { kind: "collectionForEach"; collection: HExpr; callback: HExpr; type: ValueType }
   // `arr.sort(cmp?)` — in-place insertion sort, returns the same array. `comparator` null means
   // JS default order (compare by String(element), lexicographic). `type` is the array type.
   | {

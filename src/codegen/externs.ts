@@ -149,6 +149,14 @@ export function declareRuntimeExterns(mod: ModuleBuilder): void {
   mod.declareExtern("cs_set_delete", T.i32, [T.ptr, T.i64, T.i32]);
   mod.declareExtern("cs_set_size", T.i32, [T.ptr]);
   mod.declareExtern("cs_set_values", T.ptr, [T.ptr]);
+  mod.declareExtern("cs_map_clear", T.void, [T.ptr]);
+  mod.declareExtern("cs_set_clear", T.void, [T.ptr]);
+  // Live Map/Set iteration (runtime/ordered.milo): start → record; next(table, &rec, &pos) → the
+  // next live entry's position or -1; key_at / val_at read that entry's slot.
+  mod.declareExtern("cs_ord_iter_start", T.ptr, [T.ptr]);
+  mod.declareExtern("cs_ord_iter_next", T.i32, [T.ptr, T.ptr, T.ptr]);
+  mod.declareExtern("cs_ord_key_at", T.i64, [T.ptr, T.i32]);
+  mod.declareExtern("cs_ord_val_at", T.i64, [T.ptr, T.i32]);
   mod.declareExtern("exit", T.void, [T.i32]);
   mod.declareExtern("cs_throw", T.void, [T.ptr]);
   mod.declareExtern("cs_handler_alloc", T.ptr, []);

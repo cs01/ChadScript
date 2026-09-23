@@ -8,6 +8,8 @@ import { CODE } from "./codes.js";
 import type { Hit } from "./type-rules.js";
 import { isValuePosition } from "./builtin-rules.js";
 import { UnrepresentableTypeError, valueTypeOfTsType } from "../lower/type-translation.js";
+import { slotIdentical } from "../lower/generics.js";
+import type { ValueType } from "../hir/types.js";
 
 export function checkForm(node: ts.Node, hit: Hit, checker: ts.TypeChecker): Diagnostic | null {
   switch (node.kind) {
@@ -52,32 +54,15 @@ export function checkForm(node: ts.Node, hit: Hit, checker: ts.TypeChecker): Dia
       );
     }
 
-    // A Map or Set iterated directly. Lowering walks arrays; a live collection iterator (which
-    // sees entries added during the loop) is not modeled.
+    // A Map iterated directly yields [key, value] entries, which need tuples. (A Set iterated
+    // directly, and keys()/values() of either, iterate the table live: lower/statements.ts.)
     case ts.SyntaxKind.ForOfStatement: {
       const loop = node as ts.ForOfStatement;
-      // `for (const k of m.keys())` walks a snapshot array (lower: collectionToArray), while Node's
-      // iterator is live: entries the body adds are visited too. The two agree only if the body
-      // does not change a Map or Set, so a body that visibly does is rejected. (A mutation hidden
-      // inside a called function is not seen here.)
-      if (
-        snapshotIteration(loop.expression, checker) &&
-        mutatesCollection(loop.statement, checker)
-      ) {
-        return hit(
-          CODE.COLLECTION_METHOD,
-          "changing a Map or Set while iterating its keys()/values() is not supported",
-          "iterate an explicit snapshot, which is what the loop does here: `for (const k of [...m.keys()])`",
-        );
-      }
-      const kind = collectionName(loop.expression, checker);
-      if (kind === null) return null;
+      if (collectionName(loop.expression, checker) !== "Map") return null;
       return hit(
         CODE.COLLECTION_METHOD,
-        `iterating a ${kind} directly with \`for...of\` is not supported yet`,
-        kind === "Map"
-          ? "iterate a snapshot of its keys: `for (const k of [...m.keys()])`"
-          : "iterate a snapshot of its values: `for (const v of [...s])`",
+        "iterating a Map directly with `for...of` is not supported yet",
+        "iterate its keys and read each value: `for (const k of m.keys())`",
       );
     }
 
@@ -118,6 +103,8 @@ export function checkForm(node: ts.Node, hit: Hit, checker: ts.TypeChecker): Dia
     case ts.SyntaxKind.CallExpression: {
       const call = node as ts.CallExpression;
       const callee = call.expression;
+      const coll = collectionCall(call, checker);
+      if (coll !== null) return checkCollectionCall(call, coll, hit, checker);
       if (
         !ts.isPropertyAccessExpression(callee) ||
         !ts.isIdentifier(callee.expression) ||
@@ -158,42 +145,99 @@ export function checkForm(node: ts.Node, hit: Hit, checker: ts.TypeChecker): Dia
   }
 }
 
+// `x.m(...)` on a Map or Set: the method name and the collection type, else null.
+function collectionCall(
+  call: ts.CallExpression,
+  checker: ts.TypeChecker,
+): { method: string; kind: "Map" | "Set" } | null {
+  const callee = call.expression;
+  if (!ts.isPropertyAccessExpression(callee)) return null;
+  const kind = collectionName(callee.expression, checker);
+  return kind === null ? null : { method: callee.name.text, kind };
+}
+
+function checkCollectionCall(
+  call: ts.CallExpression,
+  coll: { method: string; kind: "Map" | "Set" },
+  hit: Hit,
+  checker: ts.TypeChecker,
+): Diagnostic | null {
+  // keys()/values() lower to a live walk only as a for...of's iterable, and to a snapshot as a
+  // spread operand (eager in Node too). An iterator held anywhere else (`const it = m.keys()`)
+  // would see later mutations in Node, which a snapshot cannot.
+  if (coll.method === "keys" || coll.method === "values") {
+    let at: ts.Node = call;
+    while (ts.isParenthesizedExpression(at.parent)) at = at.parent;
+    const p = at.parent;
+    if ((ts.isForOfStatement(p) && p.expression === at) || ts.isSpreadElement(p)) return null;
+    return hit(
+      CODE.COLLECTION_METHOD,
+      `a ${coll.kind} iterator from \`${coll.method}()\` is only supported as a for...of iterable or a spread`,
+      `iterate it directly (\`for (const k of m.${coll.method}())\`), or take a snapshot array: \`[...m.${coll.method}()]\``,
+    );
+  }
+  if (coll.method === "forEach") return forEachCallbackMismatch(call, coll.kind, hit, checker);
+  return null;
+}
+
+// forEach calls its callback with (value, key, collection) in the collection's own slot
+// representations, so each parameter the callback declares must have exactly that representation
+// (a wider `number | string` parameter would be handed an unboxed number).
+function forEachCallbackMismatch(
+  call: ts.CallExpression,
+  kind: "Map" | "Set",
+  hit: Hit,
+  checker: ts.TypeChecker,
+): Diagnostic | null {
+  const cb = call.arguments[0];
+  const callee = call.expression as ts.PropertyAccessExpression;
+  if (!cb || call.arguments.length !== 1) {
+    return hit(
+      CODE.COLLECTION_METHOD,
+      `\`${kind}.forEach\` takes exactly one callback here`,
+      "drop the thisArg; use an arrow function that captures what it needs",
+    );
+  }
+  try {
+    const collType = valueTypeOfTsType(
+      checker.getTypeAtLocation(callee.expression),
+      callee.expression,
+      checker,
+    );
+    const passed: ValueType[] =
+      collType.kind === "map"
+        ? [collType.value, collType.key, collType]
+        : collType.kind === "set"
+          ? [collType.element, collType.element, collType]
+          : [];
+    const sig = checker.getSignaturesOfType(checker.getTypeAtLocation(cb), ts.SignatureKind.Call);
+    if (sig.length !== 1 || passed.length === 0) return null; // other rules own these
+    const params = sig[0]!.getParameters();
+    const ok = params.every((p, i) => {
+      const decl = p.valueDeclaration;
+      if (decl && ts.isParameter(decl) && decl.dotDotDotToken) return false;
+      const want = passed[i];
+      if (!want) return false;
+      const have = valueTypeOfTsType(checker.getTypeOfSymbolAtLocation(p, cb), cb, checker);
+      return have.kind === want.kind && slotIdentical(have, want);
+    });
+    if (ok) return null;
+  } catch (err) {
+    if (err instanceof UnrepresentableTypeError) return null;
+    throw err;
+  }
+  return hit(
+    CODE.COLLECTION_METHOD,
+    `this \`${kind}.forEach\` callback's parameters are not typed as the ${kind}'s ${kind === "Map" ? "value and key" : "elements"}`,
+    "declare the parameters with exactly the element types (or leave them unannotated)",
+  );
+}
+
 function collectionName(e: ts.Expression, checker: ts.TypeChecker): "Map" | "Set" | null {
   const name = checker.getTypeAtLocation(e).symbol?.name;
   if (name === "Map" || name === "ReadonlyMap") return "Map";
   if (name === "Set" || name === "ReadonlySet") return "Set";
   return null;
-}
-
-// `m.keys()` / `m.values()` / `s.values()` / `s.keys()`: an iterator lowering materializes.
-function snapshotIteration(e: ts.Expression, checker: ts.TypeChecker): boolean {
-  while (ts.isParenthesizedExpression(e)) e = e.expression;
-  return (
-    ts.isCallExpression(e) &&
-    ts.isPropertyAccessExpression(e.expression) &&
-    ["keys", "values", "entries"].includes(e.expression.name.text) &&
-    collectionName(e.expression.expression, checker) !== null
-  );
-}
-
-// Whether `body` calls set/add/delete/clear on any Map or Set.
-function mutatesCollection(body: ts.Node, checker: ts.TypeChecker): boolean {
-  let found = false;
-  const visit = (n: ts.Node): void => {
-    if (found) return;
-    if (
-      ts.isCallExpression(n) &&
-      ts.isPropertyAccessExpression(n.expression) &&
-      ["set", "add", "delete", "clear"].includes(n.expression.name.text) &&
-      collectionName(n.expression.expression, checker) !== null
-    ) {
-      found = true;
-      return;
-    }
-    ts.forEachChild(n, visit);
-  };
-  visit(body);
-  return found;
 }
 
 function isObjectValue(e: ts.Expression, checker: ts.TypeChecker): boolean {

@@ -192,7 +192,9 @@ diagnostic — there is no "compiles but behaves differently than Node" third ca
 
 ## Supported Map methods
 
+- `clear`
 - `delete`
+- `forEach`
 - `get`
 - `has`
 - `keys`
@@ -202,7 +204,9 @@ diagnostic — there is no "compiles but behaves differently than Node" third ca
 ## Supported Set methods
 
 - `add`
+- `clear`
 - `delete`
+- `forEach`
 - `has`
 - `keys`
 - `values`

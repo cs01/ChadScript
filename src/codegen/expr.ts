@@ -16,7 +16,13 @@ import { T, type IrType } from "../ir/types.js";
 import type { HExpr, BinaryOp, ShapeDescriptor } from "../hir/nodes.js";
 import type { ValueType } from "../hir/types.js";
 import { evalMathCall } from "./math.js";
-import { evalMapPtr, evalMapGet, evalSetPtr, evalSetPredicate } from "./collections.js";
+import {
+  evalCollectionForEach,
+  evalMapPtr,
+  evalMapGet,
+  evalSetPtr,
+  evalSetPredicate,
+} from "./collections.js";
 import { evalStrMethod } from "./strings.js";
 import { evalArrayHof, evalArraySort, evalArraySearch, evalArrayJoin } from "./array.js";
 import { evalObjectPtr, evalMemberGet, evalObjectValues } from "./objects.js";
@@ -363,6 +369,7 @@ export function evalValue(expr: HExpr, ctx: Ctx): Value {
     );
   }
   if (expr.kind === "arrayHof") return evalArrayHof(expr, ctx);
+  if (expr.kind === "collectionForEach") return evalCollectionForEach(expr, ctx);
   if (expr.kind === "conditional") return evalConditional(expr, ctx);
   if (expr.kind === "unwrap") return evalUnwrap(expr, ctx);
   if (expr.kind === "memberGet") return evalMemberGet(expr, ctx);

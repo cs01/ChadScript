@@ -375,6 +375,8 @@ export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
         type: VT.array(recvType.value),
       };
     }
+    if (method === "clear" || method === "forEach")
+      return lowerCollectionVoid(method, map, call, ctx);
     return ice(`lower: unsupported map method .${method}`);
   }
   if (recvType.kind === "set") {
@@ -399,6 +401,8 @@ export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
         type: VT.array(recvType.element),
       };
     }
+    if (method === "clear" || method === "forEach")
+      return lowerCollectionVoid(method, set, call, ctx);
     return ice(`lower: unsupported set method .${method}`);
   }
   if (recvType.kind === "number") {
@@ -459,4 +463,30 @@ function jsonParseTarget(call: ts.CallExpression, ctx: LowerCtx): ValueType {
     return ice("lower: JSON.parse without an explicit target annotation (validator should reject)");
   }
   return valueTypeOfTsType(ctx.checker.getTypeFromTypeNode(parent.type), parent.type, ctx.checker);
+}
+
+// `m.clear()` / `s.clear()`, and `forEach(cb)`, which walks the table live like for...of. The
+// validator (form-rules: collectionCallbackMismatch) admits only a callback whose parameters have
+// the representation forEach passes, so the closure is called as-is.
+function lowerCollectionVoid(
+  method: "clear" | "forEach",
+  collection: HExpr,
+  call: ts.CallExpression,
+  ctx: LowerCtx,
+): HExpr {
+  const isMap = collection.type.kind === "map";
+  if (method === "clear") {
+    return {
+      kind: "runtimeCall",
+      fn: isMap ? "cs_map_clear" : "cs_set_clear",
+      args: [collection],
+      type: VT.undefined,
+    };
+  }
+  return {
+    kind: "collectionForEach",
+    collection,
+    callback: lowerExpr(call.arguments[0]!, ctx),
+    type: VT.undefined,
+  };
 }

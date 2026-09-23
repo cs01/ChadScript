@@ -2,7 +2,7 @@ name: ci
 
 on:
   push:
-    branches: [v2]
+    branches: [v2, div2]
   pull_request:
     branches: [v2]
 

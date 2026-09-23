@@ -4,7 +4,7 @@
 
 import ts from "typescript";
 import { ice } from "../diagnostics.js";
-import type { HStmt, HExpr, BinaryOp } from "../hir/nodes.js";
+import type { HStmt, HExpr, BinaryOp, ForOfSource } from "../hir/nodes.js";
 import { VT } from "../hir/types.js";
 import type { ValueType } from "../hir/types.js";
 import {
@@ -176,16 +176,34 @@ export function lowerSwitch(stmt: ts.SwitchStatement, ctx: LowerCtx): HStmt {
 }
 
 export function lowerForOf(stmt: ts.ForOfStatement, ctx: LowerCtx): HStmt {
-  // Lower the iterable FIRST and read its lowered type — `m.keys()` / `s.values()` are typed as
-  // iterators by tsc but lower to a materialized array here, so trust the lowered type.
-  const array = lowerExpr(stmt.expression, ctx);
-  if (array.type.kind !== "array") ice("lower: for...of is only supported over arrays yet");
+  // Lower the iterable FIRST and read its lowered type: `m.keys()` / `s.values()` are typed as
+  // iterators by tsc but lower to collectionToArray, which a loop turns back into a LIVE walk of
+  // the collection (Node's iterators see the body's set/add/delete/clear; a snapshot would not).
+  const iterable = lowerExpr(stmt.expression, ctx);
+  let source: ForOfSource;
+  let elementType: ValueType;
+  if (iterable.kind === "collectionToArray") {
+    if (iterable.type.kind !== "array") return ice("lower: collectionToArray is not an array");
+    source = {
+      kind: "collection",
+      collection: iterable.receiver,
+      slot: iterable.fn === "cs_map_values" ? "value" : "key",
+    };
+    elementType = iterable.type.element;
+  } else if (iterable.type.kind === "set") {
+    source = { kind: "collection", collection: iterable, slot: "key" };
+    elementType = iterable.type.element;
+  } else if (iterable.type.kind === "array") {
+    source = { kind: "array", array: iterable };
+    elementType = iterable.type.element;
+  } else {
+    return ice("lower: for...of is only supported over arrays, keys()/values() and Sets");
+  }
   // The loop variable is `for (const x of arr)`.
   if (!ts.isVariableDeclarationList(stmt.initializer)) {
     ice("lower: for...of requires a `const`/`let` binding");
   }
   const decl = stmt.initializer.declarations[0]!;
-  const elementType = array.type.element;
   // `for (const { x, y } of pts)` — bind each element to a synthetic loop var, then a prelude at the
   // top of the body binds its fields (reuses the object-destructuring binder).
   if (ts.isObjectBindingPattern(decl.name)) {
@@ -199,7 +217,7 @@ export function lowerForOf(stmt: ts.ForOfStatement, ctx: LowerCtx): HStmt {
       kind: "forOf",
       name: loopName,
       elementType,
-      array,
+      source,
       body: [...prelude, ...lowerBranchBody(stmt.statement, ctx)],
     };
   }
@@ -208,7 +226,7 @@ export function lowerForOf(stmt: ts.ForOfStatement, ctx: LowerCtx): HStmt {
     kind: "forOf",
     name: nameOf(decl.name, ctx),
     elementType,
-    array,
+    source,
     body: lowerBranchBody(stmt.statement, ctx),
     ...cellFlag(decl.name, ctx.cells, ctx.checker),
   };

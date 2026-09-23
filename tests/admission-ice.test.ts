@@ -75,14 +75,9 @@ const CORPUS: Case[] = [
   { name: "Math.hypot", code: "CS1220", src: `console.log(Math.hypot(3, 4));\n` },
   { name: "number.toFixed", code: "CS1221", src: `console.log((1.5).toFixed(2));\n` },
   {
-    name: "map.forEach",
+    name: "map.entries",
     code: "CS1222",
-    src: `const m = new Map<string, number>();\nm.forEach((v) => console.log(v));\n`,
-  },
-  {
-    name: "set.forEach",
-    code: "CS1222",
-    src: `const s = new Set<number>([1]);\ns.forEach((v) => console.log(v));\n`,
+    src: `const m = new Map<string, number>();\nconsole.log([...m.entries()]);\n`,
   },
   {
     name: "string.normalize",
