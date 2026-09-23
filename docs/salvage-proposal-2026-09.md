@@ -87,6 +87,30 @@ the type is provably exact.
    unsoundness (array covariance, method bivariance) yields the same behavior as Node instead
    of memory corruption.
 
+## Where AOT still pays (this is not a new JS runtime)
+
+A JS engine is expensive because objects mutate shape, prototypes change, code is `eval`ed,
+and the engine speculates, then deoptimizes. The subset forbids all of that, and the program is
+closed-world (no npm, no dynamic import), so the compiler sees every allocation site.
+
+- **Primitives stay static.** `number` is an unboxed f64 in registers, `number[]` can be an
+  f64 slot array, calls are direct and inlinable by LLVM -O2. No guards, no deopt, no warmup.
+- **Slot coloring makes most field reads static too.** For each static type T, the compiler
+  knows every allocation shape assignable to T. If one shape reaches, or all reaching shapes
+  are laid out so field `x` is at the same slot (whole-program field ordering, like
+  register-coloring vtables), the read is a single load with no check. The inline cache is only
+  the fallback for truly polymorphic sites. Shapes are immutable, so there are no transitions.
+- **`Value` boxing only at union / generic / unknown positions.** Monomorphization removes
+  most generic boxing later.
+- **No engine in the binary**: no parser, interpreter, JIT, or deopt machinery. Startup
+  ~1 ms, binary hundreds of KB, predictable latency from the first instruction.
+
+The "runtime" part is shapes + an inline cache + NaN-box helpers, on the order of 1-2k LOC of
+C. Expected perf: numeric and call-heavy code at or above V8 steady state; object-heavy code
+near V8 steady state. The real risk is allocation-heavy code: Boehm is non-moving and
+non-generational, and V8's nursery bump allocator will beat it. Benchmark this in phase 1
+before claiming speed; the guaranteed wins are startup, size, memory, and no warmup.
+
 ## Node handover
 
 Not per construct: mixing a native heap and a V8 heap in one process (libnode embedding,
