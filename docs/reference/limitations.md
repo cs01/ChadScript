@@ -1,8 +1,11 @@
 # Is ChadScript for you?
 
-ChadScript is pre-alpha. The pipeline works end to end and every accepted program is tested
-against Node, but the subset is still growing and nothing has been released. Here is an honest
-fit check.
+ChadScript is an alpha: the first release is
+[2.0.0-alpha.1](https://github.com/cs01/ChadScript/releases). Every accepted program is tested
+against Node, but the subset is still growing. Here is an honest fit check.
+
+If you are not sure, try `chad run --fallback=node file.ts`: when ChadScript can't compile the
+file it tells you why and runs it with Node instead, with the same arguments and exit code.
 
 ## Good fit today
 
@@ -46,17 +49,35 @@ Each of these is rejected at compile time with a specific code, never silently m
   [CS1208](/reference/errors#cs1208), [CS1212](/reference/errors#cs1212),
   [CS1203](/reference/errors#cs1203)).
 - `Promise.reject`, `Promise.race`, top-level `await`
-  ([CS1220](/reference/errors#cs1220), [CS1000](/reference/errors#cs1000)).
+  ([CS1220](/reference/errors#cs1220), [CS1000](/reference/errors#cs1000)); `.then()` on a
+  promise ([CS1225](/reference/errors#cs1225)), use `await`.
+- `new Promise` unless its executor is written inline with `resolve` (and `reject`) annotated
+  ([CS1000](/reference/errors#cs1000)); see [async / await](/guide/async#new-promise).
+- A class that extends `Error` or any other built-in class, `.stack` on an error, and assigning
+  to an error's fields ([CS1000](/reference/errors#cs1000)).
+- Spreading an array into the arguments of a library function (`Math.max(...xs)`)
+  ([CS1000](/reference/errors#cs1000)).
+- `new Map(...)` from anything but an array literal of pairs
+  ([CS1000](/reference/errors#cs1000)).
+- Converting a function, an object with `valueOf`, or an object whose own `toString()` its
+  declared type does not declare into a string ([CS1238](/reference/errors#cs1238)).
+- Regular expressions, `Date` objects (only `Date.now()` works), `any`, `delete`, adding
+  properties to an object after it is created, index signatures (use a `Map`), labeled
+  statements, and optional chains longer than one `?.`.
+- Strings are UTF-8 and exact for ASCII text; operations whose result depends on UTF-16 code
+  units (`charCodeAt`, `<` on strings, ...) are rejected ([CS1216](/reference/errors#cs1216)).
 
-Known holes, where a construct slips past the compile-time checks and stops with an internal compiler error
-or a crash instead of a clean rejection. Each is pinned by a `@known-bug` test that fails the
-suite once the bug is fixed, so the list cannot silently go stale:
+Other differences in this release:
 
-- `new Promise(executor)`, `class X extends Error`, `new Map(entries)`, and an array
-  interpolated into a template literal: internal compiler error.
-- Reading `e.message` after `e instanceof Error` in a `catch`: crashes at run time.
-- `JSON.stringify` of an object that contains itself: overflows the stack instead of throwing
-  `TypeError` as Node does.
+- Only strings and the four error classes (`Error`, `TypeError`, `RangeError`, `SyntaxError`)
+  can be thrown. Throwing another value is not supported, and today it stops with an internal
+  compiler error ([CS9000](/reference/errors#cs9000)) instead of a clean rejection.
+- `JSON.parse` of malformed text throws a `SyntaxError` like Node, but the message text is
+  ChadScript's own. A document that does not match the declared type throws an `Error`, where
+  Node would return it unchecked ([JSON](/guide/json)).
+- Generic type parameters hold numbers, strings, booleans, null, undefined and objects; arrays,
+  Maps, Sets and functions as type arguments are rejected ([CS1242](/reference/errors#cs1242)).
+- There are no prebuilt compiler binaries: ChadScript runs from a source checkout under bun.
 
 The full list of what is accepted is the [subset reference](/reference/subset); every rejection
 is explained in the [error reference](/reference/errors).

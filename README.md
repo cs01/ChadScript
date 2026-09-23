@@ -5,8 +5,8 @@ in, a small native binary out. Every program it accepts behaves exactly as it do
 everything else is rejected at compile time with a diagnostic that says why.
 Documentation: **[cs01.github.io/ChadScript](https://cs01.github.io/ChadScript/)**.
 
-> Status: pre-alpha. Phases 0-6 of [`PLAN.md`](PLAN.md) are done (modules, Milo runtime, shaped
-> objects, unions, closures, generics, own GC); the 0.1 release is in progress.
+> Status: alpha. Latest release: [2.0.0-alpha.1](https://github.com/cs01/ChadScript/releases)
+> ([changelog](CHANGELOG.md)). It builds from a source checkout; no prebuilt binaries yet.
 
 ```ts
 // examples/shapes.ts (excerpt)
@@ -27,23 +27,68 @@ bin/chad build examples/shapes.ts -o shapes   # ~130 KB self-contained binary
 ./shapes                                      # ~2 ms; the same file under Node: ~48 ms
 ```
 
-## Quick start
+## Install
 
-Needs [bun](https://bun.sh) and clang/LLVM. No GC library: the runtime brings its own collector.
+Needs [bun](https://bun.sh) 1.3, LLVM (`clang` and `opt`), git, and Node.js 20.6 or newer (for
+`--fallback=node` and the test suite). No GC library: the runtime brings its own collector.
+Tested on macOS arm64 and Linux x86-64.
 
 ```sh
+git clone https://github.com/cs01/ChadScript
+cd ChadScript
 bun install
-bin/chad check file.ts            # typecheck + subset validation only
-bin/chad build file.ts -o out     # native binary
-bin/chad run   file.ts [args...]  # build to a temp dir and run
-bun test tests/                   # differential + rejection suites
+sh scripts/setup-milo.sh    # fetches the pinned Milo compiler the runtime is written in
+bin/chad doctor             # checks the toolchain, then compiles and runs a hello world
+```
+
+`bin/chad doctor` prints one line per check, with a fix for anything missing:
+
+```text
+  ok    bun          1.3.10
+  ok    node         v25.3.0
+  ok    tsx          loads under node (for --fallback=node)
+  ok    clang        22.1.8 (clang)
+  ok    opt          22.1.8 (opt)
+  ok    milo         pinned ba9484985954
+  ok    hello world  compiled and ran
+
+all checks passed
+```
+
+## Commands
+
+```sh
+bin/chad check file.ts                          # typecheck + subset check only, no binary
+bin/chad build file.ts -o out                   # native binary
+bin/chad run file.ts [args...]                  # build to a temp dir and run
+bin/chad run --fallback=node file.ts [args...]  # same, but run under Node if rejected
+bin/chad doctor                                 # check the toolchain
+bin/chad --version                              # chad 2.0.0-alpha.1 (milo <pinned commit>)
+```
+
+`--fallback=node` is for programs that might use something ChadScript does not support yet. If
+the compiler rejects the file, it prints why, then runs the same file under Node with the same
+arguments and exits with Node's exit code. If the file compiles, it runs natively as usual.
+Here [`docs/examples/fallback.ts`](docs/examples/fallback.ts) uses `==`, which is not supported:
+
+```text
+$ bin/chad run --fallback=node fallback.ts hello world
+error[CS1203]: `==` is not supported
+  --> fallback.ts:4:5
+  help: use `===`
+
+1 error(s)
+chad: running the program under node instead (--fallback=node)
+2 word(s): hello world
+$ echo $?
+3
 ```
 
 ## What "subset" means
 
 The compiler runs tsc at maximum strictness first; a program with any type error is not
-compiled. Then a **default-deny validator** admits only constructs on an explicit allowlist,
-each backed by a test that runs the program under Node and natively and diffs the output.
+compiled. Then the compiler admits only constructs on an explicit list, each backed by a test
+that runs the program under Node and natively and compares the output.
 Anything else fails with a code, a source span and a suggested rewrite:
 
 ```text
@@ -57,7 +102,9 @@ closures that reassign captured variables, with JS per-iteration loop bindings),
 functions and classes, arrays,
 object literals, classes with inheritance and virtual dispatch, `Map`/`Set`, optional values,
 unions of different kinds (`number | string`, `string[] | boolean | null`) narrowed by `typeof`,
-`===`, `instanceof`, `Array.isArray` and truthiness, spread, try/catch/finally, async/await, timers, `node:fs` (sync and promises), `node:path`,
+`===`, `instanceof`, `Array.isArray` and truthiness, spread, try/catch/finally with `Error`,
+`TypeError`, `RangeError` and `SyntaxError`, async/await with `new Promise`, timers, `String()`
+and template literals of any supported value, `node:fs` (sync and promises), `node:path`,
 and multi-file ES modules (named, default and namespace imports, re-exports, specifiers as
 TypeScript writes them, npm packages that ship TypeScript source).
 The generated [`docs/SUBSET.md`](docs/SUBSET.md) is the exact list.
@@ -65,11 +112,14 @@ The generated [`docs/SUBSET.md`](docs/SUBSET.md) is the exact list.
 Not supported, by design: `any`, `eval`, prototype mutation, adding or deleting properties at
 runtime, CommonJS, packages that ship only JavaScript. Programs that need those should run on Node (or
 [milojs](https://github.com/milo-language/milojs)); since every accepted program is valid
-TypeScript, the same file runs there unchanged.
+TypeScript, the same file runs there unchanged (`chad run --fallback=node` does this for you).
 
-Not supported yet, planned: generics instantiated with arrays, maps or functions (wrap them in an
-object), and generic containers shared with non-generic code; optional chains longer than one `?.`; operations on an un-narrowed union beyond printing, `===`, `typeof`, `??`
-and truthiness (narrow it first); `Map`/`Set` keyed by a union. See the phases in [`PLAN.md`](PLAN.md).
+Not supported yet: regular expressions, `Date` objects (only `Date.now()`), optional and default
+parameters, getters and setters, `.then()` on promises (use `await`), classes that extend `Error`,
+generics instantiated with arrays, maps or functions (wrap them in an object), optional chains
+longer than one `?.`, operations on an un-narrowed union beyond printing, `===`, `typeof`, `??`
+and truthiness (narrow it first), and `Map`/`Set` keyed by a union. The known limitations of
+this release are listed in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## How it works
 

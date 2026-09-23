@@ -4,14 +4,16 @@ import { data } from "./toolchain.data";
 
 # Quickstart
 
-From a fresh clone to a running native binary. With bun and LLVM already installed, running
-every command on this page (clone, setup, first build including the runtime, a rejection) took 6
-seconds on an Apple M4 on 2026-09-23. ChadScript is pre-alpha and builds from source; there is no
-release binary yet.
+From a fresh clone to a running native binary. With bun and LLVM already installed, every command
+on this page (clone, setup, first build including the runtime, a rejection) finishes in seconds.
+The latest release is [2.0.0-alpha.1](https://github.com/cs01/ChadScript/releases). ChadScript
+builds from a source checkout; there is no prebuilt binary yet.
 
 ## 1. Install the prerequisites
 
-You need [bun](https://bun.sh) (it runs the compiler) and LLVM's `clang` and `opt`.
+You need [bun](https://bun.sh) 1.3 (it runs the compiler), LLVM's `clang` and `opt`, and
+Node.js 20.6 or newer (for `--fallback=node` and the test suite). ChadScript is tested on macOS
+arm64 and Linux x86-64.
 
 ::: code-group
 
@@ -42,24 +44,26 @@ git clone https://github.com/cs01/ChadScript.git
 cd ChadScript
 bun install
 sh scripts/setup-milo.sh      # fetches the pinned Milo compiler that builds the runtime
-sh scripts/check-prereqs.sh
+bin/chad doctor
 ```
 
-The last command checks everything in one go. Expect this (versions and paths will differ):
+The last command checks everything in one go, then compiles and runs a hello world to prove the
+whole path works. Expect this (versions will differ):
 
 ```text
-ok       bun: 1.3.10
-ok       clang: Homebrew clang version 22.1.8
-ok       opt: Homebrew LLVM version 22.1.8
-ok       milo: /home/you/ChadScript/.milo/milo
-ok       dependencies: node_modules
-ok       node: v25.3.0
-optional rustc (rustc) not found: only needed for the benchmarks
-ready: bin/chad can build programs
+  ok    bun          1.3.10
+  ok    node         v25.3.0
+  ok    tsx          loads under node (for --fallback=node)
+  ok    clang        22.1.8 (clang)
+  ok    opt          22.1.8 (opt)
+  ok    milo         pinned ba9484985954
+  ok    hello world  compiled and ran
+
+all checks passed
 ```
 
-Any `MISSING` line names its fix. Node is optional for building; it is what the test suite
-compares against.
+A failed check prints the fix on the next line. Node is only needed for `--fallback=node` and the
+test suite; building programs does not use it.
 
 ## 3. Compile a program
 
@@ -107,6 +111,29 @@ a location, and a rewrite that stays inside the subset. Applying both hints:
 <<< @/examples/accepted.ts
 
 <<< @/examples/accepted.out{text}
+
+## 5. Run it anyway with `--fallback=node`
+
+When you are not sure a program fits the subset, `chad run --fallback=node` runs it either way.
+If ChadScript rejects the file, it prints why and then runs the same file with Node instead,
+with the same arguments and the same exit code. If the file compiles, it runs natively.
+
+```sh
+bin/chad run --fallback=node rejected.ts
+```
+
+```text
+error[CS1222]: iterating a Map directly with `for...of` is not supported yet
+  --> rejected.ts:6:1
+  help: iterate its keys and read each value: `for (const k of m.keys())`
+error[CS1203]: `==` is not supported
+  --> rejected.ts:7:7
+  help: use `===`
+
+2 error(s)
+chad: running the program under node instead (--fallback=node)
+pears: sold out
+```
 
 ## Next
 

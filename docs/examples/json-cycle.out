@@ -1,0 +1,4 @@
+TypeError
+Converting circular structure to JSON
+    --> starting at object with constructor 'Object'
+    --- property 'parent' closes the circle

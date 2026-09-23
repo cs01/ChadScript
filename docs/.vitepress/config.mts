@@ -28,6 +28,7 @@ export default defineConfig({
       { text: "How it works", link: "/internals/how-it-works" },
       { text: "Benchmarks", link: "/benchmarks" },
       { text: "Roadmap", link: "/roadmap" },
+      { text: "Releases", link: "https://github.com/cs01/ChadScript/releases" },
     ],
 
     sidebar: [
@@ -93,7 +94,7 @@ export default defineConfig({
 
     footer: {
       message:
-        'Pre-alpha. MIT licensed. <a href="https://github.com/cs01/ChadScript">Source on GitHub</a> · <a href="https://github.com/cs01/ChadScript/issues/new?title=divergence%3A+">Report a program that behaves differently from Node</a>',
+        'Alpha. MIT licensed. <a href="https://github.com/cs01/ChadScript">Source on GitHub</a> · <a href="https://github.com/cs01/ChadScript/releases">Releases</a> · <a href="https://github.com/cs01/ChadScript/issues/new?title=divergence%3A+">Report a program that behaves differently from Node</a>',
     },
   },
 });

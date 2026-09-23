@@ -39,7 +39,7 @@ export const EXPLANATIONS: Record<keyof typeof CODE, Entry> = {
   NOT_IN_SUBSET: {
     title: "Not in the subset",
     meaning:
-      "The general rejection. The compiler accepts a construct only when it has a rule for it, backed by a test that checks the result against Node; anything else stops here. The message names the construct (for example `GetAccessor`, a method in an object literal, top-level `await`, a nested `function` declaration, an optional chain longer than one `?.`).",
+      "The general rejection. The compiler accepts a construct only when it has a rule for it, backed by a test that checks the result against Node; anything else stops here. The message names the construct (for example `GetAccessor`, a method in an object literal, top-level `await`, a nested `function` declaration, an optional chain longer than one `?.`). It also covers the built-in classes: a class that extends `Error` or another built-in class, `new` of a built-in class the subset does not construct, and `instanceof` against anything but your own classes and the four error classes. On errors, `.stack` and assignments to an error's fields (`e.message = ...`) are rejected. Spreading an array into the arguments of a library function (`Math.max(...xs)`) is rejected. `new Promise` needs its executor written inline with typed parameters (`(resolve: (value: T) => void, reject: (reason: Error) => void): void => { ... }`), `new Set(...)` takes an array, and `new Map(...)` takes only an array literal of `[key, value]` pairs.",
     rewrite:
       "Follow the `help:` line, which is specific to the construct. The [subset reference](/reference/subset) lists every admitted syntax kind.",
     planned: true,
@@ -245,7 +245,7 @@ export const EXPLANATIONS: Record<keyof typeof CODE, Entry> = {
   UNREPRESENTABLE_TYPE: {
     title: "Type with no representation",
     meaning:
-      "A value whose type the value domain cannot represent: a tuple with different element types, an empty `never[]` literal, a union no runtime tag can tell apart (two array types), or a union used as a `Map`/`Set` key.",
+      "A value whose type the value domain cannot represent: a tuple with different element types, an empty `never[]` literal, a union no runtime tag can tell apart (two array types), a union used as a `Map`/`Set` key, or a `Promise<null>` (a promise of only `null`).",
     rewrite:
       "Follow the `help:` line: usually an object with named fields, or an explicit element type.",
     planned: true,
@@ -278,8 +278,9 @@ export const EXPLANATIONS: Record<keyof typeof CODE, Entry> = {
   UNRENDERABLE_VALUE: {
     title: "Value that cannot be printed",
     meaning:
-      "`console.log`, `JSON.stringify` or a format directive given a value that can hold something the runtime cannot render the way Node does (for example a promise).",
-    rewrite: "Print the fields you need, or await the promise first.",
+      "`console.log`, `JSON.stringify` or a format directive given a value that can hold something the runtime cannot render the way Node does (for example a promise). It also covers turning a value into a string (`String(x)`, a template literal, `+` with a string, `join`) when the value can be a function (Node prints its source text), an object with a `valueOf` method, or an object whose own `toString()` its declared type does not declare.",
+    rewrite:
+      "Print the fields you need, or await the promise first. To convert an object to text, give its declared class or interface a `toString(): string` method, or build the text from its fields (`${p.name}`).",
   },
   VALUE_OPERATION: {
     title: "Operation on an un-narrowed union",

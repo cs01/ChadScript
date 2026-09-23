@@ -1,0 +1,6 @@
+$ bin/chad check fallback.ts
+error[CS1203]: `==` is not supported
+  --> fallback.ts:4:5
+  help: use `===`
+
+1 error(s)

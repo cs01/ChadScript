@@ -105,12 +105,14 @@ A program either behaves exactly like Node or does not compile. There is no thir
       <li>npm packages that ship only JavaScript</li>
       <li><code>any</code>, <code>eval</code>, and adding properties at runtime</li>
       <li>Browser APIs, HTTP servers and sockets</li>
-      <li>Anything in production: this is pre-alpha</li>
+      <li>Anything in production: this is an alpha</li>
     </ul>
   </div>
 </div>
 
 When ChadScript says no, your code is still valid TypeScript, so the same file runs on Node.
+`chad run --fallback=node` does that for you: if ChadScript can't compile a file, it tells you
+why and runs it with Node instead.
 See the [full list of what works](/reference/subset) and the [limitations](/roadmap).
 
 </div>
@@ -134,7 +136,7 @@ the [language guide](/guide/language) shows what you can write.
 
 <div class="home-section closing">
 
-ChadScript is pre-alpha and developed in the open. If you find a program that compiles but prints
+ChadScript is an alpha ([2.0.0-alpha.1](https://github.com/cs01/ChadScript/releases)) and developed in the open. If you find a program that compiles but prints
 something different from Node, that is the most important kind of bug:
 [please open an issue](https://github.com/cs01/ChadScript/issues/new). Curious how it works?
 Read [how it works](/internals/how-it-works) or see the [roadmap](/roadmap).

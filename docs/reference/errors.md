@@ -72,7 +72,7 @@ The program does not typecheck under the strict options ChadScript imposes (`str
 
 ## CS1000: Not in the subset {#cs1000}
 
-The general rejection. The compiler accepts a construct only when it has a rule for it, backed by a test that checks the result against Node; anything else stops here. The message names the construct (for example `GetAccessor`, a method in an object literal, top-level `await`, a nested `function` declaration, an optional chain longer than one `?.`).
+The general rejection. The compiler accepts a construct only when it has a rule for it, backed by a test that checks the result against Node; anything else stops here. The message names the construct (for example `GetAccessor`, a method in an object literal, top-level `await`, a nested `function` declaration, an optional chain longer than one `?.`). It also covers the built-in classes: a class that extends `Error` or another built-in class, `new` of a built-in class the subset does not construct, and `instanceof` against anything but your own classes and the four error classes. On errors, `.stack` and assignments to an error's fields (`e.message = ...`) are rejected. Spreading an array into the arguments of a library function (`Math.max(...xs)`) is rejected. `new Promise` needs its executor written inline with typed parameters (`(resolve: (value: T) => void, reject: (reason: Error) => void): void => { ... }`), `new Set(...)` takes an array, and `new Map(...)` takes only an array literal of `[key, value]` pairs.
 
 **Rewrite:** Follow the `help:` line, which is specific to the construct. The [subset reference](/reference/subset) lists every admitted syntax kind.
 
@@ -344,7 +344,7 @@ An `async function` declaration referenced without calling it.
 
 ## CS1233: Type with no representation {#cs1233}
 
-A value whose type the value domain cannot represent: a tuple with different element types, an empty `never[]` literal, a union no runtime tag can tell apart (two array types), or a union used as a `Map`/`Set` key.
+A value whose type the value domain cannot represent: a tuple with different element types, an empty `never[]` literal, a union no runtime tag can tell apart (two array types), a union used as a `Map`/`Set` key, or a `Promise<null>` (a promise of only `null`).
 
 **Rewrite:** Follow the `help:` line: usually an object with named fields, or an explicit element type.
 
@@ -386,9 +386,9 @@ A call through an interface where the implementations reachable at run time take
 
 ## CS1238: Value that cannot be printed {#cs1238}
 
-`console.log`, `JSON.stringify` or a format directive given a value that can hold something the runtime cannot render the way Node does (for example a promise).
+`console.log`, `JSON.stringify` or a format directive given a value that can hold something the runtime cannot render the way Node does (for example a promise). It also covers turning a value into a string (`String(x)`, a template literal, `+` with a string, `join`) when the value can be a function (Node prints its source text), an object with a `valueOf` method, or an object whose own `toString()` its declared type does not declare.
 
-**Rewrite:** Print the fields you need, or await the promise first.
+**Rewrite:** Print the fields you need, or await the promise first. To convert an object to text, give its declared class or interface a `toString(): string` method, or build the text from its fields (`${p.name}`).
 
 **Rejection tests:** [`format-d-tostring.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/format-d-tostring.ts), [`format-dynamic-function.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/format-dynamic-function.ts), [`format-o-function.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/format-o-function.ts) and 9 more
 

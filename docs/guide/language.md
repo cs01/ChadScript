@@ -36,12 +36,12 @@ the output shown on the page is what Node prints.
 | [Unions and narrowing](/guide/unions)        | `typeof`, `===`, `Array.isArray`, discriminated unions, `??`               |
 | [Generics](/guide/generics)                  | generic functions and classes, constraints, erasure                        |
 | [Closures](/guide/closures)                  | captured mutable variables, per-iteration bindings, higher-order functions |
-| [Map and Set](/guide/collections)            | counting, iteration order, spreading keys                                  |
-| [async / await](/guide/async)                | Node's microtask ordering, `Promise.all`, timers, rejections               |
-| [Errors](/guide/errors)                      | `throw`, `try`/`catch`/`finally`, uncaught errors                          |
-| [JSON](/guide/json)                          | typed `JSON.parse` with shape checking, `JSON.stringify`                   |
+| [Map and Set](/guide/collections)            | counting, iteration order, spreading keys, `new Map` from pairs            |
+| [async / await](/guide/async)                | Node's microtask ordering, `Promise.all`, `new Promise`, timers            |
+| [Errors](/guide/errors)                      | `throw`, `try`/`catch`/`finally`, `Error` classes, uncaught errors         |
+| [JSON](/guide/json)                          | typed `JSON.parse` with shape checking, `JSON.stringify`, cycles           |
 | [node:fs and node:path](/guide/node-modules) | sync and promise file APIs, path helpers, `process.argv`                   |
-| [console.log](/guide/console)                | `util.inspect` formatting and format directives                            |
+| [console.log](/guide/console)                | `util.inspect` formatting, format directives, `String()` and templates     |
 
 ## Not in the subset
 
@@ -50,8 +50,9 @@ Permanently out, because they need a JavaScript engine rather than a compiler: `
 CommonJS, and packages that ship only JavaScript. Programs that need them should run on Node.
 
 Not yet, planned: regular expressions, `Date` instances, optional and default parameters,
-getters and setters, `toFixed`, generics instantiated with arrays or functions (wrap them in an
-object), optional chains longer than one `?.`, and `Map`/`Set` keyed by a union. Each is rejected
-today with a specific code; see the [roadmap](/roadmap).
+getters and setters, `toFixed`, `.then()` on promises, classes that extend `Error`, generics
+instantiated with arrays or functions (wrap them in an object), optional chains longer than one
+`?.`, and `Map`/`Set` keyed by a union. Each is rejected today with a specific code; see the
+[limitations](/reference/limitations) and the [roadmap](/roadmap).
 
 Next: [Modules and imports](/guide/modules).

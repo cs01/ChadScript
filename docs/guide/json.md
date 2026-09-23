@@ -10,11 +10,19 @@ the `null, 2` indent form.
 
 <<< @/examples/json.out{text}
 
+A value that contains itself cannot be written as JSON. `JSON.stringify` throws the same
+`TypeError`, with the same message, as Node:
+
+<<< @/examples/json-cycle.ts
+
+<<< @/examples/json-cycle.out{text}
+
 ## The one deliberate difference from Node
 
 In Node, `JSON.parse` returns whatever the text contains, and a wrong-shaped document surfaces
 later as `undefined` or a string where a number was expected. A compiled program cannot carry a
-value that contradicts its static type, so ChadScript **throws at the parse** instead:
+value that contradicts its static type, so ChadScript **throws an `Error` at the parse**
+instead:
 
 <<< @/examples/json-mismatch.ts
 
@@ -23,7 +31,7 @@ value that contradicts its static type, so ChadScript **throws at the parse** in
 Node prints `port + 1 = 80801` for this program. This is the only place where an accepted program
 is allowed to behave differently from Node, it is fixed in the charter ("`JSON.parse` validates
 against the declared type and throws on mismatch"), and it is tested directly instead of against
-Node. Malformed JSON throws in both.
+Node. Malformed JSON throws a `SyntaxError` in both, but the message text is ChadScript's own.
 
 Keys the type does not declare are kept, so printing or re-serializing a parsed object shows
 them as Node would.

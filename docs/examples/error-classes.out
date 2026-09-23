@@ -1,0 +1,6 @@
+ok 42
+SyntaxError -> empty input
+TypeError -> not a number: abc
+range problem: out of range: 200
+Error: unlucky true
+plain text

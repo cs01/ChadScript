@@ -1,0 +1,2 @@
+slow fast
+RangeError: negative delay: -1
