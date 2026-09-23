@@ -60,6 +60,7 @@ diagnostic — there is no "compiles but behaves differently than Node" third ca
 - `NamedImports`
 - `NamespaceImport`
 - `NewExpression`
+- `NonNullExpression`
 - `NullKeyword`
 - `NumberKeyword`
 - `ObjectBindingPattern`
@@ -92,6 +93,7 @@ diagnostic — there is no "compiles but behaves differently than Node" third ca
 - `TypeAliasDeclaration`
 - `TypeLiteral`
 - `TypeOfExpression`
+- `TypeParameter`
 - `TypeReference`
 - `UndefinedKeyword`
 - `UnionType`
@@ -259,3 +261,6 @@ diagnostic — there is no "compiles but behaves differently than Node" third ca
 | `CS1239` | VALUE_OPERATION |
 | `CS1240` | REPRESENTATION_MISMATCH |
 | `CS1241` | STALE_NARROWING |
+| `CS1242` | GENERIC_TYPE_ARGUMENT |
+| `CS1243` | TYPE_COMPUTATION |
+| `CS1244` | CONSTRUCTOR_TYPE |

@@ -58,7 +58,8 @@ function isValueExpression(node: ts.Node): node is ts.Expression {
     ts.isConditionalExpression(node) ||
     ts.isBinaryExpression(node) ||
     ts.isAwaitExpression(node) ||
-    ts.isNewExpression(node)
+    ts.isNewExpression(node) ||
+    ts.isNonNullExpression(node)
   );
 }
 
@@ -105,6 +106,9 @@ function valueUseProblem(e: ts.Expression, vt: ValueType, checker: ts.TypeChecke
   if (ts.isForStatement(p) && p.condition === at) return null;
   if (ts.isConditionalExpression(p)) return null;
   if (ts.isTypeOfExpression(p)) return null;
+  // `x!` is admitted only word to word (rules.ts), where it passes the word through; its own
+  // use is checked as an expression in turn.
+  if (ts.isNonNullExpression(p)) return null;
   if (ts.isSwitchStatement(p) || ts.isCaseClause(p)) return null;
   if (ts.isArrayLiteralExpression(p)) return null;
   if (ts.isPropertyAssignment(p) && p.initializer === at) return null;
@@ -171,6 +175,28 @@ function valueUseProblem(e: ts.Expression, vt: ValueType, checker: ts.TypeChecke
 }
 
 export function valueUseDiagnostic(node: ts.Node, checker: ts.TypeChecker): Diagnostic | null {
+  // `xs.join()` stringifies each element like String(x), so an element union holding an object
+  // (an erased `T[]`, a `(Pt | string)[]`) has no implemented form either.
+  if (
+    ts.isCallExpression(node) &&
+    ts.isPropertyAccessExpression(node.expression) &&
+    node.expression.name.text === "join"
+  ) {
+    const recv = vtOf(checker.getTypeAtLocation(node.expression.expression), node, checker);
+    const el = recv?.kind === "array" ? recv.element : null;
+    const objectLike =
+      el?.kind === "value"
+        ? !primitiveOnly(el)
+        : el?.kind === "optional" && !["number", "string", "boolean"].includes(el.inner.kind);
+    if (objectLike) {
+      return {
+        code: CODE.VALUE_OPERATION,
+        message: "`join` of an array whose elements can be objects is not supported",
+        span: spanOf(node, node.getSourceFile()),
+        suggestion: "map the elements to strings first: `xs.map((x) => ...).join()`",
+      };
+    }
+  }
   if (!isValueExpression(node)) return null;
   const vt = vtOf(checker.getTypeAtLocation(node), node, checker);
   if (!vt || vt.kind !== "value") return null;

@@ -16,6 +16,7 @@ import { ice } from "../diagnostics.js";
 import type { LoadedProgram } from "../frontend/program.js";
 import { classIdOf } from "./class-ids.js";
 import { arrayElementType, valueTypeOfTsType } from "./type-translation.js";
+import { isGenericDeclaration } from "./generics.js";
 
 export type LayoutSite =
   | { kind: "class"; classId: string; decl: ts.ClassDeclaration }
@@ -38,6 +39,11 @@ export interface Layout {
   // declared order, but at run time they come in any order and these may be missing entirely.
   // Such a layout never agrees on a slot (agreedIndex), so every access to it is an inline cache.
   maybeAbsent?: ReadonlySet<string>;
+  // Allocated by erased generic code (a generic class, or a literal inside a generic declaration):
+  // its type mentions type parameters, which no concrete type is assignable from or to, so reach
+  // is decided by field names instead (see reachingType).
+  generic?: true;
+  inheritsGeneric?: true;
 }
 
 // One item of a literal's property list, in source order.
@@ -60,7 +66,32 @@ export class LayoutAnalysis {
   // time and so cannot be enumerated into spread cases.
   readonly dynamicSpreads: ts.ObjectLiteralExpression[] = [];
 
+  // Whether the program has any generic declaration; without one reach is pure assignability,
+  // exactly as before generics existed.
+  generic = false;
+  // Every instantiation `new C<...>(...)` creates, per generic class declaration.
+  readonly instantiations = new Map<ts.ClassDeclaration, ts.Type[]>();
+
+  addInstantiation(node: ts.NewExpression): void {
+    const t = this.checker.getTypeAtLocation(node);
+    const d = t.getSymbol()?.valueDeclaration;
+    if (!d || !ts.isClassDeclaration(d) || !d.typeParameters?.length) return;
+    const list = this.instantiations.get(d) ?? [];
+    if (!list.includes(t)) list.push(t);
+    this.instantiations.set(d, list);
+  }
+
   constructor(readonly checker: ts.TypeChecker) {}
+
+  private hasGenericBase(t: ts.Type): boolean {
+    for (const b of this.checker.getBaseTypes(t as ts.InterfaceType)) {
+      const d = b.symbol?.valueDeclaration;
+      if (d && ts.isClassDeclaration(d) && (d.typeParameters?.length || this.hasGenericBase(b))) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   private add(
     names: readonly string[],
@@ -70,6 +101,12 @@ export class LayoutAnalysis {
   ): Layout {
     const l: Layout = { id: this.layouts.length, names, type, site };
     if (maybeAbsent) l.maybeAbsent = maybeAbsent;
+    const at = site.kind === "class" ? site.decl : site.kind === "json" ? null : site.node;
+    if (at && isGenericDeclaration(at)) l.generic = true;
+    // A subclass of a generic class (`class NumBox extends Box<number>`) inherits fields the erased
+    // base code stores, so its layout is checked like the base's (generic-rules.ts). It still
+    // reaches by assignability: it is not generic itself.
+    if (site.kind === "class" && this.hasGenericBase(type)) l.inheritsGeneric = true;
     this.layouts.push(l);
     return l;
   }
@@ -198,7 +235,21 @@ export class LayoutAnalysis {
     const target = this.checker.getNonNullableType(t);
     const hit = this.reachCache.get(target);
     if (hit) return hit;
-    const out = this.layouts.filter((l) => this.checker.isTypeAssignableTo(l.type, target));
+    // A generic layout or a type mentioning a type parameter has no assignability to go by, so it
+    // reaches every layout that has all the type's data fields: conservative (more layouts only
+    // push a site from a static slot to a by-name inline cache) and sound.
+    const byNames = this.generic ? genericReach(target, this.checker) : null;
+    const out = this.layouts.filter((l) => {
+      if (this.checker.isTypeAssignableTo(l.type, target)) return true;
+      if (byNames === null || !(l.generic || byNames.targetGeneric)) return false;
+      // A generic class's instances are exactly its `new` sites' instantiations, which tsc can
+      // compare; names only decide for a target that itself mentions a type parameter.
+      if (l.site.kind === "class" && !byNames.targetGeneric) {
+        const insts = this.instantiations.get(l.site.decl) ?? [];
+        return insts.some((i) => this.checker.isTypeAssignableTo(i, target));
+      }
+      return byNames.names.every((n) => this.checker.getPropertyOfType(l.type, n) !== undefined);
+    });
     this.reachCache.set(target, out);
     return out;
   }
@@ -306,6 +357,10 @@ export function layoutsOf(loaded: LoadedProgram): LayoutAnalysis {
   if (hit) return hit;
   const a = new LayoutAnalysis(loaded.checker);
   const visit = (node: ts.Node): void => {
+    const tps = (node as { typeParameters?: ts.NodeArray<ts.TypeParameterDeclaration> })
+      .typeParameters;
+    if (tps && tps.length > 0) a.generic = true;
+    if (ts.isNewExpression(node)) a.addInstantiation(node);
     // Only top-level classes exist at run time (lower builds method tables for exactly these).
     if (ts.isClassDeclaration(node) && node.name && ts.isSourceFile(node.parent)) a.addClass(node);
     else if (ts.isObjectLiteralExpression(node)) a.addLiteral(node);
@@ -332,4 +387,33 @@ function isAnnotatedJsonParse(node: ts.Node): node is ts.CallExpression {
     ts.isVariableDeclaration(node.parent) &&
     node.parent.type !== undefined
   );
+}
+
+// The member names (fields and methods) a value of type `t` must have, and whether `t` mentions a
+// type parameter (then no layout is assignable to it, and names are all reach can go by).
+function genericReach(
+  t: ts.Type,
+  checker: ts.TypeChecker,
+): { names: string[]; targetGeneric: boolean } {
+  const names = checker.getPropertiesOfType(t).map((p) => p.name);
+  return { names, targetGeneric: mentionsTypeParameter(t, checker, 0) };
+}
+
+function mentionsTypeParameter(t: ts.Type, checker: ts.TypeChecker, depth: number): boolean {
+  if (t.flags & ts.TypeFlags.TypeParameter) return true;
+  if (depth > 3) return false;
+  if (t.isUnionOrIntersection()) {
+    return t.types.some((m) => mentionsTypeParameter(m, checker, depth + 1));
+  }
+  if (!(t.flags & ts.TypeFlags.Object)) return false;
+  const ref = t as ts.TypeReference;
+  if (
+    ref.target &&
+    checker.getTypeArguments(ref).some((a) => mentionsTypeParameter(a, checker, depth + 1))
+  ) {
+    return true;
+  }
+  return checker
+    .getPropertiesOfType(t)
+    .some((p) => mentionsTypeParameter(checker.getTypeOfSymbol(p), checker, depth + 1));
 }

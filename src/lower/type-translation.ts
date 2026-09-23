@@ -5,7 +5,7 @@
 import ts from "typescript";
 import { classIdOf } from "./class-ids.js";
 import { ice } from "../diagnostics.js";
-import { ANY_OBJECT, VT, optionalOf } from "../hir/types.js";
+import { ANY_OBJECT, VALUE_ANY, VT, optionalOf } from "../hir/types.js";
 import type { ValueType } from "../hir/types.js";
 import { type LowerCtx, isMethodSymbol } from "./lower.js";
 
@@ -149,6 +149,38 @@ export function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChe
   // an interface, and structural handling would recurse into its `unique symbol` brand member.
   const opaque = opaqueHandleName(t);
   if (opaque !== null) return VT.opaque(opaque);
+  if (flags & ts.TypeFlags.TypeParameter) return typeParameterType(t, node, checker);
+  // `T & number` is what tsc narrows a type parameter to (`typeof x === "number"`): the value is
+  // whatever the non-parameter part says. Any other intersection has no representation.
+  if (flags & ts.TypeFlags.Intersection) {
+    // `x !== undefined` narrows `T | undefined` to `T & ({} | null)`: the `{}` part only says
+    // "not nullish" and changes no representation.
+    const isEmptyObject = (m: ts.Type): boolean =>
+      (m.flags & ts.TypeFlags.Object) !== 0 &&
+      checker.getPropertiesOfType(m).length === 0 &&
+      checker.getSignaturesOfType(m, ts.SignatureKind.Call).length === 0;
+    const onlyNonNullish = (m: ts.Type): boolean =>
+      isEmptyObject(m) ||
+      (m.isUnion() &&
+        m.types.every(
+          (u) => isEmptyObject(u) || (u.flags & (ts.TypeFlags.Null | ts.TypeFlags.Undefined)) !== 0,
+        ));
+    const rest = (t as ts.IntersectionType).types.filter(
+      (m) => !(m.flags & ts.TypeFlags.TypeParameter) && !onlyNonNullish(m),
+    );
+    if (rest.length === 1) return valueTypeOfTsType(rest[0]!, node, checker);
+    const params = (t as ts.IntersectionType).types.filter(
+      (m) => m.flags & ts.TypeFlags.TypeParameter,
+    );
+    if (rest.length === 0 && params.length === 1) {
+      return typeParameterType(params[0]!, node, checker);
+    }
+    if (rest.length === 0) return VALUE_ANY;
+    throw new UnrepresentableTypeError(
+      "an intersection type (`A & B`)",
+      "declare one interface with every field instead",
+    );
+  }
 
   if (flags & ts.TypeFlags.Object) {
     const ref = t as ts.TypeReference;
@@ -261,6 +293,10 @@ export function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChe
   // becomes `optional`; a union of members with different representations is a Value union.
   if (flags & ts.TypeFlags.Union) {
     const members = (t as ts.UnionType).types.map((m) => valueTypeOfTsType(m, node, checker));
+    // A member that is itself a Value (an erased `T` in `T | undefined`) contributes its members.
+    if (members.some((m) => m.kind === "value")) {
+      return valueUnion(members.flatMap((m) => (m.kind === "value" ? m.members : [m])));
+    }
     const nullish = members.filter((m) => m.kind === "undefined" || m.kind === "null");
     const rest = members.filter((m) => m.kind !== "undefined" && m.kind !== "null");
     const restFirst = rest[0];
@@ -289,6 +325,38 @@ export function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChe
     "use a supported type: number, string, boolean, arrays, closed objects, Map/Set, or `T | undefined`",
   );
 }
+
+// A type parameter, erased (PLAN value model item 4): one compiled body serves every
+// instantiation. Unconstrained, it is VALUE_ANY. Constrained to one representation (`T extends
+// Named`, `T extends string`), every instantiation already has that representation, so T takes it:
+// an object-constrained T is a record pointer whose fields are read by name through its shape (its
+// static type reaches no layout, lower/layouts.ts), which is what makes `x.name` exact whatever
+// layout the caller passes.
+function typeParameterType(t: ts.Type, node: ts.Node, checker: ts.TypeChecker): ValueType {
+  const c = checker.getBaseConstraintOfType(t);
+  if (!c || c === t || c.flags & (ts.TypeFlags.Unknown | ts.TypeFlags.Any)) return VALUE_ANY;
+  const vt = valueTypeOfTsType(c, node, checker);
+  switch (vt.kind) {
+    case "number":
+    case "string":
+    case "boolean":
+    case "object":
+      return vt;
+    case "value":
+      if (vt.members.every((m) => VALUE_ANY_KINDS.has(m.kind))) return vt;
+      break;
+    default:
+      break;
+  }
+  throw new UnrepresentableTypeError(
+    "a type parameter constrained to a container or function type",
+    "constrain it to an object type (`T extends { items: number[] }`) or leave it unconstrained",
+  );
+}
+
+const VALUE_ANY_KINDS = new Set(
+  VALUE_ANY.kind === "value" ? VALUE_ANY.members.map((m) => m.kind) : [],
+);
 
 // A Map key / Set element type. The runtime hashes and compares keys by one fixed kind (number,
 // string or boolean); a Value union key would need a kind-dispatching hash, which does not exist.

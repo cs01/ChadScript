@@ -18,6 +18,7 @@ import type { ValueType } from "../hir/types.js";
 import { CODE } from "./codes.js";
 import { spanOf } from "./validate.js";
 import { renderDiagnostic } from "./render-rules.js";
+import { genericSignatureOf, isGenericDeclaration } from "../lower/generics.js";
 
 export function layoutDiagnostics(loaded: LoadedProgram): Diagnostic[] {
   const analysis = layoutsOf(loaded);
@@ -105,15 +106,26 @@ export function layoutDiagnostics(loaded: LoadedProgram): Diagnostic[] {
     if (decls.some((d) => d.getSourceFile().isDeclarationFile || ts.isSourceFile(d))) return;
     const site = checker.getResolvedSignature(call);
     if (!site) return;
-    const siteSig = signatureRepr(site, call, checker);
+    // A call to a generic method passes and receives the ERASED representations (the boundary
+    // converts to and from the instantiation), so that is what every target must agree with.
+    const generic = genericSignatureOf(call, checker);
+    const siteSig: ValueType = generic
+      ? { kind: "function", params: generic.erased, ret: generic.erasedRet }
+      : signatureRepr(site, call, checker);
     for (const l of analysis.reaching(pa.expression)) {
       const prop = checker.getPropertyOfType(l.type, pa.name.text);
-      const sig = prop
-        ? checker.getSignaturesOfType(
-            checker.getTypeOfSymbolAtLocation(prop, call),
-            ts.SignatureKind.Call,
-          )[0]
-        : undefined;
+      // A method implemented by a generic class is compiled once, erased: its own declaration's
+      // signature is what the call reaches, whatever this layout instantiates the class with.
+      const impl = prop?.valueDeclaration;
+      const sig =
+        impl && ts.isMethodDeclaration(impl) && isGenericDeclaration(impl)
+          ? checker.getSignatureFromDeclaration(impl)
+          : prop
+            ? checker.getSignaturesOfType(
+                checker.getTypeOfSymbolAtLocation(prop, call),
+                ts.SignatureKind.Call,
+              )[0]
+            : undefined;
       const problem = !sig
         ? "has no such method"
         : sameRepr(signatureRepr(sig, call, checker), siteSig)

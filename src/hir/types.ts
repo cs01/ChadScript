@@ -93,6 +93,16 @@ export const VT = {
 // read a field through it fail loudly (no such field) instead of trusting one member's layout.
 export const ANY_OBJECT: ValueType = { kind: "object", shape: { fields: [] } };
 
+// An erased type parameter (generics by erasure): one Value word that may hold any SELF-DESCRIBING
+// value, i.e. one whose word alone says how to print, compare and serialize it. Containers and
+// functions are not (their word does not carry element or parameter representations), so the
+// generic call boundary rejects them as type arguments (lower/generics.ts). With these members every
+// existing Value operation (printing, ===, typeof, narrowing by unbox) works on a `T` unchanged.
+export const VALUE_ANY: ValueType = {
+  kind: "value",
+  members: [VT.number, VT.string, VT.boolean, VT.null, VT.undefined, ANY_OBJECT],
+};
+
 // The member of `v` carrying `kind`, or undefined. Members are unique per kind by construction.
 export function valueMember(v: ValueType, kind: ValueType["kind"]): ValueType | undefined {
   if (v.kind !== "value") return undefined;

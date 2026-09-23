@@ -314,6 +314,14 @@ export type HExpr =
   // conversion is one of these nodes, so verifyHir can check both ends of each.
   | { kind: "box"; value: HExpr; type: ValueType }
   | { kind: "unbox"; value: HExpr; type: ValueType }
+  // The two container conversions at an erased-generic boundary (lower/generics.ts), where one side
+  // stores T as a Value word and the other as the instantiation's machine value. `convertArray`
+  // COPIES array `value` into a fresh array of `type`, converting each element through its Value
+  // word; lower only emits it where the copy is unobservable (a spread, or an array the callee
+  // built and dropped). `adaptClosure` wraps closure `value` in a new closure of function `type`
+  // that converts each argument to `value`'s parameter representation and the result back.
+  | { kind: "convertArray"; value: HExpr; type: ValueType }
+  | { kind: "adaptClosure"; value: HExpr; type: ValueType }
   // `typeof x` as a string value. `value` may have any type; only a Value (or an optional) needs a
   // run-time answer.
   | { kind: "typeOf"; value: HExpr; type: ValueType }
@@ -473,6 +481,10 @@ export type HExpr =
   // `Number.isInteger/isFinite/isNaN(x)` — no argument coercion (x is already number). Result bool.
   | { kind: "numberPredicate"; fn: "isInteger" | "isFinite" | "isNaN"; arg: HExpr; type: ValueType }
   | { kind: "unary"; op: UnaryOp; operand: HExpr; type: ValueType }
+  // `x++` / `--x` in value position on a number variable (`() => n++` in a closure): stores
+  // x + delta and yields the new value (`prefix`) or the old one. Statement position lowers to an
+  // ordinary assign.
+  | { kind: "update"; name: string; delta: 1 | -1; prefix: boolean; type: ValueType }
   | { kind: "binary"; op: BinaryOp; left: HExpr; right: HExpr; type: ValueType }
   // Short-circuiting `&&` / `||`. JS VALUE semantics: the result IS one of the operands (not a
   // coerced boolean), so `type` is the operands' shared type. right is evaluated only when the

@@ -44,12 +44,14 @@ import { classIdOf, constructorClassOf } from "./class-ids.js";
 // Re-exported so the many existing `resolveType` import sites keep resolving through lower.ts.
 import { resolveType } from "./resolve-type.js";
 export { resolveType };
-import { lowerStatement, lowerStatements, thisRef } from "./statements.js";
+import { lowerStatement, lowerStatements, lowerUpdateValue, thisRef } from "./statements.js";
 import { ShapeRegistry } from "./shapes.js";
 import { fieldAccessAt } from "./member-access.js";
 import { type LayoutAnalysis, layoutsOf } from "./layouts.js";
 import { lowerObjectLit, resolveSpreads } from "./object-literal.js";
 import { findCellSymbols } from "./cells.js";
+import { genericSignatureOf } from "./generics.js";
+import { lowerGenericArgs, lowerCallValue } from "./generic-calls.js";
 import {
   buildClassTable,
   registerClassShape,
@@ -57,6 +59,7 @@ import {
   lowerFunction,
   lowerArrow,
   lowerArrayElement,
+  lowerFunctionRef,
   keyKindOf,
   isMathNamespace,
   isNumberNamespace,
@@ -274,7 +277,13 @@ function lowerCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
   const callee = calleeIdentifier(call, ctx.checker);
   if (!callee) {
     if (ts.isPropertyAccessExpression(call.expression)) return lowerMethodCall(call, ctx);
-    return ice(`lower: unsupported call target ${ts.SyntaxKind[call.expression.kind]}`);
+    // Any other callee (`make()()`, `(cond ? f : g)(x)`) is a function value.
+    return lowerCallValue(call, resolveType(call, ctx), ctx, (type) => ({
+      kind: "callClosure",
+      callee: lowerExpr(call.expression, ctx),
+      args: lowerCallArgs(call, ctx),
+      type,
+    }));
   }
   const intercepted = lowerInterceptedCall(call, ctx);
   if (intercepted) return intercepted;
@@ -282,12 +291,12 @@ function lowerCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
   const sym = symbolOf(callee, ctx);
   const isTopLevelFn = sym?.valueDeclaration && ts.isFunctionDeclaration(sym.valueDeclaration);
   if (!isTopLevelFn) {
-    return {
+    return lowerCallValue(call, resolveType(call, ctx), ctx, (type) => ({
       kind: "callClosure",
       callee: lowerExpr(call.expression, ctx),
       args: lowerCallArgs(call, ctx),
-      type: resolveType(call, ctx),
-    };
+      type,
+    }));
   }
   // A call to an `async function` spawns a fiber (result is Promise<T>) instead of running it now.
   const fnDecl = sym!.valueDeclaration as ts.FunctionDeclaration;
@@ -300,12 +309,12 @@ function lowerCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
       type: valueTypeOf(call, ctx), // Promise<T>
     };
   }
-  return {
+  return lowerCallValue(call, valueTypeOf(call, ctx), ctx, (type) => ({
     kind: "call",
     name: nameOf(callee, ctx),
     args: lowerCallArgs(call, ctx),
-    type: valueTypeOf(call, ctx),
-  };
+    type,
+  }));
 }
 
 // The class that implements `method` for a `super.method(...)` call from a subclass of `baseClass`
@@ -327,6 +336,9 @@ export function vtableIndexOf(className: string, method: string, ctx: LowerCtx):
 
 // The return type of a call as a ValueType, or null if void.
 export function callReturnType(call: ts.CallExpression, ctx: LowerCtx): ValueType | null {
+  // A generic callee returns its erased type; value positions convert it (lowerCallValue).
+  const generic = genericSignatureOf(call, ctx.checker);
+  if (generic) return generic.erasedRet;
   const t = ctx.checker.getTypeAtLocation(call);
   if (t.flags & (ts.TypeFlags.Void | ts.TypeFlags.Undefined)) return null;
   return valueTypeOfTsType(t, call, ctx.checker);
@@ -350,6 +362,8 @@ export function declaredTypeOfIdent(ident: ts.Identifier, ctx: LowerCtx): ValueT
 // Only user functions/closures reach here — builtin methods/globals have their own lowering — so
 // resolving the signature's parameter types is safe.
 export function lowerCallArgs(call: ts.CallExpression | ts.NewExpression, ctx: LowerCtx): HExpr[] {
+  const generic = genericSignatureOf(call, ctx.checker);
+  if (generic) return lowerGenericArgs(call, generic, ctx);
   const sig = ctx.checker.getResolvedSignature(call);
   const params = sig?.parameters ?? [];
   const last = params[params.length - 1];
@@ -583,6 +597,11 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
     case ts.SyntaxKind.ParenthesizedExpression:
       return lowerExpr((expr as ts.ParenthesizedExpression).expression, ctx);
 
+    // Admitted only where both sides are one Value word (validate/rules.ts), so the assertion has
+    // no run-time effect, exactly as in JS: an erased `T | undefined` read passes through as is.
+    case ts.SyntaxKind.NonNullExpression:
+      return lowerExpr((expr as ts.NonNullExpression).expression, ctx);
+
     case ts.SyntaxKind.TypeOfExpression:
       return {
         kind: "typeOf",
@@ -609,8 +628,17 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
       };
     }
 
+    case ts.SyntaxKind.PostfixUnaryExpression:
+      return lowerUpdateValue(expr as ts.PostfixUnaryExpression, ctx);
+
     case ts.SyntaxKind.PrefixUnaryExpression: {
       const u = expr as ts.PrefixUnaryExpression;
+      if (
+        u.operator === ts.SyntaxKind.PlusPlusToken ||
+        u.operator === ts.SyntaxKind.MinusMinusToken
+      ) {
+        return lowerUpdateValue(u, ctx);
+      }
       return { kind: "unary", op: unaryOp(u.operator), operand: lowerExpr(u.operand, ctx), type };
     }
 
@@ -751,44 +779,4 @@ export function calleeName(expr: ts.Expression): string {
   }
   if (ts.isIdentifier(expr)) return expr.text;
   return `<${ts.SyntaxKind[expr.kind]}>`;
-}
-
-// Wrap a top-level function declaration so it can be used as a first-class value.
-//
-// A closure is a {fnptr, env} record whose fnptr is called as `fn(env, ...args)`, while a top-level
-// function is emitted with no env parameter — so its address cannot be stored in a closure record
-// directly. The wrapper is an ordinary lifted lambda (an empty `captures` list is what gives it the
-// env parameter) whose body just forwards to the real function.
-//
-// Async function declarations are NOT admitted here: a call to one must SPAWN a fiber and yield a
-// promise, and a forwarding wrapper would instead run the body synchronously. The validator rejects
-// those as CS1232.
-function lowerFunctionRef(
-  ident: ts.Identifier,
-  decl: ts.FunctionDeclaration,
-  useType: ValueType,
-  ctx: LowerCtx,
-): HExpr {
-  const target = nameOf(ident, ctx);
-  const wrapperName = `fnref.${ctx.counter.n++}`;
-  const paramTypes = useType.kind === "function" ? useType.params : [];
-  const returnType = useType.kind === "function" ? useType.ret : null;
-  const params = paramTypes.map((type, i) => ({ name: `${wrapperName}.p${i}`, type }));
-  const args: HExpr[] = params.map((p) => ({ kind: "varRef", name: p.name, type: p.type }));
-
-  const body: HStmt[] = returnType
-    ? [{ kind: "return", value: { kind: "call", name: target, args, type: returnType } }]
-    : [
-        { kind: "callStmt", name: target, args, returnType: null },
-        { kind: "return", value: null },
-      ];
-
-  ctx.functions.push({ name: wrapperName, params, returnType, body, captures: [] });
-  return {
-    kind: "closure",
-    lambdaName: wrapperName,
-    captures: [],
-    display: `[Function: ${decl.name?.text ?? "default"}]`,
-    type: { kind: "function", params: paramTypes, ret: returnType },
-  };
 }

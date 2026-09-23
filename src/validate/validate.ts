@@ -18,6 +18,7 @@ import { tailoredRejection } from "./rules.js";
 import { tdzDiagnostics } from "./tdz.js";
 import { layoutDiagnostics } from "./layout-rules.js";
 import { cellNarrowingDiagnostics } from "./cell-rules.js";
+import { genericDiagnostics } from "./generic-rules.js";
 import { flowDiagnostic, valueUseDiagnostic } from "./value-rules.js";
 
 // SyntaxKinds the walker is allowed to descend through. PHASE 0 surface only — extend with
@@ -143,6 +144,11 @@ export const ALLOWED_KINDS: ReadonlySet<ts.SyntaxKind> = new Set([
   ts.SyntaxKind.UnionType, // `T | null` / `T | undefined` annotation (type position, inert)
   ts.SyntaxKind.LiteralType, // `null` / `undefined` / literal in type position (inert)
   ts.SyntaxKind.UndefinedKeyword, // `undefined` annotation (type position, inert)
+  // Generics (phase 5), erased: `<T>` declarations and explicit type arguments are type-level only;
+  // lower/generics.ts converts values at each call boundary and rejects what cannot cross it.
+  ts.SyntaxKind.TypeParameter,
+  // `x!`: the tailored rule (CS1204) admits only the word-to-word form, where it is a no-op.
+  ts.SyntaxKind.NonNullExpression,
   // `i++` / `i--` (statement/for-update position). Only ++/-- exist as postfix, so the whole
   // kind is admitted; prefix ++/-- is gated via SUPPORTED_UNARY_OPS below.
   ts.SyntaxKind.PostfixUnaryExpression,
@@ -217,6 +223,8 @@ export function validate(loaded: LoadedProgram): void {
   // A closure-shared variable's narrowings are only trusted where no call can have invalidated
   // them (cell-rules.ts); like the layout rules, this needs the whole program in the subset.
   if (diagnostics.length === 0) diagnostics.push(...cellNarrowingDiagnostics(loaded));
+  // Erased-generic call boundaries (generic-rules.ts), once every file is otherwise admitted.
+  if (diagnostics.length === 0) diagnostics.push(...genericDiagnostics(loaded));
   // The Value-union rules (value-rules.ts) ask the type translator about every expression, which
   // only has an answer for types the admitted constructs can produce, so they wait until every file
   // is otherwise in the subset. They run last so a more specific layout diagnostic (CS1237 for a

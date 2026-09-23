@@ -335,6 +335,23 @@ function verifyExpr(e: HExpr): void {
       }
       verifyExpr(e.value);
       return;
+    case "convertArray":
+      if (e.value.type.kind !== "array" || e.type.kind !== "array") {
+        ice(`verifyHir: convertArray from ${e.value.type.kind} to ${e.type.kind}`);
+      }
+      verifyExpr(e.value);
+      return;
+    case "adaptClosure":
+      if (
+        e.value.type.kind !== "function" ||
+        e.type.kind !== "function" ||
+        e.value.type.params.length > e.type.params.length ||
+        (e.value.type.ret === null) !== (e.type.ret === null)
+      ) {
+        ice("verifyHir: adaptClosure between incompatible function types");
+      }
+      verifyExpr(e.value);
+      return;
     case "typeOf":
     case "typeIs":
     case "convert":
@@ -534,6 +551,9 @@ function verifyExpr(e: HExpr): void {
       return;
     case "unary":
       verifyExpr(e.operand);
+      return;
+    case "update":
+      if (varTypes.get(e.name)?.kind !== "number") ice(`verifyHir: ${e.name}++ on a non-number`);
       return;
     case "template":
       e.exprs.forEach(verifyExpr);

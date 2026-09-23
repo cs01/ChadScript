@@ -19,6 +19,7 @@ import { functionDeclSymbol } from "./default-export.js";
 import { classDeclOfType, classIdOf, constructorClassOf } from "./class-ids.js";
 import { accessIn } from "./member-access.js";
 import { cellFlag, isModuleVariable } from "./cells.js";
+import { isGenericDeclaration } from "./generics.js";
 import {
   valueTypeOf,
   valueTypeOfTsType,
@@ -574,4 +575,57 @@ export function lowerArrayElement(
     return { spread: true, value };
   }
   return { spread: false, value: lowerExpr(e, ctx) };
+}
+
+// Wrap a top-level function declaration so it can be used as a first-class value.
+//
+// A closure is a {fnptr, env} record whose fnptr is called as `fn(env, ...args)`, while a top-level
+// function is emitted with no env parameter — so its address cannot be stored in a closure record
+// directly. The wrapper is an ordinary lifted lambda (an empty `captures` list is what gives it the
+// env parameter) whose body just forwards to the real function. A generic function is compiled
+// with erased parameters, so the wrapper also converts each argument and the result (one word
+// conversion each; validate/generic-rules.ts rejects a reference needing more).
+//
+// Async function declarations are NOT admitted here: a call to one must SPAWN a fiber and yield a
+// promise, and a forwarding wrapper would instead run the body synchronously. The validator rejects
+// those as CS1232.
+export function lowerFunctionRef(
+  ident: ts.Identifier,
+  decl: ts.FunctionDeclaration,
+  useType: ValueType,
+  ctx: LowerCtx,
+): HExpr {
+  const target = nameOf(ident, ctx);
+  const wrapperName = `fnref.${ctx.counter.n++}`;
+  const paramTypes = useType.kind === "function" ? useType.params : [];
+  const returnType = useType.kind === "function" ? useType.ret : null;
+  const params = paramTypes.map((type, i) => ({ name: `${wrapperName}.p${i}`, type }));
+  let args: HExpr[] = params.map((p) => ({ kind: "varRef", name: p.name, type: p.type }));
+  let calleeRet = returnType;
+  if (isGenericDeclaration(decl)) {
+    const sig = ctx.checker.getSignatureFromDeclaration(decl) ?? ice("lower: no signature");
+    const erased = sig.parameters.map((p) =>
+      valueTypeOfTsType(ctx.checker.getTypeOfSymbolAtLocation(p, decl), decl, ctx.checker),
+    );
+    args = args.map((a, i) => (erased[i] ? coerceToTarget(a, erased[i]) : a));
+    calleeRet = returnTypeOf(decl, ctx);
+  }
+
+  const call = (type: ValueType): HExpr => ({ kind: "call", name: target, args, type });
+  const body: HStmt[] =
+    returnType && calleeRet
+      ? [{ kind: "return", value: coerceToTarget(call(calleeRet), returnType) }]
+      : [
+          { kind: "callStmt", name: target, args, returnType: calleeRet },
+          { kind: "return", value: null },
+        ];
+
+  ctx.functions.push({ name: wrapperName, params, returnType, body, captures: [] });
+  return {
+    kind: "closure",
+    lambdaName: wrapperName,
+    captures: [],
+    display: `[Function: ${decl.name?.text ?? "default"}]`,
+    type: { kind: "function", params: paramTypes, ret: returnType },
+  };
 }

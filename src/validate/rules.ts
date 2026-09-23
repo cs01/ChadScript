@@ -10,6 +10,8 @@ import { CODE, type Code } from "./codes.js";
 import { spanOf } from "./validate.js";
 import { namespaceMemberOf } from "../lower/module-refs.js";
 import { UnrepresentableTypeError, valueTypeOfTsType } from "../lower/type-translation.js";
+import { isWordToWordAssertion } from "./generic-rules.js";
+import { updateValueProblem } from "./update-rules.js";
 import {
   checkDefaultClass,
   checkExportAssignment,
@@ -50,7 +52,47 @@ export function tailoredRejection(
         "use an `as const` object: `const Color = { Red: 0, Green: 1 } as const`",
       );
 
+    // Type-level computation: erased generics have one body per declaration and no run-time type
+    // information, so a type that is computed from a type parameter has nothing to lower to.
+    case ts.SyntaxKind.ConditionalType:
+    case ts.SyntaxKind.InferType:
+    case ts.SyntaxKind.MappedType:
+    case ts.SyntaxKind.IndexedAccessType:
+      return hit(
+        CODE.TYPE_COMPUTATION,
+        "conditional, mapped and indexed-access types are not supported",
+        "write the resulting type out as an interface or a union of literals",
+      );
+    case ts.SyntaxKind.TypeOperator:
+      if ((node as ts.TypeOperatorNode).operator !== ts.SyntaxKind.KeyOfKeyword) return null;
+      return hit(
+        CODE.TYPE_COMPUTATION,
+        "`keyof` types are not supported",
+        'list the keys as a union of string literals (`"a" | "b"`) and switch on the key',
+      );
+    case ts.SyntaxKind.ConstructorType:
+      return hit(
+        CODE.CONSTRUCTOR_TYPE,
+        "constructor types (`new () => T`) are not supported: a generic cannot construct its T",
+        "pass a factory function instead: `make: () => T`",
+      );
+
+    case ts.SyntaxKind.PrefixUnaryExpression:
+    case ts.SyntaxKind.PostfixUnaryExpression: {
+      const problem = updateValueProblem(
+        node as ts.PrefixUnaryExpression | ts.PostfixUnaryExpression,
+        checker,
+      );
+      return problem === null
+        ? null
+        : hit(CODE.NOT_IN_SUBSET, problem, "update it in its own statement: `x += 1;`");
+    }
+
     case ts.SyntaxKind.NonNullExpression:
+      // `x!` where x and the result are both one Value word (an erased `T | undefined` read) is a
+      // no-op in the compiled program exactly as in JS. Anywhere else it would have to unbox a
+      // possibly-undefined value to a concrete type, which JS never does.
+      if (isWordToWordAssertion(node as ts.NonNullExpression, checker)) return null;
       return hit(
         CODE.NON_NULL_ASSERTION,
         "the non-null assertion `!` is not allowed",

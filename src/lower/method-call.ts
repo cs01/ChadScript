@@ -19,7 +19,8 @@ import {
 import { methodDispatchAt } from "./member-access.js";
 import { optionalRead } from "./value-lower.js";
 import { isMathNamespace, keyKindOf } from "./declarations.js";
-import { valueTypeOfTsType } from "./type-translation.js";
+import { valueTypeOf, valueTypeOfTsType } from "./type-translation.js";
+import { lowerCallValue } from "./generic-calls.js";
 import { thisRef } from "./statements.js";
 import { lowerObjectNamespace } from "./object-literal.js";
 import { jsonFieldPresence } from "./layouts.js";
@@ -431,13 +432,14 @@ export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
   if (recvType.kind === "object") {
     const rt = callReturnType(call, ctx);
     if (rt === null) ice(`lower: void method .${method} used as a value`);
-    return {
+    const dispatch = methodDispatchAt(pa.expression, recvType, method, ctx);
+    return lowerCallValue(call, valueTypeOf(call, ctx), ctx, (type) => ({
       kind: "virtualCall",
       receiver,
-      dispatch: methodDispatchAt(pa.expression, recvType, method, ctx),
+      dispatch,
       args: lowerCallArgs(call, ctx),
-      type: rt,
-    };
+      type,
+    }));
   }
   return ice(`lower: unsupported method .${method} on ${recvType.kind}`);
 }

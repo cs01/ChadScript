@@ -28,6 +28,7 @@ import { evalAsyncCall, evalAwait, evalPromiseResolve, evalPromiseAll } from "./
 import { jsonStringify } from "./json.js";
 import { jsonParse } from "./json-parse.js";
 import { evalClosure } from "./cells.js";
+import { evalAdaptClosure, evalConvertArray } from "./generics.js";
 import { evalNumber } from "./numbers.js";
 import {
   evalValueWord,
@@ -197,6 +198,8 @@ export function evalArrayPtr(expr: HExpr, ctx: Ctx): Value {
   switch (expr.kind) {
     case "unbox":
       return evalUnbox(expr, ctx);
+    case "convertArray":
+      return evalConvertArray(expr, ctx);
     case "arrayLit": {
       const arr = ctx.fn.call("@cs_array_new", T.ptr, []);
       const elemType = expr.type.kind === "array" ? expr.type.element : ice("arrayLit not array");
@@ -319,6 +322,7 @@ export function evalCall(expr: Extract<HExpr, { kind: "call" }>, ctx: Ctx): Valu
 // Evaluate a function-typed HExpr to a closure-record pointer.
 export function evalFunctionPtr(expr: HExpr, ctx: Ctx): Value {
   if (expr.kind === "closure") return evalClosure(expr, ctx);
+  if (expr.kind === "adaptClosure") return evalAdaptClosure(expr, ctx);
   if (expr.kind === "unbox") return evalUnbox(expr, ctx);
   if (expr.kind === "varRef") return ctx.fn.load(T.ptr, lookupVar(expr.name, ctx).ptr);
   if (expr.kind === "call") return evalCall(expr, ctx);

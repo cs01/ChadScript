@@ -318,6 +318,25 @@ export function lowerIncDec(
   };
 }
 
+// `x++` / `--x` whose value is used. The validator admits only a number variable here (not a Value
+// union, not a field or element), so it is one load, add and store on the variable's own slot.
+export function lowerUpdateValue(
+  expr: ts.PostfixUnaryExpression | ts.PrefixUnaryExpression,
+  ctx: LowerCtx,
+): HExpr {
+  if (!ts.isIdentifier(expr.operand)) return ice("lower: value-position ++/-- on a non-variable");
+  if (declaredTypeOfIdent(expr.operand, ctx).kind !== "number") {
+    return ice("lower: value-position ++/-- on a non-number variable");
+  }
+  return {
+    kind: "update",
+    name: nameOf(expr.operand, ctx),
+    delta: expr.operator === ts.SyntaxKind.PlusPlusToken ? 1 : -1,
+    prefix: ts.isPrefixUnaryExpression(expr),
+    type: VT.number,
+  };
+}
+
 export function lowerAssignment(expr: ts.BinaryExpression, ctx: LowerCtx): HStmt {
   const op = expr.operatorToken.kind;
   if (ts.isPropertyAccessExpression(expr.left)) {
@@ -581,7 +600,13 @@ export function lowerCallStatement(call: ts.CallExpression, ctx: LowerCtx): HStm
       }
       // A user-function call in statement position: evaluate for effect, discard the result.
       if (!ts.isIdentifier(call.expression)) {
-        return ice(`lower: unsupported call target ${ts.SyntaxKind[call.expression.kind]}`);
+        // A function value from any other expression (`make()()`), called for effect.
+        return {
+          kind: "callClosureStmt",
+          callee: lowerExpr(call.expression, ctx),
+          args: lowerCallArgs(call, ctx),
+          returnType: callReturnType(call, ctx),
+        };
       }
       return lowerIdentifierCallStatement(call, call.expression, ctx);
     }

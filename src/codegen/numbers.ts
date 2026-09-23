@@ -121,6 +121,14 @@ export function evalNumber(expr: HExpr, ctx: Ctx): Value {
     case "binary":
       return evalArithOrBitwise(expr, ctx);
 
+    case "update": {
+      const ptr = lookupVar(expr.name, ctx).ptr;
+      const old = ctx.fn.load(T.double, ptr);
+      const next = ctx.fn.fadd(old, fimm(expr.delta));
+      ctx.fn.store(next, ptr);
+      return expr.prefix ? next : old;
+    }
+
     case "boolLit":
     case "stringLit":
       return ice(`evalNumber: got a ${expr.kind} in the number domain`);

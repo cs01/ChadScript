@@ -50,6 +50,9 @@ export const CODE = {
   VALUE_OPERATION: "CS1239", // an operation on an un-narrowed union of different kinds (`x + 1`)
   REPRESENTATION_MISMATCH: "CS1240", // a flow whose nested elements differ in representation
   STALE_NARROWING: "CS1241", // a narrowed read of a closure-reassigned variable after a call
+  GENERIC_TYPE_ARGUMENT: "CS1242", // T instantiated with a value its erased word cannot describe
+  TYPE_COMPUTATION: "CS1243", // conditional / mapped / indexed-access / keyof types
+  CONSTRUCTOR_TYPE: "CS1244", // `new () => T` (constructing through a type parameter)
 } as const;
 
 export type Code = (typeof CODE)[keyof typeof CODE];
