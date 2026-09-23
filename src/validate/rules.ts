@@ -28,6 +28,7 @@ import {
   isAmbientGlobalCall,
   isAsyncFunctionExpr,
 } from "./type-rules.js";
+import { checkBuiltinValueRef } from "./builtin-rules.js";
 
 export function tailoredRejection(
   node: ts.Node,
@@ -215,6 +216,8 @@ export function tailoredRejection(
 
     case ts.SyntaxKind.PropertyAccessExpression: {
       const pa = node as ts.PropertyAccessExpression;
+      const builtin = checkBuiltinValueRef(pa, hit, checker);
+      if (builtin) return builtin;
       const chain = checkOptionalChain(pa, checker);
       if (chain)
         return hit(CODE.NOT_IN_SUBSET, chain, "test the value first: `x === undefined ? d : x.f`");
@@ -307,6 +310,7 @@ export function tailoredRejection(
       return (
         checkNamespaceValue(node as ts.Identifier, hit, checker) ??
         checkFunctionValueRef(node as ts.Identifier, hit, checker) ??
+        checkBuiltinValueRef(node as ts.Identifier, hit, checker) ??
         checkOpaqueHandleUse(node as ts.Identifier, hit, checker)
       );
 

@@ -49,13 +49,9 @@ import {
   evalBooleanConvert,
 } from "./truthiness.js";
 export { toBool, truthyOfValue, evalLogical, evalNumberConvert, evalBooleanConvert };
-import {
-  evalOptionalPtr,
-  evalCoalesce,
-  evalUnwrap,
-  evalNullCheck,
-  evalOptionalEquality,
-} from "./optional.js";
+import { evalOptionalPtr, evalCoalesce, evalUnwrap, evalNullCheck } from "./optional.js";
+import { emitStrictEq, evalComparison } from "./equality.js";
+export { emitStrictEq };
 
 export interface Ctx {
   mod: ModuleBuilder;
@@ -268,24 +264,6 @@ export function arrayElementAt(arr: Value, i: Value, elemType: ValueType, ctx: C
   return unboxSlot(ctx.fn.call("@cs_array_get", T.i64, [arr, i]), elemType, ctx);
 }
 
-// Strict-equality (`===`) of two already-computed Values, dispatched on their shared type.
-// Matches JS: numbers via ordered fcmp oeq (NaN===NaN false), booleans via icmp, strings via
-// the runtime string compare. Shared by `switch` and array `.includes`/`.indexOf`.
-export function emitStrictEq(a: Value, b: Value, type: ValueType, ctx: Ctx): Value {
-  switch (type.kind) {
-    case "number":
-      return ctx.fn.fcmp("oeq", a, b);
-    case "boolean":
-      return ctx.fn.icmp("eq", a, b);
-    case "string":
-      return ctx.fn.icmp("ne", ctx.fn.call("@cs_str_eq", T.i32, [a, b]), imm(T.i32, 0));
-    case "value":
-      return valueStrictEq(a, b, ctx);
-    default:
-      return ice(`emitStrictEq: ${type.kind} not supported`);
-  }
-}
-
 // Coerce an already-computed Value to its JS string form (a ptr), per its type.
 export function coerceValueToString(v: Value, type: ValueType, ctx: Ctx): Value {
   switch (type.kind) {
@@ -329,6 +307,9 @@ export function evalFunctionPtr(expr: HExpr, ctx: Ctx): Value {
   if (expr.kind === "callClosure") return evalCallClosure(expr, ctx);
   if (expr.kind === "virtualCall") return evalVirtualCall(expr, ctx);
   if (expr.kind === "conditional") return evalConditional(expr, ctx);
+  if (expr.kind === "unwrap") return evalUnwrap(expr, ctx);
+  if (expr.kind === "memberGet") return evalMemberGet(expr, ctx);
+  if (expr.kind === "coalesce") return evalCoalesce(expr, ctx);
   return ice(`evalFunctionPtr: unhandled function expression ${expr.kind}`);
 }
 
@@ -381,6 +362,9 @@ export function evalValue(expr: HExpr, ctx: Ctx): Value {
   }
   if (expr.kind === "arrayHof") return evalArrayHof(expr, ctx);
   if (expr.kind === "conditional") return evalConditional(expr, ctx);
+  if (expr.kind === "unwrap") return evalUnwrap(expr, ctx);
+  if (expr.kind === "memberGet") return evalMemberGet(expr, ctx);
+  if (expr.kind === "coalesce") return evalCoalesce(expr, ctx);
   // `await` yields its inner-typed value; handle before the type switch so it dispatches by result
   // type regardless (a number `await`, a string `await`, …).
   if (expr.kind === "await") return evalAwait(expr, ctx);
@@ -587,13 +571,6 @@ function evalTemplate(expr: Extract<HExpr, { kind: "template" }>, ctx: Ctx): Val
   return acc;
 }
 
-const RELATIONAL: Partial<Record<BinaryOp, string>> = {
-  lt: "olt",
-  gt: "ogt",
-  le: "ole",
-  ge: "oge",
-};
-
 // Evaluate a boolean-typed HExpr to an i1 Value.
 export function evalBool(expr: HExpr, ctx: Ctx): Value {
   if (expr.kind === "await") return evalAwait(expr, ctx);
@@ -721,58 +698,4 @@ export function evalBool(expr: HExpr, ctx: Ctx): Value {
     default:
       return ice(`evalBool: unhandled boolean expression ${expr.kind}`);
   }
-}
-
-function evalComparison(expr: Extract<HExpr, { kind: "binary" }>, ctx: Ctx): Value {
-  const op = expr.op;
-  const relPred = RELATIONAL[op];
-  if (relPred) {
-    // String relational operands are gated OUT of the subset at validate (CS1216): byte-order
-    // comparison diverges from Node's UTF-16 code-unit order on non-ASCII. Only numbers reach here.
-    // Ordered predicate → NaN yields false, matching JS.
-    return ctx.fn.fcmp(relPred, evalNumber(expr.left, ctx), evalNumber(expr.right, ctx));
-  }
-  if (op === "eq" || op === "ne") {
-    const operandType = expr.left.type.kind;
-    // A Value operand: lower boxed the other side too, so this compares two words.
-    if (operandType === "value") {
-      const eq = valueStrictEq(evalValueWord(expr.left, ctx), evalValueWord(expr.right, ctx), ctx);
-      return op === "eq" ? eq : ctx.fn.logicalNot(eq);
-    }
-    // Optional vs concrete (`str.at(i) !== "h"`). One side is `T | undefined`, the other a plain
-    // inner value. Both-optional isn't emitted by the fixtures yet — leave it to the loud default.
-    const rightOpt = expr.right.type.kind === "optional";
-    if ((operandType === "optional") !== rightOpt) {
-      const optExpr = operandType === "optional" ? expr.left : expr.right;
-      const otherExpr = operandType === "optional" ? expr.right : expr.left;
-      return evalOptionalEquality(optExpr, otherExpr, op === "ne", ctx);
-    }
-    if (operandType === "number") {
-      // === → oeq (NaN===NaN false); !== → une (= !oeq, so NaN!==NaN true). Using ordered
-      // `one` for !== would wrongly make NaN!==NaN false — a JS divergence.
-      return ctx.fn.fcmp(
-        op === "eq" ? "oeq" : "une",
-        evalNumber(expr.left, ctx),
-        evalNumber(expr.right, ctx),
-      );
-    }
-    if (operandType === "boolean") {
-      return ctx.fn.icmp(
-        op === "eq" ? "eq" : "ne",
-        evalBool(expr.left, ctx),
-        evalBool(expr.right, ctx),
-      );
-    }
-    if (operandType === "string") {
-      // Value-position `===`/`!==` on strings: cs_str_eq returns 1 when equal (length + bytes,
-      // NUL-safe — same primitive `switch` uses). `eq` is true when cs_str_eq != 0; `ne` inverts.
-      const cmp = ctx.fn.call("@cs_str_eq", T.i32, [
-        evalString(expr.left, ctx),
-        evalString(expr.right, ctx),
-      ]);
-      return ctx.fn.icmp(op === "eq" ? "ne" : "eq", cmp, imm(T.i32, 0));
-    }
-    return ice(`evalBool: ${op} on ${operandType} operands not supported yet`);
-  }
-  return ice(`evalBool: binary op ${op} is not a comparison`);
 }

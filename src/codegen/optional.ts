@@ -183,6 +183,44 @@ export function evalOptionalEquality(
   return ctx.fn.load(T.i1, result);
 }
 
+// `===`/`!==` between two optionals of the same inner type. The same pointer (one sentinel, or one
+// box) is equal; otherwise a sentinel on either side means unequal (undefined !== null, and absent
+// never equals present); two boxes compare their inner values, since each read of a present
+// optional can box the same value anew.
+export function evalBothOptionalEquality(
+  expr: Extract<HExpr, { kind: "binary" }>,
+  isNe: boolean,
+  ctx: Ctx,
+): Value {
+  if (expr.left.type.kind !== "optional") return ice("evalBothOptionalEquality: not optional");
+  const innerType = expr.left.type.inner;
+  const a = evalOptionalPtr(expr.left, ctx);
+  const b = evalOptionalPtr(expr.right, ctx);
+  const result = ctx.fn.alloca(T.i1);
+  const sameB = ctx.fn.newBlock("opteq2.same");
+  const diffB = ctx.fn.newBlock("opteq2.diff");
+  const absentB = ctx.fn.newBlock("opteq2.absent");
+  const bothB = ctx.fn.newBlock("opteq2.both");
+  const endB = ctx.fn.newBlock("opteq2.end");
+  ctx.fn.brCond(ctx.fn.icmp("eq", a, b), sameB, diffB);
+  ctx.fn.switchTo(sameB);
+  ctx.fn.store(imm(T.i1, isNe ? 0 : 1), result);
+  ctx.fn.br(endB);
+  ctx.fn.switchTo(diffB);
+  ctx.fn.brCond(ctx.fn.logicalOr(isNullishPtr(a, ctx), isNullishPtr(b, ctx)), absentB, bothB);
+  ctx.fn.switchTo(absentB);
+  ctx.fn.store(imm(T.i1, isNe ? 1 : 0), result);
+  ctx.fn.br(endB);
+  ctx.fn.switchTo(bothB);
+  const ia = unboxSlot(ctx.fn.load(T.i64, a), innerType, ctx);
+  const ib = unboxSlot(ctx.fn.load(T.i64, b), innerType, ctx);
+  const eq = emitStrictEq(ia, ib, innerType, ctx);
+  ctx.fn.store(isNe ? ctx.fn.logicalNot(eq) : eq, result);
+  ctx.fn.br(endB);
+  ctx.fn.switchTo(endB);
+  return ctx.fn.load(T.i1, result);
+}
+
 // `a ?? b`: if `a` is nullish (undefined OR null), use `b`; else unwrap the boxed inner value.
 // Fused `arr[i] ?? fallback`: branch on the bounds check and load the slot directly on the
 // in-range path. Semantically identical to building an optional and immediately coalescing it,
