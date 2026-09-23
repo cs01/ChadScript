@@ -384,14 +384,13 @@ export function valueStrictEq(a: Value, b: Value, ctx: Ctx): Value {
   return ctx.fn.icmp("ne", r, imm(T.i32, 0));
 }
 
-// JSON text of a Value. `undefined` has none (JSON.stringify skips such a field and returns
-// undefined for such a value); the validator keeps a top-level one out and the field writer skips
-// the word before calling here.
+// JSON text of a Value. `undefined` has none as a value or field (JSON.stringify skips such a field
+// and returns undefined for such a value; the validator keeps a top-level one out and the field
+// writer skips the word before calling here), so the only `undefined` that arrives is an array
+// element, which Node writes as `null`.
 export function jsonValue(raw: Value, t: ValueType, ctx: Ctx, indent: Value, depth: Value): Value {
-  // No arm for `undefined`: callers never pass that word, so it falls to the mismatch trap.
-  const members = membersOf(t).filter((m) => m.kind !== "undefined");
-  return switchOnValue(raw, members, T.ptr, ctx, (m) => {
-    if (m.kind === "null") return ctx.mod.cstring("null");
+  return switchOnValue(raw, membersOf(t), T.ptr, ctx, (m) => {
+    if (m.kind === "null" || m.kind === "undefined") return ctx.mod.cstring("null");
     return jsonStringify(unboxValue(raw, m, ctx), m, ctx, indent, depth);
   });
 }

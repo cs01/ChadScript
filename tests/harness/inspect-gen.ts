@@ -3,7 +3,9 @@
 // union elements, strings of every length and quoting situation, occasional cycles) and prints them
 // with console.log, so Node's layout rules (line breaking at 80 columns, numeric column grouping,
 // depth cutoffs, `... N more items`, string splitting and quoting) are diffed against the native
-// runtime's port. Every program is tsc-clean and deterministic.
+// runtime's port. Some lines go through util.format: a format string (a literal, or a string only
+// known at run time) with %s %d %i %f %j %o %O %c %% and stray `%` pieces, applied to the same
+// values. Every program is tsc-clean and deterministic.
 
 import { makeRng } from "./fuzz-gen.js";
 
@@ -183,13 +185,39 @@ export function genInspectProgram(seed: number): string {
   };
 
   const count = 3 + int(4);
+  const made: Ty[] = [];
   for (let i = 0; i < count; i++) {
     const t = genType(0);
     const e = genValue(t, 0);
+    made.push(t);
     body.push(`const v${i}: ${tsType(t)} = ${e};`);
     body.push(
       int(4) === 0 ? `console.log("v${i}", v${i}, ${genNumber()});` : `console.log(v${i});`,
     );
+  }
+  // util.format lines. %j is only generated for values JSON can render (the validator rejects the
+  // rest), and a run-time format string can meet any directive, so it gets only such values too.
+  const formats = int(3);
+  for (let f = 0; f < formats; f++) {
+    const n = 1 + int(3);
+    const idx = Array.from({ length: n }, () => int(count));
+    const safe = idx.every((i) => jsonSafe(made[i]!, "top"));
+    const pieces: string[] = [];
+    const parts = 1 + int(5);
+    for (let p = 0; p < parts; p++) {
+      pieces.push(
+        pick(["", "x", " ", "val=", "%%", "%x", "100%", " - "]) +
+          pick(safe ? DIRECTIVES : DIRECTIVES.filter((d) => d !== "%j")),
+      );
+    }
+    const fmt = pieces.join("") + pick(["", "%", " end", "%%"]);
+    const argList = idx.map((i) => `v${i}`).join(", ");
+    if (safe && int(2) === 0) {
+      body.push(`const fmt${f}: string = [${JSON.stringify(fmt)}].join("");`);
+      body.push(`console.log(fmt${f}, ${argList});`);
+    } else {
+      body.push(`console.log(${JSON.stringify(fmt)}, ${argList});`);
+    }
   }
   if (int(4) === 0) {
     // A cycle through a class field: `<ref *1>` and `[Circular *1]`.
@@ -207,6 +235,29 @@ export function genInspectProgram(seed: number): string {
     body.push("console.log(c1);", "console.log([c1, c2]);");
   }
   return [...decls, ...body].join("\n") + "\n";
+}
+
+const DIRECTIVES = ["%s", "%d", "%i", "%f", "%j", "%o", "%O", "%c", ""];
+
+// Whether JSON.stringify (and so %j) renders a value of type `t` at this position: a Map or Set
+// only at the top (%j writes `{}`), an optional only at the top or as an object field.
+function jsonSafe(t: Ty, pos: "top" | "field" | "nested"): boolean {
+  switch (t.k) {
+    case "number":
+    case "string":
+    case "boolean":
+    case "numstr":
+      return true;
+    case "optnum":
+      return pos !== "nested";
+    case "array":
+      return jsonSafe(t.el, "nested");
+    case "obj":
+      return t.fields.every(([, ft]) => jsonSafe(ft, "field"));
+    case "map":
+    case "set":
+      return pos === "top";
+  }
 }
 
 function isScalar(t: Ty): boolean {

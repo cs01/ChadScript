@@ -22,6 +22,7 @@ from "./fs" import { cs_fs_read_file }
 from "./timer" import { cs_set_timeout }
 from "./print" import { cs_print_f64 }
 from "./inspect" import { cs_insp_finish }
+from "./format" import { cs_console_format }
 from "./async" import { cs_run_event_loop }
 from "./fs-promises" import { cs_fsp_read_file }
 from "./shape" import { cs_ic_get }

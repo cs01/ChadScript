@@ -31,13 +31,13 @@ let MIN_LINE_LENGTH: i64 = 16
 // A growable byte buffer in GC memory. The header is scanned (it points at the bytes); the bytes
 // are atomic.
 
-extern struct Sb {
+pub extern struct Sb {
     p: *u8,
     n: i64,
     cap: i64,
 }
 
-fn sbNew(): *Sb {
+pub fn sbNew(): *Sb {
     unsafe {
         let b = GC_malloc(24) as *Sb
         b.p = GC_malloc_atomic(64)
@@ -47,7 +47,7 @@ fn sbNew(): *Sb {
     }
 }
 
-fn sbBytes(b: *Sb, p: *u8, n: i64) {
+pub fn sbBytes(b: *Sb, p: *u8, n: i64) {
     unsafe {
         if b.n + n > b.cap {
             var nc = b.cap * 2
@@ -66,7 +66,7 @@ fn sbBytes(b: *Sb, p: *u8, n: i64) {
     }
 }
 
-fn sbByte(b: *Sb, c: u8) {
+pub fn sbByte(b: *Sb, c: u8) {
     var one: [u8; 1] = [0; 1]
     one[0] = c
     unsafe {
@@ -74,7 +74,7 @@ fn sbByte(b: *Sb, c: u8) {
     }
 }
 
-fn sbStr(b: *Sb, s: *CsString) {
+pub fn sbStr(b: *Sb, s: *CsString) {
     unsafe {
         sbBytes(b, s.data, s.len)
     }
@@ -106,19 +106,19 @@ fn sbLen(b: *Sb): i64 {
     }
 }
 
-fn sbDone(b: *Sb): *CsString {
+pub fn sbDone(b: *Sb): *CsString {
     unsafe {
         return cs_str_mk(b.p, b.n)
     }
 }
 
-fn slen(s: *CsString): i64 {
+pub fn slen(s: *CsString): i64 {
     unsafe {
         return s.len
     }
 }
 
-fn sbyte(s: *CsString, i: i64): u8 {
+pub fn sbyte(s: *CsString, i: i64): u8 {
     unsafe {
         return s.data[i]
     }
@@ -319,6 +319,30 @@ pub fn cs_inspect_key(s: *CsString): *CsString {
 var gSeen: *CsArray = 0 as *CsArray
 var gCircular: *CsArray = 0 as *CsArray
 
+// The inspect options that differ between callers: console.log and %O use depth 2; util.format's
+// %s uses depth 0 and %o depth 4 with showHidden (runtime/format.milo sets them around one value).
+// gCurrentDepth is Node's ctx.currentDepth: the nesting of the container that most recently began
+// formatting its entries, which reduceToSingleString compares against compact.
+var gMaxDepth: i32 = 2
+var gShowHidden: i32 = 0
+var gCurrentDepth: i32 = 0
+
+@externalLinkage
+pub fn cs_insp_set_mode(maxDepth: i32, showHidden: i32) {
+    gMaxDepth = maxDepth
+    gShowHidden = showHidden
+}
+
+@externalLinkage
+pub fn cs_insp_max_depth(): i32 {
+    return gMaxDepth
+}
+
+@externalLinkage
+pub fn cs_insp_show_hidden(): i32 {
+    return gShowHidden
+}
+
 fn indexIn(a: *CsArray, p: i64): i64 {
     if a as i64 == 0 {
         return -1
@@ -355,9 +379,10 @@ pub fn cs_insp_circular(p: *u8): *CsString {
     return sbDone(out)
 }
 
-// Container `p` is about to format its entries.
+// Container `p`, at nesting `depth`, is about to format its entries.
 @externalLinkage
-pub fn cs_insp_push(p: *u8) {
+pub fn cs_insp_push(p: *u8, depth: i32) {
+    gCurrentDepth = depth
     if gSeen as i64 == 0 {
         gSeen = cs_array_new()
     }
@@ -509,8 +534,8 @@ fn joinEntries(out: *Sb, output: *CsArray, sep: *CsString) {
 // Container `p` finished formatting: `entries` are its formatted entries (at most 100 for an
 // array, Map or Set whose true size is `total`), `open` its opening brace with any prefix
 // (`[`, `{`, `Point {`, `Map(2) {`), `close` its closing one. `arrayMode` is -1 for anything but
-// an array; for an array it is 1 when every element (up to the 101st, as Node checks) is a number,
-// else 0. Returns the laid-out text.
+// an array; for an array bit 0 is set when every element up to the 101st (as Node checks) is a
+// number, and bit 1 when element 101 is a number or absent. Returns the laid-out text.
 @externalLinkage
 pub fn cs_insp_finish(p: *u8, entries: *CsArray, total: i32, open: *CsString, close: *CsString, arrayMode: i32, depth: i32): *CsString {
     unsafe {
@@ -529,6 +554,14 @@ pub fn cs_insp_finish(p: *u8, entries: *CsArray, total: i32, open: *CsString, cl
         }
         pushEntry(output, sbDone(more))
     }
+    // showHidden lists an array's non-enumerable `length` after its elements (Node's formatRaw
+    // pushes the keys after formatList's output), so it also takes part in grouping below.
+    if gShowHidden != 0 && arrayMode >= 0 {
+        let len = sbNew()
+        sbLit(len, "[length]: ")
+        sbInt(len, total as i64)
+        pushEntry(output, sbDone(len))
+    }
     let base = sbNew()
     let refIdx = indexIn(gCircular, p as i64)
     if refIdx >= 0 {
@@ -544,7 +577,16 @@ pub fn cs_insp_finish(p: *u8, entries: *CsArray, total: i32, open: *CsString, cl
     let indent = depth as i64 * 2
     let entryCount = alen(output)
     if arrayMode >= 0 && entryCount > 6 {
-        output = groupArrayElements(output, indent, arrayMode == 1)
+        // Node right-aligns only when value[i] is a number for every i < output.length. With
+        // showHidden's `[length]` entry that reaches one index further: past the end of an array
+        // of up to 101 elements (undefined), else element 101 (bit 1 of arrayMode).
+        let firstNumeric = (arrayMode & 1) == 1
+        let numeric = if gShowHidden == 0 {
+            firstNumeric
+        } else {
+            firstNumeric && total > 101 && (arrayMode & 2) == 2
+        }
+        output = groupArrayElements(output, indent, numeric)
     }
     let out = sbNew()
     if sbLen(base) > 0 {
@@ -552,9 +594,9 @@ pub fn cs_insp_finish(p: *u8, entries: *CsArray, total: i32, open: *CsString, cl
         sbByte(out, ' ')
     }
     sbStr(out, open)
-    // Node also requires ctx.currentDepth - recurseTimes < compact here. With depth 2 the deepest
-    // container formatted is 2 levels below any other, so that test always passes.
-    if entryCount == alen(output) {
+    // ctx.currentDepth - recurseTimes < compact: an entry list that just formatted 3 or more
+    // levels of nesting (possible at %o's depth 4) always breaks into lines.
+    if (gCurrentDepth - depth) < (COMPACT as i32) && entryCount == alen(output) {
         let start = alen(output) + indent + slen(open) + sbLen(base) + 10
         if isBelowBreakLength(output, start) {
             let line = sbNew()

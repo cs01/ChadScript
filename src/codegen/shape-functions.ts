@@ -74,8 +74,9 @@ function inspectable(t: ValueType): boolean {
   }
 }
 
-// `field`: t is an object field's type. Only a field may be optional (an absent field is skipped);
-// json.ts has no text for an optional anywhere else (validate/render-rules.ts rejects those sites).
+// `field`: t is an object field's type, else an array element's. An absent optional field is
+// skipped; in an array an optional, undefined or a function is `null` (json.ts), and a Map or Set
+// is `{}` anywhere. A field that is always undefined or a function has no text here.
 function jsonable(t: ValueType, field: boolean): boolean {
   switch (t.kind) {
     case "number":
@@ -85,17 +86,19 @@ function jsonable(t: ValueType, field: boolean): boolean {
     case "object":
       return true;
     case "optional":
-      return field && jsonable(t.inner, false);
+      return jsonable(t.inner, false);
     case "array":
       return jsonable(t.element, false);
+    case "set":
+    case "map":
+      return true;
     case "value":
       // A field holding `undefined` is skipped by the field loop (it checks the word first), so
       // an undefined member is fine here; every other member must have JSON text.
       return t.members.every((m) => m.kind === "undefined" || jsonable(m, false));
     case "undefined":
     case "function":
-    case "set":
-    case "map":
+      return !field;
     case "unknown":
     case "promise":
     case "opaque":

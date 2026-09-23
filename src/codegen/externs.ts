@@ -26,7 +26,13 @@ export function declareRuntimeExterns(mod: ModuleBuilder): void {
   mod.declareExtern("cs_inspect_str", T.ptr, [T.ptr, T.i32]);
   // util.inspect layout (runtime/inspect.milo).
   mod.declareExtern("cs_insp_circular", T.ptr, [T.ptr]);
-  mod.declareExtern("cs_insp_push", T.void, [T.ptr]);
+  mod.declareExtern("cs_insp_push", T.void, [T.ptr, T.i32]);
+  mod.declareExtern("cs_insp_set_mode", T.void, [T.i32, T.i32]);
+  // util.format's substitution loop (runtime/format.milo): (firstIsString, first, nargs, thunk,
+  // env) -> the line; codegen/console-format.ts emits the per-call-site thunk.
+  mod.declareExtern("cs_console_format", T.ptr, [T.i32, T.ptr, T.i32, T.ptr, T.ptr]);
+  mod.declareExtern("cs_insp_max_depth", T.i32, []);
+  mod.declareExtern("cs_insp_show_hidden", T.i32, []);
   mod.declareExtern("cs_insp_finish", T.ptr, [T.ptr, T.ptr, T.i32, T.ptr, T.ptr, T.i32, T.i32]);
   mod.declareExtern("cs_bool_to_string", T.ptr, [T.i32]);
   mod.declareExtern("cs_str_eq", T.i32, [T.ptr, T.ptr]);

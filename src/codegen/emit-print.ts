@@ -4,29 +4,13 @@
 // Split out of codegen.ts.
 
 import { ice } from "../diagnostics.js";
-import type { HExpr } from "../hir/nodes.js";
 import type { ValueType } from "../hir/types.js";
 import { imm, type Value } from "../ir/builder.js";
 import { T } from "../ir/types.js";
-import { type Ctx, evalValue } from "./expr.js";
-import { evalOptionalPtr, unboxOptionalValue } from "./optional.js";
+import { type Ctx } from "./expr.js";
+import { unboxOptionalValue } from "./optional.js";
 import { inspect } from "./inspect.js";
 import { printValue } from "./value-ops.js";
-
-// Print one value with no separator or newline. Optionals branch on the sentinel; other types
-// evaluate and print directly.
-export function emitPrintValue(v: HExpr, ctx: Ctx): void {
-  if (v.type.kind === "optional") {
-    emitPrintOptional(v, ctx);
-    return;
-  }
-  // Bare `undefined` / `null` literals print their word.
-  if (v.type.kind === "undefined" || v.type.kind === "null") {
-    ctx.fn.callVoid("@cs_print_cstr", [ctx.mod.cstring(v.type.kind)]);
-    return;
-  }
-  emitPrintComputed(evalValue(v, ctx), v.type, ctx);
-}
 
 // Print an already-computed Value of a printable scalar type.
 export function emitPrintComputed(val: Value, type: ValueType, ctx: Ctx): void {
@@ -56,11 +40,23 @@ export function emitPrintComputed(val: Value, type: ValueType, ctx: Ctx): void {
   }
 }
 
+// Print an already-evaluated argument of any printable type (`val` is null for a literal
+// `undefined` / `null`, which has no machine value).
+export function emitPrintComputedAny(val: Value | null, type: ValueType, ctx: Ctx): void {
+  if (type.kind === "undefined" || type.kind === "null") {
+    ctx.fn.callVoid("@cs_print_cstr", [ctx.mod.cstring(type.kind)]);
+    return;
+  }
+  if (val === null) return ice("emitPrintComputedAny: no value");
+  if (type.kind === "optional") {
+    emitPrintOptionalPtr(val, type.inner, ctx);
+    return;
+  }
+  emitPrintComputed(val, type, ctx);
+}
+
 // console.log of an optional: "undefined" for the sentinel, else the unboxed inner value.
-function emitPrintOptional(v: HExpr, ctx: Ctx): void {
-  if (v.type.kind !== "optional") ice("emitPrintOptional: not optional");
-  const inner = v.type.inner;
-  const opt = evalOptionalPtr(v, ctx);
+function emitPrintOptionalPtr(opt: Value, inner: ValueType, ctx: Ctx): void {
   const isUndef = ctx.fn.icmp("eq", opt, ctx.mod.externGlobal("cs_undefined_marker"));
   const isNull = ctx.fn.icmp("eq", opt, ctx.mod.externGlobal("cs_null_marker"));
   const undefB = ctx.fn.newBlock("print.undef");

@@ -50,10 +50,47 @@ export function jsonStringify(
     }
     case "value":
       return jsonValue(value, type, ctx, indent, depth);
+    case "map":
+    case "set":
+      return ctx.mod.cstring("{}"); // no enumerable own properties
+    // Only as an array element (validate/render-rules.ts keeps them out of the top level, and an
+    // object field holding them is skipped before this is called): Node writes `null`.
+    case "function":
+    case "undefined":
+      return ctx.mod.cstring("null");
+    case "optional":
+      return jsonOptionalElement(value, type.inner, ctx, indent, depth);
     default:
-      // undefined (context-dependent), map/set/function/promise: not yet.
       return ice(`JSON.stringify: unsupported value type ${type.kind}`);
   }
+}
+
+// An optional array element: both nullish sentinels are `null`, else the inner value.
+function jsonOptionalElement(
+  opt: Value,
+  inner: ValueType,
+  ctx: Ctx,
+  indent: Value,
+  depth: Value,
+): Value {
+  const result = ctx.fn.alloca(T.ptr);
+  const nullB = ctx.fn.newBlock("json.optnull");
+  const valB = ctx.fn.newBlock("json.optval");
+  const endB = ctx.fn.newBlock("json.optend");
+  const nullish = ctx.fn.logicalOr(
+    ctx.fn.icmp("eq", opt, ctx.mod.externGlobal("cs_undefined_marker")),
+    ctx.fn.icmp("eq", opt, ctx.mod.externGlobal("cs_null_marker")),
+  );
+  ctx.fn.brCond(nullish, nullB, valB);
+  ctx.fn.switchTo(nullB);
+  ctx.fn.store(ctx.mod.cstring("null"), result);
+  ctx.fn.br(endB);
+  ctx.fn.switchTo(valB);
+  const v = unboxSlot(ctx.fn.load(T.i64, opt), inner, ctx);
+  ctx.fn.store(jsonStringify(v, inner, ctx, indent, depth), result);
+  ctx.fn.br(endB);
+  ctx.fn.switchTo(endB);
+  return ctx.fn.load(T.ptr, result);
 }
 
 // The JSON text of a present (not undefined) field Value stored with static type `type`.

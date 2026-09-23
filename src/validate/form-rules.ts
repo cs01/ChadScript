@@ -97,34 +97,11 @@ export function checkForm(node: ts.Node, hit: Hit, checker: ts.TypeChecker): Dia
       );
     }
 
-    // console.log("%s items", n): with more arguments, Node treats %s %d %i %f %j %o %O %c %% in
-    // a first string argument as printf directives. Lowering prints the arguments one by one, so a
-    // literal that holds a directive would print differently.
     case ts.SyntaxKind.CallExpression: {
-      const call = node as ts.CallExpression;
-      const callee = call.expression;
-      const coll = collectionCall(call, checker);
-      if (coll !== null) return checkCollectionCall(call, coll, hit, checker);
-      if (
-        !ts.isPropertyAccessExpression(callee) ||
-        !ts.isIdentifier(callee.expression) ||
-        callee.expression.text !== "console" ||
-        call.arguments.length < 2
-      )
-        return null;
-      let first = call.arguments[0]!;
-      while (ts.isParenthesizedExpression(first)) first = first.expression;
-      const text = ts.isStringLiteralLike(first)
-        ? first.text
-        : ts.isTemplateExpression(first)
-          ? [first.head.text, ...first.templateSpans.map((s) => s.literal.text)].join("")
-          : "";
-      if (!/%[sdifjoOc%]/.test(text)) return null;
-      return hit(
-        CODE.NOT_IN_SUBSET,
-        "a `%` directive in console.log's first argument is not supported",
-        "build the text first (a template literal), then log it: console.log(`${n} items`)",
-      );
+      const coll = collectionCall(node as ts.CallExpression, checker);
+      return coll === null
+        ? null
+        : checkCollectionCall(node as ts.CallExpression, coll, hit, checker);
     }
 
     // A read tsc narrowed to `never` (code its flow analysis proves unreachable, e.g. a test on a

@@ -19,10 +19,10 @@ import { loadShape, loadShapeWord } from "./shapes.js";
 import { V_NULL, V_UNDEFINED, isNumberWord, unboxValue } from "./value.js";
 import { inspectValue } from "./value-ops.js";
 
-// Node's util.inspect stops descending at depth 2 and prints a placeholder for anything deeper.
-// The depth is a run-time value because objects dispatch through their shapes, and it is what
-// makes a recursive structure printable at all.
-export const MAX_DEPTH = 2;
+// Node's util.inspect stops descending at its `depth` option and prints a placeholder for anything
+// deeper. The nesting is a run-time value because objects dispatch through their shapes, and it is
+// what makes a recursive structure printable at all. The limit is run-time too
+// (cs_insp_max_depth): 2 for console.log, 0 for util.format's %s, 4 for %o.
 
 // Node's maxArrayLength: an array, Map or Set shows this many entries, then `... N more items`.
 const MAX_SHOWN = 100;
@@ -120,6 +120,8 @@ export interface ContainerForm {
   close: string;
   // i32: -1 unless an array; for an array 1 when its elements are all numbers, else 0.
   arrayMode: () => Value;
+  // An array: with showHidden (%o) it lists `[length]`, so even an empty one has an entry.
+  isArray?: true;
 }
 
 // Node's formatValue/formatRaw order for a container: one already being formatted is
@@ -147,19 +149,26 @@ export function formatContainer(
   fn.store(circ, result);
   fn.br(endB);
   fn.switchTo(notCircB);
-  fn.brCond(fn.icmp("eq", form.count, imm(T.i32, 0)), emptyB, someB);
+  const noEntries = fn.icmp("eq", form.count, imm(T.i32, 0));
+  const empty = form.isArray
+    ? fn.logicalAnd(
+        noEntries,
+        fn.icmp("eq", fn.call("@cs_insp_show_hidden", T.i32, []), imm(T.i32, 0)),
+      )
+    : noEntries;
+  fn.brCond(empty, emptyB, someB);
   fn.switchTo(emptyB);
   fn.store(form.empty, result);
   fn.br(endB);
   fn.switchTo(someB);
-  fn.brCond(fn.icmp("sgt", depth, imm(T.i32, MAX_DEPTH)), deepB, bodyB);
+  fn.brCond(fn.icmp("sgt", depth, fn.call("@cs_insp_max_depth", T.i32, [])), deepB, bodyB);
   fn.switchTo(deepB);
   fn.store(ctx.mod.cstring(form.deep), result);
   fn.br(endB);
   fn.switchTo(bodyB);
   const open = form.open();
   const arrayMode = form.arrayMode();
-  fn.callVoid("@cs_insp_push", [form.self]);
+  fn.callVoid("@cs_insp_push", [form.self, depth]);
   const entries = fn.call("@cs_array_new", T.ptr, []);
   fill(entries, fn.iadd(depth, imm(T.i32, 1)));
   const text = fn.call("@cs_insp_finish", T.ptr, [
@@ -260,6 +269,7 @@ export function inspectSlots(
       open: () => ctx.mod.cstring("["),
       close: "]",
       arrayMode: () => allNumbers(arr, len, slotType, ctx),
+      isArray: true,
     },
     (entries, inner) =>
       forIndex(ctx, len, MAX_SHOWN, (i) =>
@@ -270,17 +280,31 @@ export function inspectSlots(
 
 // i32 1 when every element Node checks for grouping is a number, else 0. Node walks
 // output.length entries, which with a `... more items` entry includes the first hidden element.
+// Bit 1 answers the same for element 101 alone (or its absence), which %o's showHidden needs: its
+// `[length]` entry makes output one longer (runtime/inspect.milo cs_insp_finish).
 function allNumbers(arr: Value, len: Value, slotType: ValueType | null, ctx: Ctx): Value {
   const fn = ctx.fn;
   const isNum = numberTest(slotType, ctx);
-  if (typeof isNum === "boolean") return imm(T.i32, isNum ? 1 : 0);
+  if (typeof isNum === "boolean") return imm(T.i32, isNum ? 3 : 0);
   const acc = fn.alloca(T.i1);
   fn.store(imm(T.i1, 1), acc);
   forIndex(ctx, len, MAX_SHOWN + 1, (i) => {
     const slot = fn.call("@cs_array_get", T.i64, [arr, i]);
     fn.store(fn.logicalAnd(fn.load(T.i1, acc), isNum(slot)), acc);
   });
-  return fn.zextI1ToI32(fn.load(T.i1, acc));
+  const next = fn.alloca(T.i1);
+  fn.store(imm(T.i1, 1), next);
+  const probeB = fn.newBlock("insp.probe");
+  const doneB = fn.newBlock("insp.probed");
+  fn.brCond(fn.icmp("sgt", len, imm(T.i32, MAX_SHOWN + 1)), probeB, doneB);
+  fn.switchTo(probeB);
+  fn.store(isNum(fn.call("@cs_array_get", T.i64, [arr, imm(T.i32, MAX_SHOWN + 1)])), next);
+  fn.br(doneB);
+  fn.switchTo(doneB);
+  return fn.ior(
+    fn.zextI1ToI32(fn.load(T.i1, acc)),
+    fn.shl(fn.zextI1ToI32(fn.load(T.i1, next)), imm(T.i32, 1)),
+  );
 }
 
 // Whether an element slot of type `t` holds a number: known statically, or a test on the slot.

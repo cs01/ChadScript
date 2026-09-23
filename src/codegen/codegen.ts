@@ -7,7 +7,6 @@
 // Never reach back to the AST or checker from this file.
 
 import { ice } from "../diagnostics.js";
-import { emitPrintValue, emitPrintComputed } from "./emit-print.js";
 import { ModuleBuilder, imm, type BasicBlock, type Value } from "../ir/builder.js";
 import { T } from "../ir/types.js";
 import { declareRuntimeExterns } from "./externs.js";
@@ -33,6 +32,7 @@ import {
 } from "./expr.js";
 import { emitMemberSet } from "./objects.js";
 import { evalCollectionPtr } from "./collections.js";
+import { emitConsoleLogLine } from "./console-format.js";
 import { emitShapes } from "./shapes.js";
 import { emitShapeFunctions } from "./shape-functions.js";
 import type { ShapeDescriptor } from "../hir/nodes.js";
@@ -383,12 +383,7 @@ function emitSwitch(stmt: Extract<HStmt, { kind: "switch" }>, ctx: Ctx): void {
 function emitStatement(stmt: HStmt, ctx: Ctx): void {
   switch (stmt.kind) {
     case "consoleLog": {
-      // Print each value; a space between adjacent values; a trailing newline (Node semantics).
-      stmt.values.forEach((v, i) => {
-        if (i > 0) ctx.fn.callVoid("@cs_print_space", []);
-        emitPrintValue(v, ctx);
-      });
-      ctx.fn.callVoid("@cs_print_newline", []);
+      emitConsoleLogLine(stmt.values, ctx);
       return;
     }
 

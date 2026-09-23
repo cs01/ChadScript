@@ -8,9 +8,9 @@
 //     scheduling the formatter cannot observe; JSON gives `{}`.
 //   - unknown (a caught value): Node prints an Error with its stack trace (file paths).
 //   - an opaque handle (Timeout): Node prints internal fields (and JSON throws on its cycle).
-//   - JSON only, the kinds codegen/json.ts has no text for: Map/Set, a function or undefined outside
-//     an object field (Node writes `null` in an array, `undefined` at the top), an optional outside a
-//     field.
+//   - JSON only, a top-level value JSON.stringify returns undefined for (undefined, a function, a
+//     union that can be undefined). In an array those are `null` and in an object field they are
+//     skipped, as codegen/json.ts writes them; a Map or Set anywhere is `{}`.
 //
 // This mirrors exactly what codegen/inspect.ts, emit-print.ts and json.ts implement, so a program
 // that passes never reaches their ice() or the per-shape `cs_shape_unsupported` stubs.
@@ -22,11 +22,13 @@ import { UnrepresentableTypeError, valueTypeOfTsType } from "../lower/type-trans
 import type { ValueType } from "../hir/types.js";
 import { CODE } from "./codes.js";
 import { spanOf } from "./validate.js";
+import { formatDiagnostic } from "./format-rules.js";
 
-type Mode = "inspect" | "json";
+export type Mode = "inspect" | "json";
 // Where a JSON value sits: an object field may hold undefined/function (skipped, as Node does) or
-// an optional; anywhere else only a plain JSON value.
-type Position = "value" | "field";
+// an optional, an array element too (written as `null`); the top-level value only a plain JSON
+// value.
+export type Position = "value" | "field" | "element";
 
 export function renderDiagnostic(
   call: ts.CallExpression,
@@ -36,8 +38,7 @@ export function renderDiagnostic(
   const mode = renderingMode(call);
   if (mode === null) return null;
   const args = mode === "json" ? call.arguments.slice(0, 1) : call.arguments;
-  // Per position, because a type fine as an object field (holding undefined) may not be as a value.
-  const seen = { value: new Set<ts.Type>(), field: new Set<ts.Type>() };
+  const walk = renderWalker(mode, call, analysis, checker);
   for (const arg of args) {
     const problem = walk(checker.getTypeAtLocation(arg), "value", "the value", arg);
     if (problem) {
@@ -53,7 +54,25 @@ export function renderDiagnostic(
       };
     }
   }
-  return null;
+  // util.format directives (%s %j %o ...) render some arguments differently again.
+  return mode === "inspect" ? formatDiagnostic(call, analysis, checker) : null;
+}
+
+// The walk behind renderDiagnostic: a description of the first thing reachable from a type that
+// `mode` cannot render, or null. Also used for util.format's %j (validate/format-rules.ts).
+export function renderWalker(
+  mode: Mode,
+  call: ts.CallExpression,
+  analysis: LayoutAnalysis,
+  checker: ts.TypeChecker,
+): (t: ts.Type, pos: Position, where: string, at: ts.Node) => string | null {
+  // Per position, because a type fine as an object field (holding undefined) may not be as a value.
+  const seen = {
+    value: new Set<ts.Type>(),
+    field: new Set<ts.Type>(),
+    element: new Set<ts.Type>(),
+  };
+  return walk;
 
   // A description of the first unrenderable thing reachable from `t`, or null.
   function walk(t: ts.Type, pos: Position, where: string, at: ts.Node): string | null {
@@ -83,18 +102,23 @@ export function renderDiagnostic(
         return mode === "json" && pos === "value" ? `${where} is a ${vt.kind}` : null;
       case "optional": {
         if (mode === "json" && pos === "value") return `${where} can be undefined`;
-        return walk(checker.getNonNullableType(t), "value", where, at);
+        return walk(
+          checker.getNonNullableType(t),
+          pos === "element" ? "element" : "value",
+          where,
+          at,
+        );
       }
       case "array":
         // A tuple is an array at run time; its type arguments are the element types.
         for (const e of args()) {
-          const p = walk(e, "value", `an element of ${where}`, at);
+          const p = walk(e, mode === "json" ? "element" : "value", `an element of ${where}`, at);
           if (p) return p;
         }
         return null;
       case "set":
       case "map": {
-        if (mode === "json") return `${where} is a ${vt.kind === "map" ? "Map" : "Set"}`;
+        if (mode === "json") return null; // `{}`: a Map or Set has no enumerable own properties
         for (const e of args()) {
           const p = walk(e, "value", `an entry of ${where}`, at);
           if (p) return p;
