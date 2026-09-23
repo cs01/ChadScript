@@ -193,7 +193,7 @@ manifest. Estimates in LOC.
    Structural-subtyping fuzzer: random interfaces, literals and classes with reordered and
    extra fields, cross-assigned, read and written through each type; it must reproduce the
    miscompiles on today's compiler. Fix the differential suite's 60 s timeout. (~400)
-1. **Modules.** The full "Modules" surface above, including default/namespace imports,
+1. **Modules.** DONE (dod `modules`; `node:process` as a module is still open). The full "Modules" surface above, including default/namespace imports,
    extensionless and `.js` specifiers, re-exports, `node:*` default imports, TS-source
    packages, and CommonJS rejections. Independent of the value model, and it unblocks writing
    real multi-file programs as tests. (~600)

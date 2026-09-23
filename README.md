@@ -56,16 +56,16 @@ error[CS1219]: a closure cannot capture the mutable variable `count` yet
 Supported today: numbers, strings, booleans, control flow, functions and closures, arrays,
 object literals, classes with inheritance and virtual dispatch, `Map`/`Set`, optional values,
 spread, try/catch/finally, async/await, timers, `node:fs` (sync and promises), `node:path`,
-and multi-file programs with named `import`/`export`.
+and multi-file ES modules (named, default and namespace imports, re-exports, specifiers as
+TypeScript writes them, npm packages that ship TypeScript source).
 The generated [`docs/SUBSET.md`](docs/SUBSET.md) is the exact list.
 
 Not supported, by design: `any`, `eval`, prototype mutation, adding or deleting properties at
-runtime, npm packages. Programs that need those should run on Node (or
+runtime, CommonJS, packages that ship only JavaScript. Programs that need those should run on Node (or
 [milojs](https://github.com/milo-language/milojs)); since every accepted program is valid
 TypeScript, the same file runs there unchanged.
 
-Not supported yet, planned: default and namespace imports, extensionless specifiers and packages
-with TypeScript source; unions with mixed representations; generics; interface method calls;
+Not supported yet, planned: unions with mixed representations; generics; interface method calls;
 closures that mutate captured variables. See the phases in [`PLAN.md`](PLAN.md).
 
 ## How it works
