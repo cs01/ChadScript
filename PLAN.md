@@ -83,8 +83,9 @@ fights the layout assumption. That is the "every fix fails" pattern of the previ
    NaNs are canonicalized before boxing.
 4. **Generics by erasure** to `Value`. Monomorphization later, as a flag-off optimization.
 5. **Mutable captures** live in heap cells.
-6. **TS soundness holes closed in the validator:** no `any`, no narrowing `as`, `x!` is a
-   runtime check that throws.
+6. **TS soundness holes closed in the validator:** no `any`, no narrowing `as`. `x!` is erased
+   exactly as Node erases it (no runtime check, which would diverge), so it is admitted only
+   where it changes no representation; elsewhere it is rejected.
 
 What remains "runtime" is shapes, the inline cache, and NaN-box helpers: ~1-2k LOC of C.
 There is no parser, interpreter, JIT, or deoptimizer in the binary.
