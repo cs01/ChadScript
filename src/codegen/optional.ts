@@ -29,9 +29,11 @@ import { evalArrayHof } from "./array.js";
 import { evalMapGet } from "./collections.js";
 import { evalUnbox, evalValueCoalesce, evalValueWord } from "./value-ops.js";
 import { V_NULL, V_UNDEFINED } from "./value.js";
+import { evalAwait } from "./async.js";
 
 // Evaluate an optional-typed HExpr to its pointer rep (undefined sentinel, or a box pointer).
 export function evalOptionalPtr(expr: HExpr, ctx: Ctx): Value {
+  if (expr.kind === "await") return evalAwait(expr, ctx);
   if (expr.kind === "index") return evalIndex(expr, ctx);
   if (expr.kind === "unbox") return evalUnbox(expr, ctx);
   if (expr.kind === "varRef") return ctx.fn.load(T.ptr, lookupVar(expr.name, ctx).ptr);

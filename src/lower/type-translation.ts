@@ -208,13 +208,21 @@ export function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChe
     // heterogeneous one (`[number, string]`) would need a union element and is out of the subset.
     if (checker.isTupleType(t)) {
       const args = checker.getTypeArguments(ref);
-      if (args.length === 0) ice("empty tuple type has no element type");
+      if (args.length === 0) {
+        throw new UnrepresentableTypeError(
+          "an empty tuple type (`[]`)",
+          "declare the array with its element type: `const xs: number[] = []`",
+        );
+      }
       const elems = args.map((a) => valueTypeOfTsType(a, node, checker));
       const first = elems[0]!;
       // Compared structurally with a depth bound rather than JSON.stringify: a recursive object
       // ValueType is a CYCLIC graph, which JSON.stringify throws on.
       if (!elems.every((e) => sameRepresentation(e, first))) {
-        ice("heterogeneous tuple types are not supported (use a single element type)");
+        throw new UnrepresentableTypeError(
+          "a tuple type with different element types (`[string, number]`)",
+          "use an object with named fields, or one element type (`(string | number)[]`)",
+        );
       }
       return VT.array(first);
     }

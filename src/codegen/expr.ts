@@ -191,6 +191,7 @@ export function unboxSlot(slot: Value, elemType: ValueType, ctx: Ctx): Value {
 
 // Evaluate an array-typed HExpr to a ptr (to the runtime array struct).
 export function evalArrayPtr(expr: HExpr, ctx: Ctx): Value {
+  if (expr.kind === "await") return evalAwait(expr, ctx);
   switch (expr.kind) {
     case "unbox":
       return evalUnbox(expr, ctx);
@@ -299,6 +300,7 @@ export function evalCall(expr: Extract<HExpr, { kind: "call" }>, ctx: Ctx): Valu
 
 // Evaluate a function-typed HExpr to a closure-record pointer.
 export function evalFunctionPtr(expr: HExpr, ctx: Ctx): Value {
+  if (expr.kind === "await") return evalAwait(expr, ctx);
   if (expr.kind === "closure") return evalClosure(expr, ctx);
   if (expr.kind === "adaptClosure") return evalAdaptClosure(expr, ctx);
   if (expr.kind === "unbox") return evalUnbox(expr, ctx);

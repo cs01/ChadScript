@@ -46,7 +46,7 @@ import { resolveType } from "./resolve-type.js";
 export { resolveType };
 import { lowerStatement, lowerStatements, lowerUpdateValue, thisRef } from "./statements.js";
 import { ShapeRegistry } from "./shapes.js";
-import { fieldAccessAt } from "./member-access.js";
+import { fieldAccessAt, lowerFieldRead } from "./member-access.js";
 import { type LayoutAnalysis, layoutsOf } from "./layouts.js";
 import { lowerObjectLit, resolveSpreads } from "./object-literal.js";
 import { findCellSymbols } from "./cells.js";
@@ -108,7 +108,8 @@ export interface LowerCtx {
 
 // The `undefined` literal (a global identifier in TS).
 function isUndefinedLiteral(e: ts.Expression): boolean {
-  return ts.isIdentifier(e) && e.text === "undefined";
+  const u = unparen(e);
+  return ts.isIdentifier(u) && u.text === "undefined";
 }
 
 // A property whose declaration is a method (as opposed to a data field).
@@ -400,7 +401,17 @@ export function lowerCallArgs(call: ts.CallExpression | ts.NewExpression, ctx: L
   return [...fixed, restArray];
 }
 
+// `e` without any wrapping parentheses. Lowering reads some operands syntactically (an assignment
+// target, an `instanceof` class, a literal JSON.stringify argument); `(x)` must read as `x` there.
+export function unparen(e: ts.Expression): ts.Expression {
+  while (ts.isParenthesizedExpression(e)) e = e.expression;
+  return e;
+}
+
 export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
+  // Parentheses are transparent: `(x)` is lowered as `x`, at x's own type (resolving the
+  // parenthesized node would lose the contextual type an array literal needs).
+  if (ts.isParenthesizedExpression(expr)) return lowerExpr(expr.expression, ctx);
   // Calls compute their own result type (and some, like `map.keys()`, have a tsc type — an
   // iterator — that is outside the subset), so lower them before resolving the tsc type eagerly.
   if (ts.isCallExpression(expr)) return lowerCall(expr, ctx);
@@ -463,6 +474,11 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
     case ts.SyntaxKind.ElementAccessExpression: {
       const ea = expr as ts.ElementAccessExpression;
       const arrType = resolveType(ea.expression, ctx);
+      // `obj["name"]`: a field read by a literal name (validate admits only that on an object).
+      const key = unparen(ea.argumentExpression);
+      if (arrType.kind === "object" && ts.isStringLiteral(key)) {
+        return lowerFieldRead(ea.expression, key.text, arrType, type, ctx);
+      }
       if (arrType.kind !== "array") ice("lower: index access only on arrays yet");
       // `type` here is `element | undefined` (noUncheckedIndexedAccess). A Value or optional element
       // is read as a word (undefined when out of range) and unboxed if tsc narrowed the access
@@ -562,24 +578,8 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
       if (pa.name.text === "size" && objType.kind === "set") {
         return { kind: "setSize", set: lowerExpr(pa.expression, ctx), type };
       }
-      if (objType.kind === "object") {
-        const slot = objType.shape.fields.findIndex((f) => f.name === pa.name.text);
-        if (slot < 0) ice(`lower: object has no field ${pa.name.text}`);
-        // A field slot holds a self-describing Value, so a read unboxes straight to the type the
-        // site uses: an optional field narrowed by tsc (`if (n.next !== null) n.next.v`) reads as
-        // its inner type with no optional box in between.
-        const fieldType = objType.shape.fields[slot]!.type;
-        const narrowed =
-          (fieldType.kind === "optional" && type.kind !== "optional") || fieldType.kind === "value";
-        // tsc narrows only reference chains (no calls), so the read has no effect to keep.
-        if (fieldType.kind === "value" && isNullishType(type)) return nullishLit(type);
-        return {
-          kind: "memberGet",
-          object: lowerExpr(pa.expression, ctx),
-          access: fieldAccessAt(pa.expression, pa.name.text, ctx),
-          type: narrowed && type.kind !== "undefined" && type.kind !== "null" ? type : fieldType,
-        };
-      }
+      if (objType.kind === "object")
+        return lowerFieldRead(pa.expression, pa.name.text, objType, type, ctx);
       return ice(`lower: unsupported property access .${pa.name.text}`);
     }
 
@@ -593,9 +593,6 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
       const exprs = t.templateSpans.map((s) => lowerExpr(s.expression, ctx));
       return { kind: "template", quasis, exprs, type };
     }
-
-    case ts.SyntaxKind.ParenthesizedExpression:
-      return lowerExpr((expr as ts.ParenthesizedExpression).expression, ctx);
 
     // Admitted only where both sides are one Value word (validate/rules.ts), so the assertion has
     // no run-time effect, exactly as in JS: an erased `T | undefined` read passes through as is.
@@ -648,9 +645,10 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
       // `x instanceof C` → the receiver's vtable equals C's or any subclass's vtable.
       if (opKind === ts.SyntaxKind.InstanceOfKeyword) {
         // The class is named directly or through a module namespace (`x instanceof m.C`).
-        const classRef = ts.isIdentifier(b.right)
-          ? b.right
-          : (namespaceMemberOf(b.right, ctx.checker) ??
+        const right = unparen(b.right);
+        const classRef = ts.isIdentifier(right)
+          ? right
+          : (namespaceMemberOf(right, ctx.checker) ??
             ice("lower: instanceof right side must be a class name"));
         const left = lowerExpr(b.left, ctx);
         // `e instanceof Error` for a caught (unknown) value → the CsThrown's isError tag. (Error is
@@ -713,8 +711,8 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
       ) {
         const lU = isUndefinedLiteral(b.left);
         const rU = isUndefinedLiteral(b.right);
-        const lN = b.left.kind === ts.SyntaxKind.NullKeyword;
-        const rN = b.right.kind === ts.SyntaxKind.NullKeyword;
+        const lN = unparen(b.left).kind === ts.SyntaxKind.NullKeyword;
+        const rN = unparen(b.right).kind === ts.SyntaxKind.NullKeyword;
         if (lU || rU || lN || rN) {
           const valueSide = lU || lN ? b.right : b.left;
           return {

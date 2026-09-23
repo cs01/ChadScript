@@ -213,7 +213,7 @@ function emitJson(mod: ModuleBuilder, s: ShapeDescriptor, shapes: readonly Shape
     fn.br(keyB);
     fn.switchTo(keyB);
     append(child);
-    append(mod.cstring(`"${f.name}"`));
+    append(mod.cstring(JSON.stringify(f.name)));
     append(colon);
     append(jsonStored(raw, f.type, ctx, indent, inner));
     fn.store(imm(T.i1, 1), wrotePtr);
@@ -337,7 +337,7 @@ function emitTemplateJson(
       append(jsonAny(raw, ctx, indent, inner));
       return;
     }
-    append(ctx.mod.cstring(`"${f.name}"`));
+    append(ctx.mod.cstring(JSON.stringify(f.name)));
     append(colon);
     append(jsonStored(raw, f.type, ctx, indent, inner));
   });

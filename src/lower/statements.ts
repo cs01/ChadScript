@@ -21,6 +21,7 @@ import {
   symbolOf,
   lowerCallArgs,
   nameOf,
+  unparen,
 } from "./lower.js";
 import { isMathNamespace } from "./declarations.js";
 import { valueTypeOf } from "./type-translation.js";
@@ -256,6 +257,7 @@ export function lowerIncDec(
   ctx: LowerCtx,
 ): HStmt {
   const op = expr.operator;
+  const operand = unparen(expr.operand);
   if (op !== ts.SyntaxKind.PlusPlusToken && op !== ts.SyntaxKind.MinusMinusToken) {
     // A prefix +/-/! in statement position has no effect and is pointless — reject upstream.
     return ice(`lower: unsupported unary statement operator ${ts.SyntaxKind[op]}`);
@@ -264,8 +266,8 @@ export function lowerIncDec(
   const one: HExpr = { kind: "numberLit", value: 1, type: VT.number };
 
   // `obj.field++` → `obj.field = obj.field ± 1`.
-  if (ts.isPropertyAccessExpression(expr.operand)) {
-    const pa = expr.operand;
+  if (ts.isPropertyAccessExpression(operand)) {
+    const pa = operand;
     const objType = resolveType(pa.expression, ctx);
     if (objType.kind !== "object") ice(`lower: ++/-- on non-object property .${pa.name.text}`);
     const access = fieldAccessAt(pa.expression, pa.name.text, ctx);
@@ -284,10 +286,10 @@ export function lowerIncDec(
     };
   }
 
-  if (!ts.isIdentifier(expr.operand)) ice("lower: ++/-- only supported on a variable or field");
-  const name = nameOf(expr.operand, ctx);
-  const numberType = resolveType(expr.operand, ctx);
-  const declared = declaredTypeOfIdent(expr.operand, ctx);
+  if (!ts.isIdentifier(operand)) ice("lower: ++/-- only supported on a variable or field");
+  const name = nameOf(operand, ctx);
+  const numberType = resolveType(operand, ctx);
+  const declared = declaredTypeOfIdent(operand, ctx);
   // A Value variable narrowed to number: read through lowerExpr (which unboxes), box the result.
   if (declared.kind === "value") {
     return {
@@ -324,13 +326,14 @@ export function lowerUpdateValue(
   expr: ts.PostfixUnaryExpression | ts.PrefixUnaryExpression,
   ctx: LowerCtx,
 ): HExpr {
-  if (!ts.isIdentifier(expr.operand)) return ice("lower: value-position ++/-- on a non-variable");
-  if (declaredTypeOfIdent(expr.operand, ctx).kind !== "number") {
+  const operand = unparen(expr.operand);
+  if (!ts.isIdentifier(operand)) return ice("lower: value-position ++/-- on a non-variable");
+  if (declaredTypeOfIdent(operand, ctx).kind !== "number") {
     return ice("lower: value-position ++/-- on a non-number variable");
   }
   return {
     kind: "update",
-    name: nameOf(expr.operand, ctx),
+    name: nameOf(operand, ctx),
     delta: expr.operator === ts.SyntaxKind.PlusPlusToken ? 1 : -1,
     prefix: ts.isPrefixUnaryExpression(expr),
     type: VT.number,
@@ -339,16 +342,17 @@ export function lowerUpdateValue(
 
 export function lowerAssignment(expr: ts.BinaryExpression, ctx: LowerCtx): HStmt {
   const op = expr.operatorToken.kind;
-  if (ts.isPropertyAccessExpression(expr.left)) {
-    return lowerMemberAssignment(expr.left, op, expr.right, ctx);
+  const target = unparen(expr.left);
+  if (ts.isPropertyAccessExpression(target)) {
+    return lowerMemberAssignment(target, op, expr.right, ctx);
   }
-  if (ts.isElementAccessExpression(expr.left)) {
-    return lowerIndexAssignment(expr.left, op, expr.right, ctx);
+  if (ts.isElementAccessExpression(target)) {
+    return lowerIndexAssignment(target, op, expr.right, ctx);
   }
-  if (!ts.isIdentifier(expr.left)) {
+  if (!ts.isIdentifier(target)) {
     ice("lower: only `name = ...` / `obj.field = ...` / `arr[i] = ...` supported");
   }
-  const left = expr.left as ts.Identifier;
+  const left = target;
   const name = nameOf(left, ctx);
   if (op === ts.SyntaxKind.EqualsToken) {
     const value = coerceToTarget(lowerExpr(expr.right, ctx), declaredTypeOfIdent(left, ctx));
@@ -539,6 +543,19 @@ export function thisRef(ctx: LowerCtx): HExpr {
   return { kind: "varRef", name: ctx.currentThis.name, type: ctx.currentThis.type };
 }
 
+// A static of a built-in namespace other than console/process (`Promise.all(...)`,
+// `JSON.stringify(...)`, `Object.keys(...)`): the receiver is no object, so a call in statement
+// position is the expression form (lowerMethodCall) with its result discarded.
+function isBuiltinNamespace(e: ts.Expression, checker: ts.TypeChecker): boolean {
+  if (!ts.isIdentifier(e) || e.text === "console" || e.text === "process") return false;
+  const decls = checker.getSymbolAtLocation(e)?.declarations;
+  return (
+    decls !== undefined &&
+    decls.length > 0 &&
+    decls.every((d) => d.getSourceFile().isDeclarationFile)
+  );
+}
+
 export function lowerCallStatement(call: ts.CallExpression, ctx: LowerCtx): HStmt {
   const target = calleeName(call.expression);
   // `super(...)` — delegate to the base constructor with `this` prepended.
@@ -571,7 +588,7 @@ export function lowerCallStatement(call: ts.CallExpression, ctx: LowerCtx): HStm
       // A method call `obj.method(...)` in statement position → evaluate for effect, discard.
       if (ts.isPropertyAccessExpression(call.expression)) {
         const pa = call.expression;
-        if (isMathNamespace(pa.expression)) {
+        if (isMathNamespace(pa.expression) || isBuiltinNamespace(pa.expression, ctx.checker)) {
           return { kind: "exprStmt", expr: lowerMethodCall(call, ctx) };
         }
         // `super.m(...)` → non-virtual call into the base class with `this` as the receiver.

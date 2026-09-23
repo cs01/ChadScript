@@ -4,6 +4,7 @@
 // imported back (circular, resolved at call time).
 
 import { evalUnbox } from "./value-ops.js";
+import { evalAwait } from "./async.js";
 import { ice } from "../diagnostics.js";
 import { imm, type Value } from "../ir/builder.js";
 import { T } from "../ir/types.js";
@@ -25,6 +26,7 @@ import { evalCoalesce } from "./optional.js";
 // Evaluate a map-typed HExpr to a ptr (to the runtime CsMap). `mapNew` allocates; `mapSet`
 // returns the same map (JS `.set` is chainable).
 export function evalMapPtr(expr: HExpr, ctx: Ctx): Value {
+  if (expr.kind === "await") return evalAwait(expr, ctx);
   switch (expr.kind) {
     case "unbox":
       return evalUnbox(expr, ctx);
@@ -79,6 +81,7 @@ export function evalMapGet(expr: Extract<HExpr, { kind: "mapGet" }>, ctx: Ctx): 
 
 // Evaluate a set-typed HExpr to a ptr (to the runtime CsSet). `setAdd` returns the same set.
 export function evalSetPtr(expr: HExpr, ctx: Ctx): Value {
+  if (expr.kind === "await") return evalAwait(expr, ctx);
   switch (expr.kind) {
     case "unbox":
       return evalUnbox(expr, ctx);

@@ -324,8 +324,10 @@ export function literalItems(node: ts.ObjectLiteralExpression): LiteralItem[] {
     if (ts.isSpreadAssignment(p)) return { kind: "spread", expr: p.expression };
     if (
       (ts.isPropertyAssignment(p) || ts.isShorthandPropertyAssignment(p)) &&
-      ts.isIdentifier(p.name)
+      (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name))
     ) {
+      // A quoted name (`"content-type": ...`) is an ordinary field; validate rejects the
+      // integer-like ones, which JS would order before every other key.
       return { kind: "prop", name: p.name.text };
     }
     return ice(`layouts: unsupported object literal member ${ts.SyntaxKind[p.kind]}`);

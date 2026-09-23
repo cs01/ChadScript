@@ -2,9 +2,11 @@
 // its receiver (lower/layouts.ts): one static slot when they all agree, an inline cache otherwise.
 
 import type ts from "typescript";
-import type { FieldAccess, MethodDispatch } from "../hir/nodes.js";
+import type { FieldAccess, HExpr, MethodDispatch } from "../hir/nodes.js";
 import type { ValueType } from "../hir/types.js";
-import { type LowerCtx, vtableIndexOf } from "./lower.js";
+import { type LowerCtx, lowerExpr, vtableIndexOf } from "./lower.js";
+import { isNullishType, nullishLit } from "./value-lower.js";
+import { ice } from "../diagnostics.js";
 import { type Layout, agreedIndex } from "./layouts.js";
 
 export function accessIn(layouts: readonly Layout[], name: string, ctx: LowerCtx): FieldAccess {
@@ -35,4 +37,30 @@ export function methodDispatchAt(
     if (exclusive) return { kind: "vtable", index: vtableIndexOf(cls, method, ctx) };
   }
   return { kind: "byName", site: ctx.counter.n++, name: method };
+}
+
+export // Read field `name` of the object `recv` (of type `objType`) at the site's type `type`. A field
+// slot holds a self-describing Value, so a read unboxes straight to the type the site uses: an
+// optional field narrowed by tsc (`if (n.next !== null) n.next.v`) reads as its inner type with no
+// optional box in between.
+function lowerFieldRead(
+  recv: ts.Expression,
+  name: string,
+  objType: Extract<ValueType, { kind: "object" }>,
+  type: ValueType,
+  ctx: LowerCtx,
+): HExpr {
+  const slot = objType.shape.fields.findIndex((f) => f.name === name);
+  if (slot < 0) ice(`lower: object has no field ${name}`);
+  const fieldType = objType.shape.fields[slot]!.type;
+  const narrowed =
+    (fieldType.kind === "optional" && type.kind !== "optional") || fieldType.kind === "value";
+  // tsc narrows only reference chains (no calls), so the read has no effect to keep.
+  if (fieldType.kind === "value" && isNullishType(type)) return nullishLit(type);
+  return {
+    kind: "memberGet",
+    object: lowerExpr(recv, ctx),
+    access: fieldAccessAt(recv, name, ctx),
+    type: narrowed && type.kind !== "undefined" && type.kind !== "null" ? type : fieldType,
+  };
 }

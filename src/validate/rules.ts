@@ -29,6 +29,7 @@ import {
   isAsyncFunctionExpr,
 } from "./type-rules.js";
 import { checkBuiltinValueRef } from "./builtin-rules.js";
+import { checkForm } from "./form-rules.js";
 
 export function tailoredRejection(
   node: ts.Node,
@@ -41,6 +42,9 @@ export function tailoredRejection(
     span: spanOf(node, sf),
     suggestion,
   });
+
+  const form = checkForm(node, hit, checker);
+  if (form) return form;
 
   switch (node.kind) {
     case ts.SyntaxKind.AnyKeyword:

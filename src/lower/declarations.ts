@@ -364,7 +364,7 @@ function inferredFunctionName(fn: ts.ArrowFunction | ts.FunctionExpression): str
   if (
     (ts.isVariableDeclaration(p) || ts.isPropertyAssignment(p) || ts.isPropertyDeclaration(p)) &&
     p.initializer === node &&
-    ts.isIdentifier(p.name)
+    (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name))
   ) {
     return p.name.text;
   }

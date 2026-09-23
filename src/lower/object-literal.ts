@@ -60,7 +60,7 @@ function lowerProperty(
   p: ts.ObjectLiteralElementLike,
   ctx: LowerCtx,
 ): { name: string; value: HExpr } {
-  if (ts.isPropertyAssignment(p) && ts.isIdentifier(p.name)) {
+  if (ts.isPropertyAssignment(p) && (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name))) {
     return { name: p.name.text, value: lowerExpr(p.initializer, ctx) };
   }
   if (ts.isShorthandPropertyAssignment(p)) {
@@ -183,7 +183,7 @@ function propName(node: ts.ObjectLiteralExpression, i: number): string {
   if (
     p &&
     (ts.isPropertyAssignment(p) || ts.isShorthandPropertyAssignment(p)) &&
-    ts.isIdentifier(p.name)
+    (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name))
   ) {
     return p.name.text;
   }

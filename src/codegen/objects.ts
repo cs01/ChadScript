@@ -28,9 +28,11 @@ import {
 import { allocRecord, loadShape, loadShapeWord, shapeRef, RECORD_HEADER_SLOTS } from "./shapes.js";
 import { evalBoxed, unboxValue } from "./value.js";
 import { evalUnbox } from "./value-ops.js";
+import { evalAwait } from "./async.js";
 
 // Evaluate an object-typed HExpr to a ptr (to the GC record).
 export function evalObjectPtr(expr: HExpr, ctx: Ctx): Value {
+  if (expr.kind === "await") return evalAwait(expr, ctx);
   switch (expr.kind) {
     case "unbox":
       return evalUnbox(expr, ctx);

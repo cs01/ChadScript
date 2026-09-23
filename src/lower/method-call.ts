@@ -15,6 +15,7 @@ import {
   lowerCallArgs,
   resolveType,
   superMethodClassOf,
+  unparen,
 } from "./lower.js";
 import { methodDispatchAt } from "./member-access.js";
 import { optionalRead } from "./value-lower.js";
@@ -28,8 +29,9 @@ import { jsonFieldPresence } from "./layouts.js";
 // The pretty-print indent unit for a JSON.stringify `space` argument: a literal number N → N spaces
 // (JSON caps at 10), a literal string → up to its first 10 chars, anything falsy/absent → null
 // (compact). A non-literal space argument is rejected (the indent must be known at compile time).
-function jsonIndentUnit(space: ts.Expression | undefined): string | null {
-  if (!space) return null;
+function jsonIndentUnit(arg: ts.Expression | undefined): string | null {
+  if (!arg) return null;
+  const space = unparen(arg);
   if (ts.isNumericLiteral(space)) {
     const n = Math.min(10, Math.floor(Number(space.text)));
     return n > 0 ? " ".repeat(n) : null;
@@ -116,7 +118,7 @@ export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
       };
     }
     if (pa.name.text !== "stringify") ice(`lower: unsupported JSON.${pa.name.text}`);
-    const replacer = call.arguments[1];
+    const replacer = call.arguments[1] && unparen(call.arguments[1]);
     if (
       replacer &&
       replacer.kind !== ts.SyntaxKind.NullKeyword &&

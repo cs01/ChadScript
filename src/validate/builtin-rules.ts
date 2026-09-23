@@ -41,7 +41,7 @@ export function checkBuiltinValueRef(
 
 // Whether `ref` (whose parent is `parent`) is read as a value, rather than called, constructed,
 // used as a receiver, tested against with `instanceof`, or named in a type or declaration.
-function isValuePosition(ref: ts.Node, parent: ts.Node): boolean {
+export function isValuePosition(ref: ts.Node, parent: ts.Node): boolean {
   if ((ts.isCallExpression(parent) || ts.isNewExpression(parent)) && parent.expression === ref)
     return false;
   if (ts.isPropertyAccessExpression(parent) && parent.expression === ref) return false;
