@@ -9,3 +9,6 @@ docs/.vitepress/cache/
 docs/generated/
 docs/reference/errors.md
 docs/package-lock.json
+docs/reference/scoreboard.md
+# Corpus input data: programs read these bytes, so they stay exactly as written.
+tests/corpus/fixtures/

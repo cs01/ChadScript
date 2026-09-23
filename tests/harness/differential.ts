@@ -4,17 +4,23 @@
 //   - native -O0             (must equal oracle)
 //   - native -O2             (must equal oracle → O0==O2, else an -O2 UB leak)
 // and we run `opt -passes=verify` on the emitted IR. Any mismatch is a failure.
+//
+// "Behavior" is every observable effect, not just stdout: each run executes in its own fresh
+// working directory (seeded with a copy of the fixture's sibling `fixtures/` data directory), and
+// we compare stdout, stderr (effects.ts has the uncaught-error allowance), the exit code, and the
+// full directory tree the run leaves behind.
 
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadProgram } from "../../src/frontend/program.js";
 import { validate } from "../../src/validate/validate.js";
 import { emitIr, linkIr, runtimeObjects } from "../../src/driver/build.js";
 import { OPT } from "../../src/driver/toolchain.js";
+import { compareStderr, diffTrees, normalizeCwd, prepareRunDir, snapshotTree } from "./effects.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -24,6 +30,7 @@ export const RUN_TIMEOUT_MS = 20_000;
 
 export interface RunResult {
   stdout: string;
+  stderr: string;
   exit: number | null; // null when the process was killed by a signal (never exited normally)
   signal: string | null; // e.g. "SIGSEGV" — a crash; null on a normal exit
   timedOut: boolean; // killed by the run timeout — a hang
@@ -38,17 +45,21 @@ export async function run(
   args: string[],
   timeoutMs = RUN_TIMEOUT_MS,
   env: NodeJS.ProcessEnv = process.env,
+  cwd?: string,
 ): Promise<RunResult> {
   try {
-    const { stdout } = await execFileAsync(cmd, args, {
+    const { stdout, stderr } = await execFileAsync(cmd, args, {
       encoding: "utf8",
       timeout: timeoutMs,
       env,
+      cwd,
+      maxBuffer: 64 * 1024 * 1024,
     });
-    return { stdout, exit: 0, signal: null, timedOut: false };
+    return { stdout, stderr, exit: 0, signal: null, timedOut: false };
   } catch (e) {
     const err = e as {
       stdout?: Buffer | string;
+      stderr?: Buffer | string;
       code?: number | string;
       signal?: string | null;
       killed?: boolean;
@@ -57,7 +68,13 @@ export async function run(
     const timedOut = err.killed === true;
     const signal = !timedOut && typeof err.signal === "string" ? err.signal : null;
     const exit = typeof err.code === "number" ? err.code : null;
-    return { stdout: (err.stdout ?? "").toString(), exit, signal, timedOut };
+    return {
+      stdout: (err.stdout ?? "").toString(),
+      stderr: (err.stderr ?? "").toString(),
+      exit,
+      signal,
+      timedOut,
+    };
   }
 }
 
@@ -72,12 +89,19 @@ const ORACLE_ENV: NodeJS.ProcessEnv = {
   TSX_TSCONFIG_PATH: join(dirname(fileURLToPath(import.meta.url)), "oracle-tsconfig.json"),
 };
 
-export function runOracle(entry: string, args: string[] = []): Promise<RunResult> {
-  return run("node", ["--import", TSX_LOADER, entry, ...args], RUN_TIMEOUT_MS, ORACLE_ENV);
+export function runOracle(entry: string, args: string[] = [], cwd?: string): Promise<RunResult> {
+  // The entry is made absolute because the run may happen in another working directory.
+  return run(
+    "node",
+    ["--import", TSX_LOADER, resolve(entry), ...args],
+    RUN_TIMEOUT_MS,
+    ORACLE_ENV,
+    cwd,
+  );
 }
 
 export interface Divergence {
-  kind: "stdout" | "exit" | "opt-verify" | "crash" | "hang" | "infra";
+  kind: "stdout" | "stderr" | "exit" | "files" | "opt-verify" | "crash" | "hang" | "infra";
   detail: string;
 }
 
@@ -105,13 +129,28 @@ export async function differential(
   const binO2 = join(dir, "o2");
   writeFileSync(irPath, emitIr(loaded));
 
+  // One directory per run: the three run concurrently and their file effects are compared
+  // afterwards, so they must neither share nor race on a working directory.
+  const seed = join(dirname(fixturePath), "fixtures");
+  const runDirs = [join(dir, "cwd-node"), join(dir, "cwd-o0"), join(dir, "cwd-o2")] as const;
+  const [cwdNode, cwdO0, cwdO2] = runDirs.map((d) => prepareRunDir(d, seed)) as [
+    string,
+    string,
+    string,
+  ];
+  const cwds = [...runDirs, cwdNode, cwdO0, cwdO2];
+
   const objs = runtimeObjects(); // warm the runtime .o cache once (avoids a concurrent race)
   // The same arguments go to node and to the binary: `process.argv.slice(2)` is identical for
   // both, which is exactly why only that slice is in the subset.
-  const oraclePromise = runOracle(fixturePath, args); // oracle runs while we compile
+  const oraclePromise = runOracle(fixturePath, args, cwdNode); // oracle runs while we compile
   await Promise.all([linkIr(irPath, binO0, "0", objs), linkIr(irPath, binO2, "2", objs)]);
 
-  const [oracle, o0, o2] = await Promise.all([oraclePromise, run(binO0, args), run(binO2, args)]);
+  const [oracle, o0, o2] = await Promise.all([
+    oraclePromise,
+    run(binO0, args, RUN_TIMEOUT_MS, process.env, cwdO0),
+    run(binO2, args, RUN_TIMEOUT_MS, process.env, cwdO2),
+  ]);
 
   const out: Divergence[] = [];
   // An abnormal oracle (Node crashed or hung) means the fixture itself is broken, not the compiler
@@ -122,9 +161,12 @@ export async function differential(
       detail: `node oracle ended abnormally (signal=${oracle.signal}, timedOut=${oracle.timedOut})`,
     });
   }
-  for (const [label, r] of [
-    ["native-O0", o0],
-    ["native-O2", o2],
+  const oracleStdout = normalizeCwd(oracle.stdout, cwds);
+  const oracleStderr = normalizeCwd(oracle.stderr, cwds);
+  const oracleTree = snapshotTree(cwdNode);
+  for (const [label, r, cwd] of [
+    ["native-O0", o0, cwdO0],
+    ["native-O2", o2, cwdO2],
   ] as const) {
     // A crash or hang is ALWAYS a divergence — never fall through to exit-code comparison, where a
     // signal death (reported as no exit code) could otherwise be mistaken for agreement.
@@ -136,15 +178,20 @@ export async function differential(
       out.push({ kind: "crash", detail: `${label} crashed with signal ${r.signal}` });
       continue;
     }
-    if (r.stdout !== oracle.stdout) {
+    const stdout = normalizeCwd(r.stdout, cwds);
+    if (stdout !== oracleStdout) {
       out.push({
         kind: "stdout",
-        detail: `${label} stdout ${JSON.stringify(r.stdout)} != node ${JSON.stringify(oracle.stdout)}`,
+        detail: `${label} stdout ${JSON.stringify(stdout)} != node ${JSON.stringify(oracleStdout)}`,
       });
     }
+    const stderrDiff = compareStderr(oracleStderr, normalizeCwd(r.stderr, cwds), oracle.exit);
+    if (stderrDiff !== null) out.push({ kind: "stderr", detail: `${label} ${stderrDiff}` });
     if (r.exit !== oracle.exit) {
       out.push({ kind: "exit", detail: `${label} exit ${r.exit} != node ${oracle.exit}` });
     }
+    const treeDiff = diffTrees(oracleTree, snapshotTree(cwd));
+    if (treeDiff !== null) out.push({ kind: "files", detail: `${label} ${treeDiff}` });
   }
 
   try {
