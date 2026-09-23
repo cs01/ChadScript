@@ -8,7 +8,9 @@ Superseded plans and reviews were deleted on 2026-09-22; recover them from git h
 
 Compile ordinary, statically analyzable TypeScript ahead of time to small native binaries.
 
-- **Accepted programs behave exactly like Node.** Same stdout, same exit code.
+- **Accepted programs behave exactly like Node.** Every observable effect matches: stdout,
+  stderr (modulo Node's stack-trace paths), exit code, files created/written/deleted and their
+  contents, network requests and how responses are handled, and the order async work runs in.
 - **Everything else is rejected at compile time** with a `CS####` code, a span, and a rewrite
   suggestion. There is no third category ("compiles but diverges"): that is a P0 bug.
 - **Real programs are multi-file.** `import`/`export` across files is a first-class feature,
@@ -243,6 +245,24 @@ lose control of layout and GC roots); writing the compiler in Milo (tsc is the o
 - `tests/dod-manifest.ts`: the definition of done as data, each `done` item citing fixtures.
 - Sanitized lane (`bun run test:san`): ASan + UBSan over the whole suite.
 - `scripts/bench.ts` + `benchmarks/`: native vs Node timings.
+
+## Hardening (after phase 7, before any release)
+
+Goal: a user can trust "it behaves exactly like Node, or it is rejected with a clear error".
+
+1. **Effects oracle.** Each differential run gets its own empty temp working directory; the
+   harness diffs stdout, normalized stderr, exit code, and the full resulting directory tree
+   (names + bytes) between Node and the native binary.
+2. **Realistic corpus** (`tests/corpus/`): 100+ programs written the way people write TypeScript
+   (CLI tools, parsers, CSV/JSON/log processing that reads and writes files, algorithms, class
+   hierarchies, async I/O). Each must match Node's effects or be rejected cleanly; a wrong effect
+   or an internal compiler error fails the build.
+3. **Scoreboard** generated from the corpus run and published on the site: accepted-and-matching,
+   rejected-cleanly, divergent (must be 0), crashed (must be 0), plus the top rejection reasons,
+   which rank what to support next.
+4. **Nightly long fuzz hunts** across every fuzzer and the ICE sweep; every find becomes a fixture.
+5. **Networking**: `fetch` (client) first, then `node:http` servers, tested against a local
+   recording server that both runs talk to, diffing the request log and the program's effects.
 
 ## Phases
 
