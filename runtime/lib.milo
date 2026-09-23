@@ -16,3 +16,4 @@ from "./strings" import { cs_str_concat }
 from "./string-methods" import { cs_str_len }
 from "./map" import { cs_map_new }
 from "./set" import { cs_set_new }
+from "./json" import { cs_json_num }
