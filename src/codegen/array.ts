@@ -353,12 +353,18 @@ export function evalArraySearch(
   return ctx.fn.select(found, ctx.fn.sitofp(ctx.fn.load(T.i32, idxSlot)), fimm(-1));
 }
 
-// `arr.join(sep)`: fold the elements into a string, separated by `sep` (default ","). The
-// separator is prepended before every element except the first (via a select on the index).
+// `arr.join(sep)`: fold the elements into a string, separated by `sep` (default ",").
 export function evalArrayJoin(expr: Extract<HExpr, { kind: "arrayJoin" }>, ctx: Ctx): Value {
-  const arrSlot = ctx.fn.alloca(T.ptr);
-  ctx.fn.store(evalArrayPtr(expr.array, ctx), arrSlot);
+  const arr = evalArrayPtr(expr.array, ctx);
   const sep = expr.separator ? evalString(expr.separator, ctx) : ctx.mod.cstring(",");
+  return arrayJoinValue(arr, expr.elementType, sep, ctx);
+}
+
+// The join of an evaluated array pointer. The separator is prepended before every element except
+// the first (via a select on the index). Also Array.prototype.toString (String(xs), `${xs}`).
+export function arrayJoinValue(arrPtr: Value, elementType: ValueType, sep: Value, ctx: Ctx): Value {
+  const arrSlot = ctx.fn.alloca(T.ptr);
+  ctx.fn.store(arrPtr, arrSlot);
   const empty = ctx.mod.cstring("");
   const resultSlot = ctx.fn.alloca(T.ptr);
   ctx.fn.store(empty, resultSlot);
@@ -378,9 +384,9 @@ export function evalArrayJoin(expr: Extract<HExpr, { kind: "arrayJoin" }>, ctx: 
   ctx.fn.switchTo(bodyB);
   const arr = ctx.fn.load(T.ptr, arrSlot);
   const idx = ctx.fn.load(T.i32, idxSlot);
-  const elem = arrayElementAt(arr, idx, expr.elementType, ctx);
+  const elem = arrayElementAt(arr, idx, elementType, ctx);
   // A Value or optional element may be nullish, which join spells "" (not "undefined"/"null").
-  const t = expr.elementType;
+  const t = elementType;
   const elemStr =
     t.kind === "value" || t.kind === "optional"
       ? valueJoinString(boxValue(elem, t, ctx), t, ctx)

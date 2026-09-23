@@ -12,6 +12,7 @@ import type { HExpr } from "../hir/nodes.js";
 import { VT } from "../hir/types.js";
 import { type LowerCtx, lowerExpr, symbolOf } from "./lower.js";
 import { lowerNodeFsCall } from "./node-fs.js";
+import { stringOperand } from "./to-string.js";
 import { lowerNodePathCall } from "./node-path.js";
 import { lowerNodeFsPromisesCall } from "./node-fs-promises.js";
 
@@ -71,7 +72,13 @@ export function lowerGlobalBuiltin(
     const arg = call.arguments[0];
     if (!arg) ice(`lower: ${name}() with no argument not supported`);
     const resultType = name === "String" ? VT.string : name === "Number" ? VT.number : VT.boolean;
-    return { kind: "convert", op: name, value: lowerExpr(arg, ctx), type: resultType };
+    const value = lowerExpr(arg, ctx);
+    return {
+      kind: "convert",
+      op: name,
+      value: name === "String" ? stringOperand(arg, value, ctx) : value,
+      type: resultType,
+    };
   }
   return null;
 }

@@ -18,6 +18,7 @@ import type { ValueType } from "../hir/types.js";
 import { CODE } from "./codes.js";
 import { spanOf } from "./validate.js";
 import { renderDiagnostic } from "./render-rules.js";
+import { stringConversionDiagnostic } from "./string-rules.js";
 import { genericSignatureOf, isGenericDeclaration } from "../lower/generics.js";
 
 export function layoutDiagnostics(loaded: LoadedProgram): Diagnostic[] {
@@ -145,6 +146,8 @@ export function layoutDiagnostics(loaded: LoadedProgram): Diagnostic[] {
   };
 
   const visit = (node: ts.Node): void => {
+    const conversion = stringConversionDiagnostic(node, analysis, checker);
+    if (conversion) out.push(conversion);
     if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
       checkMethodCall(node, node.expression);
       const render = renderDiagnostic(node, analysis, checker);

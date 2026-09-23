@@ -16,6 +16,7 @@ import type { LoadedProgram } from "../frontend/program.js";
 import type { HModule, HStmt, HExpr, HFunc, HCapture } from "../hir/nodes.js";
 import { VT } from "../hir/types.js";
 import { binaryOp, unaryOp, isAssignmentOp, compoundOp } from "./operators.js";
+import { stringOperand } from "./to-string.js";
 import {
   coerceToTarget,
   coerceElement,
@@ -597,7 +598,9 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
     case ts.SyntaxKind.TemplateExpression: {
       const t = expr as ts.TemplateExpression;
       const quasis = [t.head.text, ...t.templateSpans.map((s) => s.literal.text)];
-      const exprs = t.templateSpans.map((s) => lowerExpr(s.expression, ctx));
+      const exprs = t.templateSpans.map((s) =>
+        stringOperand(s.expression, lowerExpr(s.expression, ctx), ctx),
+      );
       return { kind: "template", quasis, exprs, type };
     }
 
@@ -766,8 +769,8 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
       return {
         kind: "binary",
         op: binaryOp(opKind),
-        left: lowerExpr(b.left, ctx),
-        right: lowerExpr(b.right, ctx),
+        left: stringOperand(b.left, lowerExpr(b.left, ctx), ctx, type),
+        right: stringOperand(b.right, lowerExpr(b.right, ctx), ctx, type),
         type,
       };
     }

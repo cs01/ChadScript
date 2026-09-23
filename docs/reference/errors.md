@@ -390,7 +390,7 @@ A call through an interface where the implementations reachable at run time take
 
 **Rewrite:** Print the fields you need, or await the promise first.
 
-**Rejection tests:** [`format-d-tostring.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/format-d-tostring.ts), [`format-dynamic-function.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/format-dynamic-function.ts), [`format-o-function.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/format-o-function.ts) and 5 more
+**Rejection tests:** [`format-d-tostring.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/format-d-tostring.ts), [`format-dynamic-function.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/format-dynamic-function.ts), [`format-o-function.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/format-o-function.ts) and 9 more
 
 ## CS1239: Operation on an un-narrowed union {#cs1239}
 

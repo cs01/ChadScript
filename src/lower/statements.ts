@@ -32,6 +32,7 @@ import { accessIn, fieldAccessAt, methodDispatchAt } from "./member-access.js";
 import { classIdOf, constructorClassOf } from "./class-ids.js";
 import { recordFieldWrite } from "./field-writes.js";
 import { cellFlag } from "./cells.js";
+import { stringOperand } from "./to-string.js";
 
 // Returns an array because one `let a = 1, b = 2;` lowers to several varDecls.
 export function lowerStatement(stmt: ts.Statement, ctx: LowerCtx): HStmt[] {
@@ -382,7 +383,7 @@ export function lowerAssignment(expr: ts.BinaryExpression, ctx: LowerCtx): HStmt
     kind: "binary",
     op: compoundOp(op),
     left: lowerExpr(left, ctx),
-    right: lowerExpr(expr.right, ctx),
+    right: stringOperand(expr.right, lowerExpr(expr.right, ctx), ctx, resolveType(left, ctx)),
     type: resolveType(left, ctx),
   };
   // A narrowed Value variable (`x += 1` after `typeof x === "number"`) stores back as a word.
@@ -426,7 +427,7 @@ export function lowerIndexAssignment(
     kind: "binary",
     op: compoundOp(op),
     left: current,
-    right: lowerExpr(rhs, ctx),
+    right: stringOperand(rhs, lowerExpr(rhs, ctx), ctx, elementType),
     type: elementType,
   };
   return { kind: "indexSet", array, index, value, elementType };
@@ -458,7 +459,7 @@ export function lowerMemberAssignment(
     kind: "binary",
     op: compoundOp(op),
     left: { kind: "memberGet", object, access, type: readType },
-    right: lowerExpr(rhs, ctx),
+    right: stringOperand(rhs, lowerExpr(rhs, ctx), ctx, readType),
     type: readType,
   };
   recordFieldWrite(lhs.expression, lhs.name.text, readType, ctx);

@@ -24,7 +24,13 @@ import {
   evalSetPredicate,
 } from "./collections.js";
 import { evalStrMethod } from "./strings.js";
-import { evalArrayHof, evalArraySort, evalArraySearch, evalArrayJoin } from "./array.js";
+import {
+  evalArrayHof,
+  evalArraySort,
+  evalArraySearch,
+  evalArrayJoin,
+  arrayJoinValue,
+} from "./array.js";
 import { evalObjectPtr, evalMemberGet, evalObjectValues } from "./objects.js";
 import { loadShape, shapeRef } from "./shapes.js";
 // Method calls live in methods.ts; re-exported for the evaluators that dispatch to them.
@@ -282,8 +288,36 @@ export function coerceValueToString(v: Value, type: ValueType, ctx: Ctx): Value 
       return ctx.fn.call("@cs_bool_to_string", T.ptr, [ctx.fn.zextI1ToI32(v)]);
     case "value":
       return valueToString(v, type, ctx);
-    default:
-      return ice(`coerceValueToString: ${type.kind} not supported`);
+    case "unknown":
+      // A caught value or an Error: "Error: <msg>" / "TypeError: <msg>", or the thrown string.
+      return ctx.fn.call("@cs_thrown_to_string", T.ptr, [v]);
+    case "array":
+      // Array.prototype.toString is join(","): nested arrays flatten, nullish elements join as "".
+      return arrayJoinValue(v, type.element, ctx.mod.cstring(","), ctx);
+    // Object.prototype.toString. lower turns an object whose own class defines toString() into a
+    // call to it, and the validator (string-rules.ts) rejects the conversions where some object
+    // reaching this site defines its own toString or valueOf, so every record here uses the default.
+    case "object":
+      return ctx.mod.cstring("[object Object]");
+    case "map":
+      return ctx.mod.cstring("[object Map]");
+    case "set":
+      return ctx.mod.cstring("[object Set]");
+    case "promise":
+      return ctx.mod.cstring("[object Promise]");
+    case "optional":
+      return optionalPtrToString(v, type.inner, ctx);
+    case "null":
+    case "undefined":
+      return ctx.mod.cstring(type.kind);
+    case "function":
+    case "opaque":
+      // Node prints a function's source text and a Timeout's id; string-rules.ts rejects both.
+      return ice(`coerceValueToString: ${type.kind} has no string form`);
+    default: {
+      const never: never = type;
+      return ice(`coerceValueToString: ${(never as ValueType).kind}`);
+    }
   }
 }
 
@@ -519,26 +553,22 @@ function coerceToString(expr: HExpr, ctx: Ctx): Value {
       return ctx.fn.call("@cs_num_to_string", T.ptr, [evalNumber(expr, ctx)]);
     case "boolean":
       return ctx.fn.call("@cs_bool_to_string", T.ptr, [ctx.fn.zextI1ToI32(evalBool(expr, ctx))]);
-    case "unknown":
-      // `String(e)` on a caught value: "Error: <msg>" for an Error, else the thrown string.
-      return ctx.fn.call("@cs_thrown_to_string", T.ptr, [evalValue(expr, ctx)]);
     case "null":
       return ctx.mod.cstring("null");
     case "undefined":
       return ctx.mod.cstring("undefined");
     case "optional":
-      return coerceOptionalToString(expr, expr.type.inner, ctx);
+      return optionalPtrToString(evalOptionalPtr(expr, ctx), expr.type.inner, ctx);
     case "value":
       return valueToString(evalValueWord(expr, ctx), expr.type, ctx);
     default:
-      return ice(`coerceToString: ${expr.type.kind} not supported yet`);
+      return coerceValueToString(evalValue(expr, ctx), expr.type, ctx);
   }
 }
 
 // String coercion of a `T | null | undefined`: JS spells the absent cases "undefined"/"null" and
 // coerces a present value by its inner type. Branches on the two nullish sentinels at runtime.
-function coerceOptionalToString(expr: HExpr, inner: ValueType, ctx: Ctx): Value {
-  const opt = evalOptionalPtr(expr, ctx);
+function optionalPtrToString(opt: Value, inner: ValueType, ctx: Ctx): Value {
   const result = ctx.fn.alloca(T.ptr);
   const undefB = ctx.fn.newBlock("cts.undef");
   const notUndefB = ctx.fn.newBlock("cts.notundef");
