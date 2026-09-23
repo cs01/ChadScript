@@ -3,7 +3,7 @@
 // Elements compare with SameValueZero and are uniform i64 slots.
 
 from "./abi" import { CsArray, GC_malloc, memcpy, memmove, byteAt }
-from "./hashkey" import { CsIndex, indexFind, indexInsert, indexRebuild, indexShouldGrow }
+from "./hashkey" import { CsIndex, indexFind, indexInsert, indexRebuild, indexShouldGrow, storedKey }
 from "./array" import { cs_array_new, cs_array_push, cs_array_len, cs_array_get }
 
 // GC memory: `elems` may hold pointer slots, so it comes from GC_malloc (scanned).
@@ -48,7 +48,7 @@ pub fn cs_set_add(s: *CsSet, e: i64, kind: i32) {
             s.elems = ne
             s.cap = nc
         }
-        s.elems[s.len as i64] = e
+        s.elems[s.len as i64] = storedKey(e, kind)
         s.len = s.len + 1
         if indexShouldGrow(s.idx.addrOf(), s.len) {
             let nb: i32 = if s.idx.cap == 0 { 16 } else { s.idx.cap * 2 }

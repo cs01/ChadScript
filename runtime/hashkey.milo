@@ -8,7 +8,7 @@
 // array. Keeping entries separate from buckets is what lets keys()/values() stay a straight walk in
 // JS iteration order while lookup is O(1).
 
-from "./abi" import { CsString, GC_malloc_atomic, f64Bits, f64FromBits, isNan }
+from "./abi" import { CsString, GC_malloc_atomic, f64Bits, f64FromBits, isNan, NEG_ZERO_BITS }
 from "./strings" import { cs_str_eq }
 
 // Key kind tags, passed by generated IR (equality depends on the key's source type).
@@ -19,6 +19,15 @@ pub let KEY_STRING: i32 = 1
 pub extern struct CsIndex {
     buckets: *i32,
     cap: i32,
+}
+
+// The key a Map or Set stores for `k`: Map.prototype.set and Set.prototype.add turn -0 into +0, so
+// the stored key (what keys(), values() and printing see) is never -0.
+pub fn storedKey(k: i64, kind: i32): i64 {
+    if kind == KEY_NUMBER && k as u64 == NEG_ZERO_BITS {
+        return 0
+    }
+    return k
 }
 
 pub fn keyEq(a: i64, b: i64, kind: i32): bool {

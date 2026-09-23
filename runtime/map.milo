@@ -4,7 +4,7 @@
 // uniform i64 slots (the same boxing as arrays).
 
 from "./abi" import { CsArray, GC_malloc, memcpy, memmove, byteAt }
-from "./hashkey" import { CsIndex, indexFind, indexInsert, indexRebuild, indexShouldGrow }
+from "./hashkey" import { CsIndex, indexFind, indexInsert, indexRebuild, indexShouldGrow, storedKey }
 from "./nullable" import { undefinedMarker, boxSlot }
 from "./array" import { cs_array_new, cs_array_push }
 
@@ -58,7 +58,7 @@ pub fn cs_map_set(m: *CsMap, k: i64, v: i64, kind: i32) {
             m.vals = nv
             m.cap = nc
         }
-        m.keys[m.len as i64] = k
+        m.keys[m.len as i64] = storedKey(k, kind)
         m.vals[m.len as i64] = v
         m.len = m.len + 1
         if indexShouldGrow(m.idx.addrOf(), m.len) {
