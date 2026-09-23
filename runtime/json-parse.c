@@ -86,7 +86,9 @@ static void sbuf_push(SBuf *b, char c) {
   if (b->len == b->cap) {
     size_t cap = b->cap ? b->cap * 2 : 32;
     char *grown = GC_malloc_atomic(cap);
-    memcpy(grown, b->data, b->len);
+    // The first grow copies from a NULL buffer. memcpy(dst, NULL, 0) is UB (glibc declares the
+    // source nonnull, and UBSan reports it on Linux), so skip the copy when there is nothing yet.
+    if (b->len) memcpy(grown, b->data, b->len);
     b->data = grown;
     b->cap = cap;
   }
