@@ -72,7 +72,15 @@ export const VT = {
   undefined: { kind: "undefined" } as ValueType,
   unknown: { kind: "unknown" } as ValueType,
   opaque: (name: string): ValueType => ({ kind: "opaque", name }),
-  array: (element: ValueType): ValueType => ({ kind: "array", element }),
+  // An array of only `null` (or only `undefined`), e.g. `[x, y]` with both narrowed to null, has
+  // no machine value per element; its slots hold the Value word instead (a one-member union).
+  array: (element: ValueType): ValueType => ({
+    kind: "array",
+    element:
+      element.kind === "null" || element.kind === "undefined"
+        ? { kind: "value", members: [element] }
+        : element,
+  }),
   map: (key: ValueType, value: ValueType): ValueType => ({ kind: "map", key, value }),
   set: (element: ValueType): ValueType => ({ kind: "set", element }),
   promise: (inner: ValueType): ValueType => ({ kind: "promise", inner }),

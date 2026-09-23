@@ -55,7 +55,8 @@ error[CS1219]: a closure cannot capture the mutable variable `count` yet
 
 Supported today: numbers, strings, booleans, control flow, functions and closures, arrays,
 object literals, classes with inheritance and virtual dispatch, `Map`/`Set`, optional values,
-spread, try/catch/finally, async/await, timers, `node:fs` (sync and promises), `node:path`,
+unions of different kinds (`number | string`, `string[] | boolean | null`) narrowed by `typeof`,
+`===`, `instanceof`, `Array.isArray` and truthiness, spread, try/catch/finally, async/await, timers, `node:fs` (sync and promises), `node:path`,
 and multi-file ES modules (named, default and namespace imports, re-exports, specifiers as
 TypeScript writes them, npm packages that ship TypeScript source).
 The generated [`docs/SUBSET.md`](docs/SUBSET.md) is the exact list.
@@ -65,8 +66,9 @@ runtime, CommonJS, packages that ship only JavaScript. Programs that need those 
 [milojs](https://github.com/milo-language/milojs)); since every accepted program is valid
 TypeScript, the same file runs there unchanged.
 
-Not supported yet, planned: unions with mixed representations (`number | string`); generics;
-closures that mutate captured variables; optional chains longer than one `?.`. See the phases in [`PLAN.md`](PLAN.md).
+Not supported yet, planned: generics; closures that mutate captured variables; optional chains
+longer than one `?.`; operations on an un-narrowed union beyond printing, `===`, `typeof`, `??`
+and truthiness (narrow it first); `Map`/`Set` keyed by a union. See the phases in [`PLAN.md`](PLAN.md).
 
 ## How it works
 

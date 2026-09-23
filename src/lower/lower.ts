@@ -13,7 +13,7 @@ import ts from "typescript";
 import { ice } from "../diagnostics.js";
 import type { LoadedProgram } from "../frontend/program.js";
 import type { HModule, HStmt, HExpr, HFunc, HCapture } from "../hir/nodes.js";
-import { VT, optionalOf } from "../hir/types.js";
+import { VT } from "../hir/types.js";
 import { binaryOp, unaryOp, isAssignmentOp, compoundOp } from "./operators.js";
 import {
   coerceToTarget,
@@ -21,6 +21,8 @@ import {
   typeofTest,
   isNullishType,
   valueCoalesce,
+  bothOptional,
+  optionalRead,
 } from "./value-lower.js";
 import { type FieldWrite, applyFieldWrites } from "./field-writes.js";
 // Re-exported: statements.ts and friends import these through lower.ts.
@@ -442,32 +444,17 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
       const ea = expr as ts.ElementAccessExpression;
       const arrType = resolveType(ea.expression, ctx);
       if (arrType.kind !== "array") ice("lower: index access only on arrays yet");
-      // A Value element is read as the element's word (undefined when out of range), then unboxed
-      // if tsc narrowed the access (`if (typeof xs[0] === "string") xs[0].length`).
-      if (arrType.element.kind === "value") {
-        const read: HExpr = {
-          kind: "box",
-          value: {
-            kind: "index",
-            array: lowerExpr(ea.expression, ctx),
-            index: lowerExpr(ea.argumentExpression, ctx),
-            elementType: arrType.element,
-            type: { kind: "optional", inner: arrType.element },
-          },
-          type: optionalOf(arrType.element),
-        };
-        return type.kind === "value" || isNullishType(type)
-          ? read
-          : { kind: "unbox", value: read, type };
-      }
-      // `type` here is `element | undefined` (noUncheckedIndexedAccess).
-      return {
+      // `type` here is `element | undefined` (noUncheckedIndexedAccess). A Value or optional element
+      // is read as a word (undefined when out of range) and unboxed if tsc narrowed the access
+      // (`if (typeof xs[0] === "string") xs[0].length`); see optionalRead.
+      const read: HExpr = {
         kind: "index",
         array: lowerExpr(ea.expression, ctx),
         index: lowerExpr(ea.argumentExpression, ctx),
         elementType: arrType.element,
         type,
       };
+      return optionalRead(read, arrType.element, type);
     }
 
     case ts.SyntaxKind.ThisKeyword: {
@@ -713,8 +700,17 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
           return isEq ? test : { kind: "unary", op: "not", operand: test, type: VT.boolean };
         const left = lowerExpr(b.left, ctx);
         const right = lowerExpr(b.right, ctx);
-        // `===` with a Value side compares words: box the other side into the same union.
-        const vt = left.type.kind === "value" ? left.type : right.type;
+        // `===` with a Value side compares words: box the other side into the same union. Two
+        // optionals (`a === b` with both `string | null`) compare as words too, which gets the
+        // nullish cases right without a four-way branch.
+        const vt =
+          left.type.kind === "value"
+            ? left.type
+            : right.type.kind === "value" || left.type.kind !== "optional"
+              ? right.type
+              : right.type.kind === "optional"
+                ? bothOptional(left.type, right.type)
+                : right.type;
         if (vt.kind === "value") {
           return {
             kind: "binary",

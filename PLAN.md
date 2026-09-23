@@ -233,10 +233,19 @@ manifest. Estimates in LOC.
    machine types than the call). JSON.parse objects get a runtime shape derived from a per-type
    template (key order and present keys from the JSON text, cs_json_object), so their layouts
    never agree on a static slot; a spread over one is CS1236, a write that could add an absent
-   optional key CS1235, and an undeclared key throws. Not yet: optional chains longer than one
+   optional key CS1235 (an undeclared key is kept since phase 4). Not yet: optional chains longer than one
    link. (~1.5k)
-4. **`Value`, unions, narrowing.** Exit: discriminated unions, `number | string`; CS1233
-   retired. (~1.5k)
+4. **`Value`, unions, narrowing.** DONE (dod `value-unions`). A union of different
+   representations is one Value word in every position (locals, params, returns, array elements,
+   Map values, fields); boxing and unboxing are explicit HIR nodes (`box`/`unbox`) checked by
+   verifyHir, and lower unboxes wherever tsc's narrowed type at a use has one representation.
+   `typeof`, `===`, `instanceof`, `Array.isArray`, truthiness and `switch` narrow; printing,
+   `String()`, templates, `===` (SameValue on the words), `typeof`, `??` and JSON work on an
+   un-narrowed Value, anything else is CS1239. Array covariance across representations is CS1240;
+   CS1233 now only covers unions no Value can tell apart (two array types) and union Map/Set keys.
+   A field write through a wider static type widens the reaching shapes' field types. JSON.parse
+   keeps undeclared keys as Value words (printed, serialized, listed like Node). Union fuzzer in
+   tests/slow. (~2.5k)
 5. **Mutable captures** (CS1219 retired, ~200) and **erased generics** (~600).
 6. **Precise GC** in Milo; drop libgc. (~2k)
 7. **0.1 "TS CLI tools"**: argv, fs, JSON parsed and validated against the declared type,

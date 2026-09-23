@@ -10,6 +10,7 @@ import { T } from "../ir/types.js";
 import { type Ctx, evalValue, evalBool, evalString, irTypeOf } from "./expr.js";
 import { evalNumber } from "./numbers.js";
 import { truthyValue } from "./value-ops.js";
+import { boxValue } from "./value.js";
 
 // JS truthiness of an expression → i1 (evaluates the expression once).
 export function toBool(expr: HExpr, ctx: Ctx): Value {
@@ -33,6 +34,17 @@ export function truthyOfValue(v: Value, vt: ValueType, ctx: Ctx): Value {
     }
     case "value":
       return truthyValue(v, vt, ctx);
+    // `T | undefined` / `T | null`: nullish is falsy, a present value by its own rule. Asked through
+    // its Value word, which answers both in one dispatch.
+    case "optional":
+      return truthyValue(boxValue(v, vt, ctx), vt, ctx);
+    // Every object, array, function and collection is truthy.
+    case "object":
+    case "array":
+    case "function":
+    case "map":
+    case "set":
+      return imm(T.i1, 1);
     default:
       return ice(`truthiness: ${vt.kind} not supported yet`);
   }

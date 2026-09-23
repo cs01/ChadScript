@@ -20,8 +20,8 @@ import {
   emitStrictEq,
   coerceValueToString,
 } from "./expr.js";
-import { valueJoinString, valueSameValueZero } from "./value-ops.js";
-import { unboxValue } from "./value.js";
+import { valueJoinString, valueSameValueZero, valueStrictEq } from "./value-ops.js";
+import { boxValue, unboxValue } from "./value.js";
 
 // The slot `filter` keeps for an element. Normally the original slot, but a type-predicate callback
 // (`(v) => typeof v === "number"`, which tsc infers as `v is number`) narrows the RESULT's element
@@ -309,9 +309,16 @@ export function evalArraySearch(
   const elem = arrayElementAt(ctx.fn.load(T.ptr, arrSlot), i, elementType, ctx);
   // includes() is SameValueZero, indexOf() is ===; they differ only for NaN, which only a Value
   // element distinguishes here.
+  // An optional element compares as a Value word (nullish and present values in one test).
+  const asWord = elementType.kind === "optional";
+  const a = asWord ? boxValue(elem, elementType, ctx) : elem;
+  const b = asWord ? boxValue(target, elementType, ctx) : target;
+  const wordType: ValueType = asWord ? { kind: "value", members: [] } : elementType;
   const match =
-    elementType.kind === "value" && !wantIndex
-      ? valueSameValueZero(elem, target, ctx)
+    wordType.kind === "value"
+      ? wantIndex
+        ? valueStrictEq(a, b, ctx)
+        : valueSameValueZero(a, b, ctx)
       : emitStrictEq(elem, target, elementType, ctx);
   ctx.fn.brCond(match, endB, contB); // match → stop
 
@@ -358,10 +365,12 @@ export function evalArrayJoin(expr: Extract<HExpr, { kind: "arrayJoin" }>, ctx: 
   const arr = ctx.fn.load(T.ptr, arrSlot);
   const idx = ctx.fn.load(T.i32, idxSlot);
   const elem = arrayElementAt(arr, idx, expr.elementType, ctx);
+  // A Value or optional element may be nullish, which join spells "" (not "undefined"/"null").
+  const t = expr.elementType;
   const elemStr =
-    expr.elementType.kind === "value"
-      ? valueJoinString(elem, expr.elementType, ctx)
-      : coerceValueToString(elem, expr.elementType, ctx);
+    t.kind === "value" || t.kind === "optional"
+      ? valueJoinString(boxValue(elem, t, ctx), t, ctx)
+      : coerceValueToString(elem, t, ctx);
   const prefix = ctx.fn.select(ctx.fn.icmp("eq", idx, imm(T.i32, 0)), empty, sep);
   let acc = ctx.fn.call("@cs_str_concat", T.ptr, [ctx.fn.load(T.ptr, resultSlot), prefix]);
   acc = ctx.fn.call("@cs_str_concat", T.ptr, [acc, elemStr]);

@@ -56,6 +56,14 @@ export function typeofTest(b: ts.BinaryExpression, ctx: LowerCtx): HExpr | null 
   return pick(b.left, b.right) ?? pick(b.right, b.left);
 }
 
+// The Value union two optionals are compared in: both inner kinds plus undefined and null.
+export function bothOptional(a: ValueType, b: ValueType): ValueType {
+  if (a.kind !== "optional" || b.kind !== "optional") return a;
+  const members: ValueType[] = [a.inner];
+  if (b.inner.kind !== a.inner.kind) members.push(b.inner);
+  return { kind: "value", members: [...members, VT.undefined, VT.null] };
+}
+
 export function isNullishType(t: ValueType): boolean {
   return t.kind === "null" || t.kind === "undefined";
 }
@@ -80,11 +88,19 @@ function withNullish(t: ValueType): ValueType {
 // `arr.find(f)`, `map.get(k)`), stamped with the site's type. For a Value `inner` the site's type is
 // the union itself (a Value absorbs `undefined`), which the optional-pointer machinery does not
 // produce; so the node keeps its optional pointer form and an explicit box turns it into the word,
-// unboxed again where tsc narrowed the site.
+// unboxed again where tsc narrowed the site. An optional `inner` (`(string | null)[]`) needs the
+// same route: the read yields an optional of an optional (the box holds the element's own optional
+// pointer), which only its Value word flattens back into one `string | null | undefined`.
 export function optionalRead(node: HExpr, inner: ValueType, siteType: ValueType): HExpr {
-  if (inner.kind !== "value") return { ...node, type: siteType } as HExpr;
+  if (inner.kind !== "value" && inner.kind !== "optional") {
+    return { ...node, type: siteType } as HExpr;
+  }
   const raw = { ...node, type: { kind: "optional", inner } } as HExpr;
-  const word: HExpr = { kind: "box", value: raw, type: optionalOf(inner) };
+  const wordType: ValueType =
+    inner.kind === "optional"
+      ? { kind: "value", members: [inner.inner, VT.undefined, VT.null] }
+      : optionalOf(inner);
+  const word: HExpr = { kind: "box", value: raw, type: wordType };
   if (siteType.kind === "value" || siteType.kind === "undefined" || siteType.kind === "null") {
     return word;
   }
@@ -95,8 +111,10 @@ export function optionalRead(node: HExpr, inner: ValueType, siteType: ValueType)
 export function coerceElement(el: ArrayElement, arrayType: ValueType): ArrayElement {
   if (el.spread || arrayType.kind !== "array") return el;
   const element = arrayType.element;
-  // Only a Value element needs a conversion here: the other element kinds keep the representation
-  // the literal's own type gave them, which is what resolveType chose the array type from.
-  if (element.kind !== "value" && el.value.type.kind !== "value") return el;
+  // A Value or optional element slot needs its element converted (boxed, wrapped, or a bare
+  // `null`/`undefined` made a sentinel); every other element kind is already in the representation
+  // resolveType chose the array type from.
+  const converts = (k: ValueType["kind"]): boolean => k === "value" || k === "optional";
+  if (!converts(element.kind) && !converts(el.value.type.kind)) return el;
   return { spread: false, value: coerceToTarget(el.value, element) };
 }

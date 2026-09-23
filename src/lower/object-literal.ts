@@ -10,7 +10,7 @@ import type { HExpr, SpreadCase, SpreadItem } from "../hir/nodes.js";
 import type { ObjectField, ValueType } from "../hir/types.js";
 import { type LowerCtx, lowerExpr, nameForSymbol, resolveType } from "./lower.js";
 import { VT } from "../hir/types.js";
-import { valueTypeOf } from "./type-translation.js";
+import { valueTypeOf, valueTypeOfTsType } from "./type-translation.js";
 import { literalItems } from "./layouts.js";
 
 export function lowerObjectLit(
@@ -67,14 +67,24 @@ function lowerProperty(
     // `{ a }` = field `a` from the variable `a`. Resolve the VALUE symbol (the variable).
     const valueSym = ctx.checker.getShorthandAssignmentValueSymbol(p);
     if (!valueSym) return ice(`lower: cannot resolve shorthand property ${p.name.text}`);
-    return {
-      name: p.name.text,
-      value: {
-        kind: "varRef",
-        name: nameForSymbol(valueSym, p.name.text, ctx),
-        type: valueTypeOf(p.name, ctx),
-      },
-    };
+    const name = nameForSymbol(valueSym, p.name.text, ctx);
+    const useType = valueTypeOf(p.name, ctx);
+    // The variable's SLOT may have another representation than the (narrowed) type read here: a
+    // Value union narrowed to one kind is unboxed, an optional narrowed to its inner value
+    // unwrapped, exactly as a plain identifier read is (lower.ts lowerIdentifier).
+    const decl = valueSym.valueDeclaration;
+    const declared = decl
+      ? valueTypeOfTsType(ctx.checker.getTypeOfSymbolAtLocation(valueSym, decl), p, ctx.checker)
+      : useType;
+    const slot: HExpr = { kind: "varRef", name, type: declared };
+    const nullish = useType.kind === "undefined" || useType.kind === "null";
+    let value: HExpr = { kind: "varRef", name, type: useType };
+    if (declared.kind === "value" && useType.kind !== "value") {
+      value = nullish ? slot : { kind: "unbox", value: slot, type: useType };
+    } else if (declared.kind === "optional" && useType.kind !== "optional" && !nullish) {
+      value = { kind: "unwrap", value: slot, type: useType };
+    }
+    return { name: p.name.text, value };
   }
   return ice(`lower: unsupported object member ${ts.SyntaxKind[p.kind]}`);
 }
