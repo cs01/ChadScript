@@ -291,6 +291,10 @@ export function evalArraySearch(
   const arrSlot = ctx.fn.alloca(T.ptr);
   ctx.fn.store(evalArrayPtr(array, ctx), arrSlot);
   const target = evalValue(value, ctx); // evaluated once, before the loop
+  // includes() on numbers is SameValueZero: a NaN target matches a NaN element. Decided once here,
+  // so the loop body is `targetIsNaN ? elem is NaN : elem == target` (== already equates 0 and -0).
+  const numberSameValueZero = !wantIndex && elementType.kind === "number";
+  const targetIsNaN = numberSameValueZero ? ctx.fn.fcmp("uno", target, target) : null;
   const idxSlot = ctx.fn.alloca(T.i32);
   ctx.fn.store(imm(T.i32, 0), idxSlot);
 
@@ -319,7 +323,13 @@ export function evalArraySearch(
       ? wantIndex
         ? valueStrictEq(a, b, ctx)
         : valueSameValueZero(a, b, ctx)
-      : emitStrictEq(elem, target, elementType, ctx);
+      : targetIsNaN
+        ? ctx.fn.select(
+            targetIsNaN,
+            ctx.fn.fcmp("uno", elem, elem),
+            ctx.fn.fcmp("oeq", elem, target),
+          )
+        : emitStrictEq(elem, target, elementType, ctx);
   ctx.fn.brCond(match, endB, contB); // match → stop
 
   ctx.fn.switchTo(contB);
