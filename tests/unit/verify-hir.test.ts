@@ -71,3 +71,42 @@ test("rejects a member access with neither a valid slot nor an inline-cache site
   };
   assert.throws(() => verifyHir(withShape(get)), /bad field index/);
 });
+
+// Value unions: every representation change is an explicit box/unbox, checked at both ends.
+const numOrStr: ValueType = { kind: "value", members: [numType, { kind: "string" }] };
+
+test("accepts a boxed number stored in a Value-union variable and unboxed back", () => {
+  const boxed: HExpr = { kind: "box", value: num(1), type: numOrStr };
+  const read: HExpr = {
+    kind: "unbox",
+    value: { kind: "varRef", name: "x", type: numOrStr },
+    type: numType,
+  };
+  const m = mod([
+    { kind: "varDecl", name: "x", init: boxed, type: numOrStr },
+    { kind: "consoleLog", values: [read] },
+  ]);
+  assert.doesNotThrow(() => verifyHir(m));
+});
+
+test("rejects a concrete value stored into a Value slot without a box", () => {
+  const m = mod([{ kind: "varDecl", name: "x", init: num(1), type: numOrStr }]);
+  assert.throws(() => verifyHir(m), /without box\/unbox/);
+});
+
+test("rejects a box whose source is already a Value, or whose target is not one", () => {
+  const v: HExpr = { kind: "varRef", name: "x", type: numOrStr };
+  const reboxed: HExpr = { kind: "box", value: v, type: numOrStr };
+  assert.throws(() => verifyHir(mod([{ kind: "exprStmt", expr: reboxed }])), /box from value/);
+  const notValue: HExpr = { kind: "box", value: num(1), type: numType };
+  assert.throws(() => verifyHir(mod([{ kind: "exprStmt", expr: notValue }])), /box from number/);
+});
+
+test("rejects an unbox to a kind the union never holds", () => {
+  const v: HExpr = { kind: "varRef", name: "x", type: numOrStr };
+  const bad: HExpr = { kind: "unbox", value: v, type: { kind: "boolean" } };
+  assert.throws(
+    () => verifyHir(mod([{ kind: "exprStmt", expr: bad }])),
+    /which the union never holds/,
+  );
+});

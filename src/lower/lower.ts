@@ -12,8 +12,12 @@
 import ts from "typescript";
 import { ice } from "../diagnostics.js";
 import type { LoadedProgram } from "../frontend/program.js";
-import type { HModule, HStmt, HExpr, HFunc, HCapture, UnaryOp, BinaryOp } from "../hir/nodes.js";
-import { VT } from "../hir/types.js";
+import type { HModule, HStmt, HExpr, HFunc, HCapture } from "../hir/nodes.js";
+import { VT, optionalOf } from "../hir/types.js";
+import { binaryOp, unaryOp, isAssignmentOp, compoundOp } from "./operators.js";
+import { coerceToTarget, coerceElement, typeofTest } from "./value-lower.js";
+// Re-exported: statements.ts and friends import these through lower.ts.
+export { isAssignmentOp, compoundOp, coerceToTarget };
 import type { ValueType } from "../hir/types.js";
 import {
   valueTypeOf,
@@ -87,6 +91,10 @@ export interface LowerCtx {
 // The `undefined` literal (a global identifier in TS).
 function isUndefinedLiteral(e: ts.Expression): boolean {
   return ts.isIdentifier(e) && e.text === "undefined";
+}
+
+function isNullishType(t: ValueType): boolean {
+  return t.kind === "null" || t.kind === "undefined";
 }
 
 // A property whose declaration is a method (as opposed to a data field).
@@ -170,9 +178,36 @@ function lowerIdentifier(ident: ts.Identifier, ctx: LowerCtx, useType: ValueType
       ident,
       ctx.checker,
     );
+    // A Value-union variable read where tsc narrowed it to one representation (`typeof x ===
+    // "number" ? x + 1 : 0`): the slot holds a Value word, the site wants the concrete type.
+    // Narrowed to exactly `null`/`undefined`, there is no machine value to unbox to: the read stays
+    // a Value word (which every consumer of a nullish value accepts) rather than an unbox that could
+    // never be evaluated.
+    if (declared.kind === "value" && useType.kind !== "value") {
+      const read: HExpr = {
+        kind: "varRef",
+        name: nameForSymbol(sym, ident.text, ctx),
+        type: declared,
+      };
+      return isNullishType(useType) ? read : { kind: "unbox", value: read, type: useType };
+    }
     if (declared.kind === "optional") {
       return {
         kind: "unwrap",
+        value: { kind: "varRef", name: nameForSymbol(sym, ident.text, ctx), type: declared },
+        type: useType,
+      };
+    }
+  }
+  if (sym?.valueDeclaration && useType.kind === "optional") {
+    const declared = valueTypeOfTsType(
+      ctx.checker.getTypeOfSymbolAtLocation(sym, sym.valueDeclaration),
+      ident,
+      ctx.checker,
+    );
+    if (declared.kind === "value") {
+      return {
+        kind: "unbox",
         value: { kind: "varRef", name: nameForSymbol(sym, ident.text, ctx), type: declared },
         type: useType,
       };
@@ -281,18 +316,6 @@ export function callReturnType(call: ts.CallExpression, ctx: LowerCtx): ValueTyp
   return valueTypeOfTsType(t, call, ctx.checker);
 }
 
-// Coerce a lowered value into a target optional slot: a bare `null`/`undefined` becomes the
-// matching sentinel; an already-optional value passes through; any other value is boxed (`wrap`).
-// A non-optional target is a no-op. This is applied EXPLICITLY at the boundaries that feed a
-// real optional slot (return / optional var decl / assignment / user-function argument) — never
-// blanket-applied, because many builtin params are `T | undefined` yet take raw values.
-export function coerceToTarget(h: HExpr, target: ValueType): HExpr {
-  if (target.kind !== "optional" || h.type.kind === "optional") return h;
-  if (h.type.kind === "null") return { kind: "nullOpt", type: target };
-  if (h.type.kind === "undefined") return { kind: "undefinedOpt", type: target };
-  return { kind: "wrap", value: h, type: target };
-}
-
 // The DECLARED type of the variable an identifier resolves to (its slot type, not the narrowed
 // use-type) — for coercing an assignment's RHS into an optional slot.
 export function declaredTypeOfIdent(ident: ts.Identifier, ctx: LowerCtx): ValueType {
@@ -310,7 +333,7 @@ export function declaredTypeOfIdent(ident: ts.Identifier, ctx: LowerCtx): ValueT
 // Lower a user call's arguments, coercing each into its parameter's (possibly optional) type.
 // Only user functions/closures reach here — builtin methods/globals have their own lowering — so
 // resolving the signature's parameter types is safe.
-export function lowerCallArgs(call: ts.CallExpression, ctx: LowerCtx): HExpr[] {
+export function lowerCallArgs(call: ts.CallExpression | ts.NewExpression, ctx: LowerCtx): HExpr[] {
   const sig = ctx.checker.getResolvedSignature(call);
   const params = sig?.parameters ?? [];
   const last = params[params.length - 1];
@@ -326,13 +349,14 @@ export function lowerCallArgs(call: ts.CallExpression, ctx: LowerCtx): HExpr[] {
     );
   };
 
+  const args = call.arguments ?? [];
   if (!isRest) {
-    return call.arguments.map((a, i) => coerceArg(a, params[i]));
+    return args.map((a, i) => coerceArg(a, params[i]));
   }
   // Rest parameter: fixed args pass through; trailing args (with `...spread` support) are packed
   // into the rest array, so a rest function is a normal fixed-arity call taking one array param.
   const fixedCount = params.length - 1;
-  const fixed = call.arguments.slice(0, fixedCount).map((a, i) => coerceArg(a, params[i]));
+  const fixed = args.slice(0, fixedCount).map((a, i) => coerceArg(a, params[i]));
   const restType = valueTypeOfTsType(
     ctx.checker.getTypeOfSymbolAtLocation(last!, call),
     call,
@@ -340,7 +364,7 @@ export function lowerCallArgs(call: ts.CallExpression, ctx: LowerCtx): HExpr[] {
   );
   const restArray: HExpr = {
     kind: "arrayLit",
-    elements: call.arguments.slice(fixedCount).map((a) => lowerArrayElement(a, ctx)),
+    elements: args.slice(fixedCount).map((a) => coerceElement(lowerArrayElement(a, ctx), restType)),
     type: restType,
   };
   return [...fixed, restArray];
@@ -398,7 +422,7 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
       return {
         kind: "arrayLit",
         elements: (expr as ts.ArrayLiteralExpression).elements.map((e) =>
-          lowerArrayElement(e, ctx),
+          coerceElement(lowerArrayElement(e, ctx), type),
         ),
         type,
       };
@@ -410,6 +434,24 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
       const ea = expr as ts.ElementAccessExpression;
       const arrType = resolveType(ea.expression, ctx);
       if (arrType.kind !== "array") ice("lower: index access only on arrays yet");
+      // A Value element is read as the element's word (undefined when out of range), then unboxed
+      // if tsc narrowed the access (`if (typeof xs[0] === "string") xs[0].length`).
+      if (arrType.element.kind === "value") {
+        const read: HExpr = {
+          kind: "box",
+          value: {
+            kind: "index",
+            array: lowerExpr(ea.expression, ctx),
+            index: lowerExpr(ea.argumentExpression, ctx),
+            elementType: arrType.element,
+            type: { kind: "optional", inner: arrType.element },
+          },
+          type: optionalOf(arrType.element),
+        };
+        return type.kind === "value" || isNullishType(type)
+          ? read
+          : { kind: "unbox", value: read, type };
+      }
       // `type` here is `element | undefined` (noUncheckedIndexedAccess).
       return {
         kind: "index",
@@ -452,7 +494,7 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
         kind: "new",
         shape: ctx.shapes.classShape(type.className),
         ctorClass: constructorClassOf(type.className, ctx),
-        args: (ne.arguments ?? []).map((a) => lowerExpr(a, ctx)),
+        args: lowerCallArgs(ne, ctx),
         type,
       };
     }
@@ -512,7 +554,8 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
         // site uses: an optional field narrowed by tsc (`if (n.next !== null) n.next.v`) reads as
         // its inner type with no optional box in between.
         const fieldType = objType.shape.fields[slot]!.type;
-        const narrowed = fieldType.kind === "optional" && type.kind !== "optional";
+        const narrowed =
+          (fieldType.kind === "optional" && type.kind !== "optional") || fieldType.kind === "value";
         return {
           kind: "memberGet",
           object: lowerExpr(pa.expression, ctx),
@@ -537,13 +580,28 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
     case ts.SyntaxKind.ParenthesizedExpression:
       return lowerExpr((expr as ts.ParenthesizedExpression).expression, ctx);
 
+    case ts.SyntaxKind.TypeOfExpression:
+      return {
+        kind: "typeOf",
+        value: lowerExpr((expr as ts.TypeOfExpression).expression, ctx),
+        type: VT.string,
+      };
+
     case ts.SyntaxKind.ConditionalExpression: {
       const c = expr as ts.ConditionalExpression;
+      const cond = lowerExpr(c.condition, ctx);
+      const whenTrue = lowerExpr(c.whenTrue, ctx);
+      const whenFalse = lowerExpr(c.whenFalse, ctx);
+      // Arms of different representations meet in the result's: a Value union (`flag ? "str" : 42`)
+      // or an optional (`flag ? "str" : undefined`, where a bare `undefined` arm has no machine
+      // value of its own).
+      const arm = (h: HExpr): HExpr =>
+        type.kind === "value" || type.kind === "optional" ? coerceToTarget(h, type) : h;
       return {
         kind: "conditional",
-        cond: lowerExpr(c.condition, ctx),
-        whenTrue: lowerExpr(c.whenTrue, ctx),
-        whenFalse: lowerExpr(c.whenFalse, ctx),
+        cond,
+        whenTrue: arm(whenTrue),
+        whenFalse: arm(whenFalse),
         type,
       };
     }
@@ -587,11 +645,16 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
         opKind === ts.SyntaxKind.AmpersandAmpersandToken ||
         opKind === ts.SyntaxKind.BarBarToken
       ) {
+        const left = lowerExpr(b.left, ctx);
+        const right = lowerExpr(b.right, ctx);
+        // The result is one of the operands, so operands of different representations meet in a
+        // Value union; the truth test then runs on the boxed left word, which has the same answer.
+        const operand = (h: HExpr): HExpr => (type.kind === "value" ? coerceToTarget(h, type) : h);
         return {
           kind: "logical",
           op: opKind === ts.SyntaxKind.AmpersandAmpersandToken ? "and" : "or",
-          left: lowerExpr(b.left, ctx),
-          right: lowerExpr(b.right, ctx),
+          left: operand(left),
+          right: operand(right),
           type,
         };
       }
@@ -602,6 +665,15 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
         const left = lowerExpr(b.left, ctx);
         if (left.type.kind === "null" || left.type.kind === "undefined") {
           return lowerExpr(b.right, ctx);
+        }
+        // A Value left: nullish is a word test. The fallback lands in the result's representation.
+        if (left.type.kind === "value") {
+          return {
+            kind: "coalesce",
+            left,
+            right: coerceToTarget(lowerExpr(b.right, ctx), type),
+            type,
+          };
         }
         if (left.type.kind !== "optional") return left;
         return { kind: "coalesce", left, right: lowerExpr(b.right, ctx), type };
@@ -626,6 +698,29 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
           };
         }
       }
+      if (
+        opKind === ts.SyntaxKind.EqualsEqualsEqualsToken ||
+        opKind === ts.SyntaxKind.ExclamationEqualsEqualsToken
+      ) {
+        const isEq = opKind === ts.SyntaxKind.EqualsEqualsEqualsToken;
+        const test = typeofTest(b, ctx);
+        if (test)
+          return isEq ? test : { kind: "unary", op: "not", operand: test, type: VT.boolean };
+        const left = lowerExpr(b.left, ctx);
+        const right = lowerExpr(b.right, ctx);
+        // `===` with a Value side compares words: box the other side into the same union.
+        const vt = left.type.kind === "value" ? left.type : right.type;
+        if (vt.kind === "value") {
+          return {
+            kind: "binary",
+            op: isEq ? "eq" : "ne",
+            left: coerceToTarget(left, vt),
+            right: coerceToTarget(right, vt),
+            type,
+          };
+        }
+        return { kind: "binary", op: isEq ? "eq" : "ne", left, right, type };
+      }
       return {
         kind: "binary",
         op: binaryOp(opKind),
@@ -637,91 +732,6 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
 
     default:
       return ice(`lower: unsupported expression ${ts.SyntaxKind[expr.kind]}`);
-  }
-}
-
-// The element type of an Array<T> (null if `t` is not an array type).
-export function isAssignmentOp(kind: ts.SyntaxKind): boolean {
-  return (
-    kind === ts.SyntaxKind.EqualsToken ||
-    kind === ts.SyntaxKind.PlusEqualsToken ||
-    kind === ts.SyntaxKind.MinusEqualsToken ||
-    kind === ts.SyntaxKind.AsteriskEqualsToken ||
-    kind === ts.SyntaxKind.SlashEqualsToken ||
-    kind === ts.SyntaxKind.PercentEqualsToken
-  );
-}
-
-export function compoundOp(kind: ts.SyntaxKind): BinaryOp {
-  switch (kind) {
-    case ts.SyntaxKind.PlusEqualsToken:
-      return "add";
-    case ts.SyntaxKind.MinusEqualsToken:
-      return "sub";
-    case ts.SyntaxKind.AsteriskEqualsToken:
-      return "mul";
-    case ts.SyntaxKind.SlashEqualsToken:
-      return "div";
-    case ts.SyntaxKind.PercentEqualsToken:
-      return "rem";
-    default:
-      return ice(`lower: unsupported compound assignment ${ts.SyntaxKind[kind]}`);
-  }
-}
-
-function unaryOp(op: ts.PrefixUnaryOperator): UnaryOp {
-  switch (op) {
-    case ts.SyntaxKind.MinusToken:
-      return "neg";
-    case ts.SyntaxKind.PlusToken:
-      return "pos";
-    case ts.SyntaxKind.ExclamationToken:
-      return "not";
-    case ts.SyntaxKind.TildeToken:
-      return "bnot";
-    default:
-      return ice(`lower: unsupported unary operator ${ts.SyntaxKind[op]}`);
-  }
-}
-
-function binaryOp(kind: ts.SyntaxKind): BinaryOp {
-  switch (kind) {
-    case ts.SyntaxKind.PlusToken:
-      return "add";
-    case ts.SyntaxKind.MinusToken:
-      return "sub";
-    case ts.SyntaxKind.AsteriskToken:
-      return "mul";
-    case ts.SyntaxKind.SlashToken:
-      return "div";
-    case ts.SyntaxKind.PercentToken:
-      return "rem";
-    case ts.SyntaxKind.LessThanToken:
-      return "lt";
-    case ts.SyntaxKind.GreaterThanToken:
-      return "gt";
-    case ts.SyntaxKind.LessThanEqualsToken:
-      return "le";
-    case ts.SyntaxKind.GreaterThanEqualsToken:
-      return "ge";
-    case ts.SyntaxKind.EqualsEqualsEqualsToken:
-      return "eq";
-    case ts.SyntaxKind.ExclamationEqualsEqualsToken:
-      return "ne";
-    case ts.SyntaxKind.AmpersandToken:
-      return "band";
-    case ts.SyntaxKind.BarToken:
-      return "bor";
-    case ts.SyntaxKind.CaretToken:
-      return "bxor";
-    case ts.SyntaxKind.LessThanLessThanToken:
-      return "shl";
-    case ts.SyntaxKind.GreaterThanGreaterThanToken:
-      return "shr";
-    case ts.SyntaxKind.GreaterThanGreaterThanGreaterThanToken:
-      return "ushr";
-    default:
-      return ice(`lower: unsupported binary operator ${ts.SyntaxKind[kind]}`);
   }
 }
 

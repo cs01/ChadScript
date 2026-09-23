@@ -68,6 +68,7 @@ function pointerTag(type: ValueType): number | null {
     case "null":
     case "undefined":
     case "optional":
+    case "value":
       return null;
     default: {
       const never: never = type;
@@ -101,6 +102,8 @@ export function boxValue(v: Value, type: ValueType, ctx: Ctx): Value {
       return ctx.fn.lor(ctx.fn.zextI1ToI64(v), imm(T.i64, V_FALSE));
     case "optional":
       return boxOptional(v, type.inner, ctx);
+    case "value":
+      return v; // already a Value word
     default:
       return ice(`boxValue: ${type.kind} has no machine value to box`);
   }
@@ -119,6 +122,8 @@ export function unboxValue(raw: Value, type: ValueType, ctx: Ctx): Value {
       return ctx.fn.truncI64ToI1(raw);
     case "optional":
       return unboxOptional(raw, type.inner, ctx);
+    case "value":
+      return raw;
     default:
       return ice(`unboxValue: ${type.kind} has no machine representation`);
   }

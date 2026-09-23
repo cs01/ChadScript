@@ -46,6 +46,8 @@ export const CODE = {
   LAYOUT_LIMIT: "CS1236", // too many possible runtime layouts at one site (spread, Object.values)
   METHOD_REPRESENTATION: "CS1237", // a method call whose implementations disagree on machine types
   UNRENDERABLE_VALUE: "CS1238", // console.log/JSON.stringify of a value that can hold a Promise etc.
+  VALUE_OPERATION: "CS1239", // an operation on an un-narrowed union of different kinds (`x + 1`)
+  REPRESENTATION_MISMATCH: "CS1240", // a flow whose nested elements differ in representation
 } as const;
 
 export type Code = (typeof CODE)[keyof typeof CODE];

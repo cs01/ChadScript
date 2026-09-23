@@ -172,7 +172,7 @@ export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
     return {
       kind: "call",
       name: `${superMethodClassOf(ctx.currentBaseClass, pa.name.text, ctx)}.${pa.name.text}`,
-      args: [thisRef(ctx), ...call.arguments.map((a) => lowerExpr(a, ctx))],
+      args: [thisRef(ctx), ...lowerCallArgs(call, ctx)],
       type: rt,
     };
   }
@@ -186,7 +186,7 @@ export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
       return {
         kind: "arrayPush",
         array: receiver,
-        value: lowerExpr(call.arguments[0]!, ctx),
+        value: coerceToTarget(lowerExpr(call.arguments[0]!, ctx), recvType.element),
         elementType: recvType.element,
         type: VT.number,
       };
@@ -231,7 +231,7 @@ export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
       return {
         kind: "arraySearch",
         array: receiver,
-        value: lowerExpr(call.arguments[0]!, ctx),
+        value: coerceToTarget(lowerExpr(call.arguments[0]!, ctx), recvType.element),
         elementType: recvType.element,
         wantIndex: method === "indexOf",
         type: method === "indexOf" ? VT.number : VT.boolean,

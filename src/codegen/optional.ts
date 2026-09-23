@@ -27,10 +27,13 @@ import { evalMemberGet, evalOptionalMember } from "./objects.js";
 import { evalNumber } from "./numbers.js";
 import { evalArrayHof } from "./array.js";
 import { evalMapGet } from "./collections.js";
+import { evalUnbox, evalValueCoalesce, evalValueWord } from "./value-ops.js";
+import { V_NULL, V_UNDEFINED } from "./value.js";
 
 // Evaluate an optional-typed HExpr to its pointer rep (undefined sentinel, or a box pointer).
 export function evalOptionalPtr(expr: HExpr, ctx: Ctx): Value {
   if (expr.kind === "index") return evalIndex(expr, ctx);
+  if (expr.kind === "unbox") return evalUnbox(expr, ctx);
   if (expr.kind === "varRef") return ctx.fn.load(T.ptr, lookupVar(expr.name, ctx).ptr);
   if (expr.kind === "arrayPop")
     return ctx.fn.call(`@${expr.fn}`, T.ptr, [evalArrayPtr(expr.array, ctx)]);
@@ -130,6 +133,10 @@ export function isNullishPtr(opt: Value, ctx: Ctx): Value {
 // `x === null`/`x === undefined` (and `!==`) → i1. `sentinel` selects which marker to compare,
 // so the null and undefined cases stay distinct for a `T | null | undefined` value.
 export function evalNullCheck(expr: Extract<HExpr, { kind: "nullCheck" }>, ctx: Ctx): Value {
+  if (expr.value.type.kind === "value") {
+    const word = imm(T.i64, expr.sentinel === "null" ? V_NULL : V_UNDEFINED);
+    return ctx.fn.icmp(expr.isEqual ? "eq" : "ne", evalValueWord(expr.value, ctx), word);
+  }
   const opt = evalOptionalPtr(expr.value, ctx);
   const marker = expr.sentinel === "null" ? "cs_null_marker" : "cs_undefined_marker";
   return ctx.fn.icmp(expr.isEqual ? "eq" : "ne", opt, ctx.mod.externGlobal(marker));
@@ -207,6 +214,7 @@ function evalIndexCoalesce(
 }
 
 export function evalCoalesce(expr: Extract<HExpr, { kind: "coalesce" }>, ctx: Ctx): Value {
+  if (expr.left.type.kind === "value") return evalValueCoalesce(expr, ctx);
   // `arr[i] ?? d` is THE way an in-range element is read, because noUncheckedIndexedAccess types
   // every `arr[i]` as `T | undefined`. Lowered naively it heap-allocates a box on the in-range
   // path and unboxes it one block later — millions of GC allocations in any indexing loop. The

@@ -62,6 +62,8 @@ function inspectable(t: ValueType): boolean {
       return inspectable(t.element);
     case "map":
       return inspectable(t.key) && inspectable(t.value);
+    case "value":
+      return t.members.every(inspectable);
     case "unknown":
     case "promise":
     case "opaque":
@@ -85,6 +87,10 @@ function jsonable(t: ValueType): boolean {
       return jsonable(t.inner);
     case "array":
       return jsonable(t.element);
+    case "value":
+      // A field holding `undefined` is skipped by the field loop (it checks the word first), so
+      // an undefined member is fine here; every other member must have JSON text.
+      return t.members.every((m) => m.kind === "undefined" || jsonable(m));
     case "undefined":
     case "function":
     case "set":

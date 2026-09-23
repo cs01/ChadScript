@@ -75,6 +75,7 @@ pub let KIND_SET: u8 = 11
 pub let KIND_UNKNOWN: u8 = 12
 pub let KIND_PROMISE: u8 = 13
 pub let KIND_OPAQUE: u8 = 14
+pub let KIND_VALUE: u8 = 15
 
 pub extern fn GC_malloc(n: i64): *u8
 // Pointer-free memory: Boehm never scans it, so it is only for byte buffers.

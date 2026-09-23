@@ -26,6 +26,9 @@ export function declareRuntimeExterns(mod: ModuleBuilder): void {
   mod.declareExtern("cs_inspect_str", T.ptr, [T.ptr]);
   mod.declareExtern("cs_bool_to_string", T.ptr, [T.i32]);
   mod.declareExtern("cs_str_eq", T.i32, [T.ptr, T.ptr]);
+  // Value words (runtime/value.milo).
+  mod.declareExtern("cs_value_strict_eq", T.i32, [T.i64, T.i64]);
+  mod.declareExtern("cs_value_mismatch", T.void, []);
   // Math.* : libm (double→double) + JS-semantics helpers.
   for (const f of ["floor", "ceil", "trunc", "sqrt", "fabs", "cs_math_round", "cs_math_sign"]) {
     mod.declareExtern(f, T.double, [T.double]);

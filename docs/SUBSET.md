@@ -91,6 +91,7 @@ diagnostic — there is no "compiles but behaves differently than Node" third ca
 - `TryStatement`
 - `TypeAliasDeclaration`
 - `TypeLiteral`
+- `TypeOfExpression`
 - `TypeReference`
 - `UndefinedKeyword`
 - `UnionType`
@@ -256,3 +257,5 @@ diagnostic — there is no "compiles but behaves differently than Node" third ca
 | `CS1236` | LAYOUT_LIMIT |
 | `CS1237` | METHOD_REPRESENTATION |
 | `CS1238` | UNRENDERABLE_VALUE |
+| `CS1239` | VALUE_OPERATION |
+| `CS1240` | REPRESENTATION_MISMATCH |

@@ -154,16 +154,17 @@ export function lowerIf(stmt: ts.IfStatement, ctx: LowerCtx): HStmt {
 }
 
 export function lowerSwitch(stmt: ts.SwitchStatement, ctx: LowerCtx): HStmt {
+  const disc = lowerExpr(stmt.expression, ctx);
+  // A Value discriminant is matched word-to-word, so each case value is boxed into its union.
+  const test = (e: ts.Expression): HExpr => {
+    const h = lowerExpr(e, ctx);
+    return disc.type.kind === "value" ? coerceToTarget(h, disc.type) : h;
+  };
   const cases = stmt.caseBlock.clauses.map((clause) => ({
-    test: ts.isCaseClause(clause) ? lowerExpr(clause.expression, ctx) : null,
+    test: ts.isCaseClause(clause) ? test(clause.expression) : null,
     body: lowerStatements(clause.statements, ctx),
   }));
-  return {
-    kind: "switch",
-    disc: lowerExpr(stmt.expression, ctx),
-    discType: resolveType(stmt.expression, ctx),
-    cases,
-  };
+  return { kind: "switch", disc, discType: disc.type, cases };
 }
 
 export function lowerForOf(stmt: ts.ForOfStatement, ctx: LowerCtx): HStmt {
@@ -275,6 +276,24 @@ export function lowerIncDec(
   if (!ts.isIdentifier(expr.operand)) ice("lower: ++/-- only supported on a variable or field");
   const name = nameOf(expr.operand, ctx);
   const numberType = resolveType(expr.operand, ctx);
+  const declared = declaredTypeOfIdent(expr.operand, ctx);
+  // A Value variable narrowed to number: read through lowerExpr (which unboxes), box the result.
+  if (declared.kind === "value") {
+    return {
+      kind: "assign",
+      name,
+      value: coerceToTarget(
+        {
+          kind: "binary",
+          op: binOp,
+          left: lowerExpr(expr.operand, ctx),
+          right: one,
+          type: numberType,
+        },
+        declared,
+      ),
+    };
+  }
   return {
     kind: "assign",
     name,
@@ -314,7 +333,13 @@ export function lowerAssignment(expr: ts.BinaryExpression, ctx: LowerCtx): HStmt
     right: lowerExpr(expr.right, ctx),
     type: resolveType(left, ctx),
   };
-  return { kind: "assign", name, value };
+  // A narrowed Value variable (`x += 1` after `typeof x === "number"`) stores back as a word.
+  const declared = declaredTypeOfIdent(left, ctx);
+  return {
+    kind: "assign",
+    name,
+    value: declared.kind === "value" ? coerceToTarget(value, declared) : value,
+  };
 }
 
 // `arr[i] = rhs` / `arr[i] <op>= rhs`. A compound op reads the current element back through an
@@ -373,12 +398,14 @@ export function lowerMemberAssignment(
     // the field's static representation is needed.
     return { kind: "memberSet", object, access, value: lowerExpr(rhs, ctx) };
   }
+  // A Value field is read at the type tsc narrowed the access to (the slot is a word either way).
+  const readType = fieldType.kind === "value" ? resolveType(lhs, ctx) : fieldType;
   const value: HExpr = {
     kind: "binary",
     op: compoundOp(op),
-    left: { kind: "memberGet", object, access, type: fieldType },
+    left: { kind: "memberGet", object, access, type: readType },
     right: lowerExpr(rhs, ctx),
-    type: fieldType,
+    type: readType,
   };
   return { kind: "memberSet", object, access, value };
 }
@@ -478,7 +505,7 @@ export function lowerCallStatement(call: ts.CallExpression, ctx: LowerCtx): HStm
     // The nearest ancestor that actually emits a constructor — the immediate base may declare
     // neither a constructor nor a field initializer, in which case it has no HFunc to call.
     const ctorClass = constructorClassOf(ctx.currentBaseClass, ctx);
-    const args = [thisRef(ctx), ...call.arguments.map((a) => lowerExpr(a, ctx))];
+    const args = [thisRef(ctx), ...lowerCallArgs(call, ctx)];
     return ctorClass === null
       ? { kind: "exprStmt", expr: thisRef(ctx) } // base is field-less: `super()` is a no-op
       : { kind: "callStmt", name: `${ctorClass}.constructor`, args, returnType: null };
@@ -511,7 +538,7 @@ export function lowerCallStatement(call: ts.CallExpression, ctx: LowerCtx): HStm
           return {
             kind: "callStmt",
             name: `${superMethodClassOf(ctx.currentBaseClass, pa.name.text, ctx)}.${pa.name.text}`,
-            args: [thisRef(ctx), ...call.arguments.map((a) => lowerExpr(a, ctx))],
+            args: [thisRef(ctx), ...lowerCallArgs(call, ctx)],
             returnType: callReturnType(call, ctx),
           };
         }

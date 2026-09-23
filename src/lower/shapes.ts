@@ -80,6 +80,10 @@ function reprKey(t: ValueType): string {
       return `set<${reprKey(t.element)}>`;
     case "promise":
       return `promise<${reprKey(t.inner)}>`;
+    case "value":
+      // Sorted so member order (which follows tsc's union order) does not split one representation
+      // into two keys.
+      return `value<${t.members.map(reprKey).sort().join("|")}>`;
     default: {
       const never: never = t;
       return ice(`reprKey: unhandled ${(never as { kind: string }).kind}`);

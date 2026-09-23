@@ -5,7 +5,7 @@
 import ts from "typescript";
 import { classIdOf } from "./class-ids.js";
 import { ice } from "../diagnostics.js";
-import { VT } from "../hir/types.js";
+import { ANY_OBJECT, VT, optionalOf } from "../hir/types.js";
 import type { ValueType } from "../hir/types.js";
 import { type LowerCtx, isMethodSymbol } from "./lower.js";
 
@@ -70,9 +70,7 @@ function collectClassDataFields(
     if (out.has(m.name.text)) continue;
     const sym = checker.getSymbolAtLocation(m.name)!;
     let ft = valueTypeOfTsType(checker.getTypeOfSymbolAtLocation(sym, node), node, checker);
-    if (sym.flags & ts.SymbolFlags.Optional && ft.kind !== "optional") {
-      ft = { kind: "optional", inner: ft };
-    }
+    if (sym.flags & ts.SymbolFlags.Optional) ft = optionalOf(ft);
     out.set(m.name.text, ft);
   }
 }
@@ -107,6 +105,32 @@ function sameRepresentation(a: ValueType, b: ValueType, depth = 0): boolean {
   }
   if (a.kind === "optional" && b.kind === "optional") {
     return sameRepresentation(a.inner, b.inner, depth + 1);
+  }
+  if (a.kind === "set" && b.kind === "set")
+    return sameRepresentation(a.element, b.element, depth + 1);
+  if (a.kind === "promise" && b.kind === "promise") {
+    return sameRepresentation(a.inner, b.inner, depth + 1);
+  }
+  if (a.kind === "map" && b.kind === "map") {
+    return (
+      sameRepresentation(a.key, b.key, depth + 1) && sameRepresentation(a.value, b.value, depth + 1)
+    );
+  }
+  // A closure is called with its parameters in their machine representations, so two function
+  // types agree only when every parameter and the result do.
+  if (a.kind === "function" && b.kind === "function") {
+    if (a.params.length !== b.params.length || (a.ret === null) !== (b.ret === null)) return false;
+    if (!a.params.every((p, i) => sameRepresentation(p, b.params[i]!, depth + 1))) return false;
+    return a.ret === null || sameRepresentation(a.ret, b.ret!, depth + 1);
+  }
+  if (a.kind === "value" && b.kind === "value") {
+    return (
+      a.members.length === b.members.length &&
+      a.members.every((m) => {
+        const o = b.members.find((n) => n.kind === m.kind);
+        return o !== undefined && sameRepresentation(m, o, depth + 1);
+      })
+    );
   }
   return true;
 }
@@ -223,9 +247,7 @@ export function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChe
         let ft = valueTypeOfTsType(checker.getTypeOfSymbolAtLocation(sym, node), node, checker);
         // With exactOptionalPropertyTypes, `x?: T` has type T; the `?` is a symbol flag. Model
         // it as optional<T> so an omitted field stores `undefined`.
-        if (sym.flags & ts.SymbolFlags.Optional && ft.kind !== "optional") {
-          ft = { kind: "optional", inner: ft };
-        }
+        if (sym.flags & ts.SymbolFlags.Optional) ft = optionalOf(ft);
         if (result.kind !== "object") ice("object shape placeholder was replaced");
         result.shape.fields.push({ name: sym.name, type: ft });
       }
@@ -234,7 +256,7 @@ export function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChe
   }
   // Narrowing produces unions (e.g. `switch (n) { case 0: case 1: }` narrows n to `0 | 1`). A
   // union of same-representation members collapses to that type; a union of `inner`+null/undefined
-  // becomes `optional`; anything else genuinely mixed is not in the subset yet.
+  // becomes `optional`; a union of members with different representations is a Value union.
   if (flags & ts.TypeFlags.Union) {
     const members = (t as ts.UnionType).types.map((m) => valueTypeOfTsType(m, node, checker));
     const nullish = members.filter((m) => m.kind === "undefined" || m.kind === "null");
@@ -242,27 +264,79 @@ export function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChe
     const restFirst = rest[0];
     if (restFirst && rest.every((m) => m.kind === restFirst.kind)) {
       // A union of object types (`{ kind: "c"; r } | { kind: "s"; w }`) is one object type whose
-      // fields are the members' COMMON properties, each typed as the union of the members' types
-      // (so a common field with different representations is rejected here). Access through it
-      // is layout-driven like any object; narrowing (`s.kind === "c"`) gives tsc a member type.
-      const inner =
-        restFirst.kind === "object" && rest.some((m) => m !== restFirst)
+      // fields are the members' COMMON properties, each typed as the union of the members' types.
+      // Access through it is layout-driven like any object; narrowing (`s.kind === "c"`) gives tsc a
+      // member type.
+      if (restFirst.kind === "object") {
+        const inner = rest.some((m) => m !== restFirst)
           ? objectUnion(checker.getNonNullableType(t), node, checker)
           : restFirst;
-      // `inner | undefined | null` → optional<inner>; pure `inner | inner` → inner.
-      return nullish.length > 0 ? { kind: "optional", inner } : inner;
+        // `inner | undefined | null` → optional<inner>; pure `inner | inner` → inner.
+        return nullish.length > 0 ? { kind: "optional", inner } : inner;
+      }
+      // Same kind AND same representation (`1 | 2`, `"a" | "b"`, `true | false`). Two array types
+      // with different element types share a kind but not a representation, so they fall through.
+      if (rest.every((m) => sameRepresentation(m, restFirst))) {
+        return nullish.length > 0 ? { kind: "optional", inner: restFirst } : restFirst;
+      }
     }
-    throw new UnrepresentableTypeError(
-      `a union whose members have different runtime representations (${members
-        .map((m) => m.kind)
-        .join(" | ")})`,
-      "give the value one representation — split it into separate variables, or wrap the arms in a common object shape",
-    );
+    return valueUnion(members);
   }
   throw new UnrepresentableTypeError(
     `a type the value domain has no representation for (type flags ${flags})`,
     "use a supported type: number, string, boolean, arrays, closed objects, Map/Set, or `T | undefined`",
   );
+}
+
+// The Value union over `members` (already translated). Members are deduplicated by kind; object
+// members collapse to ANY_OBJECT (see hir/types.ts). Each remaining tag must identify ONE
+// representation, because the tag is all the runtime has: `number[] | string[]` would leave a
+// printed or narrowed array with no way to tell its element type.
+function valueUnion(members: ValueType[]): ValueType {
+  const out: ValueType[] = [];
+  for (const m of members) {
+    switch (m.kind) {
+      case "value":
+      case "optional":
+        // tsc flattens unions, so a member is never itself a union.
+        return ice(`valueUnion: nested ${m.kind} member`);
+      case "unknown":
+      case "opaque":
+      case "promise":
+        throw new UnrepresentableTypeError(
+          `a union with a ${m.kind === "opaque" ? m.name : m.kind === "promise" ? "Promise" : "caught (unknown)"} member`,
+          "keep the handle in its own variable, apart from the union",
+        );
+      case "object":
+        if (!out.some((o) => o.kind === "object")) out.push(ANY_OBJECT);
+        continue;
+      case "number":
+      case "string":
+      case "boolean":
+      case "null":
+      case "undefined":
+      case "array":
+      case "function":
+      case "map":
+      case "set": {
+        const prev = out.find((o) => o.kind === m.kind);
+        if (prev === undefined) {
+          out.push(m);
+        } else if (!sameRepresentation(prev, m)) {
+          throw new UnrepresentableTypeError(
+            `a union of two ${m.kind === "array" ? "array" : m.kind} types with different element or parameter types`,
+            "a value cannot tell them apart at run time; use one element type (e.g. `(number | string)[]`) or wrap each arm in an object with a tag field",
+          );
+        }
+        continue;
+      }
+      default: {
+        const never: never = m;
+        return ice(`valueUnion: unhandled ${(never as { kind: string }).kind}`);
+      }
+    }
+  }
+  return { kind: "value", members: out };
 }
 
 function objectUnion(t: ts.Type, node: ts.Node, checker: ts.TypeChecker): ValueType {
@@ -273,9 +347,7 @@ function objectUnion(t: ts.Type, node: ts.Node, checker: ts.TypeChecker): ValueT
   for (const sym of checker.getPropertiesOfType(t)) {
     if (isMethodSymbol(sym)) continue;
     let ft = valueTypeOfTsType(checker.getTypeOfSymbolAtLocation(sym, node), node, checker);
-    if (sym.flags & ts.SymbolFlags.Optional && ft.kind !== "optional") {
-      ft = { kind: "optional", inner: ft };
-    }
+    if (sym.flags & ts.SymbolFlags.Optional) ft = optionalOf(ft);
     result.shape.fields.push({ name: sym.name, type: ft });
   }
   return result;

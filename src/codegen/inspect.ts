@@ -13,6 +13,7 @@ import type { ValueType } from "../hir/types.js";
 import { unboxSlot, type Ctx } from "./expr.js";
 import { loadShape, loadShapeWord } from "./shapes.js";
 import { V_NULL, V_UNDEFINED, unboxValue } from "./value.js";
+import { inspectValue } from "./value-ops.js";
 
 // Node's util.inspect stops descending at depth 2 and prints a placeholder for anything deeper.
 // The depth is a run-time value because objects dispatch through their shapes, and it is what
@@ -54,6 +55,8 @@ export function inspect(value: Value, type: ValueType, ctx: Ctx, depth: Value): 
     case "function":
       // Word 2 of a closure record is its display text (see evalClosure).
       return ctx.fn.load(T.ptr, ctx.fn.gepSlot(value, 2));
+    case "value":
+      return inspectValue(value, type, ctx, depth);
     default:
       return ice(`inspect: cannot format ${type.kind}`);
   }

@@ -2,6 +2,7 @@
 // bitwise/shift ops. JS numbers are IEEE-754 f64, so arithmetic maps to LLVM float instructions;
 // bitwise ops coerce through ToInt32. Split out of expr.ts; generic evaluators are imported back.
 
+import { evalUnbox } from "./value-ops.js";
 import { ice } from "../diagnostics.js";
 import { fimm, imm, type Value } from "../ir/builder.js";
 import { T } from "../ir/types.js";
@@ -31,6 +32,7 @@ import { evalStrMethod } from "./strings.js";
 // Evaluate a number-typed HExpr to a double Value.
 export function evalNumber(expr: HExpr, ctx: Ctx): Value {
   if (expr.kind === "await") return evalAwait(expr, ctx);
+  if (expr.kind === "unbox") return evalUnbox(expr, ctx);
   switch (expr.kind) {
     case "numberLit":
       return fimm(expr.value);

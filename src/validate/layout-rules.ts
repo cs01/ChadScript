@@ -219,6 +219,15 @@ function sameRepr(a: ValueType | null, b: ValueType | null, depth = 0): boolean 
     }
     case "opaque":
       return a.name === (b as typeof a).name;
+    case "value": {
+      // Both are Value words; they agree when each tag's member has the same representation.
+      const v = b as typeof a;
+      if (a.members.length !== v.members.length) return false;
+      return a.members.every((m) => {
+        const other = v.members.find((n) => n.kind === m.kind);
+        return other !== undefined && (m.kind === "object" || sameRepr(m, other, depth + 1));
+      });
+    }
     case "number":
     case "string":
     case "boolean":

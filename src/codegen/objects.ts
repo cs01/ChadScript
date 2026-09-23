@@ -27,10 +27,13 @@ import {
 } from "./optional.js";
 import { allocRecord, loadShape, loadShapeWord, shapeRef, RECORD_HEADER_SLOTS } from "./shapes.js";
 import { evalBoxed, unboxValue } from "./value.js";
+import { evalUnbox } from "./value-ops.js";
 
 // Evaluate an object-typed HExpr to a ptr (to the GC record).
 export function evalObjectPtr(expr: HExpr, ctx: Ctx): Value {
   switch (expr.kind) {
+    case "unbox":
+      return evalUnbox(expr, ctx);
     case "objectLit": {
       // Field values are evaluated left to right BEFORE the record exists, matching JS (the
       // object is created after its property values).

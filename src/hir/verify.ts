@@ -8,19 +8,100 @@
 
 import { ice } from "../diagnostics.js";
 import type { HModule, HFunc, HStmt, HExpr, HCase, FieldAccess, ShapeDescriptor } from "./nodes.js";
+import type { ValueType } from "./types.js";
 
 // The module being verified: allocation and access nodes are checked against its shape table.
 // Module-level because the walk is a set of free functions; reset on every verifyHir call.
 let shapes: readonly ShapeDescriptor[] = [];
+// Every function by HIR name and every variable's slot type (names are module-unique), so a value
+// flowing into a call argument or an assignment can be checked against where it lands.
+let funcs = new Map<string, HFunc>();
+let varTypes = new Map<string, ValueType>();
+// The return type of the function whose body is being walked (null: void or top level).
+let returnType: ValueType | null = null;
 
 export function verifyHir(mod: HModule): HModule {
   shapes = mod.shapes;
   mod.shapes.forEach((s, i) => {
     if (s.id !== i) ice(`verifyHir: shape ${s.id} stored at index ${i}`);
   });
+  funcs = new Map(mod.functions.map((f) => [f.name, f]));
+  varTypes = new Map();
+  for (const f of mod.functions) {
+    for (const p of f.params) varTypes.set(p.name, p.type);
+    for (const c of f.captures ?? []) varTypes.set(c.name, c.type);
+    collectVars(f.body);
+  }
+  collectVars(mod.topLevel);
   for (const f of mod.functions) verifyFunc(f);
+  returnType = null;
   verifyStmts(mod.topLevel);
   return mod;
+}
+
+function collectVars(stmts: HStmt[]): void {
+  for (const s of stmts) {
+    switch (s.kind) {
+      case "varDecl":
+        varTypes.set(s.name, s.type);
+        break;
+      case "forOf":
+        varTypes.set(s.name, s.elementType);
+        collectVars(s.body);
+        break;
+      case "if":
+        collectVars(s.then);
+        if (s.otherwise) collectVars(s.otherwise);
+        break;
+      case "while":
+        collectVars(s.body);
+        break;
+      case "for":
+        collectVars(s.init);
+        collectVars(s.body);
+        collectVars(s.update);
+        break;
+      case "tryCatch":
+        collectVars(s.tryBody);
+        if (s.catchBody) collectVars(s.catchBody);
+        if (s.finallyBody) collectVars(s.finallyBody);
+        break;
+      case "switch":
+        for (const c of s.cases) collectVars(c.body);
+        break;
+      default:
+        break;
+    }
+  }
+}
+
+// A value landing in a slot of type `dst`: a Value word and a concrete machine value are different
+// representations, so crossing between them needs an explicit box/unbox node. A missing one would
+// store a double's bits where a Value is read (or the reverse), a silent miscompile; here it is a
+// loud one.
+function checkFlow(src: HExpr, dst: ValueType, where: string): void {
+  if ((src.type.kind === "value") !== (dst.kind === "value")) {
+    ice(`verifyHir: ${where}: a ${src.type.kind} flows into a ${dst.kind} slot without box/unbox`);
+  }
+}
+
+function checkArgs(args: HExpr[], params: ValueType[], where: string): void {
+  args.forEach((a, i) => {
+    const p = params[i];
+    if (p !== undefined) checkFlow(a, p, `${where} argument ${i}`);
+  });
+}
+
+// Whether a Value of union `v` can be unboxed to `target`: the target (each part of an optional
+// target) must be one of the union's members, or the unbox reads a representation the word never
+// has.
+function unboxable(v: ValueType, target: ValueType): boolean {
+  if (v.kind !== "value") return false;
+  const has = (k: ValueType["kind"]): boolean => v.members.some((m) => m.kind === k);
+  if (target.kind === "optional") {
+    return has(target.inner.kind) && (has("undefined") || has("null"));
+  }
+  return has(target.kind);
 }
 
 function verifyShapeId(id: number, what: string): ShapeDescriptor {
@@ -44,6 +125,7 @@ function verifyAccess(a: FieldAccess): void {
 }
 
 function verifyFunc(f: HFunc): void {
+  returnType = f.returnType;
   verifyStmts(f.body);
 }
 
@@ -67,11 +149,15 @@ function verifyStmt(s: HStmt): void {
       verifyExpr(s.code);
       return;
     case "varDecl":
+      checkFlow(s.init, s.type, `let ${s.name}`);
       verifyExpr(s.init);
       return;
-    case "assign":
+    case "assign": {
+      const t = varTypes.get(s.name);
+      if (t) checkFlow(s.value, t, `assignment to ${s.name}`);
       verifyExpr(s.value);
       return;
+    }
     case "memberSet":
       verifyAccess(s.access);
       verifyExpr(s.object);
@@ -97,7 +183,10 @@ function verifyStmt(s: HStmt): void {
       verifyStmts(s.body);
       return;
     case "return":
-      if (s.value) verifyExpr(s.value);
+      if (s.value) {
+        if (returnType) checkFlow(s.value, returnType, "return");
+        verifyExpr(s.value);
+      }
       return;
     case "throwError":
       if (s.message) verifyExpr(s.message);
@@ -117,10 +206,20 @@ function verifyStmt(s: HStmt): void {
       verifyExpr(s.disc);
       verifyCases(s.cases);
       return;
-    case "callStmt":
+    case "callStmt": {
+      const f = funcs.get(s.name);
+      if (f)
+        checkArgs(
+          s.args,
+          f.params.map((p) => p.type),
+          `call ${s.name}`,
+        );
       s.args.forEach(verifyExpr);
       return;
+    }
     case "callClosureStmt":
+      if (s.callee.type.kind === "function")
+        checkArgs(s.args, s.callee.type.params, "closure call");
       verifyExpr(s.callee);
       s.args.forEach(verifyExpr);
       return;
@@ -132,6 +231,7 @@ function verifyStmt(s: HStmt): void {
       verifyExpr(s.expr);
       return;
     case "indexSet":
+      checkFlow(s.value, s.elementType, "array element write");
       verifyExpr(s.array);
       verifyExpr(s.index);
       verifyExpr(s.value);
@@ -159,7 +259,17 @@ function verifyExpr(e: HExpr): void {
     case "mapNew":
     case "setNew":
       return;
-    case "call":
+    case "call": {
+      const f = funcs.get(e.name);
+      if (f)
+        checkArgs(
+          e.args,
+          f.params.map((p) => p.type),
+          `call ${e.name}`,
+        );
+      e.args.forEach(verifyExpr);
+      return;
+    }
     case "mathCall":
     case "runtimeCall":
       e.args.forEach(verifyExpr);
@@ -167,6 +277,8 @@ function verifyExpr(e: HExpr): void {
     case "closure":
       return; // captures are variable references resolved at closure creation, not sub-expressions
     case "callClosure":
+      if (e.callee.type.kind === "function")
+        checkArgs(e.args, e.callee.type.params, "closure call");
       verifyExpr(e.callee);
       e.args.forEach(verifyExpr);
       return;
@@ -175,6 +287,8 @@ function verifyExpr(e: HExpr): void {
       e.args.forEach(verifyExpr);
       return;
     case "conditional":
+      checkFlow(e.whenTrue, e.type, "conditional arm");
+      checkFlow(e.whenFalse, e.type, "conditional arm");
       verifyExpr(e.cond);
       verifyExpr(e.whenTrue);
       verifyExpr(e.whenFalse);
@@ -183,6 +297,23 @@ function verifyExpr(e: HExpr): void {
       verifyExpr(e.value);
       if (e.radix) verifyExpr(e.radix);
       return;
+    case "box":
+      if (e.type.kind !== "value" || e.value.type.kind === "value") {
+        ice(`verifyHir: box from ${e.value.type.kind} to ${e.type.kind}`);
+      }
+      verifyExpr(e.value);
+      return;
+    case "unbox":
+      if (e.value.type.kind !== "value" || e.type.kind === "value") {
+        ice(`verifyHir: unbox from ${e.value.type.kind} to ${e.type.kind}`);
+      }
+      if (!unboxable(e.value.type, e.type)) {
+        ice(`verifyHir: unbox to ${e.type.kind}, which the union never holds`);
+      }
+      verifyExpr(e.value);
+      return;
+    case "typeOf":
+    case "typeIs":
     case "convert":
     case "unwrap":
     case "wrap":
@@ -199,6 +330,11 @@ function verifyExpr(e: HExpr): void {
       e.args.forEach(verifyExpr);
       return;
     case "arrayLit":
+      if (e.type.kind === "array") {
+        for (const el of e.elements) {
+          if (!el.spread) checkFlow(el.value, e.type.element, "array literal element");
+        }
+      }
       e.elements.forEach((el) => verifyExpr(el.value));
       return;
     case "arrayLen":
@@ -208,13 +344,27 @@ function verifyExpr(e: HExpr): void {
       verifyExpr(e.array);
       verifyExpr(e.index);
       return;
-    case "coalesce":
-    case "binary":
     case "logical":
+      checkFlow(e.left, e.type, "logical operand");
+      checkFlow(e.right, e.type, "logical operand");
+      verifyExpr(e.left);
+      verifyExpr(e.right);
+      return;
+    case "coalesce":
+      checkFlow(e.right, e.type, "?? fallback");
+      verifyExpr(e.left);
+      verifyExpr(e.right);
+      return;
+    case "binary":
+      // `===` with a Value operand compares Value words, so both sides must be boxed.
+      if ((e.op === "eq" || e.op === "ne") && e.left.type.kind === "value") {
+        checkFlow(e.right, e.left.type, "=== operand");
+      }
       verifyExpr(e.left);
       verifyExpr(e.right);
       return;
     case "arrayPush":
+      checkFlow(e.value, e.elementType, "push");
       verifyExpr(e.array);
       verifyExpr(e.value);
       return;
@@ -242,6 +392,7 @@ function verifyExpr(e: HExpr): void {
       e.args.forEach(verifyExpr);
       return;
     case "mapSet":
+      if (e.map.type.kind === "map") checkFlow(e.value, e.map.type.value, "map.set value");
       verifyExpr(e.map);
       verifyExpr(e.key);
       verifyExpr(e.value);
@@ -321,12 +472,20 @@ function verifyExpr(e: HExpr): void {
       verifyAccess(e.access);
       verifyExpr(e.object);
       return;
-    case "new":
+    case "new": {
       if (verifyShapeId(e.shape, "new").className === undefined) {
         ice(`verifyHir: new allocates non-class shape ${e.shape}`);
       }
+      const ctor = e.ctorClass === null ? undefined : funcs.get(`${e.ctorClass}.constructor`);
+      if (ctor)
+        checkArgs(
+          e.args,
+          ctor.params.slice(1).map((p) => p.type),
+          "constructor",
+        );
       e.args.forEach(verifyExpr);
       return;
+    }
     case "await":
       verifyExpr(e.value);
       return;

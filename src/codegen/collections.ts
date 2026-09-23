@@ -3,6 +3,7 @@
 // Split out of expr.ts; the receiver-dispatch and the generic evaluators it recurses into are
 // imported back (circular, resolved at call time).
 
+import { evalUnbox } from "./value-ops.js";
 import { ice } from "../diagnostics.js";
 import { imm, type Value } from "../ir/builder.js";
 import { T } from "../ir/types.js";
@@ -25,6 +26,8 @@ import { evalCoalesce } from "./optional.js";
 // returns the same map (JS `.set` is chainable).
 export function evalMapPtr(expr: HExpr, ctx: Ctx): Value {
   switch (expr.kind) {
+    case "unbox":
+      return evalUnbox(expr, ctx);
     case "mapNew":
       return ctx.fn.call("@cs_map_new", T.ptr, []);
     case "mapSet":
@@ -77,6 +80,8 @@ export function evalMapGet(expr: Extract<HExpr, { kind: "mapGet" }>, ctx: Ctx): 
 // Evaluate a set-typed HExpr to a ptr (to the runtime CsSet). `setAdd` returns the same set.
 export function evalSetPtr(expr: HExpr, ctx: Ctx): Value {
   switch (expr.kind) {
+    case "unbox":
+      return evalUnbox(expr, ctx);
     case "setNew":
       return ctx.fn.call("@cs_set_new", T.ptr, []);
     case "setFromArray":

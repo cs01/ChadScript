@@ -17,6 +17,7 @@ import { CODE } from "./codes.js";
 import { tailoredRejection } from "./rules.js";
 import { tdzDiagnostics } from "./tdz.js";
 import { layoutDiagnostics } from "./layout-rules.js";
+import { flowDiagnostic, valueUseDiagnostic } from "./value-rules.js";
 
 // SyntaxKinds the walker is allowed to descend through. PHASE 0 surface only — extend with
 // each phase, never silently. Anything absent here is rejected by default-deny.
@@ -42,6 +43,8 @@ export const ALLOWED_KINDS: ReadonlySet<ts.SyntaxKind> = new Set([
   ts.SyntaxKind.InstanceOfKeyword, // the `instanceof` operator token (gated in SUPPORTED_BINARY_OPS)
   ts.SyntaxKind.PrefixUnaryExpression,
   ts.SyntaxKind.ParenthesizedExpression,
+  // `typeof x` (phase 4): a tag test on a Value, a constant on any other type.
+  ts.SyntaxKind.TypeOfExpression,
   ts.SyntaxKind.ConditionalExpression, // ternary `c ? a : b`
   // Variables (Phase 1). `var` is rejected by tailored rule; only let/const reach here.
   ts.SyntaxKind.VariableStatement,
@@ -210,7 +213,20 @@ export function validate(loaded: LoadedProgram): void {
   // Whole-program layout rules need every allocation site, and only make sense once each file is
   // otherwise in the subset (the analysis assumes admitted constructs).
   if (diagnostics.length === 0) diagnostics.push(...layoutDiagnostics(loaded));
+  // The Value-union rules (value-rules.ts) ask the type translator about every expression, which
+  // only has an answer for types the admitted constructs can produce, so they wait until every file
+  // is otherwise in the subset. They run last so a more specific layout diagnostic (CS1237 for a
+  // method whose implementations disagree) is the one reported.
+  if (diagnostics.length === 0) {
+    for (const sf of loaded.sourceFiles) collectValueRules(sf, loaded.checker, diagnostics);
+  }
   if (diagnostics.length > 0) throw new DiagnosticError(diagnostics);
+}
+
+function collectValueRules(node: ts.Node, checker: ts.TypeChecker, out: Diagnostic[]): void {
+  const hit = valueUseDiagnostic(node, checker) ?? flowDiagnostic(node, checker);
+  if (hit) out.push(hit);
+  ts.forEachChild(node, (child) => collectValueRules(child, checker, out));
 }
 
 function collectTailored(

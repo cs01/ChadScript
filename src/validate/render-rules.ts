@@ -111,6 +111,20 @@ export function renderDiagnostic(
           }
         }
         return null;
+      case "value": {
+        // A Value union: each member renders by its own rules. JSON has no text for a top-level
+        // `undefined` (JSON.stringify returns undefined itself), so that member is refused there.
+        if (mode === "json" && pos === "value" && vt.members.some((m) => m.kind === "undefined")) {
+          return `${where} can be undefined`;
+        }
+        const parts = t.isUnion() ? t.types : [t];
+        for (const m of parts) {
+          if (m.flags & (ts.TypeFlags.Undefined | ts.TypeFlags.Null)) continue;
+          const p = walk(m, pos, where, at);
+          if (p) return p;
+        }
+        return null;
+      }
       case "promise":
         return `${where} is a Promise, whose printed state Node reads from the event loop`;
       case "unknown":

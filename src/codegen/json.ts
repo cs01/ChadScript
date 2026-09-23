@@ -13,6 +13,7 @@ import type { ValueType } from "../hir/types.js";
 import { unboxSlot, type Ctx } from "./expr.js";
 import { loadShape, loadShapeWord } from "./shapes.js";
 import { V_NULL, unboxValue } from "./value.js";
+import { jsonValue } from "./value-ops.js";
 
 const concat = (ctx: Ctx, a: Value, b: Value): Value =>
   ctx.fn.call("@cs_str_concat", T.ptr, [a, b]);
@@ -47,6 +48,8 @@ export function jsonStringify(
       const fn = loadShapeWord(loadShape(value, ctx), "json", ctx);
       return ctx.fn.callIndirect(fn, T.ptr, [value, indent, depth]);
     }
+    case "value":
+      return jsonValue(value, type, ctx, indent, depth);
     default:
       // undefined (context-dependent), map/set/function/promise: not yet.
       return ice(`JSON.stringify: unsupported value type ${type.kind}`);

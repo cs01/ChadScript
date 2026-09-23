@@ -11,6 +11,7 @@ import { T } from "../ir/types.js";
 import { type Ctx, evalValue } from "./expr.js";
 import { evalOptionalPtr, unboxOptionalValue } from "./optional.js";
 import { inspect } from "./inspect.js";
+import { printValue } from "./value-ops.js";
 
 // Print one value with no separator or newline. Optionals branch on the sentinel; other types
 // evaluate and print directly.
@@ -46,6 +47,9 @@ export function emitPrintComputed(val: Value, type: ValueType, ctx: Ctx): void {
     case "function":
       // Containers print in util.inspect form; strings inside get quoted.
       ctx.fn.callVoid("@cs_print_cstr", [inspect(val, type, ctx, imm(T.i32, 0))]);
+      return;
+    case "value":
+      printValue(val, type, ctx);
       return;
     default:
       ice(`codegen: console.log of ${type.kind} not supported yet`);

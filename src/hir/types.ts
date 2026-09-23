@@ -53,7 +53,16 @@ export type ValueType =
   // stand-in (a number, an empty record) would diverge the moment a program logged it, so the type
   // carries "you may store this and pass it back, nothing else" into the type domain, and the
   // validator enforces exactly that (CS1234).
-  | { kind: "opaque"; name: string };
+  | { kind: "opaque"; name: string }
+  // A union whose members have DIFFERENT machine representations (`number | string`,
+  // `string[] | boolean | undefined`). Runtime rep: one self-describing Value word (codegen/value.ts),
+  // so a local, parameter, array element or field of this type is an i64 that knows its own kind.
+  // `members` are the representation-distinct member types (never `value` or `optional`; nullish
+  // members appear as `null`/`undefined`). The runtime tag says which member a Value holds, and the
+  // member supplies what the tag cannot: an array's element type, a Map's key/value types. That is
+  // why at most one member may carry each non-object tag (two array types would be indistinguishable
+  // at run time); objects are self-describing through their shapes, so any number may appear.
+  | { kind: "value"; members: ValueType[] };
 
 export const VT = {
   number: { kind: "number" } as ValueType,
@@ -68,6 +77,31 @@ export const VT = {
   set: (element: ValueType): ValueType => ({ kind: "set", element }),
   promise: (inner: ValueType): ValueType => ({ kind: "promise", inner }),
 } as const;
+
+// The `object` member of a Value union: "some object record". A Value holding an object is
+// formatted, serialized and compared through the record's own runtime shape, and narrowing
+// (`typeof x === "object"`, `instanceof`) re-derives the exact object type from tsc, so the union
+// never needs the object members' fields. Keeping it field-less makes any codegen path that tried to
+// read a field through it fail loudly (no such field) instead of trusting one member's layout.
+export const ANY_OBJECT: ValueType = { kind: "object", shape: { fields: [] } };
+
+// The member of `v` carrying `kind`, or undefined. Members are unique per kind by construction.
+export function valueMember(v: ValueType, kind: ValueType["kind"]): ValueType | undefined {
+  if (v.kind !== "value") return undefined;
+  return v.members.find((m) => m.kind === kind);
+}
+
+// `t | undefined` in the value domain: a Value union just gains the `undefined` member (its words
+// already encode undefined), anything else becomes `optional<t>`.
+export function optionalOf(t: ValueType): ValueType {
+  if (t.kind === "optional") return t;
+  if (t.kind === "value") {
+    return valueMember(t, "undefined")
+      ? t
+      : { kind: "value", members: [...t.members, VT.undefined] };
+  }
+  return { kind: "optional", inner: t };
+}
 
 // The source name of a class id. Ids are `<name>` or `<name>.<module id>` (lower/class-ids.ts), and
 // a TypeScript class name cannot contain `.`, so the first segment is exactly the source name.

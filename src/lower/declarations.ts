@@ -391,7 +391,7 @@ export function findCaptures(
         }
         if (kind === "const") {
           const name = ctx.names.get(sym);
-          if (name) caps.set(sym, { name, type: valueTypeOf(node, ctx) });
+          if (name) caps.set(sym, { name, type: captureType(sym, node, ctx) });
         }
       }
     }
@@ -399,6 +399,23 @@ export function findCaptures(
   };
   visit(arrow.body);
   return [...caps.values()];
+}
+
+// The type a capture is copied at: the captured slot's representation. The first reference inside
+// the arrow may be narrowed (tsc keeps a const's narrowing inside closures), but the env copies the
+// SLOT, so a Value-union variable is captured as its declared union and unboxed at each narrowed
+// read inside the body, like any other Value variable.
+function captureType(sym: ts.Symbol, node: ts.Identifier, ctx: LowerCtx): ValueType {
+  const decl = sym.valueDeclaration;
+  if (decl) {
+    const declared = valueTypeOfTsType(
+      ctx.checker.getTypeOfSymbolAtLocation(sym, decl),
+      node,
+      ctx.checker,
+    );
+    if (declared.kind === "value") return declared;
+  }
+  return valueTypeOf(node, ctx);
 }
 
 // Whether a symbol referenced in an arrow is captured, and if so how. "no" = the arrow's own

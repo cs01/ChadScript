@@ -9,6 +9,7 @@ import { fimm, imm, type Value } from "../ir/builder.js";
 import { T } from "../ir/types.js";
 import { type Ctx, evalValue, evalBool, evalString, irTypeOf } from "./expr.js";
 import { evalNumber } from "./numbers.js";
+import { truthyValue } from "./value-ops.js";
 
 // JS truthiness of an expression → i1 (evaluates the expression once).
 export function toBool(expr: HExpr, ctx: Ctx): Value {
@@ -30,6 +31,8 @@ export function truthyOfValue(v: Value, vt: ValueType, ctx: Ctx): Value {
       const len = ctx.fn.call("@cs_str_len", T.i32, [v]);
       return ctx.fn.icmp("ne", len, imm(T.i32, 0));
     }
+    case "value":
+      return truthyValue(v, vt, ctx);
     default:
       return ice(`truthiness: ${vt.kind} not supported yet`);
   }
@@ -87,6 +90,8 @@ export function evalBooleanConvert(value: HExpr, ctx: Ctx): Value {
         ctx.fn.call("@cs_str_len", T.i32, [evalString(value, ctx)]),
         imm(T.i32, 0),
       );
+    case "value":
+      return truthyValue(evalValue(value, ctx), value.type, ctx);
     default:
       return ice(`Boolean(): conversion from ${value.type.kind} not supported yet`);
   }

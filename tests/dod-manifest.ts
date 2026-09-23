@@ -245,11 +245,12 @@ export const DOD: DodItem[] = [
     title: "mixed-representation unions reach a diagnostic rather than an ICE",
     status: "done",
     evidence: [
-      "reject/mixed-union-conditional.ts",
-      "reject/mixed-union-annotation.ts",
-      "reject/mixed-union-param.ts",
+      "run/unions/mixed-union-conditional.ts",
+      "run/unions/mixed-union-annotation.ts",
+      "run/unions/mixed-union-param.ts",
+      "reject/union-ambiguous-arrays.ts",
     ],
-    note: "Type-level default-deny (CS1233), complementing the syntax-level ALLOWED_KINDS: syntax admits `cond ? a : b` but says nothing about whether the union of its arms has a runtime representation. The predicate is NOT reimplemented in the validator — it calls the real translator and catches UnrepresentableTypeError, so validator and lowerer cannot disagree about what is representable. Checked both at value nodes (inferred unions) and at written UnionType nodes (declared ones, where the type at the declaration is the narrowed initializer type instead).",
+    note: "Phase 4 compiles mixed-representation unions as Value words, so these former CS1233 rejections run; CS1233 remains for a union no Value can represent (two array types, whose tags are identical but whose element representations differ). Type-level default-deny (CS1233), complementing the syntax-level ALLOWED_KINDS: syntax admits `cond ? a : b` but says nothing about whether the union of its arms has a runtime representation. The predicate is NOT reimplemented in the validator — it calls the real translator and catches UnrepresentableTypeError, so validator and lowerer cannot disagree about what is representable. Checked both at value nodes (inferred unions) and at written UnionType nodes (declared ones, where the type at the declaration is the narrowed initializer type instead).",
   },
   {
     id: "fs-promises",

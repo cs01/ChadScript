@@ -28,6 +28,14 @@ import { evalAsyncCall, evalAwait, evalPromiseResolve, evalPromiseAll } from "./
 import { jsonStringify } from "./json.js";
 import { jsonParse } from "./json-parse.js";
 import { evalNumber } from "./numbers.js";
+import {
+  evalValueWord,
+  evalUnbox,
+  evalTypeOf,
+  evalTypeIs,
+  valueStrictEq,
+  valueToString,
+} from "./value-ops.js";
 // Truthiness-based evaluation lives in truthiness.ts; re-exported so the existing import sites
 // (codegen.ts, numbers.ts) keep resolving through expr.ts.
 import {
@@ -121,6 +129,8 @@ export function irTypeOf(vt: ValueType): IrType {
       return T.ptr; // pointer to a runtime Promise
     case "opaque":
       return T.ptr; // an opaque runtime handle (setTimeout's Timeout)
+    case "value":
+      return T.i64; // a self-describing Value word (value.ts)
     case "null":
     case "undefined":
       return ice(`irTypeOf: ${vt.kind} has no storage representation yet`);
@@ -148,6 +158,8 @@ export function boxSlot(v: Value, elemType: ValueType, ctx: Ctx): Value {
       return ctx.fn.ptrToI64(v); // all pointer-represented
     case "boolean":
       return ctx.fn.zextI1ToI64(v);
+    case "value":
+      return v; // a Value word already is a slot
     default:
       return ice(`slot boxing not supported for ${elemType.kind} yet`);
   }
@@ -170,6 +182,8 @@ export function unboxSlot(slot: Value, elemType: ValueType, ctx: Ctx): Value {
       return ctx.fn.i64ToPtr(slot);
     case "boolean":
       return ctx.fn.truncI64ToI1(slot);
+    case "value":
+      return slot;
     default:
       return ice(`slot unboxing not supported for ${elemType.kind} yet`);
   }
@@ -178,6 +192,8 @@ export function unboxSlot(slot: Value, elemType: ValueType, ctx: Ctx): Value {
 // Evaluate an array-typed HExpr to a ptr (to the runtime array struct).
 export function evalArrayPtr(expr: HExpr, ctx: Ctx): Value {
   switch (expr.kind) {
+    case "unbox":
+      return evalUnbox(expr, ctx);
     case "arrayLit": {
       const arr = ctx.fn.call("@cs_array_new", T.ptr, []);
       const elemType = expr.type.kind === "array" ? expr.type.element : ice("arrayLit not array");
@@ -257,6 +273,8 @@ export function emitStrictEq(a: Value, b: Value, type: ValueType, ctx: Ctx): Val
       return ctx.fn.icmp("eq", a, b);
     case "string":
       return ctx.fn.icmp("ne", ctx.fn.call("@cs_str_eq", T.i32, [a, b]), imm(T.i32, 0));
+    case "value":
+      return valueStrictEq(a, b, ctx);
     default:
       return ice(`emitStrictEq: ${type.kind} not supported`);
   }
@@ -271,6 +289,8 @@ export function coerceValueToString(v: Value, type: ValueType, ctx: Ctx): Value 
       return ctx.fn.call("@cs_num_to_string", T.ptr, [v]);
     case "boolean":
       return ctx.fn.call("@cs_bool_to_string", T.ptr, [ctx.fn.zextI1ToI32(v)]);
+    case "value":
+      return valueToString(v, type, ctx);
     default:
       return ice(`coerceValueToString: ${type.kind} not supported`);
   }
@@ -316,6 +336,7 @@ export function evalClosure(expr: Extract<HExpr, { kind: "closure" }>, ctx: Ctx)
 // Evaluate a function-typed HExpr to a closure-record pointer.
 export function evalFunctionPtr(expr: HExpr, ctx: Ctx): Value {
   if (expr.kind === "closure") return evalClosure(expr, ctx);
+  if (expr.kind === "unbox") return evalUnbox(expr, ctx);
   if (expr.kind === "varRef") return ctx.fn.load(T.ptr, lookupVar(expr.name, ctx).ptr);
   if (expr.kind === "call") return evalCall(expr, ctx);
   if (expr.kind === "callClosure") return evalCallClosure(expr, ctx);
@@ -370,6 +391,7 @@ export function evalValue(expr: HExpr, ctx: Ctx): Value {
   // `await` yields its inner-typed value; handle before the type switch so it dispatches by result
   // type regardless (a number `await`, a string `await`, …).
   if (expr.kind === "await") return evalAwait(expr, ctx);
+  if (expr.kind === "unbox") return evalUnbox(expr, ctx);
   switch (expr.type.kind) {
     case "number":
       return evalNumber(expr, ctx);
@@ -406,6 +428,8 @@ export function evalValue(expr: HExpr, ctx: Ctx): Value {
         );
       }
       return ice(`evalValue: opaque expression ${expr.kind}`);
+    case "value":
+      return evalValueWord(expr, ctx);
     case "promise":
       if (expr.kind === "asyncCall") return evalAsyncCall(expr, ctx);
       if (expr.kind === "promiseResolve") return evalPromiseResolve(expr, ctx);
@@ -461,6 +485,10 @@ export function evalString(expr: HExpr, ctx: Ctx): Value {
       return ice(`evalString: binary op ${expr.op} does not produce a string`);
     case "template":
       return evalTemplate(expr, ctx);
+    case "typeOf":
+      return evalTypeOf(expr.value, ctx);
+    case "unbox":
+      return evalUnbox(expr, ctx);
     case "memberGet":
       return evalMemberGet(expr, ctx);
     case "strMethod":
@@ -514,6 +542,8 @@ function coerceToString(expr: HExpr, ctx: Ctx): Value {
       return ctx.mod.cstring("undefined");
     case "optional":
       return coerceOptionalToString(expr, expr.type.inner, ctx);
+    case "value":
+      return valueToString(evalValueWord(expr, ctx), expr.type, ctx);
     default:
       return ice(`coerceToString: ${expr.type.kind} not supported yet`);
   }
@@ -633,6 +663,12 @@ export function evalBool(expr: HExpr, ctx: Ctx): Value {
     case "nullCheck":
       return evalNullCheck(expr, ctx);
 
+    case "typeIs":
+      return evalTypeIs(expr.value, expr.test, ctx);
+
+    case "unbox":
+      return evalUnbox(expr, ctx);
+
     case "arraySearch":
       return evalArraySearch(expr.array, expr.value, expr.elementType, expr.wantIndex, ctx);
 
@@ -716,6 +752,11 @@ function evalComparison(expr: Extract<HExpr, { kind: "binary" }>, ctx: Ctx): Val
   }
   if (op === "eq" || op === "ne") {
     const operandType = expr.left.type.kind;
+    // A Value operand: lower boxed the other side too, so this compares two words.
+    if (operandType === "value") {
+      const eq = valueStrictEq(evalValueWord(expr.left, ctx), evalValueWord(expr.right, ctx), ctx);
+      return op === "eq" ? eq : ctx.fn.logicalNot(eq);
+    }
     // Optional vs concrete (`str.at(i) !== "h"`). One side is `T | undefined`, the other a plain
     // inner value. Both-optional isn't emitted by the fixtures yet — leave it to the loud default.
     const rightOpt = expr.right.type.kind === "optional";

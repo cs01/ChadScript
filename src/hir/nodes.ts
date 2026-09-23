@@ -177,6 +177,19 @@ export interface ArrayElement {
   value: HExpr;
 }
 
+// What a typeIs node asks. The first eight are the `typeof` results JS defines (`bigint` and
+// `symbol` are never true here: neither type is representable); "array" is `Array.isArray`.
+export type TypeTest =
+  | "number"
+  | "string"
+  | "boolean"
+  | "undefined"
+  | "object"
+  | "function"
+  | "bigint"
+  | "symbol"
+  | "array";
+
 export type UnaryOp = "neg" | "pos" | "not" | "bnot";
 export type LogicalOp = "and" | "or";
 // Arithmetic + bitwise ops produce a number; comparison ops (lt..ne) produce a boolean. The
@@ -266,6 +279,21 @@ export type HExpr =
       sentinel: "null" | "undefined";
       type: ValueType;
     }
+  // The two Value conversions (codegen/value.ts). `box`: a value of a concrete type (`value.type`,
+  // never `value`) flowing into a Value-union position (`type.kind === "value"`), e.g. `3` assigned
+  // to a `number | string` variable. `unbox`: a Value read at a concrete type (`type`, never
+  // `value`) because tsc narrowed it there (`typeof x === "number" ? x + 1 : 0`); the word is
+  // trusted to hold that type, since the narrowing that produced `type` is tsc's proof. Every
+  // conversion is one of these nodes, so verifyHir can check both ends of each.
+  | { kind: "box"; value: HExpr; type: ValueType }
+  | { kind: "unbox"; value: HExpr; type: ValueType }
+  // `typeof x` as a string value. `value` may have any type; only a Value (or an optional) needs a
+  // run-time answer.
+  | { kind: "typeOf"; value: HExpr; type: ValueType }
+  // A type test that narrows: `typeof x === "number"` (test = the typeof name) or
+  // `Array.isArray(x)` (test "array"). Result boolean. Kept apart from typeOf + string compare so a
+  // narrowing check is a tag test, not a string comparison.
+  | { kind: "typeIs"; value: HExpr; test: TypeTest; type: ValueType }
   // Wrap an inner value into a present optional (a box). Used for `{ x: 5 }` where field x is
   // optional. `type` is the optional type.
   | { kind: "wrap"; value: HExpr; type: ValueType }

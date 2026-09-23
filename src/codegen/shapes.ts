@@ -49,6 +49,7 @@ export const KIND_CODE: Record<ValueType["kind"], number> = {
   unknown: 12,
   promise: 13,
   opaque: 14,
+  value: 15,
 };
 
 export function shapeGlobalName(id: number): string {

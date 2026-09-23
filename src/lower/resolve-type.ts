@@ -9,6 +9,17 @@ import type { ValueType } from "../hir/types.js";
 import { type LowerCtx } from "./lower.js";
 import { valueTypeOf, valueTypeOfTsType, arrayElementType } from "./type-translation.js";
 
+// Whether array slots of element types `a` and `b` hold the same words. Object records are pointers
+// whatever their static type (fields are read through the record's own shape), so any two object
+// types agree; a Value union differs from every concrete kind; containers compare their contents.
+function sameSlots(a: ValueType, b: ValueType, depth = 0): boolean {
+  if (a.kind !== b.kind) return false;
+  if (depth > 4) return true;
+  if (a.kind === "array" && b.kind === "array") return sameSlots(a.element, b.element, depth + 1);
+  if (a.kind === "optional" && b.kind === "optional") return sameSlots(a.inner, b.inner, depth + 1);
+  return true;
+}
+
 // The checker is the oracle: map its resolved type to our ValueType. Anything outside the
 // currently-supported domain is an ICE (the validator should have rejected it upstream).
 export function resolveType(expr: ts.Expression, ctx: LowerCtx): ValueType {
@@ -27,9 +38,19 @@ export function resolveType(expr: ts.Expression, ctx: LowerCtx): ValueType {
       t !== undefined &&
       !(t.flags & (ts.TypeFlags.Never | ts.TypeFlags.Unknown | ts.TypeFlags.Any));
     const ownElem = arrayElementType(checker.getTypeAtLocation(expr), checker);
-    if (usable(ownElem)) return VT.array(valueTypeOfTsType(ownElem!, expr, checker));
     const ctxT = checker.getContextualType(expr);
     const ctxElem = ctxT ? arrayElementType(ctxT, checker) : undefined;
+    if (usable(ownElem)) {
+      const own = valueTypeOfTsType(ownElem!, expr, checker);
+      // `const xs: (number | string)[] = [1, 2]`: the literal's own element type is `number`, but
+      // the array it builds IS the slot's array (shared by reference from then on), so its slots
+      // must already be in the slot's element representation (Value words, not raw doubles).
+      if (usable(ctxElem)) {
+        const want = valueTypeOfTsType(ctxElem!, expr, checker);
+        if (!sameSlots(own, want)) return VT.array(want);
+      }
+      return VT.array(own);
+    }
     if (usable(ctxElem)) return VT.array(valueTypeOfTsType(ctxElem!, expr, checker));
     // An empty literal with no usable element type: the element type is irrelevant (nothing is
     // stored or formatted), so a harmless placeholder keeps `console.log([])` compiling.
@@ -51,6 +72,11 @@ export function resolveType(expr: ts.Expression, ctx: LowerCtx): ValueType {
     // union, so the literal's own type comes back as optional<object>. The literal still builds a
     // plain record; the surrounding coerceToTarget is what wraps it for the optional slot.
     if (resolved.kind === "optional" && resolved.inner.kind === "object") return resolved.inner;
+    // Into a Value-union slot (`Pt | string`), the union has no one object shape to build; the
+    // literal builds its own, and the flow into the slot boxes it.
+    if (resolved.kind === "value") {
+      return valueTypeOfTsType(checker.getTypeAtLocation(expr), expr, checker);
+    }
     return resolved;
   }
   return valueTypeOf(expr, ctx);
