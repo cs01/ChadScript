@@ -1,0 +1,442 @@
+// Async runtime: Promises, stackful fibers, a microtask scheduler, and the event loop. See
+// docs/async-design.md.
+//
+// Fibers use ucontext: an async function body runs unmodified on its own stack, and `await` swaps
+// back to the scheduler. getcontext/makecontext need the platform's ucontext_t layout, so the
+// context is created by cs_fiber_ctx_init in residue.c and is opaque here; swapcontext is called
+// directly.
+//
+// GC + fiber stacks: Boehm scans exactly ONE stack per thread, from its stack bottom to the current
+// SP. While a fiber runs, SP is on the fiber's stack; while a fiber is suspended, its stack is off
+// thread entirely. Either way the normal scan misses it, so a value held only there (a boxed await
+// result across a suspend, a local live across a nested spawn's allocation) would be reclaimed: a
+// GC-timing heisenbug that vanishes under GC_DONT_GC=1. Fiber stacks are therefore plain malloc
+// (NOT GC_malloc: Boehm ignores roots inside its own heap) registered as explicit GC roots, so the
+// whole stack is scanned every collection wherever the SP is. Stacks are never freed or recycled:
+// freeing a scanned region corrupts the collector, and recycling a just-retired stack is unsafe
+// while an ancestor fiber is still suspended. Memory grows with total async invocations. TODO: a
+// safe pool (recycle only once a fiber is provably unreferenced). Do NOT swap the GC's stack bottom
+// to the fiber instead: that hides the MAIN stack and drops its roots.
+
+from "./abi" import { CsArray, GC_malloc }
+from "./errors" import { CsThrown, HandlerCtx, handlerCtxGet, handlerCtxSet, cs_throw }
+from "./array" import { cs_array_new, cs_array_push, cs_array_len, cs_array_get }
+from "./timer" import { timersPending, timersDue, timersRunEarliest }
+from "./fs-promises" import { cs_io_pending, cs_io_settle_one }
+from "./stdio" import { writeErrLit }
+
+extern fn malloc(n: i64): *u8
+extern fn GC_add_roots(lo: *u8, hi: *u8)
+extern fn swapcontext(from: *u8, to: *u8): i32
+extern fn cs_fiber_ctx_size(): i64
+extern fn cs_fiber_ctx_init(ctx: *u8, stack: *u8, size: i64, entry: () => void)
+
+let PENDING: i32 = 0
+let FULFILLED: i32 = 1
+let REJECTED: i32 = 2
+
+let FIBER_STACK: i64 = 262144
+
+// A promise's waiter: a suspended fiber to resume (as a microtask) once the promise settles.
+extern struct Waiter {
+    fiber: *Fiber,
+    next: *Waiter,
+}
+
+pub extern struct Promise {
+    state: i32,
+    // boxed i64 slot (same boxing as arrays/maps) once fulfilled
+    value: i64,
+    // the rejection value (a CsThrown*), thrown into an awaiter
+    reason: *u8,
+    waiters: *Waiter,
+    // set when rejected with no waiter to consume it; cleared when an await consumes it
+    unhandled: i32,
+}
+
+// What a fiber runs: `body(arg)`. Codegen hands the body over as a raw code pointer, so it is
+// written through EntryRaw and called through Entry (same layout, one word each).
+extern struct Entry {
+    body: (*u8) => void,
+    arg: *u8,
+}
+
+extern struct EntryRaw {
+    body: *u8,
+    arg: *u8,
+}
+
+extern struct Fiber {
+    // ucontext_t, cs_fiber_ctx_size() bytes of GC memory
+    ctx: *u8,
+    entry: *Entry,
+    // resolved with the body's return value on completion
+    result: *Promise,
+    // value handed to the fiber when the scheduler resumes it
+    resumeVal: i64,
+    // where to switch back on suspend/completion: the scheduler, OR an outer fiber that spawned
+    // this one synchronously
+    retCtx: *u8,
+    done: i32,
+    // this fiber's own exception-handler stack, saved here while suspended and installed while it
+    // runs (empty until it enters a `try`)
+    hStack: **u8,
+    hN: i32,
+    hCap: i32,
+}
+
+// The scheduler's own context (the main stack the event loop runs on) and the running fiber. One
+// global scheduler: this runtime is single-threaded, like Node.
+var gSchedCtx: *u8 = 0 as *u8
+var gCurrent: *Fiber = 0 as *Fiber
+
+fn isNullFiber(f: *Fiber): bool {
+    return f as i64 == 0
+}
+
+fn schedCtx(): *u8 {
+    if gSchedCtx as i64 == 0 {
+        unsafe {
+            gSchedCtx = GC_malloc(cs_fiber_ctx_size())
+        }
+    }
+    return gSchedCtx
+}
+
+fn newStack(): *u8 {
+    unsafe {
+        let stk = malloc(FIBER_STACK)
+        GC_add_roots(stk, (stk as i64 + FIBER_STACK) as *u8)
+        return stk
+    }
+}
+
+// Run `f` (swapping from context `from`) with ITS handler stack active: save the caller's, install
+// the fiber's, run until it yields, then save the fiber's back (it may have grown) and restore the
+// caller's. Every entry into a fiber (initial spawn and each resume) goes through here.
+//
+// @externalLinkage only for its exemption from Milo's pointer-parameter store rule: fibers are GC
+// memory, not buffers a caller owns, so holding one in gCurrent past the call is correct.
+@externalLinkage
+pub fn cs_fiber_enter(f: *Fiber, from: *u8) {
+    let saved = handlerCtxGet()
+    unsafe {
+        handlerCtxSet(HandlerCtx { stack: f.hStack, n: f.hN, cap: f.hCap })
+        let prev = gCurrent
+        gCurrent = f
+        f.retCtx = from
+        swapcontext(from, f.ctx)
+        gCurrent = prev
+        let mine = handlerCtxGet()
+        f.hStack = mine.stack
+        f.hN = mine.n
+        f.hCap = mine.cap
+    }
+    handlerCtxSet(saved)
+}
+
+// Microtask queue: fibers ready to run, FIFO. A growable ring buffer in GC memory; an explicit count
+// distinguishes full from empty, and a full ring doubles, so it is never lossy.
+var gMtq: **Fiber = 0 as **Fiber
+var gMtqCap: i64 = 0
+var gMtqHead: i64 = 0
+var gMtqTail: i64 = 0
+var gMtqCount: i64 = 0
+
+fn ringSlot(ring: **Fiber, i: i64): **Fiber {
+    unsafe {
+        return (ring as i64 + i * 8) as **Fiber
+    }
+}
+
+fn mtqPush(f: *Fiber) {
+    unsafe {
+        if gMtqCount == gMtqCap {
+            let newCap = if gMtqCap > 0 { gMtqCap * 2 } else { 64 }
+            let nb = GC_malloc(newCap * 8) as **Fiber
+            var i: i64 = 0
+            while i < gMtqCount {
+                *ringSlot(nb, i) = *ringSlot(gMtq, (gMtqHead + i) % gMtqCap)
+                i = i + 1
+            }
+            gMtq = nb
+            gMtqCap = newCap
+            gMtqHead = 0
+            gMtqTail = gMtqCount
+        }
+        *ringSlot(gMtq, gMtqTail) = f
+    }
+    gMtqTail = (gMtqTail + 1) % gMtqCap
+    gMtqCount = gMtqCount + 1
+}
+
+fn mtqPop(): *Fiber {
+    if gMtqCount == 0 {
+        return 0 as *Fiber
+    }
+    var f = 0 as *Fiber
+    unsafe {
+        f = *ringSlot(gMtq, gMtqHead)
+    }
+    gMtqHead = (gMtqHead + 1) % gMtqCap
+    gMtqCount = gMtqCount - 1
+    return f
+}
+
+@externalLinkage
+pub fn cs_promise_new(): *Promise {
+    unsafe {
+        let p = GC_malloc(40) as *Promise
+        p.state = PENDING
+        p.value = 0
+        p.reason = 0 as *u8
+        p.waiters = 0 as *Waiter
+        p.unhandled = 0
+        return p
+    }
+}
+
+// Rejections not yet consumed by an await. Node exits 1 on an unhandled rejection; we approximate
+// that: a rejection with no waiter is tentatively unhandled, an await that consumes a rejected
+// promise clears it, and the event loop exits 1 if any survive to the end.
+var gUnhandled: i64 = 0
+
+// Settle a promise and schedule its waiters as microtasks carrying the value.
+@externalLinkage
+pub fn cs_promise_resolve(p: *Promise, boxedValue: i64) {
+    unsafe {
+        if p.state != PENDING {
+            return
+        }
+        p.state = FULFILLED
+        p.value = boxedValue
+        var w = p.waiters
+        while w as i64 != 0 {
+            w.fiber.resumeVal = boxedValue
+            mtqPush(w.fiber)
+            w = w.next
+        }
+        p.waiters = 0 as *Waiter
+    }
+}
+
+@externalLinkage
+pub fn cs_promise_resolved(boxedValue: i64): *Promise {
+    let p = cs_promise_new()
+    cs_promise_resolve(p, boxedValue)
+    return p
+}
+
+// Reject a promise with a thrown value (a CsThrown*). Waiters are still scheduled as microtasks;
+// each awaiter, on resume, sees the REJECTED state and throws `reason` into its own handler chain.
+@externalLinkage
+pub fn cs_promise_reject(p: *Promise, reason: *u8) {
+    unsafe {
+        if p.state != PENDING {
+            return
+        }
+        p.state = REJECTED
+        p.reason = reason
+        // No waiter at reject time: tentatively unhandled (a later await clears it). With waiters,
+        // the resuming await consumes the rejection, so it is already accounted for.
+        if p.waiters as i64 == 0 {
+            p.unhandled = 1
+            gUnhandled = gUnhandled + 1
+        }
+        var w = p.waiters
+        while w as i64 != 0 {
+            mtqPush(w.fiber)
+            w = w.next
+        }
+        p.waiters = 0 as *Waiter
+    }
+}
+
+// Mark the running fiber done and switch back to whoever entered it. It is never resumed again,
+// so this does not return.
+fn finishFiber() {
+    unsafe {
+        let f = gCurrent
+        f.done = 1
+        swapcontext(f.ctx, f.retCtx)
+    }
+}
+
+// Every fiber's stack starts here: run the body (which resolves its own result through
+// cs_fiber_return), then leave. A throw that escapes the body never comes back here: cs_throw finds
+// no handler on this fiber's (empty-at-start) stack and calls fiberUncaught instead.
+fn fiberTrampoline() {
+    unsafe {
+        let e = gCurrent.entry
+        e.body(e.arg)
+    }
+    finishFiber()
+}
+
+// cs_throw with no handler on the running fiber's stack: the exception escaped the async body, so
+// it rejects THIS fiber's result promise (the awaiter sees a rejection instead of the process
+// aborting) and the fiber ends here. Returns only when no fiber is running (the throw is then
+// uncaught at top level).
+pub fn fiberUncaught(value: *CsThrown) {
+    if isNullFiber(gCurrent) {
+        return
+    }
+    unsafe {
+        cs_promise_reject(gCurrent.result, value as *u8)
+    }
+    finishFiber()
+}
+
+// Called by an async function body (generated IR) at its return: resolve this fiber's result.
+@externalLinkage
+pub fn cs_fiber_return(boxedValue: i64) {
+    if !isNullFiber(gCurrent) {
+        unsafe {
+            cs_promise_resolve(gCurrent.result, boxedValue)
+        }
+    }
+}
+
+fn spawn(entry: *Entry): *Promise {
+    unsafe {
+        let f = GC_malloc(80) as *Fiber
+        f.entry = entry
+        f.result = cs_promise_new()
+        f.done = 0
+        f.resumeVal = 0
+        f.hStack = 0 as **u8
+        f.hN = 0
+        f.hCap = 0
+        f.ctx = GC_malloc(cs_fiber_ctx_size())
+        cs_fiber_ctx_init(f.ctx, newStack(), FIBER_STACK, fiberTrampoline)
+        let from = if isNullFiber(gCurrent) { schedCtx() } else { gCurrent.ctx }
+        // Run until the first suspend or completion (JS: an async call runs synchronously up to its
+        // first await), with f's handler stack installed.
+        cs_fiber_enter(f, from)
+        return f.result
+    }
+}
+
+// Spawn a fiber running `body(arg)`; returns its result promise.
+@externalLinkage
+pub fn cs_fiber_spawn(body: *u8, arg: *u8): *Promise {
+    unsafe {
+        let raw = GC_malloc(16) as *EntryRaw
+        raw.body = body
+        raw.arg = arg
+        return spawn(raw as *Entry)
+    }
+}
+
+// Promise.all: await each input promise, collect the fulfilled values (in input order), and resolve
+// with the array; the FIRST rejection reached rejects the whole (cs_await rethrows into this driver
+// fiber, whose escape rejects its result: exactly Promise.all's semantics). The driver is an
+// ordinary async body on a fiber, so its result promise IS the Promise.all promise. Input slots are
+// boxed Promise pointers; output slots are the boxed element values.
+fn allDriver(arg: *u8) {
+    unsafe {
+        let promises = arg as *CsArray
+        let n = cs_array_len(promises)
+        let results = cs_array_new()
+        var i: i32 = 0
+        while i < n {
+            let v = cs_await(cs_array_get(promises, i) as *Promise)
+            cs_array_push(results, v)
+            i = i + 1
+        }
+        cs_fiber_return(results as i64)
+    }
+}
+
+@externalLinkage
+pub fn cs_promise_all(promises: *CsArray): *Promise {
+    unsafe {
+        let e = GC_malloc(16) as *Entry
+        // A whole-struct store: assigning the fn-pointer field on its own (`e.body = allDriver`)
+        // stores a two-word closure into the one-word field (Milo bug, see the phase 2 report).
+        *e = Entry { body: allDriver, arg: promises as *u8 }
+        return spawn(e)
+    }
+}
+
+// await(p): if pending, register and suspend until it settles; if already settled, still yield one
+// microtask so ordering matches Node (later synchronous code runs before the continuation). A
+// FULFILLED promise gives its boxed value; a REJECTED one THROWS `reason` into this fiber's handler
+// chain, exactly like a synchronous throw, so a try/catch around the await catches it.
+@externalLinkage
+pub fn cs_await(p: *Promise): i64 {
+    unsafe {
+        let me = gCurrent
+        if p.state == PENDING {
+            let w = GC_malloc(16) as *Waiter
+            w.fiber = me
+            w.next = 0 as *Waiter
+            // Append at the TAIL so several awaiters of one promise resume in registration order
+            // (FIFO), matching JS. Waiter lists are short.
+            if p.waiters as i64 == 0 {
+                p.waiters = w
+            } else {
+                var t = p.waiters
+                while t.next as i64 != 0 {
+                    t = t.next
+                }
+                t.next = w
+            }
+            swapcontext(me.ctx, me.retCtx)
+        } else {
+            me.resumeVal = p.value
+            mtqPush(me)
+            swapcontext(me.ctx, me.retCtx)
+        }
+        // Resumed: the promise is settled. Consuming a rejection clears its unhandled mark (the
+        // throw may re-reject THIS fiber's result, tracked separately, so the count moves up the
+        // await chain correctly).
+        if p.state == REJECTED {
+            if p.unhandled != 0 {
+                p.unhandled = 0
+                gUnhandled = gUnhandled - 1
+            }
+            cs_throw(p.reason as *CsThrown)
+        }
+        return p.value
+    }
+}
+
+// Drain the microtask queue, resuming each ready fiber with its own handler stack installed.
+fn drainMicrotasks() {
+    var f = mtqPop()
+    while !isNullFiber(f) {
+        unsafe {
+            if f.done == 0 {
+                cs_fiber_enter(f, schedCtx())
+            }
+        }
+        f = mtqPop()
+    }
+}
+
+// Microtasks first, then one timer or I/O completion at a time with a FULL microtask drain after
+// each: a callback that resolves a promise must let the awaiting fiber run before the next event,
+// which is the interleaving Node produces.
+@externalLinkage
+pub fn cs_run_event_loop() {
+    drainMicrotasks()
+    while timersPending() || cs_io_pending() != 0 {
+        // Timers whose deadline has PASSED go first (Node runs its timers phase before poll). A
+        // timer that is not due yet must not block a completed read, so it is only slept on once
+        // no I/O is waiting.
+        if timersDue() {
+            timersRunEarliest()
+        } else if cs_io_pending() != 0 {
+            cs_io_settle_one()
+        } else {
+            timersRunEarliest()
+        }
+        drainMicrotasks()
+    }
+    // A rejection no await ever consumed: Node terminates with exit code 1 (stderr best-effort).
+    if gUnhandled > 0 {
+        writeErrLit("Uncaught (in promise)\n")
+        exit(1)
+    }
+}

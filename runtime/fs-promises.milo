@@ -1,0 +1,110 @@
+// `node:fs/promises`, the async mirror of the node:fs surface in fs.milo.
+//
+// The syscall runs SYNCHRONOUSLY at call time; only the promise's SETTLEMENT is deferred, onto an
+// I/O completion queue the event loop drains after the timers phase. Blocking is not observable in
+// program output, only ordering is, and this keeps the phase model honest: microtasks, then due
+// timers, then I/O completions, which is the order Node's loop delivers them in.
+//
+// Errors become REJECTIONS rather than synchronous throws, as in Node. fs.milo's non-throwing cores
+// report the failure directly, so no handler has to catch a throw here.
+
+from "./abi" import { CsString, GC_malloc }
+from "./fs" import { FsResult, readFile, writeFile, unlinkFile, isFailure, fsError }
+from "./errors" import { cs_new_error }
+from "./async" import { Promise, cs_promise_new, cs_promise_resolve, cs_promise_reject }
+
+// One deferred settlement, in GC memory. Kept in FIFO order: two reads issued back to back settle
+// in the order they were issued, which is what makes a fixture's output deterministic.
+extern struct Completion {
+    promise: *Promise,
+    rejected: i32,
+    value: i64,
+    reason: *u8,
+    next: *Completion,
+}
+
+// Queue ends. GC pointers in Milo globals are fine: Boehm scans the program's static data.
+var gIoHead: *Completion = 0 as *Completion
+var gIoTail: *Completion = 0 as *Completion
+
+fn enqueue(p: *Promise, rejected: bool, value: i64, reason: *u8) {
+    unsafe {
+        let c = GC_malloc(40) as *Completion
+        c.promise = p
+        c.rejected = if rejected { 1 } else { 0 }
+        c.value = value
+        c.reason = reason
+        c.next = 0 as *Completion
+        if gIoTail as i64 != 0 {
+            gIoTail.next = c
+        } else {
+            gIoHead = c
+        }
+        gIoTail = c
+    }
+}
+
+// Exported for the event loop (async).
+@externalLinkage
+pub fn cs_io_pending(): i32 {
+    return if gIoHead as i64 != 0 { 1 } else { 0 }
+}
+
+// Settle exactly one completion. The caller drains microtasks afterwards, so an awaiting fiber
+// resumes before the next completion is delivered.
+@externalLinkage
+pub fn cs_io_settle_one() {
+    let c = gIoHead
+    if c as i64 == 0 {
+        return
+    }
+    unsafe {
+        gIoHead = c.next
+        if gIoHead as i64 == 0 {
+            gIoTail = 0 as *Completion
+        }
+        if c.rejected != 0 {
+            cs_promise_reject(c.promise, c.reason)
+        } else {
+            cs_promise_resolve(c.promise, c.value)
+        }
+    }
+}
+
+// Settle `p` from an fs core's result: fulfilled with `value`, or rejected with the same Error the
+// synchronous call would have thrown.
+fn settle(r: &FsResult, path: *CsString, value: i64): *Promise {
+    var p = 0 as *Promise
+    unsafe {
+        p = cs_promise_new()
+    }
+    if isFailure(r) {
+        unsafe {
+            enqueue(p, true, 0, cs_new_error(fsError(r, path)) as *u8)
+        }
+    } else {
+        enqueue(p, false, value, 0 as *u8)
+    }
+    return p
+}
+
+@externalLinkage
+pub fn cs_fsp_read_file(path: *CsString): *Promise {
+    let r = readFile(path)
+    return settle(r, path, r.value as i64)
+}
+
+@externalLinkage
+pub fn cs_fsp_write_file(path: *CsString, data: *CsString): *Promise {
+    return settle(writeFile(path, data, "wb"), path, 0)
+}
+
+@externalLinkage
+pub fn cs_fsp_append_file(path: *CsString, data: *CsString): *Promise {
+    return settle(writeFile(path, data, "ab"), path, 0)
+}
+
+@externalLinkage
+pub fn cs_fsp_unlink(path: *CsString): *Promise {
+    return settle(unlinkFile(path), path, 0)
+}

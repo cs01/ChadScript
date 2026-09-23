@@ -1,20 +1,231 @@
-// Raising a runtime error from Milo through the same path a `throw new Error(...)` takes, so a
-// user try/catch handles it.
+// Exceptions via setjmp/longjmp. A GC'd language needs no stack unwinding for cleanup (Boehm
+// reclaims memory), so a stack of handler buffers is enough: `try` allocates a handler, pushes it
+// and calls `_setjmp` on it DIRECTLY from generated IR (setjmp returns twice, so it can never sit
+// behind a wrapper call); `throw` longjmps to the top handler, unwinding any number of frames.
+//
+// longjmp skips Milo frames without running drops. Nothing in the runtime owns a droppable value
+// across a call that can throw (locals are raw pointers, scalars and static literals), so nothing
+// leaks.
 
-from "./abi" import { CsString }
-from "./csstring" import { strLit }
+from "./abi" import { CsString, GC_malloc, byteAt, memcpy }
+from "./csstring" import { cs_str_mk, cs_str_from, strLit }
+from "./stdio" import { writeErr, writeErrLit }
+from "./async" import { fiberUncaught }
 
-pub extern fn cs_new_error(message: *CsString): *u8
-pub extern fn cs_throw(thrown: *u8)
+extern fn _longjmp(buf: *u8, v: i32)
 
-// Throw `Error(msg)`. Does not return (cs_throw longjmps or exits). cs_new_error copies its
-// message, so wrapping the literal without a GC copy is safe.
+// A thrown value, in GC memory. `isError` distinguishes `throw new Error(m)` (1) from `throw "s"`
+// (0), which `String(e)` and `e instanceof Error` need. Only string-messaged throws are in the
+// subset.
+pub extern struct CsThrown {
+    isError: i32,
+    message: *CsString,
+}
+
+// Both constructors COPY the message rather than retaining the caller's pointer. Retaining it made a
+// stack CsString in any C caller a dangling read at catch time, and that bug class is invisible to
+// AddressSanitizer (the throw escapes by longjmp and ASan unpoisons the abandoned frame), so the
+// API must not permit it. Throws are exceptional, so the copy is free in practice.
+fn newThrown(isError: i32, message: *CsString): *CsThrown {
+    unsafe {
+        let t = GC_malloc(16) as *CsThrown
+        t.isError = isError
+        t.message = cs_str_from(message.data, message.len)
+        return t
+    }
+}
+
+@externalLinkage
+pub fn cs_new_error(message: *CsString): *CsThrown {
+    return newThrown(1, message)
+}
+
+@externalLinkage
+pub fn cs_new_thrown_str(s: *CsString): *CsThrown {
+    return newThrown(0, s)
+}
+
+@externalLinkage
+pub fn cs_thrown_is_error(t: *CsThrown): i32 {
+    unsafe {
+        return t.isError
+    }
+}
+
+@externalLinkage
+pub fn cs_thrown_message(t: *CsThrown): *CsString {
+    unsafe {
+        return t.message
+    }
+}
+
+// `String(e)`: an Error stringifies as "Error: <message>"; a thrown string as itself.
+@externalLinkage
+pub fn cs_thrown_to_string(t: *CsThrown): *CsString {
+    unsafe {
+        let m = t.message
+        if t.isError == 0 {
+            return cs_str_from(m.data, m.len)
+        }
+        let pre = "Error: "
+        let r = GC_malloc(7 + m.len)
+        memcpyLit(r, pre)
+        memcpyAt(r, 7, m.data, m.len)
+        return cs_str_mk(r, 7 + m.len)
+    }
+}
+
+fn memcpyLit(dst: *u8, s: &string) {
+    unsafe {
+        memcpy(dst, s.cstr(), s.len)
+    }
+}
+
+fn memcpyAt(dst: *u8, off: i64, src: *u8, n: i64) {
+    unsafe {
+        memcpy(byteAt(dst, off), src, n)
+    }
+}
+
+// A try handler: the jmp_buf, then the value thrown to it. The buffer comes FIRST so a handler
+// pointer is directly the jmp_buf generated IR passes to _setjmp. jmp_buf's size is platform
+// specific (192 bytes on macOS arm64, 200 on Linux x86-64, 312 on Linux arm64); residue.c
+// static-asserts it fits in JMPBUF_BYTES. The thrown value lives in the handler, not a global, so
+// exception state is local to the handler chain (and so to the fiber that owns the chain).
+pub let JMPBUF_BYTES: i64 = 512
+
+fn thrownSlot(h: *u8): **CsThrown {
+    unsafe {
+        return (h as i64 + JMPBUF_BYTES) as **CsThrown
+    }
+}
+
+// The active handler stack: a growable GC array of handler pointers plus a count. It is SWAPPABLE
+// (handlerCtxGet/Set) so each async fiber runs with its OWN stack: the async runtime installs a
+// fiber's stack around every resume, so concurrent try/catch blocks suspended across `await` never
+// corrupt each other's handler indices. Null/0/0 is a valid empty stack.
+var gHandlers: **u8 = 0 as **u8
+var gHandlerN: i32 = 0
+var gHandlerCap: i32 = 0
+
+pub extern struct HandlerCtx {
+    stack: **u8,
+    n: i32,
+    cap: i32,
+}
+
+pub fn handlerCtxGet(): HandlerCtx {
+    return HandlerCtx { stack: gHandlers, n: gHandlerN, cap: gHandlerCap }
+}
+
+pub fn handlerCtxSet(c: HandlerCtx) {
+    cs_handler_ctx_set(c.stack, c.n, c.cap)
+}
+
+// @externalLinkage only for its exemption from Milo's pointer-parameter store rule: the stack is GC
+// memory, not a buffer the caller owns, so keeping it in a global past the call is correct.
+@externalLinkage
+pub fn cs_handler_ctx_set(stack: **u8, n: i32, cap: i32) {
+    gHandlers = stack
+    gHandlerN = n
+    gHandlerCap = cap
+}
+
+fn handlerSlot(i: i32): **u8 {
+    unsafe {
+        return (gHandlers as i64 + i as i64 * 8) as **u8
+    }
+}
+
+// Allocate a handler for a `try` (GC memory; generated IR calls _setjmp on it directly).
+@externalLinkage
+pub fn cs_handler_alloc(): *u8 {
+    unsafe {
+        return GC_malloc(JMPBUF_BYTES + 8)
+    }
+}
+
+@externalLinkage
+pub fn cs_push_handler(h: *u8) {
+    unsafe {
+        if gHandlerN == gHandlerCap {
+            let nc: i32 = if gHandlerCap > 0 { gHandlerCap * 2 } else { 16 }
+            let nb = GC_malloc(nc as i64 * 8) as **u8
+            var i: i32 = 0
+            while i < gHandlerN {
+                *((nb as i64 + i as i64 * 8) as **u8) = *handlerSlot(i)
+                i = i + 1
+            }
+            gHandlers = nb
+            gHandlerCap = nc
+        }
+        *handlerSlot(gHandlerN) = h
+    }
+    gHandlerN = gHandlerN + 1
+}
+
+@externalLinkage
+pub fn cs_pop_handler() {
+    if gHandlerN > 0 {
+        gHandlerN = gHandlerN - 1
+    }
+}
+
+// Structured-completion support: a try records the handler depth on entry, and its cleanup path
+// restores to that depth on ANY exit (normal, return, throw), so the pop count is uniform whichever
+// exit is taken. Restore only ever pops.
+@externalLinkage
+pub fn cs_handler_count(): i32 {
+    return gHandlerN
+}
+
+@externalLinkage
+pub fn cs_handler_restore(n: i32) {
+    if gHandlerN > n {
+        gHandlerN = n
+    }
+}
+
+// The value thrown to a handler (read by a catch binding, and by a finally that re-raises).
+@externalLinkage
+pub fn cs_handler_thrown(h: *u8): *CsThrown {
+    unsafe {
+        return *thrownSlot(h)
+    }
+}
+
+// throw: unwind to the innermost handler, stashing the value IN that handler. With no handler, a
+// throw inside an async fiber rejects that fiber's result promise (fiberUncaught does not return);
+// anywhere else it terminates the process with exit code 1, as Node does on an uncaught exception
+// (the harness compares stdout + exit code, so the stderr text is best-effort).
+@externalLinkage
+pub fn cs_throw(value: *CsThrown) {
+    if gHandlerN > 0 {
+        gHandlerN = gHandlerN - 1
+        unsafe {
+            let h = *handlerSlot(gHandlerN)
+            *thrownSlot(h) = value
+            _longjmp(h, 1)
+        }
+    }
+    fiberUncaught(value)
+    unsafe {
+        if value as i64 != 0 && value.message as i64 != 0 {
+            writeErrLit("Error: ")
+            writeErr(value.message.data, value.message.len)
+            writeErrLit("\n")
+        } else {
+            writeErrLit("Error\n")
+        }
+    }
+    exit(1)
+}
+
+// Throw `Error(msg)` from runtime code. Does not return.
 pub fn throwErrorLit(msg: &string) {
     throwError(strLit(msg))
 }
 
 pub fn throwError(msg: *CsString) {
-    unsafe {
-        cs_throw(cs_new_error(msg))
-    }
+    cs_throw(cs_new_error(msg))
 }

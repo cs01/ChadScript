@@ -1,0 +1,49 @@
+// console.log pieces. console.log is variadic and space-separated (`console.log(a, b)` prints
+// "a b\n"): generated IR emits one print per argument, a space between them, and a trailing
+// newline. Each helper writes ONE piece with no separator or newline of its own.
+
+from "./abi" import { CsString, signBit }
+from "./stdio" import { writeOut, writeOutLit }
+from "./number" import { numToStr }
+
+@externalLinkage
+pub fn cs_print_cstr(s: *CsString) {
+    unsafe {
+        writeOut(s.data, s.len)
+    }
+}
+
+// console.log shows negative zero as "-0" (util.inspect), even though Number::toString gives "0";
+// String() / template coercion keep "0".
+@externalLinkage
+pub fn cs_print_f64(x: f64) {
+    if x == 0.0 && signBit(x) {
+        writeOutLit("-0")
+        return
+    }
+    var buf: [u8; 40] = [0; 40]
+    unsafe {
+        let p = buf.addrOf() as *u8
+        writeOut(p, numToStr(x, p))
+    }
+}
+
+// Boolean passed as i32 (0/1) to avoid i1 ABI ambiguity.
+@externalLinkage
+pub fn cs_print_bool(b: i32) {
+    if b != 0 {
+        writeOutLit("true")
+    } else {
+        writeOutLit("false")
+    }
+}
+
+@externalLinkage
+pub fn cs_print_space() {
+    writeOutLit(" ")
+}
+
+@externalLinkage
+pub fn cs_print_newline() {
+    writeOutLit("\n")
+}
