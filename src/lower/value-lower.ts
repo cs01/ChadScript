@@ -64,6 +64,13 @@ export function bothOptional(a: ValueType, b: ValueType): ValueType {
   return { kind: "value", members: [...members, VT.undefined, VT.null] };
 }
 
+// The literal a read narrowed to exactly `null` or `undefined` stands for.
+export function nullishLit(t: ValueType): HExpr {
+  return t.kind === "null"
+    ? { kind: "nullLit", type: VT.null }
+    : { kind: "undefinedLit", type: VT.undefined };
+}
+
 export function isNullishType(t: ValueType): boolean {
   return t.kind === "null" || t.kind === "undefined";
 }

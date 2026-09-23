@@ -133,6 +133,12 @@ export function isNullishPtr(opt: Value, ctx: Ctx): Value {
 // `x === null`/`x === undefined` (and `!==`) → i1. `sentinel` selects which marker to compare,
 // so the null and undefined cases stay distinct for a `T | null | undefined` value.
 export function evalNullCheck(expr: Extract<HExpr, { kind: "nullCheck" }>, ctx: Ctx): Value {
+  // A read tsc narrowed to exactly null/undefined is that literal (lower/value-lower.ts nullishLit):
+  // the answer is known.
+  const t = expr.value.type.kind;
+  if (t === "null" || t === "undefined") {
+    return imm(T.i1, (t === expr.sentinel) === expr.isEqual ? 1 : 0);
+  }
   if (expr.value.type.kind === "value") {
     const word = imm(T.i64, expr.sentinel === "null" ? V_NULL : V_UNDEFINED);
     return ctx.fn.icmp(expr.isEqual ? "eq" : "ne", evalValueWord(expr.value, ctx), word);

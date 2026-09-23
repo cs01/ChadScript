@@ -308,7 +308,9 @@ function verifyExpr(e: HExpr): void {
         ice(`verifyHir: unbox from ${e.value.type.kind} to ${e.type.kind}`);
       }
       if (!unboxable(e.value.type, e.type)) {
-        ice(`verifyHir: unbox to ${e.type.kind}, which the union never holds`);
+        const held = e.value.type.kind === "value" ? e.value.type.members.map((m) => m.kind) : [];
+        const want = e.type.kind === "optional" ? `optional<${e.type.inner.kind}>` : e.type.kind;
+        ice(`verifyHir: unbox to ${want}, which the union never holds (${held.join(" | ")})`);
       }
       verifyExpr(e.value);
       return;

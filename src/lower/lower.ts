@@ -23,6 +23,7 @@ import {
   valueCoalesce,
   bothOptional,
   optionalRead,
+  nullishLit,
 } from "./value-lower.js";
 import { type FieldWrite, applyFieldWrites } from "./field-writes.js";
 // Re-exported: statements.ts and friends import these through lower.ts.
@@ -190,16 +191,17 @@ function lowerIdentifier(ident: ts.Identifier, ctx: LowerCtx, useType: ValueType
     );
     // A Value-union variable read where tsc narrowed it to one representation (`typeof x ===
     // "number" ? x + 1 : 0`): the slot holds a Value word, the site wants the concrete type.
-    // Narrowed to exactly `null`/`undefined`, there is no machine value to unbox to: the read stays
-    // a Value word (which every consumer of a nullish value accepts) rather than an unbox that could
-    // never be evaluated.
+    // Narrowed to exactly `null`/`undefined`, there is no machine value to unbox to; tsc proved the
+    // value, and reading a variable has no effect, so the read IS that literal, which every
+    // consumer (printing, a flow into an optional or a union) already handles.
     if (declared.kind === "value" && useType.kind !== "value") {
+      if (isNullishType(useType)) return nullishLit(useType);
       const read: HExpr = {
         kind: "varRef",
         name: nameForSymbol(sym, ident.text, ctx),
         type: declared,
       };
-      return isNullishType(useType) ? read : { kind: "unbox", value: read, type: useType };
+      return { kind: "unbox", value: read, type: useType };
     }
     if (declared.kind === "optional") {
       return {
@@ -551,6 +553,8 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
         const fieldType = objType.shape.fields[slot]!.type;
         const narrowed =
           (fieldType.kind === "optional" && type.kind !== "optional") || fieldType.kind === "value";
+        // tsc narrows only reference chains (no calls), so the read has no effect to keep.
+        if (fieldType.kind === "value" && isNullishType(type)) return nullishLit(type);
         return {
           kind: "memberGet",
           object: lowerExpr(pa.expression, ctx),
