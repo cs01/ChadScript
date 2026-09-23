@@ -9,6 +9,7 @@ import ts from "typescript";
 import type { Diagnostic } from "../diagnostics.js";
 import { CODE, type Code } from "./codes.js";
 import { UnrepresentableTypeError, valueTypeOfTsType } from "../lower/type-translation.js";
+import { namespaceModuleOf } from "../lower/module-refs.js";
 
 export type Hit = (code: Code, message: string, suggestion: string) => Diagnostic;
 
@@ -29,11 +30,19 @@ export function checkFunctionValueRef(
   hit: Hit,
   checker: ts.TypeChecker,
 ): Diagnostic | null {
-  const parent = id.parent as ts.Node | undefined;
+  // `m.f` through a module namespace is a reference to `f` itself, so the value position to check
+  // is the whole member access, not the `f` identifier inside it.
+  let ref: ts.Node = id;
+  const direct = id.parent as ts.Node | undefined;
+  if (direct && ts.isPropertyAccessExpression(direct) && direct.name === id) {
+    if (!namespaceModuleOf(direct.expression, checker)) return null;
+    ref = direct;
+  }
+  const parent = ref.parent as ts.Node | undefined;
   if (!parent) return null;
   // Positions where the identifier is a NAME, not a value read.
   if (ts.isFunctionDeclaration(parent) && parent.name === id) return null;
-  if (ts.isCallExpression(parent) && parent.expression === id) return null;
+  if (ts.isCallExpression(parent) && parent.expression === ref) return null;
   if (ts.isPropertyAccessExpression(parent) && parent.name === id) return null;
   if (ts.isPropertyAssignment(parent) && parent.name === id) return null;
   if (ts.isImportSpecifier(parent) || ts.isExportSpecifier(parent)) return null;
@@ -41,7 +50,10 @@ export function checkFunctionValueRef(
   if (ts.isBindingElement(parent) && parent.propertyName === id) return null;
   if (ts.isTypeReferenceNode(parent) || ts.isTypeQueryNode(parent)) return null;
 
-  const decl = checker.getSymbolAtLocation(id)?.valueDeclaration;
+  // An imported name is an alias symbol with no declaration of its own; follow it to the function.
+  const sym = checker.getSymbolAtLocation(id);
+  const target = sym && sym.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(sym) : sym;
+  const decl = target?.valueDeclaration;
   if (!decl || !ts.isFunctionDeclaration(decl)) return null;
 
   // A SYNCHRONOUS function declaration is fine as a value: lowering wraps it in a forwarding
