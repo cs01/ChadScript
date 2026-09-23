@@ -120,6 +120,10 @@ function verifyStmt(s: HStmt): void {
     case "callStmt":
       s.args.forEach(verifyExpr);
       return;
+    case "callClosureStmt":
+      verifyExpr(s.callee);
+      s.args.forEach(verifyExpr);
+      return;
     case "virtualCallStmt":
       verifyExpr(s.receiver);
       s.args.forEach(verifyExpr);

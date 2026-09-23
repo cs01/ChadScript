@@ -551,10 +551,18 @@ function lowerIdentifierCallStatement(
   // An async call in statement position must SPAWN a fiber (and discard the promise), not call
   // the body directly — route through lowerExpr so it becomes an asyncCall.
   const fnDecl = symbolOf(callee, ctx)?.valueDeclaration;
-  const isAsync =
-    fnDecl !== undefined &&
-    ts.isFunctionDeclaration(fnDecl) &&
-    (fnDecl.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword) ?? false);
+  // Only a function DECLARATION has an IR symbol of its own; a name bound to a closure value
+  // (const/let arrow, parameter) must be called through the closure record, which lowerExpr
+  // stores as a closure record. `callStmt` here would name a symbol that is never defined.
+  if (fnDecl === undefined || !ts.isFunctionDeclaration(fnDecl)) {
+    return {
+      kind: "callClosureStmt",
+      callee: lowerExpr(callee, ctx),
+      args: lowerCallArgs(call, ctx),
+      returnType: callReturnType(call, ctx),
+    };
+  }
+  const isAsync = fnDecl.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword) ?? false;
   if (isAsync) return { kind: "exprStmt", expr: lowerExpr(call, ctx) };
   return {
     kind: "callStmt",

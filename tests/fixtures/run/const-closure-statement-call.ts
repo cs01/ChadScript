@@ -1,4 +1,3 @@
-// @known-bug: a statement-position call through a const closure emits a call to an undefined symbol
 const greet = (): void => {
   console.log("hi");
 };

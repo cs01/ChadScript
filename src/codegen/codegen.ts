@@ -436,6 +436,16 @@ function emitStatement(stmt: HStmt, ctx: Ctx): void {
       return;
     }
 
+    case "callClosureStmt": {
+      const rec = evalValue(stmt.callee, ctx);
+      const fnptr = ctx.fn.i64ToPtr(ctx.fn.load(T.i64, ctx.fn.gepSlot(rec, 0)));
+      const env = ctx.fn.i64ToPtr(ctx.fn.load(T.i64, ctx.fn.gepSlot(rec, 1)));
+      const args = [env, ...stmt.args.map((a) => evalValue(a, ctx))];
+      if (stmt.returnType === null) ctx.fn.callIndirectVoid(fnptr, args);
+      else ctx.fn.callIndirect(fnptr, irTypeOf(stmt.returnType), args);
+      return;
+    }
+
     case "virtualCallStmt":
       evalVirtualCallStmt(stmt.receiver, stmt.dispatch, stmt.args, stmt.returnType, ctx);
       return;

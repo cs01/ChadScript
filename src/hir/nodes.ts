@@ -147,6 +147,9 @@ export type HStmt =
       args: HExpr[];
       returnType: ValueType | null;
     }
+  // A call through a closure value (const/let arrow, parameter) in statement position. Its own
+  // node because a void closure has no value, so it cannot be a callClosure expression.
+  | { kind: "callClosureStmt"; callee: HExpr; args: HExpr[]; returnType: ValueType | null }
   // An expression evaluated for its side effects only, result discarded (e.g. `arr.push(x);`).
   | { kind: "exprStmt"; expr: HExpr };
 
