@@ -2,7 +2,7 @@ name: ci
 
 on:
   push:
-    branches: [v2, phase2-milo]
+    branches: [v2]
   pull_request:
     branches: [v2]
 
