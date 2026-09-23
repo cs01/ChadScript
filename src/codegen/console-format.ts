@@ -21,7 +21,7 @@ import type { ValueType } from "../hir/types.js";
 import { ALL_DIRECTIVES, literalDirectives, type Directive } from "../hir/format-directives.js";
 import { type Ctx, evalValue, unboxSlot } from "./expr.js";
 import { inspect } from "./inspect.js";
-import { jsonStringify } from "./json.js";
+import { jsonOrCircular } from "./json.js";
 import { boxValue, unboxValue, V_NULL, V_UNDEFINED, TAG } from "./value.js";
 import { switchOnValue } from "./value-ops.js";
 import { emitPrintComputedAny } from "./emit-print.js";
@@ -264,7 +264,7 @@ function memberText(v: Value, m: ValueType, d: Exclude<Directive, "c">, ctx: Ctx
         case "set":
           return ctx.mod.cstring("{}");
         default:
-          return jsonStringify(v, m, ctx, ctx.fn.nullPtr(), imm(T.i32, 0));
+          return jsonOrCircular(v, m, ctx);
       }
     default: {
       const never: never = d;

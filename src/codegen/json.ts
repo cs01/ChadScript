@@ -238,3 +238,29 @@ export function jsonJoin(
   ctx.fn.switchTo(endB);
   return ctx.fn.load(T.ptr, result);
 }
+
+// util.format's `%j`: the JSON text, or "[Circular]" when the value is cyclic (Node catches the
+// cycle TypeError there). The cycle check is the only throw inside JSON serialization, so the
+// handler catches exactly that.
+export function jsonOrCircular(value: Value, type: ValueType, ctx: Ctx): Value {
+  const result = ctx.fn.alloca(T.ptr);
+  const saved = ctx.fn.call("@cs_handler_count", T.i32, []);
+  const handler = ctx.fn.call("@cs_handler_alloc", T.ptr, []);
+  ctx.fn.callVoid("@cs_push_handler", [handler]);
+  const jumped = ctx.fn.call("@_setjmp", T.i32, [handler]);
+  const okB = ctx.fn.newBlock("fmtj.ok");
+  const circB = ctx.fn.newBlock("fmtj.circular");
+  const endB = ctx.fn.newBlock("fmtj.end");
+  ctx.fn.brCond(ctx.fn.icmp("eq", jumped, imm(T.i32, 0)), okB, circB);
+  ctx.fn.switchTo(okB);
+  ctx.fn.callVoid("@cs_json_begin", []);
+  ctx.fn.store(jsonStringify(value, type, ctx, ctx.fn.nullPtr(), imm(T.i32, 0)), result);
+  ctx.fn.callVoid("@cs_handler_restore", [saved]);
+  ctx.fn.br(endB);
+  ctx.fn.switchTo(circB);
+  ctx.fn.callVoid("@cs_handler_restore", [saved]);
+  ctx.fn.store(ctx.mod.cstring("[Circular]"), result);
+  ctx.fn.br(endB);
+  ctx.fn.switchTo(endB);
+  return ctx.fn.load(T.ptr, result);
+}
