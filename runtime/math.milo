@@ -1,0 +1,69 @@
+// Math.* helpers whose JS semantics differ from libm. floor/ceil/trunc/fabs/sqrt/pow map directly
+// to libm and are called from generated IR; only these need custom logic.
+
+from "./abi" import { isNan, isFinite, signBit, f64FromBits, NEG_ZERO_BITS }
+
+extern fn floor(x: f64): f64
+
+// JS Math.round: round half toward +Infinity (NOT C round's half-away-from-zero), and produce -0
+// for inputs in (-0.5, 0]. Computed via floor to avoid the x+0.5 rounding pitfall.
+@externalLinkage
+pub fn cs_math_round(x: f64): f64 {
+    if !isFinite(x) {
+        return x
+    }
+    let f = floor(x)
+    let r = if x - f >= 0.5 { f + 1.0 } else { f }
+    // JS: Math.round(-0.3) === -0
+    if r == 0.0 && x < 0.0 {
+        return f64FromBits(NEG_ZERO_BITS)
+    }
+    return r
+}
+
+// JS Math.sign: -1 / +1 / NaN, and preserves the sign of zero.
+@externalLinkage
+pub fn cs_math_sign(x: f64): f64 {
+    if isNan(x) {
+        return x
+    }
+    if x > 0.0 {
+        return 1.0
+    }
+    if x < 0.0 {
+        return -1.0
+    }
+    return x
+}
+
+// JS Math.max/min are variadic; generated IR folds them pairwise through these. Unlike C
+// fmax/fmin, JS PROPAGATES NaN and distinguishes the zeros (max prefers +0, min prefers -0).
+@externalLinkage
+pub fn cs_math_max2(a: f64, b: f64): f64 {
+    if isNan(a) || isNan(b) {
+        return f64.NAN
+    }
+    if a != b {
+        return if a > b { a } else { b }
+    }
+    if a == 0.0 {
+        // +0 unless both are -0
+        return if signBit(a) && signBit(b) { f64FromBits(NEG_ZERO_BITS) } else { 0.0 }
+    }
+    return a
+}
+
+@externalLinkage
+pub fn cs_math_min2(a: f64, b: f64): f64 {
+    if isNan(a) || isNan(b) {
+        return f64.NAN
+    }
+    if a != b {
+        return if a < b { a } else { b }
+    }
+    if a == 0.0 {
+        // -0 if either is -0
+        return if signBit(a) || signBit(b) { f64FromBits(NEG_ZERO_BITS) } else { 0.0 }
+    }
+    return a
+}

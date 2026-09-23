@@ -5,3 +5,4 @@
 
 from "./csstring" import { cs_str_mk }
 from "./path" import { cs_path_normalize }
+from "./math" import { cs_math_round }
