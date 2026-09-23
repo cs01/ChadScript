@@ -8,17 +8,22 @@ Work happens on the `v2` branch; commit directly and push `origin v2`. Never lan
 
 ```sh
 bin/chad run file.ts              # compile + run one program
-bun test tests/                   # every gate: rejection, differential (O0+O2 vs Node), unit
-CHAD_FIXTURE=<substr> bun test tests/differential.test.ts  # one fixture
-bun run test:san                  # same suite under ASan + UBSan
+bun run test                      # fast lane, must stay under 10 s: unit, reject, admission, dod
+CHAD_FIXTURE=<substr> bun test tests/slow/differential.test.ts  # one differential fixture
+bun run test:slow                 # differential (O0+O2 vs Node), fuzz, C runtime: BACKGROUND or CI
+bun run test:all                  # everything (what CI runs), plus `bun run test:san`
 bun run typecheck && bun run format:check
 bun run scripts/bench.ts          # native vs Node timings
 bun run scripts/gen-subset.ts     # regenerate docs/SUBSET.md (a test checks drift)
 ```
 
+Never block on the slow lane. Run it in the background or push and let CI run it; keep
+writing code meanwhile. A test that makes the fast lane exceed 10 s moves to `tests/slow/`.
+
 ## Rules
 
-- Every commit: all gates green. New behavior ships with its fixture in the same commit,
+- Every commit: fast lane green locally; the slow lane green in CI (or a background run) before
+  the next phase closes. New behavior ships with its fixture in the same commit,
   fixture written first. New validator rule ships with a rejection fixture.
 - Suspected miscompile: write a <50-LOC fixture, run it against Node, confirm the mechanism
   before proposing a fix. No LOC estimate for an unconfirmed hypothesis.

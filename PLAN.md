@@ -172,6 +172,8 @@ lose control of layout and GC roots); writing the compiler in Milo (tsc is the o
 
 ## Testing
 
+- Fast lane (`bun run test`, under 10 s) runs locally on every change; `tests/slow/`
+  (differential, fuzz, C runtime) runs in the background or in CI, never blocking.
 - `tests/fixtures/run/**`: differential, run under Node and native at O0 and O2, stdout + exit
   code diffed; a multi-file fixture is a directory with `main.ts`.
 - `tests/fixtures/reject/**`: `// @expect-reject: CS1234`, must fail with that code.

@@ -16,10 +16,10 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadProgram } from "../src/frontend/program.js";
-import { validate } from "../src/validate/validate.js";
-import { emitIr, linkIr, runtimeObjects } from "../src/driver/build.js";
-import { run } from "./harness/differential.js";
+import { loadProgram } from "../../src/frontend/program.js";
+import { validate } from "../../src/validate/validate.js";
+import { emitIr, linkIr, runtimeObjects } from "../../src/driver/build.js";
+import { run } from "../harness/differential.js";
 
 const PRELUDE = `interface Rec {
   n: number;

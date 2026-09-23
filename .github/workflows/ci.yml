@@ -53,7 +53,7 @@ jobs:
       # Generous per-test timeout: differential tests each run two clang compiles (O0+O2);
       # bun's 5s default is too tight for a cold Homebrew clang on the macOS runner.
       - name: Test (rejection + differential + unit)
-        run: bun test --timeout 60000 tests/
+        run: bun run test:all
 
       # Second lane over the SAME suite, with the runtime and every compiled fixture built under
       # AddressSanitizer + UndefinedBehaviorSanitizer. -fno-sanitize-recover makes any report

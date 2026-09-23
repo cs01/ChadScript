@@ -10,13 +10,13 @@ import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { dirname, join, relative } from "node:path";
 import { cpus } from "node:os";
-import { discoverFixtures } from "./harness/discover.js";
-import { differential } from "./harness/differential.js";
+import { discoverFixtures } from "../harness/discover.js";
+import { differential } from "../harness/differential.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const runRoot = join(here, "fixtures", "run");
+const runRoot = join(here, "..", "fixtures", "run");
 // examples/ are user-facing showcases; running them here keeps them from rotting.
-const exampleRoot = join(here, "..", "examples");
+const exampleRoot = join(here, "..", "..", "examples");
 // CHAD_FIXTURE=<substring> narrows the suite to matching fixture paths (the dev-loop filter;
 // bun's -t cannot select inside this single pooled test).
 const only = process.env["CHAD_FIXTURE"];
@@ -50,7 +50,7 @@ test("differential suite (all fixtures vs Node, O0 + O2)", { timeout: 900_000 },
   await pool(fixtures, Math.max(2, cpus().length), async (fx) => {
     const divergences = await differential(fx.path, fx.args);
     if (divergences.length > 0) {
-      const name = relative(join(here, ".."), fx.path);
+      const name = relative(join(here, "..", ".."), fx.path);
       failures.push(
         `${name}:\n    ${divergences.map((d) => `[${d.kind}] ${d.detail}`).join("\n    ")}`,
       );

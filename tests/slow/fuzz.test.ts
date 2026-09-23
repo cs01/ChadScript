@@ -7,8 +7,8 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { genProgram } from "./harness/fuzz-gen.js";
-import { differentialSource } from "./harness/differential.js";
+import { genProgram } from "../harness/fuzz-gen.js";
+import { differentialSource } from "../harness/differential.js";
 
 const SEED_COUNT = 25;
 
