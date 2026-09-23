@@ -48,9 +48,21 @@ test("differential suite (all fixtures vs Node, O0 + O2)", { timeout: 900_000 },
   assert.ok(fixtures.length > 0, `no fixtures matched${only ? ` CHAD_FIXTURE=${only}` : ""}`);
   const failures: string[] = [];
   await pool(fixtures, Math.max(2, cpus().length), async (fx) => {
-    const divergences = await differential(fx.path, fx.args);
+    const name = relative(join(here, "..", ".."), fx.path);
+    let divergences: { kind: string; detail: string }[];
+    try {
+      divergences = await differential(fx.path, fx.args);
+    } catch (e) {
+      // A compile-time rejection or ICE is a divergence too: Node ran the program, we did not.
+      divergences = [{ kind: "compile", detail: (e as Error).message.split("\n")[0]! }];
+    }
+    if (fx.knownBug !== null) {
+      if (divergences.length === 0) {
+        failures.push(`${name}: @known-bug fixture now matches Node; remove the annotation`);
+      }
+      return;
+    }
     if (divergences.length > 0) {
-      const name = relative(join(here, "..", ".."), fx.path);
       failures.push(
         `${name}:\n    ${divergences.map((d) => `[${d.kind}] ${d.detail}`).join("\n    ")}`,
       );

@@ -276,4 +276,49 @@ export const DOD: DodItem[] = [
     ],
     note: "default-DENY by SyntaxKind; admission-ice.test.ts additionally proves admitted constructs reach a diagnostic rather than an ICE.",
   },
+  // PLAN.md phases 1-7. Targets are recorded as @known-bug fixtures under run/value-model/ and
+  // the KNOWN_BUG flag in slow/subtype-fuzz.test.ts; a phase closes by removing those markers
+  // and citing the fixtures here.
+  {
+    id: "modules",
+    title: "phase 1: full ESM surface (default/namespace imports, re-exports, TS-source packages)",
+    status: "todo",
+    evidence: [],
+    note: "today only named imports of relative .ts specifiers and node:fs/node:path",
+  },
+  {
+    id: "runtime-milo",
+    title: "phase 2: runtime ported from C to Milo, C residue under 100 lines",
+    status: "todo",
+    evidence: [],
+    note: "seam spike first: CsString by value across the Milo extern ABI at O0 and O2",
+  },
+  {
+    id: "shaped-objects",
+    title: "phase 3: shaped objects, static field ordering, inline caches",
+    status: "todo",
+    evidence: [],
+    note: "structural subtyping miscompiles; see run/value-model/subtype-*.ts and slow/subtype-fuzz",
+  },
+  {
+    id: "value-unions",
+    title: "phase 4: NaN-boxed Value, mixed unions, narrowing",
+    status: "todo",
+    evidence: [],
+    note: "run/value-model/discriminated-union.ts, mixed-union.ts",
+  },
+  {
+    id: "captures-generics",
+    title: "phase 5: heap-cell mutable captures, erased generics",
+    status: "todo",
+    evidence: [],
+    note: "run/value-model/mutable-capture.ts, generic-function.ts",
+  },
+  {
+    id: "precise-gc",
+    title: "phase 6: precise GC in Milo, libgc dropped",
+    status: "todo",
+    evidence: [],
+    note: "after the value model; gated by a collect-every-allocation stress lane",
+  },
 ];

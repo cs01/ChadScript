@@ -1,6 +1,10 @@
 // Fixture auto-discovery. No registry: a file's annotations decide how it is tested.
 //   // @expect-reject: CS1203   → rejection fixture, must fail with that exact code
 //   // @args: alpha beta        → command-line arguments for BOTH node and the native binary
+//   // @known-bug: <reason>     → differential fixture that must STILL diverge from Node (compile
+//                                 error, ICE or wrong output). Records a target before its fix
+//                                 lands; when it starts passing the suite fails until the
+//                                 annotation is removed, so a fix can never go unnoticed.
 //   (no annotation)             → differential fixture (run vs Node; wired in a later phase)
 // Only the first 10 lines are scanned for annotations.
 
@@ -11,10 +15,12 @@ export interface Fixture {
   path: string;
   expectReject: string | null; // the CSxxxx code if this is a rejection fixture
   args: string[]; // command-line arguments, given to node and the binary alike
+  knownBug: string | null; // why this fixture is expected to diverge today
 }
 
 const REJECT_RE = /@expect-reject:\s*(CS\d{4})/;
 const ARGS_RE = /@args:\s*(.+)$/m;
+const KNOWN_BUG_RE = /@known-bug:\s*(.+)$/m;
 
 export function discoverFixtures(root: string): Fixture[] {
   const out: Fixture[] = [];
@@ -22,10 +28,12 @@ export function discoverFixtures(root: string): Fixture[] {
     const head = readFileSync(path, "utf8").split("\n", 10).join("\n");
     const m = REJECT_RE.exec(head);
     const a = ARGS_RE.exec(head);
+    const k = KNOWN_BUG_RE.exec(head);
     out.push({
       path,
       expectReject: m ? m[1]! : null,
       args: a ? a[1]!.trim().split(/\s+/) : [],
+      knownBug: k ? k[1]!.trim() : null,
     });
   }
   return out;
