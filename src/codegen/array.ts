@@ -47,7 +47,8 @@ function filteredSlot(
 // Higher-order array methods (map/filter/forEach/reduce), lowered to an inline loop that
 // invokes the callback closure per element. The closure is called with the SAME typed ABI as a
 // direct call: `fnptr(env, typedArgs...)`. JS passes (element, index, array); we pass exactly as
-// many as the callback's arity declares (element + optional index; reduce leads with the acc).
+// many as the callback's arity declares (reduce leads with the accumulator). A callback declaring
+// fewer is never called with more: its function takes exactly its declared parameters.
 export function evalArrayHof(expr: Extract<HExpr, { kind: "arrayHof" }>, ctx: Ctx): Value {
   const cbType = expr.callback.type;
   if (cbType.kind !== "function") return ice("arrayHof callback is not function-typed");
@@ -115,12 +116,14 @@ export function evalArrayHof(expr: Extract<HExpr, { kind: "arrayHof" }>, ctx: Ct
     // callback(acc, element, index?)
     const args = [env, ctx.fn.load(irTypeOf(expr.type), accPtr!), elem];
     if (arity >= 3) args.push(ctx.fn.sitofp(idx));
+    if (arity >= 4) args.push(ctx.fn.load(T.ptr, arrPtr));
     ctx.fn.store(ctx.fn.callIndirect(fnptr, retIr, args), accPtr!);
     ctx.fn.br(latchB);
   } else {
     // callback(element, index?)
     const args = [env, elem];
     if (arity >= 2) args.push(ctx.fn.sitofp(idx));
+    if (arity >= 3) args.push(ctx.fn.load(T.ptr, arrPtr));
     if (expr.op === "map") {
       const mapped = ctx.fn.callIndirect(fnptr, retIr, args);
       ctx.fn.call("@cs_array_push", T.i32, [result!, boxSlot(mapped, cbType.ret!, ctx)]);

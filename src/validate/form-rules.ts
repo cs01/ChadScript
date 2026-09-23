@@ -9,6 +9,7 @@ import type { Hit } from "./type-rules.js";
 import { isValuePosition } from "./builtin-rules.js";
 import { UnrepresentableTypeError, valueTypeOfTsType } from "../lower/type-translation.js";
 import { slotIdentical } from "../lower/generics.js";
+import { builtinIdOf } from "../lower/builtin-values.js";
 import type { ValueType } from "../hir/types.js";
 
 export function checkForm(node: ts.Node, hit: Hit, checker: ts.TypeChecker): Diagnostic | null {
@@ -187,6 +188,11 @@ function forEachCallbackMismatch(
         : collType.kind === "set"
           ? [collType.element, collType.element, collType]
           : [];
+    // A builtin (`m.forEach(console.log)`) is wrapped at exactly the callback type forEach
+    // passes, and checked by builtin-rules.ts.
+    let bare: ts.Expression = cb;
+    while (ts.isParenthesizedExpression(bare)) bare = bare.expression;
+    if (builtinIdOf(bare, checker) !== null) return null;
     const sig = checker.getSignaturesOfType(checker.getTypeAtLocation(cb), ts.SignatureKind.Call);
     if (sig.length !== 1 || passed.length === 0) return null; // other rules own these
     const params = sig[0]!.getParameters();

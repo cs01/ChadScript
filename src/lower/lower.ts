@@ -9,6 +9,7 @@
 // The validator has already admitted only in-subset constructs, so a shape we don't recognize
 // here is an ICE (a validator/lower mismatch), not a user error.
 
+import { builtinIdOf, lowerBuiltinValue } from "./builtin-values.js";
 import ts from "typescript";
 import { ice } from "../diagnostics.js";
 import type { LoadedProgram } from "../frontend/program.js";
@@ -425,6 +426,12 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
         ? VT.undefined
         : resolveType(expr, ctx);
     return { kind: "await", value: lowerExpr(expr.expression, ctx), type };
+  }
+  // A builtin function used as a value has a tsc type (StringConstructor, Math's members) outside
+  // the subset; it lowers from the function type it is used at instead.
+  if (ts.isIdentifier(expr) || ts.isPropertyAccessExpression(expr)) {
+    const builtin = builtinIdOf(expr, ctx.checker);
+    if (builtin !== null) return lowerBuiltinValue(expr, builtin, ctx);
   }
   const type = resolveType(expr, ctx);
   switch (expr.kind) {

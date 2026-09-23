@@ -1,12 +1,16 @@
-// CS1246: a built-in function (String, Number, Boolean, parseInt, Math.floor, console.log,
-// readFileSync, ...) used as a VALUE instead of being called. Lowering handles each built-in at its
-// call site (the argument types pick the runtime entry), so there is no closure to stand for one:
-// `[1, 2].map(String)` used to reach the backend and crash. The rewrite is a one-line arrow.
+// CS1246: a built-in function (readFileSync, Date.now, ...) used as a VALUE instead of being
+// called. Lowering handles most built-ins at their call site (the argument types pick the runtime
+// entry). String, Number, Boolean, parseInt, parseFloat, Math's functions and console.log are
+// admitted as values where a function type says which arguments they receive
+// (lower/builtin-values.ts); anything else, or one of those used without such a type, is rejected.
 
 import ts from "typescript";
 import type { Diagnostic } from "../diagnostics.js";
 import { CODE } from "./codes.js";
 import type { Hit } from "./type-rules.js";
+import type { ValueType } from "../hir/types.js";
+import { builtinIdOf, builtinValueProblem } from "../lower/builtin-values.js";
+import { UnrepresentableTypeError, valueTypeOfTsType } from "../lower/type-translation.js";
 
 export function checkBuiltinValueRef(
   ref: ts.Identifier | ts.PropertyAccessExpression,
@@ -32,9 +36,23 @@ export function checkBuiltinValueRef(
   if (t.getCallSignatures().length === 0 && t.getConstructSignatures().length === 0) return null;
 
   const text = ref.getText();
+  const id = builtinIdOf(ref, checker);
+  let reason = "it is not one of the built-ins admitted as values";
+  if (id !== null) {
+    const ct = checker.getContextualType(ref);
+    let use: ValueType | null = null;
+    try {
+      use = ct ? valueTypeOfTsType(ct, ref, checker) : null;
+    } catch (e) {
+      if (!(e instanceof UnrepresentableTypeError)) throw e;
+    }
+    const problem = builtinValueProblem(id, use);
+    if (problem === null) return null;
+    reason = problem;
+  }
   return hit(
     CODE.BUILTIN_AS_VALUE,
-    `\`${text}\` is a built-in function and cannot be used as a value`,
+    `\`${text}\` is a built-in function and cannot be used as a value here: ${reason}`,
     `call it inside an arrow function instead, e.g. \`(x) => ${text}(x)\``,
   );
 }
