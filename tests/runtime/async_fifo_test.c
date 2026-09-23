@@ -1,4 +1,4 @@
-// C-level test for runtime/async.c (async isn't reachable via codegen yet, so no differential
+// C-level test for runtime/async.milo (async isn't reachable via codegen yet, so no differential
 // path). Registers three fibers awaiting the SAME pending promise, resolves it, drains the event
 // loop, and asserts they resume in REGISTRATION order (FIFO) — not the LIFO order a front-inserting
 // waiter list would produce. Exits 0 on pass, non-zero on failure.

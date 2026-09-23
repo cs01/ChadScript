@@ -43,7 +43,7 @@ export function lowerGlobalBuiltin(
   }
   // `setTimeout(cb, ms)` → schedule the closure. Resolved by SYMBOL (unlike the name-keyed
   // builtins above) so a user function named setTimeout stays a user function. The callback
-  // lowers to an ordinary closure record; runtime/timer.c calls it as fn(env).
+  // lowers to an ordinary closure record; runtime/timer.milo calls it as fn(env).
   if (name === "setTimeout" && isAmbientGlobal(call.expression, ctx)) {
     const cb = call.arguments[0];
     const ms = call.arguments[1];

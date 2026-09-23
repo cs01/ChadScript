@@ -1,4 +1,4 @@
-// Stress test for runtime/async.c's microtask queue: spawn N fibers (N far exceeds the initial ring
+// Stress test for runtime/async.milo's microtask queue: spawn N fibers (N far exceeds the initial ring
 // capacity, forcing the growable queue to expand) all awaiting the SAME pending promise. On resolve
 // every waiter is queued as a microtask; draining must resume ALL of them, in registration order.
 // The old fixed 4096 ring with no overflow check would silently drop tasks. Exits 0 on pass.

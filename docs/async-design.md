@@ -37,7 +37,7 @@ transform. We instead use **stackful coroutines (fibers)** via `ucontext` (`make
 Cost: one heap stack per in-flight async call. Fine for an educational/experimental compiler; a
 state-machine transform is a later optimization if it ever matters.
 
-## Runtime pieces (C, `runtime/async.c`)
+## Runtime pieces (Milo, `runtime/async.milo`; ucontext setup in `runtime/residue.c`)
 
 1. **Promise** — `{ int state; int64_t value; Waiter* waiters; }` where state ∈
    {PENDING, FULFILLED, REJECTED}. `value` is a boxed i64 slot (same boxing as arrays/maps).
@@ -73,7 +73,7 @@ Node's microtask semantics. The differential harness (stdout + exit, O0 + O2) is
 
 ## Implementation slices
 
-1. **Runtime foundation** — `runtime/async.c`: Promise + fiber + microtask scheduler + event loop.
+1. **Runtime foundation** — `runtime/async.milo`: Promise + fiber + microtask scheduler + event loop.
    Unit-testable in C before any codegen.
 2. **Frontend types + await** — `Promise<T>` ValueType, `async function`, `await`, `Promise.resolve`.
    Event loop invoked after top-level. Microtask ordering matches Node.

@@ -1,7 +1,7 @@
-// Async-runtime behavior (runtime/async.c) is not yet reachable through codegen, so it can't be
-// differential-tested. These tests compile async.c together with a small C harness under
-// tests/runtime/ and run it — the harness exits non-zero (which execFileSync turns into a throw)
-// on any behavioral failure.
+// Runtime unit tests below the language surface (async scheduler corner cases, throw ABI). Each
+// links a small C harness under tests/runtime/ against the same Milo + C runtime objects a program
+// links, and runs it; the harness exits non-zero (which execFileSync turns into a throw) on any
+// behavioral failure.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -30,7 +30,7 @@ function runCTest(harness: string): void {
       ...runtimeObjects(),
       join(root, "tests", "runtime", harness),
       ...GC_LFLAGS,
-      // number.c/math.c call floor/fmod/trunc/nextafter. macOS libc resolves them implicitly;
+      // number.milo/math.milo call floor/fmod/trunc/nextafter. macOS libc resolves them implicitly;
       // glibc needs -lm, so without this the harness only failed on Linux.
       "-lm",
       "-o",

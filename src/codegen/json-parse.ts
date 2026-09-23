@@ -1,4 +1,4 @@
-// JSON.parse codegen: a type-directed walk over the parsed tree (runtime/json-parse.c), the mirror
+// JSON.parse codegen: a type-directed walk over the parsed tree (runtime/json-parse.milo), the mirror
 // image of json.ts. The target shape is known at compile time, so every field name, every kind
 // check, and every error path is emitted statically — the runtime never learns what it is building.
 //
@@ -13,7 +13,7 @@ import { T } from "../ir/types.js";
 import type { ValueType } from "../hir/types.js";
 import { boxSlot, type Ctx } from "./expr.js";
 
-// Mirrors the enum in runtime/json-parse.c.
+// Mirrors the enum in runtime/json-parse.milo.
 const KIND = { null: 0, bool: 1, number: 2, string: 3, array: 4, object: 5 } as const;
 
 export function jsonParse(text: Value, target: ValueType, ctx: Ctx): Value {

@@ -1,4 +1,4 @@
-// Rejection resumption test for runtime/async.c: a fiber installs a try/catch handler (the exact
+// Rejection resumption test for runtime/async.milo: a fiber installs a try/catch handler (the exact
 // ABI codegen emits) and awaits a promise that gets REJECTED. cs_await must throw the rejection into
 // the fiber's handler chain — so the catch runs and the code after the await does NOT. Exits 0 on
 // pass. (Single async chain, no interleaving — the concurrent-try-across-await case is a separate
@@ -13,7 +13,7 @@ extern void cs_promise_reject(Promise *p, void *reason);
 extern Promise *cs_fiber_spawn(void (*body)(void *), void *arg);
 extern int64_t cs_await(Promise *p);
 extern void cs_run_event_loop(void);
-// The synchronous-throw handler ABI, as codegen lowers try/catch (runtime.c).
+// The synchronous-throw handler ABI, as codegen lowers try/catch (runtime/errors.milo).
 extern void *cs_handler_alloc(void);
 extern void cs_push_handler(void *h);
 extern void cs_pop_handler(void);

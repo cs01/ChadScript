@@ -1,7 +1,7 @@
 // `node:fs` lowering. The supported filesystem calls are imported exactly as Node resolves them
 // (`import { readFileSync } from "node:fs"`) rather than exposed as a global, because the oracle
 // runs the same source under Node — where `fs` is not a global. Each name maps to one runtime
-// entry in runtime/fs.c.
+// entry in runtime/fs.milo.
 //
 // Dispatch is by SYMBOL, not by name: the imported binding's declaration must be inside the
 // ambient `declare module "node:fs"` in stdlib/globals.d.ts. A user function that happens to be

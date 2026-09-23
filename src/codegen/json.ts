@@ -1,6 +1,6 @@
 // JSON.stringify codegen: a type-directed recursive walk that builds the JSON text of a value at
 // runtime (mirrors inspect.ts, but with JSON rules — double-quoted keys/strings, non-finite numbers →
-// `null`, class names dropped). Leaf number/string conversions are in runtime/json.c. Optional fields
+// `null`, class names dropped). Leaf number/string conversions are in runtime/json.milo. Optional fields
 // follow JSON's omit-undefined / null / value rules. An `indent` unit (from the literal `space`
 // argument) turns on pretty-printing: each nesting level is prefixed with a newline + the unit
 // repeated by depth. Because the unit and the depth are both known at compile time, every indent

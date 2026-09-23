@@ -307,9 +307,33 @@ export const DOD: DodItem[] = [
   {
     id: "runtime-milo",
     title: "phase 2: runtime ported from C to Milo, C residue under 100 lines",
-    status: "todo",
-    evidence: [],
-    note: "seam spike first: CsString by value across the Milo extern ABI at O0 and O2",
+    status: "done",
+    // One or more differential fixtures per ported module (runtime/<module>.milo in comments).
+    evidence: [
+      "run/path-normalize.ts", // path
+      "run/path-resolve.ts", // path (getcwd)
+      "run/math-round.ts", // math
+      "run/math-minmax-nan.ts", // math
+      "run/date-now.ts", // time
+      "run/process-argv.ts", // argv
+      "run/array-shift.ts", // array
+      "run/array-at.ts", // array + nullable
+      "run/string-substring-pad.ts", // string-methods
+      "run/string-replaceall-trim.ts", // string-methods
+      "run/number-tostring.ts", // number (dtoa, radix)
+      "run/console-inspect-object.ts", // strings (inspect) + print
+      "run/map-samevaluezero.ts", // hashkey + map
+      "run/set-from-array.ts", // set
+      "run/json-stringify.ts", // json
+      "run/json-parse-nested.ts", // json-parse
+      "run/fs-promises-basic.ts", // fs + fs-promises
+      "run/timer-ordering.ts", // timer
+      "run/try-finally-propagate.ts", // errors (exceptions)
+      "run/throw-terminates.ts", // errors (uncaught)
+      "run/async-promise-all.ts", // async
+      "run/async-unhandled-reject.ts", // async
+    ],
+    note: "C residue: runtime/residue.c (GC_INIT, marker globals, stdio handles, jmp_buf size, ucontext setup)",
   },
   {
     id: "shaped-objects",

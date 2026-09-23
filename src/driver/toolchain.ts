@@ -44,6 +44,13 @@ export const GC_LFLAGS = prefix ? [`-L${prefix}/lib`, "-lgc"] : ["-lgc"];
 // -fno-sanitize-recover any report aborts the binary, which the differential harness already sees
 // as a crash/exit divergence, so no separate assertions are needed.
 //
+// The runtime is Milo: its IR is emitted with `milo emit-ir --sanitize` (every function marked
+// sanitize_address) and compiled with these flags, so ASan instruments it like C. UBSan does NOT
+// reach it: UBSan checks are inserted by clang's C frontend, which Milo IR never passes through.
+// Milo covers most of that class itself (integer overflow and array-bounds traps in every build);
+// raw-pointer arithmetic inside `unsafe` is checked by ASan only. Only runtime/residue.c gets
+// both.
+//
 // WHAT THIS LANE COVERS, measured by injecting each bug and checking it is reported:
 //   - stack and global buffer overflows, out-of-bounds array indexing, integer/alignment UB — YES
 //   - overflows of Boehm-managed memory — NO. GC_malloc has its own mmap-based heap, so ASan's

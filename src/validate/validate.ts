@@ -116,7 +116,7 @@ export const ALLOWED_KINDS: ReadonlySet<ts.SyntaxKind> = new Set([
   ts.SyntaxKind.ExportKeyword, // the `export` modifier on a declaration
   ts.SyntaxKind.DefaultKeyword, // the `default` modifier: `export default function/class`
   ts.SyntaxKind.QualifiedName, // `m.Type` in type position through a namespace (inert)
-  // async/await (Phase 6). Compiled to stackful fibers + a microtask event loop (runtime/async.c);
+  // async/await (Phase 6). Compiled to stackful fibers + a microtask event loop (runtime/async.milo);
   // an async function's `Promise<T>` return, `await`, rejection-as-throw across await, unhandled-
   // rejection exit code, and microtask ordering all match Node (differential fixtures async-*.ts).
   ts.SyntaxKind.AsyncKeyword,

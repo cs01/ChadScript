@@ -72,15 +72,15 @@ closures that mutate captured variables. See the phases in [`PLAN.md`](PLAN.md).
 
 ```text
 .ts ──tsc (types, strict)──▶ validator (default-deny) ──▶ lower ──▶ HIR (every node typed)
-     ──▶ verifyHir ──▶ codegen ──▶ typed LLVM IR builder ──▶ clang -O2 ──▶ binary + C runtime
+     ──▶ verifyHir ──▶ codegen ──▶ typed LLVM IR builder ──▶ clang -O2 ──▶ binary + runtime
 ```
 
 - **tsc is the only type oracle.** The compiler never infers a type itself.
 - **Only `src/lower/` talks to tsc.** HIR and codegen cannot import TypeScript; a test enforces it.
 - **Node is the semantics oracle.** Every fixture is diffed against Node at `-O0` and `-O2`, and
   the IR is checked with `opt -passes=verify`. A seeded fuzzer generates programs in the subset.
-- **Runtime** (`runtime/`, C today, moving to [Milo](https://github.com/milo-language/milo)):
-  UTF-8 `{ptr, len}` strings, JS-exact number formatting, Boehm GC, ucontext fibers for async,
+- **Runtime** (`runtime/`, written in [Milo](https://github.com/milo-language/milo) with a
+  ~20-line C residue; `sh scripts/setup-milo.sh` fetches the pinned compiler): UTF-8 `{ptr, len}` strings, JS-exact number formatting, Boehm GC, ucontext fibers for async,
   a microtask/timer/I/O event loop.
 
 ## Docs

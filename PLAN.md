@@ -118,7 +118,8 @@ Programs are directory trees of `.ts` files. Target surface:
 - `src/frontend` tsc program + module graph. `src/validate` allowlist + `CS####` codes.
   `src/lower` the only tsc consumer. `src/hir` typed nodes + verifier. `src/codegen` HIR to IR.
   `src/ir` typed LLVM IR builder (raw IR text is banned outside it). `src/driver` clang/link.
-- `runtime/` C today, Milo after phase 2. `stdlib/globals.d.ts` the ambient environment programs see (no `@types/node`).
+- `runtime/` Milo (`runtime/*.milo`, one compilation unit rooted at `lib.milo`) plus the C residue
+  `runtime/residue.c`. `stdlib/globals.d.ts` the ambient environment programs see (no `@types/node`).
 
 ### Memory: Boehm now, precise GC after the value model
 
@@ -133,8 +134,11 @@ TS programs alias and form cycles freely.
 
 ### Runtime language: Milo
 
-The runtime (`runtime/*.c`, ~2.9k LOC today) moves to [Milo](https://github.com/milo-language/milo)
-and new runtime code is written in Milo from the start. Why:
+The runtime is written in [Milo](https://github.com/milo-language/milo) (phase 2 ported the
+~2.9k LOC of C), and new runtime code is Milo from the start. The compiler commit is pinned in
+`scripts/milo-pin.sh`; `scripts/setup-milo.sh` fetches it into `.milo/` (or `CHAD_MILO` names
+another checkout). The driver runs `milo emit-ir` on `runtime/lib.milo` and compiles the IR with
+the same clang and flags as the C residue, into one content-addressed cached object. Why Milo:
 
 - Runtime memory bugs are a live bug class here (9bb8916d fixed a dangling `CsString` in
   `cs_new_error`), and Milo's second-class references rule that class out in safe code.
@@ -154,9 +158,19 @@ Split inside the Milo runtime:
 - **Library, in safe Milo:** number formatting / dtoa, strings, JSON, path, fs, process,
   timers, later http. Nothing here holds a GC pointer across a call it does not own.
 
-C that remains: only what Milo cannot express, expected to be `setjmp` (returns twice, so it
-is called from generated IR directly, never through a wrapper) and `main`'s GC init if needed.
-Target: under 100 lines of C, each line with a comment saying why it is not Milo.
+C that remains (`runtime/residue.c`, ~20 lines of code), each item commented with why:
+`GC_INIT` (a C macro); the `cs_undefined_marker`/`cs_null_marker` globals whose addresses
+generated IR compares against (Milo cannot define or address a named data symbol); accessors for
+`stdout`/`stderr` (data symbols, `__stdoutp` on macOS); a static assert that `jmp_buf` fits the
+512 bytes `errors.milo` reserves; and `getcontext`/`makecontext` setup for fibers (the
+`ucontext_t` layout is platform specific). `_setjmp` is called from generated IR directly (it
+returns twice, so never through a wrapper); `_longjmp` and `swapcontext` are called from Milo. A
+throw that escapes an async body no longer needs a setjmp root handler: `cs_throw` with an empty
+handler stack rejects the running fiber's promise and switches away. Coverage: the sanitized lane
+builds the Milo runtime with `--sanitize` (ASan); UBSan checks come from clang's C frontend, so
+Milo code is not UBSan-instrumented (Milo traps integer overflow itself). Globals in runtime Milo
+code must have constant initializers: Milo's `global_init` only runs from a Milo `main`, and the
+driver refuses a runtime that needs one.
 
 Preconditions: pin the Milo compiler commit in the repo and build it in CI (Milo moves fast;
 `docs/breaking-changes.md` there is the upgrade checklist). Before porting, a spike proves the
@@ -197,7 +211,8 @@ manifest. Estimates in LOC.
    extensionless and `.js` specifiers, re-exports, `node:*` default imports, TS-source
    packages, and CommonJS rejections. Independent of the value model, and it unblocks writing
    real multi-file programs as tests. (~600)
-2. **Runtime to Milo.** Seam spike first (above), then port `runtime/*.c` file by file,
+2. **Runtime to Milo.** DONE (dod `runtime-milo`). Every module is Milo; the C residue is
+   `runtime/residue.c` (see "Runtime language: Milo" for what it holds and why). Plan as run: seam spike first (above), then port `runtime/*.c` file by file,
    leaf modules first (`path`, `number`, `string-methods`, `json-parse`), `async` last. Pure
    refactor under an unchanged differential suite, done before new runtime code exists so
    shapes and `Value` are born in Milo. Exit: C residue under 100 lines, all lanes green,

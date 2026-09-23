@@ -1,8 +1,8 @@
 // A throw that escapes an async function body must REJECT that function's result promise (not abort
-// the process), so an awaiter of it observes a rejection. Pins the root handler cs_fiber_trampoline
-// installs around every fiber body. On the old runtime (no root handler) the child's uncaught throw
-// hit cs_throw with an empty handler stack and called exit(1); here it is caught by the parent's
-// try/catch around the await. Exits 0 on pass.
+// the process), so an awaiter of it observes a rejection. Pins cs_throw's fiber path: with an empty
+// handler stack inside a fiber it rejects that fiber's promise and ends the fiber (runtime/errors.milo,
+// async.milo fiberUncaught) instead of calling exit(1); here the rejection is caught by the
+// parent's try/catch around the await. Exits 0 on pass.
 #include <stdint.h>
 #include <stdio.h>
 #include <gc.h>

@@ -46,7 +46,7 @@ export type ValueType =
   // ({isError, message}). Usable via `String(e)` and `e instanceof Error`; not printable directly.
   | { kind: "unknown" }
   // `Promise<T>` — the result of an async-function call. Runtime rep: pointer to a runtime Promise
-  // (see runtime/async.c). `await` unwraps it to `inner`; the value crosses as a boxed i64 slot.
+  // (see runtime/async.milo). `await` unwraps it to `inner`; the value crosses as a boxed i64 slot.
   | { kind: "promise"; inner: ValueType }
   // An OPAQUE runtime handle: a pointer the program may hold and hand back to the runtime, with no
   // other operations. Exists because Node's setTimeout returns a `Timeout` OBJECT — any printable

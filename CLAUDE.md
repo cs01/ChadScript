@@ -10,7 +10,7 @@ Work happens on the `v2` branch; commit directly and push `origin v2`. Never lan
 bin/chad run file.ts              # compile + run one program
 bun run test                      # fast lane, must stay under 10 s: unit, reject, admission, dod
 CHAD_FIXTURE=<substr> bun test tests/slow/differential.test.ts  # one differential fixture
-bun run test:slow                 # differential (O0+O2 vs Node), fuzz, C runtime: BACKGROUND or CI
+bun run test:slow                 # differential (O0+O2 vs Node), fuzz, runtime: BACKGROUND or CI
 bun run test:all                  # everything (what CI runs), plus `bun run test:san`
 bun run typecheck && bun run format:check
 bun run scripts/bench.ts          # native vs Node timings
@@ -39,9 +39,14 @@ writing code meanwhile. A test that makes the fast lane exceed 10 s moves to `te
 - Only `src/lower/` imports `typescript`. HIR and codegen never ask the checker anything.
 - All IR goes through the typed builder in `src/ir/`; raw IR strings are banned elsewhere.
 - Discriminated dispatch: `switch` + `never` + throwing default. No silent fallbacks.
-- Runtime is C with the `cs_` prefix until phase 2 moves it to Milo; new runtime code after
-  that is Milo, keeping the `cs_` symbol names. Numbers cross the ABI as `double`. Strings are UTF-8
-  `{ptr, len}`; never rely on NUL termination.
+- Runtime is Milo (`runtime/*.milo`, pinned compiler: `sh scripts/setup-milo.sh` once).
+  Exported entry points are `@externalLinkage` with the `cs_` C symbol names; every module is
+  imported from `runtime/lib.milo`. C only for what Milo cannot express, in `runtime/residue.c`,
+  each item commented with why. Runtime memory is Boehm (`GC_malloc`); never keep a GC pointer
+  in Milo-owned heap memory (Vec, Heap, string), which Boehm does not scan. Globals need constant
+  initializers. Declare libc externs once, in `runtime/libc.milo` (Milo `extern fn` is
+  program-wide). Numbers cross the ABI as `double`. Strings are UTF-8 `{ptr, len}`; never rely
+  on NUL termination.
 - Prefer a new file per feature family. Comments explain WHY, not what.
 
 ## Fixtures

@@ -66,7 +66,7 @@ export function declareRuntimeExterns(mod: ModuleBuilder): void {
   }
   mod.declareExtern("cs_gc_init", T.void, []);
   mod.declareExtern("cs_gc_alloc", T.ptr, [T.i64]);
-  // Async runtime (runtime/async.c): fibers, promises, await, and the microtask event loop.
+  // Async runtime (runtime/async.milo): fibers, promises, await, and the microtask event loop.
   mod.declareExtern("cs_fiber_spawn", T.ptr, [T.ptr, T.ptr]);
   mod.declareExtern("cs_fiber_return", T.void, [T.i64]);
   mod.declareExtern("cs_await", T.i64, [T.ptr]);
@@ -82,13 +82,13 @@ export function declareRuntimeExterns(mod: ModuleBuilder): void {
   mod.declareExtern("cs_fs_append_file", T.void, [T.ptr, T.ptr]);
   mod.declareExtern("cs_fs_exists", T.i32, [T.ptr]);
   mod.declareExtern("cs_fs_unlink", T.void, [T.ptr]);
-  // node:fs/promises (runtime/fs-promises.c): the syscall runs now, the promise settles in the
+  // node:fs/promises (runtime/fs-promises.milo): the syscall runs now, the promise settles in the
   // event loop's I/O phase.
   mod.declareExtern("cs_fsp_read_file", T.ptr, [T.ptr]);
   mod.declareExtern("cs_fsp_write_file", T.ptr, [T.ptr, T.ptr]);
   mod.declareExtern("cs_fsp_append_file", T.ptr, [T.ptr, T.ptr]);
   mod.declareExtern("cs_fsp_unlink", T.ptr, [T.ptr]);
-  // node:path (runtime/path.c). join/resolve take one CsArray of strings; the rest are 1-arg.
+  // node:path (runtime/path.milo). join/resolve take one CsArray of strings; the rest are 1-arg.
   mod.declareExtern("cs_path_join", T.ptr, [T.ptr]);
   mod.declareExtern("cs_path_resolve", T.ptr, [T.ptr]);
   mod.declareExtern("cs_path_normalize", T.ptr, [T.ptr]);
@@ -98,7 +98,7 @@ export function declareRuntimeExterns(mod: ModuleBuilder): void {
   mod.declareExtern("cs_path_is_absolute", T.i32, [T.ptr]);
   mod.declareExtern("cs_set_timeout", T.ptr, [T.ptr, T.double]); // setTimeout → Timeout handle
   mod.declareExtern("cs_clear_timeout", T.void, [T.ptr]);
-  // JSON.parse (runtime/json-parse.c): text → tagged tree, walked by codegen against the target.
+  // JSON.parse (runtime/json-parse.milo): text → tagged tree, walked by codegen against the target.
   mod.declareExtern("cs_json_parse", T.ptr, [T.ptr]);
   mod.declareExtern("cs_json_kind", T.i32, [T.ptr]);
   mod.declareExtern("cs_json_number_of", T.double, [T.ptr]);

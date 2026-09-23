@@ -534,7 +534,7 @@ function checkCall(node: ts.CallExpression, hit: Hit, checker: ts.TypeChecker): 
         );
       }
     }
-    // `Date.now()` is supported (runtime/time.c); the rest of the Date surface needs an instance
+    // `Date.now()` is supported (runtime/time.milo); the rest of the Date surface needs an instance
     // representation and a calendar, so it stays rejected.
     if (isNamedIdent(recv, "Date") && m !== "now") {
       return hit(
