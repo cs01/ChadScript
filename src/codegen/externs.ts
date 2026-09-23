@@ -112,7 +112,8 @@ export function declareRuntimeExterns(mod: ModuleBuilder): void {
   mod.declareExtern("cs_json_array_get", T.ptr, [T.ptr, T.i32]);
   mod.declareExtern("cs_json_field", T.ptr, [T.ptr, T.ptr]);
   mod.declareExtern("cs_json_expect_fail", T.void, [T.ptr, T.ptr]);
-  mod.declareExtern("cs_json_object", T.ptr, [T.ptr, T.ptr, T.ptr, T.ptr, T.ptr]);
+  mod.declareExtern("cs_json_object", T.ptr, [T.ptr, T.ptr, T.ptr, T.ptr, T.ptr, T.ptr, T.ptr]);
+  mod.declareExtern("cs_inspect_key", T.ptr, [T.ptr]);
   mod.declareExtern("cs_array_push", T.i32, [T.ptr, T.i64]);
   mod.declareExtern("cs_array_len", T.i32, [T.ptr]);
   mod.declareExtern("cs_array_get", T.i64, [T.ptr, T.i32]);

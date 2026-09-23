@@ -12,9 +12,9 @@
 // first position and its last value), an absent optional key does not exist on the object. The
 // record's shape is therefore chosen at run time (cs_json_object, from the type's template shape),
 // and every access to these types goes through an inline cache (lower/layouts.ts). A key the type
-// does not declare throws: Node would keep it, and printing, Object.keys or JSON.stringify of the
-// object would show it, but there is no declared type to give its value, so dropping it silently
-// would diverge and keeping it is not representable.
+// does not declare is kept, as Node keeps it: its value becomes a plain Value word (any JSON value,
+// nested objects laid out by the dynamic template), so printing, Object.keys and JSON.stringify show
+// it (codegen/json-any.ts) while the program cannot name it (tsc rejects the read).
 
 import { ice } from "../diagnostics.js";
 import { imm, type Value } from "../ir/builder.js";
@@ -30,9 +30,22 @@ const KIND = { null: 0, bool: 1, number: 2, string: 3, array: 4, object: 5 } as 
 
 type ObjectShapes = readonly JsonObjectTarget[];
 
-export function jsonParse(text: Value, target: ValueType, shapes: ObjectShapes, ctx: Ctx): Value {
+export function jsonParse(
+  text: Value,
+  target: ValueType,
+  shapes: ObjectShapes,
+  dynamicShape: number,
+  ctx: Ctx,
+): Value {
   const root = ctx.fn.call("@cs_json_parse", T.ptr, [text]);
-  return extract(root, target, "value", shapes, ctx);
+  return extract(root, target, "value", { shapes, dynamicShape }, ctx);
+}
+
+// The object layouts a parse can build: one template per declared object type, plus the dynamic
+// template (no declared fields) that objects under undeclared keys are laid out with.
+interface Targets {
+  shapes: ObjectShapes;
+  dynamicShape: number;
 }
 
 // Emit `if (kind(node) !== want) throw`. The failure branch is terminated `unreachable` because
@@ -50,13 +63,8 @@ function requireKind(node: Value, want: number, path: string, expected: string, 
   ctx.fn.switchTo(okB);
 }
 
-function extract(
-  node: Value,
-  type: ValueType,
-  path: string,
-  shapes: ObjectShapes,
-  ctx: Ctx,
-): Value {
+function extract(node: Value, type: ValueType, path: string, targets: Targets, ctx: Ctx): Value {
+  const shapes = targets.shapes;
   switch (type.kind) {
     case "number":
       requireKind(node, KIND.number, path, "a number", ctx);
@@ -94,7 +102,7 @@ function extract(
       const elemNode = ctx.fn.call("@cs_json_array_get", T.ptr, [node, iNow]);
       // Every element shares one compile-time path suffix: the index is a runtime value, so the
       // message names the position in the TYPE ("items[]"), not the failing index.
-      const elem = extract(elemNode, elementType, `${path}[]`, shapes, ctx);
+      const elem = extract(elemNode, elementType, `${path}[]`, targets, ctx);
       ctx.fn.callVoid("@cs_array_push", [arr, boxSlot(elem, elementType, ctx)]);
       ctx.fn.store(ctx.fn.iadd(ctx.fn.load(T.i32, iPtr), imm(T.i32, 1)), iPtr);
       ctx.fn.br(head);
@@ -118,7 +126,7 @@ function extract(
       fields.forEach((f, i) => {
         const fieldNode = ctx.fn.call("@cs_json_field", T.ptr, [node, ctx.mod.cstring(f.name)]);
         const presence = target.presence[i] ?? ice("jsonParse: field without presence info");
-        const v = extractField(fieldNode, f.type, presence, `${path}.${f.name}`, shapes, ctx);
+        const v = extractField(fieldNode, f.type, presence, `${path}.${f.name}`, targets, ctx);
         ctx.fn.store(v, ctx.fn.gepSlot(vals, i));
       });
       const cache = ctx.mod.defineZeroWords(`${shapeGlobalName(target.shape)}.jsoncache`, 1);
@@ -128,12 +136,74 @@ function extract(
         cache,
         vals,
         ctx.mod.cstring(path),
+        shapeRef(ctx, targets.dynamicShape),
+        ctx.mod.defineZeroWords(`${shapeGlobalName(targets.dynamicShape)}.jsoncache`, 1),
       ]);
     }
+
+    case "value":
+      return extractUnion(node, type.members, path, targets, ctx);
 
     default:
       return ice(`jsonParse: ${type.kind} is not a supported JSON target type`);
   }
+}
+
+// A Value union target (`number | string`, `boolean | number[] | null`): the JSON value's own kind
+// picks the member, which is extracted and boxed; a kind no member has is a mismatch. An object
+// member is rejected by the validator (the union keeps no object layout to extract into).
+function extractUnion(
+  node: Value,
+  members: readonly ValueType[],
+  path: string,
+  targets: Targets,
+  ctx: Ctx,
+): Value {
+  const jsonKind = (m: ValueType): number | null => {
+    switch (m.kind) {
+      case "number":
+        return KIND.number;
+      case "string":
+        return KIND.string;
+      case "boolean":
+        return KIND.bool;
+      case "null":
+        return KIND.null;
+      case "array":
+        return KIND.array;
+      case "undefined":
+        return null; // an absent key, handled by extractField
+      default:
+        return ice(`jsonParse: a ${m.kind} member of a union target`);
+    }
+  };
+  const kind = ctx.fn.call("@cs_json_kind", T.i32, [node]);
+  const result = ctx.fn.alloca(T.i64);
+  const endB = ctx.fn.newBlock("json.union.end");
+  const names: string[] = [];
+  for (const m of members) {
+    const want = jsonKind(m);
+    if (want === null) continue;
+    names.push(m.kind === "array" ? "an array" : m.kind === "null" ? "null" : `a ${m.kind}`);
+    const hitB = ctx.fn.newBlock("json.union.member");
+    const nextB = ctx.fn.newBlock("json.union.next");
+    ctx.fn.brCond(ctx.fn.icmp("eq", kind, imm(T.i32, want)), hitB, nextB);
+    ctx.fn.switchTo(hitB);
+    const word =
+      m.kind === "null"
+        ? imm(T.i64, V_NULL)
+        : boxValue(extract(node, m, path, targets, ctx), m, ctx);
+    ctx.fn.store(word, result);
+    ctx.fn.br(endB);
+    ctx.fn.switchTo(nextB);
+  }
+  ctx.fn.callVoid("@cs_json_expect_fail", [
+    ctx.mod.cstring(path),
+    ctx.mod.cstring(names.join(" or ")),
+  ]);
+  ctx.fn.unreachable();
+  ctx.fn.switchTo(endB);
+  return ctx.fn.load(T.i64, result);
 }
 
 // The record Value of one declared field. A lookup returns null when the key is ABSENT, which is a
@@ -146,11 +216,16 @@ function extractField(
   type: ValueType,
   presence: JsonObjectTarget["presence"][number],
   path: string,
-  shapes: ObjectShapes,
+  targets: Targets,
   ctx: Ctx,
 ): Value {
   const inner = type.kind === "optional" ? type.inner : type;
-  if ((presence.absentOk || presence.nullable) && type.kind !== "optional") {
+  // A Value union field carries its own undefined/null members, so it may admit both too.
+  if (
+    (presence.absentOk || presence.nullable) &&
+    type.kind !== "optional" &&
+    type.kind !== "value"
+  ) {
     return ice(`jsonParse: ${path} admits null/undefined but its type is not optional`);
   }
   const result = ctx.fn.alloca(T.i64);
@@ -183,7 +258,7 @@ function extractField(
     ctx.fn.br(endB);
     ctx.fn.switchTo(valueB);
   }
-  const value = extract(fieldNode, inner, path, shapes, ctx);
+  const value = extract(fieldNode, inner, path, targets, ctx);
   ctx.fn.store(boxValue(value, inner, ctx), result);
   ctx.fn.br(endB);
 

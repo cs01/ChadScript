@@ -110,6 +110,7 @@ export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
         kind: "jsonParse",
         text: lowerExpr(call.arguments[0]!, ctx),
         objectShapes,
+        dynamicShape: ctx.shapes.jsonTemplate([]),
         type: target,
       };
     }

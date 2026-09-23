@@ -27,6 +27,7 @@ const PRELUDE = `interface Rec {
   inner: Inner;
   list: number[];
   opt?: string;
+  u?: number | string;
 }
 interface Inner {
   flag: boolean;
@@ -87,13 +88,26 @@ const MISMATCHES: Array<{ name: string; json: string; mentions: string }> = [
     mentions: "value.opt",
   },
   {
-    // Node keeps an undeclared key, and printing or re-serializing the object would show it; the
-    // target type gives it no representation, so it is a mismatch.
-    name: "property the type does not declare",
-    json: '{"n":1,"s":"x","inner":{"flag":true,"zz":2},"list":[]}',
-    mentions: "unexpected property 'zz' at value.inner",
+    name: "a union field given a kind none of its members has",
+    json: '{"n":1,"s":"x","inner":{"flag":true},"list":[],"u":true}',
+    mentions: "value.u",
   },
+  // A key the type does not declare is NOT a mismatch: it is kept, as Node keeps it (its value
+  // becomes a plain Value word), and tests/fixtures/run/json-parse-undeclared-keys.ts diffs the
+  // printed, serialized and listed result against Node.
 ];
+
+test("json undeclared keys are kept and printed as Node prints them", async () => {
+  const { stdout, exit } = await runProgram(
+    `const r: Rec = JSON.parse('{"zz":[1,{"q":null}],"n":1,"s":"x","inner":{"flag":true,"k-2":"v"},"list":[]}');\n` +
+      `console.log(r.inner, JSON.stringify(r));\n`,
+  );
+  assert.equal(exit, 0);
+  assert.equal(
+    stdout,
+    `{ flag: true, 'k-2': 'v' } {"zz":[1,{"q":null}],"n":1,"s":"x","inner":{"flag":true,"k-2":"v"},"list":[]}\n`,
+  );
+});
 
 for (const c of MISMATCHES) {
   test(`json shape mismatch throws: ${c.name}`, async () => {

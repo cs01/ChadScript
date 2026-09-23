@@ -5,6 +5,7 @@
 
 import ts from "typescript";
 import type { Diagnostic } from "../diagnostics.js";
+import type { ValueType } from "../hir/types.js";
 import { CODE, type Code } from "./codes.js";
 import { spanOf } from "./validate.js";
 import { namespaceMemberOf } from "../lower/module-refs.js";
@@ -574,6 +575,13 @@ function checkCall(node: ts.CallExpression, hit: Hit, checker: ts.TypeChecker): 
           "the reviver parameter is not in the subset",
         );
       }
+      if (unionWithObject(checker.getTypeFromTypeNode(parent.type), parent.type, checker)) {
+        return hit(
+          CODE.JSON_API,
+          "a `JSON.parse` target with a union of an object type and other kinds is not supported yet",
+          "parse into a type whose unions are of plain values (`number | string`), or of object types only",
+        );
+      }
     }
     // `Date.now()` is supported (runtime/time.milo); the rest of the Date surface needs an instance
     // representation and a calendar, so it stays rejected.
@@ -674,6 +682,36 @@ const GLOBAL_RECEIVERS: ReadonlySet<string> = new Set([
   "Array",
   "Promise",
 ]);
+
+// Whether a JSON.parse target contains a Value union with an object member: the union keeps no
+// object layout (hir/types.ts ANY_OBJECT), so the parser would have no template to lay it out with.
+function unionWithObject(t: ts.Type, node: ts.Node, checker: ts.TypeChecker): boolean {
+  let root: ValueType;
+  try {
+    root = valueTypeOfTsType(t, node, checker);
+  } catch (e) {
+    if (e instanceof UnrepresentableTypeError) return false; // reported where it is declared
+    throw e;
+  }
+  const seen = new Set<ValueType>();
+  const walk = (v: ValueType): boolean => {
+    if (seen.has(v)) return false;
+    seen.add(v);
+    switch (v.kind) {
+      case "value":
+        return v.members.some((m) => m.kind === "object" || walk(m));
+      case "array":
+        return walk(v.element);
+      case "optional":
+        return walk(v.inner);
+      case "object":
+        return v.shape.fields.some((f) => walk(f.type));
+      default:
+        return false;
+    }
+  };
+  return walk(root);
+}
 
 // Whether the value domain represents `t` as an object record (so a shape can answer a by-name
 // method lookup on it).

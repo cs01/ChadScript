@@ -107,7 +107,7 @@ function jsonArray(
 // Build `open` + `elemStr(0)` + `sep` + `elemStr(1)` + ... + `close` over `count` elements; an empty
 // container is `empty`. Recursion-safe: `elemStr` may emit its own blocks (nested containers), and
 // the accumulator lives in an alloca so the current block after a nested call is irrelevant.
-function jsonJoin(
+export function jsonJoin(
   count: Value,
   open: Value,
   sep: Value,

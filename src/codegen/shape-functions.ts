@@ -14,12 +14,14 @@ import { RECORD_HEADER_SLOTS, loadShape, loadShapeWord, shapeGlobalName } from "
 import { MAX_DEPTH, inspectStored } from "./inspect.js";
 import { jsonStored, linePrefix, nextDepth } from "./json.js";
 import { V_UNDEFINED } from "./value.js";
+import { emitJsonAnyFunctions, inspectAny, jsonAny } from "./json-any.js";
 
 export function emitShapeFunctions(mod: ModuleBuilder, shapes: readonly ShapeDescriptor[]): void {
   for (const s of shapes) {
     emitInspect(mod, s, shapes);
     emitJson(mod, s, shapes);
   }
+  emitJsonAnyFunctions(mod, shapes, (fn) => fnCtx(mod, fn, shapes));
 }
 
 function fnCtx(mod: ModuleBuilder, fn: Ctx["fn"], shapes: readonly ShapeDescriptor[]): Ctx {
@@ -223,7 +225,12 @@ function forEachRuntimeField(
   s: ShapeDescriptor,
   ctx: Ctx,
   obj: Value,
-  each: (k: Value, field: ShapeDescriptor["fields"][number], raw: Value) => void,
+  each: (
+    k: Value,
+    field: ShapeDescriptor["fields"][number] | null,
+    raw: Value,
+    name: Value,
+  ) => void,
 ): void {
   const fn = ctx.fn;
   const shape = loadShape(obj, ctx);
@@ -247,13 +254,14 @@ function forEachRuntimeField(
     const missB = fn.newBlock("tmpl.nofield");
     fn.brCond(fn.icmp("eq", name, ctx.mod.internedString(f.name)), hitB, missB);
     fn.switchTo(hitB);
-    each(k, f, raw);
+    each(k, f, raw, name);
     fn.br(nextB);
     fn.switchTo(missB);
   }
-  // cs_json_object only ever lays out the template's own names.
-  fn.callVoid("@cs_shape_mismatch", []);
-  fn.unreachable();
+  // A key the target type does not declare (cs_json_object keeps it, as Node does): its value is an
+  // any-JSON word and its name is only known at run time.
+  each(k, null, raw, name);
+  fn.br(nextB);
   fn.switchTo(nextB);
   fn.store(fn.ladd(k, imm(T.i64, 1)), kPtr);
   fn.br(headB);
@@ -279,7 +287,7 @@ function emitTemplateInspect(s: ShapeDescriptor, ctx: Ctx, obj: Value, depth: Va
   const accPtr = fn.alloca(T.ptr);
   fn.store(ctx.mod.cstring("{ "), accPtr);
   const append = (v: Value): void => fn.store(concat(ctx, fn.load(T.ptr, accPtr), v), accPtr);
-  forEachRuntimeField(s, ctx, obj, (k, f, raw) => {
+  forEachRuntimeField(s, ctx, obj, (k, f, raw, name) => {
     const sepB = fn.newBlock("insp.sep");
     const keyB = fn.newBlock("insp.key");
     fn.brCond(fn.icmp("sgt", k, imm(T.i64, 0)), sepB, keyB);
@@ -287,6 +295,12 @@ function emitTemplateInspect(s: ShapeDescriptor, ctx: Ctx, obj: Value, depth: Va
     append(ctx.mod.cstring(", "));
     fn.br(keyB);
     fn.switchTo(keyB);
+    if (f === null) {
+      append(fn.call("@cs_inspect_key", T.ptr, [name]));
+      append(ctx.mod.cstring(": "));
+      append(inspectAny(raw, ctx, inner));
+      return;
+    }
     append(ctx.mod.cstring(`${f.name}: `));
     append(inspectStored(raw, f.type, ctx, inner));
   });
@@ -309,7 +323,7 @@ function emitTemplateJson(
   fn.store(ctx.mod.cstring("{"), accPtr);
   const append = (v: Value): void => fn.store(concat(ctx, fn.load(T.ptr, accPtr), v), accPtr);
   // Every laid-out key holds a JSON value (never undefined), so each one is written.
-  forEachRuntimeField(s, ctx, obj, (k, f, raw) => {
+  forEachRuntimeField(s, ctx, obj, (k, f, raw, name) => {
     const commaB = fn.newBlock("json.comma");
     const keyB = fn.newBlock("json.key");
     fn.brCond(fn.icmp("sgt", k, imm(T.i64, 0)), commaB, keyB);
@@ -318,6 +332,12 @@ function emitTemplateJson(
     fn.br(keyB);
     fn.switchTo(keyB);
     append(child);
+    if (f === null) {
+      append(fn.call("@cs_json_str", T.ptr, [name]));
+      append(colon);
+      append(jsonAny(raw, ctx, indent, inner));
+      return;
+    }
     append(ctx.mod.cstring(`"${f.name}"`));
     append(colon);
     append(jsonStored(raw, f.type, ctx, indent, inner));

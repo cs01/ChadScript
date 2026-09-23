@@ -439,6 +439,8 @@ export type HExpr =
       kind: "jsonParse";
       text: HExpr;
       objectShapes: JsonObjectTarget[];
+      // The template with no declared fields that objects under undeclared keys are laid out with.
+      dynamicShape: number;
       type: ValueType;
     }
   // `Number.isInteger/isFinite/isNaN(x)` — no argument coercion (x is already number). Result bool.

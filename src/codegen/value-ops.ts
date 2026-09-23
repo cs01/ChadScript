@@ -388,9 +388,10 @@ export function valueStrictEq(a: Value, b: Value, ctx: Ctx): Value {
 // undefined for such a value); the validator keeps a top-level one out and the field writer skips
 // the word before calling here.
 export function jsonValue(raw: Value, t: ValueType, ctx: Ctx, indent: Value, depth: Value): Value {
-  return switchOnValue(raw, membersOf(t), T.ptr, ctx, (m) => {
+  // No arm for `undefined`: callers never pass that word, so it falls to the mismatch trap.
+  const members = membersOf(t).filter((m) => m.kind !== "undefined");
+  return switchOnValue(raw, members, T.ptr, ctx, (m) => {
     if (m.kind === "null") return ctx.mod.cstring("null");
-    if (m.kind === "undefined") return ice("JSON text of an undefined Value");
     return jsonStringify(unboxValue(raw, m, ctx), m, ctx, indent, depth);
   });
 }

@@ -199,7 +199,7 @@ function sizePrefix(kind: string, len: Value, ctx: Ctx): Value {
 
 // Build `open` + (empty ? "" : " e0, e1 " ) + `close` over `count` elements, calling `elemStr(i)`
 // for each. Empty → `openclose` with no interior spaces (Node: `[]`, `{}`).
-function joinBracketed(
+export function joinBracketed(
   count: Value,
   open: string,
   close: string,

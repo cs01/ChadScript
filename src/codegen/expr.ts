@@ -385,7 +385,13 @@ export function evalValue(expr: HExpr, ctx: Ctx): Value {
   // arrayHof spans result types (map/filter→array, reduce→any, forEach→undefined); handle it
   // before the type switch so forEach's `undefined` result type doesn't hit the default ICE.
   if (expr.kind === "jsonParse") {
-    return jsonParse(evalString(expr.text, ctx), expr.type, expr.objectShapes, ctx);
+    return jsonParse(
+      evalString(expr.text, ctx),
+      expr.type,
+      expr.objectShapes,
+      expr.dynamicShape,
+      ctx,
+    );
   }
   if (expr.kind === "arrayHof") return evalArrayHof(expr, ctx);
   if (expr.kind === "conditional") return evalConditional(expr, ctx);

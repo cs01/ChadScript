@@ -15,7 +15,23 @@
 // that needs a drop (every local is a raw pointer, a scalar or a literal), so skipping the frames
 // leaks nothing.
 
-from "./abi" import { CsString, CsShape, GC_malloc, GC_malloc_atomic, memcpy, byteAt }
+from "./abi" import {
+    CsString,
+    CsShape,
+    GC_malloc,
+    GC_malloc_atomic,
+    memcpy,
+    byteAt,
+    f64Bits,
+    KIND_VALUE,
+    VALUE_NULL,
+    VALUE_TRUE,
+    VALUE_FALSE,
+    VALUE_DOUBLE_OFFSET,
+    TAG_STRING,
+    TAG_ARRAY,
+}
+from "./array" import { cs_array_new, cs_array_push }
 from "./csstring" import { cs_str_mk, cs_str_from }
 from "./strings" import { cs_str_eq }
 from "./errors" import { throwErrorLit, throwError }
@@ -561,17 +577,25 @@ fn templateIndex(template: *CsShape, key: *CsString): i64 {
     return -1
 }
 
-// Whether `shape` lays out exactly the template fields `order[0..n)`. Derived shapes hold the
-// template's own name pointers, so pointer equality is the comparison.
-fn sameOrder(shape: *CsShape, template: *CsShape, order: *i64, n: i64): bool {
+// Whether `shape` lays out the keys of this object: `order[k]` is the template field index of key k,
+// or -1 for a key the type does not declare (named by `keys[k]`). Declared names are the template's
+// own pointers, so pointer equality compares them; an undeclared name was copied from some earlier
+// text, so it compares by content.
+fn sameOrder(shape: *CsShape, template: *CsShape, order: *i64, keys: **CsString, n: i64): bool {
     unsafe {
         if shape.fieldCount != n {
             return false
         }
         var k: i64 = 0
         while k < n {
-            if shape.names[k] as i64 != template.names[order[k]] as i64 {
-                return false
+            if order[k] >= 0 {
+                if shape.names[k] as i64 != template.names[order[k]] as i64 {
+                    return false
+                }
+            } else {
+                if shape.kinds[k] != KIND_VALUE || cs_str_eq(shape.names[k], keys[k]) == 0 {
+                    return false
+                }
             }
             k = k + 1
         }
@@ -579,11 +603,17 @@ fn sameOrder(shape: *CsShape, template: *CsShape, order: *i64, n: i64): bool {
     return true
 }
 
-fn internShape(template: *CsShape, cache: **JsonShapeNode, order: *i64, n: i64): *CsShape {
+fn internShape(
+    template: *CsShape,
+    cache: **JsonShapeNode,
+    order: *i64,
+    keys: **CsString,
+    n: i64,
+): *CsShape {
     unsafe {
         var cur = *cache
         while cur as i64 != 0 {
-            if sameOrder(cur.shape, template, order, n) {
+            if sameOrder(cur.shape, template, order, keys, n) {
                 return cur.shape
             }
             cur = cur.next
@@ -592,8 +622,13 @@ fn internShape(template: *CsShape, cache: **JsonShapeNode, order: *i64, n: i64):
         let kinds = GC_malloc_atomic(n + 1)
         var k: i64 = 0
         while k < n {
-            names[k] = template.names[order[k]]
-            kinds[k] = template.kinds[order[k]]
+            if order[k] >= 0 {
+                names[k] = template.names[order[k]]
+                kinds[k] = template.kinds[order[k]]
+            } else {
+                names[k] = keys[k]
+                kinds[k] = KIND_VALUE
+            }
             k = k + 1
         }
         let shape = GC_malloc(72) as *CsShape
@@ -614,10 +649,48 @@ fn internShape(template: *CsShape, cache: **JsonShapeNode, order: *i64, n: i64):
     }
 }
 
+// The Value word of a JSON value no type describes (an undeclared key's value, or anything inside
+// one): the plain JSON kinds, with arrays of such words and objects laid out by the dynamic
+// template, whose printers treat every field this same way (src/codegen/json-any.ts).
+fn anyValue(v: *JsonValue, dyn: *CsShape, dynCache: **JsonShapeNode, path: *CsString): u64 {
+    unsafe {
+        if v.kind == JSON_NULL {
+            return VALUE_NULL
+        }
+        if v.kind == JSON_BOOL {
+            if v.bval != 0 {
+                return VALUE_TRUE
+            }
+            return VALUE_FALSE
+        }
+        if v.kind == JSON_NUMBER {
+            // JSON has no NaN, so no canonicalization is needed before the offset.
+            return f64Bits(v.num) + VALUE_DOUBLE_OFFSET
+        }
+        if v.kind == JSON_STRING {
+            return v.str as i64 as u64 | TAG_STRING
+        }
+        if v.kind == JSON_ARRAY {
+            let arr = cs_array_new()
+            var i: i64 = 0
+            while i < v.count as i64 {
+                cs_array_push(arr, anyValue(v.items[i], dyn, dynCache, path) as i64)
+                i = i + 1
+            }
+            return arr as i64 as u64 | TAG_ARRAY
+        }
+        let rec = cs_json_object(v, dyn, dynCache, 0 as *u64, path, dyn, dynCache)
+        return rec as i64 as u64
+    }
+}
+
 // Build the record for a parsed JSON object whose declared fields codegen already validated into
 // `vals` (template field order). The record holds the keys the TEXT has, in text order (the parser
 // already folded duplicates: first position, last value), so it prints, serializes and lists keys
-// like Node's object. A key the target type does not declare throws: see src/codegen/json-parse.ts.
+// like Node's object. A key the target type does not declare is kept too, as Node keeps it: its
+// value becomes a plain Value word (anyValue), so printing, JSON.stringify and Object.keys show it,
+// while the program cannot name it (tsc rejects the read). `dyn` is the dynamic template (no
+// declared fields) that nested undeclared objects are laid out with.
 @externalLinkage
 pub fn cs_json_object(
     v: *JsonValue,
@@ -625,31 +698,27 @@ pub fn cs_json_object(
     cache: **JsonShapeNode,
     vals: *u64,
     path: *CsString,
+    dyn: *CsShape,
+    dynCache: **JsonShapeNode,
 ): *u64 {
     unsafe {
         let n = v.nfields as i64
         let order = GC_malloc_atomic(n * 8 + 8) as *i64
         var k: i64 = 0
         while k < n {
-            let j = templateIndex(template, v.keys[k])
-            if j < 0 {
-                var b = SBuf { data: 0 as *u8, len: 0, cap: 0 }
-                sbufPushLit(&mut b, "JSON.parse: unexpected property '")
-                sbufPushStr(&mut b, v.keys[k])
-                sbufPushLit(&mut b, "' at ")
-                sbufPushStr(&mut b, path)
-                sbufPushLit(&mut b, " (not declared by the target type)")
-                throwError(cs_str_mk(b.data, b.len))
-            }
-            order[k] = j
+            order[k] = templateIndex(template, v.keys[k])
             k = k + 1
         }
-        let shape = internShape(template, cache, order, n)
+        let shape = internShape(template, cache, order, v.keys, n)
         let rec = GC_malloc(n * 8 + 8) as *u64
         rec[0] = shape as i64 as u64
         k = 0
         while k < n {
-            rec[k + 1] = vals[order[k]]
+            if order[k] >= 0 {
+                rec[k + 1] = vals[order[k]]
+            } else {
+                rec[k + 1] = anyValue(v.vals[k], dyn, dynCache, path)
+            }
             k = k + 1
         }
         return rec

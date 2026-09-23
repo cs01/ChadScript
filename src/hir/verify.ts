@@ -503,6 +503,7 @@ function verifyExpr(e: HExpr): void {
       return;
     case "jsonParse":
       e.objectShapes.forEach((s) => verifyShapeId(s.shape, "JSON.parse"));
+      verifyShapeId(e.dynamicShape, "JSON.parse dynamic template");
       verifyExpr(e.text);
       return;
     case "numberPredicate":

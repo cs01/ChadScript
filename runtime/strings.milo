@@ -82,6 +82,29 @@ fn hexUpper(d: i64): u8 {
     return chars[d]
 }
 
+// A property key as util.inspect prints it: bare when it is an identifier (`[A-Za-z_$][\w$]*`),
+// else quoted like a string value. Only keys known at run time (JSON.parse keys the type does not
+// declare) come through here; declared names are spelled by codegen.
+@externalLinkage
+pub fn cs_inspect_key(s: *CsString): *CsString {
+    let n = slen(s)
+    var ok = n > 0
+    var i: i64 = 0
+    while ok && i < n {
+        let c = sbyte(s, i)
+        let alpha = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || c == '$'
+        let digit = c >= '0' && c <= '9'
+        if !(alpha || (digit && i > 0)) {
+            ok = false
+        }
+        i = i + 1
+    }
+    if ok {
+        return s
+    }
+    return cs_inspect_str(s)
+}
+
 // util.inspect string: quoted. Node prefers single quotes; if the string has a single quote but no
 // double quote it uses double quotes; otherwise single quotes with `'` escaped. Backslash and
 // control chars are escaped exactly as Node does: \b \t \n \f \r are named, every other byte below
