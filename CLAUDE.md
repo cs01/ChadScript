@@ -1,8 +1,8 @@
 # ChadScript working rules
 
 Read `PLAN.md` first: it is the only charter (mission, constitution, value model, phases).
-Work happens on the `v2` branch; commit directly and push `origin v2`. Never land on `main`
-(dead v1; recover code with `git show main:<path>`).
+Work happens on `main`; commit directly and push `origin main`, no PRs. The dead v1 compiler
+lives on branch `v1` (tag `v1-final`); recover old code with `git show v1:<path>`.
 
 ## Dev loop
 

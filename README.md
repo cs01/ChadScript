@@ -4,9 +4,8 @@
 in, a small native binary out. Every program it accepts behaves exactly as it does under Node;
 everything else is rejected at compile time with a diagnostic that says why.
 
-> Status: pre-alpha, on the `v2` branch. The pipeline works end to end, but the object model is
-> being replaced (see [`PLAN.md`](PLAN.md)); until then, some structurally typed programs
-> miscompile. Don't use it for anything real yet.
+> Status: pre-alpha. Phases 0-5 of [`PLAN.md`](PLAN.md) are done (modules, Milo runtime, shaped
+> objects, unions, closures, generics); the garbage collector and the 0.1 release are in progress.
 
 ```ts
 // examples/shapes.ts (excerpt)
@@ -96,8 +95,8 @@ and truthiness (narrow it first); `Map`/`Set` keyed by a union. See the phases i
 
 ## History
 
-`main` holds v1, a self-hosting compiler that inferred types during codegen and could not be
-stabilized. A second attempt (`hir`) went fully dynamic and lost scope. This branch is the third,
+Branch `v1` (tag `v1-final`) holds v1, a self-hosting compiler that inferred types during codegen
+and could not be stabilized. A second attempt (`hir`) went fully dynamic and lost scope. This is the third,
 built around tsc as the type oracle and Node as the test oracle. [`PLAN.md`](PLAN.md) has the
 post-mortems.
 

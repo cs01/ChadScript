@@ -325,7 +325,7 @@ manifest. Estimates in LOC.
 
 ## History
 
-- **v1** (`main`, ~88K LOC, dead): types were resolved during codegen against a mutable symbol
+- **v1** (branch `v1`, ~88K LOC, dead): types were resolved during codegen against a mutable symbol
   table, so nothing could be computed ahead of time; every fix destabilized self-hosting.
   Lesson: types fully resolved before the backend.
 - **hir** (`~/git/hir`, stalled 2026-05): everything NaN-boxed, chased prototype chains and
