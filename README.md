@@ -3,6 +3,7 @@
 **An ahead-of-time compiler for a statically analyzable subset of TypeScript.** Ordinary `.ts`
 in, a small native binary out. Every program it accepts behaves exactly as it does under Node;
 everything else is rejected at compile time with a diagnostic that says why.
+Documentation: **[cs01.github.io/ChadScript](https://cs01.github.io/ChadScript/)**.
 
 > Status: pre-alpha. Phases 0-6 of [`PLAN.md`](PLAN.md) are done (modules, Milo runtime, shaped
 > objects, unions, closures, generics, own GC); the 0.1 release is in progress.
@@ -88,6 +89,9 @@ and truthiness (narrow it first); `Map`/`Set` keyed by a union. See the phases i
 
 ## Docs
 
+- **[cs01.github.io/ChadScript](https://cs01.github.io/ChadScript/)**: the documentation site
+  (getting started, language guide, subset and error reference, internals, benchmarks). Every
+  code sample on it is compiled and diffed against Node by `tests/slow/docs-examples.test.ts`.
 - [`PLAN.md`](PLAN.md): the charter. Mission, value model, modules, GC and runtime plan, phases.
 - [`docs/SUBSET.md`](docs/SUBSET.md): the accepted subset, generated from the validator.
 - [`docs/async-design.md`](docs/async-design.md): the async runtime model.

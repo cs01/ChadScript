@@ -1,0 +1,157 @@
+{
+  "machine": {
+    "cpu": "Apple M4",
+    "os": "macOS 26.6.2 (arm64)",
+    "node": "v25.3.0",
+    "clang": "Homebrew clang version 22.1.8",
+    "rustc": "rustc 1.94.0 (4a4ef493e 2026-03-02)",
+    "date": "2026-09-23"
+  },
+  "runs": 5,
+  "results": [
+    {
+      "name": "binary_trees",
+      "timings": [
+        {
+          "label": "chad",
+          "ms": 231.1296669999997
+        },
+        {
+          "label": "node",
+          "ms": 130.95629099999996
+        },
+        {
+          "label": "rust",
+          "ms": 199.6537919999996
+        }
+      ],
+      "note": null
+    },
+    {
+      "name": "fib",
+      "timings": [
+        {
+          "label": "chad",
+          "ms": 24.797999999999774
+        },
+        {
+          "label": "node",
+          "ms": 96.79470800000036
+        },
+        {
+          "label": "rust",
+          "ms": 29.10241700000006
+        }
+      ],
+      "note": null
+    },
+    {
+      "name": "map_lookup",
+      "timings": [
+        {
+          "label": "chad",
+          "ms": 105.51766599999974
+        },
+        {
+          "label": "node",
+          "ms": 58.15849999999955
+        },
+        {
+          "label": "rust",
+          "ms": 12.088333000000603
+        }
+      ],
+      "note": null
+    },
+    {
+      "name": "matmul",
+      "timings": [
+        {
+          "label": "chad",
+          "ms": 105.66545800000131
+        },
+        {
+          "label": "node",
+          "ms": 89.34066699999858
+        },
+        {
+          "label": "rust",
+          "ms": 5.574291000000812
+        }
+      ],
+      "note": null
+    },
+    {
+      "name": "montecarlo",
+      "timings": [
+        {
+          "label": "chad",
+          "ms": 919.8967919999996
+        },
+        {
+          "label": "node",
+          "ms": 1022.9745829999993
+        },
+        {
+          "label": "rust",
+          "ms": 931.8610420000005
+        }
+      ],
+      "note": null
+    },
+    {
+      "name": "nbody",
+      "timings": [
+        {
+          "label": "chad",
+          "ms": 125.02191700000185
+        },
+        {
+          "label": "node",
+          "ms": 247.9084580000017
+        },
+        {
+          "label": "rust",
+          "ms": 19.326458999999886
+        }
+      ],
+      "note": null
+    },
+    {
+      "name": "sieve",
+      "timings": [
+        {
+          "label": "chad",
+          "ms": 52.84320800000205
+        },
+        {
+          "label": "node",
+          "ms": 113.20395900000221
+        },
+        {
+          "label": "rust",
+          "ms": 9.6884579999969
+        }
+      ],
+      "note": null
+    },
+    {
+      "name": "sorting",
+      "timings": [
+        {
+          "label": "chad",
+          "ms": 48.52008300000307
+        },
+        {
+          "label": "node",
+          "ms": 76.2063749999943
+        },
+        {
+          "label": "rust",
+          "ms": 24.273874999998952
+        }
+      ],
+      "note": null
+    }
+  ]
+}

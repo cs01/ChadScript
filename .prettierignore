@@ -3,3 +3,9 @@ node_modules/
 *.o
 bun.lock
 docs/SUBSET.md
+# Docs site: build output, generated pages (drift-tested against their generators), lockfile.
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+docs/generated/
+docs/reference/errors.md
+docs/package-lock.json

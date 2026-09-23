@@ -1,0 +1,6 @@
+0.3333333333333333 -0 1e+21 NaN text true null undefined
+[ 1, 'two', [ 3, 4 ] ] { name: 'ada', tags: [ 'x' ], nested: { depth: 2 } }
+Point { x: 1, y: 2 } [ Point { x: 3, y: 4 } ]
+Map(1) { 'a' => 1 } Set(2) { 1, 2 }
+ada scored 9.5 (95%)
+template 1+2 0 0.30000000000000004

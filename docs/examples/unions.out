@@ -1,0 +1,5 @@
+number 42 string HI flags 2/3 nothing
+click at 3,4
+key Enter
+bye
+42 true

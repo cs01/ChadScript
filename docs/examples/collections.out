@@ -1,0 +1,15 @@
+3 false 9
+[ 'the', 'quick', 'brown' ]
+Set(3) { 3, 5, 4 } true
+5,4
+Map(9) {
+  'the' => 3,
+  'quick' => 1,
+  'brown' => 1,
+  'fox' => 1,
+  'jumps' => 1,
+  'over' => 1,
+  'lazy' => 1,
+  'dog' => 1,
+  'end' => 1
+}

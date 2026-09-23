@@ -1,0 +1,8 @@
+port 8080
+checked 8080
+Error: bad port: http
+checked http
+Error: bad port: 70000
+checked 70000
+cleanup runs before the return completes
+result

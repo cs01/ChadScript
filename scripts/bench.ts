@@ -7,6 +7,7 @@
 //
 //   bun run scripts/bench.ts            # everything
 //   bun run scripts/bench.ts fib sieve  # named benchmarks only
+//   bun run scripts/bench.ts --json out.json  # also write the results as JSON (docs/scripts/bench-page.ts)
 
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -29,6 +30,14 @@ interface Timing {
   label: string;
   ms: number;
 }
+
+interface BenchResult {
+  name: string;
+  timings: Timing[] | null; // null when the outputs disagreed or the build failed
+  note: string | null;
+}
+
+const results: BenchResult[] = [];
 
 async function timeIt(cmd: string, args: string[]): Promise<number> {
   let best = Infinity;
@@ -87,6 +96,7 @@ async function runBenchmark(name: string): Promise<void> {
     console.log(`  chad: ${nativeOut}`);
     console.log(`  node: ${nodeOut}`);
     if (hasRust) console.log(`  rust: ${rustOut}`);
+    results.push({ name, timings: null, note: "output mismatch" });
     return;
   }
 
@@ -101,9 +111,14 @@ async function runBenchmark(name: string): Promise<void> {
     .map((t) => `${t.label} ${fmt(t.ms)} (${(t.ms / fastest).toFixed(2)}x)`)
     .join("   ");
   console.log(`${name.padEnd(10)} ${cells}`);
+  results.push({ name, timings, note: null });
 }
 
-const requested = process.argv.slice(2);
+const argv = process.argv.slice(2);
+const jsonAt = argv.indexOf("--json");
+const jsonOut = jsonAt >= 0 ? argv[jsonAt + 1] : undefined;
+if (jsonAt >= 0 && jsonOut === undefined) throw new Error("--json needs a file path");
+const requested = argv.filter((_, i) => jsonAt < 0 || (i !== jsonAt && i !== jsonAt + 1));
 const names =
   requested.length > 0
     ? requested
@@ -114,6 +129,11 @@ for (const name of names.sort()) {
   try {
     await runBenchmark(name);
   } catch (e) {
-    console.log(`${name}: FAILED — ${(e as Error).message.split("\n")[0]}`);
+    const msg = (e as Error).message.split("\n")[0]!;
+    console.log(`${name}: FAILED — ${msg}`);
+    results.push({ name, timings: null, note: `failed: ${msg}` });
   }
+}
+if (jsonOut !== undefined) {
+  writeFileSync(jsonOut, JSON.stringify({ runs: RUNS, results }, null, 2) + "\n");
 }

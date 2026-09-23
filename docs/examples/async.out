@@ -1,0 +1,7 @@
+start
+scoring slow
+scoring fast
+main() returned first
+scores [ 40, 40 ]
+caught Error: offline
+timer fires last

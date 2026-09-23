@@ -1,0 +1,4 @@
+$ bin/chad check rejected.ts
+error[CS1221]: `toFixed` on a number is not supported yet
+  --> rejected.ts:3:13
+  help: build the string form manually, or use `.toString()` / template interpolation

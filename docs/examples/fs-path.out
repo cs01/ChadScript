@@ -1,0 +1,4 @@
+true .txt /tmp
+2 line two
+async read 18 bytes
+exists after unlink: false
