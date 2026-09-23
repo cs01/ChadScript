@@ -4,8 +4,10 @@ import { data } from "./toolchain.data";
 
 # Quickstart
 
-From a fresh clone to a running native binary. ChadScript is pre-alpha and builds from source;
-there is no release binary yet.
+From a fresh clone to a running native binary. With bun and LLVM already installed, running
+every command on this page (clone, setup, first build including the runtime, a rejection) took 6
+seconds on an Apple M4 on 2026-09-23. ChadScript is pre-alpha and builds from source; there is no
+release binary yet.
 
 ## 1. Install the prerequisites
 
