@@ -1,0 +1,115 @@
+// Set runtime. Mirrors the Map design: insertion-ordered elements plus the shared open-addressed
+// index (hashkey.milo), so membership is O(1) while iteration stays a straight walk in JS order.
+// Elements compare with SameValueZero and are uniform i64 slots.
+
+from "./abi" import { CsArray, GC_malloc, memcpy, memmove, byteAt }
+from "./hashkey" import { CsIndex, indexFind, indexInsert, indexRebuild, indexShouldGrow }
+from "./array" import { cs_array_new, cs_array_push, cs_array_len, cs_array_get }
+
+// GC memory: `elems` may hold pointer slots, so it comes from GC_malloc (scanned).
+extern struct CsSet {
+    elems: *i64,
+    len: i32,
+    cap: i32,
+    idx: CsIndex,
+}
+
+@externalLinkage
+pub fn cs_set_new(): *CsSet {
+    unsafe {
+        let s = GC_malloc(32) as *CsSet
+        s.elems = 0 as *i64
+        s.len = 0
+        s.cap = 0
+        s.idx = CsIndex { buckets: 0 as *i32, cap: 0 }
+        return s
+    }
+}
+
+fn find(s: *CsSet, e: i64, kind: i32): i32 {
+    unsafe {
+        return indexFind(s.idx.addrOf(), s.elems, e, kind)
+    }
+}
+
+@externalLinkage
+pub fn cs_set_add(s: *CsSet, e: i64, kind: i32) {
+    // Already present: a no-op that keeps the first insertion position.
+    if find(s, e, kind) >= 0 {
+        return
+    }
+    unsafe {
+        if s.len == s.cap {
+            let nc: i32 = if s.cap == 0 { 4 } else { s.cap * 2 }
+            let ne = GC_malloc(nc as i64 * 8) as *i64
+            if s.len > 0 {
+                memcpy(ne as *u8, s.elems as *u8, s.len as i64 * 8)
+            }
+            s.elems = ne
+            s.cap = nc
+        }
+        s.elems[s.len as i64] = e
+        s.len = s.len + 1
+        if indexShouldGrow(s.idx.addrOf(), s.len) {
+            let nb: i32 = if s.idx.cap == 0 { 16 } else { s.idx.cap * 2 }
+            indexRebuild(s.idx.addrOf(), s.elems, s.len, nb, kind)
+        } else {
+            indexInsert(s.idx.addrOf(), e, s.len - 1, kind)
+        }
+    }
+}
+
+@externalLinkage
+pub fn cs_set_has(s: *CsSet, e: i64, kind: i32): i32 {
+    return if find(s, e, kind) >= 0 { 1 } else { 0 }
+}
+
+@externalLinkage
+pub fn cs_set_delete(s: *CsSet, e: i64, kind: i32): i32 {
+    let i = find(s, e, kind)
+    if i < 0 {
+        return 0
+    }
+    unsafe {
+        // Removal shifts every later element, invalidating stored bucket positions: rebuild.
+        let tail = (s.len - i - 1) as i64 * 8
+        memmove(byteAt(s.elems as *u8, i as i64 * 8), byteAt(s.elems as *u8, (i as i64 + 1) * 8), tail)
+        s.len = s.len - 1
+        indexRebuild(s.idx.addrOf(), s.elems, s.len, s.idx.cap, kind)
+    }
+    return 1
+}
+
+@externalLinkage
+pub fn cs_set_size(s: *CsSet): i32 {
+    unsafe {
+        return s.len
+    }
+}
+
+// values()/keys() -> a fresh array of the boxed element slots, in insertion order.
+@externalLinkage
+pub fn cs_set_values(s: *CsSet): *CsArray {
+    let a = cs_array_new()
+    var i: i64 = 0
+    unsafe {
+        while i < s.len as i64 {
+            cs_array_push(a, s.elems[i])
+            i = i + 1
+        }
+    }
+    return a
+}
+
+// `new Set(array)`: add each element of a uniform-slot array (dedup applied by cs_set_add).
+@externalLinkage
+pub fn cs_set_from_array(arr: *CsArray, kind: i32): *CsSet {
+    let s = cs_set_new()
+    let n = cs_array_len(arr)
+    var i: i32 = 0
+    while i < n {
+        cs_set_add(s, cs_array_get(arr, i), kind)
+        i = i + 1
+    }
+    return s
+}

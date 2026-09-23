@@ -1,0 +1,159 @@
+// Shared key hashing + an open-addressed index, used by both Map and Set.
+//
+// The two must agree: any pair of keys that cs_key_eq calls equal MUST hash the same, or equal keys
+// land in different buckets and a lookup misses. JS Map/Set compare with SameValueZero, so -0 and
+// +0 are one key and NaN equals itself; both are normalized before hashing.
+//
+// The index maps a bucket to a POSITION in the owner's densely packed, insertion-ordered entry
+// array. Keeping entries separate from buckets is what lets keys()/values() stay a straight walk in
+// JS iteration order while lookup is O(1).
+
+from "./abi" import { CsString, GC_malloc_atomic, f64Bits, f64FromBits, isNan }
+from "./strings" import { cs_str_eq }
+
+// Key kind tags, passed by generated IR (equality depends on the key's source type).
+pub let KEY_NUMBER: i32 = 0
+pub let KEY_STRING: i32 = 1
+
+// Embedded by value in the Map and Set headers (GC memory). `buckets` is pointer-free GC memory.
+pub extern struct CsIndex {
+    buckets: *i32,
+    cap: i32,
+}
+
+pub fn keyEq(a: i64, b: i64, kind: i32): bool {
+    if kind == KEY_STRING {
+        unsafe {
+            return cs_str_eq(a as *CsString, b as *CsString) != 0
+        }
+    }
+    if kind == KEY_NUMBER {
+        let x = f64FromBits(a as u64)
+        let y = f64FromBits(b as u64)
+        // SameValueZero: equal numbers, OR both NaN (so NaN is a usable key).
+        return x == y || (isNan(x) && isNan(y))
+    }
+    // boolean: raw slot compare
+    return a == b
+}
+
+// FNV-1a over bytes; wrapping multiplication is the algorithm, not an overflow.
+@wrapping
+fn fnvByte(h: u64, b: u8): u64 {
+    return (h ^ (b as u64)) * 1099511628211
+}
+
+@wrapping
+fn fnvWord(h0: u64, w: u64): u64 {
+    // The word's bytes in memory order (little-endian on every target we build for).
+    var h = h0
+    var i: u64 = 0
+    while i < 8 {
+        h = fnvByte(h, ((w >> (i * 8)) & 255) as u8)
+        i = i + 1
+    }
+    return h
+}
+
+pub fn keyHash(k: i64, kind: i32): u64 {
+    var h: u64 = 1469598103934665603
+    if kind == KEY_STRING {
+        // Hash the BYTES, not the pointer: two distinct CsString objects with the same contents are
+        // the same key. Length is the authority (the buffer may contain embedded NULs).
+        unsafe {
+            let s = k as *CsString
+            let n = s.len
+            let d = s.data
+            var i: i64 = 0
+            while i < n {
+                h = fnvByte(h, d[i])
+                i = i + 1
+            }
+        }
+        return h
+    }
+    if kind == KEY_NUMBER {
+        var d = f64FromBits(k as u64)
+        // Collapse -0 to +0 and every NaN to one canonical NaN, matching keyEq.
+        if d == 0.0 {
+            d = 0.0
+        }
+        if isNan(d) {
+            d = f64.NAN
+        }
+        return fnvWord(h, f64Bits(d))
+    }
+    return fnvWord(h, k as u64)
+}
+
+fn bucketIndex(k: i64, kind: i32, mask: u32): i64 {
+    return ((keyHash(k, kind) as u32) & mask) as i64
+}
+
+// Rebuild the index at `newCap` buckets from the first `len` entries. Required after any operation
+// that shifts entry positions (a delete), and on growth.
+pub fn indexRebuild(ix: *CsIndex, entries: *i64, len: i32, newCap: i32, kind: i32) {
+    unsafe {
+        ix.cap = newCap
+        let buckets = GC_malloc_atomic(newCap as i64 * 4) as *i32
+        ix.buckets = buckets
+        var i: i64 = 0
+        while i < newCap as i64 {
+            buckets[i] = -1
+            i = i + 1
+        }
+        let mask = (newCap - 1) as u32
+        var e: i32 = 0
+        while e < len {
+            var b = bucketIndex(entries[e as i64], kind, mask)
+            while buckets[b] != -1 {
+                b = ((b + 1) as u32 & mask) as i64
+            }
+            buckets[b] = e
+            e = e + 1
+        }
+    }
+}
+
+// Entry position of `k`, or -1.
+pub fn indexFind(ix: *CsIndex, entries: *i64, k: i64, kind: i32): i32 {
+    unsafe {
+        if ix.cap == 0 {
+            return -1
+        }
+        let buckets = ix.buckets
+        let mask = (ix.cap - 1) as u32
+        var b = bucketIndex(k, kind, mask)
+        // Terminates because the load factor keeps the table below full, so an empty bucket always
+        // exists to end the probe.
+        while buckets[b] != -1 {
+            let pos = buckets[b]
+            if keyEq(entries[pos as i64], k, kind) {
+                return pos
+            }
+            b = ((b + 1) as u32 & mask) as i64
+        }
+        return -1
+    }
+}
+
+// Record that the key at entry position `pos` exists. The caller has already ensured headroom via
+// indexShouldGrow.
+pub fn indexInsert(ix: *CsIndex, k: i64, pos: i32, kind: i32) {
+    unsafe {
+        let buckets = ix.buckets
+        let mask = (ix.cap - 1) as u32
+        var b = bucketIndex(k, kind, mask)
+        while buckets[b] != -1 {
+            b = ((b + 1) as u32 & mask) as i64
+        }
+        buckets[b] = pos
+    }
+}
+
+// True when `len` entries would push the table past its load factor.
+pub fn indexShouldGrow(ix: *CsIndex, len: i32): bool {
+    unsafe {
+        return ix.cap == 0 || len as i64 * 10 > ix.cap as i64 * 7
+    }
+}
