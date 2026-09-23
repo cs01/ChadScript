@@ -13,3 +13,4 @@ from "./argv" import { cs_argv_slice2 }
 from "./number" import { cs_to_int32 }
 from "./number-c" import { cs_num_to_str }
 from "./strings" import { cs_str_concat }
+from "./string-methods" import { cs_str_len }

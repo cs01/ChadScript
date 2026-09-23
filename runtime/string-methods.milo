@@ -1,0 +1,587 @@
+// String method runtime. Strings are {data,len} (see abi.milo): every scan is length-bounded and
+// NUL-safe (cs_mem_find, memcmp), never strlen/strstr. New strings are GC-allocated. Semantics are
+// JS-exact for ASCII (per the UTF-8 decision); the fuzzer stays ASCII-only.
+
+from "./abi" import { CsString, CsArray, GC_malloc, memcpy, memcmp, byteAt, isNan }
+from "./csstring" import { cs_str_mk, cs_str_from, cs_mem_find, strLit }
+from "./strings" import { isWs, digitValue }
+from "./array" import { cs_array_new, cs_array_push }
+from "./nullable" import { undefinedMarker, boxSlot }
+from "./libc" import { strtod }
+
+fn sdata(s: *CsString): *u8 {
+    unsafe {
+        return s.data
+    }
+}
+
+fn slen(s: *CsString): i64 {
+    unsafe {
+        return s.len
+    }
+}
+
+fn sbyte(s: *CsString, i: i64): u8 {
+    unsafe {
+        return s.data[i]
+    }
+}
+
+fn clamp(v: i64, lo: i64, hi: i64): i64 {
+    if v < lo {
+        return lo
+    }
+    if v > hi {
+        return hi
+    }
+    return v
+}
+
+@externalLinkage
+pub fn cs_str_len(s: *CsString): i32 {
+    return slen(s) as i32
+}
+
+fn empty(): *CsString {
+    return strLit("")
+}
+
+// Copy the byte range [a, b) of `s` into a fresh string.
+fn substr(s: *CsString, a: i64, b: i64): *CsString {
+    return cs_str_from(byteAt(sdata(s), a), b - a)
+}
+
+// ASCII case mapping, which is exactly what C toupper/tolower do in the "C" locale the compiled
+// program runs in: bytes outside A-Z / a-z pass through unchanged.
+fn dupCase(s: *CsString, upper: bool): *CsString {
+    let n = slen(s)
+    unsafe {
+        let r = GC_malloc(if n > 0 { n } else { 1 })
+        var i: i64 = 0
+        while i < n {
+            let c = sbyte(s, i)
+            if upper && c >= 'a' && c <= 'z' {
+                r[i] = c - 32
+            } else if !upper && c >= 'A' && c <= 'Z' {
+                r[i] = c + 32
+            } else {
+                r[i] = c
+            }
+            i = i + 1
+        }
+        return cs_str_mk(r, n)
+    }
+}
+
+@externalLinkage
+pub fn cs_str_upper(s: *CsString): *CsString {
+    return dupCase(s, true)
+}
+
+@externalLinkage
+pub fn cs_str_lower(s: *CsString): *CsString {
+    return dupCase(s, false)
+}
+
+// JS trim: strips leading/trailing ASCII whitespace.
+@externalLinkage
+pub fn cs_str_trim(s: *CsString): *CsString {
+    var a: i64 = 0
+    var b = slen(s)
+    while a < b && isWs(sbyte(s, a)) {
+        a = a + 1
+    }
+    while b > a && isWs(sbyte(s, b - 1)) {
+        b = b - 1
+    }
+    return substr(s, a, b)
+}
+
+// JS repeat: `count` copies. Fractional counts truncate; negative is a RangeError in JS, but we
+// don't throw yet: clamp to 0 (documented divergence, rare).
+@externalLinkage
+pub fn cs_str_repeat(s: *CsString, count: f64): *CsString {
+    var c = count as i64
+    if c < 0 {
+        c = 0
+    }
+    let n = slen(s)
+    let total = n * c
+    unsafe {
+        let r = GC_malloc(if total > 0 { total } else { 1 })
+        var i: i64 = 0
+        while i < c {
+            memcpy(byteAt(r, i * n), sdata(s), n)
+            i = i + 1
+        }
+        return cs_str_mk(r, total)
+    }
+}
+
+fn find(s: *CsString, sub: *CsString, from: i64): i64 {
+    return cs_mem_find(sdata(s), slen(s), sdata(sub), slen(sub), from)
+}
+
+// JS includes(sub, position): the search begins at position, clamped to [0, len].
+@externalLinkage
+pub fn cs_str_includes(s: *CsString, sub: *CsString, dpos: f64): i32 {
+    let from = clamp(dpos as i64, 0, slen(s))
+    return if find(s, sub, from) >= 0 { 1 } else { 0 }
+}
+
+// Ordered comparison for the default array sort (lexicographic by byte, ASCII-exact). Sign only.
+@externalLinkage
+pub fn cs_str_cmp(a: *CsString, b: *CsString): i32 {
+    let la = slen(a)
+    let lb = slen(b)
+    let n = if la < lb { la } else { lb }
+    var c: i32 = 0
+    unsafe { c = memcmp(sdata(a), sdata(b), n) }
+    if c != 0 {
+        return c
+    }
+    if la < lb {
+        return -1
+    }
+    if la > lb {
+        return 1
+    }
+    return 0
+}
+
+// JS indexOf(sub, fromIndex): the search begins at fromIndex, clamped to [0, len]. A negative or
+// NaN fromIndex clamps to 0; one past the end returns -1 (or `len` for an empty needle).
+@externalLinkage
+pub fn cs_str_index_of(s: *CsString, sub: *CsString, dfrom: f64): f64 {
+    let from = clamp(dfrom as i64, 0, slen(s))
+    return find(s, sub, from) as f64
+}
+
+// JS lastIndexOf(sub, fromIndex): the LAST index <= fromIndex at which sub starts, or -1. Generated
+// IR passes +Infinity when fromIndex is omitted, so there is no NaN-sentinel collision (an explicit
+// NaN is ToInteger'd to 0, exactly like JS).
+@externalLinkage
+pub fn cs_str_last_index_of(s: *CsString, sub: *CsString, dfrom: f64): f64 {
+    let hlen = slen(s)
+    let nlen = slen(sub)
+    var f = if isNan(dfrom) { 0.0 } else { dfrom }
+    if f < 0.0 {
+        f = 0.0
+    }
+    if f > hlen as f64 {
+        f = hlen as f64
+    }
+    let from = f as i64
+    if nlen == 0 {
+        return from as f64
+    }
+    if nlen > hlen {
+        return -1.0
+    }
+    let maxStart = hlen - nlen
+    var i = if from < maxStart { from } else { maxStart }
+    while i >= 0 {
+        unsafe {
+            if memcmp(byteAt(sdata(s), i), sdata(sub), nlen) == 0 {
+                return i as f64
+            }
+        }
+        i = i - 1
+    }
+    return -1.0
+}
+
+// JS startsWith(p, position): does p occur at `position` (clamped [0,len])? Empty p always matches.
+@externalLinkage
+pub fn cs_str_starts_with(s: *CsString, p: *CsString, dpos: f64): i32 {
+    var pos = dpos as i64
+    if pos < 0 {
+        pos = 0
+    }
+    let n = slen(s)
+    let lp = slen(p)
+    if pos > n {
+        return if lp == 0 { 1 } else { 0 }
+    }
+    if lp > n - pos {
+        return 0
+    }
+    unsafe {
+        return if memcmp(byteAt(sdata(s), pos), sdata(p), lp) == 0 { 1 } else { 0 }
+    }
+}
+
+// JS endsWith(p, endPosition): treat the string as if it ended at endPosition (clamped [0,len]; a
+// NaN sentinel from generated IR means "use the full length", the default). Does p end there?
+@externalLinkage
+pub fn cs_str_ends_with(s: *CsString, p: *CsString, dend: f64): i32 {
+    let n = slen(s)
+    let endPos = if isNan(dend) { n } else { clamp(dend as i64, 0, n) }
+    let lp = slen(p)
+    if lp > endPos {
+        return 0
+    }
+    unsafe {
+        return if memcmp(byteAt(sdata(s), endPos - lp), sdata(p), lp) == 0 { 1 } else { 0 }
+    }
+}
+
+// `str.at(i)` -> `string | undefined`: the 1-char string at i (negative counts from the end), or
+// undefined when out of range, in the nullable representation (a box of the pointer, or the marker).
+@externalLinkage
+pub fn cs_str_at(s: *CsString, di: f64): *u8 {
+    let n = slen(s)
+    var i = di as i64
+    if i < 0 {
+        i = i + n
+    }
+    if i < 0 || i >= n {
+        return undefinedMarker()
+    }
+    return boxSlot(substr(s, i, i + 1) as i64)
+}
+
+// JS charAt: the 1-char string at i, or "" if out of range.
+@externalLinkage
+pub fn cs_str_char_at(s: *CsString, di: f64): *CsString {
+    let i = di as i64
+    if i < 0 || i >= slen(s) {
+        return empty()
+    }
+    return substr(s, i, i + 1)
+}
+
+// JS slice with negative-index resolution against the length.
+fn sliceNorm(s: *CsString, start0: i64, end0: i64): *CsString {
+    let n = slen(s)
+    var start = start0
+    var end = end0
+    if start < 0 {
+        start = if start + n < 0 { 0 } else { start + n }
+    }
+    if start > n {
+        start = n
+    }
+    if end < 0 {
+        end = if end + n < 0 { 0 } else { end + n }
+    }
+    if end > n {
+        end = n
+    }
+    if start >= end {
+        return empty()
+    }
+    return substr(s, start, end)
+}
+
+@externalLinkage
+pub fn cs_str_slice1(s: *CsString, start: f64): *CsString {
+    return sliceNorm(s, start as i64, slen(s))
+}
+
+@externalLinkage
+pub fn cs_str_slice2(s: *CsString, start: f64, end: f64): *CsString {
+    return sliceNorm(s, start as i64, end as i64)
+}
+
+// JS replace(a, b): replaces the FIRST occurrence of substring `a` with `b` (string pattern only).
+@externalLinkage
+pub fn cs_str_replace(s: *CsString, a: *CsString, b: *CsString): *CsString {
+    let hit = find(s, a, 0)
+    if hit < 0 {
+        return substr(s, 0, slen(s))
+    }
+    let la = slen(a)
+    let lb = slen(b)
+    let rest = slen(s) - hit - la
+    let total = hit + lb + rest
+    unsafe {
+        let r = GC_malloc(if total > 0 { total } else { 1 })
+        memcpy(r, sdata(s), hit)
+        memcpy(byteAt(r, hit), sdata(b), lb)
+        memcpy(byteAt(r, hit + lb), byteAt(sdata(s), hit + la), rest)
+        return cs_str_mk(r, total)
+    }
+}
+
+// JS replaceAll(a, b): replaces EVERY occurrence of `a` with `b`. An empty pattern splices `b`
+// around every character (and both ends), matching V8: "abc".replaceAll("","-") === "-a-b-c-".
+@externalLinkage
+pub fn cs_str_replaceAll(s: *CsString, a: *CsString, b: *CsString): *CsString {
+    let ls = slen(s)
+    let la = slen(a)
+    let lb = slen(b)
+    unsafe {
+        if la == 0 {
+            let total0 = lb * (ls + 1) + ls
+            let r0 = GC_malloc(if total0 > 0 { total0 } else { 1 })
+            var o0: i64 = 0
+            var i: i64 = 0
+            while i < ls {
+                memcpy(byteAt(r0, o0), sdata(b), lb)
+                o0 = o0 + lb
+                r0[o0] = sbyte(s, i)
+                o0 = o0 + 1
+                i = i + 1
+            }
+            memcpy(byteAt(r0, o0), sdata(b), lb)
+            o0 = o0 + lb
+            return cs_str_mk(r0, o0)
+        }
+        // Count occurrences to size the result exactly.
+        var count: i64 = 0
+        var p = find(s, a, 0)
+        while p >= 0 {
+            count = count + 1
+            p = find(s, a, p + la)
+        }
+        let total = ls + count * (if lb > la { lb - la } else { 0 })
+        let r = GC_malloc(if total > 0 { total } else { 1 })
+        var o: i64 = 0
+        var start: i64 = 0
+        var hit = find(s, a, start)
+        while hit >= 0 {
+            let pre = hit - start
+            memcpy(byteAt(r, o), byteAt(sdata(s), start), pre)
+            o = o + pre
+            memcpy(byteAt(r, o), sdata(b), lb)
+            o = o + lb
+            start = hit + la
+            hit = find(s, a, start)
+        }
+        let rest = ls - start
+        memcpy(byteAt(r, o), byteAt(sdata(s), start), rest)
+        o = o + rest
+        return cs_str_mk(r, o)
+    }
+}
+
+// JS substr(start, length): start counts from the end when negative; length (a NaN sentinel means
+// "to the end") is clamped at 0. Deprecated in JS but still valid, and present in the fixtures.
+@externalLinkage
+pub fn cs_str_substr(s: *CsString, dstart: f64, dlen: f64): *CsString {
+    let n = slen(s)
+    var start = dstart as i64
+    if start < 0 {
+        start = n + start
+        if start < 0 {
+            start = 0
+        }
+    }
+    if start >= n {
+        return empty()
+    }
+    let length = if isNan(dlen) { n - start } else { dlen as i64 }
+    if length <= 0 {
+        return empty()
+    }
+    var end = start + length
+    if end > n {
+        end = n
+    }
+    return substr(s, start, end)
+}
+
+// JS substring(a, b): like slice but negatives/NaN clamp to 0 and the indices swap if a > b.
+fn substringNorm(s: *CsString, start0: i64, end0: i64): *CsString {
+    let n = slen(s)
+    let start = clamp(start0, 0, n)
+    let end = clamp(end0, 0, n)
+    if start > end {
+        return substr(s, end, start)
+    }
+    return substr(s, start, end)
+}
+
+@externalLinkage
+pub fn cs_str_substring1(s: *CsString, start: f64): *CsString {
+    return substringNorm(s, start as i64, slen(s))
+}
+
+@externalLinkage
+pub fn cs_str_substring2(s: *CsString, start: f64, end: f64): *CsString {
+    return substringNorm(s, start as i64, end as i64)
+}
+
+@externalLinkage
+pub fn cs_str_trim_start(s: *CsString): *CsString {
+    let n = slen(s)
+    var a: i64 = 0
+    while a < n && isWs(sbyte(s, a)) {
+        a = a + 1
+    }
+    return substr(s, a, n)
+}
+
+@externalLinkage
+pub fn cs_str_trim_end(s: *CsString): *CsString {
+    var b = slen(s)
+    while b > 0 && isWs(sbyte(s, b - 1)) {
+        b = b - 1
+    }
+    return substr(s, 0, b)
+}
+
+// JS padStart/padEnd: pad `s` with copies of `pad` (truncated to fit) until it reaches `target`
+// length. If already long enough, or `pad` is empty, returns a copy of `s`.
+fn pad(s: *CsString, dtarget: f64, padStr: *CsString, atStart: bool): *CsString {
+    let n = slen(s)
+    let lp = slen(padStr)
+    let target = dtarget as i64
+    if target < 0 || target <= n || lp == 0 {
+        return substr(s, 0, n)
+    }
+    let fill = target - n
+    unsafe {
+        let r = GC_malloc(target)
+        let dst = if atStart { r } else { byteAt(r, n) }
+        var i: i64 = 0
+        while i < fill {
+            dst[i] = sbyte(padStr, i % lp)
+            i = i + 1
+        }
+        memcpy(if atStart { byteAt(r, fill) } else { r }, sdata(s), n)
+        return cs_str_mk(r, target)
+    }
+}
+
+@externalLinkage
+pub fn cs_str_pad_start(s: *CsString, target: f64, padStr: *CsString): *CsString {
+    return pad(s, target, padStr, true)
+}
+
+@externalLinkage
+pub fn cs_str_pad_end(s: *CsString, target: f64, padStr: *CsString): *CsString {
+    return pad(s, target, padStr, false)
+}
+
+// A NUL-terminated private copy, so the numeric parsers can keep their pointer-walking spec logic.
+// An embedded NUL then reads as a parse stopper (JS parseInt/parseFloat both halt at the first
+// non-numeric byte, which NUL is).
+fn nulTerm(s: *CsString): *u8 {
+    let n = slen(s)
+    unsafe {
+        let b = GC_malloc(n + 1)
+        memcpy(b, sdata(s), n)
+        b[n] = 0
+        return b
+    }
+}
+
+// ECMAScript parseInt(str, radix). Skip leading whitespace, optional sign, `0x` prefix for radix
+// 16, parse digits valid in the radix, stop at the first invalid char; no valid digits -> NaN.
+// `dradix` of 0 means the argument was omitted (default 10, with 0x auto-detect).
+@externalLinkage
+pub fn cs_parse_int(str: *CsString, dradix: f64): f64 {
+    let s = nulTerm(str)
+    unsafe {
+        var i: i64 = 0
+        while isWs(s[i]) {
+            i = i + 1
+        }
+        var sign = 1.0
+        if s[i] == '+' {
+            i = i + 1
+        } else if s[i] == '-' {
+            sign = -1.0
+            i = i + 1
+        }
+        var radix = dradix as i32 as i64
+        let omitted = dradix == 0.0
+        if omitted {
+            radix = 10
+        }
+        if !omitted && (radix < 2 || radix > 36) {
+            return f64.NAN
+        }
+        // 0x prefix: consumed when radix is 16, or when the radix was omitted (then it forces 16).
+        if s[i] == '0' && (s[i + 1] == 'x' || s[i + 1] == 'X') && (radix == 16 || omitted) {
+            radix = 16
+            i = i + 2
+        }
+        var result = 0.0
+        var any = false
+        while s[i] != 0 {
+            let d = digitValue(s[i])
+            if d >= radix {
+                break
+            }
+            result = result * radix as f64 + d as f64
+            any = true
+            i = i + 1
+        }
+        if !any {
+            return f64.NAN
+        }
+        return sign * result
+    }
+}
+
+// ECMAScript parseFloat(str). Skip leading whitespace and a sign; accept the literal "Infinity";
+// otherwise the token must start with a digit or '.', which rejects "inf"/"nan"/identifiers that
+// strtod would otherwise consume. A leading "0x" parses only the "0" (JS stops at 'x').
+@externalLinkage
+pub fn cs_parse_float(str: *CsString): f64 {
+    let s0 = nulTerm(str)
+    unsafe {
+        var i: i64 = 0
+        while isWs(s0[i]) {
+            i = i + 1
+        }
+        let s = byteAt(s0, i)
+        var p: i64 = 0
+        var sign = 1.0
+        if s[0] == '+' {
+            p = 1
+        } else if s[0] == '-' {
+            sign = -1.0
+            p = 1
+        }
+        let inf = "Infinity"
+        var k: i64 = 0
+        while k < 8 && s[p + k] == inf[k] {
+            k = k + 1
+        }
+        if k == 8 {
+            return sign * f64.INF
+        }
+        let c = s[p]
+        if !((c >= '0' && c <= '9') || c == '.') {
+            return f64.NAN
+        }
+        if c == '0' && (s[p + 1] == 'x' || s[p + 1] == 'X') {
+            return sign * 0.0
+        }
+        var end: *u8 = 0 as *u8
+        let v = strtod(s, end.addrOf())
+        if end as i64 == s as i64 {
+            return f64.NAN
+        }
+        return v
+    }
+}
+
+// JS split(sep): array of substrings. An empty separator yields one element per character.
+@externalLinkage
+pub fn cs_str_split(s: *CsString, sep: *CsString): *CsArray {
+    let arr = cs_array_new()
+    let ls = slen(s)
+    let lsep = slen(sep)
+    if lsep == 0 {
+        var i: i64 = 0
+        while i < ls {
+            cs_array_push(arr, substr(s, i, i + 1) as i64)
+            i = i + 1
+        }
+        return arr
+    }
+    var start: i64 = 0
+    var hit = find(s, sep, start)
+    while hit >= 0 {
+        cs_array_push(arr, substr(s, start, hit) as i64)
+        start = hit + lsep
+        hit = find(s, sep, start)
+    }
+    cs_array_push(arr, substr(s, start, ls) as i64)
+    return arr
+}
