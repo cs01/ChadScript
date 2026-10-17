@@ -1,9 +1,9 @@
 {
   "total": 100,
-  "match": 0,
-  "rejected": 95,
+  "match": 1,
+  "rejected": 99,
   "divergent": 0,
-  "crash": 5,
+  "crash": 0,
   "categories": [
     {
       "name": "algorithms",
@@ -33,9 +33,9 @@
       "name": "data-structures",
       "total": 9,
       "match": 0,
-      "rejected": 8,
+      "rejected": 9,
       "divergent": 0,
-      "crash": 1
+      "crash": 0
     },
     {
       "name": "errors",
@@ -49,17 +49,17 @@
       "name": "generics",
       "total": 8,
       "match": 0,
-      "rejected": 7,
+      "rejected": 8,
       "divergent": 0,
-      "crash": 1
+      "crash": 0
     },
     {
       "name": "interpreters",
       "total": 5,
       "match": 0,
-      "rejected": 3,
+      "rejected": 5,
       "divergent": 0,
-      "crash": 2
+      "crash": 0
     },
     {
       "name": "oop",
@@ -80,10 +80,10 @@
     {
       "name": "scripts",
       "total": 7,
-      "match": 0,
+      "match": 1,
       "rejected": 6,
       "divergent": 0,
-      "crash": 1
+      "crash": 0
     },
     {
       "name": "simulation",
@@ -106,7 +106,7 @@
     {
       "code": "CS1204",
       "message": "the non-null assertion `!` is not allowed",
-      "programs": 50,
+      "programs": 52,
       "examples": [
         "tests/corpus/async-line-processor.ts",
         "tests/corpus/backtracking.ts",
@@ -116,7 +116,7 @@
     {
       "code": "CS1213",
       "message": "regular expression literals are not supported yet",
-      "programs": 27,
+      "programs": 29,
       "examples": [
         "tests/corpus/calc-interpreter.ts",
         "tests/corpus/case-convert.ts",
@@ -136,7 +136,7 @@
     {
       "code": "CS1217",
       "message": "default parameter values are not supported yet",
-      "programs": 21,
+      "programs": 23,
       "examples": [
         "tests/corpus/animals.ts",
         "tests/corpus/bank-ledger.ts",
@@ -156,11 +156,21 @@
     {
       "code": "CS1000",
       "message": "indexing an object with a computed key is not supported",
-      "programs": 14,
+      "programs": 15,
       "examples": [
         "tests/corpus/binary-search.ts",
         "tests/corpus/bitset.ts",
         "tests/corpus/brainfuck.ts"
+      ]
+    },
+    {
+      "code": "CS1216",
+      "message": "indexing a string with `[i]` is not supported yet",
+      "programs": 12,
+      "examples": [
+        "tests/corpus/calc-interpreter.ts",
+        "tests/corpus/cli-options.ts",
+        "tests/corpus/cli-replace.ts"
       ]
     },
     {
@@ -174,16 +184,6 @@
       ]
     },
     {
-      "code": "CS1216",
-      "message": "indexing a string with `[i]` is not supported yet",
-      "programs": 11,
-      "examples": [
-        "tests/corpus/calc-interpreter.ts",
-        "tests/corpus/cli-options.ts",
-        "tests/corpus/cli-replace.ts"
-      ]
-    },
-    {
       "code": "CS1224",
       "message": "`Array.prototype.fill` is not supported yet",
       "programs": 11,
@@ -194,19 +194,9 @@
       ]
     },
     {
-      "code": "CS1222",
-      "message": "`Map.entries` is not supported yet",
-      "programs": 10,
-      "examples": [
-        "tests/corpus/calc-interpreter.ts",
-        "tests/corpus/cli-stats.ts",
-        "tests/corpus/csv-sales-report.ts"
-      ]
-    },
-    {
       "code": "CS1000",
       "message": "a class that extends the built-in `Error` is not supported",
-      "programs": 9,
+      "programs": 10,
       "examples": [
         "tests/corpus/bank-ledger.ts",
         "tests/corpus/calc-interpreter.ts",
@@ -216,11 +206,21 @@
     {
       "code": "CS1216",
       "message": "relational comparison (`<` `>` `<=` `>=`) on strings is not supported yet",
-      "programs": 9,
+      "programs": 10,
       "examples": [
         "tests/corpus/hash-map.ts",
         "tests/corpus/huffman.ts",
-        "tests/corpus/markov-text.ts"
+        "tests/corpus/json-parser.ts"
+      ]
+    },
+    {
+      "code": "CS1222",
+      "message": "`Map.entries` is not supported yet",
+      "programs": 10,
+      "examples": [
+        "tests/corpus/calc-interpreter.ts",
+        "tests/corpus/cli-stats.ts",
+        "tests/corpus/csv-sales-report.ts"
       ]
     },
     {
@@ -285,12 +285,32 @@
     },
     {
       "code": "CS1233",
+      "message": "this value has a type ChadScript does not support here (`{ [key: string]: string; }`)",
+      "programs": 6,
+      "examples": [
+        "tests/corpus/json-parser.ts",
+        "tests/corpus/log-analyzer.ts",
+        "tests/corpus/markdown-to-html.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
       "message": "this value has a type ChadScript does not support here (`Record<string, number>`)",
       "programs": 6,
       "examples": [
         "tests/corpus/expense-tracker.ts",
         "tests/corpus/json-inventory.ts",
         "tests/corpus/number-words.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a type ChadScript does not support here (`Record<string, string>`)",
+      "programs": 6,
+      "examples": [
+        "tests/corpus/case-convert.ts",
+        "tests/corpus/error-hierarchy.ts",
+        "tests/corpus/json-parser.ts"
       ]
     },
     {
@@ -304,23 +324,23 @@
       ]
     },
     {
-      "code": "CS1233",
-      "message": "this value has a type ChadScript does not support here (`{ [key: string]: string; }`)",
+      "code": "CS1000",
+      "message": "`++`/`--` on a field or element is only supported as a statement",
       "programs": 5,
       "examples": [
-        "tests/corpus/log-analyzer.ts",
-        "tests/corpus/markdown-to-html.ts",
-        "tests/corpus/semver.ts"
+        "tests/corpus/calc-interpreter.ts",
+        "tests/corpus/cli-todo.ts",
+        "tests/corpus/event-emitter.ts"
       ]
     },
     {
-      "code": "CS1233",
-      "message": "this value has a type ChadScript does not support here (`Record<string, string>`)",
+      "code": "CS1214",
+      "message": "`JSON.parse` requires an explicit target type annotation",
       "programs": 5,
       "examples": [
-        "tests/corpus/case-convert.ts",
-        "tests/corpus/error-hierarchy.ts",
-        "tests/corpus/plugin-system.ts"
+        "tests/corpus/cli-config-merge.ts",
+        "tests/corpus/cli-todo.ts",
+        "tests/corpus/config-validator.ts"
       ]
     },
     {
@@ -335,12 +355,12 @@
     },
     {
       "code": "CS1000",
-      "message": "`++`/`--` on a field or element is only supported as a statement",
+      "message": "an assignment used as a value is not supported",
       "programs": 4,
       "examples": [
-        "tests/corpus/calc-interpreter.ts",
-        "tests/corpus/cli-todo.ts",
-        "tests/corpus/event-emitter.ts"
+        "tests/corpus/event-emitter.ts",
+        "tests/corpus/hash-map.ts",
+        "tests/corpus/linked-list.ts"
       ]
     },
     {
@@ -364,13 +384,13 @@
       ]
     },
     {
-      "code": "CS1214",
-      "message": "`JSON.parse` requires an explicit target type annotation",
+      "code": "CS1207",
+      "message": "index signatures (`[k: string]: T`) are not supported",
       "programs": 4,
       "examples": [
         "tests/corpus/cli-config-merge.ts",
-        "tests/corpus/cli-todo.ts",
-        "tests/corpus/config-validator.ts"
+        "tests/corpus/fizzbuzz-variants.ts",
+        "tests/corpus/json-parser.ts"
       ]
     },
     {
@@ -381,6 +401,16 @@
         "tests/corpus/brainfuck.ts",
         "tests/corpus/ciphers.ts",
         "tests/corpus/hash-map.ts"
+      ]
+    },
+    {
+      "code": "CS1216",
+      "message": "`String.fromCharCode` is not supported yet",
+      "programs": 4,
+      "examples": [
+        "tests/corpus/brainfuck.ts",
+        "tests/corpus/ciphers.ts",
+        "tests/corpus/json-parser.ts"
       ]
     },
     {
@@ -431,26 +461,6 @@
         "tests/corpus/csv-join.ts",
         "tests/corpus/intervals.ts",
         "tests/corpus/union-find-mst.ts"
-      ]
-    },
-    {
-      "code": "CS1207",
-      "message": "index signatures (`[k: string]: T`) are not supported",
-      "programs": 3,
-      "examples": [
-        "tests/corpus/cli-config-merge.ts",
-        "tests/corpus/fizzbuzz-variants.ts",
-        "tests/corpus/template-engine.ts"
-      ]
-    },
-    {
-      "code": "CS1216",
-      "message": "`String.fromCharCode` is not supported yet",
-      "programs": 3,
-      "examples": [
-        "tests/corpus/brainfuck.ts",
-        "tests/corpus/ciphers.ts",
-        "tests/corpus/rle-codec.ts"
       ]
     },
     {
@@ -795,6 +805,22 @@
       ]
     },
     {
+      "code": "CS1220",
+      "message": "the global `decodeURIComponent` is not supported yet",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/url-parser.ts"
+      ]
+    },
+    {
+      "code": "CS1220",
+      "message": "the global `encodeURIComponent` is not supported yet",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/url-parser.ts"
+      ]
+    },
+    {
       "code": "CS1222",
       "message": "a Map iterator from `keys()` is only supported as a for...of iterable or a spread",
       "programs": 1,
@@ -835,11 +861,75 @@
       ]
     },
     {
+      "code": "CS1225",
+      "message": "calling `.fn()` on this value is not supported yet",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/lisp-interpreter.ts"
+      ]
+    },
+    {
       "code": "CS1233",
       "message": "an empty array literal with no element type (`never[]`) is not supported here",
       "programs": 1,
       "examples": [
         "tests/corpus/cli-options.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this type is a recursive union type (`Expr`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/calc-interpreter.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this type is a recursive union type (`HNode`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/huffman.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this type is a recursive union type (`Json`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/json-parser.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this type is a recursive union type (`ListNode<T> | null`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/linked-list.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this type is a recursive union type (`Schema`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/config-validator.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this type is a recursive union type (`TreeNode | null`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/bst.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this type is a recursive union type (`Value`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/lisp-interpreter.ts"
       ]
     },
     {
@@ -876,18 +966,34 @@
     },
     {
       "code": "CS1233",
-      "message": "this type is a type ChadScript does not support here (`Record<string, Schema>`)",
-      "programs": 1,
-      "examples": [
-        "tests/corpus/config-validator.ts"
-      ]
-    },
-    {
-      "code": "CS1233",
       "message": "this type is a type ChadScript does not support here (`Record<string, string>`)",
       "programs": 1,
       "examples": [
         "tests/corpus/xml-lite.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a recursive union type (`Expr`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/calc-interpreter.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a recursive union type (`Json`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/json-parser.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a recursive union type (`Value`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/lisp-interpreter.ts"
       ]
     },
     {
@@ -904,6 +1010,14 @@
       "programs": 1,
       "examples": [
         "tests/corpus/event-emitter.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a type ChadScript does not support here (`{ [key: string]: Json; }`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/json-parser.ts"
       ]
     },
     {
@@ -1028,6 +1142,14 @@
     },
     {
       "code": "CS1233",
+      "message": "this value has a type ChadScript does not support here (`Record<string, Schema>`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/config-validator.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
       "message": "this value has a type ChadScript does not support here (`Record<string, Sorter>`)",
       "programs": 1,
       "examples": [
@@ -1064,6 +1186,14 @@
       "programs": 1,
       "examples": [
         "tests/corpus/async-queue.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a union of two function types with different element or parameter types",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/option-type.ts"
       ]
     },
     {
@@ -1136,6 +1266,14 @@
       "programs": 1,
       "examples": [
         "tests/corpus/bank-ledger.ts"
+      ]
+    },
+    {
+      "code": "CS1247",
+      "message": "throwing a `JsonSyntaxError` is not supported: only a string, an Error (Error, TypeError, RangeError, SyntaxError) or a caught value can be thrown",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/json-parser.ts"
       ]
     },
     {
@@ -1405,7 +1543,7 @@
       "category": "data-structures",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1217 default parameter values are not supported yet"
+      "detail": "CS1233 this type is a recursive union type (`TreeNode | null`)"
     },
     {
       "path": "tests/corpus/build-order.ts",
@@ -1419,7 +1557,7 @@
       "category": "interpreters",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1000 a class that extends the built-in `Error` is not supported"
+      "detail": "CS1233 this type is a recursive union type (`Expr`)"
     },
     {
       "path": "tests/corpus/calendar.ts",
@@ -1510,7 +1648,7 @@
       "category": "errors",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1233 this type is a type ChadScript does not support here (`Record<string, Schema>`)"
+      "detail": "CS1233 this type is a recursive union type (`Schema`)"
     },
     {
       "path": "tests/corpus/cron-parser.ts",
@@ -1657,7 +1795,7 @@
       "category": "algorithms",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1216 iterating a string with `for...of` is not supported yet"
+      "detail": "CS1233 this type is a recursive union type (`HNode`)"
     },
     {
       "path": "tests/corpus/ini-parser.ts",
@@ -1683,9 +1821,9 @@
     {
       "path": "tests/corpus/json-parser.ts",
       "category": "interpreters",
-      "outcome": "crash",
-      "knownBug": "compiler stack overflow in valueTypeOfTsType (src/lower/type-translation.ts) on a recursive type alias (`type Json = ... | Json[]`)",
-      "detail": "Maximum call stack size exceeded."
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1233 this type is a recursive union type (`Json`)"
     },
     {
       "path": "tests/corpus/langtons-ant.ts",
@@ -1704,16 +1842,16 @@
     {
       "path": "tests/corpus/linked-list.ts",
       "category": "data-structures",
-      "outcome": "crash",
-      "knownBug": "compiler stack overflow in involvesAny (src/validate/type-rules.ts) on a generic class whose method returns the class at another type argument (`map<U>(): LinkedList<U>`)",
-      "detail": "Maximum call stack size exceeded."
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1233 this type is a recursive union type (`ListNode<T> | null`)"
     },
     {
       "path": "tests/corpus/lisp-interpreter.ts",
       "category": "interpreters",
-      "outcome": "crash",
-      "knownBug": "compiler stack overflow in valueTypeOfTsType (src/lower/type-translation.ts) on a recursive type alias (`type Value = ... | Value[]`)",
-      "detail": "Maximum call stack size exceeded."
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1233 this type is a recursive union type (`Value`)"
     },
     {
       "path": "tests/corpus/loan-amortization.ts",
@@ -1781,9 +1919,9 @@
     {
       "path": "tests/corpus/option-type.ts",
       "category": "generics",
-      "outcome": "crash",
-      "knownBug": "compiler stack overflow in involvesAny (src/validate/type-rules.ts) on a generic class whose method returns the class at another type argument (`map<U>(): Option<U>`)",
-      "detail": "Maximum call stack size exceeded."
+      "outcome": "rejected",
+      "knownBug": null,
+      "detail": "CS1233 this value has a union of two function types with different element or parameter types"
     },
     {
       "path": "tests/corpus/plugin-system.ts",
@@ -1907,9 +2045,9 @@
     {
       "path": "tests/corpus/temperature-table.ts",
       "category": "scripts",
-      "outcome": "crash",
-      "knownBug": "the global `isNaN(x)` is accepted but lowers to a call of an undefined `@isNaN` function, so clang rejects the IR",
-      "detail": "invalid IR: use of undefined value '@isNaN.14'"
+      "outcome": "match",
+      "knownBug": null,
+      "detail": ""
     },
     {
       "path": "tests/corpus/template-engine.ts",

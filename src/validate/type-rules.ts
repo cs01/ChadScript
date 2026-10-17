@@ -295,6 +295,12 @@ function involvesAny(t: ts.Type, checker: ts.TypeChecker, seen = new Set<ts.Type
   if (!(t.flags & ts.TypeFlags.Object)) return false;
   const args = checker.getTypeArguments(t as ts.TypeReference);
   if (args.some((a) => involvesAny(a, checker, seen))) return true;
+  // Walk an instantiation's members through its generic declaration, once. Each `Box<U>` reached
+  // through a generic method's signature is a fresh instantiation, so a `seen` keyed on
+  // instantiations never closes the walk (stack overflow on `map<U>(): Box<U>`). The type
+  // arguments were checked above, and the declaration's members mention only its parameters.
+  const target = (t as ts.TypeReference).target;
+  if (target !== undefined && target !== t) return involvesAny(target, checker, seen);
   for (const sig of checker.getSignaturesOfType(t, ts.SignatureKind.Call)) {
     if (involvesAny(checker.getReturnTypeOfSignature(sig), checker, seen)) return true;
     for (const p of sig.parameters) {

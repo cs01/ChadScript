@@ -1,5 +1,4 @@
 // @category: interpreters
-// @known-bug: compiler stack overflow in valueTypeOfTsType (src/lower/type-translation.ts) on a recursive type alias (`type Json = ... | Json[]`)
 // A hand-written JSON parser (with line/column errors) and pretty-printer, checked against the
 // built-in JSON.parse/JSON.stringify on a real document and on malformed inputs.
 import { readFileSync, writeFileSync } from "node:fs";

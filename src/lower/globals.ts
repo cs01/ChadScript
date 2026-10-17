@@ -44,6 +44,16 @@ export function lowerGlobalBuiltin(
       type: VT.number,
     };
   }
+  // The global isNaN/isFinite coerce with Number(x) first, but lib types the parameter as
+  // `number`, so under strict tsc the argument already is one and the Number.* predicate applies.
+  if ((name === "isNaN" || name === "isFinite") && isDefaultLibGlobal(call.expression, ctx)) {
+    return {
+      kind: "numberPredicate",
+      fn: name,
+      arg: lowerExpr(call.arguments[0]!, ctx),
+      type: VT.boolean,
+    };
+  }
   // `setTimeout(cb, ms)` → schedule the closure. Resolved by SYMBOL (unlike the name-keyed
   // builtins above) so a user function named setTimeout stays a user function. The callback
   // lowers to an ordinary closure record; runtime/timer.milo calls it as fn(env).
@@ -95,6 +105,14 @@ function numLit(value: number): HExpr {
 function isAmbientGlobal(node: ts.Node, ctx: LowerCtx): boolean {
   const decl = symbolOf(node, ctx)?.declarations?.[0];
   return decl !== undefined && decl.getSourceFile().fileName.endsWith("stdlib/globals.d.ts");
+}
+
+// Whether `node` resolves to a function declared by the TypeScript default lib.
+function isDefaultLibGlobal(node: ts.Node, ctx: LowerCtx): boolean {
+  const decl = symbolOf(node, ctx)?.declarations?.[0];
+  return (
+    decl !== undefined && ts.isFunctionDeclaration(decl) && decl.getSourceFile().isDeclarationFile
+  );
 }
 
 // The calls that are NOT user functions: ambient globals (parseInt/String/setTimeout) and the

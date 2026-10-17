@@ -86,6 +86,9 @@ function collectClassDataFields(
 // A WeakMap keyed on ts.Type is safe across compilations: types belong to one Program.
 const objectShapeCache = new WeakMap<ts.Type, ValueType>();
 
+// The unions being translated right now, to detect a union reached again inside itself.
+const unionsInProgress = new Set<ts.Type>();
+
 // Structural comparison with a depth bound. Object ValueTypes can be cyclic (see
 // objectShapeCache), so an unbounded structural walk would not terminate; beyond the bound two
 // types are treated as matching, which is safe here because the caller only needs to know that a
@@ -313,7 +316,21 @@ export function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChe
   // union of same-representation members collapses to that type; a union of `inner`+null/undefined
   // becomes `optional`; a union of members with different representations is a Value union.
   if (flags & ts.TypeFlags.Union) {
-    const members = (t as ts.UnionType).types.map((m) => valueTypeOfTsType(m, node, checker));
+    // A union that contains itself through an array or function (`type Json = ... | Json[]`) has
+    // no finite ValueType: only object types are memoized into a cyclic graph (objectShapeCache).
+    if (unionsInProgress.has(t)) {
+      throw new UnrepresentableTypeError(
+        `a recursive union type (\`${checker.typeToString(t)}\`)`,
+        "make the recursive part an object type: `interface Node { kind: string; children: Node[] }`",
+      );
+    }
+    unionsInProgress.add(t);
+    let members: ValueType[];
+    try {
+      members = (t as ts.UnionType).types.map((m) => valueTypeOfTsType(m, node, checker));
+    } finally {
+      unionsInProgress.delete(t);
+    }
     // A member that is itself a Value (an erased `T` in `T | undefined`) contributes its members.
     if (members.some((m) => m.kind === "value")) {
       return valueUnion(members.flatMap((m) => (m.kind === "value" ? m.members : [m])));

@@ -8,6 +8,7 @@ import { checkPromiseNew } from "./promise-rules.js";
 import { checkThrowUse } from "./throw-rules.js";
 import { checkCallSpread } from "./spread-rules.js";
 import { checkHostCall, checkSelfInitCapture } from "./host-rules.js";
+import { checkLibGlobalCall } from "./global-rules.js";
 import { unionWithObject } from "./json-target-rules.js";
 import { checkCollectionNew } from "./collection-rules.js";
 import ts from "typescript";
@@ -563,6 +564,8 @@ function checkCall(node: ts.CallExpression, hit: Hit, checker: ts.TypeChecker): 
   if (isNamedIdent(node.expression, "eval")) {
     return hit(CODE.EVAL_OR_FUNCTION_CTOR, "`eval` is not supported", "there is no dynamic eval");
   }
+  const libFn = checkLibGlobalCall(node, hit, checker);
+  if (libFn) return libFn;
   // `setTimeout(async () => ...)`. TypeScript ACCEPTS this — `() => Promise<void>` is assignable
   // to `() => void` under return-type bivariance — so the type system cannot be the gate. The
   // callback's promise would have no owner: nothing awaits it, so a rejection inside it would be

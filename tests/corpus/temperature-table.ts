@@ -1,5 +1,4 @@
 // @category: scripts
-// @known-bug: the global `isNaN(x)` is accepted but lowers to a call of an undefined `@isNaN` function, so clang rejects the IR
 // A temperature conversion script: a Celsius/Fahrenheit/Kelvin table, parsing temperatures with
 // units from strings, and classifying readings.
 

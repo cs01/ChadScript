@@ -242,7 +242,7 @@ A static on a built-in namespace (`Array.*`, `Number.*`, `Object.*`, `Promise.*`
 
 **Status:** planned to be admitted in a later phase.
 
-**Rejection tests:** [`array-from.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/array-from.ts), [`math-hypot.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/math-hypot.ts), [`number-issafeinteger-unsupported.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/number-issafeinteger-unsupported.ts) and 3 more
+**Rejection tests:** [`array-from.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/array-from.ts), [`global-encode-uri.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/global-encode-uri.ts), [`math-hypot.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/math-hypot.ts) and 4 more
 
 ## CS1221: Unsupported number method {#cs1221}
 
@@ -354,7 +354,7 @@ A value whose type the value domain cannot represent: a tuple with different ele
 
 **Status:** planned to be admitted in a later phase.
 
-**Rejection tests:** [`empty-array-no-type.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/empty-array-no-type.ts), [`never-narrowed-read.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/never-narrowed-read.ts), [`promise-of-null.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/promise-of-null.ts) and 3 more
+**Rejection tests:** [`empty-array-no-type.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/empty-array-no-type.ts), [`never-narrowed-read.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/never-narrowed-read.ts), [`promise-of-null.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/promise-of-null.ts) and 4 more
 
 ## CS1234: Opaque handle used as a value {#cs1234}
 

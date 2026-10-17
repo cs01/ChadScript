@@ -1,5 +1,4 @@
 // @category: interpreters
-// @known-bug: compiler stack overflow in valueTypeOfTsType (src/lower/type-translation.ts) on a recursive type alias (`type Value = ... | Value[]`)
 // A small Lisp: reader, environments with lexical scope, special forms (define, lambda, if, let,
 // begin, quote), closures, recursion, and list primitives.
 

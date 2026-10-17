@@ -1,5 +1,4 @@
 // @category: data-structures
-// @known-bug: compiler stack overflow in involvesAny (src/validate/type-rules.ts) on a generic class whose method returns the class at another type argument (`map<U>(): LinkedList<U>`)
 // A generic doubly linked list with an iterator, index access, insertion and removal, reversal,
 // and a few higher-order helpers.
 

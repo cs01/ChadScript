@@ -1,5 +1,4 @@
 // @category: generics
-// @known-bug: compiler stack overflow in involvesAny (src/validate/type-rules.ts) on a generic class whose method returns the class at another type argument (`map<U>(): Option<U>`)
 // Option<T> and Either<L, R> as small generic classes with map/flatMap/getOrElse, used to write
 // a lookup-and-validate chain without null checks.
 
