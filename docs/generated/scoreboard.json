@@ -106,20 +106,10 @@
     {
       "code": "CS1213",
       "message": "regular expression literals are not supported yet",
-      "programs": 29,
+      "programs": 30,
       "examples": [
         "tests/corpus/calc-interpreter.ts",
         "tests/corpus/case-convert.ts",
-        "tests/corpus/ciphers.ts"
-      ]
-    },
-    {
-      "code": "CS1221",
-      "message": "`toFixed` on a number is not supported yet",
-      "programs": 26,
-      "examples": [
-        "tests/corpus/bank-ledger.ts",
-        "tests/corpus/bank-queue-sim.ts",
         "tests/corpus/ciphers.ts"
       ]
     },
@@ -224,13 +214,13 @@
       ]
     },
     {
-      "code": "CS1000",
-      "message": "spreading an array into the arguments of `Math.max` is not supported",
+      "code": "CS1216",
+      "message": "iterating a string with `for...of` is not supported yet",
       "programs": 8,
       "examples": [
-        "tests/corpus/bank-queue-sim.ts",
-        "tests/corpus/binary-search.ts",
-        "tests/corpus/cli-stats.ts"
+        "tests/corpus/brainfuck.ts",
+        "tests/corpus/ciphers.ts",
+        "tests/corpus/cli-grep.ts"
       ]
     },
     {
@@ -244,13 +234,13 @@
       ]
     },
     {
-      "code": "CS1216",
-      "message": "iterating a string with `for...of` is not supported yet",
-      "programs": 7,
+      "code": "CS1214",
+      "message": "`JSON.parse` requires an explicit target type annotation",
+      "programs": 6,
       "examples": [
-        "tests/corpus/brainfuck.ts",
-        "tests/corpus/ciphers.ts",
-        "tests/corpus/cli-wc.ts"
+        "tests/corpus/async-generators.ts",
+        "tests/corpus/cli-config-merge.ts",
+        "tests/corpus/cli-todo.ts"
       ]
     },
     {
@@ -324,16 +314,6 @@
       ]
     },
     {
-      "code": "CS1214",
-      "message": "`JSON.parse` requires an explicit target type annotation",
-      "programs": 5,
-      "examples": [
-        "tests/corpus/cli-config-merge.ts",
-        "tests/corpus/cli-todo.ts",
-        "tests/corpus/config-validator.ts"
-      ]
-    },
-    {
       "code": "CS1243",
       "message": "conditional, mapped and indexed-access types are not supported",
       "programs": 5,
@@ -345,12 +325,32 @@
     },
     {
       "code": "CS1000",
+      "message": "`private` is not supported by ChadScript yet",
+      "programs": 4,
+      "examples": [
+        "tests/corpus/ring-buffer.ts",
+        "tests/corpus/undo-redo.ts",
+        "tests/corpus/union-find-mst.ts"
+      ]
+    },
+    {
+      "code": "CS1000",
       "message": "an array binding pattern is not supported by ChadScript yet",
       "programs": 4,
       "examples": [
         "tests/corpus/calendar.ts",
         "tests/corpus/csv-join.ts",
         "tests/corpus/intervals.ts"
+      ]
+    },
+    {
+      "code": "CS1000",
+      "message": "an as expression is not supported by ChadScript yet",
+      "programs": 4,
+      "examples": [
+        "tests/corpus/ring-buffer.ts",
+        "tests/corpus/shopping-cart.ts",
+        "tests/corpus/table-format.ts"
       ]
     },
     {
@@ -444,16 +444,6 @@
       ]
     },
     {
-      "code": "CS1000",
-      "message": "`private` is not supported by ChadScript yet",
-      "programs": 3,
-      "examples": [
-        "tests/corpus/undo-redo.ts",
-        "tests/corpus/union-find-mst.ts",
-        "tests/corpus/vending-machine.ts"
-      ]
-    },
-    {
       "code": "CS1204",
       "message": "the non-null assertion `!` on an assignment target is not supported",
       "programs": 3,
@@ -461,24 +451,6 @@
         "tests/corpus/bitset.ts",
         "tests/corpus/ciphers.ts",
         "tests/corpus/sorting-suite.ts"
-      ]
-    },
-    {
-      "code": "CS0001",
-      "message": "does not typecheck under ChadScript strict mode: Property 'error' does not exist on type '...'. (TS2339)",
-      "programs": 2,
-      "examples": [
-        "tests/corpus/cli-grep.ts",
-        "tests/corpus/exit-codes.ts"
-      ]
-    },
-    {
-      "code": "CS0001",
-      "message": "does not typecheck under ChadScript strict mode: Property 'exitCode' does not exist on type '...'. (TS2339)",
-      "programs": 2,
-      "examples": [
-        "tests/corpus/async-generators.ts",
-        "tests/corpus/exit-codes.ts"
       ]
     },
     {
@@ -497,24 +469,6 @@
       "examples": [
         "tests/corpus/csv-sales-report.ts",
         "tests/corpus/error-hierarchy.ts"
-      ]
-    },
-    {
-      "code": "CS1220",
-      "message": "`Math.hypot` is not supported yet",
-      "programs": 2,
-      "examples": [
-        "tests/corpus/predator-prey.ts",
-        "tests/corpus/vector-geometry.ts"
-      ]
-    },
-    {
-      "code": "CS1220",
-      "message": "`Math.imul` is not supported yet",
-      "programs": 2,
-      "examples": [
-        "tests/corpus/hash-map.ts",
-        "tests/corpus/sorting-suite.ts"
       ]
     },
     {
@@ -551,6 +505,15 @@
       "examples": [
         "tests/corpus/fizzbuzz-variants.ts",
         "tests/corpus/number-theory.ts"
+      ]
+    },
+    {
+      "code": "CS1225",
+      "message": "calling `.catch()` on this value is not supported yet",
+      "programs": 2,
+      "examples": [
+        "tests/corpus/async-generators.ts",
+        "tests/corpus/async-queue.ts"
       ]
     },
     {
@@ -670,6 +633,14 @@
     },
     {
       "code": "CS1000",
+      "message": "a get accessor is not supported by ChadScript yet",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/ring-buffer.ts"
+      ]
+    },
+    {
+      "code": "CS1000",
       "message": "a this type is not supported by ChadScript yet",
       "programs": 1,
       "examples": [
@@ -686,14 +657,6 @@
     },
     {
       "code": "CS1000",
-      "message": "an as expression is not supported by ChadScript yet",
-      "programs": 1,
-      "examples": [
-        "tests/corpus/union-find-mst.ts"
-      ]
-    },
-    {
-      "code": "CS1000",
       "message": "spreading an array into the arguments of `lines.push` is not supported",
       "programs": 1,
       "examples": [
@@ -702,7 +665,7 @@
     },
     {
       "code": "CS1000",
-      "message": "spreading an array into the arguments of `Math.min` is not supported",
+      "message": "spreading an array into the arguments of `Math.max` is not supported",
       "programs": 1,
       "examples": [
         "tests/corpus/cli-stats.ts"
@@ -722,6 +685,14 @@
       "programs": 1,
       "examples": [
         "tests/corpus/cli-options.ts"
+      ]
+    },
+    {
+      "code": "CS1000",
+      "message": "spreading an array into the arguments of `problems.push` is not supported",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/exit-codes.ts"
       ]
     },
     {
@@ -854,14 +825,6 @@
     },
     {
       "code": "CS1225",
-      "message": "calling `.catch()` on this value is not supported yet",
-      "programs": 1,
-      "examples": [
-        "tests/corpus/async-queue.ts"
-      ]
-    },
-    {
-      "code": "CS1225",
       "message": "calling `.fn()` on this value is not supported yet",
       "programs": 1,
       "examples": [
@@ -878,50 +841,10 @@
     },
     {
       "code": "CS1233",
-      "message": "this type is a recursive union type (`Expr`)",
-      "programs": 1,
-      "examples": [
-        "tests/corpus/calc-interpreter.ts"
-      ]
-    },
-    {
-      "code": "CS1233",
-      "message": "this type is a recursive union type (`HNode`)",
-      "programs": 1,
-      "examples": [
-        "tests/corpus/huffman.ts"
-      ]
-    },
-    {
-      "code": "CS1233",
       "message": "this type is a recursive union type (`Json`)",
       "programs": 1,
       "examples": [
         "tests/corpus/json-parser.ts"
-      ]
-    },
-    {
-      "code": "CS1233",
-      "message": "this type is a recursive union type (`ListNode<T> | null`)",
-      "programs": 1,
-      "examples": [
-        "tests/corpus/linked-list.ts"
-      ]
-    },
-    {
-      "code": "CS1233",
-      "message": "this type is a recursive union type (`Schema`)",
-      "programs": 1,
-      "examples": [
-        "tests/corpus/config-validator.ts"
-      ]
-    },
-    {
-      "code": "CS1233",
-      "message": "this type is a recursive union type (`TreeNode | null`)",
-      "programs": 1,
-      "examples": [
-        "tests/corpus/bst.ts"
       ]
     },
     {
@@ -966,18 +889,18 @@
     },
     {
       "code": "CS1233",
-      "message": "this type is a type ChadScript does not support here (`Record<string, string>`)",
+      "message": "this type is a type ChadScript does not support here (`Record<string, Schema>`)",
       "programs": 1,
       "examples": [
-        "tests/corpus/xml-lite.ts"
+        "tests/corpus/config-validator.ts"
       ]
     },
     {
       "code": "CS1233",
-      "message": "this value has a recursive union type (`Expr`)",
+      "message": "this type is a type ChadScript does not support here (`Record<string, string>`)",
       "programs": 1,
       "examples": [
-        "tests/corpus/calc-interpreter.ts"
+        "tests/corpus/xml-lite.ts"
       ]
     },
     {
@@ -1026,6 +949,14 @@
       "programs": 1,
       "examples": [
         "tests/corpus/fizzbuzz-variants.ts"
+      ]
+    },
+    {
+      "code": "CS1233",
+      "message": "this value has a type ChadScript does not support here (`Awaited<T>`)",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/async-generators.ts"
       ]
     },
     {
@@ -1142,14 +1073,6 @@
     },
     {
       "code": "CS1233",
-      "message": "this value has a type ChadScript does not support here (`Record<string, Schema>`)",
-      "programs": 1,
-      "examples": [
-        "tests/corpus/config-validator.ts"
-      ]
-    },
-    {
-      "code": "CS1233",
       "message": "this value has a type ChadScript does not support here (`Record<string, Sorter>`)",
       "programs": 1,
       "examples": [
@@ -1202,6 +1125,14 @@
       "programs": 1,
       "examples": [
         "tests/corpus/async-queue.ts"
+      ]
+    },
+    {
+      "code": "CS1239",
+      "message": "passing a union of different kinds to `Number` is not supported: `args[N] ?? N` is `string | N`",
+      "programs": 1,
+      "examples": [
+        "tests/corpus/loan-amortization.ts"
       ]
     },
     {
@@ -1473,7 +1404,7 @@
       "category": "async-io",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS0001 does not typecheck under ChadScript strict mode: Property 'exitCode' does not exist on type '...'. (TS2339)"
+      "detail": "CS1233 this value has a type ChadScript does not support here (`Awaited<T>`)"
     },
     {
       "path": "tests/corpus/async-line-processor.ts",
@@ -1543,7 +1474,7 @@
       "category": "data-structures",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1233 this type is a recursive union type (`TreeNode | null`)"
+      "detail": "CS1217 default parameter values are not supported yet"
     },
     {
       "path": "tests/corpus/build-order.ts",
@@ -1557,7 +1488,7 @@
       "category": "interpreters",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1233 this type is a recursive union type (`Expr`)"
+      "detail": "CS1000 a class that extends the built-in `Error` is not supported"
     },
     {
       "path": "tests/corpus/calendar.ts",
@@ -1592,7 +1523,7 @@
       "category": "cli",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS0001 does not typecheck under ChadScript strict mode: Property 'error' does not exist on type '...'. (TS2339)"
+      "detail": "CS1216 iterating a string with `for...of` is not supported yet"
     },
     {
       "path": "tests/corpus/cli-head-tail.ts",
@@ -1648,7 +1579,7 @@
       "category": "errors",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1233 this type is a recursive union type (`Schema`)"
+      "detail": "CS1233 this type is a type ChadScript does not support here (`Record<string, Schema>`)"
     },
     {
       "path": "tests/corpus/cron-parser.ts",
@@ -1732,7 +1663,7 @@
       "category": "errors",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS0001 does not typecheck under ChadScript strict mode: Property 'error' does not exist on type '...'. (TS2339)"
+      "detail": "CS1213 regular expression literals are not supported yet"
     },
     {
       "path": "tests/corpus/expense-tracker.ts",
@@ -1774,7 +1705,7 @@
       "category": "scripts",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1221 `toFixed` on a number is not supported yet"
+      "detail": "CS1222 `Map.entries` is not supported yet"
     },
     {
       "path": "tests/corpus/graph-dijkstra.ts",
@@ -1795,7 +1726,7 @@
       "category": "algorithms",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1233 this type is a recursive union type (`HNode`)"
+      "detail": "CS1216 iterating a string with `for...of` is not supported yet"
     },
     {
       "path": "tests/corpus/ini-parser.ts",
@@ -1844,7 +1775,7 @@
       "category": "data-structures",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1233 this type is a recursive union type (`ListNode<T> | null`)"
+      "detail": "CS1000 an assignment used as a value is not supported"
     },
     {
       "path": "tests/corpus/lisp-interpreter.ts",
@@ -1858,7 +1789,7 @@
       "category": "scripts",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1221 `toFixed` on a number is not supported yet"
+      "detail": "CS1239 passing a union of different kinds to `Number` is not supported: `args[N] ?? N` is `string | N`"
     },
     {
       "path": "tests/corpus/log-analyzer.ts",
@@ -1935,7 +1866,7 @@
       "category": "simulation",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1221 `toFixed` on a number is not supported yet"
+      "detail": "CS1220 `Math.log` is not supported yet"
     },
     {
       "path": "tests/corpus/redux-store.ts",
@@ -1956,7 +1887,7 @@
       "category": "data-structures",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1221 `toFixed` on a number is not supported yet"
+      "detail": "CS1000 `private` is not supported by ChadScript yet"
     },
     {
       "path": "tests/corpus/rle-codec.ts",
@@ -1984,21 +1915,21 @@
       "category": "oop",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1221 `toFixed` on a number is not supported yet"
+      "detail": "CS1217 default parameter values are not supported yet"
     },
     {
       "path": "tests/corpus/shopping-cart.ts",
       "category": "scripts",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1221 `toFixed` on a number is not supported yet"
+      "detail": "CS1000 an as expression is not supported by ChadScript yet"
     },
     {
       "path": "tests/corpus/sorting-suite.ts",
       "category": "algorithms",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1220 `Math.imul` is not supported yet"
+      "detail": "CS1224 `Array.prototype.fill` is not supported yet"
     },
     {
       "path": "tests/corpus/stack-queue-generic.ts",
@@ -2033,14 +1964,14 @@
       "category": "text",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1221 `toFixed` on a number is not supported yet"
+      "detail": "CS1000 an as expression is not supported by ChadScript yet"
     },
     {
       "path": "tests/corpus/task-scheduler.ts",
       "category": "data-structures",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1000 spreading an array into the arguments of `Math.max` is not supported"
+      "detail": "CS1216 relational comparison (`<` `>` `<=` `>=`) on strings is not supported yet"
     },
     {
       "path": "tests/corpus/temperature-table.ts",
