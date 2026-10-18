@@ -37,6 +37,7 @@ import {
 } from "./type-rules.js";
 import { checkBuiltinValueRef } from "./builtin-rules.js";
 import { checkForm } from "./form-rules.js";
+import { checkArgumentsObject, checkFunctionProperty, checkParamForm } from "./param-rules.js";
 import { NAMESPACE_STATIC_ALLOW } from "./static-allow.js";
 
 export function tailoredRejection(
@@ -143,23 +144,8 @@ export function tailoredRejection(
       return hit(CODE.WITH, "`with` is not supported", "access properties explicitly");
 
     case ts.SyntaxKind.Parameter: {
-      // Default (`x = v`) and optional (`x?`) parameters reach a lowering ICE today. Reject at
-      // validate until argument-defaulting is implemented. A plain `x: T` param is unaffected.
-      const p = node as ts.ParameterDeclaration;
-      if (p.questionToken) {
-        return hit(
-          CODE.PARAM_FORM,
-          "optional parameters (`x?`) are not supported yet",
-          "declare it `x: T | undefined` and pass `undefined` explicitly at the call site",
-        );
-      }
-      if (p.initializer) {
-        return hit(
-          CODE.PARAM_FORM,
-          "default parameter values are not supported yet",
-          "apply the default in the body: `const v = x === undefined ? DEFAULT : x`",
-        );
-      }
+      const form = checkParamForm(node as ts.ParameterDeclaration, hit, checker);
+      if (form) return form;
       return checkRepresentableType(node, hit, checker);
     }
 
@@ -236,6 +222,8 @@ export function tailoredRejection(
       const pa = node as ts.PropertyAccessExpression;
       const builtin = checkBuiltinValueRef(pa, hit, checker);
       if (builtin) return builtin;
+      const fnProp = checkFunctionProperty(pa, hit, checker);
+      if (fnProp) return fnProp;
       const exitCode = checkProcessExitCode(pa, hit, checker);
       if (exitCode) return exitCode;
       const chain = checkOptionalChain(pa, checker);
@@ -304,7 +292,8 @@ export function tailoredRejection(
         checkFunctionValueRef(node as ts.Identifier, hit, checker) ??
         checkBuiltinValueRef(node as ts.Identifier, hit, checker) ??
         checkSelfInitCapture(node as ts.Identifier, hit, checker) ??
-        checkOpaqueHandleUse(node as ts.Identifier, hit, checker)
+        checkOpaqueHandleUse(node as ts.Identifier, hit, checker) ??
+        checkArgumentsObject(node as ts.Identifier, hit, checker)
       );
 
     // (VariableDeclaration and Parameter run the same check from their own cases above.)

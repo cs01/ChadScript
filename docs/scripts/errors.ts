@@ -141,11 +141,11 @@ export const EXPLANATIONS: Record<keyof typeof CODE, Entry> = {
     planned: true,
   },
   PARAM_FORM: {
-    title: "Optional or default parameter",
-    meaning: "Optional (`x?`) and default (`x = v`) parameters are not supported yet.",
+    title: "Optional or default parameter form",
+    meaning:
+      "Optional (`x?`) and default (`x = v`) parameters are supported, except: a destructured parameter with a default, a default that reads a later parameter, a parameter whose type holds only `null`/`undefined`, and a function with optional or default parameters used as a function type that lists fewer parameters (a call through that type would not pass them).",
     rewrite:
-      "Declare `x: T | undefined` and pass `undefined` explicitly, then apply the default in the body: `const v = x ?? DEFAULT`.",
-    planned: true,
+      "Destructure in the body, reorder the parameters, or list the extra parameters in the function type (`(x: number, y?: number) => R`), or pass a wrapper `(x) => f(x)`.",
   },
   UNINIT_VAR: {
     title: "Declaration without initializer",

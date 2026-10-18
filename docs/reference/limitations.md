@@ -36,7 +36,8 @@ and why not. A rejected file is still valid TypeScript and runs on Node unchange
 
 Each of these is rejected at compile time with a specific code, never silently miscompiled:
 
-- Optional and default parameters ([CS1217](/reference/errors#cs1217)); `let x;` without an
+- Destructured parameters with defaults, and functions with optional parameters used through a
+  function type that omits them ([CS1217](/reference/errors#cs1217)); `let x;` without an
   initializer ([CS1218](/reference/errors#cs1218)).
 - Getters, setters, `static`, `private`, `readonly`, `abstract`, and methods written inside object
   literals ([CS1000](/reference/errors#cs1000)).

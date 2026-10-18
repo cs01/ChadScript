@@ -10,7 +10,11 @@ import { CODE } from "./codes.js";
 import type { Hit } from "./type-rules.js";
 import { hostTypeName, qualifiedAmbientName } from "../lower/host-types.js";
 import { HOST_FUNCTIONS } from "../lower/host-api.js";
-import { UnrepresentableTypeError, valueTypeOfTsType } from "../lower/type-translation.js";
+import {
+  UnrepresentableTypeError,
+  paramSlotType,
+  valueTypeOfTsType,
+} from "../lower/type-translation.js";
 import { callbackParamProblem } from "../lower/callback-adapt.js";
 import type { ValueType } from "../hir/types.js";
 
@@ -160,7 +164,5 @@ function checkCallbacks(
 }
 
 function paramTypes(sig: ts.Signature, at: ts.Node, checker: ts.TypeChecker): ValueType[] {
-  return sig
-    .getParameters()
-    .map((p) => valueTypeOfTsType(checker.getTypeOfSymbolAtLocation(p, at), at, checker));
+  return sig.getParameters().map((p) => paramSlotType(p, at, checker));
 }

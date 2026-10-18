@@ -32,7 +32,7 @@ error[CS1221]: `toPrecision` on a number is not supported yet
 | [CS1214](#cs1214) | `JSON.parse` form |
 | [CS1215](#cs1215) | `Date` |
 | [CS1216](#cs1216) | UTF-16 dependent string operation |
-| [CS1217](#cs1217) | Optional or default parameter |
+| [CS1217](#cs1217) | Optional or default parameter form |
 | [CS1218](#cs1218) | Declaration without initializer |
 | [CS1220](#cs1220) | Unsupported static method |
 | [CS1221](#cs1221) | Unsupported number method |
@@ -82,7 +82,7 @@ The general rejection. The compiler accepts a construct only when it has a rule 
 
 **Status:** planned to be admitted in a later phase.
 
-**Rejection tests:** [`assign-as-value.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/assign-as-value.ts), [`bigint-literal.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/bigint-literal.ts), [`call-spread-library.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/call-spread-library.ts) and 24 more
+**Rejection tests:** [`arguments-object.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/arguments-object.ts), [`assign-as-value.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/assign-as-value.ts), [`bigint-literal.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/bigint-literal.ts) and 26 more
 
 ## CS1201: `any` {#cs1201}
 
@@ -214,15 +214,13 @@ Strings are ASCII for now: a non-ASCII string literal (or escape) is rejected, a
 
 **Rejection tests:** [`string-fromcharcode.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/string-fromcharcode.ts), [`string-non-ascii-escape.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/string-non-ascii-escape.ts), [`string-non-ascii-literal.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/string-non-ascii-literal.ts)
 
-## CS1217: Optional or default parameter {#cs1217}
+## CS1217: Optional or default parameter form {#cs1217}
 
-Optional (`x?`) and default (`x = v`) parameters are not supported yet.
+Optional (`x?`) and default (`x = v`) parameters are supported, except: a destructured parameter with a default, a default that reads a later parameter, a parameter whose type holds only `null`/`undefined`, and a function with optional or default parameters used as a function type that lists fewer parameters (a call through that type would not pass them).
 
-**Rewrite:** Declare `x: T | undefined` and pass `undefined` explicitly, then apply the default in the body: `const v = x ?? DEFAULT`.
+**Rewrite:** Destructure in the body, reorder the parameters, or list the extra parameters in the function type (`(x: number, y?: number) => R`), or pass a wrapper `(x) => f(x)`.
 
-**Status:** planned to be admitted in a later phase.
-
-**Rejection tests:** [`param-default.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/param-default.ts), [`param-optional.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/param-optional.ts)
+**Rejection tests:** [`param-default-destructured.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/param-default-destructured.ts), [`param-default-fnref-fewer-params.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/param-default-fnref-fewer-params.ts), [`param-default-later-param.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/param-default-later-param.ts) and 3 more
 
 ## CS1218: Declaration without initializer {#cs1218}
 
@@ -386,7 +384,7 @@ A call through an interface where the implementations reachable at run time take
 
 **Rewrite:** Give the implementations the same parameter and return types.
 
-**Rejection tests:** [`method-representation-mismatch.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/method-representation-mismatch.ts)
+**Rejection tests:** [`method-representation-mismatch.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/method-representation-mismatch.ts), [`param-default-override-arity.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/param-default-override-arity.ts), [`param-optional-impl-required.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/param-optional-impl-required.ts)
 
 ## CS1238: Value that cannot be printed {#cs1238}
 
@@ -410,7 +408,7 @@ A flow whose nested elements differ in representation, for example passing a `nu
 
 **Rewrite:** Copy into a new array of the wider type (`[...xs]` with an annotation), or use one element type throughout.
 
-**Rejection tests:** [`array-callback-optional-param.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/array-callback-optional-param.ts), [`array-covariance-representation.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/array-covariance-representation.ts), [`generic-array-alias.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/generic-array-alias.ts) and 4 more
+**Rejection tests:** [`array-callback-optional-param.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/array-callback-optional-param.ts), [`array-covariance-representation.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/array-covariance-representation.ts), [`generic-array-alias.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/generic-array-alias.ts) and 5 more
 
 ## CS1241: Stale narrowing of a captured variable {#cs1241}
 

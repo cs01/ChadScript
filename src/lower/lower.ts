@@ -44,6 +44,7 @@ import { type FieldWrite, applyFieldWrites } from "./field-writes.js";
 export { isAssignmentOp, compoundOp, coerceToTarget };
 import type { ValueType } from "../hir/types.js";
 import {
+  paramSlotType,
   valueTypeOf,
   valueTypeOfTsType,
   arrayElementType,
@@ -66,6 +67,7 @@ import { type LayoutAnalysis, layoutsOf } from "./layouts.js";
 import { lowerObjectLit, resolveSpreads } from "./object-literal.js";
 import { findCellSymbols } from "./cells.js";
 import { genericSignatureOf } from "./generics.js";
+import { omittedArg } from "./params.js";
 import { lowerGenericArgs, lowerCallValue } from "./generic-calls.js";
 import {
   buildClassTable,
@@ -389,20 +391,23 @@ export function lowerCallArgs(call: ts.CallExpression | ts.NewExpression, ctx: L
   const coerceArg = (a: ts.Expression, paramSym: ts.Symbol | undefined): HExpr => {
     const h = lowerExpr(a, ctx);
     if (!paramSym) return h;
-    return coerceToTarget(
-      h,
-      valueTypeOfTsType(ctx.checker.getTypeOfSymbolAtLocation(paramSym, a), a, ctx.checker),
-    );
+    return coerceToTarget(h, paramSlotType(paramSym, a, ctx.checker));
   };
+  // Omitted trailing arguments (optional or defaulted parameters) are passed as undefined; the
+  // callee applies any default (lower/params.ts).
+  const lowerFixed = (given: readonly ts.Expression[], count: number): HExpr[] => [
+    ...given.slice(0, count).map((a, i) => coerceArg(a, params[i])),
+    ...params
+      .slice(given.length, count)
+      .map((p) => omittedArg(paramSlotType(p, call, ctx.checker))),
+  ];
 
   const args = call.arguments ?? [];
-  if (!isRest) {
-    return args.map((a, i) => coerceArg(a, params[i]));
-  }
+  if (!isRest) return lowerFixed(args, Math.max(args.length, params.length));
   // Rest parameter: fixed args pass through; trailing args (with `...spread` support) are packed
   // into the rest array, so a rest function is a normal fixed-arity call taking one array param.
   const fixedCount = params.length - 1;
-  const fixed = args.slice(0, fixedCount).map((a, i) => coerceArg(a, params[i]));
+  const fixed = lowerFixed(args, fixedCount);
   const restType = valueTypeOfTsType(
     ctx.checker.getTypeOfSymbolAtLocation(last!, call),
     call,

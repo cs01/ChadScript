@@ -28,7 +28,7 @@ instead of misbehaving:
 - `.then()` on promises, and `new Promise` with an executor that is not written inline.
 - Regular expressions ([CS1213](/reference/errors#cs1213)) and `Date` instances
   ([CS1215](/reference/errors#cs1215)).
-- Optional and default parameters ([CS1217](/reference/errors#cs1217)), `let x;` without an
+- Destructured parameters with defaults ([CS1217](/reference/errors#cs1217)), `let x;` without an
   initializer ([CS1218](/reference/errors#cs1218)), getters, setters and access modifiers.
 - `toPrecision` and `toExponential` ([CS1221](/reference/errors#cs1221)).
 - Generics instantiated with arrays, maps or functions ([CS1242](/reference/errors#cs1242)),

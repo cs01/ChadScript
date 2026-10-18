@@ -16,19 +16,15 @@ import {
   unparen,
   isAssignmentOp,
 } from "./lower.js";
-import {
-  lowerStatements,
-  lowerExprStatement,
-  lowerCallStatement,
-  thisRef,
-  bindObjectPattern,
-} from "./statements.js";
+import { lowerStatements, lowerExprStatement, lowerCallStatement, thisRef } from "./statements.js";
 import { functionDeclSymbol } from "./default-export.js";
 import { classDeclOfType, classIdOf, constructorClassOf } from "./class-ids.js";
 import { accessIn } from "./member-access.js";
-import { cellFlag, isModuleVariable } from "./cells.js";
+import { isModuleVariable } from "./cells.js";
+import { lowerParams, omittedArg } from "./params.js";
 import { isGenericDeclaration } from "./generics.js";
 import {
+  paramSlotType,
   valueTypeOf,
   valueTypeOfTsType,
   returnTypeOf,
@@ -215,7 +211,10 @@ export function synthesizeFieldInitCtor(
           return { name: `__super.${ctx.counter.n++}`, type: valueTypeOf(p, ctx) };
         }
         if (!ts.isIdentifier(p.name)) ice("lower: array-destructured inherited parameter");
-        return { name: `__super.${ctx.counter.n++}`, type: valueTypeOf(p.name, ctx) };
+        // Forwarded untouched to the base constructor, so in its PASSED representation (an
+        // omitted defaulted argument stays undefined until the base's prologue applies it).
+        const sym = ctx.checker.getSymbolAtLocation(p.name) ?? ice("lower: parameter symbol");
+        return { name: `__super.${ctx.counter.n++}`, type: paramSlotType(sym, p, ctx.checker) };
       })
     : [];
 
@@ -256,28 +255,8 @@ export function lowerMethodLike(
   const memberName = isCtor ? "constructor" : (member.name as ts.Identifier).text;
   const thisName = `this.${ctx.counter.n++}`;
 
-  // Destructured object params are received under a synthetic name; a prelude binds their fields
-  // (same as free functions). See lowerFunction.
-  const paramPrelude: HStmt[] = [];
-  const params = [
-    { name: thisName, type: thisType },
-    ...member.parameters.map((p) => {
-      if (ts.isObjectBindingPattern(p.name)) {
-        const ptype = valueTypeOf(p, ctx);
-        const tempName = `__param.${ctx.counter.n++}`;
-        paramPrelude.push(
-          ...bindObjectPattern(p.name, { kind: "varRef", name: tempName, type: ptype }, ctx),
-        );
-        return { name: tempName, type: ptype };
-      }
-      if (!ts.isIdentifier(p.name)) ice("lower: array-destructured parameter not supported");
-      return {
-        name: nameOf(p.name, ctx),
-        type: valueTypeOf(p.name, ctx),
-        ...cellFlag(p.name, ctx.cells, ctx.checker),
-      };
-    }),
-  ];
+  const lowered = lowerParams(member.parameters, ctx, "method");
+  const params = [{ name: thisName, type: thisType }, ...lowered.params];
 
   // A constructor returns nothing (the record is returned by `new`); a method returns its
   // declared type.
@@ -286,7 +265,8 @@ export function lowerMethodLike(
   const savedRet = ctx.currentReturnType;
   ctx.currentThis = { name: thisName, type: thisType };
   ctx.currentReturnType = returnType;
-  let body = [...paramPrelude, ...lowerStatements(member.body.statements, ctx)];
+  // The prologue runs with `this` bound: a default may read it (`n = this.root`).
+  let body = [...lowered.prologue(), ...lowerStatements(member.body.statements, ctx)];
   // Field initializers run after `super()` returns (derived) or at the top (base class).
   if (isCtor && fieldInits.length > 0) {
     const inits = fieldInitStmts(fieldInits, thisType, ctx);
@@ -309,14 +289,11 @@ export function lowerMethodLike(
 // HFunc that takes a hidden `env` parameter; free variables are captured into that env.
 export function lowerArrow(arrow: ts.ArrowFunction | ts.FunctionExpression, ctx: LowerCtx): HExpr {
   const lambdaName = `lambda.${ctx.counter.n++}`;
-  const params = arrow.parameters.map((p) => {
-    if (!ts.isIdentifier(p.name)) ice("lower: destructured lambda parameter not supported");
-    return {
-      name: nameOf(p.name, ctx),
-      type: valueTypeOf(p.name, ctx),
-      ...cellFlag(p.name, ctx.cells, ctx.checker),
-    };
-  });
+  if (arrow.parameters.some((p) => !ts.isIdentifier(p.name))) {
+    ice("lower: destructured lambda parameter not supported");
+  }
+  const lowered = lowerParams(arrow.parameters, ctx, "lambda");
+  const params = lowered.params;
   // Capture free variables (found by walking the body AFTER params are registered, so params
   // aren't mistaken for captures).
   const captures = findCaptures(arrow, ctx);
@@ -342,7 +319,8 @@ export function lowerArrow(arrow: ts.ArrowFunction | ts.FunctionExpression, ctx:
   ctx.currentReturnType = returnType;
   // A void arrow's expression body (`(m) => console.log(m)`) is a statement: its value, if it
   // has one, is discarded, and a void call has none to return.
-  const body: HStmt[] = ts.isBlock(arrow.body)
+  const prologue = lowered.prologue();
+  const bodyStmts: HStmt[] = ts.isBlock(arrow.body)
     ? lowerStatements(arrow.body.statements, ctx)
     : isUpdateExpression(arrow.body)
       ? lowerUpdateBody(unparen(arrow.body), returnType, ctx)
@@ -354,6 +332,7 @@ export function lowerArrow(arrow: ts.ArrowFunction | ts.FunctionExpression, ctx:
             { kind: "return", value: null },
           ]
         : [{ kind: "return", value: coerceToTarget(lowerExpr(arrow.body, ctx), returnType) }];
+  const body = [...prologue, ...bodyStmts];
   ctx.currentReturnType = savedRet;
 
   ctx.functions.push({
@@ -455,6 +434,8 @@ export function findCaptures(
     }
     ts.forEachChild(node, visit);
   };
+  // A default (`(x = limit) => ...`) runs inside the closure, so what it reads is captured too.
+  for (const p of arrow.parameters) if (p.initializer) visit(p.initializer);
   visit(arrow.body);
   return [...caps.values()];
 }
@@ -506,32 +487,8 @@ export function isDescendantOf(node: ts.Node, ancestor: ts.Node): boolean {
 
 export function lowerFunction(decl: ts.FunctionDeclaration, ctx: LowerCtx): HFunc {
   if (!decl.body) ice("lower: function without a body (overload/declare) not supported");
-  // A destructured object parameter `f({ x, y }: P)` is received as one object param under a
-  // synthetic name; its fields are then bound by a prelude prepended to the body (so `x`/`y` are
-  // ordinary locals). This reuses the variable-destructuring field binder.
-  const paramPrelude: HStmt[] = [];
-  const params = decl.parameters.map((p) => {
-    if (ts.isObjectBindingPattern(p.name)) {
-      if (p.questionToken || p.initializer)
-        ice("lower: optional/default destructured parameters not supported yet");
-      const ptype = valueTypeOf(p, ctx);
-      const tempName = `__param.${ctx.counter.n++}`;
-      paramPrelude.push(
-        ...bindObjectPattern(p.name, { kind: "varRef", name: tempName, type: ptype }, ctx),
-      );
-      return { name: tempName, type: ptype };
-    }
-    if (!ts.isIdentifier(p.name)) ice("lower: array-destructured parameters not supported yet");
-    if (p.questionToken || p.initializer)
-      ice("lower: optional/default parameters not supported yet");
-    // A rest parameter `...xs: T[]` is received as a single array param — the call site packs
-    // the trailing arguments into it, so the callee treats it like any array parameter.
-    return {
-      name: nameOf(p.name, ctx),
-      type: valueTypeOf(p.name, ctx),
-      ...cellFlag(p.name, ctx.cells, ctx.checker),
-    };
-  });
+  const lowered = lowerParams(decl.parameters, ctx, "function");
+  const params = lowered.params;
   const isAsync = decl.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword) ?? false;
   // An async function's declared return is `Promise<T>`; the BODY returns T (the value cs_fiber_return
   // resolves the promise with), so lower the body against the inner type.
@@ -546,7 +503,7 @@ export function lowerFunction(decl: ts.FunctionDeclaration, ctx: LowerCtx): HFun
   }
   const saved = ctx.currentReturnType;
   ctx.currentReturnType = returnType;
-  const body = [...paramPrelude, ...lowerStatements(decl.body.statements, ctx)];
+  const body = [...lowered.prologue(), ...lowerStatements(decl.body.statements, ctx)];
   ctx.currentReturnType = saved;
   const name = nameForSymbol(functionDeclSymbol(decl, ctx), decl.name?.text ?? "default", ctx);
   return { name, params, returnType, body, async: isAsync };
@@ -665,11 +622,17 @@ export function lowerFunctionRef(
   let calleeRet = returnType;
   if (isGenericDeclaration(decl)) {
     const sig = ctx.checker.getSignatureFromDeclaration(decl) ?? ice("lower: no signature");
-    const erased = sig.parameters.map((p) =>
-      valueTypeOfTsType(ctx.checker.getTypeOfSymbolAtLocation(p, decl), decl, ctx.checker),
-    );
+    const erased = sig.parameters.map((p) => paramSlotType(p, decl, ctx.checker));
     args = args.map((a, i) => (erased[i] ? coerceToTarget(a, erased[i]) : a));
     calleeRet = returnTypeOf(decl, ctx);
+  }
+  // A use type listing fewer parameters than the declaration omits trailing optional ones.
+  const declSig = ctx.checker.getSignatureFromDeclaration(decl) ?? ice("lower: no signature");
+  for (const p of declSig.parameters.slice(args.length)) {
+    const slot = paramSlotType(p, decl, ctx.checker);
+    const d = p.valueDeclaration;
+    const isRest = d !== undefined && ts.isParameter(d) && d.dotDotDotToken !== undefined;
+    args.push(isRest ? { kind: "arrayLit", elements: [], type: slot } : omittedArg(slot));
   }
 
   const call = (type: ValueType): HExpr => ({ kind: "call", name: target, args, type });

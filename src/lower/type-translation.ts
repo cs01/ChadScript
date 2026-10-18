@@ -144,6 +144,18 @@ function sameRepresentation(a: ValueType, b: ValueType, depth = 0): boolean {
   return true;
 }
 
+// The representation a parameter is PASSED in (its slot in the function's ABI). A parameter with
+// a default (`y = 2`, `y: T = v`) has the in-body type `T`, but every caller may omit it or pass
+// `undefined`, so its slot is `T | undefined` and the callee's prologue applies the default
+// (lower/params.ts). An optional `y?: T` already has `T | undefined` from tsc. Every place that
+// translates a signature's parameters goes through here so callers, callees, closure types and the
+// validator's representation checks agree on one ABI.
+export function paramSlotType(p: ts.Symbol, node: ts.Node, checker: ts.TypeChecker): ValueType {
+  const base = valueTypeOfTsType(checker.getTypeOfSymbolAtLocation(p, node), node, checker);
+  const d = p.valueDeclaration;
+  return d && ts.isParameter(d) && d.initializer && !d.dotDotDotToken ? optionalOf(base) : base;
+}
+
 export function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChecker): ValueType {
   const flags = t.flags;
   if (flags & ts.TypeFlags.NumberLike) return VT.number;
@@ -200,9 +212,7 @@ export function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChe
     const callSigs = checker.getSignaturesOfType(t, ts.SignatureKind.Call);
     if (callSigs.length > 0) {
       const sig = callSigs[0]!;
-      const params = sig.parameters.map((p) =>
-        valueTypeOfTsType(checker.getTypeOfSymbolAtLocation(p, node), node, checker),
-      );
+      const params = sig.parameters.map((p) => paramSlotType(p, node, checker));
       const retT = checker.getReturnTypeOfSignature(sig);
       // A `never` result (an arrow whose body always throws) produces no value, like void.
       const ret =

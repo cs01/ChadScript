@@ -45,6 +45,11 @@ export function callbackParamProblem(
   if (declared.length > passed.length) return "it declares more parameters than are passed";
   for (let i = 0; i < declared.length; i++) {
     if (paramPlan(declared[i]!, passed[i]!) === null) {
+      // An optional or defaulted callback parameter is passed as `T | undefined`, but the builtin
+      // always passes a plain value there.
+      if (declared[i]!.kind === "optional") {
+        return `its parameter ${i + 1} is optional or has a default, but is always passed a value (drop the \`?\` or the default)`;
+      }
       return `its parameter ${i + 1} cannot receive the value passed to it`;
     }
   }

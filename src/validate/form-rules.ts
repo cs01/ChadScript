@@ -7,7 +7,11 @@ import type { Diagnostic } from "../diagnostics.js";
 import { CODE } from "./codes.js";
 import type { Hit } from "./type-rules.js";
 import { isValuePosition } from "./builtin-rules.js";
-import { UnrepresentableTypeError, valueTypeOfTsType } from "../lower/type-translation.js";
+import {
+  UnrepresentableTypeError,
+  paramSlotType,
+  valueTypeOfTsType,
+} from "../lower/type-translation.js";
 import { callbackParamProblem } from "../lower/callback-adapt.js";
 import { builtinIdOf } from "../lower/builtin-values.js";
 import type { ValueType } from "../hir/types.js";
@@ -282,7 +286,7 @@ function callbackProblem(
     for (const p of sig[0]!.getParameters()) {
       const decl = p.valueDeclaration;
       if (decl && ts.isParameter(decl) && decl.dotDotDotToken) return "it takes a rest parameter";
-      declared.push(valueTypeOfTsType(checker.getTypeOfSymbolAtLocation(p, cb), cb, checker));
+      declared.push(paramSlotType(p, cb, checker));
     }
   } catch (err) {
     if (err instanceof UnrepresentableTypeError) return null;

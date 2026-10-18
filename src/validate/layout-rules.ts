@@ -13,7 +13,11 @@ import ts from "typescript";
 import { type Diagnostic, ice } from "../diagnostics.js";
 import type { LoadedProgram } from "../frontend/program.js";
 import { type LayoutSite, layoutsOf, MAX_SPREAD_CASES } from "../lower/layouts.js";
-import { UnrepresentableTypeError, valueTypeOfTsType } from "../lower/type-translation.js";
+import {
+  UnrepresentableTypeError,
+  paramSlotType,
+  valueTypeOfTsType,
+} from "../lower/type-translation.js";
 import type { ValueType } from "../hir/types.js";
 import { CODE } from "./codes.js";
 import { spanOf } from "./validate.js";
@@ -195,9 +199,7 @@ function isObjectValue(t: ts.Type, node: ts.Node, checker: ts.TypeChecker): bool
 
 // A signature as the value domain sees it: parameter types then the return (null = void).
 function signatureRepr(sig: ts.Signature, node: ts.Node, checker: ts.TypeChecker): ValueType {
-  const params = sig.parameters.map((p) =>
-    valueTypeOfTsType(checker.getTypeOfSymbolAtLocation(p, node), node, checker),
-  );
+  const params = sig.parameters.map((p) => paramSlotType(p, node, checker));
   const r = checker.getReturnTypeOfSignature(sig);
   const ret =
     r.flags & (ts.TypeFlags.Void | ts.TypeFlags.Undefined)

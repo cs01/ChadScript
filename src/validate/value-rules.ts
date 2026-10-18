@@ -259,6 +259,9 @@ function sameNested(a: ValueType, b: ValueType, depth: number): boolean {
       // parameter only one side lists is an argument the callee ignores, and a result the slot
       // type calls void is discarded.)
       const f = b as typeof a;
+      // A closure declaring MORE parameters than the slot type (tsc allows it when the extras are
+      // optional or defaulted) would be called without them, reading arguments never passed.
+      if (a.params.length > f.params.length) return false;
       const paramsOk = a.params.every((p, i) => {
         const q = f.params[i];
         return q === undefined || sameNested(p, q, depth + 1);
@@ -354,18 +357,45 @@ export function flowDiagnostic(node: ts.Node, checker: ts.TypeChecker): Diagnost
       !isUserCallee(parent, checker) &&
       checker.getSignaturesOfType(src, ts.SignatureKind.Call).length > 0
     ) {
-      return null;
+      // Its arity still matters: the builtin passes only the arguments its callback type lists.
+      return arityDiagnostic(src, dst, at, checker);
     }
   }
   const s = vtOf(src, at, checker);
   const d = vtOf(dst, at, checker);
   if (!s || !d || flowAgrees(s, d)) return null;
+  const arity = arityDiagnostic(src, dst, at, checker);
+  if (arity) return arity;
   return {
     code: CODE.REPRESENTATION_MISMATCH,
     message: `\`${checker.typeToString(src)}\` cannot be used as \`${checker.typeToString(dst)}\`: their elements (or parameters) are stored differently, and both would share the same object`,
     span: spanOf(at, at.getSourceFile()),
     suggestion:
       "make a converted copy with the target's type, e.g. `xs.map((x): number | string => x)`, or declare the source with the target's type",
+  };
+}
+
+// A function declaring MORE parameters than the function type it is called through: tsc allows it
+// when the extras are optional or defaulted, but a call through that type never passes them.
+function arityDiagnostic(
+  src: ts.Type,
+  dst: ts.Type,
+  at: ts.Node,
+  checker: ts.TypeChecker,
+): Diagnostic | null {
+  const s = vtOf(src, at, checker);
+  const d = vtOf(dst, at, checker);
+  if (!s || !d) return null;
+  const sf = components(s).find((c) => c.kind === "function");
+  const df = components(d).find((c) => c.kind === "function");
+  if (sf?.kind !== "function" || df?.kind !== "function") return null;
+  if (sf.params.length <= df.params.length) return null;
+  return {
+    code: CODE.PARAM_FORM,
+    message: `\`${checker.typeToString(src)}\` cannot be used as \`${checker.typeToString(dst)}\`: it declares optional or default parameters the function type does not list, which a call through that type would not pass`,
+    span: spanOf(at, at.getSourceFile()),
+    suggestion:
+      "list the extra parameters in the function type (`(x: number, y?: number) => ...`), or pass a wrapper: `(x) => f(x)`",
   };
 }
 

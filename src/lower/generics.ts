@@ -20,7 +20,7 @@ import ts from "typescript";
 import { ice } from "../diagnostics.js";
 import type { HExpr } from "../hir/nodes.js";
 import type { ValueType } from "../hir/types.js";
-import { valueTypeOfTsType } from "./type-translation.js";
+import { paramSlotType, valueTypeOfTsType } from "./type-translation.js";
 
 export class GenericBoundaryError extends Error {
   constructor(
@@ -90,9 +90,7 @@ export function genericSignatureOf(
       : undefined;
   if (!ds) return null;
   const last = decl.parameters[decl.parameters.length - 1];
-  const erased = ds.parameters.map((p) =>
-    valueTypeOfTsType(checker.getTypeOfSymbolAtLocation(p, decl), decl, checker),
-  );
+  const erased = ds.parameters.map((p) => paramSlotType(p, decl, checker));
   // `f([])` infers T = never: no value of it exists, so the argument is already in any
   // representation, and the erased one is the one that needs no conversion.
   const isNever = (t: ts.Type): boolean =>
@@ -104,7 +102,7 @@ export function genericSignatureOf(
     erased,
     inst: rs.parameters.map((p, i) => {
       const t = checker.getTypeOfSymbolAtLocation(p, call);
-      return isNever(t) && erased[i] ? erased[i] : valueTypeOfTsType(t, call, checker);
+      return isNever(t) && erased[i] ? erased[i] : paramSlotType(p, call, checker);
     }),
     rest: last !== undefined && last.dotDotDotToken !== undefined,
     erasedRet: retOf(ds, decl, checker),

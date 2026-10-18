@@ -7,6 +7,7 @@ import type { ArrayElement, HExpr } from "../hir/nodes.js";
 import type { ValueType } from "../hir/types.js";
 import { type LowerCtx, lowerExpr, coerceToTarget } from "./lower.js";
 import { lowerArrayElement } from "./declarations.js";
+import { omittedArg } from "./params.js";
 import {
   type GenericSignature,
   applyArgumentPlan,
@@ -53,7 +54,15 @@ export function lowerGenericArgs(
   ctx: LowerCtx,
 ): HExpr[] {
   const args = call.arguments ?? [];
-  if (!g.rest) return args.map((a, i) => lowerOneArg(a, g.erased[i]!, g.inst[i]!, ctx));
+  // Omitted trailing optional/defaulted arguments are undefined in the erased slot.
+  const omitted = (count: number): HExpr[] =>
+    g.erased.slice(args.length, count).map((t) => omittedArg(t));
+  if (!g.rest) {
+    return [
+      ...args.map((a, i) => lowerOneArg(a, g.erased[i]!, g.inst[i]!, ctx)),
+      ...omitted(g.erased.length),
+    ];
+  }
   // A rest parameter packs the trailing arguments into one array in the ERASED representation.
   const fixed = g.erased.length - 1;
   const restT = g.erased[fixed]!;
@@ -72,6 +81,7 @@ export function lowerGenericArgs(
   });
   return [
     ...args.slice(0, fixed).map((a, i) => lowerOneArg(a, g.erased[i]!, g.inst[i]!, ctx)),
+    ...omitted(fixed),
     { kind: "arrayLit", elements: packed, type: restT },
   ];
 }

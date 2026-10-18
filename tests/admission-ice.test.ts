@@ -36,14 +36,24 @@ const CORPUS: Case[] = [
 
   // Language forms awaiting implementation.
   {
-    name: "default param",
+    name: "destructured default param",
     code: "CS1217",
-    src: `function f(x: number = 1): number { return x; }\nconsole.log(f());\n`,
+    src: `function f({ a }: { a: number } = { a: 1 }): number { return a; }\nconsole.log(f());\n`,
   },
   {
-    name: "optional param",
+    name: "optional closure param called through fewer params",
     code: "CS1217",
-    src: `function f(x?: number): number { return x ?? 0; }\nconsole.log(f());\n`,
+    src: `const g: (x: number) => number = (x: number, y?: number) => x + (y ?? 0);\nconsole.log(g(1));\n`,
+  },
+  {
+    name: "function length",
+    code: "CS1000",
+    src: `function f(x = 1): number { return x; }\nconsole.log(f.length);\n`,
+  },
+  {
+    name: "arguments object",
+    code: "CS1000",
+    src: `function f(x?: number): number { return arguments.length; }\nconsole.log(f());\n`,
   },
   { name: "uninitialized let", code: "CS1218", src: `let x: number;\nx = 1;\nconsole.log(x);\n` },
 

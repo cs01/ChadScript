@@ -24,7 +24,7 @@ export const CODE = {
   JSON_API: "CS1214", // JSON.stringify / JSON.parse — a later phase
   DATE_API: "CS1215", // Date — a later phase
   STRING_UNICODE_OP: "CS1216", // charCodeAt / string relational — need UTF-16 semantics, gated
-  PARAM_FORM: "CS1217", // default (`x = v`) / optional (`x?`) parameters — a later phase
+  PARAM_FORM: "CS1217", // default (`x = v`) / optional (`x?`) parameter forms lowering cannot make exact
   UNINIT_VAR: "CS1218", // `let x;` declaration with no initializer — a later phase
   // CS1219 (a closure capturing a mutable `let`) was retired in phase 5: such bindings live in heap
   // cells (lower/cells.ts). The number stays unused so old diagnostics never change meaning.
