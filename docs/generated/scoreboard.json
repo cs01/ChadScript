@@ -1,7 +1,7 @@
 {
   "total": 100,
-  "match": 1,
-  "rejected": 99,
+  "match": 3,
+  "rejected": 97,
   "divergent": 0,
   "crash": 0,
   "categories": [
@@ -24,8 +24,8 @@
     {
       "name": "cli",
       "total": 9,
-      "match": 0,
-      "rejected": 9,
+      "match": 2,
+      "rejected": 7,
       "divergent": 0,
       "crash": 0
     },
@@ -144,16 +144,6 @@
       ]
     },
     {
-      "code": "CS1216",
-      "message": "indexing a string with `[i]` is not supported yet",
-      "programs": 12,
-      "examples": [
-        "tests/corpus/calc-interpreter.ts",
-        "tests/corpus/cli-options.ts",
-        "tests/corpus/cli-replace.ts"
-      ]
-    },
-    {
       "code": "CS1000",
       "message": "`new Array` is not supported",
       "programs": 11,
@@ -184,16 +174,6 @@
       ]
     },
     {
-      "code": "CS1216",
-      "message": "relational comparison (`<` `>` `<=` `>=`) on strings is not supported yet",
-      "programs": 10,
-      "examples": [
-        "tests/corpus/hash-map.ts",
-        "tests/corpus/huffman.ts",
-        "tests/corpus/json-parser.ts"
-      ]
-    },
-    {
       "code": "CS1222",
       "message": "`Map.entries` is not supported yet",
       "programs": 10,
@@ -211,16 +191,6 @@
         "tests/corpus/build-order.ts",
         "tests/corpus/dice-probability.ts",
         "tests/corpus/dotenv-parser.ts"
-      ]
-    },
-    {
-      "code": "CS1216",
-      "message": "iterating a string with `for...of` is not supported yet",
-      "programs": 8,
-      "examples": [
-        "tests/corpus/brainfuck.ts",
-        "tests/corpus/ciphers.ts",
-        "tests/corpus/cli-grep.ts"
       ]
     },
     {
@@ -314,29 +284,19 @@
       ]
     },
     {
-      "code": "CS1243",
-      "message": "conditional, mapped and indexed-access types are not supported",
-      "programs": 5,
-      "examples": [
-        "tests/corpus/csv-to-json.ts",
-        "tests/corpus/event-emitter.ts",
-        "tests/corpus/redux-store.ts"
-      ]
-    },
-    {
       "code": "CS1000",
       "message": "`private` is not supported by ChadScript yet",
-      "programs": 4,
+      "programs": 5,
       "examples": [
         "tests/corpus/ring-buffer.ts",
-        "tests/corpus/undo-redo.ts",
-        "tests/corpus/union-find-mst.ts"
+        "tests/corpus/task-scheduler.ts",
+        "tests/corpus/undo-redo.ts"
       ]
     },
     {
       "code": "CS1000",
       "message": "an array binding pattern is not supported by ChadScript yet",
-      "programs": 4,
+      "programs": 5,
       "examples": [
         "tests/corpus/calendar.ts",
         "tests/corpus/csv-join.ts",
@@ -346,11 +306,21 @@
     {
       "code": "CS1000",
       "message": "an as expression is not supported by ChadScript yet",
-      "programs": 4,
+      "programs": 5,
       "examples": [
+        "tests/corpus/langtons-ant.ts",
         "tests/corpus/ring-buffer.ts",
-        "tests/corpus/shopping-cart.ts",
-        "tests/corpus/table-format.ts"
+        "tests/corpus/shopping-cart.ts"
+      ]
+    },
+    {
+      "code": "CS1243",
+      "message": "conditional, mapped and indexed-access types are not supported",
+      "programs": 5,
+      "examples": [
+        "tests/corpus/csv-to-json.ts",
+        "tests/corpus/event-emitter.ts",
+        "tests/corpus/redux-store.ts"
       ]
     },
     {
@@ -395,16 +365,6 @@
     },
     {
       "code": "CS1216",
-      "message": "`charCodeAt` is not supported yet",
-      "programs": 4,
-      "examples": [
-        "tests/corpus/brainfuck.ts",
-        "tests/corpus/ciphers.ts",
-        "tests/corpus/hash-map.ts"
-      ]
-    },
-    {
-      "code": "CS1216",
       "message": "`String.fromCharCode` is not supported yet",
       "programs": 4,
       "examples": [
@@ -444,6 +404,16 @@
       ]
     },
     {
+      "code": "CS1000",
+      "message": "`readonly` is not supported by ChadScript yet",
+      "programs": 3,
+      "examples": [
+        "tests/corpus/task-scheduler.ts",
+        "tests/corpus/undo-redo.ts",
+        "tests/corpus/vending-machine.ts"
+      ]
+    },
+    {
       "code": "CS1204",
       "message": "the non-null assertion `!` on an assignment target is not supported",
       "programs": 3,
@@ -455,11 +425,11 @@
     },
     {
       "code": "CS1000",
-      "message": "`readonly` is not supported by ChadScript yet",
+      "message": "a get accessor is not supported by ChadScript yet",
       "programs": 2,
       "examples": [
-        "tests/corpus/undo-redo.ts",
-        "tests/corpus/vending-machine.ts"
+        "tests/corpus/ring-buffer.ts",
+        "tests/corpus/task-scheduler.ts"
       ]
     },
     {
@@ -629,14 +599,6 @@
       "programs": 1,
       "examples": [
         "tests/corpus/backtracking.ts"
-      ]
-    },
-    {
-      "code": "CS1000",
-      "message": "a get accessor is not supported by ChadScript yet",
-      "programs": 1,
-      "examples": [
-        "tests/corpus/ring-buffer.ts"
       ]
     },
     {
@@ -1467,7 +1429,7 @@
       "category": "interpreters",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1216 iterating a string with `for...of` is not supported yet"
+      "detail": "CS1224 `Array.prototype.fill` is not supported yet"
     },
     {
       "path": "tests/corpus/bst.ts",
@@ -1509,7 +1471,7 @@
       "category": "text",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1216 `charCodeAt` is not supported yet"
+      "detail": "CS1216 `String.fromCharCode` is not supported yet"
     },
     {
       "path": "tests/corpus/cli-config-merge.ts",
@@ -1521,9 +1483,9 @@
     {
       "path": "tests/corpus/cli-grep.ts",
       "category": "cli",
-      "outcome": "rejected",
+      "outcome": "match",
       "knownBug": null,
-      "detail": "CS1216 iterating a string with `for...of` is not supported yet"
+      "detail": ""
     },
     {
       "path": "tests/corpus/cli-head-tail.ts",
@@ -1570,9 +1532,9 @@
     {
       "path": "tests/corpus/cli-wc.ts",
       "category": "cli",
-      "outcome": "rejected",
+      "outcome": "match",
       "knownBug": null,
-      "detail": "CS1216 iterating a string with `for...of` is not supported yet"
+      "detail": ""
     },
     {
       "path": "tests/corpus/config-validator.ts",
@@ -1600,7 +1562,7 @@
       "category": "parsing",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1216 indexing a string with `[i]` is not supported yet"
+      "detail": "CS1233 this value has a type ChadScript does not support here (`Row`)"
     },
     {
       "path": "tests/corpus/csv-to-json.ts",
@@ -1621,7 +1583,7 @@
       "category": "parsing",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1216 indexing a string with `[i]` is not supported yet"
+      "detail": "CS1218 a variable declaration without an initializer is not supported yet"
     },
     {
       "path": "tests/corpus/dp-classics.ts",
@@ -1726,7 +1688,7 @@
       "category": "algorithms",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1216 iterating a string with `for...of` is not supported yet"
+      "detail": "CS1222 `Map.entries` is not supported yet"
     },
     {
       "path": "tests/corpus/ini-parser.ts",
@@ -1761,7 +1723,7 @@
       "category": "simulation",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1216 indexing a string with `[i]` is not supported yet"
+      "detail": "CS1000 an as expression is not supported by ChadScript yet"
     },
     {
       "path": "tests/corpus/lazy-sequence.ts",
@@ -1894,7 +1856,7 @@
       "category": "text",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1216 indexing a string with `[i]` is not supported yet"
+      "detail": "CS1216 `String.fromCharCode` is not supported yet"
     },
     {
       "path": "tests/corpus/schema-builder.ts",
@@ -1957,7 +1919,7 @@
       "category": "text",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1216 relational comparison (`<` `>` `<=` `>=`) on strings is not supported yet"
+      "detail": "CS1222 `Map.entries` is not supported yet"
     },
     {
       "path": "tests/corpus/table-format.ts",
@@ -1971,7 +1933,7 @@
       "category": "data-structures",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1216 relational comparison (`<` `>` `<=` `>=`) on strings is not supported yet"
+      "detail": "CS1000 `private` is not supported by ChadScript yet"
     },
     {
       "path": "tests/corpus/temperature-table.ts",
@@ -2020,7 +1982,7 @@
       "category": "data-structures",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1216 iterating a string with `for...of` is not supported yet"
+      "detail": "CS1217 default parameter values are not supported yet"
     },
     {
       "path": "tests/corpus/ttl-cache.ts",
