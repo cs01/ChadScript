@@ -125,3 +125,20 @@ export function coerceElement(el: ArrayElement, arrayType: ValueType): ArrayElem
   if (!converts(element.kind) && !converts(el.value.type.kind)) return el;
   return { spread: false, value: coerceToTarget(el.value, element) };
 }
+
+// `s[i]` (strings are ASCII, see runtime/ascii-gate.milo): `string | undefined`, or `string` where
+// tsc narrowed the access.
+export function lowerStringIndex(
+  ea: ts.ElementAccessExpression,
+  type: ValueType,
+  ctx: LowerCtx,
+): HExpr {
+  const at: HExpr = {
+    kind: "strAt",
+    str: lowerExpr(ea.expression, ctx),
+    index: lowerExpr(ea.argumentExpression, ctx),
+    element: true,
+    type: optionalOf(VT.string),
+  };
+  return type.kind === "optional" ? at : { kind: "unwrap", value: at, type };
+}

@@ -15,7 +15,7 @@ import ts from "typescript";
 import { ice } from "../diagnostics.js";
 import type { LoadedProgram } from "../frontend/program.js";
 import type { HModule, HStmt, HExpr, HFunc, HCapture } from "../hir/nodes.js";
-import { VT, optionalOf } from "../hir/types.js";
+import { VT } from "../hir/types.js";
 import { binaryOp, unaryOp, isAssignmentOp, compoundOp } from "./operators.js";
 import { stringOperand } from "./to-string.js";
 import { lowerPromiseNew } from "./promise-new.js";
@@ -38,6 +38,7 @@ import {
   bothOptional,
   optionalRead,
   nullishLit,
+  lowerStringIndex,
 } from "./value-lower.js";
 import { type FieldWrite, applyFieldWrites } from "./field-writes.js";
 // Re-exported: statements.ts and friends import these through lower.ts.
@@ -503,18 +504,7 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
       if (arrType.kind === "object" && ts.isStringLiteral(key)) {
         return lowerFieldRead(ea.expression, key.text, arrType, type, ctx);
       }
-      // `s[i]` (ASCII strings, see runtime/ascii-gate.milo): `string | undefined`, or `string` where
-      // tsc narrowed the access.
-      if (arrType.kind === "string") {
-        const at: HExpr = {
-          kind: "strAt",
-          str: lowerExpr(ea.expression, ctx),
-          index: lowerExpr(ea.argumentExpression, ctx),
-          element: true,
-          type: optionalOf(VT.string),
-        };
-        return type.kind === "optional" ? at : { kind: "unwrap", value: at, type };
-      }
+      if (arrType.kind === "string") return lowerStringIndex(ea, type, ctx);
       if (arrType.kind !== "array") ice("lower: index access only on arrays yet");
       // `type` here is `element | undefined` (noUncheckedIndexedAccess). A Value or optional element
       // is read as a word (undefined when out of range) and unboxed if tsc narrowed the access
