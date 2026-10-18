@@ -181,8 +181,23 @@ export function lowerForOf(stmt: ts.ForOfStatement, ctx: LowerCtx): HStmt {
   } else if (iterable.type.kind === "array") {
     source = { kind: "array", array: iterable };
     elementType = iterable.type.element;
+  } else if (iterable.type.kind === "string") {
+    // Strings are ASCII (runtime/ascii-gate.milo), so the code points a string iterator yields are
+    // its single-byte characters: iterate the `split("")` array. The string is immutable, so a
+    // snapshot is exactly what Node's iterator sees.
+    source = {
+      kind: "array",
+      array: {
+        kind: "strMethod",
+        method: "split",
+        receiver: iterable,
+        args: [{ kind: "stringLit", value: "", type: VT.string }],
+        type: VT.array(VT.string),
+      },
+    };
+    elementType = VT.string;
   } else {
-    return ice("lower: for...of is only supported over arrays, keys()/values() and Sets");
+    return ice("lower: for...of is only supported over arrays, strings, keys()/values() and Sets");
   }
   // The loop variable is `for (const x of arr)`.
   if (!ts.isVariableDeclarationList(stmt.initializer)) {

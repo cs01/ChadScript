@@ -21,8 +21,7 @@ set of programs the compiler agrees to build.
 5. **Strings are ASCII for now.** A non-ASCII string literal is rejected at compile time, and
    non-ASCII text arriving at run time (a command-line argument, a file read as text, socket
    data) stops the program with an error rather than being measured or indexed differently from
-   Node. Operations whose results depend on UTF-16 code units (`charCodeAt`, `s[i]`, `<` on
-   strings) are rejected for now, not approximated.
+   Node. Within ASCII, every string operation (`s[i]`, `for...of`, `<`, `charCodeAt`) is exact.
 
 ## Topics
 

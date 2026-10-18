@@ -135,7 +135,7 @@ export const EXPLANATIONS: Record<keyof typeof CODE, Entry> = {
   STRING_UNICODE_OP: {
     title: "UTF-16 dependent string operation",
     meaning:
-      "Strings are stored as UTF-8. Operations whose result depends on UTF-16 code units (`charCodeAt`, `s[i]`, `for...of` over a string, `<` on strings, non-ASCII literals) would diverge from Node for non-ASCII text, so they are gated until the Unicode decision in the plan.",
+      "Strings are ASCII for now: a non-ASCII string literal (or escape) is rejected, and non-ASCII text arriving at run time stops the program. `String.fromCharCode` and `fromCodePoint` stay gated because they could build a non-ASCII string. Full Unicode is a later phase.",
     rewrite:
       "Use `charAt(i)` or `at(i)`, compare strings with `===`, and keep literals ASCII for now.",
     planned: true,

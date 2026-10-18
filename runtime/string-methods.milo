@@ -7,7 +7,7 @@ from "./csstring" import { cs_str_mk, cs_str_from, cs_mem_find, strLit }
 from "./strings" import { isWs, digitValue }
 from "./array" import { cs_array_new, cs_array_push }
 from "./nullable" import { undefinedMarker, boxSlot }
-from "./libc" import { strtod }
+from "./libc" import { strtod, trunc }
 from "./gc" import { gcAllocAtomic }
 
 fn sdata(s: *CsString): *u8 {
@@ -240,6 +240,31 @@ pub fn cs_str_at(s: *CsString, di: f64): *u8 {
         return undefinedMarker()
     }
     return boxSlot(substr(s, i, i + 1) as i64)
+}
+
+// `s[i]`: a property read, so only a non-negative integer index in range names a character; -0
+// is "0" as a key. NaN fails every comparison below.
+@externalLinkage
+pub fn cs_str_index(s: *CsString, di: f64): *u8 {
+    let n = slen(s)
+    if !(di >= 0.0 && di < n as f64) || di != trunc(di) {
+        return undefinedMarker()
+    }
+    let i = di as i64
+    return boxSlot(substr(s, i, i + 1) as i64)
+}
+
+// JS charCodeAt: the code unit at ToIntegerOrInfinity(i), NaN when out of range. Strings are ASCII
+// (runtime/ascii-gate.milo), so the byte is the UTF-16 code unit.
+@externalLinkage
+pub fn cs_str_char_code_at(s: *CsString, di: f64): f64 {
+    let pos = if isNan(di) { 0.0 } else { trunc(di) }
+    if !(pos >= 0.0 && pos < slen(s) as f64) {
+        return 0.0 / 0.0
+    }
+    unsafe {
+        return (*byteAt(sdata(s), pos as i64)) as f64
+    }
 }
 
 // JS charAt: the 1-char string at i, or "" if out of range.

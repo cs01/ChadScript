@@ -32,22 +32,6 @@ const CORPUS: Case[] = [
   { name: "Date.parse", code: "CS1215", src: `console.log(Date.parse("2020-01-01"));\n` },
 
   // UTF-16-vs-UTF-8 gated operations.
-  {
-    name: "charCodeAt",
-    code: "CS1216",
-    src: `const s: string = "a";\nconsole.log(s.charCodeAt(0));\n`,
-  },
-  {
-    name: "string <",
-    code: "CS1216",
-    src: `const a: string = "a";\nconst b: string = "b";\nconsole.log(a < b);\n`,
-  },
-  { name: "string index", code: "CS1216", src: `const s: string = "ab";\nconsole.log(s[0]);\n` },
-  {
-    name: "string for-of",
-    code: "CS1216",
-    src: `const s: string = "ab";\nfor (const c of s) console.log(c);\n`,
-  },
   { name: "String.fromCharCode", code: "CS1216", src: `console.log(String.fromCharCode(65));\n` },
 
   // Language forms awaiting implementation.
@@ -105,7 +89,7 @@ const CORPUS: Case[] = [
   {
     name: "gated op inside a class method",
     code: "CS1216",
-    src: `class C { cmp(a: string, b: string): boolean { return a < b; } }\nconsole.log(new C().cmp("a", "b"));\n`,
+    src: `class C { ch(n: number): string { return String.fromCharCode(n); } }\nconsole.log(new C().ch(65));\n`,
   },
 ];
 

@@ -46,7 +46,7 @@ export function evalOptionalPtr(expr: HExpr, ctx: Ctx): Value {
       evalNumber(expr.index, ctx),
     ]);
   if (expr.kind === "strAt")
-    return ctx.fn.call("@cs_str_at", T.ptr, [
+    return ctx.fn.call(expr.element ? "@cs_str_index" : "@cs_str_at", T.ptr, [
       evalString(expr.str, ctx),
       evalNumber(expr.index, ctx),
     ]);

@@ -66,8 +66,16 @@ export function evalComparison(expr: Extract<HExpr, { kind: "binary" }>, ctx: Ct
   const op = expr.op;
   const relPred = RELATIONAL[op];
   if (relPred) {
-    // String relational operands are gated OUT of the subset at validate (CS1216): byte-order
-    // comparison diverges from Node's UTF-16 code-unit order on non-ASCII. Only numbers reach here.
+    // Strings (tsc requires both sides to be one): byte order IS Node's UTF-16 code-unit order
+    // because strings are ASCII (runtime/ascii-gate.milo).
+    if (expr.left.type.kind === "string") {
+      const cmp = ctx.fn.call("@cs_str_cmp", T.i32, [
+        evalString(expr.left, ctx),
+        evalString(expr.right, ctx),
+      ]);
+      const intPred = { lt: "slt", gt: "sgt", le: "sle", ge: "sge" } as const;
+      return ctx.fn.icmp(intPred[op as keyof typeof intPred], cmp, imm(T.i32, 0));
+    }
     // Ordered predicate → NaN yields false, matching JS.
     return ctx.fn.fcmp(relPred, evalNumber(expr.left, ctx), evalNumber(expr.right, ctx));
   }

@@ -180,6 +180,8 @@ export function declareRuntimeExterns(mod: ModuleBuilder): void {
   mod.declareExtern("cs_array_at", T.ptr, [T.ptr, T.double]);
   mod.declareExtern("cs_array_flat", T.ptr, [T.ptr]);
   mod.declareExtern("cs_str_at", T.ptr, [T.ptr, T.double]);
+  mod.declareExtern("cs_str_index", T.ptr, [T.ptr, T.double]);
+  mod.declareExtern("cs_str_char_code_at", T.double, [T.ptr, T.double]);
   mod.declareExtern("cs_str_cmp", T.i32, [T.ptr, T.ptr]);
   // Map: keys/values cross as i64 slots; `kind` (i32) selects key equality.
   mod.declareExtern("cs_map_new", T.ptr, []);

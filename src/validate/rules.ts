@@ -258,15 +258,6 @@ export function tailoredRejection(
             "compiled binary; take the slice and index into that",
         );
       }
-      // `s.charCodeAt(...)`: byte value ≠ Node's UTF-16 code unit for non-ASCII. Gated (CS1216).
-      // Type-guarded, so a user-defined method that happens to share the name is unaffected.
-      if (pa.name.text === "charCodeAt" && isStringTyped(pa.expression, checker)) {
-        return hit(
-          CODE.STRING_UNICODE_OP,
-          "`charCodeAt` is not supported yet",
-          "it needs UTF-16 code-unit semantics over UTF-8 storage; use charAt for now",
-        );
-      }
       // Number formatting methods lowering doesn't have. Type-guarded so a user method of the same name is unaffected.
       if (UNSUPPORTED_NUMBER_METHODS.has(pa.name.text) && isNumberTyped(pa.expression, checker)) {
         return hit(
@@ -286,27 +277,9 @@ export function tailoredRejection(
           "test the array first: `xs === undefined ? d : xs[i]`",
         );
       }
-      // `s[i]` on a string yields a byte, not Node's UTF-16 code-unit character, for non-ASCII.
-      // Gated (CS1216). Array element access (the common case) is unaffected.
-      if (isStringTyped((node as ts.ElementAccessExpression).expression, checker)) {
-        return hit(
-          CODE.STRING_UNICODE_OP,
-          "indexing a string with `[i]` is not supported yet",
-          "it needs UTF-16 code-unit semantics; use `.charAt(i)` (or `.at(i)`) for now",
-        );
-      }
       return null;
 
     case ts.SyntaxKind.ForOfStatement:
-      // `for (const c of str)` iterates UTF-8 bytes here, not Node's code points. Gated (CS1216).
-      // Iterating arrays/Map/Set is unaffected.
-      if (isStringTyped((node as ts.ForOfStatement).expression, checker)) {
-        return hit(
-          CODE.STRING_UNICODE_OP,
-          "iterating a string with `for...of` is not supported yet",
-          "it needs UTF-16/code-point semantics; index with `.charAt` over `.length` for now",
-        );
-      }
       return null;
 
     case ts.SyntaxKind.ImportDeclaration:
@@ -422,16 +395,6 @@ function checkBinary(
     const loose = op === ts.SyntaxKind.EqualsEqualsToken ? "==" : "!=";
     return hit(CODE.EQEQ, `\`${loose}\` is not supported`, `use \`${strict}\``);
   }
-  // String `<`/`>`/`<=`/`>=`: byte-lexicographic order diverges from Node's UTF-16 code-unit order
-  // for non-ASCII. Gated (CS1216) until exact semantics land. `===`/`!==` stay allowed (equality is
-  // byte-exact for UTF-8). Uses the checker since the divergence is type-dependent.
-  if (RELATIONAL_OPS.has(op) && isStringTyped(node.left, checker)) {
-    return hit(
-      CODE.STRING_UNICODE_OP,
-      "relational comparison (`<` `>` `<=` `>=`) on strings is not supported yet",
-      "it needs UTF-16 code-unit ordering; compare with === or compare numbers for now",
-    );
-  }
   return null;
 }
 
@@ -470,6 +433,7 @@ export const STRING_METHODS: ReadonlySet<string> = new Set([
   "replaceAll",
   "repeat",
   "charAt",
+  "charCodeAt",
   "replace",
   "split",
   "includes",
@@ -658,7 +622,7 @@ function checkCall(node: ts.CallExpression, hit: Hit, checker: ts.TypeChecker): 
     }
     // String instance methods: default-DENY against the set codegen dispatches (charCodeAt has its
     // own CS1216 rule, so skip it here to avoid a duplicate diagnostic).
-    if (m !== "charCodeAt" && !STRING_METHODS.has(m) && isStringTyped(recv, checker)) {
+    if (!STRING_METHODS.has(m) && isStringTyped(recv, checker)) {
       return hit(
         CODE.STRING_METHOD,
         `\`String.prototype.${m}\` is not supported yet`,

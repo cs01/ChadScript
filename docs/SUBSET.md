@@ -145,6 +145,7 @@ diagnostic — there is no "compiles but behaves differently than Node" third ca
 
 - `at`
 - `charAt`
+- `charCodeAt`
 - `concat`
 - `endsWith`
 - `includes`

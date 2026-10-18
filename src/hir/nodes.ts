@@ -373,7 +373,9 @@ export type HExpr =
   // `arr.at(i)` → `element | undefined` (negative index counts from the end).
   | { kind: "arrayAt"; array: HExpr; index: HExpr; type: ValueType }
   // `str.at(i)` → `string | undefined`.
-  | { kind: "strAt"; str: HExpr; index: HExpr; type: ValueType }
+  // `s.at(i)`, or with `element` the property read `s[i]`: no negative wrap, and a non-integer
+  // index names no character (`s[1.5]` is undefined, where `s.at(1.5)` truncates).
+  | { kind: "strAt"; str: HExpr; index: HExpr; element?: true; type: ValueType }
   // `arr.join(sep?)` → string. `separator` null means the default ",". Each element is coerced.
   | {
       kind: "arrayJoin";

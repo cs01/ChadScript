@@ -206,13 +206,13 @@ Only `Date.now()` is in the subset; `Date` instances need calendar arithmetic th
 
 ## CS1216: UTF-16 dependent string operation {#cs1216}
 
-Strings are stored as UTF-8. Operations whose result depends on UTF-16 code units (`charCodeAt`, `s[i]`, `for...of` over a string, `<` on strings, non-ASCII literals) would diverge from Node for non-ASCII text, so they are gated until the Unicode decision in the plan.
+Strings are ASCII for now: a non-ASCII string literal (or escape) is rejected, and non-ASCII text arriving at run time stops the program. `String.fromCharCode` and `fromCodePoint` stay gated because they could build a non-ASCII string. Full Unicode is a later phase.
 
 **Rewrite:** Use `charAt(i)` or `at(i)`, compare strings with `===`, and keep literals ASCII for now.
 
 **Status:** planned to be admitted in a later phase.
 
-**Rejection tests:** [`string-charcodeat.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/string-charcodeat.ts), [`string-for-of.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/string-for-of.ts), [`string-fromcharcode.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/string-fromcharcode.ts) and 4 more
+**Rejection tests:** [`string-fromcharcode.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/string-fromcharcode.ts), [`string-non-ascii-escape.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/string-non-ascii-escape.ts), [`string-non-ascii-literal.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/string-non-ascii-literal.ts)
 
 ## CS1217: Optional or default parameter {#cs1217}
 
