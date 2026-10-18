@@ -127,14 +127,34 @@ export function uncaughtErrorLines(nodeStderr: string): string[] | null {
   return [...before, lines[header]!];
 }
 
+// The sanitized lane's ASan runtime prints these advisories for every fiber switch (makecontext/
+// swapcontext) and for longjmp-based throws. They are not reports: a real ASan or UBSan error
+// aborts the process (-fno-sanitize-recover), so the exit code still catches it. Only these exact
+// lines are dropped, so anything else ASan writes still fails the comparison.
+const ASAN_NOTICES = [
+  /^==\d+==WARNING: ASan doesn't fully support makecontext\/swapcontext functions and may produce false positives in some cases!$/,
+  /^==\d+==WARNING: ASan is ignoring requested __asan_handle_no_return: stack type: .*$/,
+  /^False positive error reports may follow$/,
+  /^For details see https:\/\/github\.com\/google\/sanitizers\/issues\/189$/,
+];
+
+function stripAsanNotices(stderr: string): string {
+  if (!stderr.includes("==")) return stderr;
+  return stderr
+    .split("\n")
+    .filter((line) => !ASAN_NOTICES.some((re) => re.test(line)))
+    .join("\n");
+}
+
 // Compare stderr. Exact, except when Node died of an uncaught error: then only the program's own
 // earlier stderr output and the first line of the error are compared (the stack cannot match).
 // Returns null when equal, otherwise a description.
 export function compareStderr(
   nodeStderr: string,
-  nativeStderr: string,
+  rawNativeStderr: string,
   nodeExit: number | null,
 ): string | null {
+  const nativeStderr = stripAsanNotices(rawNativeStderr);
   if (nodeExit !== 0) {
     const want = uncaughtErrorLines(nodeStderr);
     if (want !== null) {
