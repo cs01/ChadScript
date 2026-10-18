@@ -1,5 +1,4 @@
 // @expect-reject: CS1204
-function f(x: number | null): number {
-  return x!;
-}
-f(1);
+let a: number | undefined = 1;
+a! = 2;
+console.log(a);

@@ -37,16 +37,6 @@ function translate(t: ts.Type, at: ts.Node, checker: ts.TypeChecker): ValueType 
   }
 }
 
-// `x!` whose operand and result are both one Value word: an erased `T | undefined` narrowed to T.
-export function isWordToWordAssertion(
-  node: ts.NonNullExpression,
-  checker: ts.TypeChecker,
-): boolean {
-  const inner = translate(checker.getTypeAtLocation(node.expression), node, checker);
-  const outer = translate(checker.getTypeAtLocation(node), node, checker);
-  return inner?.kind === "value" && outer?.kind === "value";
-}
-
 function checkCall(call: ts.CallExpression | ts.NewExpression, checker: ts.TypeChecker): void {
   const g = genericSignatureOf(call, checker);
   if (!g) return;

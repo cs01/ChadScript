@@ -41,6 +41,18 @@ test("run: an option (the removed --fallback=node too) and a missing file are us
   assert.match(missing.stderr, /no such file/);
 });
 
+// The one place an accepted program knowingly differs from Node (lower/non-null.ts): a false `x!`
+// that would change representation throws instead of carrying `undefined` on.
+test("run: a false non-null assertion throws a TypeError", () => {
+  const r = chadRun(["run", join(root, "tests", "cli", "non-null-false.ts")]);
+  assert.equal(r.stdout, "before\n");
+  assert.equal(r.status, 1);
+  assert.match(
+    r.stderr,
+    /TypeError: non-null assertion failed: `m.get\("missing"\)` is null or undefined/,
+  );
+});
+
 test("--version prints the package version and the pinned Milo commit", () => {
   const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as { version: string };
   const pin = /MILO_COMMIT="([0-9a-f]{40})"/.exec(

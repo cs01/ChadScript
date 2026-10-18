@@ -86,9 +86,11 @@ fights the layout assumption. That is the "every fix fails" pattern of the previ
    NaNs are canonicalized before boxing.
 4. **Generics by erasure** to `Value`. Monomorphization later, as a flag-off optimization.
 5. **Mutable captures** live in heap cells.
-6. **TS soundness holes closed in the validator:** no `any`, no narrowing `as`. `x!` is erased
-   exactly as Node erases it (no runtime check, which would diverge), so it is admitted only
-   where it changes no representation; elsewhere it is rejected.
+6. **TS soundness holes closed in the validator:** no `any`, no narrowing `as`. `x!` is
+   erased where it changes no representation, exactly as Node erases it. Where it does
+   (`T | undefined` read as a `T`) it is CHECKED: a nullish value throws a TypeError. Amended
+   2026-10-17, the one deliberate departure from Node: it differs only when the assertion is false,
+   where Node would carry `undefined` into code typed for a `T` (lower/non-null.ts).
 
 What remains "runtime" is shapes, the inline cache, and NaN-box helpers: ~1-2k LOC of C.
 There is no parser, interpreter, JIT, or deoptimizer in the binary.
@@ -323,7 +325,7 @@ manifest. Estimates in LOC.
    slots, closures adapted, fresh result arrays copied) and reject what cannot cross: containers or
    functions as type arguments (CS1242), aliased containers of other representations (CS1240),
    type-level computation (CS1243), constructor types (CS1244). `x!` is admitted where it is a
-   no-op on a Value word. Closures + generics fuzzer in tests/slow. (~1.6k)
+   no-op on a Value word (since 2026-10-17 everywhere it is read, checked: constitution item 6). Closures + generics fuzzer in tests/slow. (~1.6k)
 6. **Own GC** in Milo. DONE (dod `precise-gc`). Conservative roots, precise heap, Immix-style
    blocks and lines, bump allocation inlined into generated IR, lazy sweep; libgc dropped from
    the link, the driver and CI. `CHAD_GC_STRESS=1` lane over the differential suite in CI. See

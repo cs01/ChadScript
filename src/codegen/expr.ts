@@ -392,6 +392,32 @@ export function evalConditional(expr: Extract<HExpr, { kind: "conditional" }>, c
 // String methods: each maps to a runtime call. `ret` picks the IR return type and any bool
 // conversion (the runtime returns i32 0/1 for predicates).
 // Evaluate any supported HExpr to an IR Value, dispatched on its resolved type.
+// Throw the TypeError of a failed `x!`. cs_throw never returns; the expression still needs a
+// value of its type, so emission continues in a dead block with a zero of that type.
+function evalNonNullFail(expr: Extract<HExpr, { kind: "nonNullFail" }>, ctx: Ctx): Value {
+  const err = ctx.fn.call("@cs_new_error_kind", T.ptr, [
+    imm(T.i32, expr.errorKind),
+    ctx.mod.cstring(expr.message),
+  ]);
+  ctx.fn.callVoid("@cs_throw", [err]);
+  ctx.fn.unreachable();
+  ctx.fn.switchTo(ctx.fn.newBlock("nonnull.dead"));
+  const irt = irTypeOf(expr.type);
+  switch (irt.kind) {
+    case "double":
+      return fimm(0);
+    case "ptr":
+      return ctx.fn.nullPtr();
+    case "i1":
+    case "i8":
+    case "i32":
+    case "i64":
+      return imm(irt, 0);
+    default:
+      return ice(`nonNullFail: no zero for ${irt.kind}`);
+  }
+}
+
 export function evalValue(expr: HExpr, ctx: Ctx): Value {
   // arrayHof spans result types (map/filter→array, reduce→any, forEach→undefined); handle it
   // before the type switch so forEach's `undefined` result type doesn't hit the default ICE.
@@ -410,6 +436,7 @@ export function evalValue(expr: HExpr, ctx: Ctx): Value {
   if (expr.kind === "unwrap") return evalUnwrap(expr, ctx);
   if (expr.kind === "memberGet") return evalMemberGet(expr, ctx);
   if (expr.kind === "coalesce") return evalCoalesce(expr, ctx);
+  if (expr.kind === "nonNullFail") return evalNonNullFail(expr, ctx);
   // `await` yields its inner-typed value; handle before the type switch so it dispatches by result
   // type regardless (a number `await`, a string `await`, …).
   if (expr.kind === "await") return evalAwait(expr, ctx);

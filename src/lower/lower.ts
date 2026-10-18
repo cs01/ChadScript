@@ -9,6 +9,7 @@
 // The validator has already admitted only in-subset constructs, so a shape we don't recognize
 // here is an ICE (a validator/lower mismatch), not a user error.
 
+import { lowerNonNull } from "./non-null.js";
 import { builtinIdOf, lowerBuiltinValue } from "./builtin-values.js";
 import ts from "typescript";
 import { ice } from "../diagnostics.js";
@@ -619,10 +620,8 @@ export function lowerExpr(expr: ts.Expression, ctx: LowerCtx): HExpr {
       return { kind: "template", quasis, exprs, type };
     }
 
-    // Admitted only where both sides are one Value word (validate/rules.ts), so the assertion has
-    // no run-time effect, exactly as in JS: an erased `T | undefined` read passes through as is.
     case ts.SyntaxKind.NonNullExpression:
-      return lowerExpr((expr as ts.NonNullExpression).expression, ctx);
+      return lowerNonNull(expr as ts.NonNullExpression, ctx);
 
     case ts.SyntaxKind.TypeOfExpression:
       return {

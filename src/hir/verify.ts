@@ -411,6 +411,8 @@ function verifyExpr(e: HExpr): void {
       verifyExpr(e.left);
       verifyExpr(e.right);
       return;
+    case "nonNullFail":
+      return;
     case "coalesce":
       checkFlow(e.right, e.type, "?? fallback");
       verifyExpr(e.left);

@@ -18,7 +18,6 @@ import { CODE, type Code } from "./codes.js";
 import { spanOf } from "./validate.js";
 import { namespaceMemberOf } from "../lower/module-refs.js";
 import { UnrepresentableTypeError, valueTypeOfTsType } from "../lower/type-translation.js";
-import { isWordToWordAssertion } from "./generic-rules.js";
 import { assignmentValueProblem, updateValueProblem } from "./update-rules.js";
 import {
   checkDefaultClass,
@@ -106,14 +105,13 @@ export function tailoredRejection(
     }
 
     case ts.SyntaxKind.NonNullExpression:
-      // `x!` where x and the result are both one Value word (an erased `T | undefined` read) is a
-      // no-op in the compiled program exactly as in JS. Anywhere else it would have to unbox a
-      // possibly-undefined value to a concrete type, which JS never does.
-      if (isWordToWordAssertion(node as ts.NonNullExpression, checker)) return null;
+      // A read is checked (lower/non-null.ts); a write target (`a! = 1`, `xs[i]!++`) has nothing
+      // to check, and the assignment paths take only a plain name, field or element.
+      if (!isWriteTarget(node)) return null;
       return hit(
         CODE.NON_NULL_ASSERTION,
-        "the non-null assertion `!` is not allowed",
-        "narrow with an explicit `if (x !== null && x !== undefined)` check",
+        "the non-null assertion `!` on an assignment target is not supported",
+        "drop the `!`: `a! = v` assigns exactly like `a = v`",
       );
 
     case ts.SyntaxKind.DeleteExpression:
@@ -541,6 +539,22 @@ function checkCast(node: ts.AsExpression | ts.TypeAssertion, hit: Hit): Diagnost
     );
   }
   return null;
+}
+
+function isWriteTarget(node: ts.Node): boolean {
+  const p = node.parent;
+  if (ts.isBinaryExpression(p)) {
+    const op = p.operatorToken.kind;
+    return (
+      p.left === node && op >= ts.SyntaxKind.FirstAssignment && op <= ts.SyntaxKind.LastAssignment
+    );
+  }
+  if (ts.isPrefixUnaryExpression(p) || ts.isPostfixUnaryExpression(p)) {
+    return (
+      p.operator === ts.SyntaxKind.PlusPlusToken || p.operator === ts.SyntaxKind.MinusMinusToken
+    );
+  }
+  return false;
 }
 
 function isNamedIdent(e: ts.Expression, name: string): boolean {

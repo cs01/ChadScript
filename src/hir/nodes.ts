@@ -309,6 +309,9 @@ export type HExpr =
   // Unwrap a narrowed optional to its inner value. Emitted by lower when a var whose DECLARED
   // type is optional is used at a narrowed (non-optional) type (after `x !== undefined`).
   | { kind: "unwrap"; value: HExpr; type: ValueType }
+  // The failing arm of a checked `x!` (lowered as `x ?? nonNullFail`): throws an error of runtime kind
+  // `errorKind` (a TypeError) with `message` and never produces a value. `type` is the fallback type the `??` needs.
+  | { kind: "nonNullFail"; errorKind: number; message: string; type: ValueType }
   // `x instanceof C` → boolean. `shapes` are the shape ids of C and every subclass; codegen
   // compares the receiver's shape pointer to each.
   | { kind: "instanceofCheck"; value: HExpr; shapes: number[]; type: ValueType }
