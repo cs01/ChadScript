@@ -104,16 +104,6 @@
   ],
   "reasons": [
     {
-      "code": "CS1204",
-      "message": "the non-null assertion `!` is not allowed",
-      "programs": 52,
-      "examples": [
-        "tests/corpus/async-line-processor.ts",
-        "tests/corpus/backtracking.ts",
-        "tests/corpus/bank-ledger.ts"
-      ]
-    },
-    {
       "code": "CS1213",
       "message": "regular expression literals are not supported yet",
       "programs": 29,
@@ -355,6 +345,16 @@
     },
     {
       "code": "CS1000",
+      "message": "an array binding pattern is not supported by ChadScript yet",
+      "programs": 4,
+      "examples": [
+        "tests/corpus/calendar.ts",
+        "tests/corpus/csv-join.ts",
+        "tests/corpus/intervals.ts"
+      ]
+    },
+    {
+      "code": "CS1000",
       "message": "an assignment used as a value is not supported",
       "programs": 4,
       "examples": [
@@ -454,13 +454,13 @@
       ]
     },
     {
-      "code": "CS1000",
-      "message": "an array binding pattern is not supported by ChadScript yet",
+      "code": "CS1204",
+      "message": "the non-null assertion `!` on an assignment target is not supported",
       "programs": 3,
       "examples": [
-        "tests/corpus/csv-join.ts",
-        "tests/corpus/intervals.ts",
-        "tests/corpus/union-find-mst.ts"
+        "tests/corpus/bitset.ts",
+        "tests/corpus/ciphers.ts",
+        "tests/corpus/sorting-suite.ts"
       ]
     },
     {
@@ -1480,7 +1480,7 @@
       "category": "async-io",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1204 the non-null assertion `!` is not allowed"
+      "detail": "CS1000 `await` at the top level of a module is not supported yet"
     },
     {
       "path": "tests/corpus/async-queue.ts",
@@ -1522,7 +1522,7 @@
       "category": "algorithms",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1204 the non-null assertion `!` is not allowed"
+      "detail": "CS1000 indexing an object with a computed key is not supported"
     },
     {
       "path": "tests/corpus/bitset.ts",
@@ -1564,7 +1564,7 @@
       "category": "scripts",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1204 the non-null assertion `!` is not allowed"
+      "detail": "CS1000 an array binding pattern is not supported by ChadScript yet"
     },
     {
       "path": "tests/corpus/case-convert.ts",
@@ -1613,7 +1613,7 @@
       "category": "cli",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1204 the non-null assertion `!` is not allowed"
+      "detail": "CS1213 regular expression literals are not supported yet"
     },
     {
       "path": "tests/corpus/cli-rpn.ts",
@@ -1669,14 +1669,14 @@
       "category": "parsing",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1204 the non-null assertion `!` is not allowed"
+      "detail": "CS1216 indexing a string with `[i]` is not supported yet"
     },
     {
       "path": "tests/corpus/csv-to-json.ts",
       "category": "parsing",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1204 the non-null assertion `!` is not allowed"
+      "detail": "CS1243 `keyof` types are not supported"
     },
     {
       "path": "tests/corpus/dice-probability.ts",
@@ -1774,14 +1774,14 @@
       "category": "scripts",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1204 the non-null assertion `!` is not allowed"
+      "detail": "CS1221 `toFixed` on a number is not supported yet"
     },
     {
       "path": "tests/corpus/graph-dijkstra.ts",
       "category": "algorithms",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1204 the non-null assertion `!` is not allowed"
+      "detail": "CS1233 this type is a tuple type with different element types (`[string, number]`)"
     },
     {
       "path": "tests/corpus/hash-map.ts",
@@ -1830,7 +1830,7 @@
       "category": "simulation",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1204 the non-null assertion `!` is not allowed"
+      "detail": "CS1216 indexing a string with `[i]` is not supported yet"
     },
     {
       "path": "tests/corpus/lazy-sequence.ts",
@@ -1886,7 +1886,7 @@
       "category": "text",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1204 the non-null assertion `!` is not allowed"
+      "detail": "CS1222 `Map.entries` is not supported yet"
     },
     {
       "path": "tests/corpus/matrix-ops.ts",
@@ -1900,7 +1900,7 @@
       "category": "algorithms",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1204 the non-null assertion `!` is not allowed"
+      "detail": "CS1224 `Array.prototype.unshift` is not supported yet"
     },
     {
       "path": "tests/corpus/number-theory.ts",
@@ -1935,7 +1935,7 @@
       "category": "simulation",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1204 the non-null assertion `!` is not allowed"
+      "detail": "CS1221 `toFixed` on a number is not supported yet"
     },
     {
       "path": "tests/corpus/redux-store.ts",
@@ -2040,7 +2040,7 @@
       "category": "data-structures",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1204 the non-null assertion `!` is not allowed"
+      "detail": "CS1000 spreading an array into the arguments of `Math.max` is not supported"
     },
     {
       "path": "tests/corpus/temperature-table.ts",
@@ -2075,14 +2075,14 @@
       "category": "algorithms",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1204 the non-null assertion `!` is not allowed"
+      "detail": "CS1224 `Array.prototype.fill` is not supported yet"
     },
     {
       "path": "tests/corpus/traffic-sim.ts",
       "category": "simulation",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1204 the non-null assertion `!` is not allowed"
+      "detail": "CS1224 `Array.prototype.fill` is not supported yet"
     },
     {
       "path": "tests/corpus/trie-autocomplete.ts",
@@ -2145,7 +2145,7 @@
       "category": "algorithms",
       "outcome": "rejected",
       "knownBug": null,
-      "detail": "CS1204 the non-null assertion `!` is not allowed"
+      "detail": "CS1224 `Array.prototype.unshift` is not supported yet"
     },
     {
       "path": "tests/corpus/xml-lite.ts",

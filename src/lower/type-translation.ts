@@ -86,8 +86,12 @@ function collectClassDataFields(
 // A WeakMap keyed on ts.Type is safe across compilations: types belong to one Program.
 const objectShapeCache = new WeakMap<ts.Type, ValueType>();
 
-// The unions being translated right now, to detect a union reached again inside itself.
-const unionsInProgress = new Set<ts.Type>();
+// The unions being translated right now, each with the `shapesStarted` count at its entry. A union
+// reached again inside itself is infinite unless an object shape started in between: that shape
+// is memoized (objectShapeCache), so `interface N { next: N | null }` closes into a cycle, while
+// `type Json = ... | Json[]` (only arrays in between) would expand forever.
+const unionsInProgress = new Map<ts.Type, number>();
+let shapesStarted = 0;
 
 // Structural comparison with a depth bound. Object ValueTypes can be cyclic (see
 // objectShapeCache), so an unbounded structural walk would not terminate; beyond the bound two
@@ -286,6 +290,7 @@ export function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChe
         className: classIdOf(classDecl),
       };
       objectShapeCache.set(t, result);
+      shapesStarted++;
       const ordered = new Map<string, ValueType>();
       collectClassDataFields(t, node, checker, ordered);
       if (result.kind !== "object") ice("object shape placeholder was replaced");
@@ -301,6 +306,7 @@ export function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChe
       if (hit) return hit;
       const result: ValueType = { kind: "object", shape: { fields: [] } };
       objectShapeCache.set(t, result);
+      shapesStarted++;
       for (const sym of props) {
         let ft = valueTypeOfTsType(checker.getTypeOfSymbolAtLocation(sym, node), node, checker);
         // With exactOptionalPropertyTypes, `x?: T` has type T; the `?` is a symbol flag. Model
@@ -318,18 +324,20 @@ export function valueTypeOfTsType(t: ts.Type, node: ts.Node, checker: ts.TypeChe
   if (flags & ts.TypeFlags.Union) {
     // A union that contains itself through an array or function (`type Json = ... | Json[]`) has
     // no finite ValueType: only object types are memoized into a cyclic graph (objectShapeCache).
-    if (unionsInProgress.has(t)) {
+    const startedAt = unionsInProgress.get(t);
+    if (startedAt === shapesStarted) {
       throw new UnrepresentableTypeError(
         `a recursive union type (\`${checker.typeToString(t)}\`)`,
         "make the recursive part an object type: `interface Node { kind: string; children: Node[] }`",
       );
     }
-    unionsInProgress.add(t);
+    unionsInProgress.set(t, shapesStarted);
     let members: ValueType[];
     try {
       members = (t as ts.UnionType).types.map((m) => valueTypeOfTsType(m, node, checker));
     } finally {
-      unionsInProgress.delete(t);
+      if (startedAt === undefined) unionsInProgress.delete(t);
+      else unionsInProgress.set(t, startedAt);
     }
     // A member that is itself a Value (an erased `T` in `T | undefined`) contributes its members.
     if (members.some((m) => m.kind === "value")) {
@@ -464,6 +472,7 @@ function objectUnion(t: ts.Type, node: ts.Node, checker: ts.TypeChecker): ValueT
   if (hit) return hit;
   const result: ValueType = { kind: "object", shape: { fields: [] } };
   objectShapeCache.set(t, result);
+  shapesStarted++;
   for (const sym of checker.getPropertiesOfType(t)) {
     if (isMethodSymbol(sym)) continue;
     let ft = valueTypeOfTsType(checker.getTypeOfSymbolAtLocation(sym, node), node, checker);
