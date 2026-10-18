@@ -426,6 +426,18 @@ export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
         type: VT.string,
       };
     }
+    if (method === "toFixed") {
+      const digits = call.arguments[0];
+      return {
+        kind: "runtimeCall",
+        fn: "cs_num_to_fixed",
+        args: [
+          receiver,
+          digits ? lowerExpr(digits, ctx) : { kind: "numberLit", value: 0, type: VT.number },
+        ],
+        type: VT.string,
+      };
+    }
     return ice(`lower: unsupported number method .${method}`);
   }
   if (recvType.kind === "string") {

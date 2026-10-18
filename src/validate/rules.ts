@@ -266,8 +266,7 @@ export function tailoredRejection(
           "it needs UTF-16 code-unit semantics over UTF-8 storage; use charAt for now",
         );
       }
-      // Number formatting methods lowering doesn't have (toFixed's rounding ≠ JS half-away; the
-      // others are unimplemented). Type-guarded so a user method of the same name is unaffected.
+      // Number formatting methods lowering doesn't have. Type-guarded so a user method of the same name is unaffected.
       if (UNSUPPORTED_NUMBER_METHODS.has(pa.name.text) && isNumberTyped(pa.expression, checker)) {
         return hit(
           CODE.NUMBER_METHOD,
@@ -449,11 +448,7 @@ function isNumberTyped(expr: ts.Expression, checker: ts.TypeChecker): boolean {
   return (base.flags & ts.TypeFlags.Number) !== 0 || (t.flags & ts.TypeFlags.NumberLiteral) !== 0;
 }
 
-const UNSUPPORTED_NUMBER_METHODS: ReadonlySet<string> = new Set([
-  "toFixed",
-  "toPrecision",
-  "toExponential",
-]);
+const UNSUPPORTED_NUMBER_METHODS: ReadonlySet<string> = new Set(["toPrecision", "toExponential"]);
 
 // Map/Set instance methods lowering supports. `.size` is a property read, not a call — unaffected.
 export const COLLECTION_METHODS: Record<"map" | "set", ReadonlySet<string>> = {

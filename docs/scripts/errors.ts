@@ -163,9 +163,8 @@ export const EXPLANATIONS: Record<keyof typeof CODE, Entry> = {
   },
   NUMBER_METHOD: {
     title: "Unsupported number method",
-    meaning: "`toFixed`, `toPrecision` and `toExponential` are not supported yet.",
-    rewrite:
-      "Use `String(n)`, template interpolation, or round first: `Math.round(n * 100) / 100`.",
+    meaning: "`toPrecision` and `toExponential` are not supported yet (`toFixed` is).",
+    rewrite: "Use `n.toFixed(d)`, `String(n)` or template interpolation.",
     planned: true,
   },
   COLLECTION_METHOD: {
@@ -427,7 +426,7 @@ explains each code. The list is generated from the validator's code table, so it
 the compiler; a test fails if a code is missing here.
 
 \`\`\`text
-error[CS1221]: \`toFixed\` on a number is not supported yet
+error[CS1221]: \`toPrecision\` on a number is not supported yet
   --> format.ts:2:31
   help: build the string form manually, or use \`.toString()\` / template interpolation
 \`\`\`

@@ -30,7 +30,7 @@ instead of misbehaving:
   ([CS1215](/reference/errors#cs1215)).
 - Optional and default parameters ([CS1217](/reference/errors#cs1217)), `let x;` without an
   initializer ([CS1218](/reference/errors#cs1218)), getters, setters and access modifiers.
-- `toFixed` and the other number formatting methods ([CS1221](/reference/errors#cs1221)).
+- `toPrecision` and `toExponential` ([CS1221](/reference/errors#cs1221)).
 - Generics instantiated with arrays, maps or functions ([CS1242](/reference/errors#cs1242)),
   and monomorphization as a flag-gated optimization.
 - Optional chains longer than one `?.`, and `Map`/`Set` keyed by a union.

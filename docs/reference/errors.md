@@ -7,7 +7,7 @@ explains each code. The list is generated from the validator's code table, so it
 the compiler; a test fails if a code is missing here.
 
 ```text
-error[CS1221]: `toFixed` on a number is not supported yet
+error[CS1221]: `toPrecision` on a number is not supported yet
   --> format.ts:2:31
   help: build the string form manually, or use `.toString()` / template interpolation
 ```
@@ -246,13 +246,13 @@ A static on a built-in namespace (`Array.*`, `Number.*`, `Object.*`, `Promise.*`
 
 ## CS1221: Unsupported number method {#cs1221}
 
-`toFixed`, `toPrecision` and `toExponential` are not supported yet.
+`toPrecision` and `toExponential` are not supported yet (`toFixed` is).
 
-**Rewrite:** Use `String(n)`, template interpolation, or round first: `Math.round(n * 100) / 100`.
+**Rewrite:** Use `n.toFixed(d)`, `String(n)` or template interpolation.
 
 **Status:** planned to be admitted in a later phase.
 
-**Rejection tests:** [`number-toexponential.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/number-toexponential.ts), [`number-tofixed.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/number-tofixed.ts), [`number-toprecision.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/number-toprecision.ts)
+**Rejection tests:** [`number-toexponential.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/number-toexponential.ts), [`number-toprecision.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/number-toprecision.ts)
 
 ## CS1222: Unsupported `Map` / `Set` operation {#cs1222}
 

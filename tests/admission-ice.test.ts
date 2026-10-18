@@ -73,7 +73,7 @@ const CORPUS: Case[] = [
     src: `console.log(Object.assign({ a: 1 }, { b: 2 }));\n`,
   },
   { name: "Math.hypot", code: "CS1220", src: `console.log(Math.hypot(3, 4));\n` },
-  { name: "number.toFixed", code: "CS1221", src: `console.log((1.5).toFixed(2));\n` },
+  { name: "number.toPrecision", code: "CS1221", src: `console.log((1.5).toPrecision(2));\n` },
   {
     name: "map.entries",
     code: "CS1222",

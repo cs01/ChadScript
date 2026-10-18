@@ -29,7 +29,7 @@ export const CODE = {
   // CS1219 (a closure capturing a mutable `let`) was retired in phase 5: such bindings live in heap
   // cells (lower/cells.ts). The number stays unused so old diagnostics never change meaning.
   STDLIB_STATIC: "CS1220", // unsupported namespace static (Array.*/Number.*/Object.* beyond allow)
-  NUMBER_METHOD: "CS1221", // unsupported number instance method (toFixed/toPrecision/toExponential)
+  NUMBER_METHOD: "CS1221", // unsupported number instance method (toPrecision/toExponential)
   COLLECTION_METHOD: "CS1222", // unsupported Map/Set instance method (forEach/entries/clear/…)
   STRING_METHOD: "CS1223", // unsupported string instance method (normalize/localeCompare/match/…)
   ARRAY_METHOD: "CS1224", // unsupported array instance method (fill/copyWithin/splice/…)
