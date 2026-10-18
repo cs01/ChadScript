@@ -13,13 +13,13 @@ const num = (v: number): HExpr => ({ kind: "numberLit", value: v, type: numType 
 const mod = (topLevel: HStmt[]): HModule => ({ functions: [], topLevel, shapes: [] });
 
 test("accepts a well-formed module", () => {
-  const m = mod([{ kind: "consoleLog", values: [num(1), num(2)] }]);
+  const m = mod([{ kind: "consoleLog", values: [num(1), num(2)], toStderr: false }]);
   assert.doesNotThrow(() => verifyHir(m));
 });
 
 test("rejects an expression with no resolved type", () => {
   const typeless = { kind: "numberLit", value: 1 } as unknown as HExpr; // missing `type`
-  const m = mod([{ kind: "consoleLog", values: [typeless] }]);
+  const m = mod([{ kind: "consoleLog", values: [typeless], toStderr: false }]);
   assert.throws(() => verifyHir(m), /no resolved type/);
 });
 
@@ -84,7 +84,7 @@ test("accepts a boxed number stored in a Value-union variable and unboxed back",
   };
   const m = mod([
     { kind: "varDecl", name: "x", init: boxed, type: numOrStr },
-    { kind: "consoleLog", values: [read] },
+    { kind: "consoleLog", values: [read], toStderr: false },
   ]);
   assert.doesNotThrow(() => verifyHir(m));
 });

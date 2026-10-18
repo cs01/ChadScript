@@ -11,6 +11,14 @@ declare const console: {
    * is formatted per its type: numbers JS-exactly, booleans as "true"/"false", strings as-is.
    */
   log(...values: unknown[]): void;
+  /** Same as `log`. */
+  info(...values: unknown[]): void;
+  /** Same as `log`. */
+  debug(...values: unknown[]): void;
+  /** Formats exactly like `log`, onto stderr. */
+  error(...values: unknown[]): void;
+  /** Same as `error`. */
+  warn(...values: unknown[]): void;
 };
 
 declare const process: {
@@ -29,6 +37,12 @@ declare const process: {
    * concurrently running copy of the same program will collide on.
    */
   pid: number;
+  /**
+   * The exit status when the program ends without `process.exit`. Only assignment of an integer
+   * whose value tsc knows (`process.exitCode = 2`, or a `const` holding one) is supported: Node
+   * throws a RangeError for any other number, and reading it gives `undefined` until set.
+   */
+  exitCode: number;
 };
 
 /**

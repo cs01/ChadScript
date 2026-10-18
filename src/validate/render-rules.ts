@@ -173,12 +173,22 @@ export function renderWalker(
   }
 }
 
+// The console methods lowered as one formatted line (lower/statements.ts): log/info/debug to
+// stdout, error/warn to stderr, all with console.log's formatting.
+export const CONSOLE_LINE_METHODS: ReadonlySet<string> = new Set([
+  "log",
+  "info",
+  "debug",
+  "error",
+  "warn",
+]);
+
 // console.log(...) and JSON.stringify(...), matched by name exactly as lower matches them.
 function renderingMode(call: ts.CallExpression): Mode | null {
   const callee = call.expression;
   if (!ts.isPropertyAccessExpression(callee) || !ts.isIdentifier(callee.expression)) return null;
   const recv = callee.expression.text;
-  if (recv === "console" && callee.name.text === "log") return "inspect";
+  if (recv === "console" && CONSOLE_LINE_METHODS.has(callee.name.text)) return "inspect";
   if (recv === "JSON" && callee.name.text === "stringify") return "json";
   return null;
 }

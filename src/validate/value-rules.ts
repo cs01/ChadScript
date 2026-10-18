@@ -13,6 +13,7 @@
 //     is shared by reference: its slots hold raw doubles and the reader would decode them as Value
 //     words. Converting would need a copy, which changes aliasing, so the flow is rejected.
 
+import { CONSOLE_LINE_METHODS } from "./render-rules.js";
 import ts from "typescript";
 import type { Diagnostic } from "../diagnostics.js";
 import type { ValueType } from "../hir/types.js";
@@ -153,7 +154,8 @@ function valueUseProblem(e: ts.Expression, vt: ValueType, checker: ts.TypeChecke
     if (p.expression === at) return "calling a union";
     if (isUserCallee(p, checker)) return null;
     const name = calleeName(p);
-    if (name === "console.log" || name === "Array.isArray" || name === "Boolean") return null;
+    if (name === "Array.isArray" || name === "Boolean") return null;
+    if (name?.startsWith("console.") && CONSOLE_LINE_METHODS.has(name.slice(8))) return null;
     if (name === "JSON.stringify" && p.arguments[0] === at) return null;
     if (name === "String") {
       return hasStringForm(vt) ? null : "String() of a union that can hold a function";

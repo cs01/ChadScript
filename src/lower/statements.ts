@@ -343,9 +343,26 @@ export function lowerUpdateValue(
   };
 }
 
+// `process.exitCode` as an assignment target (validate/rules.ts admits only `= <integer>`).
+export function isProcessExitCode(e: ts.Expression): boolean {
+  return (
+    ts.isPropertyAccessExpression(e) &&
+    ts.isIdentifier(e.expression) &&
+    e.expression.text === "process" &&
+    e.name.text === "exitCode"
+  );
+}
+
 export function lowerAssignment(expr: ts.BinaryExpression, ctx: LowerCtx): HStmt {
   const op = expr.operatorToken.kind;
   const target = unparen(expr.left);
+  if (isProcessExitCode(target)) {
+    const value: HExpr = lowerExpr(expr.right, ctx);
+    return {
+      kind: "exprStmt",
+      expr: { kind: "runtimeCall", fn: "cs_set_exit_code", args: [value], type: VT.undefined },
+    };
+  }
   if (ts.isPropertyAccessExpression(target)) {
     return lowerMemberAssignment(target, op, expr.right, ctx);
   }
@@ -580,8 +597,16 @@ export function lowerCallStatement(call: ts.CallExpression, ctx: LowerCtx): HStm
 
   switch (target) {
     case "console.log":
+    case "console.info":
+    case "console.debug":
+    case "console.error":
+    case "console.warn":
       // Variadic: zero or more values, any supported type each.
-      return { kind: "consoleLog", values: call.arguments.map((a) => lowerExpr(a, ctx)) };
+      return {
+        kind: "consoleLog",
+        values: call.arguments.map((a) => lowerExpr(a, ctx)),
+        toStderr: target === "console.error" || target === "console.warn",
+      };
     case "process.exit": {
       const arg = call.arguments[0];
       if (call.arguments.length !== 1 || !arg) ice("lower: process.exit expects one argument");

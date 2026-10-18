@@ -142,7 +142,10 @@ export function lowerBuiltinValue(ref: ts.Expression, id: BuiltinId, ctx: LowerC
   const body: HStmt[] = [];
   const result = builtinCall(id, args);
   if (result === null) {
-    body.push({ kind: "consoleLog", values: args }, { kind: "return", value: null });
+    body.push(
+      { kind: "consoleLog", values: args, toStderr: false },
+      { kind: "return", value: null },
+    );
   } else if (ret === null) {
     body.push({ kind: "exprStmt", expr: result }, { kind: "return", value: null });
   } else {

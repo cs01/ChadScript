@@ -8,7 +8,7 @@ import { checkPromiseNew } from "./promise-rules.js";
 import { checkThrowUse } from "./throw-rules.js";
 import { checkCallSpread } from "./spread-rules.js";
 import { checkHostCall, checkSelfInitCapture } from "./host-rules.js";
-import { checkLibGlobalCall } from "./global-rules.js";
+import { checkLibGlobalCall, checkProcessExitCode } from "./global-rules.js";
 import { unionWithObject } from "./json-target-rules.js";
 import { checkCollectionNew } from "./collection-rules.js";
 import ts from "typescript";
@@ -235,6 +235,8 @@ export function tailoredRejection(
       const pa = node as ts.PropertyAccessExpression;
       const builtin = checkBuiltinValueRef(pa, hit, checker);
       if (builtin) return builtin;
+      const exitCode = checkProcessExitCode(pa, hit, checker);
+      if (exitCode) return exitCode;
       const chain = checkOptionalChain(pa, checker);
       if (chain)
         return hit(CODE.NOT_IN_SUBSET, chain, "test the value first: `x === undefined ? d : x.f`");

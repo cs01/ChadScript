@@ -8,10 +8,24 @@ from "./libc" import { fwrite }
 extern fn cs_stdout(): *u8
 extern fn cs_stderr(): *u8
 
+// Where console output goes: false for stdout (console.log/info/debug), true for stderr
+// (console.error/warn). Every console formatter writes through writeOut, so generated code flips
+// this around one console line instead of each printer taking a stream.
+var consoleToStderr: bool = false
+
+@externalLinkage
+pub fn cs_console_target(toStderr: i32) {
+    consoleToStderr = toStderr != 0
+}
+
 // fwrite by length, never fputs: a string may carry embedded NUL bytes.
 pub fn writeOut(p: *u8, n: i64) {
     unsafe {
-        fwrite(p, 1, n, cs_stdout())
+        if consoleToStderr {
+            fwrite(p, 1, n, cs_stderr())
+        } else {
+            fwrite(p, 1, n, cs_stdout())
+        }
     }
 }
 

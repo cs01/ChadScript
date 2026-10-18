@@ -113,7 +113,8 @@ export type ForOfSource =
 
 export type HStmt =
   // console.log of zero or more values, printed space-separated with a trailing newline.
-  | { kind: "consoleLog"; values: HExpr[] }
+  // `toStderr`: console.error/warn, which format exactly like console.log onto stderr.
+  | { kind: "consoleLog"; values: HExpr[]; toStderr: boolean }
   | { kind: "processExit"; code: HExpr }
   // A `let`/`const` binding with an initializer. `name` is unique per module (Phase 1 has a
   // single scope — the entry function). `type` is the variable's resolved type.

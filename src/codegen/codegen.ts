@@ -97,7 +97,7 @@ export function generate(hmod: HModule): string {
   // Drain the microtask queue before exit (async bodies suspended at `await` run to completion),
   // matching Node. A no-op when nothing async was queued.
   if (!ctx.fn.currentBlock.isTerminated) ctx.fn.callVoid("@cs_run_event_loop", []);
-  if (!ctx.fn.currentBlock.isTerminated) main.ret(imm(T.i32, 0));
+  if (!ctx.fn.currentBlock.isTerminated) main.ret(ctx.fn.call("@cs_exit_code", T.i32, []));
   return mod.render();
 }
 
@@ -452,7 +452,9 @@ function emitSwitch(stmt: Extract<HStmt, { kind: "switch" }>, ctx: Ctx): void {
 function emitStatement(stmt: HStmt, ctx: Ctx): void {
   switch (stmt.kind) {
     case "consoleLog": {
+      if (stmt.toStderr) ctx.fn.callVoid("@cs_console_target", [imm(T.i32, 1)]);
       emitConsoleLogLine(stmt.values, ctx);
+      if (stmt.toStderr) ctx.fn.callVoid("@cs_console_target", [imm(T.i32, 0)]);
       return;
     }
 

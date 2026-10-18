@@ -82,7 +82,7 @@ The general rejection. The compiler accepts a construct only when it has a rule 
 
 **Status:** planned to be admitted in a later phase.
 
-**Rejection tests:** [`assign-as-value.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/assign-as-value.ts), [`bigint-literal.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/bigint-literal.ts), [`call-spread-library.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/call-spread-library.ts) and 23 more
+**Rejection tests:** [`assign-as-value.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/assign-as-value.ts), [`bigint-literal.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/bigint-literal.ts), [`call-spread-library.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/call-spread-library.ts) and 24 more
 
 ## CS1201: `any` {#cs1201}
 

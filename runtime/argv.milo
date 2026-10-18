@@ -68,3 +68,17 @@ pub fn cs_argv_slice2(): *CsArray {
 pub fn cs_process_pid(): f64 {
     return getpid() as f64
 }
+
+// `process.exitCode = n`: the status main returns when the program ends normally. The validator
+// admits only integer-literal-typed values, so Node's RangeError for a non-integer never arises.
+var exitCode: i32 = 0
+
+@externalLinkage
+pub fn cs_set_exit_code(code: f64) {
+    exitCode = code as i32
+}
+
+@externalLinkage
+pub fn cs_exit_code(): i32 {
+    return exitCode
+}

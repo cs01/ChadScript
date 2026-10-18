@@ -15,6 +15,7 @@ export function declareRuntimeExterns(mod: ModuleBuilder): void {
   mod.declareExtern("cs_print_bool", T.void, [T.i32]);
   mod.declareExtern("cs_print_space", T.void, []);
   mod.declareExtern("cs_print_newline", T.void, []);
+  mod.declareExtern("cs_console_target", T.void, [T.i32]);
   mod.declareExtern("cs_to_int32", T.i32, [T.double]); // ECMAScript ToInt32 for bitwise ops
   mod.declareExtern("cs_str_concat", T.ptr, [T.ptr, T.ptr]);
   mod.declareExtern("cs_json_num", T.ptr, [T.double]);
@@ -102,6 +103,8 @@ export function declareRuntimeExterns(mod: ModuleBuilder): void {
   mod.declareExtern("cs_argv_slice2", T.ptr, []); // process.argv.slice(2)
   mod.declareExtern("cs_date_now", T.double, []); // Date.now()
   mod.declareExtern("cs_process_pid", T.double, []); // process.pid
+  mod.declareExtern("cs_set_exit_code", T.void, [T.double]); // process.exitCode = n
+  mod.declareExtern("cs_exit_code", T.i32, []);
   mod.declareExtern("cs_fs_read_file", T.ptr, [T.ptr]);
   mod.declareExtern("cs_fs_write_file", T.void, [T.ptr, T.ptr]);
   mod.declareExtern("cs_fs_append_file", T.void, [T.ptr, T.ptr]);
