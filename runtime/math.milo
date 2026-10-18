@@ -1,7 +1,7 @@
 // Math.* helpers whose JS semantics differ from libm. floor/ceil/trunc/fabs/sqrt/pow map directly
 // to libm and are called from generated IR; only these need custom logic.
 
-from "./abi" import { isNan, isFinite, signBit, f64FromBits, NEG_ZERO_BITS }
+from "./abi" import { CsArray, isNan, isFinite, signBit, f64FromBits, NEG_ZERO_BITS }
 
 extern fn floor(x: f64): f64
 
@@ -66,4 +66,32 @@ pub fn cs_math_min2(a: f64, b: f64): f64 {
         return if signBit(a) || signBit(b) { f64FromBits(NEG_ZERO_BITS) } else { 0.0 }
     }
     return a
+}
+
+// `Math.max(...xs)` / `Math.min(...xs)` over a number[] (slots hold the doubles' bits). Empty
+// yields the fold identity, as the spec's -Infinity / +Infinity start value does.
+@externalLinkage
+pub fn cs_math_max_array(a: *CsArray): f64 {
+    var acc = 0.0 - f64.INF
+    unsafe {
+        var i: i64 = 0
+        while i < a.len as i64 {
+            acc = cs_math_max2(acc, f64FromBits(a.data[i] as u64))
+            i = i + 1
+        }
+    }
+    return acc
+}
+
+@externalLinkage
+pub fn cs_math_min_array(a: *CsArray): f64 {
+    var acc = f64.INF
+    unsafe {
+        var i: i64 = 0
+        while i < a.len as i64 {
+            acc = cs_math_min2(acc, f64FromBits(a.data[i] as u64))
+            i = i + 1
+        }
+    }
+    return acc
 }

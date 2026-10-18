@@ -56,7 +56,7 @@ export function lowerMethodCall(call: ts.CallExpression, ctx: LowerCtx): HExpr {
     return {
       kind: "mathCall",
       fn: pa.name.text,
-      args: call.arguments.map((a) => lowerExpr(a, ctx)),
+      args: call.arguments.map((a) => lowerMathArg(pa.name.text, a, ctx)),
       type: VT.number,
     };
   }
@@ -518,5 +518,20 @@ function lowerCollectionVoid(
     collection,
     callback: adaptCallback(lowerExpr(call.arguments[0]!, ctx), passed),
     type: VT.undefined,
+  };
+}
+
+// A `Math.max`/`Math.min` argument. A spread `...xs` (validate admits only a `number[]` there)
+// becomes the array's own max/min, which the pairwise fold then combines with the other
+// arguments: max/min are associative and commutative even over NaN and the signed zeros, and an
+// empty array yields the fold's identity (-Infinity / Infinity).
+function lowerMathArg(fn: string, a: ts.Expression, ctx: LowerCtx): HExpr {
+  if (!ts.isSpreadElement(a)) return lowerExpr(a, ctx);
+  if (fn !== "max" && fn !== "min") return ice(`lower: spread into Math.${fn}`);
+  return {
+    kind: "runtimeCall",
+    fn: fn === "max" ? "cs_math_max_array" : "cs_math_min_array",
+    args: [lowerExpr(a.expression, ctx)],
+    type: VT.number,
   };
 }

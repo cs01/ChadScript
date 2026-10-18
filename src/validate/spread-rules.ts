@@ -1,7 +1,8 @@
 // `f(...xs)`: a spread argument is admitted only where it fills a rest parameter of one of the
-// program's own functions (lower packs it into the rest array). Library calls take a fixed list of
-// lowered arguments (`arr.push(...xs)`, `Math.max(...xs)`), so a spread there is rejected with the
-// loop or reduce that says the same thing.
+// program's own functions (lower packs it into the rest array), or spreads a `number[]` into
+// `Math.max` / `Math.min` (lower folds each spread with a runtime array reduction). Other library
+// calls take a fixed list of lowered arguments (`arr.push(...xs)`), so a spread there is rejected
+// with the loop that says the same thing.
 
 import ts from "typescript";
 import type { Diagnostic } from "../diagnostics.js";
@@ -29,6 +30,9 @@ export function checkCallSpread(
     return null;
   }
   const callee = call.expression.getText();
+  if ((callee === "Math.max" || callee === "Math.min") && isNumberArray(node.expression, checker)) {
+    return null;
+  }
   const own =
     last !== undefined && !last.getSourceFile().isDeclarationFile && !callee.startsWith("Math.");
   return hit(
@@ -41,4 +45,13 @@ export function checkCallSpread(
         : "pass the elements explicitly, or loop or reduce over the array " +
           "(`xs.reduce((m, x) => Math.max(m, x), -Infinity)`)",
   );
+}
+
+// A plain `number[]` (not a tuple, not a union element type): its slots are raw doubles, which is
+// what the runtime reduction reads.
+function isNumberArray(expr: ts.Expression, checker: ts.TypeChecker): boolean {
+  const t = checker.getTypeAtLocation(expr);
+  if (!checker.isArrayType(t)) return false;
+  const el = checker.getTypeArguments(t as ts.TypeReference)[0];
+  return el !== undefined && (el.flags & ts.TypeFlags.Number) !== 0;
 }
