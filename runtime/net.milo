@@ -25,6 +25,7 @@
 
 from "./abi" import { CsString, byteAt, memcpy }
 from "./csstring" import { cs_str_from, strLit }
+from "./ascii-gate" import { requireAscii }
 from "./gc" import { gcAllocStruct, gcAllocValues, gcAllocAtomic }
 from "./errors" import { CsThrown, cs_throw, thrownSetCode, cs_new_error_kind, ERR_ERROR }
 from "./libc" import {
@@ -631,6 +632,7 @@ fn onReadable(h: *NetHandle) {
             h.carryLen = total - keep
             total = keep
         }
+        requireAscii(buf, total, "data received on a socket")
         let chunk = cs_str_from(buf, total)
         free(buf)
         if total == 0 {

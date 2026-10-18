@@ -11,6 +11,7 @@ from "./csstring" import { cs_str_mk }
 from "./errors" import { throwError }
 from "./libc" import { fopen, fclose, fseek, ftell, rewind, fread, fwrite, access, unlink }
 from "./gc" import { gcAllocAtomic }
+from "./ascii-gate" import { requireAscii }
 
 let SEEK_END: i32 = 2
 
@@ -91,6 +92,7 @@ pub fn readFile(path: *CsString): FsResult {
         let buf = gcAllocAtomic(size + 1)
         let got = if size > 0 { fread(buf, 1, size, f) } else { 0 }
         fclose(f)
+        requireAscii(buf, got, "a file read as text")
         return ok(cs_str_mk(buf, got))
     }
 }

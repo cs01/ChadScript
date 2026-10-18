@@ -18,9 +18,11 @@ set of programs the compiler agrees to build.
 4. **Types decide the machine layout.** `number`, `string` and `boolean` are stored directly.
    A union of different kinds (`number | string`) carries a small type tag, and you narrow it
    (`typeof x === "number"`) before most operations.
-5. **Strings are UTF-8 and exact for ASCII.** Operations whose results depend on UTF-16 code
-   units (`charCodeAt`, `s[i]`, `<` on strings, non-ASCII literals) are rejected for now, not
-   approximated.
+5. **Strings are ASCII for now.** A non-ASCII string literal is rejected at compile time, and
+   non-ASCII text arriving at run time (a command-line argument, a file read as text, socket
+   data) stops the program with an error rather than being measured or indexed differently from
+   Node. Operations whose results depend on UTF-16 code units (`charCodeAt`, `s[i]`, `<` on
+   strings) are rejected for now, not approximated.
 
 ## Topics
 

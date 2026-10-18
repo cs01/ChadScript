@@ -32,3 +32,4 @@ from "./shape" import { cs_ic_get }
 from "./value" import { cs_value_strict_eq }
 from "./net" import { cs_net_listen }
 from "./netsys" import { resolveHost }
+from "./ascii-gate" import { requireAscii }

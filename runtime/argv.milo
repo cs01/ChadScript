@@ -9,7 +9,7 @@
 from "./abi" import { CsArray, byteAt }
 from "./csstring" import { cs_str_from }
 from "./array" import { cs_array_new, cs_array_push }
-from "./stdio" import { writeErrLit, writeErrInt }
+from "./ascii-gate" import { requireAscii }
 from "./libc" import { getpid }
 
 var gArgc: i32 = 0
@@ -43,19 +43,7 @@ pub fn cs_argv_slice2(): *CsArray {
         unsafe {
             let raw = gArgv[i as i64]
             let len = cstrLen(raw)
-            // Source literals are checked for non-ASCII at compile time (CS1216); the command line
-            // is the one runtime path that can smuggle a non-ASCII string in. Accepting it would
-            // make .length and every index-based method disagree with Node, so it fails LOUDLY.
-            var j: i64 = 0
-            while j < len {
-                if raw[j] > 127 {
-                    writeErrLit("chadscript: argument contains non-ASCII bytes, which this build cannot represent with JavaScript string semantics (argument index ")
-                    writeErrInt(i as i64)
-                    writeErrLit(")\n")
-                    exit(1)
-                }
-                j = j + 1
-            }
+            requireAscii(raw, len, "a command-line argument")
             cs_array_push(out, cs_str_from(raw, len) as i64)
         }
         i = i + 1

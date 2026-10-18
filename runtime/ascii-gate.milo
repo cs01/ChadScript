@@ -1,0 +1,24 @@
+// Strings are UTF-8 bytes indexed as bytes, which equals JavaScript's UTF-16 code-unit semantics
+// only for ASCII. Source literals are checked at compile time (CS1216); every runtime path that
+// turns outside bytes into a string (argv, file reads, socket data) passes them through here.
+// Accepting a non-ASCII byte would make .length and every index-based method silently disagree
+// with Node, so the program stops LOUDLY instead, and uncatchably: a catch would let it continue
+// down a path Node never takes.
+
+from "./abi" import { byteAt }
+from "./stdio" import { writeErrLit }
+
+pub fn requireAscii(p: *u8, n: i64, source: &string) {
+    var j: i64 = 0
+    unsafe {
+        while j < n {
+            if *byteAt(p, j) > 127 {
+                writeErrLit("chadscript: ")
+                writeErrLit(source)
+                writeErrLit(" contains non-ASCII bytes, which this build cannot represent with JavaScript string semantics\n")
+                exit(1)
+            }
+            j = j + 1
+        }
+    }
+}

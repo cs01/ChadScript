@@ -5,7 +5,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -51,6 +52,18 @@ test("run: a false non-null assertion throws a TypeError", () => {
     r.stderr,
     /TypeError: non-null assertion failed: `m.get\("missing"\)` is null or undefined/,
   );
+});
+
+// Strings are byte-indexed, which matches JavaScript only for ASCII, so non-ASCII text read at run
+// time must stop the program instead of yielding a different .length (runtime/ascii-gate.milo).
+test("run: a non-ASCII file read as text stops the program", () => {
+  const dir = mkdtempSync(join(tmpdir(), "chad-ascii-"));
+  const file = join(dir, "in.txt");
+  writeFileSync(file, "h\u00e9llo");
+  const r = chadRun(["run", join(root, "tests", "cli", "read-file-length.ts"), file]);
+  assert.equal(r.stdout, "");
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /a file read as text contains non-ASCII bytes/);
 });
 
 test("--version prints the package version and the pinned Milo commit", () => {
