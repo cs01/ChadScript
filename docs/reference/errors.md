@@ -242,7 +242,7 @@ A static on a built-in namespace (`Array.*`, `Number.*`, `Object.*`, `Promise.*`
 
 **Status:** planned to be admitted in a later phase.
 
-**Rejection tests:** [`array-from.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/array-from.ts), [`global-encode-uri.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/global-encode-uri.ts), [`math-hypot.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/math-hypot.ts) and 4 more
+**Rejection tests:** [`array-from.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/array-from.ts), [`global-encode-uri.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/global-encode-uri.ts), [`math-transcendental.ts`](https://github.com/cs01/ChadScript/blob/main/tests/fixtures/reject/math-transcendental.ts) and 4 more
 
 ## CS1221: Unsupported number method {#cs1221}
 

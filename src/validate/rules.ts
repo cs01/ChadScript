@@ -37,6 +37,7 @@ import {
 } from "./type-rules.js";
 import { checkBuiltinValueRef } from "./builtin-rules.js";
 import { checkForm } from "./form-rules.js";
+import { NAMESPACE_STATIC_ALLOW } from "./static-allow.js";
 
 export function tailoredRejection(
   node: ts.Node,
@@ -743,22 +744,6 @@ function isClassInstanceType(t: ts.Type): boolean {
   const vd = t.symbol?.valueDeclaration;
   return vd !== undefined && ts.isClassDeclaration(vd);
 }
-
-// Static (namespace) methods lowering supports, per global. A call `X.m(...)` with `X` in this
-// table and `m` absent from its set is rejected (CS1220). Empty set = no static of that global is
-// supported yet. Instance methods and the `X(...)` conversion calls are NOT gated here.
-export const NAMESPACE_STATIC_ALLOW: Record<string, ReadonlySet<string>> = {
-  Object: new Set(["keys", "values"]),
-  Date: new Set(["now"]),
-  Array: new Set(["isArray"]),
-  Number: new Set(["isInteger", "isFinite", "isNaN"]),
-  // Math methods codegen actually lowers (evalMathCall). Others (hypot/pow/random/sin/…) ICE, so
-  // reject them here. Math CONSTANTS (Math.PI) are property reads, not calls — unaffected.
-  Math: new Set(["floor", "ceil", "trunc", "abs", "sqrt", "round", "sign", "pow", "max", "min"]),
-  // Promise statics codegen lowers. `race`/`allSettled`/`reject` are later slices, so they reject
-  // here until implemented.
-  Promise: new Set(["resolve", "all"]),
-};
 
 // Whether `node` is the `.slice(2)` call wrapping a `process.argv` access — i.e. the one admitted
 // shape. `node` is the parent of the `process.argv` property access.

@@ -2,6 +2,7 @@
 // to libm and are called from generated IR; only these need custom logic.
 
 from "./abi" import { CsArray, isNan, isFinite, signBit, f64FromBits, NEG_ZERO_BITS }
+from "./number" import { cs_to_int32 }
 
 extern fn floor(x: f64): f64
 
@@ -94,4 +95,31 @@ pub fn cs_math_min_array(a: *CsArray): f64 {
         }
     }
     return acc
+}
+
+// JS Math.imul: the low 32 bits of the product of ToInt32(a) and ToInt32(b), as a signed int.
+// The full product of two 32-bit values fits in i64, so the multiply cannot overflow before the
+// mask.
+@externalLinkage
+pub fn cs_math_imul(a: f64, b: f64): f64 {
+    let p = (cs_to_int32(a) as i64) * (cs_to_int32(b) as i64)
+    return ((p & 0xFFFFFFFF) as u32 as i32) as f64
+}
+
+// JS Math.clz32: leading zero bits of ToUint32(x); 32 for 0.
+@externalLinkage
+pub fn cs_math_clz32(x: f64): f64 {
+    var v = (cs_to_int32(x) as i64) & 0xFFFFFFFF
+    var n: i64 = 32
+    while v != 0 {
+        v = v >> 1
+        n = n - 1
+    }
+    return n as f64
+}
+
+// JS Math.fround: round to the nearest binary32 (ties to even, as the IEEE conversion does).
+@externalLinkage
+pub fn cs_math_fround(x: f64): f64 {
+    return (x as f32) as f64
 }

@@ -37,7 +37,11 @@ type MathFn =
   | "trunc"
   | "max"
   | "min"
-  | "pow";
+  | "pow"
+  | "imul"
+  | "clz32"
+  | "fround"
+  | "hypot";
 const MATH_FNS: ReadonlySet<string> = new Set([
   "abs",
   "ceil",
@@ -49,6 +53,10 @@ const MATH_FNS: ReadonlySet<string> = new Set([
   "max",
   "min",
   "pow",
+  "imul",
+  "clz32",
+  "fround",
+  "hypot",
 ]);
 const GLOBALS: ReadonlySet<string> = new Set([
   "String",
@@ -104,8 +112,10 @@ export function builtinValueProblem(id: BuiltinId, use: ValueType | null): strin
       return use.ret === null ? null : "its result (undefined) is used";
     case "Math.max":
     case "Math.min":
+    case "Math.hypot":
       return p.every((t) => t.kind === "number") ? null : "its arguments here are not all numbers";
     case "Math.pow":
+    case "Math.imul":
       return p.length >= 2 && p[0]!.kind === "number" && p[1]!.kind === "number"
         ? null
         : "it is not given two numbers here";
@@ -190,8 +200,8 @@ function builtinCall(id: BuiltinId, args: HExpr[]): HExpr | null {
       return null;
     default: {
       const fn = id.slice("Math.".length);
-      const variadic = fn === "max" || fn === "min";
-      const arity = fn === "pow" ? 2 : 1;
+      const variadic = fn === "max" || fn === "min" || fn === "hypot";
+      const arity = fn === "pow" || fn === "imul" ? 2 : 1;
       return {
         kind: "mathCall",
         fn,

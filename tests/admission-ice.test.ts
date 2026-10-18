@@ -72,7 +72,7 @@ const CORPUS: Case[] = [
     code: "CS1220",
     src: `console.log(Object.assign({ a: 1 }, { b: 2 }));\n`,
   },
-  { name: "Math.hypot", code: "CS1220", src: `console.log(Math.hypot(3, 4));\n` },
+  { name: "Math.sin", code: "CS1220", src: `console.log(Math.sin(1));\n` },
   { name: "number.toPrecision", code: "CS1221", src: `console.log((1.5).toPrecision(2));\n` },
   {
     name: "map.entries",

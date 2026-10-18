@@ -12,12 +12,8 @@ import {
   SUPPORTED_BINARY_OPS,
   SUPPORTED_UNARY_OPS,
 } from "../src/validate/validate.js";
-import {
-  STRING_METHODS,
-  ARRAY_METHODS,
-  COLLECTION_METHODS,
-  NAMESPACE_STATIC_ALLOW,
-} from "../src/validate/rules.js";
+import { STRING_METHODS, ARRAY_METHODS, COLLECTION_METHODS } from "../src/validate/rules.js";
+import { NAMESPACE_STATIC_ALLOW } from "../src/validate/static-allow.js";
 import { CODE } from "../src/validate/codes.js";
 
 const kindNames = (set: ReadonlySet<ts.SyntaxKind>): string[] =>

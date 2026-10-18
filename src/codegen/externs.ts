@@ -51,6 +51,9 @@ export function declareRuntimeExterns(mod: ModuleBuilder): void {
   mod.declareExtern("cs_math_min2", T.double, [T.double, T.double]);
   mod.declareExtern("cs_math_max_array", T.double, [T.ptr]); // Math.max(...xs)
   mod.declareExtern("cs_math_min_array", T.double, [T.ptr]);
+  mod.declareExtern("cs_math_imul", T.double, [T.double, T.double]);
+  mod.declareExtern("cs_math_clz32", T.double, [T.double]);
+  mod.declareExtern("cs_math_fround", T.double, [T.double]);
   // String methods.
   mod.declareExtern("cs_str_len", T.i32, [T.ptr]);
   for (const f of [
