@@ -3,4 +3,4 @@
 # docs/breaking-changes.md in the milo repo. The commit must be reachable on the upstream remote
 # (CI fetches it by sha).
 MILO_REPO="https://github.com/milo-language/milo"
-MILO_COMMIT="ba9484985954aa8ecd7df24517dede04e7484a0a"
+MILO_COMMIT="424c7e18b8dbf858ef42dd999b81122be728e342"

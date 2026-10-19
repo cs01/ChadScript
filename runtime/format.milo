@@ -44,7 +44,10 @@ pub fn cs_console_format(firstIsString: i32, first: *CsString, nargs: i32, thunk
                         }
                         // %c consumes its argument (a CSS string in browsers) and prints nothing.
                         if c != 'c' {
-                            sbStr(out, thunk(env, a, c as i32))
+                            // The thunk is generated per call site and only reads `env`.
+                            unsafe {
+                                sbStr(out, thunk(env, a, c as i32))
+                            }
                         }
                         lastPos = i + 1
                     } else if c == '%' {
@@ -73,7 +76,9 @@ pub fn cs_console_format(firstIsString: i32, first: *CsString, nargs: i32, thunk
         if a == 0 && firstIsString != 0 {
             sbStr(out, first)
         } else {
-            sbStr(out, thunk(env, a, 0))
+            unsafe {
+                sbStr(out, thunk(env, a, 0))
+            }
         }
         join = true
         a = a + 1

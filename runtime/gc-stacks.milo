@@ -43,7 +43,10 @@ fn grow() {
 
 // Slot 0 is the main stack.
 pub fn gcStacksInit() {
-    let top = cs_stack_top()
+    var top: i64 = 0
+    unsafe {
+        top = cs_stack_top()
+    }
     gcStackNew(top)
     gCur = 0
 }

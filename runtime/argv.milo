@@ -54,7 +54,9 @@ pub fn cs_argv_slice2(): *CsArray {
 // `process.pid`. A JS number, so a double crosses the ABI; pids are far below 2^53.
 @externalLinkage
 pub fn cs_process_pid(): f64 {
-    return getpid() as f64
+    unsafe {
+        return getpid() as f64
+    }
 }
 
 // `process.exitCode = n`: the status main returns when the program ends normally. The validator

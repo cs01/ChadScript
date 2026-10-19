@@ -74,7 +74,7 @@ function headerContents(): Buffer[] {
 // the Milo runtime too (`--sanitize` marks every function sanitize_address, which is what makes
 // clang's ASan pass touch IR input; UBSan checks are inserted by clang's C frontend, so the Milo
 // code gets ASan but not UBSan).
-const MILO_EMIT_FLAGS = ["emit-ir", ...(SANITIZE ? ["--sanitize"] : [])];
+const MILO_EMIT_FLAGS = ["emit-ir", "--deny=extern-call", ...(SANITIZE ? ["--sanitize"] : [])];
 
 // Every .milo under runtime/ is hashed into the key, not just the root: an edit to any imported
 // module must rebuild the unit. Sorted so the key is independent of readdir order.

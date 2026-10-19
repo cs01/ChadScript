@@ -370,7 +370,9 @@ fn growHeap() {
     while b >= 0 {
         let blk = c + b * BLOCK_BYTES
         zero(blk, FIRST_BYTE)
-        cs_gc_poison(blk + FIRST_BYTE, BLOCK_BYTES - FIRST_BYTE)
+        unsafe {
+            cs_gc_poison(blk + FIRST_BYTE, BLOCK_BYTES - FIRST_BYTE)
+        }
         pushFree(blk)
         b = b - 1
     }
@@ -407,7 +409,9 @@ fn nextHole(): bool {
                 gLine = e
                 gCur = gBlock + l * LINE_BYTES
                 gLim = gBlock + e * LINE_BYTES
-                cs_gc_unpoison(gCur, gLim - gCur)
+                unsafe {
+                    cs_gc_unpoison(gCur, gLim - gCur)
+                }
                 zero(gCur, gLim - gCur)
                 gAllocSince = gAllocSince + (gLim - gCur)
                 return true
@@ -468,7 +472,9 @@ fn blockSpace(total: i64, align16: bool): i64 {
                 let blk = ld(gFree as i64 + gNFree * 8)
                 gOvCur = blk + FIRST_BYTE
                 gOvLim = blk + BLOCK_BYTES
-                cs_gc_unpoison(gOvCur, gOvLim - gOvCur)
+                unsafe {
+                    cs_gc_unpoison(gOvCur, gOvLim - gOvCur)
+                }
                 zero(gOvCur, gOvLim - gOvCur)
                 gAllocSince = gAllocSince + (gOvLim - gOvCur)
             }
@@ -797,14 +803,21 @@ fn markRoots() {
     unsafe {
         _setjmp(regs[0].addrOf() as *u8)
     }
-    let sp = cs_sp()
+    var sp: i64 = 0
+    unsafe {
+        sp = cs_sp()
+    }
     var i: i64 = 0
     while i < gcStackCount() {
         visit(gcStackCtx(i))
-        cs_gc_scan(gcStackLo(i, sp), gcStackTop(i), gHeapLo, gHeapHi, visitRoot)
+        unsafe {
+            cs_gc_scan(gcStackLo(i, sp), gcStackTop(i), gHeapLo, gHeapHi, visitRoot)
+        }
         i = i + 1
     }
-    cs_gc_scan(cs_gc_data_lo(), cs_gc_data_hi(), gHeapLo, gHeapHi, visitRoot)
+    unsafe {
+        cs_gc_scan(cs_gc_data_lo(), cs_gc_data_hi(), gHeapLo, gHeapHi, visitRoot)
+    }
     drain()
     // A use after the trace, so `regs` stays in this frame until it is done.
     if regs[0] == 1 && regs[1] == 2 {
@@ -845,7 +858,9 @@ fn poisonFreeLines(blk: i64) {
                     memset(lo as *u8, 171, n)
                 }
             }
-            cs_gc_poison(lo, n)
+            unsafe {
+                cs_gc_poison(lo, n)
+            }
             l = e
         }
     }
